@@ -1,0 +1,37 @@
+{
+  "dependencies": {
+    "@angular/common": "^20.1.4",
+    "@angular/compiler": "^20.1.4",
+    "@angular/core": "^20.1.4",
+    "@angular/forms": "^20.1.4",
+    "@angular/platform-browser": "^20.1.4",
+    "@angular/router": "^20.1.4",
+    "@primeuix/themes": "^2.0.3",
+    "@tailwindcss/postcss": "^4.2.2",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
+    "postcss": "^8.5.10",
+    "primeng": "^21.1.6",
+    "rxjs": "~7.8.2",
+    "tailwindcss": "^4.2.2",
+    "tslib": "^2.8.1",
+    "zone.js": "~0.15.1"
+  },
+  "devDependencies": {
+    "@angular/build": "^20.1.4",
+    "@angular/cli": "^20.1.4",
+    "@angular/compiler-cli": "^20.1.4",
+    "@tauri-apps/cli": "^2",
+    "typescript": "~5.8.3"
+  },
+  "name": "alpine",
+  "private": true,
+  "scripts": {
+    "build": "ng build",
+    "ng": "ng",
+    "start": "ng serve",
+    "tauri": "tauri",
+    "watch": "ng build --watch --configuration development"
+  },
+  "version": "0.1.0"
+}
