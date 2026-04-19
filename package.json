@@ -10,6 +10,7 @@
     "@tailwindcss/postcss": "^4.2.2",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
+    "@workos-inc/authkit-js": "^0.20.0",
     "postcss": "^8.5.10",
     "primeng": "^21.1.6",
     "rxjs": "~7.8.2",

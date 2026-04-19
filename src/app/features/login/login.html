@@ -1,1 +1,37 @@
-<p>login works!</p>
+<div class="flex flex-col md:flex-row w-screen h-screen">
+    <div class="h-screen hidden md:flex flex-col gap-2 w-[50%]">
+        <p>Alpine</p>
+        <h1>Connect with Your Community</h1>
+        <p>experience stuff</p>
+    </div>
+    <div class="h-screen w-full md:w-[50%] flex justify-center items-center">
+        <p-card class="flex flex-col gap-2 h-full w-full md:h-[unset] md:w-[unset]">
+            @if (!isLoginMode()) {
+                <div class="flex flex-col gap-2">
+                    <h2>Register</h2>
+                    <input pInputText type="text" placeholder="Username" />
+
+                    <p-date-picker placeholder="Date of birth"></p-date-picker>
+                    <input pPassword type="password" placeholder="Password" />
+                    <input pPassword type="password" placeholder="Confirm Password" />
+
+                    <p-button label="Registrieren" />
+
+                    <p-button [variant]="'outlined'" (onClick)="isLoginMode.set(true)">You have an account? Login</p-button>
+                </div>
+            } @else {
+                <div class="flex flex-col gap-2">
+                    <h2>Login</h2>
+                    <input pInputText type="text" placeholder="Username" />
+
+                    <input pPassword type="password" placeholder="Password" />
+
+                    <p-button label="Login" />
+
+                    <p-button [variant]="'outlined'" (onClick)="isLoginMode.set(false)">You don't have an account? Register</p-button>
+                </div>
+            }
+
+        </p-card>
+    </div>
+</div>
