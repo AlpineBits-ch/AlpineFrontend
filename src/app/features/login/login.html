@@ -9,24 +9,25 @@
             @if (!isLoginMode()) {
                 <div class="flex flex-col gap-2">
                     <h2>Register</h2>
-                    <input pInputText type="text" placeholder="Username" />
+                    <input [formField]="registerForm.username" pInputText type="text" placeholder="Username" />
+                    <input [formField]="registerForm.email" pInputText type="text" placeholder="Email" />
 
                     <p-date-picker placeholder="Date of birth"></p-date-picker>
-                    <input pPassword type="password" placeholder="Password" />
+                    <input [formField]="registerForm.password" pPassword type="password" placeholder="Password" />
                     <input pPassword type="password" placeholder="Confirm Password" />
 
-                    <p-button label="Registrieren" />
+                    <p-button (onClick)="register()" label="Registrieren" />
 
                     <p-button [variant]="'outlined'" (onClick)="isLoginMode.set(true)">You have an account? Login</p-button>
                 </div>
             } @else {
                 <div class="flex flex-col gap-2">
                     <h2>Login</h2>
-                    <input pInputText type="text" placeholder="Username" />
+                    <input pInputText [formField]="loginForm.username" type="text" placeholder="Username" />
 
-                    <input pPassword type="password" placeholder="Password" />
+                    <input pPassword [formField]="loginForm.password" type="password" placeholder="Password" />
 
-                    <p-button label="Login" />
+                    <p-button (onClick)="login()" label="Login" />
 
                     <p-button [variant]="'outlined'" (onClick)="isLoginMode.set(false)">You don't have an account? Register</p-button>
                 </div>

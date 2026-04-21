@@ -8,7 +8,7 @@ import {Button} from "primeng/button";
 import {AuthService} from "../../services/auth-service";
 import {emit} from "@tauri-apps/api/event";
 import {tap} from "rxjs";
-import {form} from "@angular/forms/signals";
+import {form, FormField} from "@angular/forms/signals";
 
 
 interface LoginModel {
@@ -29,7 +29,8 @@ interface RegisterModel {
     DatePicker,
     InputText,
     PasswordDirective,
-    Button
+    Button,
+    FormField
   ],
   templateUrl: './login.html',
   styleUrl: './login.css',
