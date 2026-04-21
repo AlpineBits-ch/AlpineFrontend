@@ -8,10 +8,11 @@ import {Button} from "primeng/button";
 import {AuthService} from "../../services/auth-service";
 import {emit} from "@tauri-apps/api/event";
 import {tap} from "rxjs";
+import {form} from "@angular/forms/signals";
 
 
 interface LoginModel {
-  email: string;
+  username: string;
   password: string;
 }
 
@@ -19,6 +20,7 @@ interface RegisterModel {
   email: string;
   password: string;
   birthdate: Date;
+  username: string;
 }
 @Component({
   selector: 'app-login',
@@ -36,13 +38,24 @@ export class Login {
   protected isLoginMode = signal(false);
   protected authService = inject(AuthService);
 
-  protected loginModel = signal<LoginModel>({email: '', password: ''});
-  protected registerModel = signal<RegisterModel>({email: '', password: '', birthdate: new Date()});
+  protected loginModel = signal<LoginModel>({username: '', password: ''});
+  protected registerModel = signal<RegisterModel>({username: '',email: '', password: '', birthdate: new Date()});
 
   protected loginForm = form(this.loginModel);
+  protected registerForm = form(this.registerModel);
 
   constructor() {
-    this.authService.register('dominic.jaermann@icloud.com', '$T3st4ng', new Date()).pipe(tap(d => {
+
+  }
+
+
+  protected login(){
+    this.authService.login(this.loginModel().username, this.loginModel().password).pipe(tap(d => {
+      console.log(d);
+    })).subscribe();
+  }
+  protected register(){
+    this.authService.register(this.registerModel().email, this.registerModel().password, this.registerModel().birthdate).pipe(tap(d => {
       console.log(d);
     })).subscribe();
   }

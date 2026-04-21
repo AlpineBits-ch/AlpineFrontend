@@ -12,4 +12,7 @@ export class AuthService {
   public register(email:string, password:string, birthdate: Date): Observable<unknown>{
     return this.http.post(`${environment.apiUrl}/api/v1/authentication/register`, {email, password, birthdate});
   }
+  public login(email:string, password:string): Observable<unknown>{
+    return this.http.post(`${environment.apiUrl}/api/v1/authentication/login`, {email, password});
+  }
 }
