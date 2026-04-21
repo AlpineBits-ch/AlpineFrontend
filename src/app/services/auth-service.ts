@@ -9,7 +9,7 @@ import {environment} from "../../environments/environment";
 export class AuthService {
   private http = inject(HttpClient);
 
-  public register(email:string, password:string): Observable<unknown>{
-    return this.http.post(`${environment.apiUrl}/api/v1/authentication/register`, {email, password});
+  public register(email:string, password:string, birthdate: Date): Observable<unknown>{
+    return this.http.post(`${environment.apiUrl}/api/v1/authentication/register`, {email, password, birthdate});
   }
 }
