@@ -27,7 +27,7 @@
 
                     <input pPassword [formField]="loginForm.password" type="password" placeholder="Password" />
 
-                    <p-button (onClick)="login()" label="Login" />
+                    <p-button (onClick)="login().subscribe()" label="Login" />
 
                     <p-button [variant]="'outlined'" (onClick)="isLoginMode.set(false)">You don't have an account? Register</p-button>
                 </div>
