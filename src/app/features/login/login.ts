@@ -7,8 +7,9 @@ import {PasswordDirective} from "primeng/password";
 import {Button} from "primeng/button";
 import {AuthService} from "../../services/auth-service";
 import {emit} from "@tauri-apps/api/event";
-import {tap} from "rxjs";
+import {catchError, Observable, tap, throwError} from "rxjs";
 import {form, FormField} from "@angular/forms/signals";
+import {TokenResponse} from "angular-oauth2-oidc";
 
 
 interface LoginModel {
@@ -50,11 +51,23 @@ export class Login {
   }
 
 
-  protected login(){
-
-    this.authService.login(this.loginModel().username, this.loginModel().password).then((d => {
-      console.log(d);
-    }))
+  protected login(): Observable<TokenResponse> {
+    // 1. Call the service (which now returns an Observable)
+    return this.authService.login(
+        this.loginModel().username,
+        this.loginModel().password
+    ).pipe(
+        // 2. Use tap for side effects like logging
+        tap((data) => {
+          console.log('Login successful:', data);
+          // You could also perform navigation or state updates here
+        }),
+        // 3. Optional: handle specific local errors
+        catchError((err) => {
+          console.error('Login error in component:', err);
+          return throwError(() => err);
+        })
+    );
   }
   protected register(){
     this.authService.register(this.registerModel().email, this.registerModel().username, this.registerModel().password, this.registerModel().birthdate).pipe(tap(d => {
