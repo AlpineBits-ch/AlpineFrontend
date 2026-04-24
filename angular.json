@@ -78,7 +78,17 @@
       "root": "",
       "schematics": {
         "@schematics/angular:component": {
-          "style": "css"
+          "style": "css",
+          "type": "component"
+        },
+        "@schematics/angular:service": {
+          "type": "service"
+        },
+        "@schematics/angular:directive": {
+          "type": "directive"
+        },
+        "@schematics/angular:pipe": {
+          "type": "pipe"
         }
       },
       "sourceRoot": "src"

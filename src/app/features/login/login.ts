@@ -5,7 +5,7 @@ import {DatePicker} from "primeng/datepicker";
 import {InputText} from "primeng/inputtext";
 import {PasswordDirective} from "primeng/password";
 import {Button} from "primeng/button";
-import {AuthService} from "../../services/auth-service";
+import {AuthService} from "../../services/auth.service";
 import {emit} from "@tauri-apps/api/event";
 import {catchError, Observable, tap, throwError} from "rxjs";
 import {form, FormField} from "@angular/forms/signals";

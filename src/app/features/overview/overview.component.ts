@@ -1,5 +1,5 @@
 import {Component, inject} from '@angular/core';
-import {AuthService} from "../../services/auth-service";
+import {AuthService} from "../../services/auth.service";
 import {Router} from "@angular/router";
 import {Button} from "primeng/button";
 
@@ -8,10 +8,10 @@ import {Button} from "primeng/button";
   imports: [
     Button
   ],
-  templateUrl: './overview.html',
-  styleUrl: './overview.css',
+  templateUrl: './overview.component.html',
+  styleUrl: './overview.component.css',
 })
-export class Overview {
+export class OverviewComponent {
   protected  authService = inject(AuthService);
 
   protected router = inject(Router);
