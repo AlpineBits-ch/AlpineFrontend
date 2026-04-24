@@ -51,12 +51,13 @@ export class Login {
 
 
   protected login(){
-    this.authService.login(this.loginModel().username, this.loginModel().password).pipe(tap(d => {
+
+    this.authService.login(this.loginModel().username, this.loginModel().password).then((d => {
       console.log(d);
-    })).subscribe();
+    }))
   }
   protected register(){
-    this.authService.register(this.registerModel().email, this.registerModel().password, this.registerModel().birthdate).pipe(tap(d => {
+    this.authService.register(this.registerModel().email, this.registerModel().username, this.registerModel().password, this.registerModel().birthdate).pipe(tap(d => {
       console.log(d);
     })).subscribe();
   }

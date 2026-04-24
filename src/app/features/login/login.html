@@ -12,7 +12,7 @@
                     <input [formField]="registerForm.username" pInputText type="text" placeholder="Username" />
                     <input [formField]="registerForm.email" pInputText type="text" placeholder="Email" />
 
-                    <p-date-picker placeholder="Date of birth"></p-date-picker>
+                    <p-date-picker [formField]="$any(registerForm.birthdate)" placeholder="Date of birth"></p-date-picker>
                     <input [formField]="registerForm.password" pPassword type="password" placeholder="Password" />
                     <input pPassword type="password" placeholder="Confirm Password" />
 
