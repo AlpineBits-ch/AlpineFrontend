@@ -10,6 +10,7 @@ import {emit} from "@tauri-apps/api/event";
 import {catchError, Observable, tap, throwError} from "rxjs";
 import {form, FormField} from "@angular/forms/signals";
 import {TokenResponse} from "angular-oauth2-oidc";
+import {Router} from "@angular/router";
 
 
 interface LoginModel {
@@ -39,6 +40,7 @@ interface RegisterModel {
 export class Login {
   protected isLoginMode = signal(false);
   protected authService = inject(AuthService);
+  protected router = inject(Router);
 
   protected loginModel = signal<LoginModel>({username: '', password: ''});
   protected registerModel = signal<RegisterModel>({username: '',email: '', password: '', birthdate: new Date()});
@@ -47,7 +49,9 @@ export class Login {
   protected registerForm = form(this.registerModel);
 
   constructor() {
-
+    if(this.authService.isLoggedIn()){
+      this.router.navigate(['/overview']);
+    }
   }
 
 
@@ -60,7 +64,7 @@ export class Login {
         // 2. Use tap for side effects like logging
         tap((data) => {
           console.log('Login successful:', data);
-          // You could also perform navigation or state updates here
+          this.router.navigate(['/overview']);
         }),
         // 3. Optional: handle specific local errors
         catchError((err) => {

@@ -34,4 +34,8 @@ export class AuthService {
   public logout() {
     this.oauthService.logOut();
   }
+
+  public isLoggedIn(): boolean {
+    return this.oauthService.hasValidAccessToken();
+  }
 }
