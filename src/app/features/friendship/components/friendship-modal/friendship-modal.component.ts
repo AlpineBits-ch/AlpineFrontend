@@ -1,6 +1,6 @@
 import {Component, inject, input, model, signal} from '@angular/core';
 import {Dialog} from "primeng/dialog";
-import {RelationshipModel} from "./dto/relationship.model";
+import {RelationshipModel, RelationshipStatus} from "./dto/relationship.model";
 import {Button} from "primeng/button";
 import {Fieldset} from "primeng/fieldset";
 import {Tag} from "primeng/tag";
@@ -52,4 +52,6 @@ export class FriendshipModalComponent {
       console.log(d);
     })
   }
+
+    protected readonly RelationshipStatus = RelationshipStatus;
 }

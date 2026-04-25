@@ -52,7 +52,8 @@
               "zone.js"
             ],
             "styles": [
-              "src/styles.css"
+              "src/styles.css",
+              "node_modules/primeicons/primeicons.css"
             ],
             "tsConfig": "tsconfig.app.json"
           }

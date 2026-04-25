@@ -14,6 +14,7 @@
     "@tauri-apps/plugin-opener": "^2",
     "@workos-inc/authkit-js": "^0.20.0",
     "angular-oauth2-oidc": "^20.0.2",
+    "primeicons": "^7.0.0",
     "primeng": "^21.1.6",
     "rxjs": "~7.8.2",
     "tailwindcss": "^4.2.2",
