@@ -15,9 +15,9 @@ export class RelationshipService {
     return this.httpClient.get<RelationshipModel[]>(environment.apiUrl+'/api/v1/social/relationships');
   }
 
-  public createFriendRequest(profileId: string): Observable<RelationshipModel> {
+  public createFriendRequest(username: string, hash: number): Observable<RelationshipModel> {
     return this.httpClient.post<RelationshipModel>(environment.apiUrl+'/api/v1/social/relationships', {
-      profileId
+      username, hash
     });
   }
 

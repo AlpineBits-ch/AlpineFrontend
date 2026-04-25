@@ -4,6 +4,7 @@
         <div class="flex flex-row gap-2 items-start">
             <input pInputText type="text" placeholder="Add a friend (user#hash)" />
             <p-button label="Add" (onClick)="notifyUser().then()" ></p-button>
+            <p-button label="Logout" (onClick)="logout()" ></p-button>
             <app-friendship-modal [isVisible]="true"></app-friendship-modal>
         </div>
 

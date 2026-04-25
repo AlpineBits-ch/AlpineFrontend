@@ -1,8 +1,9 @@
-import { Component } from '@angular/core';
+import {Component, inject} from '@angular/core';
 import {InputText} from "primeng/inputtext";
 import {Button} from "primeng/button";
 import {isPermissionGranted, requestPermission, sendNotification} from "@tauri-apps/plugin-notification";
 import {FriendshipModalComponent} from "../../../friendship/components/friendship-modal/friendship-modal.component";
+import {AuthService} from "../../../../services/auth.service";
 
 @Component({
   selector: 'app-home',
@@ -16,6 +17,7 @@ import {FriendshipModalComponent} from "../../../friendship/components/friendshi
 })
 export class HomeComponent {
 
+  private authService = inject(AuthService);
 
   async notifyUser(): Promise<void> {
     let permissionGranted = await isPermissionGranted();
@@ -32,5 +34,9 @@ export class HomeComponent {
         icon: 'app-icon' // Optional: path to an icon
       });
     }
+  }
+
+  public logout(): void{
+    this.authService.logout();
   }
 }
