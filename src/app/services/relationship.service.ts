@@ -21,4 +21,14 @@ export class RelationshipService {
     });
   }
 
+  public acceptFriendRequest(id: string): Observable<RelationshipModel> {
+    return this.httpClient.post<RelationshipModel>(environment.apiUrl+`/api/v1/social/relationships/${id}/accept`, {});
+  }
+  public rejectFriendRequest(id: string): Observable<RelationshipModel> {
+    return this.httpClient.post<RelationshipModel>(environment.apiUrl+`/api/v1/social/relationships/${id}/reject`, {});
+  }
+  public revokeFriendRequest(id: string): Observable<RelationshipModel> {
+    return this.httpClient.post<RelationshipModel>(environment.apiUrl+`/api/v1/social/relationships/${id}/revoke`, {});
+  }
+
 }
