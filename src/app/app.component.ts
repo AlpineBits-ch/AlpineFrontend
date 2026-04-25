@@ -1,6 +1,8 @@
-import { Component } from "@angular/core";
+import {Component, inject} from "@angular/core";
 import { RouterOutlet } from "@angular/router";
 import {Button} from "primeng/button";
+import {ProfileService} from "./services/profile.service";
+import {OAuthService} from "angular-oauth2-oidc";
 
 @Component({
   selector: "app-root",
@@ -9,4 +11,11 @@ import {Button} from "primeng/button";
   styleUrl: "./app.component.css",
 })
 export class AppComponent {
+  private profileService = inject(ProfileService);
+  public ngOnInit(): void {
+    this.profileService.getSelf().subscribe((profile) => {
+      console.log('Profile:', profile);
+    });
+
+  }
 }

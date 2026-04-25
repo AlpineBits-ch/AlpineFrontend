@@ -61,12 +61,10 @@ export class Login {
         this.loginModel().username,
         this.loginModel().password
     ).pipe(
-        // 2. Use tap for side effects like logging
         tap((data) => {
           console.log('Login successful:', data);
           this.router.navigate(['/overview']);
         }),
-        // 3. Optional: handle specific local errors
         catchError((err) => {
           console.error('Login error in component:', err);
           return throwError(() => err);

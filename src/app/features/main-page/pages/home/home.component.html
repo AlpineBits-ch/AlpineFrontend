@@ -1,0 +1,12 @@
+
+<div class="w-full h-full flex flex-row">
+    <div class="w-full flex flex-row">
+        <div class="flex flex-row gap-2 items-start">
+            <input pInputText type="text" placeholder="Add a friend (user#hash)" />
+            <p-button label="Add" (onClick)="notifyUser().then()" ></p-button>
+            <app-friendship-modal [isVisible]="true"></app-friendship-modal>
+        </div>
+
+    </div>
+</div>
+

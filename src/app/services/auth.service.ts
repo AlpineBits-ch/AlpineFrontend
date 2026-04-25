@@ -20,8 +20,7 @@ export class AuthService {
     return this.http.post(`${environment.apiUrl}/api/v1/identity/authentication/register`, {email, password, birthdate, username});
   }
   public login(email: string, password: string): Observable<TokenResponse> {
-    return from(this.oauthService.createAndSaveNonce()).pipe(
-        switchMap(() => from(this.oauthService.fetchTokenUsingPasswordFlow(email, password))),
+    return from(this.oauthService.fetchTokenUsingPasswordFlow(email, password)).pipe(
 
         tap({
           error: (err) => console.error('Login failed', err)

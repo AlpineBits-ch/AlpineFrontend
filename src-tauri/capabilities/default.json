@@ -4,7 +4,8 @@
   "identifier": "default",
   "permissions": [
     "core:default",
-    "opener:default"
+    "opener:default",
+    "notification:default"
   ],
   "windows": [
     "main"
