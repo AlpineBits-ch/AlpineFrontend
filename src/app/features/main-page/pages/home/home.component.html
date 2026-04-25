@@ -3,9 +3,11 @@
     <div class="w-full flex flex-row">
         <div class="flex flex-row gap-2 items-start">
             <input pInputText type="text" placeholder="Add a friend (user#hash)" />
-            <p-button label="Add" (onClick)="notifyUser().then()" ></p-button>
+            <p-button label="Test notifiaction" (onClick)="notifyUser().then()" ></p-button>
             <p-button label="Logout" (onClick)="logout()" ></p-button>
             <app-friendship-modal [isVisible]="true"></app-friendship-modal>
+
+            <p-button label="Refresh" (onClick)="refreshToken()" ></p-button>
         </div>
 
     </div>

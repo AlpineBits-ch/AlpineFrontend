@@ -53,5 +53,21 @@ export class FriendshipModalComponent {
     })
   }
 
+  public acceptFriendRequest(id: string){
+
+
+    this.relationshipService.acceptFriendRequest(id).subscribe(d => {
+      console.log(d);
+    })
+  }
+
+  public rejectFriendRequest(id: string){
+
+
+    this.relationshipService.rejectFriendRequest(id).subscribe(d => {
+      console.log(d);
+    })
+  }
+
     protected readonly RelationshipStatus = RelationshipStatus;
 }

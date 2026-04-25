@@ -20,7 +20,7 @@ export const authConfig: AuthConfig = {
   dummyClientSecret: '',
   oidc: false,
   disablePKCE: true,
-  useSilentRefresh: false,
+  useSilentRefresh: true,
 };
 
 export function storageFactory(): OAuthStorage {
