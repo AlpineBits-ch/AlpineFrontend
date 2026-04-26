@@ -34,7 +34,14 @@ export class AuthService {
     this.oauthService.logOut();
   }
 
-  public isLoggedIn(): boolean {
+  public async isLoggedIn(): Promise<boolean> {
+    if(this.oauthService.hasValidAccessToken()){
+      return true;
+    }
+
+    await this.oauthService.refreshToken();
+
     return this.oauthService.hasValidAccessToken();
+
   }
 }

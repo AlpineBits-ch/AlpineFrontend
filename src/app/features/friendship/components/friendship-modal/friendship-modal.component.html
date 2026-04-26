@@ -22,15 +22,14 @@
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <p-fieldset legend="Incoming Requests">
                 <div class="flex flex-col gap-3 max-h-48 overflow-y-auto">
-                    @for (rel of relationships(); track rel.id) {
-                        @if (rel.status === RelationshipStatus.PendingIncoming) { <div class="flex justify-between items-center p-2 border-b border-gray-100 dark:border-gray-700">
+                    @for (rel of incomingFriendRequest(); track rel.id) {
+                            <div class="flex justify-between items-center p-2 border-b border-gray-100 dark:border-gray-700">
                             <span class="font-medium">{{ rel.target.userName }}#{{rel.target.hash}}</span>
                             <div class="flex gap-1">
                                 <p-button icon="pi pi-check" [rounded]="true" severity="success" [text]="true" tooltipPosition="top" pTooltip="Accept" (click)="acceptFriendRequest(rel.id)"></p-button>
                                 <p-button icon="pi pi-times" [rounded]="true" severity="danger" [text]="true" tooltipPosition="top" pTooltip="Decline" (click)="rejectFriendRequest(rel.id)"></p-button>
                             </div>
                         </div>
-                        }
                     } @empty {
                         <p class="text-sm text-gray-500 italic">No pending requests.</p>
                     }
@@ -39,12 +38,11 @@
 
             <p-fieldset legend="Sent Requests">
                 <div class="flex flex-col gap-3 max-h-48 overflow-y-auto">
-                    @for (rel of relationships(); track rel.id) {
-                        @if (rel.status === RelationshipStatus.PendingOutgoing) { <div class="flex justify-between items-center p-2 border-b border-gray-100 dark:border-gray-700">
+                    @for (rel of outgoingFriendRequest(); track rel.id) {
+                            <div class="flex justify-between items-center p-2 border-b border-gray-100 dark:border-gray-700">
                             <span class="text-sm">{{ rel.target.userName }}#{{rel.target.hash}}</span>
                             <p-tag value="Pending" severity="warn"></p-tag>
                         </div>
-                        }
                     } @empty {
                         <p class="text-sm text-gray-500 italic">No sent requests.</p>
                     }
@@ -58,14 +56,14 @@
                 Friends
             </h3>
             <p-listbox
-                    [options]="relationships()"
+                    [options]="friends()"
                     [filter]="true"
                     filterBy="target"
                     [listStyle]="{'max-height': '300px'}"
                     emptyMessage="You haven't added any friends yet.">
 
                 <ng-template let-rel pTemplate="item">
-                    @if (rel.status === RelationshipStatus.Friends) { <div class="flex justify-between items-center w-full">
+                        <div class="flex justify-between items-center w-full">
                         <div class="flex items-center gap-3">
                             <p-avatar icon="pi pi-user" shape="circle" styleClass="bg-blue-100 text-blue-700"></p-avatar>
                             <span class="font-medium">{{ rel.target.userName }}#{{rel.target.hash}}</span>
@@ -75,7 +73,6 @@
                             <p-button icon="pi pi-ban" severity="danger" [rounded]="true" [text]="true" pTooltip="Block"></p-button>
                         </div>
                     </div>
-                    }
                 </ng-template>
             </p-listbox>
         </div>

@@ -1,4 +1,4 @@
-import {Component, inject, input, model, signal} from '@angular/core';
+import {Component, computed, inject, input, model, signal} from '@angular/core';
 import {Dialog} from "primeng/dialog";
 import {RelationshipModel, RelationshipStatus} from "./dto/relationship.model";
 import {Button} from "primeng/button";
@@ -33,6 +33,18 @@ export class FriendshipModalComponent {
   public isVisible = model.required<boolean>();
 
   public relationships = signal<RelationshipModel[]>([])
+
+  public incomingFriendRequest = computed(() => {
+    return this.relationships().filter(r => r.status === RelationshipStatus.PendingIncoming);
+  })
+
+  public outgoingFriendRequest = computed(() => {
+    return this.relationships().filter(r => r.status === RelationshipStatus.PendingOutgoing);
+  })
+
+  public friends = computed(() => {
+    return this.relationships().filter(r => r.status === RelationshipStatus.Friends);
+  })
 
   private relationshipService = inject(RelationshipService);
 

@@ -49,9 +49,14 @@ export class Login {
   protected registerForm = form(this.registerModel);
 
   constructor() {
-    if(this.authService.isLoggedIn()){
-      this.router.navigate(['/overview']);
-    }
+    this.authService.isLoggedIn().then(r => {
+      if(r){
+        this.router.navigate(['/overview']);
+
+      }
+
+    });
+
   }
 
 
