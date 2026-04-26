@@ -13,4 +13,8 @@ export class MessagingService {
   public createMessage(createConversationDto: CreateMessageDto): Observable<MessageDto>{
     return this.httpClient.post<MessageDto>(environment.apiUrl + '/api/v1/messaging/messaging', createConversationDto);
   }
+
+  public getMessagesForConversation(conversationId: string, offset: number, limit: number): Observable<MessageDto[]>{
+    return this.httpClient.get<MessageDto[]>(environment.apiUrl + '/api/v1/messaging/messaging/conversations/' + conversationId + '/messages?offset=' + offset + '&limit=' + limit);
+  }
 }

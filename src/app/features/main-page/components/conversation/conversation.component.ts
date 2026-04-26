@@ -1,4 +1,4 @@
-import {Component, inject, input, signal} from '@angular/core';
+import {Component, effect, inject, input, signal, untracked} from '@angular/core';
 import {ConversationDto} from "../../../../dtos/response/conversation.dto";
 import {ComposerComponent} from "./composer/composer.component";
 import {InputText} from "primeng/inputtext";
@@ -25,6 +25,21 @@ export class ConversationComponent {
   public messages = signal<MessageDto[]>([])
   public messageService = inject(MessagingService);
 
+
+  constructor(messageService: MessagingService) {
+    effect(() => {
+      const conversation = this.conversation();
+
+      if(!conversation){
+        return;
+      }
+      messageService.getMessagesForConversation(this.conversation().id, 0, 10).subscribe(messages => {
+        console.log(messages);
+        this.messages.set(messages);
+      });
+    });
+
+  }
   public createMessage(message: string){
     this.messageService.createMessage({
       content: message,
