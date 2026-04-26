@@ -1,8 +1,6 @@
 import {Component, inject} from '@angular/core';
 import {InputText} from "primeng/inputtext";
 import {Button} from "primeng/button";
-import {isPermissionGranted, requestPermission, sendNotification} from "@tauri-apps/plugin-notification";
-import {FriendshipModalComponent} from "../../../friendship/components/friendship-modal/friendship-modal.component";
 import {AuthService} from "../../../../services/auth.service";
 import {OAuthService} from "angular-oauth2-oidc";
 import {NotificationService, NotificationSound} from "../../../../services/notification.service";
@@ -12,7 +10,6 @@ import {NotificationService, NotificationSound} from "../../../../services/notif
   imports: [
     InputText,
     Button,
-    FriendshipModalComponent
   ],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
