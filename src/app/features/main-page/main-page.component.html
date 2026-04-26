@@ -6,6 +6,8 @@
     <div class="w-full h-full">
         @if (isHomeVisible()){
             <app-home></app-home>
+        } @else {
+            <app-conversation [conversation]="testConversation()!"></app-conversation>
         }
 
 
