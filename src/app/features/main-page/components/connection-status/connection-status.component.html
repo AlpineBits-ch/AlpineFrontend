@@ -1,0 +1,16 @@
+
+@let state = websocketService.connectionState();
+@switch (state) {
+    @case (ConnectionState.Connected){
+        <p>Connected</p>
+    }
+    @case (ConnectionState.Disconnected){
+        <p>Disconnected</p>
+    }
+    @case (ConnectionState.Connecting){
+        <p>Connecting</p>
+    }
+    @default {
+        <p>Unknown</p>
+    }
+}

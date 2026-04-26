@@ -1,7 +1,8 @@
-import {inject, Injectable} from '@angular/core';
+import {inject, Injectable, signal} from '@angular/core';
 import {HttpClient} from "@angular/common/http";
-import {Observable} from "rxjs";
+import {Observable, tap} from "rxjs";
 import {environment} from "../../environments/environment";
+import {ProfileDto} from "../dtos/response/profile.dto";
 
 @Injectable({
   providedIn: 'root',
@@ -9,7 +10,11 @@ import {environment} from "../../environments/environment";
 export class ProfileService {
   private httpClient = inject(HttpClient);
 
-  public getSelf(): Observable<unknown>{
-    return this.httpClient.get(environment.apiUrl+ '/api/v1/social/profiles/me');
+  public profile = signal<ProfileDto | undefined>(undefined);
+
+  public getSelf(): Observable<ProfileDto>{
+    return this.httpClient.get<ProfileDto>(environment.apiUrl+ '/api/v1/social/profiles/me').pipe(tap(v => {
+      this.profile.set(v);
+    }));
   }
 }

@@ -11,6 +11,8 @@ import {InputText} from "primeng/inputtext";
 import {Tooltip} from "primeng/tooltip";
 import {RelationshipService} from "../../../../services/relationship.service";
 import {FormsModule} from "@angular/forms";
+import {ConversationService} from "../../../../services/conversation.service";
+import {ConversationEncryption} from "../../../../enums/conversation-encryption.enum";
 
 @Component({
   selector: 'app-friendship-modal',
@@ -31,7 +33,7 @@ import {FormsModule} from "@angular/forms";
 })
 export class FriendshipModalComponent {
   public isVisible = model.required<boolean>();
-
+  public conversationService = inject(ConversationService);
   public relationships = signal<RelationshipModel[]>([])
 
   public incomingFriendRequest = computed(() => {
@@ -77,6 +79,19 @@ export class FriendshipModalComponent {
 
 
     this.relationshipService.rejectFriendRequest(id).subscribe(d => {
+      console.log(d);
+    })
+  }
+
+  public onMessageClick(relationship: RelationshipModel){
+    console.log(relationship);
+    this.conversationService.createConversation({
+      members: [{
+        userId: relationship.target.userId
+      }],
+      encryption: ConversationEncryption.Plain,
+      name: `${relationship.target.userName}'s conversation`
+    }).subscribe(d => {
       console.log(d);
     })
   }

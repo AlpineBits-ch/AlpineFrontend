@@ -2,14 +2,14 @@ import { Component } from '@angular/core';
 import {ServerData, ServerIconComponent} from "../server-icon/server-icon.component";
 
 @Component({
-  selector: 'app-conversation-taskbar',
+  selector: 'app-server-taskbar',
   imports: [
     ServerIconComponent
   ],
-  templateUrl: './conversation-taskbar.component.html',
-  styleUrl: './conversation-taskbar.component.css',
+  templateUrl: './server-taskbar.component.html',
+  styleUrl: './server-taskbar.component.css',
 })
-export class ConversationTaskbarComponent {
+export class ServerTaskbarComponent {
 
   public defaultServer: ServerData = {
     id: '1',

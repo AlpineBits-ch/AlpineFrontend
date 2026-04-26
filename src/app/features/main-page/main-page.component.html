@@ -1,12 +1,13 @@
 
 <div class="flex flex-row w-screen h-screen bg-yellow">
-    <div class="w-[4em] h-full bg-blue-500">
-        <app-conversation-taskbar></app-conversation-taskbar>
-    </div>
+    <app-action-sidepanel>
+        <app-conversation-list></app-conversation-list>
+    </app-action-sidepanel>
     <div class="w-full h-full">
         @if (isHomeVisible()){
             <app-home></app-home>
         }
+
 
     </div>
 </div>

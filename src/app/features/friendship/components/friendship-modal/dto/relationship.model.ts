@@ -11,6 +11,7 @@ export interface MinimalProfileId {
     id: string;
     userName: string;
     hash: string;
+    userId: string;
 }
 
 export enum RelationshipStatus {
