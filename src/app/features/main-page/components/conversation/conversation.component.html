@@ -1,6 +1,72 @@
-<div class="flex flex-col h-full">
-    <div class="flex-1 overflow-y-auto">
-        wefwe
+<div class="flex flex-col h-full bg-surface-0 dark:bg-surface-900 overflow-hidden">
+
+    <header class="flex items-center px-4 h-16 border-b border-surface-200 dark:border-surface-800 shrink-0 shadow-sm z-10 bg-surface-0/80 dark:bg-surface-900/80 backdrop-blur-md">
+        <div class="flex items-center gap-3">
+            <div class="relative">
+                <p-avatar
+                        [label]="conversation().id[0].toUpperCase()"
+                        shape="circle"
+                        size="large">
+                </p-avatar>
+                <span class="absolute bottom-0 right-0 block h-3 w-3 rounded-full bg-green-500 border-2 border-surface-0 dark:border-surface-900"></span>
+            </div>
+
+            <div class="flex flex-col">
+                <h1 class="text-base font-bold text-surface-900 dark:text-surface-0 m-0 leading-tight">
+                    {{ conversation().id }}
+                </h1>
+                <span class="text-xs text-surface-500 font-medium">Online</span>
+            </div>
+        </div>
+
+        <div class="ml-auto flex items-center gap-4 text-surface-500">
+            <i class="pi pi-phone hover:text-primary cursor-pointer p-2"></i>
+            <i class="pi pi-video hover:text-primary cursor-pointer p-2"></i>
+            <div class="hidden md:block relative">
+                <input pInputText type="text" placeholder="Search" class="p-inputtext-sm pl-8 w-48 bg-surface-100 dark:bg-surface-950 border-none rounded-full" />
+            </div>
+            <i class="pi pi-ellipsis-v hover:text-primary cursor-pointer p-2"></i>
+        </div>
+    </header>
+
+    <div class="flex-1 overflow-y-auto custom-scrollbar flex flex-col">
+
+        <div class="flex flex-col justify-end min-h-full px-4">
+
+            <div class="py-10 flex flex-col items-start gap-2">
+                <p-avatar
+                        [label]="conversation().id[0].toUpperCase()"
+                        shape="circle"
+                        styleClass="w-20 h-20 text-3xl bg-primary text-primary-contrast">
+                </p-avatar>
+
+                <h2 class="text-3xl font-extrabold text-surface-900 dark:text-surface-0 mt-4">
+                    {{ conversation().id }}
+                </h2>
+
+                <p class="text-surface-600 dark:text-surface-400 max-w-md">
+                    This is the beginning of your direct message history with <strong>@{{ conversation().id }}</strong>.
+                    Keep it friendly!
+                </p>
+
+                <div class="flex gap-2 mt-2">
+                    <button pButton label="Add Friend" class="p-button-sm p-button-secondary"></button>
+                    <button pButton label="Block" class="p-button-sm p-button-danger p-button-text"></button>
+                </div>
+
+                <hr class="w-full border-t border-surface-200 dark:border-surface-800 my-6" />
+            </div>
+
+            <div class="flex flex-col gap-1 pb-4">
+                @for (msg of messages(); track msg.id) {
+                    <app-message [message]="msg"></app-message>
+                }
+            </div>
+
+        </div>
     </div>
-    <app-composer class="p-2"></app-composer>
+
+    <footer class="shrink-0">
+        <app-composer class="block" (message)="createMessage($event)"></app-composer>
+    </footer>
 </div>
