@@ -17,18 +17,23 @@ export class AppComponent {
     });
     void updateApp();
     async function updateApp() {
-      const update = await check();
+      try {
+        const update = await check();
 
-      if (update) {
-        console.log(`Update found: ${update.version}`);
+        if (update) {
+          console.log(`Update found: ${update.version}`);
 
-        await update.downloadAndInstall();
+          await update.downloadAndInstall();
 
-        // Restart the app
-        await relaunch();
-      }else {
-        console.log('No update available');
+          // Restart the app
+          await relaunch();
+        }else {
+          console.log('No update available');
+        }
+      } catch (error) {
+        console.error('Error checking for updates:', error);
       }
+
     }
   }
 }
