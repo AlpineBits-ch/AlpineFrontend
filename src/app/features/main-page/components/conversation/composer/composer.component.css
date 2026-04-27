@@ -1,10 +1,38 @@
-:host {
-  --p-textarea-background: transparent;
-  --p-textarea-color: rgba(255, 255, 255, 0.80);
-  --p-textarea-placeholder-color: rgba(255, 255, 255, 0.25);
-  --p-textarea-border-color: transparent;
-  --p-textarea-hover-border-color: transparent;
-  --p-textarea-focus-border-color: transparent;
-  --p-textarea-shadow: none;
-  --p-textarea-focus-ring-shadow: none;
+/* ── Contenteditable placeholder ─────────────────────────────────────────── */
+.composer-editor {
+  position: relative;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.composer-editor:empty::before {
+  content: attr(data-placeholder);
+  color: rgba(255, 255, 255, 0.25);
+  pointer-events: none;
+}
+
+/* ── Emoji mart dark theme integration ───────────────────────────────────── */
+:host ::ng-deep em-emoji-picker {
+  --border-radius: 12px;
+  --font-family: inherit;
+  height: 380px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+}
+
+/* ── Mention chip ─────────────────────────────────────────────────────────── */
+/* Chips are created via document.createElement — Angular's scoped attribute
+   is never added, so ::ng-deep is required to reach them. */
+:host ::ng-deep .mention-chip {
+  display: inline-flex;
+  align-items: center;
+  background: rgba(99, 102, 241, 0.18);
+  color: rgb(129, 140, 248);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: default;
+  user-select: none;
+  line-height: 1.5;
+  vertical-align: baseline;
 }

@@ -24,9 +24,24 @@ export class MessageComponent {
   public message = input.required<MessageDto>();
 
   public content = computed(() => {
-    const message = this.message();
-    return atob(message.content)
-  })
+    const bytes = Uint8Array.from(atob(this.message().content), c => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  });
+
+  public contentSegments = computed(() => {
+    const text = this.content();
+    const segments: { type: 'text' | 'mention'; value: string }[] = [];
+    const regex = /@[\w\-.]+#\w+/g;
+    let last = 0;
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > last) segments.push({ type: 'text', value: text.slice(last, match.index) });
+      segments.push({ type: 'mention', value: match[0] });
+      last = match.index + match[0].length;
+    }
+    if (last < text.length) segments.push({ type: 'text', value: text.slice(last) });
+    return segments;
+  });
 
 
 

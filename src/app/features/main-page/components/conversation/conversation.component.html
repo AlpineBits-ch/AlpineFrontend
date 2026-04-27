@@ -67,7 +67,7 @@
 
   <!-- Composer -->
   <footer class="shrink-0">
-    <app-composer class="block" (message)="createMessage($event)"></app-composer>
+    <app-composer class="block" [friends]="friends()" (message)="createMessage($event)"></app-composer>
   </footer>
 
 </div>

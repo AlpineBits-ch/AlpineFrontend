@@ -22,7 +22,15 @@
     <p class="text-sm leading-relaxed m-0 break-words"
        [class.text-white/70]="!message().isPending && !message().isFailed"
        [class.text-white/40]="message().isPending"
-       [class.text-rose-300]="message().isFailed">{{ content() }}</p>
+       [class.text-rose-300]="message().isFailed">
+      @for (seg of contentSegments(); track $index) {
+        @if (seg.type === 'mention') {
+          <span class="mention-chip">{{ seg.value }}</span>
+        } @else {
+          {{ seg.value }}
+        }
+      }
+    </p>
     @if (!message().isPending && !message().isFailed && message().updatedAt > message().createdAt) {
       <span class="text-[10px] italic text-white/25 mt-0.5">Edited</span>
     }

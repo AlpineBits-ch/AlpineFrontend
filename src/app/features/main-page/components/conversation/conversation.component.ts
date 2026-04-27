@@ -1,4 +1,5 @@
 import {
+  afterEveryRender,
   AfterViewInit,
   Component,
   computed,
@@ -8,8 +9,8 @@ import {
   input,
   output,
   ViewChild,
-  viewChildren,
 } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { ConversationDto } from '../../../../dtos/response/conversation.dto';
 import { ComposerComponent } from './composer/composer.component';
 import { MessageComponent } from './message/message.component';
@@ -20,6 +21,7 @@ import { MessageStore } from '../../../../stores/message.store';
 import { catchError, EMPTY, tap } from 'rxjs';
 import { ProfileService } from '../../../../services/profile.service';
 import { MessageDto } from '../../../../dtos/response/message.dto';
+import { RelationshipService } from '../../../../services/relationship.service';
 
 const SCROLL_BOTTOM_THRESHOLD = 100; // px from bottom — auto-scroll kicks in
 const LOAD_MORE_THRESHOLD = 150;     // px from top — fetch older messages
@@ -37,11 +39,11 @@ export class ConversationComponent implements AfterViewInit {
   private messageStore = inject(MessageStore);
   private messagingService = inject(MessagingService);
   private profileService = inject(ProfileService);
+  private relationshipService = inject(RelationshipService);
+
+  protected friends = toSignal(this.relationshipService.getRelationships(), { initialValue: [] });
 
   @ViewChild('messageScroll') private scrollRef!: ElementRef<HTMLDivElement>;
-
-  /** Tracks rendered <app-message> instances — updates only after the @for DOM is committed */
-  private renderedMessages = viewChildren(MessageComponent);
 
   /** Whether the user is close enough to the bottom that we should auto-scroll on new messages */
   private isNearBottom = true;
@@ -69,23 +71,25 @@ export class ConversationComponent implements AfterViewInit {
     this.messageStore.conversationMeta()[this.conversation().id]?.loadingMore ?? false
   );
 
+  private lastScrollConvId = '';
+
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   constructor() {
-    // Switch conversation → initial fetch + reset scroll state
+    // Load messages when conversation changes; reset scroll intent
     effect(() => {
-      this.messageStore.loadForConversation(this.conversation().id);
-      this.isNearBottom = true;
-      this.restoreScroll = false;
+      const convId = this.conversation().id;
+      this.messageStore.loadForConversation(convId);
+      if (convId !== this.lastScrollConvId) {
+        this.lastScrollConvId = convId;
+        this.isNearBottom = true;
+        this.restoreScroll = false;
+      }
     });
 
-    // React after the @for DOM nodes are committed (viewChildren updates post-render)
-    effect(() => {
-      const _ = this.renderedMessages(); // track — fires only after DOM is ready
-
-      if (this.restoreScroll) {
-        // Older messages were prepended — restore position so the view doesn't jump
-        if (!this.scrollRef) return;
+    // afterRender fires after every Angular render cycle — DOM is fully updated
+    afterEveryRender(() => {
+      if (this.restoreScroll && this.scrollRef) {
         const el = this.scrollRef.nativeElement;
         const heightDiff = el.scrollHeight - this.savedScrollHeight;
         if (heightDiff > 0) el.scrollTop += heightDiff;
@@ -130,7 +134,7 @@ export class ConversationComponent implements AfterViewInit {
 
     const optimistic: MessageDto = {
       id:             tempId,
-      content : btoa(content),
+      content : btoa(encodeURIComponent(content).replace(/%([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))),
       conversationId: this.conversation().id,
       channelId:      undefined,
       authorId:       this.profileService.ownProfile()?.userId ?? '',
@@ -143,7 +147,7 @@ export class ConversationComponent implements AfterViewInit {
     this.messageStore.addMessage(optimistic);
 
     this.messagingService.createMessage({
-      content,
+      content: content,
       channelId:      undefined,
       conversationId: this.conversation().id,
     }).pipe(
