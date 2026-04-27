@@ -1,16 +1,23 @@
-
 @let state = websocketService.connectionState();
-@switch (state) {
-    @case (ConnectionState.Connected){
-        <p>Connected</p>
+
+<div class="flex items-center gap-1.5">
+  <!-- Status dot -->
+  <div class="w-1.5 h-1.5 rounded-full shrink-0"
+    [class.bg-emerald-400]="state === ConnectionState.Connected"
+    [class.bg-amber-400]="state === ConnectionState.Connecting"
+    [class.animate-pulse]="state === ConnectionState.Connecting"
+    [class.bg-rose-500]="state === ConnectionState.Disconnected">
+  </div>
+
+  <!-- Status text -->
+  <span class="text-[11px] font-medium leading-none"
+    [class.text-emerald-400/70]="state === ConnectionState.Connected"
+    [class.text-amber-400/80]="state === ConnectionState.Connecting"
+    [class.text-rose-400/80]="state === ConnectionState.Disconnected">
+    @switch (state) {
+      @case (ConnectionState.Connected)    { Connected }
+      @case (ConnectionState.Connecting)   { Connecting… }
+      @case (ConnectionState.Disconnected) { Disconnected }
     }
-    @case (ConnectionState.Disconnected){
-        <p>Disconnected</p>
-    }
-    @case (ConnectionState.Connecting){
-        <p>Connecting</p>
-    }
-    @default {
-        <p>Unknown</p>
-    }
-}
+  </span>
+</div>
