@@ -4,7 +4,7 @@ export interface CreateConversationMemberDto {
     userId: string;
 }
 export interface CreateConversationDto {
-    name: string;
+    name: string | undefined;
     members: CreateConversationMemberDto[];
     encryption: ConversationEncryption
 }

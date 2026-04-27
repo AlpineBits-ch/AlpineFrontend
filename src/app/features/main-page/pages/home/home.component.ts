@@ -1,15 +1,18 @@
 import {Component, computed, inject, signal} from '@angular/core';
+import {NgClass} from "@angular/common";
 import {Avatar} from "primeng/avatar";
 import {Button} from "primeng/button";
 import {FormsModule} from "@angular/forms";
 import {RelationshipService} from "../../../../services/relationship.service";
 import {RelationshipModel, RelationshipStatus} from "../../../friendship/components/friendship-modal/dto/relationship.model";
+import {ConversationService} from "../../../../services/conversation.service";
+import {ConversationEncryption} from "../../../../enums/conversation-encryption.enum";
 
 type FriendsTab = 'online' | 'all' | 'pending' | 'blocked';
 
 @Component({
   selector: 'app-home',
-  imports: [Avatar, Button, FormsModule],
+  imports: [Avatar, Button, FormsModule, NgClass],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
 })
@@ -20,6 +23,7 @@ export class HomeComponent {
   public addFriendOpen = signal(false);
   public friendInput = '';
 
+  public conversationService = inject(ConversationService);
   public relationships = signal<RelationshipModel[]>([]);
 
   public incoming = computed(() => this.relationships().filter(r => r.status === RelationshipStatus.PendingIncoming));
@@ -69,6 +73,16 @@ export class HomeComponent {
   public unblock(id: string): void {
     // TODO: wire up unblock endpoint when available
     console.log('Unblock user relationship:', id);
+  }
+
+  public createConversation(id: string): void {
+    this.conversationService.createConversation({
+      members: [{
+        userId: id
+      }],
+      name: undefined,
+      encryption: ConversationEncryption.Plain
+    }).subscribe(() => this.load());
   }
 
   protected readonly RelationshipStatus = RelationshipStatus;

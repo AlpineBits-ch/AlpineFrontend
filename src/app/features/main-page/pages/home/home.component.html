@@ -14,33 +14,28 @@
         <div class="flex items-center gap-0.5 bg-white/[0.04] border border-white/[0.07] rounded-xl p-1">
           <button (click)="tab.set('online')"
             class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
-            [class.bg-indigo-500/20]="tab() === 'online'" [class.text-indigo-400]="tab() === 'online'"
-            [class.text-white/40]="tab() !== 'online'" [class.bg-transparent]="tab() !== 'online'">
+            [ngClass]="tab() === 'online' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/40'">
             Online
           </button>
           <button (click)="tab.set('all')"
             class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
-            [class.bg-indigo-500/20]="tab() === 'all'" [class.text-indigo-400]="tab() === 'all'"
-            [class.text-white/40]="tab() !== 'all'" [class.bg-transparent]="tab() !== 'all'">
+            [ngClass]="tab() === 'all' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/40'">
             All
           </button>
           <button (click)="tab.set('pending')"
             class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all flex items-center gap-1.5"
-            [class.bg-indigo-500/20]="tab() === 'pending'" [class.text-indigo-400]="tab() === 'pending'"
-            [class.text-white/40]="tab() !== 'pending'" [class.bg-transparent]="tab() !== 'pending'">
+            [ngClass]="tab() === 'pending' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/40'">
             Pending
             @if (pendingCount() > 0) {
               <span class="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
-                [class.bg-rose-500]="tab() !== 'pending'" [class.text-white]="tab() !== 'pending'"
-                [class.bg-indigo-400/30]="tab() === 'pending'" [class.text-indigo-300]="tab() === 'pending'">
+                [ngClass]="tab() === 'pending' ? 'bg-indigo-400/30 text-indigo-300' : 'bg-rose-500 text-white'">
                 {{ pendingCount() }}
               </span>
             }
           </button>
           <button (click)="tab.set('blocked')"
             class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
-            [class.bg-indigo-500/20]="tab() === 'blocked'" [class.text-indigo-400]="tab() === 'blocked'"
-            [class.text-white/40]="tab() !== 'blocked'" [class.bg-transparent]="tab() !== 'blocked'">
+            [ngClass]="tab() === 'blocked' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/40'">
             Blocked
           </button>
         </div>
@@ -110,8 +105,12 @@
                 <p class="text-xs text-white/35">Online</p>
               </div>
               <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <p-button icon="pi pi-comment" [text]="true" severity="secondary" size="small" title="Message" />
-                <p-button icon="pi pi-ban" [text]="true" severity="secondary" size="small" title="Block" (onClick)="block(rel.id)" />
+                <button class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.06] border-0 bg-transparent cursor-pointer transition-all" (click)="createConversation(rel.targetId)" title="Message">
+                  <i class="pi pi-comment text-xs" style="color: rgba(255,255,255,0.55)"></i>
+                </button>
+                <button (click)="block(rel.id)" class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.06] border-0 bg-transparent cursor-pointer transition-all" title="Block">
+                  <i class="pi pi-ban text-xs" style="color: rgba(255,255,255,0.55)"></i>
+                </button>
               </div>
             </div>
           }
