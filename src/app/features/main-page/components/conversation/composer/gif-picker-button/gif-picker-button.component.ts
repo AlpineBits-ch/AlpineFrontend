@@ -58,7 +58,7 @@ export class GifPickerButtonComponent implements OnDestroy {
     }
   }
 
-  private open(): void {
+  open(): void {
     this.showPicker.set(true);
     this.loading.set(true);
     this.gifService.trending().subscribe(results => {

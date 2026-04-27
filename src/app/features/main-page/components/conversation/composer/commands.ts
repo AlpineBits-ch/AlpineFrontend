@@ -1,15 +1,36 @@
+export type CommandScope = 'global' | 'inline';
+
+export interface CommandResult {
+  /** Text to insert into the editor (inline) or send as a message (global). */
+  text?: string;
+  /** Side-effect action. Known local actions are handled by the composer;
+   *  unknown ones are emitted to the parent via `commandAction` output. */
+  action?: { name: string; payload?: unknown };
+}
+
 export interface CommandDef {
   name: string;
   description: string;
+  /** `inline` — works anywhere mid-message, replaces the trigger text in-place.
+   *  `global` — only available at the start of the editor; operates on the whole message. */
+  scope: CommandScope;
   params: { label: string; required: boolean }[];
-  execute: (params: string) => string;
+  execute: (params: string) => CommandResult;
 }
 
 export const COMMANDS: CommandDef[] = [
   {
     name: 'shrug',
-    description: 'Append a shrug to your message',
-    params: [{ label: 'message', required: false }],
-    execute: (text) => text ? `${text} ¯\\_(ツ)_/¯` : '¯\\_(ツ)_/¯',
+    description: 'Insert ¯\\_(ツ)_/¯ at cursor',
+    scope: 'inline',
+    params: [],
+    execute: () => ({ text: '¯\\_(ツ)_/¯' }),
+  },
+  {
+    name: 'gif',
+    description: 'Search for a GIF and send the first result',
+    scope: 'global',
+    params: [{ label: 'search', required: true }],
+    execute: (query) => ({ action: { name: 'send-gif-search', payload: { query: query.trim() } } }),
   },
 ];

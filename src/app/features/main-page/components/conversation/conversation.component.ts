@@ -43,6 +43,21 @@ export class ConversationComponent implements AfterViewInit {
 
   protected friends = toSignal(this.relationshipService.getRelationships(), { initialValue: [] });
 
+  protected chatTitle = computed(() => {
+    const ownId = this.profileService.ownProfile()?.userId;
+    if (!ownId) return 'Loading…';
+    const others = this.conversation().members.filter(m => m.userId !== ownId);
+    if (others.length === 0) return 'Empty chat';
+    if (others.length === 1) return `${others[0].cachedUserName}#${others[0].cachedUserHash}`;
+    return others.map(m => m.cachedUserName).join(', ');
+  });
+
+  protected chatAvatarLabel = computed(() => {
+    const ownId = this.profileService.ownProfile()?.userId;
+    const others = this.conversation().members.filter(m => m.userId !== ownId);
+    return (others[0]?.cachedUserName?.[0] ?? '?').toUpperCase();
+  });
+
   @ViewChild('messageScroll') private scrollRef!: ElementRef<HTMLDivElement>;
 
   /** Whether the user is close enough to the bottom that we should auto-scroll on new messages */

@@ -1,4 +1,4 @@
-import { Component, computed, ElementRef, input, output, signal, viewChild } from '@angular/core';
+import { Component, computed, ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
 import { Button } from 'primeng/button';
 import { RelationshipModel, RelationshipStatus } from '../../../../friendship/components/friendship-modal/dto/relationship.model';
 import { CommandDef, COMMANDS } from './commands';
@@ -6,6 +6,7 @@ import { detectTrigger, EmojiSuggestion, getMessage } from './composer-utils';
 import { SuggestionOverlayComponent } from './suggestion-overlay/suggestion-overlay.component';
 import { EmojiPickerButtonComponent } from './emoji-picker-button/emoji-picker-button.component';
 import { GifPickerButtonComponent } from './gif-picker-button/gif-picker-button.component';
+import { GifService } from '../../../../../services/gif.service';
 
 @Component({
   selector: 'app-composer',
@@ -19,10 +20,15 @@ export class ComposerComponent {
 
   friends = input<RelationshipModel[]>([]);
   message = output<string>();
+  /** Fired when a command produces a side-effect the composer doesn't handle locally. */
+  commandAction = output<{ name: string; payload?: unknown }>();
 
   // ── View ─────────────────────────────────────────────────────────────────
 
   editorRef = viewChild.required<ElementRef<HTMLDivElement>>('editor');
+  gifPickerRef = viewChild(GifPickerButtonComponent);
+
+  private gifService = inject(GifService);
 
   // ── Overlay state ────────────────────────────────────────────────────────
 
@@ -30,7 +36,10 @@ export class ComposerComponent {
   query = signal('');
   selectedIndex = signal(0);
 
-  // ── Active command ────────────────────────────────────────────────────────
+  /** True when the command trigger is at the very start of the editor (no preceding text). */
+  private commandAtStart = signal(false);
+
+  // ── Active command (global, awaiting params) ──────────────────────────────
 
   activeCommand = signal<CommandDef | null>(null);
 
@@ -48,7 +57,10 @@ export class ComposerComponent {
   filteredCommands = computed(() => {
     if (this.overlayType() !== 'command') return [];
     const q = this.query().toLowerCase();
-    return COMMANDS.filter(c => c.name.startsWith(q));
+    const atStart = this.commandAtStart();
+    return COMMANDS
+      .filter(c => atStart || c.scope === 'inline')   // global commands only at start
+      .filter(c => c.name.startsWith(q));
   });
 
   filteredEmojis = signal<EmojiSuggestion[]>([]);
@@ -64,7 +76,7 @@ export class ComposerComponent {
     const cmd = this.activeCommand();
     if (!cmd) return 'Message';
     const paramHints = cmd.params.map(p => p.required ? `<${p.label}>` : `[${p.label}]`).join(' ');
-    return `/${cmd.name} ${paramHints} — press Enter to send`;
+    return paramHints ? `/${cmd.name} ${paramHints} — press Enter to send` : `/${cmd.name} — press Enter to send`;
   });
 
   // ── Trigger range (saved for replacement on selection) ────────────────────
@@ -92,7 +104,6 @@ export class ComposerComponent {
     const results: EmojiSuggestion[] = [];
     const seen = new Set<string>();
 
-    // Check aliases (e.g. thumbs_up → thumbsup)
     for (const [alias, id] of Object.entries<string>(data.aliases ?? {})) {
       if (alias.startsWith(q) && !seen.has(id)) {
         const emoji = data.emojis[id];
@@ -103,7 +114,6 @@ export class ComposerComponent {
       }
     }
 
-    // Check emoji IDs directly
     for (const [id, emoji] of Object.entries<any>(data.emojis ?? {})) {
       if (id.startsWith(q) && !seen.has(id)) {
         if (emoji?.skins?.[0]?.native) {
@@ -120,7 +130,6 @@ export class ComposerComponent {
     await this.loadEmojiData();
     const data = this.emojiData;
     const q = shortcode.toLowerCase();
-
     let emoji = data.emojis[q];
     if (!emoji) {
       const aliasTarget = data.aliases?.[q];
@@ -134,7 +143,7 @@ export class ComposerComponent {
   async onInput(): Promise<void> {
     const editor = this.editorRef().nativeElement;
 
-    // Auto-replace :shortcode: when the user types the closing colon
+    // Auto-replace :shortcode: on closing colon
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0) {
       const range = sel.getRangeAt(0);
@@ -145,7 +154,6 @@ export class ComposerComponent {
         if (autoMatch) {
           const native = await this.resolveShortcode(autoMatch[1]);
           if (native) {
-            const start = range.startOffset - autoMatch[0].length + (autoMatch[0].startsWith(':') ? 0 : 1);
             const colonPos = textBefore.lastIndexOf(':', range.startOffset - 2);
             const r = document.createRange();
             r.setStart(node as Text, colonPos);
@@ -172,6 +180,9 @@ export class ComposerComponent {
       this.selectedIndex.set(0);
       this.triggerRange = result.range;
 
+      if (result.type === 'command') {
+        this.commandAtStart.set(result.atStart);
+      }
       if (result.type === 'emoji') {
         this.filteredEmojis.set(await this.searchEmojiShortcodes(result.query));
       }
@@ -245,16 +256,42 @@ export class ComposerComponent {
 
   onCommandSelected(cmd: CommandDef): void {
     const editor = this.editorRef().nativeElement;
-    editor.innerHTML = '';
+    const isInline = !this.commandAtStart() || cmd.scope === 'inline';
 
-    if (cmd.params.length === 0) {
-      this.message.emit(cmd.execute(''));
+    if (isInline) {
+      // Replace the trigger text in-place with the result
+      if (this.triggerRange) {
+        const result = cmd.execute('');
+        this.triggerRange.deleteContents();
+        if (result.text) {
+          const textNode = document.createTextNode(result.text);
+          this.triggerRange.insertNode(textNode);
+          const sel = window.getSelection();
+          if (sel) {
+            const r = document.createRange();
+            r.setStartAfter(textNode);
+            r.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(r);
+          }
+        }
+        if (result.action) this.dispatchAction(result.action);
+      }
+      this.closeOverlay();
+      editor.focus();
     } else {
-      this.activeCommand.set(cmd);
+      // Global: clear editor, execute immediately or enter param mode
+      editor.innerHTML = '';
+      if (cmd.params.length === 0) {
+        const result = cmd.execute('');
+        if (result.text) this.message.emit(result.text);
+        if (result.action) this.dispatchAction(result.action);
+      } else {
+        this.activeCommand.set(cmd);
+      }
+      this.closeOverlay();
+      editor.focus();
     }
-
-    this.closeOverlay();
-    editor.focus();
   }
 
   // ── Emoji shortcode overlay selection ─────────────────────────────────────
@@ -313,12 +350,17 @@ export class ComposerComponent {
 
   send(): void {
     let text = getMessage(this.editorRef().nativeElement);
-    if (!text) return;
 
     const cmd = this.activeCommand();
-    if (cmd) { text = cmd.execute(text); this.activeCommand.set(null); }
+    if (cmd) {
+      const result = cmd.execute(text);
+      this.activeCommand.set(null);
+      if (result.action) this.dispatchAction(result.action);
+      text = result.text ?? '';
+    }
 
-    this.message.emit(text);
+    if (text) this.message.emit(text);
+
     this.editorRef().nativeElement.innerHTML = '';
     this.closeOverlay();
     this.editorRef().nativeElement.focus();
@@ -338,6 +380,23 @@ export class ComposerComponent {
       const e = this.filteredEmojis()[idx];
       if (e) this.onEmojiShortcodeSelected(e);
     }
+  }
+
+  /** Handle a command side-effect action. Known local actions are handled here;
+   *  anything else is forwarded to the parent component. */
+  private dispatchAction(action: { name: string; payload?: unknown }): void {
+    if (action.name === 'open-gif-picker') {
+      this.gifPickerRef()?.open();
+      return;
+    }
+    if (action.name === 'send-gif-search') {
+      const query = (action.payload as { query: string }).query;
+      this.gifService.search(query).subscribe(results => {
+        if (results.length > 0) this.message.emit(results[0].url);
+      });
+      return;
+    }
+    this.commandAction.emit(action);
   }
 
   private closeOverlay(): void {

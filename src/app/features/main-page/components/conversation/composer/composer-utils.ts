@@ -34,7 +34,7 @@ export interface EmojiSuggestion {
 
 export type TriggerDetection =
   | { type: 'mention'; query: string; range: Range }
-  | { type: 'command'; query: string; range: Range }
+  | { type: 'command'; query: string; range: Range; atStart: boolean }
   | { type: 'emoji'; query: string; range: Range }
   | null;
 
@@ -58,13 +58,16 @@ export function detectTrigger(editor: HTMLElement): TriggerDetection {
     return { type: 'mention', query: mentionMatch[1], range: r };
   }
 
-  const editorText = editor.textContent ?? '';
-  const commandMatch = editorText.match(/^\/(\w*)$/);
+  const commandMatch = textBefore.match(/(?:^|[\s\u00a0])\/(\w*)$/);
   if (commandMatch) {
+    const slashPos = textBefore.lastIndexOf('/');
     const r = document.createRange();
-    r.setStart(node as Text, 0);
+    r.setStart(node as Text, slashPos);
     r.setEnd(node as Text, range.startOffset);
-    return { type: 'command', query: commandMatch[1], range: r };
+    // atStart = the entire editor content is just /word (no other text)
+    const fullText = (editor.textContent ?? '').replace(/\u00a0/g, ' ').trim();
+    const atStart = /^\/\w*$/.test(fullText);
+    return { type: 'command', query: commandMatch[1], range: r, atStart };
   }
 
   // Emoji shortcode: :word (at least 1 char after colon)

@@ -8,6 +8,7 @@ import { ActionSidepanelComponent } from './components/action-sidepanel/action-s
 import { ConversationComponent } from './components/conversation/conversation.component';
 import { ServerTaskbarComponent } from './components/server-taskbar/server-taskbar.component';
 import { ActivityFeedComponent } from './components/activity-feed/activity-feed.component';
+import { ConversationInfoPanelComponent } from './components/conversation-info-panel/conversation-info-panel.component';
 import { NavigationService } from './navigation.service';
 
 @Component({
@@ -18,6 +19,7 @@ import { NavigationService } from './navigation.service';
     ConversationComponent,
     ServerTaskbarComponent,
     ActivityFeedComponent,
+    ConversationInfoPanelComponent,
   ],
   templateUrl: './main-page.component.html',
   styleUrl: './main-page.component.css',

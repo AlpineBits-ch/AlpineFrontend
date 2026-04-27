@@ -19,9 +19,10 @@
       <app-action-sidepanel />
     </div>
 
+    @let view = navService.mainView();
+
     <!-- Main content -->
     <div class="flex-1 min-w-0 overflow-hidden">
-      @let view = navService.mainView();
       @switch (view.type) {
         @case ('home') {
           <app-home />
@@ -39,10 +40,16 @@
       }
     </div>
 
-    <!-- Right sidebar: Activity feed — hidden on mobile/tablet -->
-    <div class="hidden xl:flex shrink-0 h-full">
-      <app-activity-feed />
-    </div>
+    <!-- Right sidebar: activity feed on home, conversation info on conversation -->
+    @if (view.type === 'home') {
+      <div class="hidden xl:flex shrink-0 h-full">
+        <app-activity-feed />
+      </div>
+    } @else if (view.type === 'conversation') {
+      <div class="hidden xl:flex shrink-0 h-full">
+        <app-conversation-info-panel [conversation]="view.conversation" />
+      </div>
+    }
 
   </div>
 </div>

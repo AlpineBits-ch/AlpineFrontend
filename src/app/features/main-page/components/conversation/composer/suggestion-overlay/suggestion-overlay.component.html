@@ -31,6 +31,10 @@
           [ngClass]="selectedIndex() === i ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]'">
           <span class="text-sm font-bold text-indigo-400 shrink-0">/{{ cmd.name }}</span>
           <span class="text-xs text-white/40 flex-1">{{ cmd.description }}</span>
+          <span class="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0"
+            [ngClass]="cmd.scope === 'inline' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-indigo-500/15 text-indigo-400'">
+            {{ cmd.scope }}
+          </span>
           @if (cmd.params.length > 0) {
             <span class="text-[11px] text-white/20 font-mono shrink-0">
               @for (p of cmd.params; track p.label) {
