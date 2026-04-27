@@ -1,12 +1,14 @@
-name: Build
+name: Build & Release
 
 on:
   push:
     branches: [main]
 
 jobs:
-  build-windows:
+  release-windows:
     runs-on: windows-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v4
@@ -25,16 +27,21 @@ jobs:
       - name: Build Tauri (Windows)
         run: bun run tauri build --bundles nsis,msi
 
-      - name: Upload MSI
-        uses: actions/upload-artifact@v4
-        with:
-          name: alpine-windows-msi
-          path: src-tauri/target/release/bundle/msi/*.msi
-          if-no-files-found: error
+      - name: Get app version
+        id: version
+        shell: pwsh
+        run: |
+          $v = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          "VERSION=$v" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - name: Upload NSIS installer
-        uses: actions/upload-artifact@v4
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
         with:
-          name: alpine-windows-nsis
-          path: src-tauri/target/release/bundle/nsis/*.exe
-          if-no-files-found: error
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          name: Alpine v${{ steps.version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          make_latest: true
+          files: |
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/nsis/*.exe
