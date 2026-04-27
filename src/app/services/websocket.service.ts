@@ -59,7 +59,7 @@ export class WebsocketService {
       console.log('Message created:', data);
       await this.notificationService.createNotification({
         title: 'New message',
-        message: `${data.content}`,
+        message: `${atob(data.content)}`,
         icon: 'message',
         sound: NotificationSound.NewMessage
       });
