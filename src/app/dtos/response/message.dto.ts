@@ -6,4 +6,6 @@
     channelId: string | undefined;
     conversationId: string | undefined;
     authorId: string;
+    isPending: boolean;
+    isFailed: boolean;
 }

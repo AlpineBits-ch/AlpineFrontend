@@ -10,7 +10,7 @@
         [class.bg-rose-500]="websocketService.connectionState() === ConnectionState.Disconnected"></div>
     </div>
     <div class="flex-1 min-w-0">
-      <p class="text-sm font-medium text-white/85 truncate leading-tight">{{ profileService.profile()?.userName }}</p>
+      <p class="text-sm font-medium text-white/85 truncate leading-tight">{{ profileService.ownProfile()?.userName }}</p>
       <app-connection-status></app-connection-status>
     </div>
     <p-button icon="pi pi-cog" [text]="true" severity="secondary" size="small" styleClass="shrink-0" (onClick)="isSettingsOpen.set(true)" />

@@ -22,7 +22,7 @@ export class ConversationListComponent {
   }
 
   public getChatName(conversation: ConversationDto): string {
-    const userProfile = this.profileService.profile();
+    const userProfile = this.profileService.ownProfile();
     if (!userProfile) return 'Loading...';
 
     const others = conversation.members.filter(m => m.userId !== userProfile.userId);

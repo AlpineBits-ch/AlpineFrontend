@@ -25,7 +25,7 @@ export class QuickSettingsComponent {
   public isSettingsOpen = signal(false);
 
   constructor() {
-    if (!this.profileService.profile()) {
+    if (!this.profileService.ownProfile()) {
       this.profileService.getSelf().subscribe();
     }
   }

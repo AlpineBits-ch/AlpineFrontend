@@ -72,6 +72,8 @@ export class WebsocketService {
         channelId: data.channelId,
         createdAt: new Date(),
         updatedAt: new Date(),
+        isPending: false,
+        isFailed: false,
       })
     })
 

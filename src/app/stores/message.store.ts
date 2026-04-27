@@ -1,6 +1,6 @@
 import { inject } from '@angular/core';
 import { patchState, signalStore, withHooks, withMethods, withState } from '@ngrx/signals';
-import { addEntities, upsertEntity, withEntities } from '@ngrx/signals/entities';
+import { addEntities, updateEntity, upsertEntity, withEntities } from '@ngrx/signals/entities';
 import { MessageDto } from '../dtos/response/message.dto';
 import { MessagingService } from '../services/messaging.service';
 import { WebsocketService } from '../services/websocket.service';
@@ -81,6 +81,16 @@ export const MessageStore = signalStore(
 
     addMessage(msg: MessageDto): void {
       patchState(store, upsertEntity(msg));
+    },
+
+    /** Replace a pending (optimistic) message with the confirmed server response */
+    confirmMessage(tempId: string, confirmed: MessageDto): void {
+      patchState(store, updateEntity({ id: tempId, changes: { ...confirmed, isPending: false, isFailed: false } }));
+    },
+
+    /** Mark a pending message as failed */
+    failMessage(tempId: string): void {
+      patchState(store, updateEntity({ id: tempId, changes: { isPending: false, isFailed: true } }));
     },
   })),
 

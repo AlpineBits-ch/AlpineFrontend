@@ -47,8 +47,8 @@
     <div class="bg-gradient-to-br from-indigo-500/15 to-violet-500/10 border border-white/[0.07] rounded-2xl p-3 flex flex-col items-center gap-2">
       <p-avatar icon="pi pi-user" shape="circle" size="large"></p-avatar>
       <div class="text-center">
-        <p class="text-sm font-semibold text-white/85">{{ profileService.profile()?.userName ?? '…' }}</p>
-        <p class="text-[11px] text-white/30">#{{ profileService.profile()?.hash }}</p>
+        <p class="text-sm font-semibold text-white/85">{{ profileService.ownProfile()?.userName ?? '…' }}</p>
+        <p class="text-[11px] text-white/30">#{{ profileService.ownProfile()?.hash }}</p>
       </div>
     </div>
   </div>

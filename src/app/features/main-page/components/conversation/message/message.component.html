@@ -1,14 +1,29 @@
-<div class="flex items-start gap-3 px-4 py-1.5 hover:bg-white/[0.02] rounded-lg transition-colors group">
+<div class="flex items-start gap-3 px-4 py-1.5 hover:bg-white/[0.02] rounded-lg transition-colors group"
+     [class.opacity-50]="message().isPending"
+     [class.bg-rose-500/5]="message().isFailed">
 
   <p-avatar [label]="message().authorId[0].toUpperCase()" shape="circle" styleClass="shrink-0 mt-0.5"></p-avatar>
 
   <div class="flex flex-col min-w-0 flex-1">
     <div class="flex items-baseline gap-2 mb-1">
-      <span class="text-sm font-semibold text-white/85">{{ message().authorId }}</span>
+        @let user = (getProfile() | async)!;
+
+      <span class="text-sm font-semibold text-white/85">{{ user.userName}}#{{user.hash}}</span>
       <span class="text-[11px] text-white/25">{{ message().createdAt | date: 'shortTime' }}</span>
+      @if (message().isPending) {
+        <i class="pi pi-spin pi-spinner text-[11px] text-white/30"></i>
+      }
+      @if (message().isFailed) {
+        <span class="text-[11px] text-rose-400 flex items-center gap-1">
+          <i class="pi pi-exclamation-circle"></i> Failed to send
+        </span>
+      }
     </div>
-    <p class="text-sm leading-relaxed text-white/70 m-0 break-words">{{ content() }}</p>
-    @if (message().updatedAt > message().createdAt) {
+    <p class="text-sm leading-relaxed m-0 break-words"
+       [class.text-white/70]="!message().isPending && !message().isFailed"
+       [class.text-white/40]="message().isPending"
+       [class.text-rose-300]="message().isFailed">{{ content() }}</p>
+    @if (!message().isPending && !message().isFailed && message().updatedAt > message().createdAt) {
       <span class="text-[10px] italic text-white/25 mt-0.5">Edited</span>
     }
   </div>

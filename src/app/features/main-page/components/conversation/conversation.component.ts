@@ -8,6 +8,7 @@ import {
   input,
   output,
   ViewChild,
+  viewChildren,
 } from '@angular/core';
 import { ConversationDto } from '../../../../dtos/response/conversation.dto';
 import { ComposerComponent } from './composer/composer.component';
@@ -16,7 +17,9 @@ import { Avatar } from 'primeng/avatar';
 import { Button } from 'primeng/button';
 import { MessagingService } from '../../../../services/messaging.service';
 import { MessageStore } from '../../../../stores/message.store';
-import { tap } from 'rxjs';
+import { catchError, EMPTY, tap } from 'rxjs';
+import { ProfileService } from '../../../../services/profile.service';
+import { MessageDto } from '../../../../dtos/response/message.dto';
 
 const SCROLL_BOTTOM_THRESHOLD = 100; // px from bottom — auto-scroll kicks in
 const LOAD_MORE_THRESHOLD = 150;     // px from top — fetch older messages
@@ -33,8 +36,12 @@ export class ConversationComponent implements AfterViewInit {
 
   private messageStore = inject(MessageStore);
   private messagingService = inject(MessagingService);
+  private profileService = inject(ProfileService);
 
   @ViewChild('messageScroll') private scrollRef!: ElementRef<HTMLDivElement>;
+
+  /** Tracks rendered <app-message> instances — updates only after the @for DOM is committed */
+  private renderedMessages = viewChildren(MessageComponent);
 
   /** Whether the user is close enough to the bottom that we should auto-scroll on new messages */
   private isNearBottom = true;
@@ -72,22 +79,20 @@ export class ConversationComponent implements AfterViewInit {
       this.restoreScroll = false;
     });
 
-    // React to messages changing (new messages in or older ones loaded)
+    // React after the @for DOM nodes are committed (viewChildren updates post-render)
     effect(() => {
-      const _ = this.messages(); // track signal
+      const _ = this.renderedMessages(); // track — fires only after DOM is ready
 
       if (this.restoreScroll) {
         // Older messages were prepended — restore position so the view doesn't jump
-        setTimeout(() => {
-          if (!this.scrollRef) return;
-          const el = this.scrollRef.nativeElement;
-          const heightDiff = el.scrollHeight - this.savedScrollHeight;
-          if (heightDiff > 0) el.scrollTop += heightDiff;
-          this.restoreScroll = false;
-          this.savedScrollHeight = 0;
-        }, 0);
+        if (!this.scrollRef) return;
+        const el = this.scrollRef.nativeElement;
+        const heightDiff = el.scrollHeight - this.savedScrollHeight;
+        if (heightDiff > 0) el.scrollTop += heightDiff;
+        this.restoreScroll = false;
+        this.savedScrollHeight = 0;
       } else if (this.isNearBottom) {
-        setTimeout(() => this.scrollToBottom(), 0);
+        this.scrollToBottom();
       }
     });
   }
@@ -120,10 +125,33 @@ export class ConversationComponent implements AfterViewInit {
   // ── Actions ──────────────────────────────────────────────────────────────
 
   public createMessage(content: string): void {
+    const tempId = crypto.randomUUID();
+    const now = new Date();
+
+    const optimistic: MessageDto = {
+      id:             tempId,
+      content,
+      conversationId: this.conversation().id,
+      channelId:      undefined,
+      authorId:       this.profileService.ownProfile()?.userId ?? '',
+      createdAt:      now,
+      updatedAt:      now,
+      isPending:      true,
+      isFailed:       false,
+    };
+
+    this.messageStore.addMessage(optimistic);
+
     this.messagingService.createMessage({
       content,
-      channelId: undefined,
+      channelId:      undefined,
       conversationId: this.conversation().id,
-    }).pipe(tap(m => this.messageStore.addMessage(m))).subscribe();
+    }).pipe(
+      tap(confirmed => this.messageStore.confirmMessage(tempId, confirmed)),
+      catchError(() => {
+        this.messageStore.failMessage(tempId);
+        return EMPTY;
+      }),
+    ).subscribe();
   }
 }

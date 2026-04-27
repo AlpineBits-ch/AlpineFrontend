@@ -1,8 +1,27 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, tap } from 'rxjs';
+import { catchError, Observable, of, tap } from 'rxjs';
 import { environment } from '../../environments/environment';
 import { ProfileDto } from '../dtos/response/profile.dto';
+
+// ── Circuit breaker config ───────────────────────────────────────────────────
+
+const FAILURE_THRESHOLD  = 3;
+const RECOVERY_TIMEOUT   = 30_000; // ms before moving to half-open
+
+type CircuitState = 'closed' | 'open' | 'half-open';
+
+const FALLBACK_PROFILE: ProfileDto = {
+  id:        'unknown',
+  userId:    'unknown',
+  userName:  'Unknown User',
+  hash:      0,
+  bio:       undefined,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+// ── Service ──────────────────────────────────────────────────────────────────
 
 @Injectable({
   providedIn: 'root',
@@ -10,34 +29,123 @@ import { ProfileDto } from '../dtos/response/profile.dto';
 export class ProfileService {
   private httpClient = inject(HttpClient);
 
-  /** Own profile */
-  public profile = signal<ProfileDto | undefined>(undefined);
+  /** The authenticated user's own profile */
+  public ownProfile = signal<ProfileDto | undefined>(undefined);
 
-  /** Cache of other users' profiles keyed by userId */
-  private userCache = signal<Record<string, ProfileDto>>({});
+  // Two indexes into the same profiles — whichever key you have, you can look up
+  private byProfileId = signal<Record<string, ProfileDto>>({});
+  private byUserId    = signal<Record<string, ProfileDto>>({});
+
+  // ── Circuit breaker state ────────────────────────────────────────────────
+
+  private circuitState: CircuitState = 'closed';
+  private failureCount = 0;
+  private openedAt     = 0;
+
+  private isAvailable(): boolean {
+    if (this.circuitState === 'closed' || this.circuitState === 'half-open') return true;
+    // Open — check if recovery window has elapsed
+    if (Date.now() - this.openedAt >= RECOVERY_TIMEOUT) {
+      this.circuitState = 'half-open';
+      return true;
+    }
+    return false;
+  }
+
+  private onSuccess(): void {
+    this.failureCount = 0;
+    this.circuitState = 'closed';
+  }
+
+  private onFailure(): void {
+    this.failureCount++;
+    if (this.failureCount >= FAILURE_THRESHOLD) {
+      this.circuitState = 'open';
+      this.openedAt     = Date.now();
+      console.warn('[ProfileService] Circuit breaker tripped — returning fallback profiles');
+    }
+  }
+
+  /** Wraps an HTTP call with circuit breaker logic */
+  private protect(request: Observable<ProfileDto>): Observable<ProfileDto> {
+    if (!this.isAvailable()) {
+      return of(FALLBACK_PROFILE);
+    }
+    return request.pipe(
+      tap(() => this.onSuccess()),
+      catchError(() => {
+        this.onFailure();
+        return of(FALLBACK_PROFILE);
+      }),
+    );
+  }
+
+  // ── Own profile ──────────────────────────────────────────────────────────
 
   public getSelf(): Observable<ProfileDto> {
     return this.httpClient
       .get<ProfileDto>(environment.apiUrl + '/api/v1/social/profiles/me')
-      .pipe(tap(v => this.profile.set(v)));
+      .pipe(tap(p => { this.ownProfile.set(p); this.store(p); }));
   }
 
-  public getById(userId: string): ProfileDto | undefined {
-    return this.userCache()[userId];
+  // ── Sync cache reads ─────────────────────────────────────────────────────
+
+  public getCachedById(profileId: string): ProfileDto | undefined {
+    return this.byProfileId()[profileId];
   }
 
-  public fetchById(userId: string): Observable<ProfileDto> {
-    return this.httpClient
-      .get<ProfileDto>(environment.apiUrl + `/api/v1/social/profiles/${userId}`)
-      .pipe(
-        tap(p => this.userCache.update(cache => ({ ...cache, [userId]: p })))
-      );
+  public getCachedByUserId(userId: string): ProfileDto | undefined {
+    return this.byUserId()[userId];
   }
 
-  /** Returns cached value; fires a fetch in the background if missing */
-  public resolve(userId: string): void {
-    if (!this.userCache()[userId]) {
-      this.fetchById(userId).subscribe();
+  // ── Fetches — circuit-breaker protected ─────────────────────────────────
+
+  public fetchById(profileId: string): Observable<ProfileDto> {
+    return this.protect(
+      this.httpClient
+        .get<ProfileDto>(environment.apiUrl + `/api/v1/social/profiles/${profileId}`)
+        .pipe(tap(p => this.store(p))),
+    );
+  }
+
+  public fetchByUserId(userId: string): Observable<ProfileDto> {
+    return this.protect(
+      this.httpClient
+        .get<ProfileDto>(environment.apiUrl + `/api/v1/social/profiles/by-user/${userId}`)
+        .pipe(tap(p => this.store(p))),
+    );
+  }
+
+  // ── Cache-first getters ──────────────────────────────────────────────────
+
+  public getById(profileId: string): Observable<ProfileDto> {
+    const cached = this.byProfileId()[profileId];
+    return cached ? of(cached) : this.fetchById(profileId);
+  }
+
+  public getByUserId(userId: string): Observable<ProfileDto> {
+    const cached = this.byUserId()[userId];
+    return cached ? of(cached) : this.fetchByUserId(userId);
+  }
+
+  // ── Fire-and-forget resolvers ────────────────────────────────────────────
+
+  public resolveById(profileId: string): void {
+    if (!this.byProfileId()[profileId]) {
+      this.fetchById(profileId).subscribe();
     }
+  }
+
+  public resolveByUserId(userId: string): void {
+    if (!this.byUserId()[userId]) {
+      this.fetchByUserId(userId).subscribe();
+    }
+  }
+
+  // ── Private helpers ──────────────────────────────────────────────────────
+
+  private store(profile: ProfileDto): void {
+    this.byProfileId.update(c => ({ ...c, [profile.id]: profile }));
+    this.byUserId.update(c => ({ ...c, [profile.userId]: profile }));
   }
 }
