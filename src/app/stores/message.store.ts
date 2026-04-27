@@ -5,34 +5,78 @@ import { MessageDto } from '../dtos/response/message.dto';
 import { MessagingService } from '../services/messaging.service';
 import { WebsocketService } from '../services/websocket.service';
 
+const PAGE_SIZE = 30;
+
+interface ConversationMeta {
+  offset: number;
+  hasMore: boolean;
+  loadingMore: boolean;
+}
+
 interface MessageState {
-  /** Tracks which conversationIds have been fetched at least once */
-  loadedConversations: Record<string, boolean>;
+  /** Per-conversation fetch metadata */
+  conversationMeta: Record<string, ConversationMeta>;
 }
 
 export const MessageStore = signalStore(
   { providedIn: 'root' },
   withEntities<MessageDto>(),
-  withState<MessageState>({ loadedConversations: {} }),
+  withState<MessageState>({ conversationMeta: {} }),
 
   withMethods((store, messagingService = inject(MessagingService)) => ({
-    loadForConversation(conversationId: string, offset = 0, limit = 30): void {
-      if (store.loadedConversations()[conversationId]) return;
+    loadForConversation(conversationId: string): void {
+      // Already fetched — no-op
+      if (store.conversationMeta()[conversationId]) return;
+
+      // Optimistically mark as loading so concurrent calls don't double-fetch
+      patchState(store, {
+        conversationMeta: {
+          ...store.conversationMeta(),
+          [conversationId]: { offset: 0, hasMore: true, loadingMore: true },
+        },
+      });
+
       messagingService
-        .getMessagesForConversation(conversationId, offset, limit)
+        .getMessagesForConversation(conversationId, 0, PAGE_SIZE)
         .subscribe(messages => {
-          patchState(
-            store,
-            addEntities(messages),
-            { loadedConversations: { ...store.loadedConversations(), [conversationId]: true } }
-          );
+          patchState(store, addEntities(messages), {
+            conversationMeta: {
+              ...store.conversationMeta(),
+              [conversationId]: {
+                offset: messages.length,
+                hasMore: messages.length === PAGE_SIZE,
+                loadingMore: false,
+              },
+            },
+          });
         });
     },
 
-    loadMoreForConversation(conversationId: string, offset: number, limit = 30): void {
+    loadMoreForConversation(conversationId: string): void {
+      const meta = store.conversationMeta()[conversationId];
+      if (!meta || meta.loadingMore || !meta.hasMore) return;
+
+      patchState(store, {
+        conversationMeta: {
+          ...store.conversationMeta(),
+          [conversationId]: { ...meta, loadingMore: true },
+        },
+      });
+
       messagingService
-        .getMessagesForConversation(conversationId, offset, limit)
-        .subscribe(messages => patchState(store, addEntities(messages)));
+        .getMessagesForConversation(conversationId, meta.offset, PAGE_SIZE)
+        .subscribe(messages => {
+          patchState(store, addEntities(messages), {
+            conversationMeta: {
+              ...store.conversationMeta(),
+              [conversationId]: {
+                offset: meta.offset + messages.length,
+                hasMore: messages.length === PAGE_SIZE,
+                loadingMore: false,
+              },
+            },
+          });
+        });
     },
 
     addMessage(msg: MessageDto): void {
@@ -43,7 +87,6 @@ export const MessageStore = signalStore(
   withHooks({
     onInit(store) {
       const wsService = inject(WebsocketService);
-      // All incoming realtime messages land here regardless of active view
       wsService.messageObservable.subscribe(msg =>
         patchState(store, upsertEntity(msg))
       );
