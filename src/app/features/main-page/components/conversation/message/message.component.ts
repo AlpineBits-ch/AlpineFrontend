@@ -7,6 +7,7 @@ import {Observable} from "rxjs";
 import {ProfileDto} from "../../../../../dtos/response/profile.dto";
 import {rxResource} from "@angular/core/rxjs-interop";
 import { isKlipyGifUrl } from '../../../../../services/gif.service';
+import { EmojiDataService } from '../../../../../services/emoji-data.service';
 
 @Component({
   selector: 'app-message',
@@ -21,12 +22,14 @@ import { isKlipyGifUrl } from '../../../../../services/gif.service';
 })
 export class MessageComponent {
   public profileService = inject(ProfileService);
+  private emojiDataService = inject(EmojiDataService);
 
   public message = input.required<MessageDto>();
 
   public content = computed(() => {
     const bytes = Uint8Array.from(atob(this.message().content), c => c.charCodeAt(0));
-    return new TextDecoder().decode(bytes);
+    const decoded = new TextDecoder().decode(bytes);
+    return this.emojiDataService.resolveShortcodes(decoded);
   });
 
   public contentSegments = computed(() => {
