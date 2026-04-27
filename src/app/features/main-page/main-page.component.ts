@@ -9,13 +9,17 @@ import {ConversationListComponent} from "./components/conversation-list/conversa
 import {ActionSidepanelComponent} from "./components/action-sidepanel/action-sidepanel.component";
 import {ConversationComponent} from "./components/conversation/conversation.component";
 import {ConversationDto} from "../../dtos/response/conversation.dto";
+import {ServerTaskbarComponent} from "./components/server-taskbar/server-taskbar.component";
+import {ActivityFeedComponent} from "./components/activity-feed/activity-feed.component";
 @Component({
   selector: 'app-main-page',
   imports: [
     HomeComponent,
     ConversationListComponent,
     ActionSidepanelComponent,
-    ConversationComponent
+    ConversationComponent,
+    ServerTaskbarComponent,
+    ActivityFeedComponent
   ],
   templateUrl: './main-page.component.html',
   styleUrl: './main-page.component.css',
@@ -24,13 +28,23 @@ export class MainPageComponent {
   protected  authService = inject(AuthService);
   protected oAuthService = inject(OAuthService);
 
-  protected isHomeVisible = signal(false);
+  protected isHomeVisible = signal(true);
+  protected mobileNavOpen = signal(false);
 
   public testConversation = signal<ConversationDto | null>(null);
 
   private conversationService = inject(ConversationService);
   private websocketService = inject(WebsocketService);
   protected router = inject(Router);
+  public onConversationSelected(conv: ConversationDto): void {
+    this.testConversation.set(conv);
+    this.isHomeVisible.set(false);
+  }
+
+  public showHome(): void {
+    this.isHomeVisible.set(true);
+  }
+
   public logout(): void {
     this.authService.logout();
     this.router.navigate(['/authentication']);

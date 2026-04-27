@@ -1,16 +1,39 @@
+<div class="flex flex-col w-screen h-screen overflow-hidden bg-[#0d1117]">
 
-<div class="flex flex-row w-screen h-screen bg-yellow">
-    <app-action-sidepanel>
-        <app-conversation-list></app-conversation-list>
-    </app-action-sidepanel>
-    <div class="w-full h-full">
-        @if (isHomeVisible()){
-            <app-home></app-home>
-        } @else {
-            <app-conversation [conversation]="testConversation()!"></app-conversation>
-        }
+  <!-- Top: Horizontal server bar -->
+  <app-server-taskbar (menuToggle)="mobileNavOpen.set(!mobileNavOpen())"></app-server-taskbar>
 
+  <!-- Body: left sidebar + main content + right sidebar -->
+  <div class="flex flex-1 min-h-0 relative">
 
+    <!-- Mobile drawer backdrop -->
+    @if (mobileNavOpen()) {
+      <div class="fixed inset-0 z-40 bg-black/60 lg:hidden" (click)="mobileNavOpen.set(false)"></div>
+    }
+
+    <!-- Left sidebar: always in layout on desktop, overlay drawer on mobile -->
+    <div class="fixed top-12 bottom-0 left-0 z-50 transition-transform duration-200
+                lg:relative lg:top-auto lg:bottom-auto lg:z-auto lg:!translate-x-0"
+         [class.-translate-x-full]="!mobileNavOpen()"
+         [class.translate-x-0]="mobileNavOpen()">
+      <app-action-sidepanel (showFriends)="showHome(); mobileNavOpen.set(false)">
+        <app-conversation-list (conversationSelected)="onConversationSelected($event); mobileNavOpen.set(false)"></app-conversation-list>
+      </app-action-sidepanel>
     </div>
-</div>
 
+    <!-- Main content -->
+    <div class="flex-1 min-w-0 overflow-hidden">
+      @if (isHomeVisible()) {
+        <app-home></app-home>
+      } @else {
+        <app-conversation [conversation]="testConversation()!" (back)="showHome()"></app-conversation>
+      }
+    </div>
+
+    <!-- Right sidebar: Activity feed — hidden on mobile/tablet -->
+    <div class="hidden xl:flex shrink-0 h-full">
+      <app-activity-feed></app-activity-feed>
+    </div>
+
+  </div>
+</div>

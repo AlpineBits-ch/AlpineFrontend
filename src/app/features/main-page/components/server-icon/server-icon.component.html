@@ -1,6 +1,17 @@
-<div class="w-[3rem] h-[3rem] m-1 rounded-xl bg-gray-200 hover:bg-gray-300">
-    @if(serverData().icon) {
-        <img src="{{serverData().icon}}" alt="Server Icon" class="w-full h-full object-cover rounded-xl p-1">
-    }
-
-</div>
+<button
+  class="shrink-0 flex items-center gap-2 h-8 px-3 rounded-xl text-sm font-medium transition-all border-0 cursor-pointer"
+  [class.bg-indigo-500/15]="serverData().isActive"
+  [class.text-indigo-400]="serverData().isActive"
+  [class.text-white/50]="!serverData().isActive"
+  [class.hover:bg-white/[0.06]]="!serverData().isActive"
+  [class.hover:text-white/75]="!serverData().isActive">
+  @if (serverData().icon) {
+    <img [src]="serverData().icon" alt="" class="w-4 h-4 rounded-full object-cover">
+  }
+  <span>{{ serverData().name }}</span>
+  @if (serverData().badge) {
+    <span class="ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center">
+      {{ serverData().badge }}
+    </span>
+  }
+</button>

@@ -1,4 +1,4 @@
-import {Component, input} from '@angular/core';
+import {Component, computed, input} from '@angular/core';
 import {MessageDto} from "../../../../../dtos/response/message.dto";
 import {Avatar} from "primeng/avatar";
 import {DatePipe} from "@angular/common";
@@ -14,4 +14,9 @@ import {DatePipe} from "@angular/common";
 })
 export class MessageComponent {
   public message = input.required<MessageDto>();
+
+  public content = computed(() => {
+    const message = this.message();
+    return atob(message.content)
+  })
 }

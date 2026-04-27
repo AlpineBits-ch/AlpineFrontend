@@ -1,38 +1,74 @@
-import {Component, inject} from '@angular/core';
-import {InputText} from "primeng/inputtext";
-import {Button} from "primeng/button";
-import {AuthService} from "../../../../services/auth.service";
-import {OAuthService} from "angular-oauth2-oidc";
-import {NotificationService, NotificationSound} from "../../../../services/notification.service";
+import {Component, computed, inject, signal} from '@angular/core';
+import {Avatar} from "primeng/avatar";
+import {FormsModule} from "@angular/forms";
+import {RelationshipService} from "../../../../services/relationship.service";
+import {RelationshipModel, RelationshipStatus} from "../../../friendship/components/friendship-modal/dto/relationship.model";
+
+type FriendsTab = 'online' | 'all' | 'pending' | 'blocked';
 
 @Component({
   selector: 'app-home',
-  imports: [
-    InputText,
-    Button,
-  ],
+  imports: [Avatar, FormsModule],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
 })
 export class HomeComponent {
+  private relationshipService = inject(RelationshipService);
 
-  private authService = inject(AuthService);
-  private oAuth = inject(OAuthService);
-  private notificationService = inject(NotificationService);
-  async notifyUser(): Promise<void> {
-    await this.notificationService.createNotification({
-      message: 'Test Nachricht',
-      title: 'Echo',
-      icon: '/assets/tauri.svg',
-      sound: NotificationSound.NewMessage
-    })
+  public tab = signal<FriendsTab>('online');
+  public addFriendOpen = signal(false);
+  public friendInput = '';
+
+  public relationships = signal<RelationshipModel[]>([]);
+
+  public incoming = computed(() => this.relationships().filter(r => r.status === RelationshipStatus.PendingIncoming));
+  public outgoing = computed(() => this.relationships().filter(r => r.status === RelationshipStatus.PendingOutgoing));
+  public friends  = computed(() => this.relationships().filter(r => r.status === RelationshipStatus.Friends));
+  public blocked  = computed(() => this.relationships().filter(r => r.status === RelationshipStatus.Blocked));
+  public pendingCount = computed(() => this.incoming().length + this.outgoing().length);
+
+  constructor() {
+    this.load();
   }
 
-  public logout(): void{
-    this.authService.logout();
+  private load(): void {
+    this.relationshipService.getRelationships().subscribe(d => this.relationships.set(d));
   }
 
-  public refreshToken(){
-    this.oAuth.refreshToken();
+  public sendRequest(): void {
+    const parts = this.friendInput.trim().split('#');
+    if (parts.length !== 2) return;
+    const username = parts[0];
+    const hash = Number.parseInt(parts[1]);
+    if (isNaN(hash)) return;
+    this.relationshipService.createFriendRequest(username, hash).subscribe(() => {
+      this.friendInput = '';
+      this.addFriendOpen.set(false);
+      this.load();
+    });
   }
+
+  public accept(id: string): void {
+    this.relationshipService.acceptFriendRequest(id).subscribe(() => this.load());
+  }
+
+  public decline(id: string): void {
+    this.relationshipService.rejectFriendRequest(id).subscribe(() => this.load());
+  }
+
+  public cancel(id: string): void {
+    this.relationshipService.revokeFriendRequest(id).subscribe(() => this.load());
+  }
+
+  public block(id: string): void {
+    // TODO: wire up block endpoint when available
+    console.log('Block user relationship:', id);
+  }
+
+  public unblock(id: string): void {
+    // TODO: wire up unblock endpoint when available
+    console.log('Unblock user relationship:', id);
+  }
+
+  protected readonly RelationshipStatus = RelationshipStatus;
 }

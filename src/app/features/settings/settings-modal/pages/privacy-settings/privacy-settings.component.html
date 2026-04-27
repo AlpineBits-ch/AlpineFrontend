@@ -1,0 +1,59 @@
+<div class="flex flex-col gap-8 max-w-2xl">
+
+  <!-- Friend Requests -->
+  <section class="flex flex-col gap-4">
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">Friend Requests</h2>
+
+    <div class="flex flex-col gap-2">
+      <p class="text-xs text-white/35 mb-1">Who can send you a friend request?</p>
+      @for (opt of friendRequestOptions; track opt.label) {
+        <label class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 cursor-not-allowed">
+          <div>
+            <p class="text-sm text-white/60">{{ opt.label }}</p>
+            <p class="text-xs text-white/25 mt-0.5">{{ opt.desc }}</p>
+          </div>
+          <div class="w-4 h-4 rounded-full border-2 border-white/20 shrink-0"
+               [class.bg-indigo-500]="opt.active" [class.border-indigo-500]="opt.active"></div>
+        </label>
+      }
+    </div>
+  </section>
+
+  <!-- Direct Messages -->
+  <section class="flex flex-col gap-4">
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">Direct Messages</h2>
+
+    @for (toggle of dmToggles; track toggle.label) {
+      <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+        <div>
+          <p class="text-sm text-white/60">{{ toggle.label }}</p>
+          <p class="text-xs text-white/25 mt-0.5">{{ toggle.desc }}</p>
+        </div>
+        <!-- Toggle switch skeleton -->
+        <div class="w-10 h-6 rounded-full bg-white/10 border border-white/[0.08] flex items-center px-1 cursor-not-allowed">
+          <div class="w-4 h-4 rounded-full bg-white/20"></div>
+        </div>
+      </div>
+    }
+  </section>
+
+  <!-- Presence -->
+  <section class="flex flex-col gap-4">
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">Presence</h2>
+
+    @for (toggle of presenceToggles; track toggle.label) {
+      <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+        <div>
+          <p class="text-sm text-white/60">{{ toggle.label }}</p>
+          <p class="text-xs text-white/25 mt-0.5">{{ toggle.desc }}</p>
+        </div>
+        <div class="w-10 h-6 rounded-full bg-white/10 border border-white/[0.08] flex items-center px-1 cursor-not-allowed">
+          <div class="w-4 h-4 rounded-full bg-white/20"></div>
+        </div>
+      </div>
+    }
+  </section>
+
+  <p class="text-[11px] text-white/20 italic">These settings are not yet active. Functionality coming soon.</p>
+
+</div>

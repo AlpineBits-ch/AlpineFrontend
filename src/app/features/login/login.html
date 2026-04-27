@@ -1,38 +1,132 @@
-<div class="flex flex-col md:flex-row w-screen h-screen">
-    <div class="h-screen hidden md:flex flex-col gap-2 w-[50%]">
-        <p>Alpine</p>
-        <h1>Connect with Your Community</h1>
-        <p>experience stuff</p>
+<div class="flex w-screen h-screen overflow-hidden bg-[#06090f]">
+
+  <!-- ── Left: Brand Panel (desktop only) ───────────────────────────────── -->
+  <div class="brand-panel-grid hidden lg:flex relative w-[55%] flex-col items-center justify-center border-r border-white/[0.07] overflow-hidden bg-gradient-to-br from-[#06090f] via-[#090e1c] to-[#080c17]">
+
+    <div class="orb-1 absolute w-[480px] h-[480px] rounded-full pointer-events-none"></div>
+    <div class="orb-2 absolute w-[360px] h-[360px] rounded-full pointer-events-none"></div>
+    <div class="orb-3 absolute w-[240px] h-[240px] rounded-full pointer-events-none"></div>
+
+    <div class="bubble-float bubble-delay-0 absolute top-[18%] right-[7%] bg-white/5 backdrop-blur-xl border border-white/[0.09] rounded-[18px] rounded-br-[4px] px-[18px] py-[11px] text-[13px] text-white/50 whitespace-nowrap z-10">Hey, are you there? 👋</div>
+    <div class="bubble-float bubble-delay-1 absolute top-[50%] left-[6%] bg-white/5 backdrop-blur-xl border border-white/[0.09] rounded-[18px] rounded-bl-[4px] px-[18px] py-[11px] text-[13px] text-white/50 whitespace-nowrap z-10">Just sent you the files 📎</div>
+    <div class="bubble-float bubble-delay-2 absolute bottom-[22%] right-[11%] bg-white/5 backdrop-blur-xl border border-white/[0.09] rounded-[18px] rounded-br-[4px] px-[18px] py-[11px] text-[13px] text-indigo-400/75 whitespace-nowrap z-10">Encrypted ✓ ✓</div>
+
+    <div class="relative z-10 max-w-[420px] px-10 py-8">
+      <div class="flex items-center gap-3 mb-9">
+        <div class="w-[46px] h-[46px] bg-gradient-to-br from-indigo-400 to-indigo-700 rounded-[14px] flex items-center justify-center text-[22px] font-black text-white shadow-[0_4px_20px_rgba(67,56,202,0.45)]">A</div>
+        <span class="text-[22px] font-bold text-slate-100 tracking-tight">Alpine</span>
+      </div>
+      <h1 class="text-[40px] font-extrabold leading-[1.15] text-slate-100 mb-5 tracking-[-1.5px]">
+        Private conversations,<br>
+        <span class="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">beautifully simple.</span>
+      </h1>
+      <p class="text-slate-500 text-[15px] leading-[1.7] mb-8">
+        End-to-end encrypted messaging built for people who value their privacy. Modern, fast, and always secure.
+      </p>
+      <ul class="flex flex-col gap-3.5 list-none p-0 m-0">
+        <li class="flex items-center gap-3 text-white/50 text-sm">
+          <div class="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0 shadow-[0_0_10px_rgba(129,140,248,0.5)]"></div>
+          End-to-end encryption on every message
+        </li>
+        <li class="flex items-center gap-3 text-white/50 text-sm">
+          <div class="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0 shadow-[0_0_10px_rgba(129,140,248,0.5)]"></div>
+          Real-time delivery, zero latency
+        </li>
+        <li class="flex items-center gap-3 text-white/50 text-sm">
+          <div class="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0 shadow-[0_0_10px_rgba(129,140,248,0.5)]"></div>
+          Your data stays yours — always
+        </li>
+      </ul>
     </div>
-    <div class="h-screen w-full md:w-[50%] flex justify-center items-center">
-        <p-card class="flex flex-col gap-2 h-full w-full md:h-[unset] md:w-[unset]">
-            @if (!isLoginMode()) {
-                <div class="flex flex-col gap-2">
-                    <h2>Register</h2>
-                    <input [formField]="registerForm.username" pInputText type="text" placeholder="Username" />
-                    <input [formField]="registerForm.email" pInputText type="text" placeholder="Email" />
+  </div>
 
-                    <p-date-picker [formField]="$any(registerForm.birthdate)" placeholder="Date of birth"></p-date-picker>
-                    <input [formField]="registerForm.password" pPassword type="password" placeholder="Password" />
-                    <input pPassword type="password" placeholder="Confirm Password" />
+  <!-- ── Right: Form Panel ───────────────────────────────────────────────── -->
+  <div class="flex-1 flex flex-col items-center justify-center p-5 sm:p-8 bg-[#06090f] overflow-y-auto">
 
-                    <p-button (onClick)="register()" label="Registrieren" />
-
-                    <p-button [variant]="'outlined'" (onClick)="isLoginMode.set(true)">You have an account? Login</p-button>
-                </div>
-            } @else {
-                <div class="flex flex-col gap-2">
-                    <h2>Login</h2>
-                    <input pInputText [formField]="loginForm.username" type="text" placeholder="Username" />
-
-                    <input pPassword [formField]="loginForm.password" type="password" placeholder="Password" />
-
-                    <p-button (onClick)="login().subscribe()" label="Login" />
-
-                    <p-button [variant]="'outlined'" (onClick)="isLoginMode.set(false)">You don't have an account? Register</p-button>
-                </div>
-            }
-
-        </p-card>
+    <!-- Mobile brand header (hidden on desktop) -->
+    <div class="flex lg:hidden items-center gap-3 mb-8">
+      <div class="w-10 h-10 rounded-[12px] bg-gradient-to-br from-indigo-400 to-indigo-700 flex items-center justify-center text-white font-black text-lg shadow-[0_4px_16px_rgba(67,56,202,0.4)]">A</div>
+      <span class="text-xl font-bold text-slate-100 tracking-tight">Alpine</span>
     </div>
+
+    <div class="login-form w-full max-w-[400px] bg-[rgba(13,17,28,0.85)] border border-white/[0.07] rounded-3xl p-6 sm:p-9 backdrop-blur-2xl shadow-[0_32px_64px_rgba(0,0,0,0.55),inset_0_1px_0_rgba(255,255,255,0.05)]">
+
+      <!-- Mode toggle -->
+      <div class="flex bg-white/[0.04] border border-white/[0.07] rounded-2xl p-1 gap-1 mb-7">
+        <button
+          class="flex-1 py-2 px-3 rounded-xl text-[13.5px] font-medium cursor-pointer transition-all border-0 outline-none bg-transparent"
+          [class.bg-indigo-500/[0.14]]="isLoginMode()"
+          [class.text-indigo-400]="isLoginMode()"
+          [class.shadow-sm]="isLoginMode()"
+          [class.text-slate-500]="!isLoginMode()"
+          (click)="isLoginMode.set(true)">
+          Sign In
+        </button>
+        <button
+          class="flex-1 py-2 px-3 rounded-xl text-[13.5px] font-medium cursor-pointer transition-all border-0 outline-none bg-transparent"
+          [class.bg-indigo-500/[0.14]]="!isLoginMode()"
+          [class.text-indigo-400]="!isLoginMode()"
+          [class.shadow-sm]="!isLoginMode()"
+          [class.text-slate-500]="isLoginMode()"
+          (click)="isLoginMode.set(false)">
+          Create Account
+        </button>
+      </div>
+
+      @if (!isLoginMode()) {
+        <div class="flex flex-col gap-4">
+          <div class="mb-1">
+            <h2 class="text-[22px] font-bold text-slate-100 mb-1 tracking-tight">Create your account</h2>
+            <p class="text-[13.5px] text-slate-500">Join Alpine — messaging the way it should be.</p>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Username</label>
+            <input [formField]="registerForm.username" pInputText type="text" placeholder="Choose a username" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Email</label>
+            <input [formField]="registerForm.email" pInputText type="email" placeholder="you@example.com" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Date of Birth</label>
+            <p-date-picker [formField]="$any(registerForm.birthdate)" placeholder="Select your birthday"></p-date-picker>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Password</label>
+            <input [formField]="registerForm.password" pPassword type="password" placeholder="Create a strong password" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Confirm Password</label>
+            <input pPassword type="password" placeholder="Repeat your password" />
+          </div>
+          <p-button (onClick)="register()" label="Create Account" />
+        </div>
+      } @else {
+        <div class="flex flex-col gap-4">
+          <div class="mb-1">
+            <h2 class="text-[22px] font-bold text-slate-100 mb-1 tracking-tight">Welcome back</h2>
+            <p class="text-[13.5px] text-slate-500">Sign in to continue your conversations.</p>
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Username</label>
+            <input pInputText [formField]="loginForm.username" type="text" placeholder="Your username" />
+          </div>
+          <div class="flex flex-col gap-1.5">
+            <label class="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Password</label>
+            <input pPassword [formField]="loginForm.password" type="password" placeholder="Your password" />
+          </div>
+          <p-button (onClick)="login().subscribe()" label="Sign In" />
+        </div>
+      }
+
+    </div>
+
+    <p class="mt-5 text-center text-[12px] text-slate-600 max-w-sm leading-relaxed">
+      By continuing, you agree to Alpine's
+      <a href="#" class="text-indigo-400/70 hover:text-indigo-400 no-underline hover:underline transition-colors">Terms of Service</a>
+      and
+      <a href="#" class="text-indigo-400/70 hover:text-indigo-400 no-underline hover:underline transition-colors">Privacy Policy</a>.
+    </p>
+  </div>
+
 </div>

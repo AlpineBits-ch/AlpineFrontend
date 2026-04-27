@@ -1,3 +1,38 @@
-<div class="flex gap-2 flex-col h-full w-full items-center pt-2 pb-2">
-    <app-server-icon [serverData]="defaultServer"></app-server-icon>
+<div class="flex items-center h-12 px-3 bg-[#0d1117] border-b border-white/[0.06] gap-2 shrink-0">
+
+  <!-- Hamburger (mobile only) -->
+  <button (click)="menuToggle.emit()"
+    class="lg:hidden w-8 h-8 rounded-xl flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-all cursor-pointer border-0 bg-transparent shrink-0">
+    <i class="pi pi-bars text-sm"></i>
+  </button>
+
+  <!-- Logo -->
+  <div class="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white font-black text-base shrink-0">A</div>
+
+  <!-- Divider -->
+  <div class="w-px h-5 bg-white/10 shrink-0 mx-1"></div>
+
+  <!-- Scrollable server tabs -->
+  <div class="flex-1 flex items-center gap-1 overflow-x-auto" style="scrollbar-width: none;">
+    @for (server of servers(); track server.id) {
+      <app-server-icon [serverData]="server"></app-server-icon>
+    }
+    <button class="shrink-0 w-8 h-8 rounded-xl border border-dashed border-white/20 text-white/30 hover:text-white/60 hover:border-white/40 flex items-center justify-center transition-all text-lg leading-none cursor-pointer bg-transparent">+</button>
+  </div>
+
+  <!-- Search + notifications -->
+  <div class="flex items-center gap-2 shrink-0">
+    <div class="hidden sm:flex items-center gap-2 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 w-44 focus-within:border-white/20 transition-colors">
+      <i class="pi pi-search text-xs text-white/30 shrink-0"></i>
+      <input
+        type="text"
+        placeholder="Search…"
+        class="flex-1 bg-transparent border-0 outline-none text-xs text-white/80 placeholder-white/25 py-1.5 min-w-0" />
+      <kbd class="text-[10px] text-white/20 bg-white/5 px-1.5 py-0.5 rounded shrink-0">⌘K</kbd>
+    </div>
+    <button class="w-8 h-8 rounded-xl bg-white/[0.04] border border-white/[0.07] flex items-center justify-center text-white/40 hover:text-white/75 hover:bg-white/[0.08] transition-all cursor-pointer">
+      <i class="pi pi-bell text-sm"></i>
+    </button>
+  </div>
+
 </div>

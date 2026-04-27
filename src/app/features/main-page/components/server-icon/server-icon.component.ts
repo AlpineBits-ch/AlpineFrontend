@@ -3,8 +3,10 @@ import {Component, input} from '@angular/core';
 export interface ServerData {
   id: string;
   name: string;
-  icon: string;
-  isHome: boolean
+  icon?: string;
+  isHome: boolean;
+  badge?: number;
+  isActive?: boolean;
 }
 @Component({
   selector: 'app-server-icon',

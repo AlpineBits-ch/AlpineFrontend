@@ -1,32 +1,30 @@
-<div class="flex flex-col w-full px-4 py-2">
-    <div class="flex items-end w-full bg-surface-200 dark:bg-surface-800 rounded-lg px-4 py-2 gap-3 min-h-[44px]">
+<div class="px-4 py-3">
+  <div class="flex items-end gap-3 bg-white/[0.05] border border-white/[0.08] rounded-2xl px-3 py-2 focus-within:border-white/[0.15] transition-colors">
 
-        <button class="mb-1 p-link flex items-center justify-center w-6 h-6 rounded-full bg-surface-400 dark:bg-surface-600 hover:bg-primary transition-colors cursor-pointer border-none shrink-0">
-            <i class="pi pi-plus text-[10px] text-surface-900 dark:text-surface-0"></i>
-        </button>
+    <button class="w-7 h-7 rounded-xl bg-white/[0.06] hover:bg-indigo-500/20 hover:text-indigo-400 flex items-center justify-center transition-all cursor-pointer border-0 text-white/35 shrink-0 mb-0.5">
+      <i class="pi pi-plus text-xs"></i>
+    </button>
 
-        <textarea
-            #composer
-            pTextarea
-            [autoResize]="true"
-            rows="1"
-            placeholder="Message"
-            (keydown.enter)="$any($event).shiftKey ? null : $event.preventDefault(); $any($event).shiftKey ? null : handleSendMessage(composer)"
-            class="w-full border-none bg-transparent focus:ring-0 focus:shadow-none text-surface-700 dark:text-surface-100 placeholder:text-surface-500 resize-none py-1 max-h-[200px] overflow-y-auto"
-        ></textarea>
+    <textarea
+      #composer
+      pTextarea
+      [autoResize]="true"
+      rows="1"
+      placeholder="Message"
+      (keydown.enter)="$any($event).shiftKey ? null : $event.preventDefault(); $any($event).shiftKey ? null : handleSendMessage(composer)"
+      class="flex-1 border-0 bg-transparent outline-none text-sm text-white/80 placeholder:text-white/25 resize-none py-1 max-h-[160px] overflow-y-auto focus:shadow-none focus:ring-0"
+    ></textarea>
 
-        <div class="flex items-center gap-3 text-surface-500 dark:text-surface-400 mb-1 shrink-0">
-            <i class="pi pi-face-smile hover:text-primary cursor-pointer transition-colors hidden sm:block"></i>
-
-            <p-button
-                    icon="pi pi-send"
-                    [rounded]="true"
-                    [text]="true"
-                    severity="secondary"
-                    styleClass="hover:text-primary p-0 h-8 w-8"
-                    (onClick)="handleSendMessage(composer)">
-            </p-button>
-        </div>
+    <div class="flex items-center gap-1.5 text-white/30 mb-0.5 shrink-0">
+      <button class="w-7 h-7 rounded-xl hover:bg-white/[0.06] hover:text-white/60 flex items-center justify-center transition-all cursor-pointer border-0 bg-transparent">
+        <i class="pi pi-face-smile text-sm"></i>
+      </button>
+      <button
+        (click)="handleSendMessage(composer)"
+        class="w-7 h-7 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/35 text-indigo-400 flex items-center justify-center transition-all cursor-pointer border-0">
+        <i class="pi pi-send text-xs"></i>
+      </button>
     </div>
 
+  </div>
 </div>

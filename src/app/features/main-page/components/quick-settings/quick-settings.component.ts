@@ -1,27 +1,23 @@
-import {Component, inject, model} from '@angular/core';
-import {Button} from "primeng/button";
+import {Component, inject, signal} from '@angular/core';
 import {ProfileService} from "../../../../services/profile.service";
 import {Avatar} from "primeng/avatar";
-import {ConnectionStatusComponent} from "../connection-status/connection-status.component";
-import {FriendshipModalComponent} from "../../../friendship/components/friendship-modal/friendship-modal.component";
+import {SettingsModalComponent} from "../../../../features/settings/settings-modal/settings-modal.component";
 
 @Component({
   selector: 'app-quick-settings',
   imports: [
-    Button,
     Avatar,
-    ConnectionStatusComponent,
-    FriendshipModalComponent
+    SettingsModalComponent,
   ],
   templateUrl: './quick-settings.component.html',
   styleUrl: './quick-settings.component.css',
 })
 export class QuickSettingsComponent {
   protected profileService = inject(ProfileService);
+  public isSettingsOpen = signal(false);
 
-  public isFriendshipModalVisible = model(false);
   constructor() {
-    if (!this.profileService.profile()){
+    if (!this.profileService.profile()) {
       this.profileService.getSelf().subscribe();
     }
   }

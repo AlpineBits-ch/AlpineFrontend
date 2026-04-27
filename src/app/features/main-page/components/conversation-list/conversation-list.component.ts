@@ -1,20 +1,21 @@
-import {Component, effect, inject, signal, untracked} from '@angular/core';
+import {Component, effect, inject, output, signal, untracked} from '@angular/core';
 import {ConversationService} from "../../../../services/conversation.service";
 import {ConversationDto} from "../../../../dtos/response/conversation.dto";
-import {InputText} from "primeng/inputtext";
 import {Avatar} from "primeng/avatar";
 import {ProfileService} from "../../../../services/profile.service";
 
 @Component({
   selector: 'app-conversation-list',
   imports: [
-    InputText,
     Avatar
   ],
   templateUrl: './conversation-list.component.html',
   styleUrl: './conversation-list.component.css',
 })
 export class ConversationListComponent {
+
+  public conversationSelected = output<ConversationDto>();
+  public selectedId = signal<string | null>(null);
 
   public offset = signal(0);
   public limit = signal(20);

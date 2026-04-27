@@ -2,7 +2,7 @@
     id: string;
     createdAt: Date;
     updatedAt: Date;
-    content: unknown,
+    content: string,
     channelId: string | undefined;
     conversationId: string | undefined;
     authorId: string;

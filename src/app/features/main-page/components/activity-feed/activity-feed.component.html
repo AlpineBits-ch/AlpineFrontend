@@ -1,0 +1,56 @@
+<div class="flex flex-col w-56 h-full bg-[#111520] border-l border-white/[0.06] shrink-0">
+
+  <!-- Header -->
+  <div class="px-4 pt-4 pb-2 shrink-0">
+    <h2 class="text-[10.5px] font-semibold text-white/25 uppercase tracking-widest">Activity Feed</h2>
+  </div>
+
+  <!-- Feed items -->
+  <div class="flex-1 min-h-0 overflow-y-auto px-3 flex flex-col gap-2 pb-3" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+
+    <!-- Friend request -->
+    <div class="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 flex flex-col gap-2.5">
+      <div class="flex items-start gap-2.5">
+        <p-avatar icon="pi pi-user" shape="circle" size="normal"></p-avatar>
+        <div class="flex-1 min-w-0">
+          <p class="text-xs text-white/65 leading-relaxed">
+            <span class="font-semibold text-white/85">rubyxxz_</span> sent you a friend request
+          </p>
+          <p class="text-[10px] text-white/25 mt-0.5">Just now</p>
+        </div>
+      </div>
+      <div class="flex gap-1.5">
+        <button class="flex-1 px-2 py-1.5 bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border-0">Accept</button>
+        <button class="flex-1 px-2 py-1.5 bg-white/[0.05] hover:bg-white/[0.09] text-white/40 rounded-lg text-[11px] font-semibold transition-all cursor-pointer border-0">Ignore</button>
+      </div>
+    </div>
+
+    <!-- Channel created -->
+    <div class="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3">
+      <div class="flex items-start gap-2.5">
+        <div class="w-7 h-7 rounded-lg bg-indigo-500/15 flex items-center justify-center shrink-0 mt-0.5">
+          <i class="pi pi-hashtag text-indigo-400 text-xs"></i>
+        </div>
+        <div class="flex-1 min-w-0">
+          <p class="text-xs text-white/65 leading-relaxed">
+            New channel <span class="font-semibold text-white/85">#design-critique</span> created in <span class="text-indigo-400">UX Design</span> server
+          </p>
+          <p class="text-[10px] text-white/25 mt-0.5">2 hours ago</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Bottom user card -->
+  <div class="p-3 shrink-0">
+    <div class="bg-gradient-to-br from-indigo-500/15 to-violet-500/10 border border-white/[0.07] rounded-2xl p-3 flex flex-col items-center gap-2">
+      <p-avatar icon="pi pi-user" shape="circle" size="large"></p-avatar>
+      <div class="text-center">
+        <p class="text-sm font-semibold text-white/85">AlexDesign</p>
+        <p class="text-[11px] text-white/30">#8043</p>
+      </div>
+    </div>
+  </div>
+
+</div>

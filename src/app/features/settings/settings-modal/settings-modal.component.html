@@ -1,0 +1,95 @@
+<p-dialog
+  [(visible)]="isVisible"
+  [modal]="true"
+  [closable]="false"
+  [draggable]="false"
+  [resizable]="false"
+  [dismissableMask]="true"
+  styleClass="settings-dialog"
+  [style]="{width: '860px', height: '620px'}"
+  [breakpoints]="{'960px': '92vw', '640px': '100vw'}">
+
+  <div class="flex h-full flex-col sm:flex-row">
+
+    <!-- ── Left nav ──────────────────────────────────────────────────────── -->
+    <nav class="sm:w-52 shrink-0 bg-[#111520] border-b sm:border-b-0 sm:border-r border-white/[0.06] flex sm:flex-col py-2 sm:py-4 overflow-x-auto sm:overflow-x-hidden overflow-y-hidden sm:overflow-y-auto"
+         style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+
+      <!-- Desktop: grouped nav -->
+      <div class="hidden sm:flex flex-col flex-1">
+        @for (group of navGroups; track group.title) {
+          <div class="px-3 mb-4">
+            <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest px-3 mb-1">
+              {{ group.title }}
+            </p>
+            @for (item of group.items; track item.id) {
+              <button (click)="activePage.set(item.id)"
+                class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left"
+                [class.bg-indigo-500/15]="activePage() === item.id"
+                [class.text-indigo-400]="activePage() === item.id"
+                [class.text-white/50]="activePage() !== item.id"
+                [class.bg-transparent]="activePage() !== item.id">
+                <i class="text-sm shrink-0" [class]="item.icon"></i>
+                {{ item.label }}
+              </button>
+            }
+          </div>
+        }
+        <div class="mt-auto px-3 pt-4 border-t border-white/[0.06]">
+          <button class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium text-rose-400/70 hover:bg-rose-500/10 hover:text-rose-400 transition-all cursor-pointer border-0 text-left bg-transparent">
+            <i class="pi pi-sign-out text-sm shrink-0"></i>
+            Log Out
+          </button>
+        </div>
+      </div>
+
+      <!-- Mobile: flat scrollable tab bar -->
+      <div class="flex sm:hidden items-center gap-1 px-2">
+        @for (group of navGroups; track group.title) {
+          @for (item of group.items; track item.id) {
+            <button (click)="activePage.set(item.id)"
+              class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all cursor-pointer border-0 shrink-0"
+              [class.bg-indigo-500/15]="activePage() === item.id"
+              [class.text-indigo-400]="activePage() === item.id"
+              [class.text-white/45]="activePage() !== item.id"
+              [class.bg-transparent]="activePage() !== item.id">
+              <i class="text-xs" [class]="item.icon"></i>
+              {{ item.label }}
+            </button>
+          }
+        }
+      </div>
+    </nav>
+
+    <!-- ── Content area ──────────────────────────────────────────────────── -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#0d1117]">
+
+      <!-- Content header -->
+      <div class="flex items-center justify-between px-6 sm:px-8 py-4 border-b border-white/[0.06] shrink-0">
+        <h1 class="text-sm font-semibold text-white/85">
+          @for (group of navGroups; track group.title) {
+            @for (item of group.items; track item.id) {
+              @if (item.id === activePage()) { {{ item.label }} }
+            }
+          }
+        </h1>
+        <button (click)="isVisible.set(false)"
+          class="w-8 h-8 rounded-xl flex items-center justify-center text-white/35 hover:text-white/70 hover:bg-white/[0.06] transition-all cursor-pointer border-0 bg-transparent">
+          <i class="pi pi-times text-sm"></i>
+        </button>
+      </div>
+
+      <!-- Page content -->
+      <div class="flex-1 overflow-y-auto px-6 sm:px-8 py-6"
+           style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+        @switch (activePage()) {
+          @case ('profile') { <app-profile-settings /> }
+          @case ('privacy') { <app-privacy-settings /> }
+          @case ('other')   { <app-other-settings />   }
+        }
+      </div>
+
+    </div>
+  </div>
+
+</p-dialog>

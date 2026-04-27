@@ -1,0 +1,151 @@
+/* ── Dot-grid texture on brand panel ───────────────────────────────────── */
+.brand-panel-grid::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(129, 140, 248, 0.08) 1px, transparent 1px);
+  background-size: 36px 36px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ── Glowing orbs ──────────────────────────────────────────────────────── */
+.orb-1 {
+  top: -144px; right: -80px;
+  background: radial-gradient(circle, rgba(67, 56, 202, 0.6) 0%, transparent 65%);
+  filter: blur(90px);
+  opacity: 0.4;
+  animation: orbFloat 10s ease-in-out infinite alternate;
+}
+.orb-2 {
+  bottom: 64px; left: -96px;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.5) 0%, transparent 65%);
+  filter: blur(90px);
+  opacity: 0.4;
+  animation: orbFloat 10s ease-in-out infinite alternate;
+  animation-delay: -5s;
+}
+.orb-3 {
+  top: calc(50% - 120px); left: calc(50% - 120px);
+  background: radial-gradient(circle, rgba(14, 165, 233, 0.4) 0%, transparent 65%);
+  filter: blur(90px);
+  opacity: 0.3;
+  animation: orbFloat 10s ease-in-out infinite alternate;
+  animation-delay: -2.5s;
+}
+
+@keyframes orbFloat {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(24px, -28px) scale(1.08); }
+}
+
+/* ── Chat bubble float animation ───────────────────────────────────────── */
+.bubble-float {
+  animation: bubbleFloat 7s ease-in-out infinite alternate;
+}
+.bubble-delay-1 { animation-delay: -3s; }
+.bubble-delay-2 { animation-delay: -5.5s; }
+
+@keyframes bubbleFloat {
+  0%   { transform: translateY(0); }
+  100% { transform: translateY(-14px); }
+}
+
+/* ── PrimeNG input overrides ───────────────────────────────────────────── */
+::ng-deep .login-form .p-inputtext,
+::ng-deep .login-form input.p-inputtext {
+  width: 100% !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  border-radius: 11px !important;
+  color: #f1f5f9 !important;
+  padding: 11px 14px !important;
+  font-size: 14px !important;
+  box-shadow: none !important;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease !important;
+}
+::ng-deep .login-form .p-inputtext:focus,
+::ng-deep .login-form input.p-inputtext:focus {
+  border-color: #818cf8 !important;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2) !important;
+  background: rgba(129, 140, 248, 0.04) !important;
+  outline: none !important;
+}
+::ng-deep .login-form .p-inputtext::placeholder {
+  color: #3d4d61 !important;
+}
+
+/* password directive */
+::ng-deep .login-form .p-password {
+  width: 100% !important;
+  display: block !important;
+}
+::ng-deep .login-form .p-password input {
+  width: 100% !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  border-radius: 11px !important;
+  color: #f1f5f9 !important;
+  padding: 11px 14px !important;
+  font-size: 14px !important;
+  transition: border-color 0.18s, box-shadow 0.18s !important;
+}
+::ng-deep .login-form .p-password input:focus {
+  border-color: #818cf8 !important;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2) !important;
+  outline: none !important;
+}
+::ng-deep .login-form .p-password input::placeholder {
+  color: #3d4d61 !important;
+}
+::ng-deep .login-form .p-password-toggle-mask-icon {
+  color: #64748b !important;
+}
+
+/* date picker */
+::ng-deep .login-form p-date-picker {
+  display: block !important;
+  width: 100% !important;
+}
+::ng-deep .login-form .p-datepicker .p-datepicker-input {
+  width: 100% !important;
+  background: rgba(255, 255, 255, 0.04) !important;
+  border: 1px solid rgba(255, 255, 255, 0.09) !important;
+  border-radius: 11px !important;
+  color: #f1f5f9 !important;
+  padding: 11px 14px !important;
+  font-size: 14px !important;
+  transition: border-color 0.18s, box-shadow 0.18s !important;
+}
+::ng-deep .login-form .p-datepicker .p-datepicker-input:focus {
+  border-color: #818cf8 !important;
+  box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2) !important;
+  outline: none !important;
+}
+::ng-deep .login-form .p-datepicker .p-datepicker-input::placeholder {
+  color: #3d4d61 !important;
+}
+
+/* submit button */
+::ng-deep .login-form .p-button {
+  width: 100% !important;
+  background: linear-gradient(135deg, #4338ca 0%, #818cf8 100%) !important;
+  border: none !important;
+  border-radius: 11px !important;
+  padding: 12px 20px !important;
+  font-size: 14.5px !important;
+  font-weight: 600 !important;
+  color: #fff !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 22px rgba(67, 56, 202, 0.38) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+  margin-top: 4px !important;
+  justify-content: center !important;
+}
+::ng-deep .login-form .p-button:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 6px 28px rgba(67, 56, 202, 0.5) !important;
+}
+::ng-deep .login-form .p-button:active {
+  transform: translateY(0) !important;
+}

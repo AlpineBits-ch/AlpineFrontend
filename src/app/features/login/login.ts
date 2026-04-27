@@ -1,12 +1,9 @@
 import {Component, inject, signal} from '@angular/core';
-import { createClient } from '@workos-inc/authkit-js';
-import {Card} from "primeng/card";
 import {DatePicker} from "primeng/datepicker";
 import {InputText} from "primeng/inputtext";
 import {PasswordDirective} from "primeng/password";
 import {Button} from "primeng/button";
 import {AuthService} from "../../services/auth.service";
-import {emit} from "@tauri-apps/api/event";
 import {catchError, Observable, tap, throwError} from "rxjs";
 import {form, FormField} from "@angular/forms/signals";
 import {TokenResponse} from "angular-oauth2-oidc";
@@ -27,7 +24,6 @@ interface RegisterModel {
 @Component({
   selector: 'app-login',
   imports: [
-    Card,
     DatePicker,
     InputText,
     PasswordDirective,
@@ -38,7 +34,7 @@ interface RegisterModel {
   styleUrl: './login.css',
 })
 export class Login {
-  protected isLoginMode = signal(false);
+  protected isLoginMode = signal(true);
   protected authService = inject(AuthService);
   protected router = inject(Router);
 
