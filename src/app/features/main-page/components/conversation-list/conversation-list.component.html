@@ -1,15 +1,20 @@
 <div class="flex flex-col gap-0.5">
   @for (conv of conversationStore.entities(); track conv.id) {
+    @let preview = getPreview(conv);
+    @let unread = getUnreadCount(conv.id);
+
     <button
       (click)="selectedId.set(conv.id); conversationSelected.emit(conv)"
       class="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl transition-all cursor-pointer border-0 text-left"
       [class.bg-white/[0.08]]="selectedId() === conv.id"
       [class.hover:bg-white/[0.05]]="selectedId() !== conv.id"
       [class.bg-transparent]="selectedId() !== conv.id">
+
       <div class="relative shrink-0">
         <p-avatar icon="pi pi-user" shape="circle" size="normal"></p-avatar>
         <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-sidebar"></div>
       </div>
+
       <div class="flex-1 min-w-0">
         <div class="flex items-center justify-between gap-1">
           <span class="text-sm font-medium truncate"
@@ -17,10 +22,30 @@
             [class.text-white/65]="selectedId() !== conv.id">
             {{ getChatName(conv) }}
           </span>
-          <span class="text-[10px] text-white/25 shrink-0">2m</span>
+          <div class="flex items-center gap-1.5 shrink-0">
+            @if (preview) {
+              <span class="text-[10px] text-white/25">{{ preview && lastMessages().get(conv.id)?.createdAt | date: 'shortTime' }}</span>
+            }
+            @if (unread > 0) {
+              <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center">
+                {{ unread > 99 ? '99+' : unread }}
+              </span>
+            }
+          </div>
         </div>
-        <span class="text-[11px] text-white/30 truncate block">Start a conversation…</span>
+
+        @if (preview) {
+          <span class="text-[11px] truncate block"
+            [class.text-white/50]="unread > 0"
+            [class.font-medium]="unread > 0"
+            [class.text-white/30]="unread === 0">
+            <span class="text-white/45">{{ preview.sender }}:</span> {{ preview.text }}
+          </span>
+        } @else {
+          <span class="text-[11px] text-white/20 truncate block italic">No messages yet</span>
+        }
       </div>
+
     </button>
   }
 

@@ -11,14 +11,6 @@
   pointer-events: none;
 }
 
-/* ── Emoji mart dark theme integration ───────────────────────────────────── */
-:host ::ng-deep em-emoji-picker {
-  --border-radius: 12px;
-  --font-family: inherit;
-  height: 380px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
-}
-
 /* ── Mention chip ─────────────────────────────────────────────────────────── */
 /* Chips are created via document.createElement — Angular's scoped attribute
    is never added, so ::ng-deep is required to reach them. */

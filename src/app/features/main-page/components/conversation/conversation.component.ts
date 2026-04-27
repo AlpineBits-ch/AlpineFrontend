@@ -72,22 +72,34 @@ export class ConversationComponent implements AfterViewInit {
   );
 
   private lastScrollConvId = '';
+  /** Set by the messages effect; consumed and cleared by afterEveryRender. */
+  private pendingScrollToBottom = false;
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   constructor() {
-    // Load messages when conversation changes; reset scroll intent
+    // Load messages when conversation changes
+    effect(() => {
+      this.messageStore.loadForConversation(this.conversation().id);
+    });
+
+    // Tracks message list changes — only schedules a scroll when content actually changes
     effect(() => {
       const convId = this.conversation().id;
-      this.messageStore.loadForConversation(convId);
+      const _ = this.messages(); // track message list
+
       if (convId !== this.lastScrollConvId) {
         this.lastScrollConvId = convId;
         this.isNearBottom = true;
         this.restoreScroll = false;
       }
+
+      if (this.isNearBottom) {
+        this.pendingScrollToBottom = true;
+      }
     });
 
-    // afterRender fires after every Angular render cycle — DOM is fully updated
+    // afterEveryRender executes the pending scroll after the DOM is committed
     afterEveryRender(() => {
       if (this.restoreScroll && this.scrollRef) {
         const el = this.scrollRef.nativeElement;
@@ -95,8 +107,9 @@ export class ConversationComponent implements AfterViewInit {
         if (heightDiff > 0) el.scrollTop += heightDiff;
         this.restoreScroll = false;
         this.savedScrollHeight = 0;
-      } else if (this.isNearBottom) {
+      } else if (this.pendingScrollToBottom) {
         this.scrollToBottom();
+        this.pendingScrollToBottom = false;
       }
     });
   }

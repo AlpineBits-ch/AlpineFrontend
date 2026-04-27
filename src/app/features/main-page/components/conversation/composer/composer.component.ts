@@ -1,32 +1,18 @@
-import { Component, computed, ElementRef, input, OnDestroy, output, signal, viewChild } from '@angular/core';
+import { Component, computed, ElementRef, input, output, signal, viewChild } from '@angular/core';
 import { Button } from 'primeng/button';
-import { Avatar } from 'primeng/avatar';
 import { RelationshipModel, RelationshipStatus } from '../../../../friendship/components/friendship-modal/dto/relationship.model';
-import { NgClass } from '@angular/common';
-
-interface CommandDef {
-  name: string;
-  description: string;
-  params: { label: string; required: boolean }[];
-  execute: (params: string) => string;
-}
-
-const COMMANDS: CommandDef[] = [
-  {
-    name: 'shrug',
-    description: 'Append a shrug to your message',
-    params: [{ label: 'message', required: false }],
-    execute: (text) => text ? `${text} ¯\\_(ツ)_/¯` : '¯\\_(ツ)_/¯',
-  },
-];
+import { CommandDef, COMMANDS } from './commands';
+import { detectTrigger, getMessage } from './composer-utils';
+import { SuggestionOverlayComponent } from './suggestion-overlay/suggestion-overlay.component';
+import { EmojiPickerButtonComponent } from './emoji-picker-button/emoji-picker-button.component';
 
 @Component({
   selector: 'app-composer',
-  imports: [Button, Avatar, NgClass],
+  imports: [Button, SuggestionOverlayComponent, EmojiPickerButtonComponent],
   templateUrl: './composer.component.html',
   styleUrl: './composer.component.css',
 })
-export class ComposerComponent implements OnDestroy {
+export class ComposerComponent {
 
   // ── Inputs / Outputs ─────────────────────────────────────────────────────
 
@@ -36,20 +22,18 @@ export class ComposerComponent implements OnDestroy {
   // ── View ─────────────────────────────────────────────────────────────────
 
   editorRef = viewChild.required<ElementRef<HTMLDivElement>>('editor');
-  pickerContainerRef = viewChild<ElementRef<HTMLDivElement>>('pickerContainer');
 
   // ── Overlay state ────────────────────────────────────────────────────────
 
   overlayType = signal<'mention' | 'command' | null>(null);
   query = signal('');
   selectedIndex = signal(0);
-  showEmojiPicker = signal(false);
 
-  // ── Active command (user selected a command, now entering params) ─────────
+  // ── Active command ────────────────────────────────────────────────────────
 
   activeCommand = signal<CommandDef | null>(null);
 
-  // ── Suggestions ──────────────────────────────────────────────────────────
+  // ── Filtered suggestions ──────────────────────────────────────────────────
 
   filteredFriends = computed(() => {
     if (this.overlayType() !== 'mention') return [];
@@ -77,201 +61,62 @@ export class ComposerComponent implements OnDestroy {
     return `/${cmd.name} ${paramHints} — press Enter to send`;
   });
 
-  protected readonly commands = COMMANDS;
+  // ── Trigger range (saved for replacement on selection) ────────────────────
 
-  // ── Emoji picker ─────────────────────────────────────────────────────────
-
-  private pickerInstance: HTMLElement | null = null;
-  /** Saved cursor range — captured when the emoji button is clicked */
-  private savedEmojiRange: Range | null = null;
-  private outsideClickListener: ((e: MouseEvent) => void) | null = null;
-
-  async toggleEmojiPicker(): Promise<void> {
-    if (this.showEmojiPicker()) {
-      this.closeEmojiPicker();
-      return;
-    }
-
-    // Save cursor before the editor loses focus
-    const sel = window.getSelection();
-    this.savedEmojiRange = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : null;
-
-    // Lazy-create and append picker on first open
-    if (!this.pickerInstance) {
-      const [{ Picker }, data] = await Promise.all([
-        import('emoji-mart'),
-        import('@emoji-mart/data'),
-      ]);
-
-      this.pickerInstance = new Picker({
-        data: data.default ?? data,
-        theme: 'dark',
-        previewPosition: 'none',
-        skinTonePosition: 'none',
-        onEmojiSelect: (emoji: { native: string }) => this.insertEmoji(emoji.native),
-      }) as unknown as HTMLElement;
-
-      const container = this.pickerContainerRef()?.nativeElement;
-      if (container) container.appendChild(this.pickerInstance);
-    }
-
-    this.showEmojiPicker.set(true);
-
-    // Close on outside click (deferred so this click doesn't immediately close it)
-    setTimeout(() => {
-      this.outsideClickListener = (e: MouseEvent) => {
-        const container = this.pickerContainerRef()?.nativeElement;
-        if (container && !container.contains(e.target as Node)) {
-          this.closeEmojiPicker();
-        }
-      };
-      document.addEventListener('mousedown', this.outsideClickListener);
-    }, 0);
-  }
-
-  private insertEmoji(emoji: string): void {
-    const editor = this.editorRef().nativeElement;
-
-    // Use saved cursor range or fall back to end of editor
-    const range = this.savedEmojiRange ?? (() => {
-      const r = document.createRange();
-      r.selectNodeContents(editor);
-      r.collapse(false);
-      return r;
-    })();
-
-    range.deleteContents();
-    const node = document.createTextNode(emoji);
-    range.insertNode(node);
-    range.setStartAfter(node);
-    range.collapse(true);
-
-    const sel = window.getSelection();
-    if (sel) {
-      sel.removeAllRanges();
-      sel.addRange(range);
-    }
-
-    editor.focus();
-    this.closeEmojiPicker();
-  }
-
-  private closeEmojiPicker(): void {
-    this.showEmojiPicker.set(false);
-    if (this.outsideClickListener) {
-      document.removeEventListener('mousedown', this.outsideClickListener);
-      this.outsideClickListener = null;
-    }
-  }
-
-  ngOnDestroy(): void {
-    this.closeEmojiPicker();
-  }
-
-  // ── Trigger detection ────────────────────────────────────────────────────
-
-  /** Saved range covering the trigger text (@query or /query) to replace on selection */
   private triggerRange: Range | null = null;
 
+  // ── Saved cursor for emoji insertion ─────────────────────────────────────
+
+  private savedEmojiRange: Range | null = null;
+
+  // ── Input events ─────────────────────────────────────────────────────────
+
   onInput(): void {
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0) return;
-
-    const range = sel.getRangeAt(0);
-    const node = range.startContainer;
-
-    if (node.nodeType !== Node.TEXT_NODE) {
+    const editor = this.editorRef().nativeElement;
+    const result = detectTrigger(editor);
+    if (result) {
+      this.overlayType.set(result.type);
+      this.query.set(result.query);
+      this.selectedIndex.set(0);
+      this.triggerRange = result.range;
+    } else {
       this.closeOverlay();
-      return;
     }
-
-    const textBefore = (node.textContent ?? '').slice(0, range.startOffset);
-
-    // Mention: @ preceded by whitespace/start, followed by word chars
-    const mentionMatch = textBefore.match(/(?:^|[\s\u00a0])@(\w*)$/);
-    if (mentionMatch) {
-      this.overlayType.set('mention');
-      this.query.set(mentionMatch[1]);
-      this.selectedIndex.set(0);
-      const atPos = textBefore.lastIndexOf('@');
-      this.saveTriggerRange(node as Text, atPos, range.startOffset);
-      return;
-    }
-
-    // Command: / only when the entire editor content is /word (nothing else)
-    const editorText = this.getEditorPlainText();
-    const commandMatch = editorText.match(/^\/(\w*)$/);
-    if (commandMatch) {
-      this.overlayType.set('command');
-      this.query.set(commandMatch[1]);
-      this.selectedIndex.set(0);
-      this.saveTriggerRange(node as Text, 0, range.startOffset);
-      return;
-    }
-
-    this.closeOverlay();
   }
-
-  private saveTriggerRange(node: Text, start: number, end: number): void {
-    const r = document.createRange();
-    r.setStart(node, start);
-    r.setEnd(node, end);
-    this.triggerRange = r;
-  }
-
-  // ── Keyboard handling ────────────────────────────────────────────────────
 
   onKeydown(event: KeyboardEvent): void {
     const isOpen = this.overlayType() !== null && this.overlayItems().length > 0;
 
     if (isOpen) {
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        this.selectedIndex.update(i => Math.min(i + 1, this.overlayItems().length - 1));
-        return;
-      }
-      if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        this.selectedIndex.update(i => Math.max(i - 1, 0));
-        return;
-      }
-      if (event.key === 'Enter' || event.key === 'Tab') {
-        event.preventDefault();
-        this.confirmSelection();
-        return;
-      }
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        this.closeOverlay();
-        return;
-      }
+      if (event.key === 'ArrowDown') { event.preventDefault(); this.selectedIndex.update(i => Math.min(i + 1, this.overlayItems().length - 1)); return; }
+      if (event.key === 'ArrowUp')   { event.preventDefault(); this.selectedIndex.update(i => Math.max(i - 1, 0)); return; }
+      if (event.key === 'Enter' || event.key === 'Tab') { event.preventDefault(); this.confirmSelection(); return; }
+      if (event.key === 'Escape') { event.preventDefault(); this.closeOverlay(); return; }
     }
 
-    if (event.key === 'Escape' && this.showEmojiPicker()) {
-      this.closeEmojiPicker();
-      return;
-    }
+    if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); this.send(); }
+  }
 
-    if (event.key === 'Enter' && !event.shiftKey) {
-      event.preventDefault();
-      this.send();
+  onPaste(event: ClipboardEvent): void {
+    event.preventDefault();
+    const text = event.clipboardData?.getData('text/plain') ?? '';
+    document.execCommand('insertText', false, text);
+  }
+
+  onEditorFocus(): void {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      this.savedEmojiRange = sel.getRangeAt(0).cloneRange();
     }
   }
 
-  private confirmSelection(): void {
-    const idx = this.selectedIndex();
-    if (this.overlayType() === 'mention') {
-      const friend = this.filteredFriends()[idx];
-      if (friend) this.selectMention(friend);
-    } else if (this.overlayType() === 'command') {
-      const cmd = this.filteredCommands()[idx];
-      if (cmd) this.selectCommand(cmd);
-    }
+  onEditorClick(): void {
+    this.onEditorFocus();
   }
 
-  // ── Mention selection ────────────────────────────────────────────────────
+  // ── Mention handling ──────────────────────────────────────────────────────
 
-  selectMention(friend: RelationshipModel): void {
+  onMentionSelected(friend: RelationshipModel): void {
     if (!this.triggerRange) return;
 
     this.triggerRange.deleteContents();
@@ -284,7 +129,6 @@ export class ComposerComponent implements OnDestroy {
     chip.textContent = `@${friend.target.userName}`;
 
     this.triggerRange.insertNode(chip);
-
     const space = document.createTextNode('\u00a0');
     chip.after(space);
 
@@ -301,9 +145,9 @@ export class ComposerComponent implements OnDestroy {
     this.editorRef().nativeElement.focus();
   }
 
-  // ── Command selection ────────────────────────────────────────────────────
+  // ── Command handling ──────────────────────────────────────────────────────
 
-  selectCommand(cmd: CommandDef): void {
+  onCommandSelected(cmd: CommandDef): void {
     const editor = this.editorRef().nativeElement;
     editor.innerHTML = '';
 
@@ -317,50 +161,38 @@ export class ComposerComponent implements OnDestroy {
     editor.focus();
   }
 
-  // ── Message extraction ───────────────────────────────────────────────────
+  // ── Emoji handling ────────────────────────────────────────────────────────
 
-  private getMessage(): string {
+  onEmojiSelected(emoji: string): void {
     const editor = this.editorRef().nativeElement;
-    let text = '';
 
-    const walk = (nodes: NodeList) => {
-      nodes.forEach(node => {
-        if (node.nodeType === Node.TEXT_NODE) {
-          text += node.textContent ?? '';
-        } else if (node instanceof HTMLElement) {
-          if (node.classList.contains('mention-chip')) {
-            text += node.dataset['display'] ?? node.textContent ?? '';
-          } else if (node.tagName === 'BR') {
-            text += '\n';
-          } else if (node.tagName === 'DIV') {
-            text += '\n';
-            walk(node.childNodes);
-          } else {
-            walk(node.childNodes);
-          }
-        }
-      });
-    };
+    const range = this.savedEmojiRange ?? (() => {
+      const r = document.createRange();
+      r.selectNodeContents(editor);
+      r.collapse(false);
+      return r;
+    })();
 
-    walk(editor.childNodes);
-    return text.replace(/\u00a0/g, ' ').trim();
-  }
+    range.deleteContents();
+    const node = document.createTextNode(emoji);
+    range.insertNode(node);
+    range.setStartAfter(node);
+    range.collapse(true);
 
-  private getEditorPlainText(): string {
-    return this.editorRef().nativeElement.textContent ?? '';
+    const sel = window.getSelection();
+    if (sel) { sel.removeAllRanges(); sel.addRange(range); }
+
+    editor.focus();
   }
 
   // ── Send ─────────────────────────────────────────────────────────────────
 
   send(): void {
-    let text = this.getMessage();
+    let text = getMessage(this.editorRef().nativeElement);
     if (!text) return;
 
     const cmd = this.activeCommand();
-    if (cmd) {
-      text = cmd.execute(text);
-      this.activeCommand.set(null);
-    }
+    if (cmd) { text = cmd.execute(text); this.activeCommand.set(null); }
 
     this.message.emit(text);
     this.editorRef().nativeElement.innerHTML = '';
@@ -368,21 +200,22 @@ export class ComposerComponent implements OnDestroy {
     this.editorRef().nativeElement.focus();
   }
 
-  // ── Paste ────────────────────────────────────────────────────────────────
+  // ── Helpers ───────────────────────────────────────────────────────────────
 
-  onPaste(event: ClipboardEvent): void {
-    event.preventDefault();
-    const text = event.clipboardData?.getData('text/plain') ?? '';
-    document.execCommand('insertText', false, text);
+  private confirmSelection(): void {
+    const idx = this.selectedIndex();
+    if (this.overlayType() === 'mention') {
+      const f = this.filteredFriends()[idx];
+      if (f) this.onMentionSelected(f);
+    } else {
+      const c = this.filteredCommands()[idx];
+      if (c) this.onCommandSelected(c);
+    }
   }
-
-  // ── Helpers ──────────────────────────────────────────────────────────────
 
   private closeOverlay(): void {
     this.overlayType.set(null);
     this.query.set('');
     this.triggerRange = null;
   }
-
-  protected readonly RelationshipStatus = RelationshipStatus;
 }
