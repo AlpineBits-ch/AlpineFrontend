@@ -57,11 +57,26 @@ export class WebsocketService {
 
     this.hubConnection.on('MessageCreated', async (data: {messageId: string, content: string, authorId: string, conversationId: string, channelId: string | undefined}) => {
       console.log('Message created:', data);
+
+      let body: string;
+      try {
+        const bytes = Uint8Array.from(atob(data.content), c => c.charCodeAt(0));
+        body = new TextDecoder().decode(bytes);
+      } catch {
+        body = data.content;
+      }
+
+      const extra: Record<string, string> = {};
+      if (data.conversationId) extra['conversationId'] = data.conversationId;
+      if (data.channelId) extra['channelId'] = data.channelId;
+
       await this.notificationService.createNotification({
         title: 'New message',
-        message: `${atob(data.content)}`,
+        message: body,
         icon: 'message',
-        sound: NotificationSound.NewMessage
+        sound: NotificationSound.NewMessage,
+        actionTypeId: 'message',
+        extra,
       });
 
       this.messageObservable.next({

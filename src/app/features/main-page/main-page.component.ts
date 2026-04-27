@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, OnDestroy } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { Router } from '@angular/router';
 import { HomeComponent } from './pages/home/home.component';
@@ -10,6 +10,9 @@ import { ServerTaskbarComponent } from './components/server-taskbar/server-taskb
 import { ActivityFeedComponent } from './components/activity-feed/activity-feed.component';
 import { ConversationInfoPanelComponent } from './components/conversation-info-panel/conversation-info-panel.component';
 import { NavigationService } from './navigation.service';
+import { NotificationService } from '../../services/notification.service';
+import { ConversationStore } from '../../stores/conversation.store';
+import { Subscription } from 'rxjs';
 
 @Component({
   selector: 'app-main-page',
@@ -24,13 +27,17 @@ import { NavigationService } from './navigation.service';
   templateUrl: './main-page.component.html',
   styleUrl: './main-page.component.css',
 })
-export class MainPageComponent {
+export class MainPageComponent implements OnDestroy {
   protected authService = inject(AuthService);
   protected oAuthService = inject(OAuthService);
   protected navService = inject(NavigationService);
 
   private websocketService = inject(WebsocketService);
+  private notificationService = inject(NotificationService);
+  private conversationStore = inject(ConversationStore);
   protected router = inject(Router);
+
+  private actionSub: Subscription;
 
   public logout(): void {
     this.authService.logout();
@@ -47,5 +54,18 @@ export class MainPageComponent {
         this.oAuthService.refreshToken().then(r => console.log('Token refreshed successfully!'));
       }
     });
+
+    this.actionSub = this.notificationService.action$.subscribe(event => {
+      const { conversationId } = event.extra;
+      if (conversationId) {
+        const conv = this.conversationStore.entities().find(c => c.id === conversationId);
+        if (conv) this.navService.openConversation(conv);
+      }
+      // Channel navigation can be wired here when channels are fully implemented
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.actionSub.unsubscribe();
   }
 }
