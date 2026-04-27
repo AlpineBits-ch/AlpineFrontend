@@ -6,6 +6,7 @@ import { Avatar } from 'primeng/avatar';
 import { Button } from 'primeng/button';
 import { MessagingService } from '../../../../services/messaging.service';
 import { MessageStore } from '../../../../stores/message.store';
+import {tap} from "rxjs";
 
 @Component({
   selector: 'app-conversation',
@@ -35,7 +36,6 @@ export class ConversationComponent {
       content,
       channelId: undefined,
       conversationId: this.conversation().id,
-    }).subscribe();
-    // No local push needed — the WS echo from the server lands in MessageStore via onInit hook
+    }).pipe(tap(m => this.messageStore.addMessage(m))).subscribe();
   }
 }

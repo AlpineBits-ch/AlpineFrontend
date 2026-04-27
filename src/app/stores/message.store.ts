@@ -34,6 +34,10 @@ export const MessageStore = signalStore(
         .getMessagesForConversation(conversationId, offset, limit)
         .subscribe(messages => patchState(store, addEntities(messages)));
     },
+
+    addMessage(msg: MessageDto): void {
+      patchState(store, upsertEntity(msg));
+    },
   })),
 
   withHooks({
