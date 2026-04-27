@@ -105,7 +105,7 @@
                 <p class="text-xs text-white/35">Online</p>
               </div>
               <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.06] border-0 bg-transparent cursor-pointer transition-all" (click)="createConversation(rel.targetId)" title="Message">
+                <button class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.06] border-0 bg-transparent cursor-pointer transition-all" (click)="createConversation(rel.target.userId)" title="Message">
                   <i class="pi pi-comment text-xs" style="color: rgba(255,255,255,0.55)"></i>
                 </button>
                 <button (click)="block(rel.id)" class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.06] border-0 bg-transparent cursor-pointer transition-all" title="Block">

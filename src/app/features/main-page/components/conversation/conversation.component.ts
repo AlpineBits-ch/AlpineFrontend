@@ -130,7 +130,7 @@ export class ConversationComponent implements AfterViewInit {
 
     const optimistic: MessageDto = {
       id:             tempId,
-      content,
+      content : btoa(content),
       conversationId: this.conversation().id,
       channelId:      undefined,
       authorId:       this.profileService.ownProfile()?.userId ?? '',
