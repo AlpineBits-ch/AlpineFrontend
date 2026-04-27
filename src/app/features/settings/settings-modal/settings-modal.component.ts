@@ -1,5 +1,6 @@
 import {Component, model, signal} from '@angular/core';
 import {Dialog} from "primeng/dialog";
+import {Button} from "primeng/button";
 import {ProfileSettingsComponent} from "./pages/profile-settings/profile-settings.component";
 import {PrivacySettingsComponent} from "./pages/privacy-settings/privacy-settings.component";
 import {OtherSettingsComponent} from "./pages/other-settings/other-settings.component";
@@ -19,6 +20,7 @@ export interface SettingsNavGroup {
   selector: 'app-settings-modal',
   imports: [
     Dialog,
+    Button,
     ProfileSettingsComponent,
     PrivacySettingsComponent,
     OtherSettingsComponent,

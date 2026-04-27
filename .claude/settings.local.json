@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xargs grep:*)"
+      "Bash(xargs grep:*)",
+      "Bash(find C:UsersDominWebstormProjectsAlpinenode_modules@primeuixthemesaura -type f -name *.js -o -name *.mjs -o -name *.ts)",
+      "Bash(find C:/Users/Domin/WebstormProjects/Alpine/node_modules/@primeuix/themes/aura -name *.js -o -name *.mjs)"
     ]
   }
 }

@@ -1,10 +1,12 @@
 import {Component, output} from '@angular/core';
 import {Textarea} from "primeng/textarea";
+import {Button} from "primeng/button";
 
 @Component({
   selector: 'app-composer',
   imports: [
-    Textarea
+    Textarea,
+    Button,
   ],
   templateUrl: './composer.component.html',
   styleUrl: './composer.component.css',

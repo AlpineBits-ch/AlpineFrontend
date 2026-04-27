@@ -1,5 +1,6 @@
 import {Component, computed, inject, signal} from '@angular/core';
 import {Avatar} from "primeng/avatar";
+import {Button} from "primeng/button";
 import {FormsModule} from "@angular/forms";
 import {RelationshipService} from "../../../../services/relationship.service";
 import {RelationshipModel, RelationshipStatus} from "../../../friendship/components/friendship-modal/dto/relationship.model";
@@ -8,7 +9,7 @@ type FriendsTab = 'online' | 'all' | 'pending' | 'blocked';
 
 @Component({
   selector: 'app-home',
-  imports: [Avatar, FormsModule],
+  imports: [Avatar, Button, FormsModule],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
 })

@@ -21,6 +21,7 @@
  */
 @theme {
   /* ── Surfaces ──────────────────────────────────────────── */
+  --color-login-bg: #06090f;   /* login page bg (slightly deeper than app-bg) */
   --color-app-bg:  #0d1117;
   --color-sidebar: #111520;
   --color-card:    #161b27;

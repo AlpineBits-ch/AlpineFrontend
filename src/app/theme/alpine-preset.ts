@@ -70,7 +70,11 @@ export const AlpinePreset = definePreset(Aura, {
 
     colorScheme: {
       dark: {
-        // Map PrimeNG surface tokens to our dark-blue slate scale
+        formField: {
+          background: '{surface.900}', // Or your preferred dark shade
+          borderColor: '{surface.700}',
+          color: '{surface.0}'
+        },
         surface: {
           0:   '{slate.0}',
           50:  '{slate.50}',
@@ -84,6 +88,183 @@ export const AlpinePreset = definePreset(Aura, {
           800: '{slate.800}',
           900: '{slate.900}',
           950: '{slate.950}',
+        },
+      },
+    },
+  },
+
+  components: {
+
+    // ── Avatar ────────────────────────────────────────────────────────────
+    avatar: {
+      colorScheme: {
+        dark: {
+          root: {
+            background: '{slate.700}',
+            color: '{slate.200}',
+          },
+        },
+      },
+    },
+
+    // ── Button ────────────────────────────────────────────────────────────
+    button: {
+      colorScheme: {
+        dark: {
+          root: {
+            primary: {
+              background: '{indigo.600}',
+              hoverBackground: '{indigo.500}',
+              activeBackground: '{indigo.700}',
+              borderColor: '{indigo.600}',
+              hoverBorderColor: '{indigo.500}',
+              activeBorderColor: '{indigo.700}',
+              color: '#ffffff',
+            },
+            secondary: {
+              background: 'rgba(255,255,255,0.06)',
+              hoverBackground: 'rgba(255,255,255,0.10)',
+              activeBackground: 'rgba(255,255,255,0.14)',
+              borderColor: 'rgba(255,255,255,0.10)',
+              hoverBorderColor: 'rgba(255,255,255,0.15)',
+              activeBorderColor: 'rgba(255,255,255,0.20)',
+              color: 'rgba(255,255,255,0.70)',
+            },
+          },
+        },
+      },
+    },
+
+    // ── Textarea ──────────────────────────────────────────────────────────
+    textarea: {
+      colorScheme: {
+        dark: {
+          root: {
+            background: 'rgba(255,255,255,0.04)',
+            borderColor: 'rgba(255,255,255,0.09)',
+            color: '{slate.50}',
+            placeholderColor: '{slate.400}',
+            focusBorderColor: '{indigo.400}',
+            focusRing: {
+              color: '{indigo.400}',
+              shadow: '0 0 0 3px rgba(129,140,248,0.20)',
+            },
+          },
+        },
+      },
+    },
+
+    // ── InputText ─────────────────────────────────────────────────────────
+    inputtext: {
+      colorScheme: {
+        dark: {
+          root: {
+            background: 'rgba(255,255,255,0.04)',
+            borderColor: 'rgba(255,255,255,0.09)',
+            color: '{slate.50}',
+            placeholderColor: '{slate.400}',
+            focusBorderColor: '{indigo.400}',
+            focusRing: {
+              color: '{indigo.400}',
+              shadow: '0 0 0 3px rgba(129,140,248,0.20)',
+            },
+          },
+        },
+      },
+    },
+
+    // ── Select (Dropdown) ─────────────────────────────────────────────────
+    select: {
+      colorScheme: {
+        dark: {
+          overlay: {
+            background: '{slate.800}',
+            borderColor: 'rgba(255,255,255,0.09)',
+            color: '{slate.100}',
+          },
+          option: {
+            focusBackground: 'rgba(255,255,255,0.05)',
+            selectedBackground: 'rgba(99,102,241,0.15)',
+            selectedFocusBackground: 'rgba(99,102,241,0.25)',
+            color: '{slate.100}',
+            selectedColor: '{indigo.400}',
+          },
+        },
+      },
+    },
+
+    // ── DatePicker ────────────────────────────────────────────────────────
+    datepicker: {
+      colorScheme: {
+        dark: {
+          panel: {
+            background: '{slate.800}',
+            borderColor: 'rgba(255,255,255,0.09)',
+            color: '{slate.100}',
+          },
+          header: {
+            background: 'transparent',
+            borderColor: 'rgba(255,255,255,0.06)',
+            color: '{slate.100}',
+          },
+          date: {
+            selectedBackground: '{indigo.600}',
+            selectedColor: '#ffffff',
+            hoverBackground: 'rgba(255,255,255,0.05)',
+          },
+          today: {
+            background: 'rgba(99,102,241,0.15)',
+            color: '{indigo.400}',
+          },
+        },
+      },
+    },
+
+    // ── Dialog ────────────────────────────────────────────────────────────
+    dialog: {
+      colorScheme: {
+        dark: {
+          root: {
+            background: '{slate.900}',
+            borderColor: 'rgba(255,255,255,0.06)',
+            color: '{slate.100}',
+          },
+        },
+      },
+    },
+
+    // ── Tooltip ───────────────────────────────────────────────────────────
+    tooltip: {
+      colorScheme: {
+        dark: {
+          root: {
+            background: '{slate.700}',
+            color: '{slate.100}',
+          },
+        },
+      },
+    },
+
+    // ── Badge ─────────────────────────────────────────────────────────────
+    badge: {
+      colorScheme: {
+        dark: {
+          primary: {
+            background: '{indigo.600}',
+            color: '#ffffff',
+          },
+        },
+      },
+    },
+
+    // ── Chip ──────────────────────────────────────────────────────────────
+    chip: {
+      colorScheme: {
+        dark: {
+          root: {
+            background: 'rgba(255,255,255,0.06)',
+            color: '{slate.200}',
+          },
         },
       },
     },

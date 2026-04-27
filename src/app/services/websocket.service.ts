@@ -3,6 +3,8 @@ import * as signalR from '@microsoft/signalr';
 import {NotificationService, NotificationSound} from "./notification.service";
 import {OAuthService} from "angular-oauth2-oidc";
 import {environment} from "../../environments/environment";
+import {BehaviorSubject, Subject} from "rxjs";
+import {MessageDto} from "../dtos/response/message.dto";
 
 export enum ConnectionState {
   Connected,
@@ -17,6 +19,8 @@ export class WebsocketService {
   private oAuthService = inject(OAuthService);
   private notificationService = inject(NotificationService);
 
+  public messageObservable = new Subject<MessageDto>()
+
   public connectionState = signal(ConnectionState.Disconnected)
   constructor() {
     this.hubConnection = new signalR.HubConnectionBuilder()
@@ -25,7 +29,6 @@ export class WebsocketService {
         })
         .withAutomaticReconnect()
         .build();
-
 
 
   }
@@ -52,7 +55,7 @@ export class WebsocketService {
       });
     })
 
-    this.hubConnection.on('MessageCreated', async (data: {messageId: string, content: string, senderId: string, conversationId: string, channelId: string | undefined}) => {
+    this.hubConnection.on('MessageCreated', async (data: {messageId: string, content: string, authorId: string, conversationId: string, channelId: string | undefined}) => {
       console.log('Message created:', data);
       await this.notificationService.createNotification({
         title: 'New message',
@@ -60,6 +63,16 @@ export class WebsocketService {
         icon: 'message',
         sound: NotificationSound.NewMessage
       });
+
+      this.messageObservable.next({
+        id: data.messageId,
+        content: data.content,
+        authorId: data.authorId,
+        conversationId: data.conversationId,
+        channelId: data.channelId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
     })
 
     this.hubConnection.onreconnecting(() => {

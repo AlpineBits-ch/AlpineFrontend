@@ -1,32 +1,19 @@
-<div class="flex flex-col w-56 h-full bg-[#111520] border-r border-white/[0.06]">
+<div class="flex flex-col w-56 h-full bg-sidebar border-r border-white/[0.06]">
 
-  <!-- Nav items -->
-  <div class="p-2 pt-3 flex flex-col gap-0.5">
-    <button (click)="showFriends.emit()" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium bg-indigo-500/15 text-indigo-400 w-full text-left cursor-pointer border-0">
-      <i class="pi pi-users text-sm"></i>
-      <span>Friends</span>
-      <span class="ml-auto text-[11px] bg-indigo-500/25 text-indigo-300 px-1.5 py-0.5 rounded-full font-semibold">3 Online</span>
-    </button>
-    <button class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium text-white/45 hover:bg-white/[0.05] hover:text-white/75 w-full text-left transition-all cursor-pointer border-0 bg-transparent">
-      <i class="pi pi-star text-sm"></i>
-      <span>Premium</span>
-    </button>
-  </div>
-
-  <!-- DMs header -->
-  <div class="flex items-center justify-between px-4 pt-4 pb-2">
-    <span class="text-[10.5px] font-semibold text-white/25 uppercase tracking-widest">Direct Messages</span>
-    <button class="w-5 h-5 flex items-center justify-center text-white/25 hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
-      <i class="pi pi-plus text-xs"></i>
-    </button>
-  </div>
-
-  <!-- DM list via ng-content -->
-  <div class="flex-1 min-h-0 overflow-y-auto px-2 pb-2" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
-    <ng-content></ng-content>
+  <!-- Workspace-specific panel fills remaining space -->
+  <div class="flex-1 min-h-0 flex flex-col">
+    @let workspace = navService.workspace();
+    @switch (workspace.type) {
+      @case ('dms') {
+        <app-dm-sidepanel />
+      }
+      @case ('server') {
+        <app-channel-list [guild]="workspace.guild" />
+      }
+    }
   </div>
 
   <!-- Quick settings pinned to bottom -->
-  <app-quick-settings></app-quick-settings>
+  <app-quick-settings />
 
 </div>

@@ -1,47 +1,41 @@
-import {Component, effect, inject, input, output, signal, untracked} from '@angular/core';
-import {ConversationDto} from "../../../../dtos/response/conversation.dto";
-import {ComposerComponent} from "./composer/composer.component";
-import {MessageComponent} from "./message/message.component";
-import {MessageDto} from "../../../../dtos/response/message.dto";
-import {Avatar} from "primeng/avatar";
-import {MessagingService} from "../../../../services/messaging.service";
+import { Component, computed, effect, inject, input, output } from '@angular/core';
+import { ConversationDto } from '../../../../dtos/response/conversation.dto';
+import { ComposerComponent } from './composer/composer.component';
+import { MessageComponent } from './message/message.component';
+import { Avatar } from 'primeng/avatar';
+import { Button } from 'primeng/button';
+import { MessagingService } from '../../../../services/messaging.service';
+import { MessageStore } from '../../../../stores/message.store';
 
 @Component({
   selector: 'app-conversation',
-  imports: [
-    ComposerComponent,
-    MessageComponent,
-    Avatar
-  ],
+  imports: [ComposerComponent, MessageComponent, Avatar, Button],
   templateUrl: './conversation.component.html',
   styleUrl: './conversation.component.css',
 })
 export class ConversationComponent {
   public conversation = input.required<ConversationDto>();
   public back = output();
-  public messages = signal<MessageDto[]>([])
-  public messageService = inject(MessagingService);
 
+  private messageStore = inject(MessageStore);
+  private messagingService = inject(MessagingService);
 
-  constructor(messageService: MessagingService) {
+  protected messages = computed(() =>
+    this.messageStore.entities().filter(m => m.conversationId === this.conversation().id)
+  );
+
+  constructor() {
     effect(() => {
-      const conversation = this.conversation();
-
-      if(!conversation){
-        return;
-      }
-      messageService.getMessagesForConversation(this.conversation().id, 0, 10).subscribe(messages => {
-        console.log(messages);
-        this.messages.set(messages);
-      });
+      this.messageStore.loadForConversation(this.conversation().id);
     });
-
   }
-  public createMessage(message: string){
-    this.messageService.createMessage({
-      content: message,
+
+  public createMessage(content: string): void {
+    this.messagingService.createMessage({
+      content,
       channelId: undefined,
       conversationId: this.conversation().id,
     }).subscribe();
+    // No local push needed — the WS echo from the server lands in MessageStore via onInit hook
   }
 }

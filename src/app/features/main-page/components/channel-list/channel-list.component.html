@@ -1,0 +1,78 @@
+<div class="flex flex-col flex-1 min-h-0">
+
+  <!-- Guild name header -->
+  <div class="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between shrink-0">
+    <span class="text-sm font-semibold text-white/90 truncate">{{ guild().name }}</span>
+    <button class="w-6 h-6 flex items-center justify-center text-white/40 hover:text-white/70 transition-colors cursor-pointer border-0 bg-transparent rounded-lg hover:bg-white/[0.05]">
+      <i class="pi pi-chevron-down text-xs"></i>
+    </button>
+  </div>
+
+  <!-- Channel list -->
+  <div class="flex-1 min-h-0 overflow-y-auto px-2 py-2" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+
+    @if (textChannels().length > 0) {
+      <!-- Text channels -->
+      <div class="mb-1">
+        <div class="flex items-center justify-between px-2 py-1 mb-0.5">
+          <span class="text-[10.5px] font-semibold text-white/25 uppercase tracking-widest">Text Channels</span>
+          <button class="w-4 h-4 flex items-center justify-center text-white/25 hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
+            <i class="pi pi-plus text-[10px]"></i>
+          </button>
+        </div>
+        @for (channel of textChannels(); track channel.id) {
+          <button
+            (click)="navService.openChannel(channel)"
+            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0"
+            [class.bg-white/[0.08]]="isActive(channel)"
+            [class.text-white/90]="isActive(channel)"
+            [class.bg-transparent]="!isActive(channel)"
+            [class.text-white/50]="!isActive(channel)"
+            [class.hover:bg-white/[0.05]]="!isActive(channel)"
+            [class.hover:text-white/80]="!isActive(channel)">
+            <span class="text-white/30 text-base leading-none font-medium shrink-0">#</span>
+            <span class="text-sm truncate">{{ channel.name }}</span>
+            @if (channel.isPrivate) {
+              <i class="pi pi-lock text-[10px] text-white/25 ml-auto shrink-0"></i>
+            }
+          </button>
+        }
+      </div>
+    }
+
+    @if (voiceChannels().length > 0) {
+      <!-- Voice channels -->
+      <div class="mb-1">
+        <div class="flex items-center justify-between px-2 py-1 mb-0.5">
+          <span class="text-[10.5px] font-semibold text-white/25 uppercase tracking-widest">Voice Channels</span>
+          <button class="w-4 h-4 flex items-center justify-center text-white/25 hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
+            <i class="pi pi-plus text-[10px]"></i>
+          </button>
+        </div>
+        @for (channel of voiceChannels(); track channel.id) {
+          <button
+            (click)="navService.openChannel(channel)"
+            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0"
+            [class.bg-white/[0.08]]="isActive(channel)"
+            [class.text-white/90]="isActive(channel)"
+            [class.bg-transparent]="!isActive(channel)"
+            [class.text-white/50]="!isActive(channel)"
+            [class.hover:bg-white/[0.05]]="!isActive(channel)"
+            [class.hover:text-white/80]="!isActive(channel)">
+            <i class="pi pi-volume-up text-xs text-white/30 shrink-0"></i>
+            <span class="text-sm truncate">{{ channel.name }}</span>
+            @if (channel.isPrivate) {
+              <i class="pi pi-lock text-[10px] text-white/25 ml-auto shrink-0"></i>
+            }
+          </button>
+        }
+      </div>
+    }
+
+    @if (guild().channels.length === 0) {
+      <p class="text-xs text-white/25 text-center mt-6">No channels yet</p>
+    }
+
+  </div>
+
+</div>

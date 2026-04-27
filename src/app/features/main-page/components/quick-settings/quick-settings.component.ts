@@ -1,6 +1,7 @@
 import {Component, inject, signal} from '@angular/core';
 import {ProfileService} from "../../../../services/profile.service";
 import {Avatar} from "primeng/avatar";
+import {Button} from "primeng/button";
 import {ConnectionState, WebsocketService} from "../../../../services/websocket.service";
 import {ConnectionStatusComponent} from "../connection-status/connection-status.component";
 import {SettingsModalComponent} from "../../../../features/settings/settings-modal/settings-modal.component";
@@ -9,6 +10,7 @@ import {SettingsModalComponent} from "../../../../features/settings/settings-mod
   selector: 'app-quick-settings',
   imports: [
     Avatar,
+    Button,
     ConnectionStatusComponent,
     SettingsModalComponent,
   ],

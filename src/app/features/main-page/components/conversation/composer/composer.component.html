@@ -1,9 +1,7 @@
 <div class="px-4 py-3">
-  <div class="flex items-end gap-3 bg-white/[0.05] border border-white/[0.08] rounded-2xl px-3 py-2 focus-within:border-white/[0.15] transition-colors">
+  <div class="flex items-end gap-2 bg-white/[0.05] border border-white/[0.08] rounded-2xl px-2 py-1.5 focus-within:border-white/[0.15] transition-colors">
 
-    <button class="w-7 h-7 rounded-xl bg-white/[0.06] hover:bg-indigo-500/20 hover:text-indigo-400 flex items-center justify-center transition-all cursor-pointer border-0 text-white/35 shrink-0 mb-0.5">
-      <i class="pi pi-plus text-xs"></i>
-    </button>
+    <p-button icon="pi pi-plus" [text]="true" severity="secondary" size="small" styleClass="shrink-0 self-end mb-0.5" />
 
     <textarea
       #composer
@@ -12,18 +10,12 @@
       rows="1"
       placeholder="Message"
       (keydown.enter)="$any($event).shiftKey ? null : $event.preventDefault(); $any($event).shiftKey ? null : handleSendMessage(composer)"
-      class="flex-1 border-0 bg-transparent outline-none text-sm text-white/80 placeholder:text-white/25 resize-none py-1 max-h-[160px] overflow-y-auto focus:shadow-none focus:ring-0"
+      class="flex-1 border-0 bg-transparent outline-none text-sm text-white/80 placeholder:text-white/25 resize-none py-1.5 max-h-[160px] overflow-y-auto focus:shadow-none focus:ring-0"
     ></textarea>
 
-    <div class="flex items-center gap-1.5 text-white/30 mb-0.5 shrink-0">
-      <button class="w-7 h-7 rounded-xl hover:bg-white/[0.06] hover:text-white/60 flex items-center justify-center transition-all cursor-pointer border-0 bg-transparent">
-        <i class="pi pi-face-smile text-sm"></i>
-      </button>
-      <button
-        (click)="handleSendMessage(composer)"
-        class="w-7 h-7 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/35 text-indigo-400 flex items-center justify-center transition-all cursor-pointer border-0">
-        <i class="pi pi-send text-xs"></i>
-      </button>
+    <div class="flex items-center gap-1 self-end mb-0.5 shrink-0">
+      <p-button icon="pi pi-face-smile" [text]="true" severity="secondary" size="small" />
+      <p-button icon="pi pi-send" [text]="true" severity="primary" size="small" (onClick)="handleSendMessage(composer)" />
     </div>
 
   </div>

@@ -4,7 +4,7 @@
   <div class="flex items-center gap-2.5">
     <div class="relative shrink-0">
       <p-avatar icon="pi pi-user" shape="circle"></p-avatar>
-      <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-[#111520]"
+      <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-sidebar"
         [class.bg-emerald-400]="websocketService.connectionState() === ConnectionState.Connected"
         [class.bg-amber-400]="websocketService.connectionState() === ConnectionState.Connecting"
         [class.bg-rose-500]="websocketService.connectionState() === ConnectionState.Disconnected"></div>
@@ -13,10 +13,6 @@
       <p class="text-sm font-medium text-white/85 truncate leading-tight">{{ profileService.profile()?.userName }}</p>
       <app-connection-status></app-connection-status>
     </div>
-    <button
-      (click)="isSettingsOpen.set(true)"
-      class="w-7 h-7 rounded-lg flex items-center justify-center text-white/30 hover:text-white/65 hover:bg-white/[0.06] transition-all cursor-pointer border-0 bg-transparent shrink-0">
-      <i class="pi pi-cog text-sm"></i>
-    </button>
+    <p-button icon="pi pi-cog" [text]="true" severity="secondary" size="small" styleClass="shrink-0" (onClick)="isSettingsOpen.set(true)" />
   </div>
 </div>

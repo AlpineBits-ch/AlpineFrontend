@@ -1,58 +1,33 @@
-import {Component, effect, inject, output, signal, untracked} from '@angular/core';
-import {ConversationService} from "../../../../services/conversation.service";
-import {ConversationDto} from "../../../../dtos/response/conversation.dto";
-import {Avatar} from "primeng/avatar";
-import {ProfileService} from "../../../../services/profile.service";
+import { Component, inject, output, signal } from '@angular/core';
+import { ConversationDto } from '../../../../dtos/response/conversation.dto';
+import { Avatar } from 'primeng/avatar';
+import { ProfileService } from '../../../../services/profile.service';
+import { ConversationStore } from '../../../../stores/conversation.store';
 
 @Component({
   selector: 'app-conversation-list',
-  imports: [
-    Avatar
-  ],
+  imports: [Avatar],
   templateUrl: './conversation-list.component.html',
   styleUrl: './conversation-list.component.css',
 })
 export class ConversationListComponent {
-
   public conversationSelected = output<ConversationDto>();
   public selectedId = signal<string | null>(null);
 
-  public offset = signal(0);
-  public limit = signal(20);
-
-  public conversationService = inject(ConversationService);
-  public conversations = signal<ConversationDto[]>([])
+  protected conversationStore = inject(ConversationStore);
   private profileService = inject(ProfileService);
 
   constructor() {
-    effect(() => {
-      const offset = this.offset();
-      const limit = this.limit();
-
-      const conversations = untracked(() => this.conversations());
-
-      this.conversationService.getConversations(offset, limit).subscribe(d => {
-        this.conversations.set(conversations.concat(d))
-        const savedConversations = untracked(() => this.conversations());
-        console.log(savedConversations);
-      })
-
-    });
-
+    this.conversationStore.loadInitial();
   }
+
   public getChatName(conversation: ConversationDto): string {
     const userProfile = this.profileService.profile();
-    if(!userProfile){
-      return 'Loading...';
-    }
+    if (!userProfile) return 'Loading...';
 
-    const members = conversation.members.filter(m => m.userId !== userProfile.userId);
-    if(members.length === 0){
-      return 'Empty chat';
-    }
-    if(members.length === 1){
-      return `${members[0].cachedUserName}#${members[0].cachedUserHash}`;
-    }
+    const others = conversation.members.filter(m => m.userId !== userProfile.userId);
+    if (others.length === 0) return 'Empty chat';
+    if (others.length === 1) return `${others[0].cachedUserName}#${others[0].cachedUserHash}`;
     return conversation.name ?? 'Unnamed Chat';
   }
 }
