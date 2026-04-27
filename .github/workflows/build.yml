@@ -24,7 +24,7 @@ jobs:
 
       # sccache: caches individual compiled crate objects so unchanged
       # crates are not recompiled even when Cargo.lock changes slightly
-      - uses: mozilla-actions/sccache-action@v0.0.5
+      - uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Install dependencies
         run: bun install
