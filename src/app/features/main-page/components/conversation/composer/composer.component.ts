@@ -5,10 +5,11 @@ import { CommandDef, COMMANDS } from './commands';
 import { detectTrigger, getMessage } from './composer-utils';
 import { SuggestionOverlayComponent } from './suggestion-overlay/suggestion-overlay.component';
 import { EmojiPickerButtonComponent } from './emoji-picker-button/emoji-picker-button.component';
+import { GifPickerButtonComponent } from './gif-picker-button/gif-picker-button.component';
 
 @Component({
   selector: 'app-composer',
-  imports: [Button, SuggestionOverlayComponent, EmojiPickerButtonComponent],
+  imports: [Button, SuggestionOverlayComponent, EmojiPickerButtonComponent, GifPickerButtonComponent],
   templateUrl: './composer.component.html',
   styleUrl: './composer.component.css',
 })
@@ -159,6 +160,12 @@ export class ComposerComponent {
 
     this.closeOverlay();
     editor.focus();
+  }
+
+  // ── GIF handling ──────────────────────────────────────────────────────────
+
+  onGifSelected(url: string): void {
+    this.message.emit(url);
   }
 
   // ── Emoji handling ────────────────────────────────────────────────────────

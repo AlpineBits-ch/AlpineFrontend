@@ -19,18 +19,20 @@
         </span>
       }
     </div>
-    <p class="text-sm leading-relaxed m-0 break-words"
+    <div class="text-sm leading-relaxed m-0 break-words"
        [class.text-white/70]="!message().isPending && !message().isFailed"
        [class.text-white/40]="message().isPending"
        [class.text-rose-300]="message().isFailed">
       @for (seg of contentSegments(); track $index) {
-        @if (seg.type === 'mention') {
+        @if (seg.type === 'gif') {
+          <img [src]="seg.value" alt="GIF" class="gif-message rounded-xl mt-1 max-w-xs max-h-48 object-contain block" loading="lazy" />
+        } @else if (seg.type === 'mention') {
           <span class="mention-chip">{{ seg.value }}</span>
         } @else {
           {{ seg.value }}
         }
       }
-    </p>
+    </div>
     @if (!message().isPending && !message().isFailed && message().updatedAt > message().createdAt) {
       <span class="text-[10px] italic text-white/25 mt-0.5">Edited</span>
     }

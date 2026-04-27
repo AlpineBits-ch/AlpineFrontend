@@ -3,7 +3,15 @@
     "allow": [
       "Bash(xargs grep:*)",
       "Bash(find C:UsersDominWebstormProjectsAlpinenode_modules@primeuixthemesaura -type f -name *.js -o -name *.mjs -o -name *.ts)",
-      "Bash(find C:/Users/Domin/WebstormProjects/Alpine/node_modules/@primeuix/themes/aura -name *.js -o -name *.mjs)"
+      "Bash(find C:/Users/Domin/WebstormProjects/Alpine/node_modules/@primeuix/themes/aura -name *.js -o -name *.mjs)",
+      "WebFetch(domain:partner.klipy.com)",
+      "WebSearch",
+      "WebFetch(domain:docs.klipy.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:zuplo.com)",
+      "WebFetch(domain:dev.to)",
+      "WebFetch(domain:klipy.com)",
+      "WebFetch(domain:gist.github.com)"
     ]
   }
 }

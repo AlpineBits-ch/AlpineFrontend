@@ -6,6 +6,7 @@ import {ProfileService} from "../../../../../services/profile.service";
 import {Observable} from "rxjs";
 import {ProfileDto} from "../../../../../dtos/response/profile.dto";
 import {rxResource} from "@angular/core/rxjs-interop";
+import { isKlipyGifUrl } from '../../../../../services/gif.service';
 
 @Component({
   selector: 'app-message',
@@ -30,7 +31,13 @@ export class MessageComponent {
 
   public contentSegments = computed(() => {
     const text = this.content();
-    const segments: { type: 'text' | 'mention'; value: string }[] = [];
+    const segments: { type: 'text' | 'mention' | 'gif'; value: string }[] = [];
+
+    // If the entire message is a GIF URL, render it as a single GIF segment
+    if (isKlipyGifUrl(text)) {
+      return [{ type: 'gif' as const, value: text.trim() }];
+    }
+
     const regex = /@[\w\-.]+#\w+/g;
     let last = 0;
     let match;

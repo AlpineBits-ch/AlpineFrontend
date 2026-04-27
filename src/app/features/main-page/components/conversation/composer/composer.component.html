@@ -45,6 +45,7 @@
     ></div>
 
     <div class="flex items-center gap-1 self-end mb-0.5 shrink-0">
+      <app-gif-picker-button (gifSelected)="onGifSelected($event)" />
       <app-emoji-picker-button (emojiSelected)="onEmojiSelected($event)" />
       <p-button icon="pi pi-send" [text]="true" severity="primary" size="small" (onClick)="send()" />
     </div>
