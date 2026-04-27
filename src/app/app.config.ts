@@ -7,7 +7,7 @@ import { provideRouter } from "@angular/router";
 import {AuthConfig, OAuthStorage, provideOAuthClient} from 'angular-oauth2-oidc';
 import { routes } from "./app.routes";
 import {providePrimeNG} from "primeng/config";
-import Aura from '@primeuix/themes/aura';
+import {AlpinePreset} from './theme/alpine-preset';
 import {HTTP_INTERCEPTORS, provideHttpClient, withInterceptors} from "@angular/common/http";
 import {environment} from "../environments/environment";
 import {tokenInterceptor} from "./interceptors/token-interceptor";
@@ -36,7 +36,10 @@ export const appConfig: ApplicationConfig = {
     provideRouter(routes),
       providePrimeNG({
         theme: {
-          preset: Aura
+          preset: AlpinePreset,
+          options: {
+            darkModeSelector: 'body',
+          }
         }
       })
   ],

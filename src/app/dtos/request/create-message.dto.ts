@@ -1,4 +1,5 @@
 ﻿export interface CreateMessageDto {
     content: string;
-    contextId: string;
+    conversationId: string;
+    channelId: string;
 }

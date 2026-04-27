@@ -40,7 +40,7 @@ export class ConversationComponent {
   public createMessage(message: string){
     this.messageService.createMessage({
       content: message,
-      contextId: this.conversation().id,
+      channelId: this.conversation().id,
     }).subscribe();
   }
 }

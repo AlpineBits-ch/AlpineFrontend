@@ -1,1 +1,51 @@
 @import "tailwindcss";
+
+/**
+ * Alpine Design System — Tailwind v4 theme tokens
+ *
+ * Usage examples:
+ *   bg-app-bg          → #0d1117  (main app background)
+ *   bg-sidebar         → #111520  (sidebars, panels)
+ *   bg-card            → #161b27  (cards, form inputs)
+ *   bg-hover           → #1d2333  (hover / interactive surface)
+ *   border-subtle      → rgba(255,255,255,0.06)
+ *   border-default     → rgba(255,255,255,0.10)
+ *
+ *   bg-brand           → #6366f1  (indigo-500)
+ *   text-brand-dim     → #818cf8  (indigo-400)
+ *   bg-brand/15        → indigo-500 at 15% opacity (active tab bg)
+ *
+ *   bg-online          → #34d399  (emerald-400, connected)
+ *   bg-connecting      → #fbbf24  (amber-400, connecting)
+ *   bg-offline         → #f43f5e  (rose-500, disconnected)
+ */
+@theme {
+  /* ── Surfaces ──────────────────────────────────────────── */
+  --color-app-bg:  #0d1117;
+  --color-sidebar: #111520;
+  --color-card:    #161b27;
+  --color-hover:   #1d2333;
+  --color-border:  #252e42;
+
+  /* ── Brand (Indigo) ────────────────────────────────────── */
+  --color-brand:       #6366f1;
+  --color-brand-hover: #4f46e5;
+  --color-brand-dim:   #818cf8;
+  --color-brand-dark:  #4338ca;
+
+  /* ── Connection status ─────────────────────────────────── */
+  --color-online:      #34d399;
+  --color-connecting:  #fbbf24;
+  --color-offline:     #f43f5e;
+
+  /* ── Text shorthands (use with opacity modifier) ────────── */
+  /* bg-white/[0.85] → text-primary feel; these aliases make intent clearer */
+  --color-text-primary:   rgba(255 255 255 / 0.85);
+  --color-text-secondary: rgba(255 255 255 / 0.50);
+  --color-text-muted:     rgba(255 255 255 / 0.30);
+  --color-text-faint:     rgba(255 255 255 / 0.06);
+
+  /* ── Borders ────────────────────────────────────────────── */
+  --color-border-subtle:  rgba(255 255 255 / 0.06);
+  --color-border-default: rgba(255 255 255 / 0.10);
+}
