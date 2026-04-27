@@ -38,5 +38,6 @@
     "start": "ng serve",
     "tauri": "tauri",
     "watch": "ng build --watch --configuration development"
-  }
+  },
+  "version": "1.1.1"
 }
