@@ -52,6 +52,16 @@ export class WebsocketService {
       });
     })
 
+    this.hubConnection.on('MessageCreated', async (data: {messageId: string, content: string, senderId: string, conversationId: string, channelId: string | undefined}) => {
+      console.log('Message created:', data);
+      await this.notificationService.createNotification({
+        title: 'New message',
+        message: `${data.content}`,
+        icon: 'message',
+        sound: NotificationSound.NewMessage
+      });
+    })
+
     this.hubConnection.onreconnecting(() => {
       this.notificationService.createNotification({
         title: 'Reconnecting',
