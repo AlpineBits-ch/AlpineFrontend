@@ -3,6 +3,7 @@ import { RouterOutlet } from "@angular/router";
 import {ProfileService} from "./services/profile.service";
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
+import {environment} from "../environments/environment";
 @Component({
   selector: "app-root",
     imports: [RouterOutlet],
@@ -17,6 +18,7 @@ export class AppComponent {
     });
     void updateApp();
     async function updateApp() {
+      if(!environment.production) return;
       try {
         const update = await check();
 
