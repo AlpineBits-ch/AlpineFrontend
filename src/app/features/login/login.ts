@@ -8,6 +8,7 @@ import {catchError, Observable, tap, throwError} from "rxjs";
 import {form, FormField} from "@angular/forms/signals";
 import {TokenResponse} from "angular-oauth2-oidc";
 import {Router} from "@angular/router";
+import {NgClass} from "@angular/common";
 
 
 interface LoginModel {
@@ -23,13 +24,14 @@ interface RegisterModel {
 }
 @Component({
   selector: 'app-login',
-  imports: [
-    DatePicker,
-    InputText,
-    PasswordDirective,
-    Button,
-    FormField
-  ],
+    imports: [
+        DatePicker,
+        InputText,
+        PasswordDirective,
+        Button,
+        FormField,
+        NgClass
+    ],
   templateUrl: './login.html',
   styleUrl: './login.css',
 })
