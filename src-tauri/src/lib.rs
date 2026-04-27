@@ -13,6 +13,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![greet])
         .invoke_handler(tauri::generate_handler![get_memory_usage])
         .invoke_handler(tauri::generate_handler![crypto::crypto::generate_key])
+        .plugin(tauri_plugin_updater::Builder::new().build()) // <--- Add this
+            .plugin(tauri_plugin_process::init())
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
