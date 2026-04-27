@@ -3,6 +3,7 @@ import { NgClass } from '@angular/common';
 import { Avatar } from 'primeng/avatar';
 import { RelationshipModel } from '../../../../../friendship/components/friendship-modal/dto/relationship.model';
 import { CommandDef } from '../commands';
+import { EmojiSuggestion } from '../composer-utils';
 
 @Component({
   selector: 'app-suggestion-overlay',
@@ -11,12 +12,14 @@ import { CommandDef } from '../commands';
   styleUrl: './suggestion-overlay.component.css',
 })
 export class SuggestionOverlayComponent {
-  overlayType = input<'mention' | 'command' | null>(null);
+  overlayType = input<'mention' | 'command' | 'emoji' | null>(null);
   filteredFriends = input<RelationshipModel[]>([]);
   filteredCommands = input<CommandDef[]>([]);
+  filteredEmojis = input<EmojiSuggestion[]>([]);
   selectedIndex = input<number>(0);
   query = input<string>('');
 
   mentionSelected = output<RelationshipModel>();
   commandSelected = output<CommandDef>();
+  emojiSelected = output<EmojiSuggestion>();
 }

@@ -26,12 +26,19 @@ export function getMessage(editor: HTMLElement): string {
   return text.replace(/\u00a0/g, ' ').trim();
 }
 
+export interface EmojiSuggestion {
+  id: string;
+  native: string;
+  name: string;
+}
+
 export type TriggerDetection =
   | { type: 'mention'; query: string; range: Range }
   | { type: 'command'; query: string; range: Range }
+  | { type: 'emoji'; query: string; range: Range }
   | null;
 
-/** Inspect the current selection to detect an active @ mention or / command trigger. */
+/** Inspect the current selection to detect an active @ mention, / command, or : emoji trigger. */
 export function detectTrigger(editor: HTMLElement): TriggerDetection {
   const sel = window.getSelection();
   if (!sel || sel.rangeCount === 0) return null;
@@ -58,6 +65,16 @@ export function detectTrigger(editor: HTMLElement): TriggerDetection {
     r.setStart(node as Text, 0);
     r.setEnd(node as Text, range.startOffset);
     return { type: 'command', query: commandMatch[1], range: r };
+  }
+
+  // Emoji shortcode: :word (at least 1 char after colon)
+  const emojiMatch = textBefore.match(/(?:^|[\s\u00a0]):(\w{1,32})$/);
+  if (emojiMatch) {
+    const colonPos = textBefore.lastIndexOf(':');
+    const r = document.createRange();
+    r.setStart(node as Text, colonPos);
+    r.setEnd(node as Text, range.startOffset);
+    return { type: 'emoji', query: emojiMatch[1], range: r };
   }
 
   return null;

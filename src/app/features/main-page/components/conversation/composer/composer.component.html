@@ -5,10 +5,12 @@
     [overlayType]="overlayType()"
     [filteredFriends]="filteredFriends()"
     [filteredCommands]="filteredCommands()"
+    [filteredEmojis]="filteredEmojis()"
     [selectedIndex]="selectedIndex()"
     [query]="query()"
     (mentionSelected)="onMentionSelected($event)"
-    (commandSelected)="onCommandSelected($event)" />
+    (commandSelected)="onCommandSelected($event)"
+    (emojiSelected)="onEmojiShortcodeSelected($event)" />
 
   <!-- Active command hint bar -->
   @if (activeCommand()) {

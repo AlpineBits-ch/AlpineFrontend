@@ -2,7 +2,7 @@ import { Component, computed, ElementRef, input, output, signal, viewChild } fro
 import { Button } from 'primeng/button';
 import { RelationshipModel, RelationshipStatus } from '../../../../friendship/components/friendship-modal/dto/relationship.model';
 import { CommandDef, COMMANDS } from './commands';
-import { detectTrigger, getMessage } from './composer-utils';
+import { detectTrigger, EmojiSuggestion, getMessage } from './composer-utils';
 import { SuggestionOverlayComponent } from './suggestion-overlay/suggestion-overlay.component';
 import { EmojiPickerButtonComponent } from './emoji-picker-button/emoji-picker-button.component';
 import { GifPickerButtonComponent } from './gif-picker-button/gif-picker-button.component';
@@ -26,7 +26,7 @@ export class ComposerComponent {
 
   // ── Overlay state ────────────────────────────────────────────────────────
 
-  overlayType = signal<'mention' | 'command' | null>(null);
+  overlayType = signal<'mention' | 'command' | 'emoji' | null>(null);
   query = signal('');
   selectedIndex = signal(0);
 
@@ -51,9 +51,14 @@ export class ComposerComponent {
     return COMMANDS.filter(c => c.name.startsWith(q));
   });
 
-  overlayItems = computed<unknown[]>(() =>
-    this.overlayType() === 'mention' ? this.filteredFriends() : this.filteredCommands()
-  );
+  filteredEmojis = signal<EmojiSuggestion[]>([]);
+
+  overlayItems = computed<unknown[]>(() => {
+    if (this.overlayType() === 'mention') return this.filteredFriends();
+    if (this.overlayType() === 'command') return this.filteredCommands();
+    if (this.overlayType() === 'emoji') return this.filteredEmojis();
+    return [];
+  });
 
   placeholder = computed(() => {
     const cmd = this.activeCommand();
@@ -66,20 +71,110 @@ export class ComposerComponent {
 
   private triggerRange: Range | null = null;
 
-  // ── Saved cursor for emoji insertion ─────────────────────────────────────
+  // ── Saved cursor for emoji picker insertion ───────────────────────────────
 
   private savedEmojiRange: Range | null = null;
 
+  // ── Emoji data (lazy loaded) ──────────────────────────────────────────────
+
+  private emojiData: any = null;
+
+  private async loadEmojiData(): Promise<void> {
+    if (this.emojiData) return;
+    const mod = await import('@emoji-mart/data');
+    this.emojiData = (mod as any).default ?? mod;
+  }
+
+  private async searchEmojiShortcodes(query: string): Promise<EmojiSuggestion[]> {
+    await this.loadEmojiData();
+    const q = query.toLowerCase();
+    const data = this.emojiData;
+    const results: EmojiSuggestion[] = [];
+    const seen = new Set<string>();
+
+    // Check aliases (e.g. thumbs_up → thumbsup)
+    for (const [alias, id] of Object.entries<string>(data.aliases ?? {})) {
+      if (alias.startsWith(q) && !seen.has(id)) {
+        const emoji = data.emojis[id];
+        if (emoji?.skins?.[0]?.native) {
+          seen.add(id);
+          results.push({ id: alias, native: emoji.skins[0].native, name: emoji.name });
+        }
+      }
+    }
+
+    // Check emoji IDs directly
+    for (const [id, emoji] of Object.entries<any>(data.emojis ?? {})) {
+      if (id.startsWith(q) && !seen.has(id)) {
+        if (emoji?.skins?.[0]?.native) {
+          seen.add(id);
+          results.push({ id, native: emoji.skins[0].native, name: emoji.name });
+        }
+      }
+    }
+
+    return results.slice(0, 8);
+  }
+
+  private async resolveShortcode(shortcode: string): Promise<string | null> {
+    await this.loadEmojiData();
+    const data = this.emojiData;
+    const q = shortcode.toLowerCase();
+
+    let emoji = data.emojis[q];
+    if (!emoji) {
+      const aliasTarget = data.aliases?.[q];
+      if (aliasTarget) emoji = data.emojis[aliasTarget];
+    }
+    return emoji?.skins?.[0]?.native ?? null;
+  }
+
   // ── Input events ─────────────────────────────────────────────────────────
 
-  onInput(): void {
+  async onInput(): Promise<void> {
     const editor = this.editorRef().nativeElement;
+
+    // Auto-replace :shortcode: when the user types the closing colon
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const node = range.startContainer;
+      if (node.nodeType === Node.TEXT_NODE) {
+        const textBefore = (node.textContent ?? '').slice(0, range.startOffset);
+        const autoMatch = textBefore.match(/(?:^|[\s\u00a0]):(\w+):$/);
+        if (autoMatch) {
+          const native = await this.resolveShortcode(autoMatch[1]);
+          if (native) {
+            const start = range.startOffset - autoMatch[0].length + (autoMatch[0].startsWith(':') ? 0 : 1);
+            const colonPos = textBefore.lastIndexOf(':', range.startOffset - 2);
+            const r = document.createRange();
+            r.setStart(node as Text, colonPos);
+            r.setEnd(node as Text, range.startOffset);
+            r.deleteContents();
+            const textNode = document.createTextNode(native);
+            r.insertNode(textNode);
+            const newRange = document.createRange();
+            newRange.setStartAfter(textNode);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            this.closeOverlay();
+            return;
+          }
+        }
+      }
+    }
+
     const result = detectTrigger(editor);
     if (result) {
       this.overlayType.set(result.type);
       this.query.set(result.query);
       this.selectedIndex.set(0);
       this.triggerRange = result.range;
+
+      if (result.type === 'emoji') {
+        this.filteredEmojis.set(await this.searchEmojiShortcodes(result.query));
+      }
     } else {
       this.closeOverlay();
     }
@@ -162,13 +257,35 @@ export class ComposerComponent {
     editor.focus();
   }
 
+  // ── Emoji shortcode overlay selection ─────────────────────────────────────
+
+  onEmojiShortcodeSelected(emoji: EmojiSuggestion): void {
+    if (!this.triggerRange) return;
+
+    this.triggerRange.deleteContents();
+    const textNode = document.createTextNode(emoji.native);
+    this.triggerRange.insertNode(textNode);
+
+    const sel = window.getSelection();
+    if (sel) {
+      const r = document.createRange();
+      r.setStartAfter(textNode);
+      r.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(r);
+    }
+
+    this.closeOverlay();
+    this.editorRef().nativeElement.focus();
+  }
+
   // ── GIF handling ──────────────────────────────────────────────────────────
 
   onGifSelected(url: string): void {
     this.message.emit(url);
   }
 
-  // ── Emoji handling ────────────────────────────────────────────────────────
+  // ── Emoji picker handling ─────────────────────────────────────────────────
 
   onEmojiSelected(emoji: string): void {
     const editor = this.editorRef().nativeElement;
@@ -214,15 +331,19 @@ export class ComposerComponent {
     if (this.overlayType() === 'mention') {
       const f = this.filteredFriends()[idx];
       if (f) this.onMentionSelected(f);
-    } else {
+    } else if (this.overlayType() === 'command') {
       const c = this.filteredCommands()[idx];
       if (c) this.onCommandSelected(c);
+    } else if (this.overlayType() === 'emoji') {
+      const e = this.filteredEmojis()[idx];
+      if (e) this.onEmojiShortcodeSelected(e);
     }
   }
 
   private closeOverlay(): void {
     this.overlayType.set(null);
     this.query.set('');
+    this.filteredEmojis.set([]);
     this.triggerRange = null;
   }
 }
