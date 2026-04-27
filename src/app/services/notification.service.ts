@@ -6,7 +6,7 @@ import {
   requestPermission,
   sendNotification,
 } from '@tauri-apps/plugin-notification';
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { invoke } from '@tauri-apps/api/core';
 import { Subject } from 'rxjs';
 
 export enum NotificationSound {
@@ -39,7 +39,7 @@ export class NotificationService {
     ]);
 
     await onAction(async notification => {
-      await getCurrentWindow().setFocus();
+      await invoke('focus_window');
       this.action$.next({
         actionTypeId: notification.actionTypeId ?? 'message',
         extra: (notification.extra ?? {}) as Record<string, string>,
