@@ -1,16 +1,21 @@
 import { Component } from '@angular/core';
+import { ToggleSwitch } from 'primeng/toggleswitch';
+import { RadioButton } from 'primeng/radiobutton';
+import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-privacy-settings',
-  imports: [],
+  imports: [ToggleSwitch, RadioButton, FormsModule],
   templateUrl: './privacy-settings.component.html',
   styleUrl: './privacy-settings.component.css',
 })
 export class PrivacySettingsComponent {
+  selectedFriendRequest = 'everyone';
+
   public readonly friendRequestOptions = [
-    { label: 'Everyone',       desc: 'Anyone on Alpine can send you a request.', active: true  },
-    { label: 'Friends of Friends', desc: 'Only people who share a mutual friend.', active: false },
-    { label: 'Nobody',         desc: 'Disable all incoming friend requests.',      active: false },
+    { label: 'Everyone',           desc: 'Anyone on Alpine can send you a request.',    value: 'everyone' },
+    { label: 'Friends of Friends', desc: 'Only people who share a mutual friend.',      value: 'friends'  },
+    { label: 'Nobody',             desc: 'Disable all incoming friend requests.',        value: 'nobody'   },
   ];
 
   public readonly dmToggles = [
@@ -19,7 +24,7 @@ export class PrivacySettingsComponent {
   ];
 
   public readonly presenceToggles = [
-    { label: 'Show online status',   desc: 'Let others see when you are active.' },
+    { label: 'Show online status',    desc: 'Let others see when you are active.' },
     { label: 'Show current activity', desc: 'Display what you are playing or working on.' },
   ];
 }

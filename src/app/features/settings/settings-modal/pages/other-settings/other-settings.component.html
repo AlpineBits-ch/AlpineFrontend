@@ -6,10 +6,8 @@
 
     <div class="flex flex-col gap-1.5">
       <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Language</label>
-      <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 cursor-not-allowed">
-        <p class="text-sm text-white/55">English (US)</p>
-        <i class="pi pi-chevron-down text-xs text-white/25"></i>
-      </div>
+      <p-select [(ngModel)]="selectedLanguage" [options]="languages" optionLabel="label" optionValue="value"
+                [disabled]="true" styleClass="w-full" />
     </div>
   </section>
 
@@ -23,9 +21,7 @@
           <p class="text-sm text-white/60">{{ toggle.label }}</p>
           <p class="text-xs text-white/25 mt-0.5">{{ toggle.desc }}</p>
         </div>
-        <div class="w-10 h-6 rounded-full bg-white/10 border border-white/[0.08] flex items-center px-1 cursor-not-allowed">
-          <div class="w-4 h-4 rounded-full bg-white/20"></div>
-        </div>
+        <p-toggleswitch [ngModel]="false" [disabled]="true" />
       </div>
     }
   </section>
@@ -40,9 +36,7 @@
           <p class="text-sm text-white/60">{{ toggle.label }}</p>
           <p class="text-xs text-white/25 mt-0.5">{{ toggle.desc }}</p>
         </div>
-        <div class="w-10 h-6 rounded-full bg-white/10 border border-white/[0.08] flex items-center px-1 cursor-not-allowed">
-          <div class="w-4 h-4 rounded-full bg-white/20"></div>
-        </div>
+        <p-toggleswitch [ngModel]="false" [disabled]="true" />
       </div>
     }
   </section>
@@ -55,9 +49,7 @@
       <p class="text-xs text-white/30">Version 0.1.0-alpha</p>
       <p class="text-xs text-white/20 mt-1">Built with Angular · Tauri · PrimeNG</p>
     </div>
-    <button class="w-fit text-xs text-indigo-400/60 hover:text-indigo-400 transition-colors cursor-pointer border-0 bg-transparent">
-      Check for updates
-    </button>
+    <p-button label="Check for updates" [text]="true" severity="secondary" size="small" styleClass="w-fit !px-0" />
   </section>
 
 </div>

@@ -1,12 +1,22 @@
 import { Component } from '@angular/core';
+import { ToggleSwitch } from 'primeng/toggleswitch';
+import { Select } from 'primeng/select';
+import { FormsModule } from '@angular/forms';
+import { Button } from 'primeng/button';
 
 @Component({
   selector: 'app-other-settings',
-  imports: [],
+  imports: [ToggleSwitch, Select, FormsModule, Button],
   templateUrl: './other-settings.component.html',
   styleUrl: './other-settings.component.css',
 })
 export class OtherSettingsComponent {
+  selectedLanguage = 'en-us';
+
+  public readonly languages = [
+    { label: 'English (US)', value: 'en-us' },
+  ];
+
   public readonly systemToggles = [
     { label: 'Launch on startup',    desc: 'Start Alpine automatically when your device boots.' },
     { label: 'Minimize to tray',     desc: 'Keep Alpine running in the system tray when closed.' },

@@ -1,0 +1,54 @@
+<div class="flex flex-col gap-8 max-w-2xl">
+
+  <!-- General -->
+  <section class="flex flex-col gap-4">
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">General</h2>
+
+    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+      <div>
+        <p class="text-sm text-white/75">Enable Notifications</p>
+        <p class="text-xs text-white/35 mt-0.5">Receive alerts for messages and activity.</p>
+      </div>
+      <p-toggleswitch [(ngModel)]="notificationsEnabled" />
+    </div>
+  </section>
+
+  <!-- Messages -->
+  <section class="flex flex-col gap-4 transition-opacity duration-200"
+           [class.opacity-40]="!notificationsEnabled"
+           [class.pointer-events-none]="!notificationsEnabled">
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">Messages</h2>
+
+    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+      <div>
+        <p class="text-sm text-white/75">Direct Messages</p>
+        <p class="text-xs text-white/35 mt-0.5">Notify me when I receive a direct message.</p>
+      </div>
+      <p-toggleswitch [(ngModel)]="dmNotifications" />
+    </div>
+
+    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+      <div>
+        <p class="text-sm text-white/75">Mentions & Replies</p>
+        <p class="text-xs text-white/35 mt-0.5">Notify me when someone mentions or replies to me.</p>
+      </div>
+      <p-toggleswitch [(ngModel)]="mentionNotifications" />
+    </div>
+  </section>
+
+  <!-- Sounds -->
+  <section class="flex flex-col gap-4 transition-opacity duration-200"
+           [class.opacity-40]="!notificationsEnabled"
+           [class.pointer-events-none]="!notificationsEnabled">
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">Sounds</h2>
+
+    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+      <div>
+        <p class="text-sm text-white/75">Notification Sounds</p>
+        <p class="text-xs text-white/35 mt-0.5">Play a sound when a notification arrives.</p>
+      </div>
+      <p-toggleswitch [(ngModel)]="notificationSounds" />
+    </div>
+  </section>
+
+</div>

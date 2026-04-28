@@ -26,10 +26,7 @@
             @for (item of group.items; track item.id) {
               <button (click)="activePage.set(item.id)"
                 class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left"
-                [class.bg-indigo-500/15]="activePage() === item.id"
-                [class.text-indigo-400]="activePage() === item.id"
-                [class.text-white/50]="activePage() !== item.id"
-                [class.bg-transparent]="activePage() !== item.id">
+                [ngClass]="navItemClasses(item.id)">
                 <i class="text-sm shrink-0" [class]="item.icon"></i>
                 {{ item.label }}
               </button>
@@ -48,10 +45,7 @@
           @for (item of group.items; track item.id) {
             <button (click)="activePage.set(item.id)"
               class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all cursor-pointer border-0 shrink-0"
-              [class.bg-indigo-500/15]="activePage() === item.id"
-              [class.text-indigo-400]="activePage() === item.id"
-              [class.text-white/45]="activePage() !== item.id"
-              [class.bg-transparent]="activePage() !== item.id">
+              [ngClass]="navItemClasses(item.id, 'text-white/45')">
               <i class="text-xs" [class]="item.icon"></i>
               {{ item.label }}
             </button>
@@ -82,7 +76,8 @@
         @switch (activePage()) {
           @case ('profile') { <app-profile-settings /> }
           @case ('privacy') { <app-privacy-settings /> }
-          @case ('other')   { <app-other-settings />   }
+          @case ('other')   { <app-other-settings /> }
+          @case ('notifications') { <app-notification-settings />}
         }
       </div>
 

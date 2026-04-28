@@ -6,14 +6,13 @@
 
     <div class="flex flex-col gap-2">
       <p class="text-xs text-white/35 mb-1">Who can send you a friend request?</p>
-      @for (opt of friendRequestOptions; track opt.label) {
+      @for (opt of friendRequestOptions; track opt.value) {
         <label class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3 cursor-not-allowed">
           <div>
             <p class="text-sm text-white/60">{{ opt.label }}</p>
             <p class="text-xs text-white/25 mt-0.5">{{ opt.desc }}</p>
           </div>
-          <div class="w-4 h-4 rounded-full border-2 border-white/20 shrink-0"
-               [class.bg-indigo-500]="opt.active" [class.border-indigo-500]="opt.active"></div>
+          <p-radiobutton name="friendRequest" [value]="opt.value" [(ngModel)]="selectedFriendRequest" [disabled]="true" />
         </label>
       }
     </div>
@@ -29,10 +28,7 @@
           <p class="text-sm text-white/60">{{ toggle.label }}</p>
           <p class="text-xs text-white/25 mt-0.5">{{ toggle.desc }}</p>
         </div>
-        <!-- Toggle switch skeleton -->
-        <div class="w-10 h-6 rounded-full bg-white/10 border border-white/[0.08] flex items-center px-1 cursor-not-allowed">
-          <div class="w-4 h-4 rounded-full bg-white/20"></div>
-        </div>
+        <p-toggleswitch [ngModel]="false" [disabled]="true" />
       </div>
     }
   </section>
@@ -47,9 +43,7 @@
           <p class="text-sm text-white/60">{{ toggle.label }}</p>
           <p class="text-xs text-white/25 mt-0.5">{{ toggle.desc }}</p>
         </div>
-        <div class="w-10 h-6 rounded-full bg-white/10 border border-white/[0.08] flex items-center px-1 cursor-not-allowed">
-          <div class="w-4 h-4 rounded-full bg-white/20"></div>
-        </div>
+        <p-toggleswitch [ngModel]="false" [disabled]="true" />
       </div>
     }
   </section>
