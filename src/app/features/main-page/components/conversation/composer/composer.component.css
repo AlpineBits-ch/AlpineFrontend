@@ -11,6 +11,20 @@
   pointer-events: none;
 }
 
+/* ── Markdown syntax highlighting in editor ──────────────────────────────── */
+:host ::ng-deep .md-mark {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+:host ::ng-deep .composer-editor code {
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 0.85em;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 3px;
+  padding: 0 3px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
 /* ── Mention chip ─────────────────────────────────────────────────────────── */
 /* Chips are created via document.createElement — Angular's scoped attribute
    is never added, so ::ng-deep is required to reach them. */

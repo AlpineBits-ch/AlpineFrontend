@@ -8,13 +8,15 @@ import {ProfileDto} from "../../../../../dtos/response/profile.dto";
 import {rxResource} from "@angular/core/rxjs-interop";
 import { isKlipyGifUrl } from '../../../../../services/gif.service';
 import { EmojiDataService } from '../../../../../services/emoji-data.service';
+import { MarkdownPipe } from '../../../../../pipes/markdown.pipe';
 
 @Component({
   selector: 'app-message',
   imports: [
     Avatar,
     DatePipe,
-    AsyncPipe
+    AsyncPipe,
+    MarkdownPipe,
   ],
   templateUrl: './message.component.html',
   styleUrl: './message.component.css',

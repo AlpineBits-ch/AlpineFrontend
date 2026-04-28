@@ -2,6 +2,37 @@
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
+/* Markdown rendered elements inside message text */
+:host ::ng-deep strong {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+:host ::ng-deep em {
+  font-style: italic;
+}
+
+:host ::ng-deep s {
+  text-decoration: line-through;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+:host ::ng-deep code {
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 0.85em;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  padding: 0 4px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+:host ::ng-deep a {
+  color: var(--color-brand-dim);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .mention-chip {
   display: inline-flex;
   align-items: center;

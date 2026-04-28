@@ -1,12 +1,20 @@
-import { Component, computed, ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
+import { Component, computed, ElementRef, inject, input, OnDestroy, output, signal, viewChild } from '@angular/core';
 import { Button } from 'primeng/button';
 import { RelationshipModel, RelationshipStatus } from '../../../../friendship/components/friendship-modal/dto/relationship.model';
 import { CommandDef, COMMANDS } from './commands';
 import { detectTrigger, EmojiSuggestion, getMessage } from './composer-utils';
+import { buildHighlightedFragment, getEditorSegments, getTextCursorOffset, restoreCursorOffset } from './composer-markdown';
 import { SuggestionOverlayComponent } from './suggestion-overlay/suggestion-overlay.component';
 import { EmojiPickerButtonComponent } from './emoji-picker-button/emoji-picker-button.component';
 import { GifPickerButtonComponent } from './gif-picker-button/gif-picker-button.component';
 import { GifService } from '../../../../../services/gif.service';
+
+interface AttachedFile {
+  file: File;
+  previewUrl: string;
+  name: string;
+  isImage: boolean;
+}
 
 @Component({
   selector: 'app-composer',
@@ -14,7 +22,7 @@ import { GifService } from '../../../../../services/gif.service';
   templateUrl: './composer.component.html',
   styleUrl: './composer.component.css',
 })
-export class ComposerComponent {
+export class ComposerComponent implements OnDestroy {
 
   // ── Inputs / Outputs ─────────────────────────────────────────────────────
 
@@ -26,6 +34,7 @@ export class ComposerComponent {
   // ── View ─────────────────────────────────────────────────────────────────
 
   editorRef = viewChild.required<ElementRef<HTMLDivElement>>('editor');
+  fileInputRef = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
   gifPickerRef = viewChild(GifPickerButtonComponent);
 
   private gifService = inject(GifService);
@@ -82,6 +91,69 @@ export class ComposerComponent {
   // ── Trigger range (saved for replacement on selection) ────────────────────
 
   private triggerRange: Range | null = null;
+
+  // ── File attachments ──────────────────────────────────────────────────────
+
+  attachedFiles = signal<AttachedFile[]>([]);
+  isDraggingOver = signal(false);
+  private dragCounter = 0;
+
+  onAttachClick(): void {
+    this.fileInputRef().nativeElement.click();
+  }
+
+  onFileInputChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    if (input.files) {
+      for (const file of Array.from(input.files)) this.onFileAttached(file);
+    }
+    input.value = '';
+  }
+
+  onDragEnter(event: DragEvent): void {
+    event.preventDefault();
+    this.dragCounter++;
+    this.isDraggingOver.set(true);
+  }
+
+  onDragOver(event: DragEvent): void {
+    event.preventDefault();
+  }
+
+  onDragLeave(): void {
+    if (--this.dragCounter === 0) this.isDraggingOver.set(false);
+  }
+
+  onDrop(event: DragEvent): void {
+    event.preventDefault();
+    this.dragCounter = 0;
+    this.isDraggingOver.set(false);
+    const files = event.dataTransfer?.files;
+    if (files) {
+      for (const file of Array.from(files)) this.onFileAttached(file);
+    }
+  }
+
+  removeAttachment(index: number): void {
+    this.attachedFiles.update(prev => {
+      const next = [...prev];
+      URL.revokeObjectURL(next[index].previewUrl);
+      next.splice(index, 1);
+      return next;
+    });
+  }
+
+  private onFileAttached(file: File): void {
+    const isImage = file.type.startsWith('image/');
+    const previewUrl = URL.createObjectURL(file);
+    this.attachedFiles.update(prev => [...prev, { file, previewUrl, name: file.name, isImage }]);
+    // TODO: wire up to send when messaging is implemented
+    console.log('[Composer] file attached:', file);
+  }
+
+  ngOnDestroy(): void {
+    for (const f of this.attachedFiles()) URL.revokeObjectURL(f.previewUrl);
+  }
 
   // ── Saved cursor for emoji picker insertion ───────────────────────────────
 
@@ -188,7 +260,17 @@ export class ComposerComponent {
       }
     } else {
       this.closeOverlay();
+      this.applyMarkdownHighlighting(editor);
     }
+  }
+
+  private applyMarkdownHighlighting(editor: HTMLElement): void {
+    const offset = getTextCursorOffset(editor);
+    const segments = getEditorSegments(editor);
+    const frag = buildHighlightedFragment(segments);
+    editor.innerHTML = '';
+    editor.appendChild(frag);
+    restoreCursorOffset(editor, offset);
   }
 
   onKeydown(event: KeyboardEvent): void {
@@ -205,6 +287,17 @@ export class ComposerComponent {
   }
 
   onPaste(event: ClipboardEvent): void {
+    const items = event.clipboardData?.items;
+    if (items) {
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          event.preventDefault();
+          const file = item.getAsFile();
+          if (file) this.onFileAttached(file);
+          return;
+        }
+      }
+    }
     event.preventDefault();
     const text = event.clipboardData?.getData('text/plain') ?? '';
     document.execCommand('insertText', false, text);
