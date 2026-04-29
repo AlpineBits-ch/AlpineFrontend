@@ -1,4 +1,5 @@
-import {ChangeDetectionStrategy, Component, computed, ElementRef, HostListener, inject, input, signal, ViewChild} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, DestroyRef, ElementRef, HostListener, inject, input, signal, ViewChild} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {MessageAttachment, MessageDto} from "../../../../../dtos/response/message.dto";
 import {Avatar} from "primeng/avatar";
 import {AsyncPipe, DatePipe, NgClass} from "@angular/common";
@@ -31,6 +32,8 @@ export class MessageComponent {
   private fileService = inject(FileService);
   private messagingService = inject(MessagingService);
   private messageStore = inject(MessageStore);
+
+  private destroyRef = inject(DestroyRef);
 
   @ViewChild('editArea') private editAreaRef?: ElementRef<HTMLTextAreaElement>;
 
@@ -143,14 +146,20 @@ export class MessageComponent {
     const text = this.editText().trim();
     if (!text || this.saving()) return;
     this.saving.set(true);
-    this.messagingService.updateMessage(this.message().id, text).subscribe({
-      next: updated => {
-        this.messageStore.applyMessageUpdate(updated);
-        this.isEditing.set(false);
-        this.saving.set(false);
-      },
-      error: () => this.saving.set(false),
-    });
+    this.isEditing.set(false);
+    this.messagingService.updateMessage(this.message().id, text)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: updated => {
+          this.messageStore.applyMessageUpdate(updated);
+          this.saving.set(false);
+        },
+        error: () => {
+          this.saving.set(false);
+          this.editText.set(text);
+          this.isEditing.set(true);
+        },
+      });
   }
 
   confirmDelete(): void {

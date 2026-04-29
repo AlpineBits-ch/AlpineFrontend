@@ -1,12 +1,13 @@
 import {Component, inject} from "@angular/core";
 import { RouterOutlet } from "@angular/router";
 import {ProfileService} from "./services/profile.service";
+import {Toast} from "primeng/toast";
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import {environment} from "../environments/environment";
 @Component({
   selector: "app-root",
-    imports: [RouterOutlet],
+    imports: [RouterOutlet, Toast],
   templateUrl: "./app.component.html",
   styleUrl: "./app.component.css",
 })

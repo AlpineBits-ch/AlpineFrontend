@@ -4,9 +4,11 @@ import {
   provideZoneChangeDetection,
 } from "@angular/core";
 import { provideRouter } from "@angular/router";
+import { provideAnimations } from "@angular/platform-browser/animations";
 import {AuthConfig, OAuthStorage, provideOAuthClient} from 'angular-oauth2-oidc';
 import { routes } from "./app.routes";
 import {providePrimeNG} from "primeng/config";
+import { MessageService } from 'primeng/api';
 import {AlpinePreset} from './theme/alpine-preset';
 import {HTTP_INTERCEPTORS, provideHttpClient, withInterceptors} from "@angular/common/http";
 import {environment} from "../environments/environment";
@@ -34,6 +36,7 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
+    provideAnimations(),
       providePrimeNG({
         theme: {
           preset: AlpinePreset,
@@ -41,6 +44,7 @@ export const appConfig: ApplicationConfig = {
             darkModeSelector: '.dark',
           }
         }
-      })
+      }),
+      MessageService,
   ],
 };

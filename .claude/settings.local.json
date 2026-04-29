@@ -16,7 +16,8 @@
       "Bash(npm install *)",
       "Bash(where bun *)",
       "Read(//c/Users/Domin/.bun/bin/**)",
-      "Bash(/c/Users/Domin/.bun/bin/bun add *)"
+      "Bash(/c/Users/Domin/.bun/bin/bun add *)",
+      "Bash(xargs wc *)"
     ]
   }
 }

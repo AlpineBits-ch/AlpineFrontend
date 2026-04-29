@@ -1,9 +1,10 @@
 import { inject } from '@angular/core';
 import { patchState, signalStore, withHooks, withMethods, withState } from '@ngrx/signals';
-import { addEntities, removeEntity, updateEntity, upsertEntity, withEntities } from '@ngrx/signals/entities';
+import { addEntities, removeEntities, removeEntity, updateEntity, upsertEntity, withEntities } from '@ngrx/signals/entities';
 import { MessageDto } from '../dtos/response/message.dto';
 import { MessagingService } from '../services/messaging.service';
 import { WebsocketService, MessageUpdatedEvent, MessageDeletedEvent } from '../services/websocket.service';
+import { ProfileService } from '../services/profile.service';
 
 const PAGE_SIZE = 30;
 
@@ -100,11 +101,21 @@ export const MessageStore = signalStore(
     applyMessageUpdate(dto: MessageDto): void {
       patchState(store, updateEntity({ id: dto.id, changes: dto }));
     },
+
+    removeMessagesForConversation(conversationId: string): void {
+      const ids = store.entities()
+        .filter(m => m.conversationId === conversationId)
+        .map(m => m.id);
+      const meta = { ...store.conversationMeta() };
+      delete meta[conversationId];
+      patchState(store, removeEntities(ids), { conversationMeta: meta });
+    },
   })),
 
   withHooks({
     onInit(store) {
       const wsService = inject(WebsocketService);
+      const profileService = inject(ProfileService);
 
       wsService.messageObservable.subscribe(msg =>
         patchState(store, upsertEntity(msg))
@@ -120,6 +131,25 @@ export const MessageStore = signalStore(
       wsService.messageDeletedObservable.subscribe((event: MessageDeletedEvent) =>
         patchState(store, removeEntity(event.messageId))
       );
+
+      wsService.conversationRemovedObservable.subscribe(event => {
+        const ids = store.entities()
+          .filter(m => m.conversationId === event.conversationId)
+          .map(m => m.id);
+        const meta = { ...store.conversationMeta() };
+        delete meta[event.conversationId];
+        patchState(store, removeEntities(ids), { conversationMeta: meta });
+      });
+
+      wsService.conversationMemberRemovedObservable.subscribe(event => {
+        if (event.userId !== profileService.ownProfile()?.userId) return;
+        const ids = store.entities()
+          .filter(m => m.conversationId === event.conversationId)
+          .map(m => m.id);
+        const meta = { ...store.conversationMeta() };
+        delete meta[event.conversationId];
+        patchState(store, removeEntities(ids), { conversationMeta: meta });
+      });
     },
   })
 );

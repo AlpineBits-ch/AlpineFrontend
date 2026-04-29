@@ -21,10 +21,19 @@ export interface MessageUpdatedEvent {
   channelId: string | undefined;
 }
 
+export interface ConversationMemberRemoved {
+  conversationId: string;
+  userId: string;
+  hasLeft: boolean;
+}
 export interface MessageDeletedEvent {
   messageId: string;
   conversationId: string | undefined;
   channelId: string | undefined;
+}
+
+export interface ConversationRemoved {
+  conversationId: string;
 }
 @Injectable({
   providedIn: 'root',
@@ -37,6 +46,8 @@ export class WebsocketService {
   public messageObservable = new Subject<MessageDto>()
   public messageUpdatedObservable = new Subject<MessageUpdatedEvent>()
   public messageDeletedObservable = new Subject<MessageDeletedEvent>()
+  public conversationRemovedObservable = new Subject<ConversationRemoved>()
+  public conversationMemberRemovedObservable = new Subject<ConversationMemberRemoved>()
 
   public connectionState = signal(ConnectionState.Disconnected)
   constructor() {
@@ -82,6 +93,14 @@ export class WebsocketService {
       this.messageDeletedObservable.next(data);
     })
 
+    this.hubConnection.on('ConversationDeleted', async (data: ConversationRemoved) => {
+      console.log('Conversation removed:', data);
+      this.conversationRemovedObservable.next(data);
+    })
+    this.hubConnection.on('MemberLeft', async (data: ConversationMemberRemoved) => {
+      console.log('Conversation member removed:', data);
+      this.conversationMemberRemovedObservable.next(data);
+    })
     this.hubConnection.on('MessageCreated', async (data: {messageId: string, content: string, authorId: string, conversationId: string, channelId: string | undefined, attachments: AttachmentDto[]}) => {
       console.log('Message created:', data);
 

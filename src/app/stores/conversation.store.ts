@@ -1,8 +1,10 @@
 import { inject } from '@angular/core';
-import { patchState, signalStore, withMethods, withState } from '@ngrx/signals';
-import { addEntities, setAllEntities, withEntities } from '@ngrx/signals/entities';
+import { patchState, signalStore, withHooks, withMethods, withState } from '@ngrx/signals';
+import { addEntities, removeEntity, setAllEntities, updateEntity, withEntities } from '@ngrx/signals/entities';
 import { ConversationDto } from '../dtos/response/conversation.dto';
 import { ConversationService } from '../services/conversation.service';
+import { WebsocketService } from '../services/websocket.service';
+import { ProfileService } from '../services/profile.service';
 
 const PAGE_SIZE = 20;
 
@@ -47,5 +49,36 @@ export const ConversationStore = signalStore(
     addConversation(conv: ConversationDto): void {
       patchState(store, addEntities([conv]));
     },
-  }))
+
+    removeConversation(id: string): void {
+      patchState(store, removeEntity(id));
+    },
+
+    bumpUpdatedAt(conversationId: string): void {
+      patchState(store, updateEntity({ id: conversationId, changes: { updatedAt: new Date() } }));
+    },
+  })),
+
+  withHooks({
+    onInit(store) {
+      const wsService = inject(WebsocketService);
+      const profileService = inject(ProfileService);
+
+      wsService.messageObservable.subscribe(msg => {
+        if (msg.conversationId) {
+          patchState(store, updateEntity({ id: msg.conversationId, changes: { updatedAt: new Date() } }));
+        }
+      });
+
+      wsService.conversationRemovedObservable.subscribe(event =>
+        patchState(store, removeEntity(event.conversationId))
+      );
+
+      wsService.conversationMemberRemovedObservable.subscribe(event => {
+        if (event.userId === profileService.ownProfile()?.userId) {
+          patchState(store, removeEntity(event.conversationId));
+        }
+      });
+    },
+  })
 );

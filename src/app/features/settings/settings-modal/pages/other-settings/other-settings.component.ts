@@ -3,6 +3,8 @@ import { ToggleSwitch } from 'primeng/toggleswitch';
 import { Select } from 'primeng/select';
 import { FormsModule } from '@angular/forms';
 import { Button } from 'primeng/button';
+import {check} from "@tauri-apps/plugin-updater";
+import {relaunch} from "@tauri-apps/plugin-process";
 
 @Component({
   selector: 'app-other-settings',
@@ -27,4 +29,25 @@ export class OtherSettingsComponent {
     { label: 'Hardware acceleration', desc: 'Use GPU rendering for smoother performance.' },
     { label: 'Developer mode',        desc: 'Show additional debug information and tools.' },
   ];
+
+
+  public async checkUpdates(){
+    try {
+      const update = await check();
+
+      if (update) {
+        console.log(`Update found: ${update.version}`);
+
+        await update.downloadAndInstall();
+
+        // Restart the app
+        await relaunch();
+      }else {
+        console.log('No update available');
+      }
+    } catch (error) {
+      console.error('Error checking for updates:', error);
+    }
+
+  }
 }

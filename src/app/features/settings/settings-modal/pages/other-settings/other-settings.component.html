@@ -49,7 +49,7 @@
       <p class="text-xs text-white/30">Version 0.1.0-alpha</p>
       <p class="text-xs text-white/20 mt-1">Built with Angular · Tauri · PrimeNG</p>
     </div>
-    <p-button label="Check for updates" [text]="true" severity="secondary" size="small" styleClass="w-fit !px-0" />
+    <p-button label="Check for updates" [text]="true" severity="secondary" size="small" styleClass="w-fit !px-0" (onClick)="checkUpdates()" />
   </section>
 
 </div>
