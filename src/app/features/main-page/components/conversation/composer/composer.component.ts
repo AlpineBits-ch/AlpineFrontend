@@ -1,4 +1,4 @@
-import { Component, computed, ElementRef, inject, input, OnDestroy, output, signal, viewChild } from '@angular/core';
+import { Component, computed, ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
 import { Button } from 'primeng/button';
 import { RelationshipModel, RelationshipStatus } from '../../../../friendship/components/friendship-modal/dto/relationship.model';
 import { CommandDef, COMMANDS } from './commands';
@@ -8,29 +8,26 @@ import { SuggestionOverlayComponent } from './suggestion-overlay/suggestion-over
 import { EmojiPickerButtonComponent } from './emoji-picker-button/emoji-picker-button.component';
 import { GifPickerButtonComponent } from './gif-picker-button/gif-picker-button.component';
 import { GifService } from '../../../../../services/gif.service';
-import {FileService} from "../../../../../services/file.service";
-
-interface AttachedFile {
-  file: File;
-  previewUrl: string;
-  name: string;
-  isImage: boolean;
-}
+import { EmojiDataService } from '../../../../../services/emoji-data.service';
+import { ComposerAttachmentsService } from './composer-attachments.service';
+import { AttachmentPreviewsComponent } from './attachment-previews/attachment-previews.component';
 
 @Component({
   selector: 'app-composer',
-  imports: [Button, SuggestionOverlayComponent, EmojiPickerButtonComponent, GifPickerButtonComponent],
+  imports: [Button, SuggestionOverlayComponent, EmojiPickerButtonComponent, GifPickerButtonComponent, AttachmentPreviewsComponent],
   templateUrl: './composer.component.html',
   styleUrl: './composer.component.css',
+  providers: [ComposerAttachmentsService],
 })
-export class ComposerComponent implements OnDestroy {
+export class ComposerComponent {
+  protected readonly attachments = inject(ComposerAttachmentsService);
+  private readonly emojiData = inject(EmojiDataService);
+  private readonly gifService = inject(GifService);
 
-  private fileService = inject(FileService);
   // ── Inputs / Outputs ─────────────────────────────────────────────────────
 
   friends = input<RelationshipModel[]>([]);
-  message = output<string>();
-  /** Fired when a command produces a side-effect the composer doesn't handle locally. */
+  message = output<{ content: string; attachments: string[] }>();
   commandAction = output<{ name: string; payload?: unknown }>();
 
   // ── View ─────────────────────────────────────────────────────────────────
@@ -39,15 +36,12 @@ export class ComposerComponent implements OnDestroy {
   fileInputRef = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
   gifPickerRef = viewChild(GifPickerButtonComponent);
 
-  private gifService = inject(GifService);
-
   // ── Overlay state ────────────────────────────────────────────────────────
 
   overlayType = signal<'mention' | 'command' | 'emoji' | null>(null);
   query = signal('');
   selectedIndex = signal(0);
 
-  /** True when the command trigger is at the very start of the editor (no preceding text). */
   private commandAtStart = signal(false);
 
   // ── Active command (global, awaiting params) ──────────────────────────────
@@ -70,7 +64,7 @@ export class ComposerComponent implements OnDestroy {
     const q = this.query().toLowerCase();
     const atStart = this.commandAtStart();
     return COMMANDS
-      .filter(c => atStart || c.scope === 'inline')   // global commands only at start
+      .filter(c => atStart || c.scope === 'inline')
       .filter(c => c.name.startsWith(q));
   });
 
@@ -90,15 +84,12 @@ export class ComposerComponent implements OnDestroy {
     return paramHints ? `/${cmd.name} ${paramHints} — press Enter to send` : `/${cmd.name} — press Enter to send`;
   });
 
-  // ── Trigger range (saved for replacement on selection) ────────────────────
+  // ── Trigger range ─────────────────────────────────────────────────────────
 
   private triggerRange: Range | null = null;
+  private savedEmojiRange: Range | null = null;
 
-  // ── File attachments ──────────────────────────────────────────────────────
-
-  attachedFiles = signal<AttachedFile[]>([]);
-  isDraggingOver = signal(false);
-  private dragCounter = 0;
+  // ── File input ────────────────────────────────────────────────────────────
 
   onAttachClick(): void {
     this.fileInputRef().nativeElement.click();
@@ -107,123 +98,14 @@ export class ComposerComponent implements OnDestroy {
   onFileInputChange(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files) {
-      for (const file of Array.from(input.files)) this.onFileAttached(file);
+      for (const file of Array.from(input.files)) this.attachments.attach(file);
     }
     input.value = '';
   }
 
-  onDragEnter(event: DragEvent): void {
-    event.preventDefault();
-    this.dragCounter++;
-    this.isDraggingOver.set(true);
-  }
-
-  onDragOver(event: DragEvent): void {
-    event.preventDefault();
-  }
-
-  onDragLeave(): void {
-    if (--this.dragCounter === 0) this.isDraggingOver.set(false);
-  }
-
-  onDrop(event: DragEvent): void {
-    event.preventDefault();
-    this.dragCounter = 0;
-    this.isDraggingOver.set(false);
-    const files = event.dataTransfer?.files;
-    if (files) {
-      for (const file of Array.from(files)) this.onFileAttached(file);
-    }
-  }
-
-  removeAttachment(index: number): void {
-    this.attachedFiles.update(prev => {
-      const next = [...prev];
-      URL.revokeObjectURL(next[index].previewUrl);
-      next.splice(index, 1);
-      return next;
-    });
-  }
-
-  private onFileAttached(file: File): void {
-    const isImage = file.type.startsWith('image/');
-    const previewUrl = URL.createObjectURL(file);
-    this.attachedFiles.update(prev => [...prev, { file, previewUrl, name: file.name, isImage }]);
-
-    this.fileService.uploadFile(file).subscribe({
-      next: (response) => {
-        console.log('[Composer] file uploaded:', response);
-      },
-      error: (error) => {
-        console.error('[Composer] file upload error:', error);
-      }
-    });
-    // TODO: wire up to send when messaging is implemented
-    console.log('[Composer] file attached:', file);
-  }
-
-  ngOnDestroy(): void {
-    for (const f of this.attachedFiles()) URL.revokeObjectURL(f.previewUrl);
-  }
-
-  // ── Saved cursor for emoji picker insertion ───────────────────────────────
-
-  private savedEmojiRange: Range | null = null;
-
-  // ── Emoji data (lazy loaded) ──────────────────────────────────────────────
-
-  private emojiData: any = null;
-
-  private async loadEmojiData(): Promise<void> {
-    if (this.emojiData) return;
-    const mod = await import('@emoji-mart/data');
-    this.emojiData = (mod as any).default ?? mod;
-  }
-
-  private async searchEmojiShortcodes(query: string): Promise<EmojiSuggestion[]> {
-    await this.loadEmojiData();
-    const q = query.toLowerCase();
-    const data = this.emojiData;
-    const results: EmojiSuggestion[] = [];
-    const seen = new Set<string>();
-
-    for (const [alias, id] of Object.entries<string>(data.aliases ?? {})) {
-      if (alias.startsWith(q) && !seen.has(id)) {
-        const emoji = data.emojis[id];
-        if (emoji?.skins?.[0]?.native) {
-          seen.add(id);
-          results.push({ id: alias, native: emoji.skins[0].native, name: emoji.name });
-        }
-      }
-    }
-
-    for (const [id, emoji] of Object.entries<any>(data.emojis ?? {})) {
-      if (id.startsWith(q) && !seen.has(id)) {
-        if (emoji?.skins?.[0]?.native) {
-          seen.add(id);
-          results.push({ id, native: emoji.skins[0].native, name: emoji.name });
-        }
-      }
-    }
-
-    return results.slice(0, 8);
-  }
-
-  private async resolveShortcode(shortcode: string): Promise<string | null> {
-    await this.loadEmojiData();
-    const data = this.emojiData;
-    const q = shortcode.toLowerCase();
-    let emoji = data.emojis[q];
-    if (!emoji) {
-      const aliasTarget = data.aliases?.[q];
-      if (aliasTarget) emoji = data.emojis[aliasTarget];
-    }
-    return emoji?.skins?.[0]?.native ?? null;
-  }
-
   // ── Input events ─────────────────────────────────────────────────────────
 
-  async onInput(): Promise<void> {
+  onInput(): void {
     const editor = this.editorRef().nativeElement;
 
     // Auto-replace :shortcode: on closing colon
@@ -233,9 +115,9 @@ export class ComposerComponent implements OnDestroy {
       const node = range.startContainer;
       if (node.nodeType === Node.TEXT_NODE) {
         const textBefore = (node.textContent ?? '').slice(0, range.startOffset);
-        const autoMatch = textBefore.match(/(?:^|[\s\u00a0]):(\w+):$/);
+        const autoMatch = textBefore.match(/(?:^|[\s ]):(\w+):$/);
         if (autoMatch) {
-          const native = await this.resolveShortcode(autoMatch[1]);
+          const native = this.emojiData.resolveOne(autoMatch[1]);
           if (native) {
             const colonPos = textBefore.lastIndexOf(':', range.startOffset - 2);
             const r = document.createRange();
@@ -263,12 +145,8 @@ export class ComposerComponent implements OnDestroy {
       this.selectedIndex.set(0);
       this.triggerRange = result.range;
 
-      if (result.type === 'command') {
-        this.commandAtStart.set(result.atStart);
-      }
-      if (result.type === 'emoji') {
-        this.filteredEmojis.set(await this.searchEmojiShortcodes(result.query));
-      }
+      if (result.type === 'command') this.commandAtStart.set(result.atStart);
+      if (result.type === 'emoji') this.filteredEmojis.set(this.emojiData.search(result.query));
     } else {
       this.closeOverlay();
       this.applyMarkdownHighlighting(editor);
@@ -304,7 +182,7 @@ export class ComposerComponent implements OnDestroy {
         if (item.type.startsWith('image/')) {
           event.preventDefault();
           const file = item.getAsFile();
-          if (file) this.onFileAttached(file);
+          if (file) this.attachments.attach(file);
           return;
         }
       }
@@ -340,7 +218,7 @@ export class ComposerComponent implements OnDestroy {
     chip.textContent = `@${friend.target.userName}`;
 
     this.triggerRange.insertNode(chip);
-    const space = document.createTextNode('\u00a0');
+    const space = document.createTextNode(' ');
     chip.after(space);
 
     const sel = window.getSelection();
@@ -363,7 +241,6 @@ export class ComposerComponent implements OnDestroy {
     const isInline = !this.commandAtStart() || cmd.scope === 'inline';
 
     if (isInline) {
-      // Replace the trigger text in-place with the result
       if (this.triggerRange) {
         const result = cmd.execute('');
         this.triggerRange.deleteContents();
@@ -384,11 +261,10 @@ export class ComposerComponent implements OnDestroy {
       this.closeOverlay();
       editor.focus();
     } else {
-      // Global: clear editor, execute immediately or enter param mode
       editor.innerHTML = '';
       if (cmd.params.length === 0) {
         const result = cmd.execute('');
-        if (result.text) this.message.emit(result.text);
+        if (result.text) this.message.emit({ content: result.text, attachments: [] });
         if (result.action) this.dispatchAction(result.action);
       } else {
         this.activeCommand.set(cmd);
@@ -423,7 +299,7 @@ export class ComposerComponent implements OnDestroy {
   // ── GIF handling ──────────────────────────────────────────────────────────
 
   onGifSelected(url: string): void {
-    this.message.emit(url);
+    this.message.emit({ content: url, attachments: [] });
   }
 
   // ── Emoji picker handling ─────────────────────────────────────────────────
@@ -463,7 +339,11 @@ export class ComposerComponent implements OnDestroy {
       text = result.text ?? '';
     }
 
-    if (text) this.message.emit(text);
+    const attachments = this.attachments.flushAndClear();
+
+    if (text || attachments.length > 0) {
+      this.message.emit({ content: text, attachments });
+    }
 
     this.editorRef().nativeElement.innerHTML = '';
     this.closeOverlay();
@@ -486,8 +366,6 @@ export class ComposerComponent implements OnDestroy {
     }
   }
 
-  /** Handle a command side-effect action. Known local actions are handled here;
-   *  anything else is forwarded to the parent component. */
   private dispatchAction(action: { name: string; payload?: unknown }): void {
     if (action.name === 'open-gif-picker') {
       this.gifPickerRef()?.open();
@@ -496,7 +374,7 @@ export class ComposerComponent implements OnDestroy {
     if (action.name === 'send-gif-search') {
       const query = (action.payload as { query: string }).query;
       this.gifService.search(query).subscribe(results => {
-        if (results.length > 0) this.message.emit(results[0].url);
+        if (results.length > 0) this.message.emit({ content: results[0].url, attachments: [] });
       });
       return;
     }

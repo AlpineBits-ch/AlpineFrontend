@@ -89,6 +89,7 @@ export class WebsocketService {
         updatedAt: new Date(),
         isPending: false,
         isFailed: false,
+        attachments: [],
       })
     })
 

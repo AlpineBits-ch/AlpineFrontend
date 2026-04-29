@@ -156,13 +156,14 @@ export class ConversationComponent implements AfterViewInit {
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
-  public createMessage(content: string): void {
+  public createMessage(event: { content: string; attachments: string[] }): void {
+    const { content, attachments } = event;
     const tempId = crypto.randomUUID();
     const now = new Date();
 
     const optimistic: MessageDto = {
       id:             tempId,
-      content : btoa(encodeURIComponent(content).replace(/%([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))),
+      content:        btoa(encodeURIComponent(content).replace(/%([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))),
       conversationId: this.conversation().id,
       channelId:      undefined,
       authorId:       this.profileService.ownProfile()?.userId ?? '',
@@ -170,14 +171,16 @@ export class ConversationComponent implements AfterViewInit {
       updatedAt:      now,
       isPending:      true,
       isFailed:       false,
+      attachments:    [],
     };
 
     this.messageStore.addMessage(optimistic);
 
     this.messagingService.createMessage({
-      content: content,
+      content,
       channelId:      undefined,
       conversationId: this.conversation().id,
+      attachments,
     }).pipe(
       tap(confirmed => this.messageStore.confirmMessage(tempId, confirmed)),
       catchError(() => {

@@ -33,6 +33,25 @@
         }
       }
     </div>
+    @if (message().attachments.length) {
+      <div class="flex flex-wrap gap-2 mt-2">
+        @for (att of message().attachments; track att.id) {
+          @if (att.contentType.startsWith('image/')) {
+            <img [src]="att.thumbnailUrl"
+                 [alt]="att.fileName"
+                 class="max-h-48 max-w-xs rounded-xl border border-white/10 object-contain block"
+                 loading="lazy" />
+          } @else {
+            <a [href]="att.url"
+               target="_blank" rel="noopener"
+               class="flex items-center gap-2 bg-white/[0.05] border border-white/10 rounded-xl px-3 py-2 text-xs text-white/60 hover:text-white/85 hover:bg-white/[0.08] transition-colors no-underline">
+              <i class="pi pi-file text-sm"></i>
+              <span class="max-w-[12rem] truncate">{{ att.fileName }}</span>
+            </a>
+          }
+        }
+      </div>
+    }
     @if (!message().isPending && !message().isFailed && message().updatedAt > message().createdAt) {
       <span class="text-[10px] italic text-white/25 mt-0.5">Edited</span>
     }

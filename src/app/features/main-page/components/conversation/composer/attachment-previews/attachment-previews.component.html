@@ -1,0 +1,32 @@
+@if (files().length > 0) {
+  <div class="flex flex-wrap gap-2 px-3 pt-3 pb-1">
+    @for (attachment of files(); track attachment.previewUrl; let i = $index) {
+      <div class="relative group">
+        @if (attachment.isImage) {
+          <img [src]="attachment.previewUrl" alt="{{ attachment.name }}"
+               class="h-20 w-20 object-cover rounded-xl border border-white/10"
+               [class.opacity-40]="attachment.isUploading || attachment.uploadFailed" />
+        } @else {
+          <div class="h-16 flex items-center gap-2 bg-white/[0.05] border border-white/10 rounded-xl px-3"
+               [class.opacity-40]="attachment.isUploading || attachment.uploadFailed">
+            <i class="pi pi-file text-white/40 text-sm"></i>
+            <span class="text-xs text-white/50 max-w-[6rem] truncate">{{ attachment.name }}</span>
+          </div>
+        }
+        @if (attachment.isUploading) {
+          <div class="absolute inset-0 flex items-center justify-center rounded-xl">
+            <i class="pi pi-spin pi-spinner text-white/60 text-sm"></i>
+          </div>
+        } @else if (attachment.uploadFailed) {
+          <div class="absolute inset-0 flex items-center justify-center rounded-xl">
+            <i class="pi pi-exclamation-circle text-rose-400 text-sm"></i>
+          </div>
+        }
+        <button (click)="remove.emit(i)"
+          class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/70 border border-white/10 flex items-center justify-center text-[10px] text-white/50 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+          ✕
+        </button>
+      </div>
+    }
+  </div>
+}

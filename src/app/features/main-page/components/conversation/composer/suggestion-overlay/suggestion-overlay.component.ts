@@ -3,7 +3,7 @@ import { NgClass } from '@angular/common';
 import { Avatar } from 'primeng/avatar';
 import { RelationshipModel } from '../../../../../friendship/components/friendship-modal/dto/relationship.model';
 import { CommandDef } from '../commands';
-import { EmojiSuggestion } from '../composer-utils';
+import { EmojiSuggestion } from '../../../../../../services/emoji-data.service';
 
 @Component({
   selector: 'app-suggestion-overlay',

@@ -26,11 +26,7 @@ export function getMessage(editor: HTMLElement): string {
   return text.replace(/\u00a0/g, ' ').trim();
 }
 
-export interface EmojiSuggestion {
-  id: string;
-  native: string;
-  name: string;
-}
+export type { EmojiSuggestion } from '../../../../../services/emoji-data.service';
 
 export type TriggerDetection =
   | { type: 'mention'; query: string; range: Range }

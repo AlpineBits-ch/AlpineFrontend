@@ -3,6 +3,14 @@ import {EMPTY, expand, filter, flatMap, Observable, switchMap, take, throwError,
 import {HttpClient} from "@angular/common/http";
 import {environment} from "../../environments/environment";
 
+export interface AttachmentDto {
+    id: string;
+    fileName: string;
+    contentType: string;
+    createdAt: Date;
+    updatedAt: Date;
+    state: AttachmentStatus;
+}
 export interface PresignedResponse {
   attachmentId: string;
   url: string;
@@ -14,7 +22,7 @@ export enum AttachmentStatus {
   Failed = 'Failed'
 }
 interface UploadResponse {
-  attachmentId: string; // The ID returned from the POST
+  attachmentId: string;
   state: AttachmentStatus;
 }
 @Injectable({
@@ -23,7 +31,7 @@ interface UploadResponse {
 export class FileService {
 
   private httpClient = inject(HttpClient);
-  public uploadFile(file: File): Observable<any> {
+  public uploadFile(file: File): Observable<AttachmentDto> {
     const url = `${environment.apiUrl}/api/v1/messaging/attachments`;
 
     // 1. Prepare FormData for [FromForm] ICollection<IFormFile>
@@ -38,21 +46,21 @@ export class FileService {
         })
     );
   }
-  private pollFileStatus(fileId: string): Observable<any> {
+  private pollFileStatus(fileId: string): Observable<AttachmentDto> {
     const pollUrl = `${environment.apiUrl}/api/v1/messaging/attachments/${fileId}`;
 
-    return this.httpClient.get<any>(pollUrl).pipe(
+    return this.httpClient.get<AttachmentDto>(pollUrl).pipe(
         // expand will recursively call this logic
         expand((res) => {
-          const isFinished = res.state === AttachmentStatus.Complete || res.status === AttachmentStatus.Failed;
+          const isFinished = res.state === AttachmentStatus.Complete || res.state === AttachmentStatus.Failed;
           // If not finished, wait 2 seconds and call the API again
           return isFinished ? EMPTY : timer(2000).pipe(switchMap(() => this.httpClient.get<any>(pollUrl)));
         }),
         // Filter so the component only gets the final result
-        filter(res => res.status === AttachmentStatus.Complete || res.status === AttachmentStatus.Failed),
+        filter(res => res.state === AttachmentStatus.Complete || res.state === AttachmentStatus.Failed),
         take(1),
         switchMap(res => {
-          if (res.status === AttachmentStatus.Failed) {
+          if (res.state === AttachmentStatus.Failed) {
             return throwError(() => new Error('File processing failed at server.'));
           }
           return [res];

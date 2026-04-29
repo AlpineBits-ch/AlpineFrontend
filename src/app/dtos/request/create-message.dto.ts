@@ -2,4 +2,5 @@
     content: string;
     conversationId: string | undefined;
     channelId: string | undefined;
+    attachments: string[];
 }

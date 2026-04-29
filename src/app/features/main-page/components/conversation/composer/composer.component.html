@@ -1,8 +1,8 @@
 <div class="relative px-4 py-3"
-     (dragenter)="onDragEnter($event)"
-     (dragover)="onDragOver($event)"
-     (dragleave)="onDragLeave()"
-     (drop)="onDrop($event)">
+     (dragenter)="attachments.onDragEnter($event)"
+     (dragover)="attachments.onDragOver($event)"
+     (dragleave)="attachments.onDragLeave()"
+     (drop)="attachments.onDrop($event)">
 
   <!-- Hidden file input -->
   <input #fileInput type="file" multiple class="hidden"
@@ -38,7 +38,7 @@
   <div class="relative flex flex-col bg-white/[0.05] border border-white/[0.08] rounded-2xl focus-within:border-white/[0.15] transition-colors">
 
     <!-- Drop overlay -->
-    @if (isDraggingOver()) {
+    @if (attachments.isDraggingOver()) {
       <div class="absolute inset-0 rounded-2xl bg-indigo-500/10 border-2 border-dashed border-indigo-500/40 flex items-center justify-center z-10 pointer-events-none">
         <div class="flex flex-col items-center gap-1.5">
           <i class="pi pi-upload text-indigo-400 text-lg"></i>
@@ -48,27 +48,9 @@
     }
 
     <!-- Attachment previews -->
-    @if (attachedFiles().length > 0) {
-      <div class="flex flex-wrap gap-2 px-3 pt-3 pb-1">
-        @for (attachment of attachedFiles(); track attachment.previewUrl; let i = $index) {
-          <div class="relative group">
-            @if (attachment.isImage) {
-              <img [src]="attachment.previewUrl" alt="{{ attachment.name }}"
-                   class="h-20 w-20 object-cover rounded-xl border border-white/10" />
-            } @else {
-              <div class="h-16 flex items-center gap-2 bg-white/[0.05] border border-white/10 rounded-xl px-3">
-                <i class="pi pi-file text-white/40 text-sm"></i>
-                <span class="text-xs text-white/50 max-w-[6rem] truncate">{{ attachment.name }}</span>
-              </div>
-            }
-            <button (click)="removeAttachment(i)"
-              class="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/70 border border-white/10 flex items-center justify-center text-[10px] text-white/50 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-              ✕
-            </button>
-          </div>
-        }
-      </div>
-    }
+    <app-attachment-previews
+      [files]="attachments.files()"
+      (remove)="attachments.remove($event)" />
 
     <!-- Text + action row -->
     <div class="flex items-end gap-2 px-2 py-1.5">
