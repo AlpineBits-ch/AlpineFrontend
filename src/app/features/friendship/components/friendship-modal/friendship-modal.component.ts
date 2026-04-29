@@ -13,6 +13,9 @@ import {RelationshipService} from "../../../../services/relationship.service";
 import {FormsModule} from "@angular/forms";
 import {ConversationService} from "../../../../services/conversation.service";
 import {ConversationEncryption} from "../../../../enums/conversation-encryption.enum";
+import {ConversationStore} from "../../../../stores/conversation.store";
+import {NavigationService} from "../../../main-page/navigation.service";
+import {ProfileService} from "../../../../services/profile.service";
 
 @Component({
   selector: 'app-friendship-modal',
@@ -49,6 +52,9 @@ export class FriendshipModalComponent {
   })
 
   private relationshipService = inject(RelationshipService);
+  private conversationStore = inject(ConversationStore);
+  private navService = inject(NavigationService);
+  private profileService = inject(ProfileService);
 
   public friendId: string = '';
   constructor() {
@@ -83,17 +89,31 @@ export class FriendshipModalComponent {
     })
   }
 
-  public onMessageClick(relationship: RelationshipModel){
-    console.log(relationship);
+  public onMessageClick(relationship: RelationshipModel): void {
+    const ownId = this.profileService.ownProfile()?.userId;
+    const targetUserId = relationship.owner.userId === ownId
+      ? relationship.target.userId
+      : relationship.owner.userId;
+
+    const existing = this.conversationStore.entities().find(conv =>
+      conv.members.length === 2 && conv.members.some(m => m.userId === targetUserId)
+    );
+
+    if (existing) {
+      this.navService.openConversation(existing);
+      this.isVisible.set(false);
+      return;
+    }
+
     this.conversationService.createConversation({
-      members: [{
-        userId: relationship.target.userId
-      }],
+      members: [{ userId: targetUserId }],
       encryption: ConversationEncryption.Plain,
-      name: `${relationship.target.userName}'s conversation`
-    }).subscribe(d => {
-      console.log(d);
-    })
+      name: undefined,
+    }).subscribe(conv => {
+      this.conversationStore.addConversation(conv);
+      this.navService.openConversation(conv);
+      this.isVisible.set(false);
+    });
   }
 
     protected readonly RelationshipStatus = RelationshipStatus;

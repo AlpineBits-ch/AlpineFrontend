@@ -52,7 +52,7 @@ export class ConversationListComponent {
     const others = conversation.members.filter(m => m.userId !== userProfile.userId);
     if (others.length === 0) return 'Empty chat';
     if (others.length === 1) return `${others[0].cachedUserName}#${others[0].cachedUserHash}`;
-    return conversation.name ?? 'Unnamed Chat';
+    return conversation.name ?? others.map(m => m.cachedUserName).join(', ');
   }
 
   public getPreview(conv: ConversationDto): { sender: string; text: string } | null {

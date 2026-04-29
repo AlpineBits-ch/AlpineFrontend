@@ -87,6 +87,7 @@ export class NotificationService {
       icon: params.icon,
       actionTypeId: params.actionTypeId,
       extra: params.extra,
+
     });
 
     if (ns.sounds) {

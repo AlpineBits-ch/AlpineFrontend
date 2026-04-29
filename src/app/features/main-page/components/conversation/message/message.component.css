@@ -111,7 +111,8 @@
   text-underline-offset: 2px;
 }
 
-.mention-chip {
+.mention-chip,
+:host ::ng-deep .mention-chip {
   display: inline-flex;
   align-items: center;
   background: rgba(99, 102, 241, 0.18);

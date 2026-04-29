@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { ConversationDto } from '../../dtos/response/conversation.dto';
-import { ChannelDto, GuildDto } from '../../dtos/response/guild.dto';
+import { ChannelDto, ChannelType, GuildDto } from '../../dtos/response/guild.dto';
 
 export type WorkspaceContext =
   | { type: 'dms' }
@@ -23,7 +23,11 @@ export class NavigationService {
   }
 
   selectServer(guild: GuildDto): void {
+    const current = this.workspace();
+    if (current.type === 'server' && current.guild.id === guild.id) return;
     this.workspace.set({ type: 'server', guild });
+    const first = guild.channels.find(c => c.type === ChannelType.Text) ?? guild.channels[0];
+    if (first) this.mainView.set({ type: 'channel', channel: first });
   }
 
   showHome(): void {

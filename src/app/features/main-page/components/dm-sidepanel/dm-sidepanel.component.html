@@ -16,7 +16,7 @@
   <!-- DMs header -->
   <div class="flex items-center justify-between px-4 pt-4 pb-2">
     <span class="text-[10.5px] font-semibold text-white/25 uppercase tracking-widest">Direct Messages</span>
-    <p-button icon="pi pi-plus" [text]="true" severity="secondary" size="small" styleClass="!p-1" />
+    <p-button icon="pi pi-plus" [text]="true" severity="secondary" size="small" styleClass="!p-1" (onClick)="showNewConversation.set(true)" />
   </div>
 
   <!-- DM list -->
@@ -25,3 +25,5 @@
   </div>
 
 </div>
+
+<app-new-conversation-dialog [(visible)]="showNewConversation" />

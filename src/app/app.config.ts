@@ -38,7 +38,7 @@ export const appConfig: ApplicationConfig = {
         theme: {
           preset: AlpinePreset,
           options: {
-            darkModeSelector: 'body',
+            darkModeSelector: '.dark',
           }
         }
       })

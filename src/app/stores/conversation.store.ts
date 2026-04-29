@@ -43,5 +43,9 @@ export const ConversationStore = signalStore(
         });
       });
     },
+
+    addConversation(conv: ConversationDto): void {
+      patchState(store, addEntities([conv]));
+    },
   }))
 );

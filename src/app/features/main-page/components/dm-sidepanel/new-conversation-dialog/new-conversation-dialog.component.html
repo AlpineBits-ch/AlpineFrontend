@@ -1,0 +1,92 @@
+<p-dialog
+  [(visible)]="visible"
+  [modal]="true"
+  [draggable]="false"
+  appendTo="body"
+  [resizable]="false"
+  [style]="{ width: '420px' }"
+  styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
+  maskStyleClass="backdrop-blur-sm"
+  (onHide)="close()">
+
+  <ng-template pTemplate="header">
+    <span class="text-base font-semibold text-white/85">New Message</span>
+  </ng-template>
+
+  <!-- Search -->
+  <div class="px-1 pb-3">
+    <div class="relative">
+      <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-sm pointer-events-none"></i>
+      <input pInputText
+             [ngModel]="search()"
+             (ngModelChange)="search.set($event)"
+             placeholder="Search friends..."
+             class="w-full !pl-9 !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm" />
+    </div>
+  </div>
+
+  <!-- Selected chips -->
+  @if (selectedFriends().length > 0) {
+    <div class="flex flex-wrap gap-1.5 px-1 pb-3">
+      @for (friend of selectedFriends(); track friend.userId) {
+        <span class="flex items-center gap-1.5 bg-brand/15 border border-brand/25 text-brand-dim rounded-lg px-2 py-1 text-xs font-medium">
+          {{ friend.userName }}#{{ friend.hash }}
+          <button (click)="toggleFriend(friend.userId)" class="text-brand-dim/60 hover:text-brand-dim cursor-pointer bg-transparent border-0 p-0 leading-none">
+            <i class="pi pi-times text-[10px]"></i>
+          </button>
+        </span>
+      }
+    </div>
+  }
+
+  <!-- Friends list -->
+  <div class="max-h-56 overflow-y-auto -mx-1 px-1" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+    @if (filteredFriends().length === 0) {
+      <p class="text-sm text-white/30 text-center py-6">No friends found</p>
+    }
+    @for (friend of filteredFriends(); track friend.userId) {
+      <button
+        (click)="toggleFriend(friend.userId)"
+        [ngClass]="isSelected(friend.userId) ? 'bg-brand/10 hover:bg-brand/15' : 'bg-transparent hover:bg-white/[0.04]'"
+        class="flex items-center gap-3 w-full px-3 py-2 rounded-xl transition-colors cursor-pointer border-0 text-left">
+        <p-avatar
+          [label]="friend.userName[0].toUpperCase()"
+          shape="circle"
+          styleClass="shrink-0 !w-8 !h-8 !text-xs" />
+        <span class="flex-1 text-sm font-medium"
+              [ngClass]="isSelected(friend.userId) ? 'text-brand-dim' : 'text-white/75'">
+          {{ friend.userName }}<span class="opacity-40">#{{ friend.hash }}</span>
+        </span>
+        @if (isSelected(friend.userId)) {
+          <i class="pi pi-check text-brand-dim text-xs shrink-0"></i>
+        }
+      </button>
+    }
+  </div>
+
+  <!-- Group name (shown when 2+ selected) -->
+  @if (isGroup()) {
+    <div class="pt-3 px-1 border-t border-white/[0.06] mt-3">
+      <label class="text-[10.5px] font-semibold text-white/30 uppercase tracking-widest block mb-2">Group Name (optional)</label>
+      <input pInputText
+             [ngModel]="groupName()"
+             (ngModelChange)="groupName.set($event)"
+             placeholder="e.g. Study group"
+             class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm" />
+    </div>
+  }
+
+  <ng-template pTemplate="footer">
+    <div class="flex items-center justify-end gap-2 pt-1">
+      <p-button label="Cancel" severity="secondary" [text]="true" size="small" (onClick)="close()" />
+      <p-button
+        label="Open"
+        severity="primary"
+        size="small"
+        [disabled]="!canCreate()"
+        [loading]="creating()"
+        (onClick)="create()" />
+    </div>
+  </ng-template>
+
+</p-dialog>

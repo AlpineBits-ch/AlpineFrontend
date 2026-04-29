@@ -2,41 +2,14 @@ import { Pipe, PipeTransform } from '@angular/core';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
-import hljs from 'highlight.js/lib/core';
-import typescript from 'highlight.js/lib/languages/typescript';
-import javascript from 'highlight.js/lib/languages/javascript';
-import xml from 'highlight.js/lib/languages/xml';
-import css from 'highlight.js/lib/languages/css';
-import csharp from 'highlight.js/lib/languages/csharp';
-import python from 'highlight.js/lib/languages/python';
-import json from 'highlight.js/lib/languages/json';
-import bash from 'highlight.js/lib/languages/bash';
-import sql from 'highlight.js/lib/languages/sql';
-import plaintext from 'highlight.js/lib/languages/plaintext';
-
-hljs.registerLanguage('typescript', typescript);
-hljs.registerLanguage('ts', typescript);
-hljs.registerLanguage('javascript', javascript);
-hljs.registerLanguage('js', javascript);
-hljs.registerLanguage('html', xml);
-hljs.registerLanguage('xml', xml);
-hljs.registerLanguage('css', css);
-hljs.registerLanguage('csharp', csharp);
-hljs.registerLanguage('cs', csharp);
-hljs.registerLanguage('python', python);
-hljs.registerLanguage('py', python);
-hljs.registerLanguage('json', json);
-hljs.registerLanguage('bash', bash);
-hljs.registerLanguage('sh', bash);
-hljs.registerLanguage('sql', sql);
-hljs.registerLanguage('plaintext', plaintext);
+import hljs from 'highlight.js';
 
 const PURIFY_CONFIG = {
   ALLOWED_TAGS: ['strong', 'em', 's', 'del', 'code', 'pre', 'br', 'a', 'span'],
   ALLOWED_ATTR: ['href', 'class', 'target', 'rel', 'data-lang'],
 };
 
-// Matches fenced code blocks: ```lang\n...```
+// Matches fenced code blocks: ```lang\n...\n```
 const CODE_BLOCK_RE = /```(\w*)\r?\n([\s\S]*?)```/g;
 
 @Pipe({ name: 'markdown', standalone: true })
@@ -54,7 +27,6 @@ export class MarkdownPipe implements PipeTransform {
 function renderMixed(text: string): string {
   const parts: string[] = [];
   CODE_BLOCK_RE.lastIndex = 0;
-
   let lastIndex = 0;
   let match: RegExpExecArray | null;
 

@@ -13,7 +13,10 @@
       "WebFetch(domain:klipy.com)",
       "WebFetch(domain:gist.github.com)",
       "Bash(bun add *)",
-      "Bash(npm install *)"
+      "Bash(npm install *)",
+      "Bash(where bun *)",
+      "Read(//c/Users/Domin/.bun/bin/**)",
+      "Bash(/c/Users/Domin/.bun/bin/bun add *)"
     ]
   }
 }

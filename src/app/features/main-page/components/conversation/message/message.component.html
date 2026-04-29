@@ -29,7 +29,7 @@
         } @else if (seg.type === 'mention') {
           <span class="mention-chip">{{ seg.value }}</span>
         } @else {
-          <span [innerHTML]="seg.value | markdown"></span>
+          <div class="contents" [innerHTML]="seg.value | markdown"></div>
         }
       }
     </div>
