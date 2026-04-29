@@ -19,9 +19,9 @@ export class MessagingService {
   }
 
   public deleteMessage(messageId: string): Observable<void>{
-    return this.httpClient.delete<void>(environment.apiUrl + '/api/v1/messaging/messaging/messages/' + messageId);
+    return this.httpClient.delete<void>(environment.apiUrl + '/api/v1/messaging/messaging/' + messageId);
   }
   public updateMessage(messageId: string, content: string): Observable<MessageDto>{
-    return this.httpClient.put<MessageDto>(environment.apiUrl + '/api/v1/messaging/messaging/messages/' + messageId, {content});
+    return this.httpClient.put<MessageDto>(environment.apiUrl + '/api/v1/messaging/messaging/' + messageId, {content});
   }
 }
