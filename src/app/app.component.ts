@@ -5,9 +5,10 @@ import {Toast} from "primeng/toast";
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 import {environment} from "../environments/environment";
+import {CallOverlayComponent} from "./features/call/call-overlay/call-overlay.component";
 @Component({
   selector: "app-root",
-    imports: [RouterOutlet, Toast],
+    imports: [RouterOutlet, Toast, CallOverlayComponent],
   templateUrl: "./app.component.html",
   styleUrl: "./app.component.css",
 })

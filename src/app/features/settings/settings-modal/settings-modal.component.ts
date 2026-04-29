@@ -8,6 +8,7 @@ import {ProfileSettingsComponent} from "./pages/profile-settings/profile-setting
 import {PrivacySettingsComponent} from "./pages/privacy-settings/privacy-settings.component";
 import {OtherSettingsComponent} from "./pages/other-settings/other-settings.component";
 import {NotifiactionSettingsComponent} from "./pages/notification-settings/notifiaction-settings.component";
+import {VoiceVideoSettingsComponent} from "./pages/voice-video-settings/voice-video-settings.component";
 import {AuthService} from "../../../services/auth.service";
 import {Router} from "@angular/router";
 
@@ -33,6 +34,7 @@ export interface SettingsNavGroup {
     PrivacySettingsComponent,
     OtherSettingsComponent,
     NotifiactionSettingsComponent,
+    VoiceVideoSettingsComponent,
   ],
   providers: [ConfirmationService],
   templateUrl: './settings-modal.component.html',
@@ -85,7 +87,8 @@ export class SettingsModalComponent {
     {
       title: 'App Settings',
       items: [
-        { id: 'other', label: 'Other', icon: 'pi pi-cog' },
+        { id: 'voice-video', label: 'Voice & Video', icon: 'pi pi-microphone' },
+        { id: 'other',       label: 'Other',         icon: 'pi pi-cog'        },
       ],
     },
   ];

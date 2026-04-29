@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Tell Tailwind that `dark:` fires whenever an ancestor carries the `.dark` class.
+   <body class="dark"> is always present, so dark utilities are always active. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /**
  * Alpine Design System — Tailwind v4 theme tokens
  *
@@ -19,6 +23,47 @@
  *   bg-connecting      → #fbbf24  (amber-400, connecting)
  *   bg-offline         → #f43f5e  (rose-500, disconnected)
  */
+/* ── PrimeNG Select — guaranteed dark override ──────────────────────────
+   PrimeNG appends overlays directly to <body class="dark">. If the token
+   CSS variables aren't resolving through the dark colorScheme, these
+   direct overrides take over. They're scoped to .dark so light mode (if
+   ever enabled) is unaffected.
+   ─────────────────────────────────────────────────────────────────────── */
+.dark .p-select {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.09) !important;
+  color: rgba(255, 255, 255, 0.85);
+}
+.dark .p-select:hover { border-color: rgba(255, 255, 255, 0.18) !important; }
+.dark .p-select.p-focus { border-color: #818cf8 !important; }
+
+.dark .p-select-label { color: rgba(255, 255, 255, 0.80); }
+.dark .p-select-label.p-placeholder { color: rgba(255, 255, 255, 0.25) !important; }
+.dark .p-select-dropdown { color: rgba(255, 255, 255, 0.30); }
+
+.dark .p-select-overlay {
+  background: #161b27 !important;
+  border-color: rgba(255, 255, 255, 0.09) !important;
+  color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.50) !important;
+}
+.dark .p-select-option { color: rgba(255, 255, 255, 0.75); }
+.dark .p-select-option:not(.p-disabled):hover,
+.dark .p-select-option.p-focus {
+  background: rgba(255, 255, 255, 0.09) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+.dark .p-select-option.p-select-option-selected {
+  background: rgba(99, 102, 241, 0.15) !important;
+  color: #818cf8 !important;
+}
+.dark .p-select-option.p-select-option-selected:hover,
+.dark .p-select-option.p-select-option-selected.p-focus {
+  background: rgba(99, 102, 241, 0.22) !important;
+  color: #a5b4fc !important;
+}
+.dark .p-select-empty-message { color: rgba(255, 255, 255, 0.30); }
+
 @theme {
   /* ── Surfaces ──────────────────────────────────────────── */
   --color-login-bg: #06090f;   /* login page bg (slightly deeper than app-bg) */

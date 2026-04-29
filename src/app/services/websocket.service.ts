@@ -6,6 +6,7 @@ import {environment} from "../../environments/environment";
 import {BehaviorSubject, Subject} from "rxjs";
 import {MessageDto} from "../dtos/response/message.dto";
 import {AttachmentDto} from "./file.service";
+import {CallDto} from "../dtos/response/call.dto";
 
 export enum ConnectionState {
   Connected,
@@ -32,6 +33,7 @@ export interface MessageDeletedEvent {
   channelId: string | undefined;
 }
 
+
 export interface ConversationRemoved {
   conversationId: string;
 }
@@ -49,6 +51,8 @@ export class WebsocketService {
   public conversationRemovedObservable = new Subject<ConversationRemoved>()
   public conversationMemberRemovedObservable = new Subject<ConversationMemberRemoved>()
 
+
+  public incomingCallObservable = new Subject<CallDto>()
   public connectionState = signal(ConnectionState.Disconnected)
   constructor() {
     this.hubConnection = new signalR.HubConnectionBuilder()
@@ -100,6 +104,11 @@ export class WebsocketService {
     this.hubConnection.on('MemberLeft', async (data: ConversationMemberRemoved) => {
       console.log('Conversation member removed:', data);
       this.conversationMemberRemovedObservable.next(data);
+    })
+
+    this.hubConnection.on('IncomingCall', async (data: CallDto) => {
+      console.log('Incoming call:', data);
+      this.incomingCallObservable.next(data);
     })
     this.hubConnection.on('MessageCreated', async (data: {messageId: string, content: string, authorId: string, conversationId: string, channelId: string | undefined, attachments: AttachmentDto[]}) => {
       console.log('Message created:', data);

@@ -2,9 +2,7 @@ import {Component, computed, inject, input, model, signal} from '@angular/core';
 import {Dialog} from "primeng/dialog";
 import {RelationshipModel, RelationshipStatus} from "./dto/relationship.model";
 import {Button} from "primeng/button";
-import {Fieldset} from "primeng/fieldset";
 import {Tag} from "primeng/tag";
-import {Listbox} from "primeng/listbox";
 import {Avatar} from "primeng/avatar";
 import {PrimeTemplate} from "primeng/api";
 import {InputText} from "primeng/inputtext";
@@ -22,9 +20,7 @@ import {ProfileService} from "../../../../services/profile.service";
   imports: [
     Dialog,
     Button,
-    Fieldset,
     Tag,
-    Listbox,
     Avatar,
     PrimeTemplate,
     InputText,

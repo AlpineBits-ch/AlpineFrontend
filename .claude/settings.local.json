@@ -17,7 +17,11 @@
       "Bash(where bun *)",
       "Read(//c/Users/Domin/.bun/bin/**)",
       "Bash(/c/Users/Domin/.bun/bin/bun add *)",
-      "Bash(xargs wc *)"
+      "Bash(xargs wc *)",
+      "Bash(grep -o \"darkModeSelector[^;\\\\\"']{0,300}\" \"C:/Users/Domin/WebstormProjects/Alpine/node_modules/@primeuix/styled/dist/index.mjs\")",
+      "Bash(node -e ' *)",
+      "Bash(grep -E \"\\\\.\\(ts|html\\)$\")",
+      "Bash(grep -E \"\\\\.service\\\\.ts$\")"
     ]
   }
 }

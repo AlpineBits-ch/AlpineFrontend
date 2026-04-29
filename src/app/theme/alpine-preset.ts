@@ -71,9 +71,35 @@ export const AlpinePreset = definePreset(Aura, {
     colorScheme: {
       dark: {
         formField: {
-          background: '{surface.900}', // Or your preferred dark shade
-          borderColor: '{surface.700}',
-          color: '{surface.0}'
+          background: 'rgba(255,255,255,0.04)',
+          borderColor: 'rgba(255,255,255,0.09)',
+          color: '{slate.50}',
+        },
+        overlay: {
+          select: {
+            background: '{slate.800}',
+            borderColor: 'rgba(255,255,255,0.09)',
+            color: '{slate.100}',
+            shadow: '0 4px 24px rgba(0,0,0,0.40)',
+          },
+          popover: {
+            background: '{slate.800}',
+            borderColor: 'rgba(255,255,255,0.09)',
+            color: '{slate.100}',
+            shadow: '0 4px 24px rgba(0,0,0,0.40)',
+          },
+          navigation: {
+            background: '{slate.800}',
+            borderColor: 'rgba(255,255,255,0.09)',
+            color: '{slate.100}',
+            shadow: '0 4px 24px rgba(0,0,0,0.40)',
+          },
+          modal: {
+            background: '{slate.900}',
+            borderColor: 'rgba(255,255,255,0.06)',
+            color: '{slate.100}',
+            shadow: '0 8px 40px rgba(0,0,0,0.60)',
+          },
         },
         surface: {
           0:   '{slate.0}',
@@ -264,6 +290,93 @@ export const AlpinePreset = definePreset(Aura, {
           root: {
             background: 'rgba(255,255,255,0.06)',
             color: '{slate.200}',
+          },
+        },
+      },
+    },
+
+    // ── Tag ───────────────────────────────────────────────────────────────
+    tag: {
+      colorScheme: {
+        dark: {
+          primary:   { background: 'rgba(99,102,241,0.20)',  color: '{indigo.300}' },
+          secondary: { background: 'rgba(255,255,255,0.07)', color: '{slate.200}'  },
+          success:   { background: 'rgba(52,211,153,0.15)',  color: '#34d399'      },
+          info:      { background: 'rgba(56,189,248,0.15)',  color: '#38bdf8'      },
+          warn:      { background: 'rgba(251,191,36,0.15)',  color: '#fbbf24'      },
+          danger:    { background: 'rgba(244,63,94,0.15)',   color: '#f43f5e'      },
+          contrast:  { background: '{slate.0}',              color: '{slate.950}'  },
+        },
+      },
+    },
+
+    // ── Fieldset ──────────────────────────────────────────────────────────
+    fieldset: {
+      colorScheme: {
+        dark: {
+          root: {
+            background: 'transparent',
+            borderColor: 'rgba(255,255,255,0.09)',
+            color: '{slate.100}',
+          },
+          legend: {
+            background: 'transparent',
+            hoverBackground: 'rgba(255,255,255,0.05)',
+            borderColor: 'rgba(255,255,255,0.09)',
+            color: '{slate.200}',
+          },
+        },
+      },
+    },
+
+    // ── Listbox ───────────────────────────────────────────────────────────
+    listbox: {
+      colorScheme: {
+        dark: {
+          root: {
+            background: '{slate.800}',
+            borderColor: 'rgba(255,255,255,0.09)',
+            color: '{slate.100}',
+          },
+          option: {
+            focusBackground: 'rgba(255,255,255,0.05)',
+            selectedBackground: 'rgba(99,102,241,0.15)',
+            selectedFocusBackground: 'rgba(99,102,241,0.22)',
+            color: '{slate.100}',
+            selectedColor: '{indigo.400}',
+            selectedFocusColor: '{indigo.300}',
+          },
+        },
+      },
+    },
+
+    // ── ToggleSwitch ──────────────────────────────────────────────────────
+    toggleswitch: {
+      colorScheme: {
+        dark: {
+          root: {
+            checkedBackground: '{indigo.600}',
+            checkedHoverBackground: '{indigo.500}',
+            background: 'rgba(255,255,255,0.12)',
+            hoverBackground: 'rgba(255,255,255,0.18)',
+            borderColor: 'transparent',
+            checkedBorderColor: 'transparent',
+          },
+          handle: {
+            background: '#ffffff',
+            checkedBackground: '#ffffff',
+            hoverBackground: '#ffffff',
+          },
+        },
+      },
+    },
+
+    // ── ConfirmDialog ─────────────────────────────────────────────────────
+    confirmdialog: {
+      colorScheme: {
+        dark: {
+          icon: {
+            color: '{indigo.400}',
           },
         },
       },

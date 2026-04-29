@@ -1,0 +1,132 @@
+<div class="flex flex-col gap-8 max-w-2xl">
+
+  <!-- ── Microphone ────────────────────────────────────────────────────── -->
+  <section class="flex flex-col gap-4">
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">
+      Microphone
+    </h2>
+
+    <div class="flex flex-col gap-1.5">
+      <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Input Device</label>
+      <p-select [options]="micOptions()" optionLabel="label" optionValue="value"
+        [(ngModel)]="selectedMicId" styleClass="w-full"
+        placeholder="Select microphone" />
+    </div>
+
+    <!-- Test card -->
+    <div class="flex flex-col gap-4 bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+
+      <div class="flex items-center justify-between gap-4">
+        <div>
+          <p class="text-sm text-white/75">Input Level</p>
+          <p class="text-xs text-white/35 mt-0.5">
+            @if (isMicActive()) { Speak into your mic to see the level }
+            @else { Start the test to check your microphone }
+          </p>
+        </div>
+        <button (click)="toggleMicTest()"
+          class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium
+                 border cursor-pointer transition-all whitespace-nowrap"
+          [ngClass]="isMicActive()
+            ? 'bg-rose-500/15 border-rose-500/30 text-rose-400 hover:bg-rose-500/25'
+            : 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/25'">
+          <i class="text-[11px]" [class]="isMicActive() ? 'pi pi-stop-circle' : 'pi pi-microphone'"></i>
+          {{ isMicActive() ? 'Stop' : 'Test Mic' }}
+        </button>
+      </div>
+
+      <!-- Volume meter -->
+      <div class="flex items-stretch gap-[3px] h-[18px] transition-opacity duration-300"
+           [class.opacity-30]="!isMicActive()">
+        @for (bar of micBars; track $index; let i = $index) {
+          <div class="flex-1 rounded-[2px] transition-colors duration-[60ms]"
+               [ngClass]="isMicBarActive(i) ? micBarClass(i) : 'bg-white/[0.08]'">
+          </div>
+        }
+      </div>
+
+      <!-- Loopback -->
+      @if (isMicActive()) {
+        <div class="flex items-center justify-between pt-3 border-t border-white/[0.05]">
+          <div>
+            <p class="text-sm text-white/70">Hear yourself</p>
+            <p class="text-xs text-white/30 mt-0.5">Routes your mic through the speakers — watch for feedback</p>
+          </div>
+          <p-toggleswitch [ngModel]="isVoiceTesting()" (ngModelChange)="onVoiceTestChange($event)" />
+        </div>
+      }
+    </div>
+
+    @if (permissionError()) {
+      <div class="flex items-center gap-2 text-xs text-amber-400/80 bg-amber-400/5 border border-amber-400/15 rounded-lg px-3 py-2.5">
+        <i class="pi pi-exclamation-triangle shrink-0"></i>
+        Microphone access was denied. Allow access in your system settings to test devices.
+      </div>
+    }
+  </section>
+
+  <!-- ── Speaker ───────────────────────────────────────────────────────── -->
+  <section class="flex flex-col gap-4">
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">
+      Speaker
+    </h2>
+
+    <div class="flex flex-col gap-1.5">
+      <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Output Device</label>
+      <p-select [options]="speakerOptions()" optionLabel="label" optionValue="value"
+        [(ngModel)]="selectedSpeakerId" styleClass="w-full"
+        placeholder="Select speaker" />
+      <p class="text-[11px] text-white/25">Output device selection may not be supported in all environments.</p>
+    </div>
+  </section>
+
+  <!-- ── Camera ────────────────────────────────────────────────────────── -->
+  <section class="flex flex-col gap-4">
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">
+      Camera
+    </h2>
+
+    <div class="flex flex-col gap-1.5">
+      <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Video Device</label>
+      <p-select [options]="cameraOptions()" optionLabel="label" optionValue="value"
+        [(ngModel)]="selectedCameraId" styleClass="w-full"
+        placeholder="Select camera" />
+    </div>
+  </section>
+
+  <!-- ── Voice Processing ──────────────────────────────────────────────── -->
+  <section class="flex flex-col gap-3">
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">
+      Voice Processing
+    </h2>
+
+    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+      <div>
+        <p class="text-sm text-white/75">Noise Suppression</p>
+        <p class="text-xs text-white/35 mt-0.5">Filter background noise from your microphone</p>
+      </div>
+      <p-toggleswitch [(ngModel)]="noiseSuppression" />
+    </div>
+
+    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+      <div>
+        <p class="text-sm text-white/75">Echo Cancellation</p>
+        <p class="text-xs text-white/35 mt-0.5">Prevent your speakers from feeding back into your mic</p>
+      </div>
+      <p-toggleswitch [(ngModel)]="echoCancellation" />
+    </div>
+
+    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+      <div>
+        <p class="text-sm text-white/75">Auto Gain Control</p>
+        <p class="text-xs text-white/35 mt-0.5">Automatically adjust mic sensitivity to keep a consistent level</p>
+      </div>
+      <p-toggleswitch [(ngModel)]="autoGainControl" />
+    </div>
+
+    <p class="text-[11px] text-white/25 pt-1">
+      Processing changes take effect the next time you start a mic test or join a call.
+    </p>
+  </section>
+
+</div>

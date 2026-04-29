@@ -22,6 +22,7 @@ import { catchError, EMPTY, tap } from 'rxjs';
 import { ProfileService } from '../../../../services/profile.service';
 import { MessageDto } from '../../../../dtos/response/message.dto';
 import { RelationshipService } from '../../../../services/relationship.service';
+import { CallStateService } from '../../../../services/call-state.service';
 
 const SCROLL_BOTTOM_THRESHOLD = 100; // px from bottom — auto-scroll kicks in
 const LOAD_MORE_THRESHOLD = 150;     // px from top — fetch older messages
@@ -40,6 +41,7 @@ export class ConversationComponent implements AfterViewInit {
   private messagingService = inject(MessagingService);
   private profileService = inject(ProfileService);
   private relationshipService = inject(RelationshipService);
+  private callStateService = inject(CallStateService);
 
   protected friends = toSignal(this.relationshipService.getRelationships(), { initialValue: [] });
 
@@ -155,6 +157,17 @@ export class ConversationComponent implements AfterViewInit {
   }
 
   // ── Actions ──────────────────────────────────────────────────────────────
+
+  protected startCall(): void {
+    const ownId = this.profileService.ownProfile()?.userId;
+    const members = this.conversation().members.filter(m => m.userId !== ownId);
+    this.callStateService.startCall(
+      this.conversation().id,
+      members.map(m => m.userId),
+      this.chatTitle(),
+      this.chatAvatarLabel(),
+    );
+  }
 
   public createMessage(event: { content: string; attachments: string[] }): void {
     const { content, attachments } = event;
