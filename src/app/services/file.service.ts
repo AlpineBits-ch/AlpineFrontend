@@ -10,6 +10,8 @@ export interface AttachmentDto {
     createdAt: Date;
     updatedAt: Date;
     state: AttachmentStatus;
+    url: string;
+    thumbnailUrl?: string;
 }
 export interface PresignedResponse {
   attachmentId: string;
@@ -67,4 +69,13 @@ export class FileService {
         })
     );
   }
+
+
+  public downloadAttachmentById(id: string){
+      return this.httpClient.get(`${environment.apiUrl}/api/v1/messaging/attachments/${id}/download`, {responseType: 'blob'});
+  }
+
+    public getAttachmentMetadataById(id: string): Observable<AttachmentDto>{
+        return this.httpClient.get<AttachmentDto>(`${environment.apiUrl}/api/v1/messaging/attachments/${id}`);
+    }
 }

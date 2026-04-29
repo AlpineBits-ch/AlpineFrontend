@@ -37,19 +37,78 @@
       <div class="flex flex-wrap gap-2 mt-2">
         @for (att of message().attachments; track att.id) {
           @if (att.contentType.startsWith('image/')) {
-            <img [src]="att.thumbnailUrl"
-                 [alt]="att.fileName"
-                 class="max-h-48 max-w-xs rounded-xl border border-white/10 object-contain block"
-                 loading="lazy" />
+            <!-- Image attachment — thumbnail inline, click opens full lightbox -->
+            <div class="relative inline-block group/img cursor-zoom-in" (click)="openLightbox(att)">
+              <img [src]="att.thumbnailUrl"
+                   [alt]="att.fileName"
+                   class="max-h-60 max-w-sm rounded-xl border border-white/10 object-contain block"
+                   loading="lazy" />
+              <div class="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity">
+                <button (click)="download(att); $event.stopPropagation()"
+                  class="w-7 h-7 rounded-md bg-black/80 border border-white/[0.12] flex items-center justify-center text-white/60 hover:text-white cursor-pointer transition-colors backdrop-blur-sm">
+                  <i class="pi pi-download text-[11px]"></i>
+                </button>
+              </div>
+            </div>
           } @else {
-            <a [href]="att.url"
-               target="_blank" rel="noopener"
-               class="flex items-center gap-2 bg-white/[0.05] border border-white/10 rounded-xl px-3 py-2 text-xs text-white/60 hover:text-white/85 hover:bg-white/[0.08] transition-colors no-underline">
-              <i class="pi pi-file text-sm"></i>
-              <span class="max-w-[12rem] truncate">{{ att.fileName }}</span>
-            </a>
+            <!-- File attachment card -->
+            <div class="flex items-center gap-3 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 py-2.5 max-w-xs">
+              <div class="shrink-0 w-9 h-9 rounded-lg bg-white/[0.06] flex items-center justify-center">
+                <i [class]="'pi ' + fileIcon(att.contentType) + ' ' + fileIconColor(att.contentType)"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-medium text-white/80 truncate m-0 leading-snug">{{ att.fileName }}</p>
+                <p class="text-[10px] text-white/35 m-0 mt-0.5 uppercase tracking-wide">
+                  {{ att.fileName.split('.').pop() }}
+                </p>
+              </div>
+              <button (click)="download(att)"
+                class="shrink-0 w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-brand/20 border border-white/[0.07] hover:border-brand/30 flex items-center justify-center text-white/40 hover:text-brand-dim transition-all cursor-pointer">
+                <i class="pi pi-download text-xs"></i>
+              </button>
+            </div>
           }
         }
+      </div>
+    }
+
+    <!-- Image lightbox -->
+    @if (lightbox()) {
+      <div class="fixed inset-0 z-50 bg-black/85 flex items-center justify-center p-4"
+           [class.cursor-zoom-out]="!lightbox()!.loading"
+           (click)="closeLightbox()">
+        <div class="relative flex flex-col items-center gap-2" (click)="$event.stopPropagation()">
+
+          @if (lightbox()!.loading) {
+            <!-- Loading state -->
+            <div class="flex flex-col items-center gap-3 text-white/40 py-12 px-8">
+              <i class="pi pi-spin pi-spinner text-2xl"></i>
+              <span class="text-sm truncate max-w-[20rem]">{{ lightbox()!.name }}</span>
+            </div>
+          } @else if (lightbox()!.att) {
+            <!-- Full image -->
+            <img [src]="lightbox()!.att!.url"
+                 [alt]="lightbox()!.att!.fileName"
+                 class="max-w-[90vw] max-h-[85vh] object-contain rounded-xl block" />
+            <div class="absolute top-2 right-2 flex gap-1.5">
+              <button (click)="download(lightbox()!.att!)"
+                class="w-8 h-8 rounded-lg bg-black/70 border border-white/[0.12] flex items-center justify-center text-white/60 hover:text-white cursor-pointer transition-colors backdrop-blur-sm">
+                <i class="pi pi-download text-xs"></i>
+              </button>
+              <a [href]="lightbox()!.att!.url" target="_blank" rel="noopener"
+                (click)="$event.stopPropagation()"
+                class="w-8 h-8 rounded-lg bg-black/70 border border-white/[0.12] flex items-center justify-center text-white/60 hover:text-white transition-colors backdrop-blur-sm">
+                <i class="pi pi-external-link text-xs"></i>
+              </a>
+              <button (click)="closeLightbox()"
+                class="w-8 h-8 rounded-lg bg-black/70 border border-white/[0.12] flex items-center justify-center text-white/60 hover:text-white cursor-pointer transition-colors backdrop-blur-sm">
+                <i class="pi pi-times text-xs"></i>
+              </button>
+            </div>
+            <p class="text-xs text-white/40 m-0">{{ lightbox()!.att!.fileName }}</p>
+          }
+
+        </div>
       </div>
     }
     @if (!message().isPending && !message().isFailed && message().updatedAt > message().createdAt) {
