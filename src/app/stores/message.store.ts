@@ -1,9 +1,9 @@
 import { inject } from '@angular/core';
 import { patchState, signalStore, withHooks, withMethods, withState } from '@ngrx/signals';
-import { addEntities, updateEntity, upsertEntity, withEntities } from '@ngrx/signals/entities';
+import { addEntities, removeEntity, updateEntity, upsertEntity, withEntities } from '@ngrx/signals/entities';
 import { MessageDto } from '../dtos/response/message.dto';
 import { MessagingService } from '../services/messaging.service';
-import { WebsocketService } from '../services/websocket.service';
+import { WebsocketService, MessageUpdatedEvent, MessageDeletedEvent } from '../services/websocket.service';
 
 const PAGE_SIZE = 30;
 
@@ -92,13 +92,33 @@ export const MessageStore = signalStore(
     failMessage(tempId: string): void {
       patchState(store, updateEntity({ id: tempId, changes: { isPending: false, isFailed: true } }));
     },
+
+    removeMessage(id: string): void {
+      patchState(store, removeEntity(id));
+    },
+
+    applyMessageUpdate(dto: MessageDto): void {
+      patchState(store, updateEntity({ id: dto.id, changes: dto }));
+    },
   })),
 
   withHooks({
     onInit(store) {
       const wsService = inject(WebsocketService);
+
       wsService.messageObservable.subscribe(msg =>
         patchState(store, upsertEntity(msg))
+      );
+
+      wsService.messageUpdatedObservable.subscribe((event: MessageUpdatedEvent) =>
+        patchState(store, updateEntity({
+          id: event.messageId,
+          changes: { content: event.content, updatedAt: new Date() },
+        }))
+      );
+
+      wsService.messageDeletedObservable.subscribe((event: MessageDeletedEvent) =>
+        patchState(store, removeEntity(event.messageId))
       );
     },
   })

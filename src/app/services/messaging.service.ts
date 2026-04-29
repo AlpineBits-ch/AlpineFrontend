@@ -17,4 +17,11 @@ export class MessagingService {
   public getMessagesForConversation(conversationId: string, offset: number, limit: number): Observable<MessageDto[]>{
     return this.httpClient.get<MessageDto[]>(environment.apiUrl + '/api/v1/messaging/messaging/conversations/' + conversationId + '/messages?offset=' + offset + '&limit=' + limit);
   }
+
+  public deleteMessage(messageId: string): Observable<void>{
+    return this.httpClient.delete<void>(environment.apiUrl + '/api/v1/messaging/messaging/messages/' + messageId);
+  }
+  public updateMessage(messageId: string, content: string): Observable<MessageDto>{
+    return this.httpClient.put<MessageDto>(environment.apiUrl + '/api/v1/messaging/messaging/messages/' + messageId, {content});
+  }
 }

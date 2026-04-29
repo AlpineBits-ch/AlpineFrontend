@@ -12,6 +12,20 @@ export enum ConnectionState {
   Disconnected,
   Connecting,
 }
+
+export interface MessageUpdatedEvent {
+  messageId: string;
+  content: string;
+  authorId: string;
+  conversationId: string | undefined;
+  channelId: string | undefined;
+}
+
+export interface MessageDeletedEvent {
+  messageId: string;
+  conversationId: string | undefined;
+  channelId: string | undefined;
+}
 @Injectable({
   providedIn: 'root',
 })
@@ -21,6 +35,8 @@ export class WebsocketService {
   private notificationService = inject(NotificationService);
 
   public messageObservable = new Subject<MessageDto>()
+  public messageUpdatedObservable = new Subject<MessageUpdatedEvent>()
+  public messageDeletedObservable = new Subject<MessageDeletedEvent>()
 
   public connectionState = signal(ConnectionState.Disconnected)
   constructor() {
@@ -54,6 +70,16 @@ export class WebsocketService {
         icon: 'person_add',
         sound: NotificationSound.NewMessage
       });
+    })
+
+    this.hubConnection.on('MessageUpdated', async (data: MessageUpdatedEvent) => {
+      console.log('Message updated:', data);
+      this.messageUpdatedObservable.next(data);
+    })
+
+    this.hubConnection.on('MessageDeleted', async (data: MessageDeletedEvent) => {
+      console.log('Message deleted:', data);
+      this.messageDeletedObservable.next(data);
     })
 
     this.hubConnection.on('MessageCreated', async (data: {messageId: string, content: string, authorId: string, conversationId: string, channelId: string | undefined, attachments: AttachmentDto[]}) => {

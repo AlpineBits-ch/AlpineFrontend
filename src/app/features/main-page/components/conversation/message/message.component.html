@@ -1,14 +1,13 @@
-<div class="flex items-start gap-3 px-4 py-1.5 hover:bg-white/[0.02] rounded-lg transition-colors group"
+<div class="relative flex items-start gap-3 px-4 py-1.5 hover:bg-white/[0.02] rounded-lg transition-colors group"
      [class.opacity-50]="message().isPending"
-     [class.bg-rose-500/5]="message().isFailed">
+     [ngClass]="message().isFailed ? 'bg-rose-500/5' : ''">
 
   <p-avatar [label]="message().authorId[0].toUpperCase()" shape="circle" styleClass="shrink-0 mt-0.5"></p-avatar>
 
   <div class="flex flex-col min-w-0 flex-1">
-    <div class="flex items-baseline gap-2 mb-1">
-        @let user = (getProfile() | async)!;
-
-      <span class="text-sm font-semibold text-white/85">{{ user.userName}}#{{user.hash}}</span>
+    <div class="flex items-center gap-2 mb-1">
+      @let user = (getProfile() | async)!;
+      <span class="text-sm font-semibold text-white/85">{{ user.userName }}#{{ user.hash }}</span>
       <span class="text-[11px] text-white/25">{{ message().createdAt | date: 'shortTime' }}</span>
       @if (message().isPending) {
         <i class="pi pi-spin pi-spinner text-[11px] text-white/30"></i>
@@ -19,25 +18,81 @@
         </span>
       }
     </div>
-    <div class="text-sm leading-relaxed m-0 break-words"
-       [class.text-white/70]="!message().isPending && !message().isFailed"
-       [class.text-white/40]="message().isPending"
-       [class.text-rose-300]="message().isFailed">
-      @for (seg of contentSegments(); track $index) {
-        @if (seg.type === 'gif') {
-          <img [src]="seg.value" alt="GIF" class="gif-message rounded-xl mt-1 max-w-xs max-h-48 object-contain block" loading="lazy" />
-        } @else if (seg.type === 'mention') {
-          <span class="mention-chip">{{ seg.value }}</span>
-        } @else {
-          <div class="contents" [innerHTML]="seg.value | markdown"></div>
+
+    <!-- Hover action toolbar — own messages only, absolute so it never shifts layout -->
+    @if (isOwn() && !message().isPending && !message().isFailed && !isEditing()) {
+      <div class="absolute top-1 right-3 flex items-center gap-0.5
+                  opacity-0 group-hover:opacity-100 transition-opacity duration-100
+                  bg-card border border-white/[0.08] rounded-md px-0.5 py-0.5 z-20 shadow-sm">
+        <button (click)="startEdit()"
+          class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-white/75
+                 hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-colors"
+          title="Edit">
+          <i class="pi pi-pencil text-[10px]"></i>
+        </button>
+        <button (click)="confirmDelete()"
+          class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-rose-400
+                 hover:bg-rose-500/10 cursor-pointer border-0 bg-transparent transition-colors"
+          title="Delete">
+          <i class="pi pi-trash text-[10px]"></i>
+        </button>
+      </div>
+    }
+
+    <!-- Edit mode -->
+    @if (isEditing()) {
+      <div class="mt-0.5">
+        <textarea #editArea
+          [value]="editText()"
+          (input)="editText.set($any($event.target).value); autoResize($any($event.target))"
+          (keydown.enter)="onEditEnter($event)"
+          (keydown.escape)="cancelEdit()"
+          rows="1"
+          class="w-full bg-white/[0.05] border border-white/[0.12] focus:border-indigo-400/60
+                 rounded-lg px-3 py-2 text-sm text-white/85 resize-none outline-none transition-colors
+                 placeholder:text-white/25 leading-relaxed"
+          style="min-height: 2.25rem; max-height: 15rem; overflow-y: auto;
+                 scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+        </textarea>
+        <div class="flex items-center justify-between mt-1.5">
+          <span class="text-[11px] text-white/30">
+            <kbd class="px-1 py-0.5 rounded bg-white/[0.06] text-white/40 text-[10px]">esc</kbd> cancel ·
+            <kbd class="px-1 py-0.5 rounded bg-white/[0.06] text-white/40 text-[10px]">enter</kbd> save
+          </span>
+          <div class="flex gap-1.5">
+            <button (click)="cancelEdit()"
+              class="text-xs text-white/45 hover:text-white/75 cursor-pointer border-0
+                     bg-transparent px-2 py-1 rounded transition-colors">
+              Cancel
+            </button>
+            <button (click)="saveEdit()" [disabled]="saving()"
+              class="text-xs bg-brand hover:bg-brand-hover disabled:opacity-50 text-white
+                     px-2.5 py-1 rounded cursor-pointer border-0 transition-colors">
+              {{ saving() ? 'Saving…' : 'Save' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    } @else {
+      <!-- Normal message content -->
+      <div class="text-sm leading-relaxed m-0 break-words"
+         [ngClass]="message().isFailed ? 'text-rose-300' : message().isPending ? 'text-white/40' : 'text-white/70'">
+        @for (seg of contentSegments(); track $index) {
+          @if (seg.type === 'gif') {
+            <img [src]="seg.value" alt="GIF" class="gif-message rounded-xl mt-1 max-w-xs max-h-48 object-contain block" loading="lazy" />
+          } @else if (seg.type === 'mention') {
+            <span class="mention-chip">{{ seg.value }}</span>
+          } @else {
+            <div class="contents" [innerHTML]="seg.value | markdown"></div>
+          }
         }
-      }
-    </div>
+      </div>
+    }
+
     @if (message().attachments.length) {
       <div class="flex flex-wrap gap-2 mt-2">
         @for (att of message().attachments; track att.id) {
           @if (att.contentType.startsWith('image/')) {
-            <!-- Image attachment — thumbnail inline, click opens full lightbox -->
             <div class="relative inline-block group/img cursor-zoom-in" (click)="openLightbox(att)">
               <img [src]="att.thumbnailUrl"
                    [alt]="att.fileName"
@@ -51,7 +106,6 @@
               </div>
             </div>
           } @else {
-            <!-- File attachment card -->
             <div class="flex items-center gap-3 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 py-2.5 max-w-xs">
               <div class="shrink-0 w-9 h-9 rounded-lg bg-white/[0.06] flex items-center justify-center">
                 <i [class]="'pi ' + fileIcon(att.contentType) + ' ' + fileIconColor(att.contentType)"></i>
@@ -78,15 +132,12 @@
            [class.cursor-zoom-out]="!lightbox()!.loading"
            (click)="closeLightbox()">
         <div class="relative flex flex-col items-center gap-2" (click)="$event.stopPropagation()">
-
           @if (lightbox()!.loading) {
-            <!-- Loading state -->
             <div class="flex flex-col items-center gap-3 text-white/40 py-12 px-8">
               <i class="pi pi-spin pi-spinner text-2xl"></i>
               <span class="text-sm truncate max-w-[20rem]">{{ lightbox()!.name }}</span>
             </div>
           } @else if (lightbox()!.att) {
-            <!-- Full image -->
             <img [src]="lightbox()!.att!.url"
                  [alt]="lightbox()!.att!.fileName"
                  class="max-w-[90vw] max-h-[85vh] object-contain rounded-xl block" />
@@ -107,12 +158,33 @@
             </div>
             <p class="text-xs text-white/40 m-0">{{ lightbox()!.att!.fileName }}</p>
           }
-
         </div>
       </div>
     }
+
+    <!-- Edited label -->
     @if (!message().isPending && !message().isFailed && message().updatedAt > message().createdAt) {
       <span class="text-[10px] italic text-white/25 mt-0.5">Edited</span>
+    }
+
+    <!-- Delete confirmation -->
+    @if (showDeleteConfirm()) {
+      <div class="mt-2 flex items-center gap-2.5 px-3 py-2 bg-rose-500/8 border border-rose-500/20 rounded-lg text-xs">
+        <i class="pi pi-exclamation-triangle text-rose-400 text-xs shrink-0"></i>
+        <span class="text-white/65">Delete this message?</span>
+        <div class="flex gap-1.5 ml-auto shrink-0">
+          <button (click)="showDeleteConfirm.set(false)"
+            class="px-2.5 py-1 rounded-md bg-white/[0.06] hover:bg-white/[0.10] text-white/55
+                   hover:text-white/80 cursor-pointer border-0 transition-colors">
+            Cancel
+          </button>
+          <button (click)="deleteMessage()"
+            class="px-2.5 py-1 rounded-md bg-rose-500/20 hover:bg-rose-500/35 text-rose-400
+                   hover:text-rose-300 cursor-pointer border-0 transition-colors">
+            Delete
+          </button>
+        </div>
+      </div>
     }
   </div>
 

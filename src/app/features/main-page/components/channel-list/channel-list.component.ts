@@ -1,9 +1,11 @@
 import { Component, computed, inject, input } from '@angular/core';
+import { NgClass } from '@angular/common';
 import { ChannelDto, ChannelType, GuildDto } from '../../../../dtos/response/guild.dto';
 import { NavigationService } from '../../navigation.service';
 
 @Component({
   selector: 'app-channel-list',
+  imports: [NgClass],
   templateUrl: './channel-list.component.html',
 })
 export class ChannelListComponent {

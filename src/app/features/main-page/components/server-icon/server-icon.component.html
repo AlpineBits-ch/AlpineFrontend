@@ -1,10 +1,8 @@
 <button
   class="shrink-0 flex items-center gap-2 h-8 px-3 rounded-xl text-sm font-medium transition-all border-0 cursor-pointer"
-  [class.bg-indigo-500/15]="serverData().isActive"
-  [class.text-indigo-400]="serverData().isActive"
-  [class.text-white/50]="!serverData().isActive"
-  [class.hover:bg-white/[0.06]]="!serverData().isActive"
-  [class.hover:text-white/75]="!serverData().isActive">
+  [ngClass]="serverData().isActive
+    ? 'bg-indigo-500/15 text-indigo-400'
+    : 'text-white/50 hover:bg-white/[0.06] hover:text-white/75'">
   @if (serverData().icon) {
     <img [src]="serverData().icon" alt="" class="w-4 h-4 rounded-full object-cover">
   }

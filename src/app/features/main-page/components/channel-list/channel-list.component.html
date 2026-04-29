@@ -23,13 +23,8 @@
         @for (channel of textChannels(); track channel.id) {
           <button
             (click)="navService.openChannel(channel)"
-            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0"
-            [class.bg-white/[0.08]]="isActive(channel)"
-            [class.text-white/90]="isActive(channel)"
-            [class.bg-transparent]="!isActive(channel)"
-            [class.text-white/50]="!isActive(channel)"
-            [class.hover:bg-white/[0.05]]="!isActive(channel)"
-            [class.hover:text-white/80]="!isActive(channel)">
+            [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : 'bg-transparent text-white/50 hover:bg-white/[0.05] hover:text-white/80'"
+            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0">
             <span class="text-white/30 text-base leading-none font-medium shrink-0">#</span>
             <span class="text-sm truncate">{{ channel.name }}</span>
             @if (channel.isPrivate) {
@@ -52,13 +47,8 @@
         @for (channel of voiceChannels(); track channel.id) {
           <button
             (click)="navService.openChannel(channel)"
-            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0"
-            [class.bg-white/[0.08]]="isActive(channel)"
-            [class.text-white/90]="isActive(channel)"
-            [class.bg-transparent]="!isActive(channel)"
-            [class.text-white/50]="!isActive(channel)"
-            [class.hover:bg-white/[0.05]]="!isActive(channel)"
-            [class.hover:text-white/80]="!isActive(channel)">
+            [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : 'bg-transparent text-white/50 hover:bg-white/[0.05] hover:text-white/80'"
+            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0">
             <i class="pi pi-volume-up text-xs text-white/30 shrink-0"></i>
             <span class="text-sm truncate">{{ channel.name }}</span>
             @if (channel.isPrivate) {

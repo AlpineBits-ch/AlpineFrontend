@@ -2,14 +2,14 @@ import { Component, effect, inject, output, signal } from '@angular/core';
 import { ConversationDto } from '../../../../dtos/response/conversation.dto';
 import { MessageDto } from '../../../../dtos/response/message.dto';
 import { Avatar } from 'primeng/avatar';
-import { DatePipe } from '@angular/common';
+import { DatePipe, NgClass } from '@angular/common';
 import { ProfileService } from '../../../../services/profile.service';
 import { ConversationStore } from '../../../../stores/conversation.store';
 import { MessagingService } from '../../../../services/messaging.service';
 
 @Component({
   selector: 'app-conversation-list',
-  imports: [Avatar, DatePipe],
+  imports: [Avatar, DatePipe, NgClass],
   templateUrl: './conversation-list.component.html',
   styleUrl: './conversation-list.component.css',
 })

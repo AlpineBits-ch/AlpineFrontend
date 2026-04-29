@@ -1,7 +1,7 @@
-import {ChangeDetectionStrategy, Component, computed, HostListener, inject, input, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, ElementRef, HostListener, inject, input, signal, ViewChild} from '@angular/core';
 import {MessageAttachment, MessageDto} from "../../../../../dtos/response/message.dto";
 import {Avatar} from "primeng/avatar";
-import {AsyncPipe, DatePipe} from "@angular/common";
+import {AsyncPipe, DatePipe, NgClass} from "@angular/common";
 import {ProfileService} from "../../../../../services/profile.service";
 import {Observable} from "rxjs";
 import {ProfileDto} from "../../../../../dtos/response/profile.dto";
@@ -9,6 +9,8 @@ import { isKlipyGifUrl } from '../../../../../services/gif.service';
 import { EmojiDataService } from '../../../../../services/emoji-data.service';
 import { MarkdownPipe } from '../../../../../pipes/markdown.pipe';
 import { AttachmentDto, FileService } from '../../../../../services/file.service';
+import { MessagingService } from '../../../../../services/messaging.service';
+import { MessageStore } from '../../../../../stores/message.store';
 
 @Component({
   selector: 'app-message',
@@ -16,6 +18,7 @@ import { AttachmentDto, FileService } from '../../../../../services/file.service
     Avatar,
     DatePipe,
     AsyncPipe,
+    NgClass,
     MarkdownPipe,
   ],
   templateUrl: './message.component.html',
@@ -26,6 +29,10 @@ export class MessageComponent {
   public profileService = inject(ProfileService);
   private emojiDataService = inject(EmojiDataService);
   private fileService = inject(FileService);
+  private messagingService = inject(MessagingService);
+  private messageStore = inject(MessageStore);
+
+  @ViewChild('editArea') private editAreaRef?: ElementRef<HTMLTextAreaElement>;
 
   lightbox = signal<{ loading: boolean; att: AttachmentDto | null; name: string } | null>(null);
 
@@ -104,6 +111,71 @@ export class MessageComponent {
 
 
 
+
+  readonly isOwn = computed(() =>
+    this.message().authorId === this.profileService.ownProfile()?.userId
+  );
+
+  readonly isEditing = signal(false);
+  readonly editText = signal('');
+  readonly saving = signal(false);
+  readonly showDeleteConfirm = signal(false);
+
+  startEdit(): void {
+    this.editText.set(this.content());
+    this.isEditing.set(true);
+    setTimeout(() => {
+      const el = this.editAreaRef?.nativeElement;
+      if (el) {
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+        this.autoResize(el);
+      }
+    }, 0);
+  }
+
+  cancelEdit(): void {
+    this.isEditing.set(false);
+    this.showDeleteConfirm.set(false);
+  }
+
+  saveEdit(): void {
+    const text = this.editText().trim();
+    if (!text || this.saving()) return;
+    this.saving.set(true);
+    this.messagingService.updateMessage(this.message().id, text).subscribe({
+      next: updated => {
+        this.messageStore.applyMessageUpdate(updated);
+        this.isEditing.set(false);
+        this.saving.set(false);
+      },
+      error: () => this.saving.set(false),
+    });
+  }
+
+  confirmDelete(): void {
+    this.showDeleteConfirm.set(true);
+  }
+
+  deleteMessage(): void {
+    this.showDeleteConfirm.set(false);
+    this.messagingService.deleteMessage(this.message().id).subscribe({
+      next: () => this.messageStore.removeMessage(this.message().id),
+    });
+  }
+
+  onEditEnter(event: Event): void {
+    const ke = event as KeyboardEvent;
+    if (!ke.shiftKey) {
+      event.preventDefault();
+      this.saveEdit();
+    }
+  }
+
+  autoResize(el: HTMLTextAreaElement): void {
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 240) + 'px';
+  }
 
   public getProfile(): Observable<ProfileDto>{
     return this.profileService.getByUserId(this.message().authorId);

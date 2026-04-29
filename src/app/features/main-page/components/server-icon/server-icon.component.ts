@@ -1,4 +1,5 @@
 import {Component, input} from '@angular/core';
+import { NgClass } from '@angular/common';
 
 export interface ServerData {
   id: string;
@@ -10,7 +11,7 @@ export interface ServerData {
 }
 @Component({
   selector: 'app-server-icon',
-  imports: [],
+  imports: [NgClass],
   templateUrl: './server-icon.component.html',
   styleUrl: './server-icon.component.css',
 })
