@@ -9,6 +9,7 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import { Subject } from 'rxjs';
 import { UserSettingsService } from './user-settings.service';
+import {getCurrentWindow, UserAttentionType} from "@tauri-apps/api/window";
 
 export enum NotificationSound {
   None,
@@ -73,6 +74,8 @@ export class NotificationService {
 
     if (!ns.enabled) return;
 
+    const windows = getCurrentWindow();
+    await windows.requestUserAttention(UserAttentionType.Critical);
     const category = params.category ?? 'system';
     if (category === 'dm' && !ns.dm) return;
     if (category === 'mention' && !ns.mentions) return;

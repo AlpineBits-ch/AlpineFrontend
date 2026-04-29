@@ -49,16 +49,46 @@ export function buildHighlightedFragment(segments: EditorSegment[]): DocumentFra
 
 /**
  * Convert raw markdown text to highlighted HTML.
- * The input is HTML-escaped first — this function is XSS-safe.
- *
- * Single-pass regex tries the most specific patterns first (** before *) so
- * double-star bold is never misread as two italic markers.
+ * Handles fenced code blocks (``` ... ```) as block-level segments so their
+ * contents are never mangled by the inline-pattern pass.
+ * The input is HTML-escaped before any processing — this function is XSS-safe.
  */
 export function highlightInlineMarkdown(text: string): string {
-  let html = text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  const codeBlockRe = /```(\w*)\n([\s\S]*?)```/g;
+  const parts: string[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = codeBlockRe.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(applyInlineStyles(text.slice(lastIndex, match.index)));
+    }
+    const lang = match[1];
+    const code = escapeHtml(match[2]);
+    const langSpan = lang ? `<span class="md-mark md-lang">${lang}</span>` : '';
+    // The <br> at the end of code already represents the trailing \n captured
+    // by the regex, so no extra separator is needed before the closing fence.
+    parts.push(
+      `<span class="md-mark">\`\`\`</span>${langSpan}<br>` +
+      `<code class="md-codeblock">${code.replace(/\n/g, '<br>')}</code>` +
+      `<span class="md-mark">\`\`\`</span>`
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(applyInlineStyles(text.slice(lastIndex)));
+  }
+
+  return parts.join('');
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function applyInlineStyles(text: string): string {
+  let html = escapeHtml(text);
 
   html = html.replace(
     /\*\*([^*\n]+?)\*\*|__([^_\n]+?)__|~~([^~\n]+?)~~|`([^`\n]+?)`|\*([^*\n]+?)\*|_([^_\n]+?)_/g,

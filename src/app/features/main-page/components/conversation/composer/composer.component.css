@@ -25,6 +25,24 @@
   color: rgba(255, 255, 255, 0.65);
 }
 
+/* ── Code block in editor ────────────────────────────────────────────────── */
+:host ::ng-deep .md-codeblock {
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 0.84em;
+  background: rgba(255, 255, 255, 0.06);
+  border-left: 2px solid rgba(255, 255, 255, 0.14);
+  padding: 2px 8px;
+  border-radius: 0 3px 3px 0;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+:host ::ng-deep .md-lang {
+  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+  font-size: 0.84em;
+  color: rgba(255, 255, 255, 0.28);
+  margin-left: 2px;
+}
+
 /* ── Mention chip ─────────────────────────────────────────────────────────── */
 /* Chips are created via document.createElement — Angular's scoped attribute
    is never added, so ::ng-deep is required to reach them. */

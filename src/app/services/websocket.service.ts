@@ -5,6 +5,7 @@ import {OAuthService} from "angular-oauth2-oidc";
 import {environment} from "../../environments/environment";
 import {BehaviorSubject, Subject} from "rxjs";
 import {MessageDto} from "../dtos/response/message.dto";
+import {AttachmentDto} from "./file.service";
 
 export enum ConnectionState {
   Connected,
@@ -55,7 +56,7 @@ export class WebsocketService {
       });
     })
 
-    this.hubConnection.on('MessageCreated', async (data: {messageId: string, content: string, authorId: string, conversationId: string, channelId: string | undefined}) => {
+    this.hubConnection.on('MessageCreated', async (data: {messageId: string, content: string, authorId: string, conversationId: string, channelId: string | undefined, attachments: AttachmentDto[]}) => {
       console.log('Message created:', data);
 
       let body: string;
@@ -89,7 +90,7 @@ export class WebsocketService {
         updatedAt: new Date(),
         isPending: false,
         isFailed: false,
-        attachments: [],
+        attachments: data.attachments,
       })
     })
 
