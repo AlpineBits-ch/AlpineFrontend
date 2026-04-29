@@ -1,11 +1,15 @@
-import {Component, model, signal} from '@angular/core';
+import {Component, inject, model, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Dialog} from "primeng/dialog";
 import {Button} from "primeng/button";
+import {ConfirmDialog} from "primeng/confirmdialog";
+import {ConfirmationService} from "primeng/api";
 import {ProfileSettingsComponent} from "./pages/profile-settings/profile-settings.component";
 import {PrivacySettingsComponent} from "./pages/privacy-settings/privacy-settings.component";
 import {OtherSettingsComponent} from "./pages/other-settings/other-settings.component";
 import {NotifiactionSettingsComponent} from "./pages/notification-settings/notifiaction-settings.component";
+import {AuthService} from "../../../services/auth.service";
+import {Router} from "@angular/router";
 
 export interface SettingsNavItem {
   id: string;
@@ -24,17 +28,40 @@ export interface SettingsNavGroup {
     NgClass,
     Dialog,
     Button,
+    ConfirmDialog,
     ProfileSettingsComponent,
     PrivacySettingsComponent,
     OtherSettingsComponent,
     NotifiactionSettingsComponent,
   ],
+  providers: [ConfirmationService],
   templateUrl: './settings-modal.component.html',
   styleUrl: './settings-modal.component.css',
 })
 export class SettingsModalComponent {
   public isVisible = model.required<boolean>();
   public activePage = signal('profile');
+
+  private authService = inject(AuthService);
+  private router = inject(Router);
+  private confirmationService = inject(ConfirmationService);
+
+  confirmLogout(): void {
+    this.confirmationService.confirm({
+      message: 'Are you sure you want to log out?',
+      header: 'Log Out',
+      icon: 'pi pi-sign-out',
+      acceptLabel: 'Log Out',
+      rejectLabel: 'Cancel',
+      acceptButtonProps: { severity: 'danger', outlined: true },
+      rejectButtonProps: { severity: 'secondary', text: true },
+      accept: () => {
+        this.isVisible.set(false);
+        this.authService.logout();
+        this.router.navigate(['/authentication']);
+      },
+    });
+  }
 
   /** Add a new page: create its component, add an entry here, add a @case below. */
   navItemClasses(id: string, inactiveText = 'text-white/50'): Record<string, boolean> {

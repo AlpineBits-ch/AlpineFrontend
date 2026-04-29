@@ -44,4 +44,11 @@ export class AuthService {
     return this.oauthService.hasValidAccessToken();
 
   }
+
+  public getJsonSettings(): Observable<unknown>{
+    return this.http.get(`${environment.apiUrl}/api/v1/identity/users/self/settings`);
+  }
+  public updateJsonSettings(settings: unknown): Observable<unknown>{
+    return this.http.put(`${environment.apiUrl}/api/v1/identity/users/self/settings`, settings);
+  }
 }

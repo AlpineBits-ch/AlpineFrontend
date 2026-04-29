@@ -9,6 +9,7 @@ import {form, FormField} from "@angular/forms/signals";
 import {TokenResponse} from "angular-oauth2-oidc";
 import {Router} from "@angular/router";
 import {NgClass} from "@angular/common";
+import {UserSettingsService} from "../../services/user-settings.service";
 
 
 interface LoginModel {
@@ -39,6 +40,7 @@ export class Login {
   protected isLoginMode = signal(true);
   protected authService = inject(AuthService);
   protected router = inject(Router);
+  private userSettings = inject(UserSettingsService);
 
   protected loginModel = signal<LoginModel>({username: '', password: ''});
   protected registerModel = signal<RegisterModel>({username: '',email: '', password: '', birthdate: new Date()});
@@ -66,6 +68,7 @@ export class Login {
     ).pipe(
         tap((data) => {
           console.log('Login successful:', data);
+          this.userSettings.load();
           this.router.navigate(['/overview']);
         }),
         catchError((err) => {

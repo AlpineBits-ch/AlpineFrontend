@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import {
   isPermissionGranted,
   onAction,
@@ -8,11 +8,14 @@ import {
 } from '@tauri-apps/plugin-notification';
 import { invoke } from '@tauri-apps/api/core';
 import { Subject } from 'rxjs';
+import { UserSettingsService } from './user-settings.service';
 
 export enum NotificationSound {
   None,
   NewMessage
 }
+
+export type NotificationCategory = 'dm' | 'mention' | 'system';
 
 export interface NotificationActionEvent {
   actionTypeId: string;
@@ -23,6 +26,8 @@ export interface NotificationActionEvent {
   providedIn: 'root',
 })
 export class NotificationService {
+  private userSettings = inject(UserSettingsService);
+
   /** Emits when the user interacts with a notification action. */
   readonly action$ = new Subject<NotificationActionEvent>();
 
@@ -60,9 +65,18 @@ export class NotificationService {
     title: string;
     icon: string | undefined;
     sound: NotificationSound;
+    category?: NotificationCategory;
     actionTypeId?: string;
     extra?: Record<string, string>;
   }): Promise<void> {
+    const ns = this.userSettings.notificationSettings();
+
+    if (!ns.enabled) return;
+
+    const category = params.category ?? 'system';
+    if (category === 'dm' && !ns.dm) return;
+    if (category === 'mention' && !ns.mentions) return;
+
     await this.getPermission();
     sendNotification({
       title: params.title,
@@ -71,7 +85,10 @@ export class NotificationService {
       actionTypeId: params.actionTypeId,
       extra: params.extra,
     });
-    this.playSoundNotification(params.sound);
+
+    if (ns.sounds) {
+      this.playSoundNotification(params.sound);
+    }
   }
 
   private playSoundNotification(sound: NotificationSound): void {
