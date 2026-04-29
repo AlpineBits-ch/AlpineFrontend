@@ -28,8 +28,12 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "targets": "all"
+    "targets": "all",
+    "iOS": {
+      "developmentTeam": "4ZCV54232X"
+    }
   },
+ 
   "identifier": "com.alpinebits.alpine",
   "productName": "alpine",
   "version": "3.0.3",
