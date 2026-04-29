@@ -4,7 +4,8 @@ import { CallDto } from '../dtos/response/call.dto';
 import { ConversationStore } from '../stores/conversation.store';
 import { ProfileService } from './profile.service';
 import { VoiceService } from './voice.service';
-import { WebsocketService } from './websocket.service';
+import { MessagingWebsocketService } from './messaging-websocket.service';
+import {VoiceWebsocketService} from "./voice-websocket.service";
 
 export interface IncomingCallState {
   call: CallDto;
@@ -19,7 +20,7 @@ export interface OutgoingCallState {
 
 @Injectable({ providedIn: 'root' })
 export class CallStateService implements OnDestroy {
-  private ws = inject(WebsocketService);
+  private ws = inject(VoiceWebsocketService);
   private voiceService = inject(VoiceService);
   private profileService = inject(ProfileService);
   private conversationStore = inject(ConversationStore);

@@ -1,6 +1,6 @@
 import {Component, inject} from '@angular/core';
 import { NgClass } from '@angular/common';
-import {ConnectionState, WebsocketService} from "../../../../services/websocket.service";
+import {ConnectionState, MessagingWebsocketService} from "../../../../services/messaging-websocket.service";
 
 @Component({
   selector: 'app-connection-status',
@@ -9,7 +9,7 @@ import {ConnectionState, WebsocketService} from "../../../../services/websocket.
   styleUrl: './connection-status.component.css',
 })
 export class ConnectionStatusComponent {
-  public websocketService = inject(WebsocketService);
+  public websocketService = inject(MessagingWebsocketService);
 
 
   protected readonly ConnectionState = ConnectionState;

@@ -3,7 +3,7 @@ import { AuthService } from '../../services/auth.service';
 import { Router } from '@angular/router';
 import { HomeComponent } from './pages/home/home.component';
 import { OAuthService } from 'angular-oauth2-oidc';
-import { WebsocketService } from '../../services/websocket.service';
+import { MessagingWebsocketService } from '../../services/messaging-websocket.service';
 import { ActionSidepanelComponent } from './components/action-sidepanel/action-sidepanel.component';
 import { ConversationComponent } from './components/conversation/conversation.component';
 import { ServerTaskbarComponent } from './components/server-taskbar/server-taskbar.component';
@@ -13,6 +13,7 @@ import { NavigationService } from './navigation.service';
 import { NotificationService } from '../../services/notification.service';
 import { ConversationStore } from '../../stores/conversation.store';
 import { Subscription } from 'rxjs';
+import {VoiceWebsocketService} from "../../services/voice-websocket.service";
 
 @Component({
   selector: 'app-main-page',
@@ -32,7 +33,8 @@ export class MainPageComponent implements OnDestroy {
   protected oAuthService = inject(OAuthService);
   protected navService = inject(NavigationService);
 
-  private websocketService = inject(WebsocketService);
+  private websocketService = inject(MessagingWebsocketService);
+  private voiceWebsocketService = inject(VoiceWebsocketService);
   private notificationService = inject(NotificationService);
   private conversationStore = inject(ConversationStore);
   protected router = inject(Router);
@@ -46,6 +48,7 @@ export class MainPageComponent implements OnDestroy {
 
   constructor() {
     void this.websocketService.start();
+    void this.voiceWebsocketService.start();
 
     this.oAuthService.setupAutomaticSilentRefresh();
     this.oAuthService.events.subscribe(e => {

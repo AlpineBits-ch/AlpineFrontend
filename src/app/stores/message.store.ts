@@ -3,7 +3,7 @@ import { patchState, signalStore, withHooks, withMethods, withState } from '@ngr
 import { addEntities, removeEntities, removeEntity, updateEntity, upsertEntity, withEntities } from '@ngrx/signals/entities';
 import { MessageDto } from '../dtos/response/message.dto';
 import { MessagingService } from '../services/messaging.service';
-import { WebsocketService, MessageUpdatedEvent, MessageDeletedEvent } from '../services/websocket.service';
+import { MessagingWebsocketService, MessageUpdatedEvent, MessageDeletedEvent } from '../services/messaging-websocket.service';
 import { ProfileService } from '../services/profile.service';
 
 const PAGE_SIZE = 30;
@@ -114,7 +114,7 @@ export const MessageStore = signalStore(
 
   withHooks({
     onInit(store) {
-      const wsService = inject(WebsocketService);
+      const wsService = inject(MessagingWebsocketService);
       const profileService = inject(ProfileService);
 
       wsService.messageObservable.subscribe(msg =>
