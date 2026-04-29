@@ -8,6 +8,7 @@ import { SuggestionOverlayComponent } from './suggestion-overlay/suggestion-over
 import { EmojiPickerButtonComponent } from './emoji-picker-button/emoji-picker-button.component';
 import { GifPickerButtonComponent } from './gif-picker-button/gif-picker-button.component';
 import { GifService } from '../../../../../services/gif.service';
+import {FileService} from "../../../../../services/file.service";
 
 interface AttachedFile {
   file: File;
@@ -24,6 +25,7 @@ interface AttachedFile {
 })
 export class ComposerComponent implements OnDestroy {
 
+  private fileService = inject(FileService);
   // ── Inputs / Outputs ─────────────────────────────────────────────────────
 
   friends = input<RelationshipModel[]>([]);
@@ -147,6 +149,15 @@ export class ComposerComponent implements OnDestroy {
     const isImage = file.type.startsWith('image/');
     const previewUrl = URL.createObjectURL(file);
     this.attachedFiles.update(prev => [...prev, { file, previewUrl, name: file.name, isImage }]);
+
+    this.fileService.uploadFile(file).subscribe({
+      next: (response) => {
+        console.log('[Composer] file uploaded:', response);
+      },
+      error: (error) => {
+        console.error('[Composer] file upload error:', error);
+      }
+    });
     // TODO: wire up to send when messaging is implemented
     console.log('[Composer] file attached:', file);
   }
