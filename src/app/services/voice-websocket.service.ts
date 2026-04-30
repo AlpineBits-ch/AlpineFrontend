@@ -189,7 +189,7 @@ export class VoiceWebsocketService {
     // ── Connection state ────────────────────────────────────────────────────
     this.hubConnection.onreconnecting(() => {
       this.notificationService.createNotification({
-        title: 'Reconnecting',
+        title: 'Connection lost to voice server',
         message: 'Attempting to reconnect...',
         sound: NotificationSound.NewMessage,
       });
