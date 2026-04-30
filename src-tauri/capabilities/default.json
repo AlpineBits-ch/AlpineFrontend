@@ -5,6 +5,12 @@
   "permissions": [
     "core:default",
     "opener:default",
+    "core:webview:allow-create-webview-window",
+    "core:window:allow-primary-monitor",
+    "core:window:allow-is-focused",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-position",
+    "core:window:allow-show",
     "core:window:allow-request-user-attention",
     "core:window:allow-set-fullscreen",
     "core:window:allow-is-fullscreen",

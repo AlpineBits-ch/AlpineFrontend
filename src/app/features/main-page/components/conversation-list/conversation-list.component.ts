@@ -1,5 +1,5 @@
 import { animate, query, stagger, style, transition, trigger } from '@angular/animations';
-import { Component, computed, effect, inject, output, signal } from '@angular/core';
+import {Component, computed, effect, inject, output, signal} from '@angular/core';
 import { ConversationDto } from '../../../../dtos/response/conversation.dto';
 import { MessageDto } from '../../../../dtos/response/message.dto';
 import { Avatar } from 'primeng/avatar';
@@ -10,6 +10,7 @@ import { MessagingService } from '../../../../services/messaging.service';
 import { ConversationService } from '../../../../services/conversation.service';
 import { MessageStore } from '../../../../stores/message.store';
 import { ToastService } from '../../../../services/toast.service';
+import { NavigationService } from '../../navigation.service';
 
 @Component({
   selector: 'app-conversation-list',
@@ -50,14 +51,21 @@ import { ToastService } from '../../../../services/toast.service';
 })
 export class ConversationListComponent {
   public conversationSelected = output<ConversationDto>();
-  public selectedId = signal<string | null>(null);
 
   protected conversationStore = inject(ConversationStore);
+  private navService = inject(NavigationService);
   private profileService = inject(ProfileService);
   private messagingService = inject(MessagingService);
   private conversationService = inject(ConversationService);
   private messageStore = inject(MessageStore);
   private toast = inject(ToastService);
+
+  // Derived from navService so programmatic navigation (e.g. notification click)
+  // updates the highlight without requiring a click in this list.
+  readonly selectedId = computed(() => {
+    const view = this.navService.mainView();
+    return view.type === 'conversation' ? view.conversation.id : null;
+  });
 
   readonly sortedConversations = computed(() =>
     [...this.conversationStore.entities()].sort(
@@ -144,7 +152,7 @@ export class ConversationListComponent {
         this.conversationStore.removeConversation(conv.id);
         this.messageStore.removeMessagesForConversation(conv.id);
         if (this.selectedId() === conv.id) {
-          this.selectedId.set(null);
+          this.navService.showHome();
         }
         this.toast.success('Conversation deleted', { detail: name });
       },

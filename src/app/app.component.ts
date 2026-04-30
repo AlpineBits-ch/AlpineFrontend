@@ -17,7 +17,10 @@ import {ToastContainerComponent} from "./toast/toast-container/toast-container.c
 })
 export class AppComponent {
   private profileService = inject(ProfileService);
+  protected readonly isPopup = window.location.pathname === '/toast-popup';
+
   public ngOnInit(): void {
+    if (this.isPopup) return;
 
     if ('__TAURI_INTERNALS__' in window) {
       void getCurrentWindow().maximize();

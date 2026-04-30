@@ -5,7 +5,7 @@
 
     <div class="relative group/conv">
     <button
-      (click)="selectedId.set(conv.id); conversationSelected.emit(conv)"
+      (click)="conversationSelected.emit(conv)"
       [ngClass]="selectedId() === conv.id ? 'bg-white/[0.08]' : 'bg-transparent hover:bg-white/[0.05]'"
       class="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl transition-all cursor-pointer border-0 text-left">
 
