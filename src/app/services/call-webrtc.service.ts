@@ -123,7 +123,6 @@ export class CallWebRtcService {
     this.pc = new RTCPeerConnection({ bundlePolicy: 'max-bundle' });
     (window as any).__pc = this.pc;  // ← add this line
     this.pc.ontrack = (e) => this.handleRemoteTrack(e);
-    this.pc.ontrack = (e) => this.handleRemoteTrack(e);
 
     // TODO(backend): Implement POST /api/v1/messaging/voice/calls/{callId}/session.
     // Steps on the server:
