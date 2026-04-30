@@ -2,6 +2,7 @@ import { inject, Injectable, signal } from '@angular/core';
 import { ProfileService } from './profile.service';
 import { ConversationStore } from '../stores/conversation.store';
 import { VoiceService } from './voice.service';
+import { AudioSettingsService } from './audio-settings.service';
 import type { CallDto } from '../dtos/response/call.dto';
 import type {
   ActiveCallSession,
@@ -14,6 +15,7 @@ export class CallSessionService {
   private profileService = inject(ProfileService);
   private conversationStore = inject(ConversationStore);
   private voiceService = inject(VoiceService);
+  private audioSettings = inject(AudioSettingsService);
 
   readonly session = signal<ActiveCallSession | null>(null);
 
