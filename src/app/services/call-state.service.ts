@@ -127,7 +127,9 @@ export class CallStateService implements OnDestroy {
     this.voiceService.createCall({ conversationId, participants }).subscribe({
       next: (callDto) => {
         this.pendingCallDto = callDto;
-        // Stay in ringback until callee accepts (ParticipantJoined) or call ends (declined/cancelled)
+        // Join immediately so WebRTC listeners are wired up before ParticipantJoined fires.
+        // The outgoing overlay stays visible on top until the callee accepts/declines.
+        this.callSession.join(callDto, conversationId);
         this.pendingCallSub = race(
           this.ws.participantJoinedObservable.pipe(first(), map(() => 'joined' as const)),
           this.ws.callEndedObservable.pipe(first(), map(() => 'ended' as const)),
@@ -136,7 +138,7 @@ export class CallStateService implements OnDestroy {
           this.pendingCallSub = null;
           this.stopRingtone();
           this.outgoingCall.set(null);
-          if (result === 'joined') this.callSession.join(callDto, conversationId);
+          if (result === 'ended') this.callSession.end();
         });
       },
       error: () => { this.outgoingCall.set(null); this.stopRingtone(); },
