@@ -113,6 +113,16 @@ export function getTextCursorOffset(editor: HTMLElement): number {
   const { startContainer, startOffset } = sel.getRangeAt(0);
   let count = 0;
 
+  // Count all chars in a subtree unconditionally (no cursor detection).
+  function countAll(node: Node): void {
+    if (node.nodeType === Node.TEXT_NODE) { count += node.textContent?.length ?? 0; return; }
+    if (node instanceof HTMLElement) {
+      if (node.tagName === 'BR') { count += 1; return; }
+      if (node.classList.contains('mention-chip')) { count += node.textContent?.length ?? 0; return; }
+      for (const child of Array.from(node.childNodes)) countAll(child);
+    }
+  }
+
   function walk(node: Node): boolean {
     if (node.nodeType === Node.TEXT_NODE) {
       if (node === startContainer) { count += startOffset; return true; }
@@ -121,10 +131,17 @@ export function getTextCursorOffset(editor: HTMLElement): number {
     }
     if (node instanceof HTMLElement) {
       if (node.tagName === 'BR') { count += 1; return false; }
-      // Treat mention chips as atomic — cursor cannot go inside them.
       if (node.classList.contains('mention-chip')) {
         count += node.textContent?.length ?? 0;
         return false;
+      }
+      if (node === startContainer) {
+        // Cursor is at child index startOffset inside this element node
+        // (e.g. after setStartAfter(<br>) — startContainer becomes the parent element).
+        for (let i = 0; i < startOffset && i < node.childNodes.length; i++) {
+          countAll(node.childNodes[i]);
+        }
+        return true;
       }
     }
     for (const child of Array.from(node.childNodes)) {

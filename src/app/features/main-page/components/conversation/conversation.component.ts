@@ -104,6 +104,7 @@ export class ConversationComponent implements AfterViewInit {
   // ── Scroll state ─────────────────────────────────────────────────────────
 
   @ViewChild('messageScroll') private scrollRef!: ElementRef<HTMLDivElement>;
+  @ViewChild(ComposerComponent) private composerRef?: ComposerComponent;
   private isNearBottom     = true;
   private savedScrollHeight = 0;
   private restoreScroll    = false;
@@ -130,6 +131,11 @@ export class ConversationComponent implements AfterViewInit {
         // setTimeout ensures the new message node is in the DOM before we scroll.
         setTimeout(() => this.scrollToBottom(), 0);
       }
+    });
+
+    effect(() => {
+      const _ = this.conversation();
+      setTimeout(() => this.composerRef?.focus(), 0);
     });
 
     // Only used to restore scroll position after loading older messages.

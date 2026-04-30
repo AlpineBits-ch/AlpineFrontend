@@ -167,6 +167,24 @@ export class ComposerComponent {
     this.typingThrottle = setTimeout(() => { this.typingThrottle = null; }, 2000);
   }
 
+  focus(): void {
+    this.editorRef().nativeElement.focus();
+  }
+
+  private insertNewline(): void {
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
+    range.deleteContents();
+    const br = document.createElement('br');
+    range.insertNode(br);
+    range.setStartAfter(br);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    this.onInput();
+  }
+
   private applyMarkdownHighlighting(editor: HTMLElement): void {
     const offset = getTextCursorOffset(editor);
     const segments = getEditorSegments(editor);
@@ -186,6 +204,7 @@ export class ComposerComponent {
       if (event.key === 'Escape') { event.preventDefault(); this.closeOverlay(); return; }
     }
 
+    if (event.key === 'Enter' && event.shiftKey) { event.preventDefault(); this.insertNewline(); return; }
     if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); this.send(); }
   }
 
