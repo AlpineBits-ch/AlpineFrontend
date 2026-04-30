@@ -22,6 +22,7 @@ export class ToastService {
   private popupStack: string[] = [];
   private activePopups   = new Map<string, WebviewWindow>();
   private monitorCache: { sw: number; sh: number } | null = null;
+  private soundAt = 0;
 
   constructor() {
     if (this.isTauri && getCurrentWindow().label === 'main') {
@@ -85,7 +86,7 @@ export class ToastService {
       id,
       title: config.title,
       body: config.body,
-      avatarUrl: config.avatarUrl,
+      avatarUrl: this.validAvatarUrl(config.avatarUrl),
       avatarLabel: config.avatarLabel,
       duration: config.duration ?? 5000,
       sound: config.sound ?? true,
@@ -116,9 +117,10 @@ export class ToastService {
     this.popupStack.push(id);
 
     const params = new URLSearchParams({ id, title: config.title });
-    if (config.body)        params.set('body', config.body);
-    if (config.avatarUrl)   params.set('avatarUrl', config.avatarUrl);
-    if (config.avatarLabel) params.set('avatarLabel', config.avatarLabel);
+    if (config.body)                          params.set('body', config.body);
+    const av = this.validAvatarUrl(config.avatarUrl);
+    if (av)                                   params.set('avatarUrl', av);
+    if (config.avatarLabel)                   params.set('avatarLabel', config.avatarLabel);
     params.set('duration', String(config.duration ?? 5000));
 
     const win = new WebviewWindow(`toast-${id}`, {
@@ -158,7 +160,19 @@ export class ToastService {
     }
   }
 
+  private validAvatarUrl(url?: string): string | undefined {
+    if (!url) return undefined;
+    try {
+      const { protocol } = new URL(url);
+      return protocol === 'http:' || protocol === 'https:' || protocol === 'data:' ? url : undefined;
+    } catch { return undefined; }
+  }
+
   private playSound(sound: boolean | string): void {
+    const now = Date.now();
+    if (now - this.soundAt < 1000) return;
+    this.soundAt = now;
+
     if (typeof sound === 'string') {
       void new Audio(sound).play();
       return;

@@ -6,8 +6,9 @@
          (click)="handleClick(item)">
 
       <div class="avatar">
-        @if (item.avatarUrl) {
-          <img class="avatar__img" [src]="item.avatarUrl" [alt]="item.title" />
+        @if (item.avatarUrl && !brokenAvatars().has(item.id)) {
+          <img class="avatar__img" [src]="item.avatarUrl" [alt]="item.title"
+               (error)="onAvatarError(item.id)" />
         } @else {
           <div class="avatar__fallback">{{ avatarLetter(item) }}</div>
         }

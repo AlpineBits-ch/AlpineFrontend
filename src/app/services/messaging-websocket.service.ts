@@ -3,10 +3,11 @@ import * as signalR from '@microsoft/signalr';
 import {NotificationService, NotificationSound} from "./notification.service";
 import {OAuthService} from "angular-oauth2-oidc";
 import {environment} from "../../environments/environment";
-import {BehaviorSubject, Subject} from "rxjs";
+import {BehaviorSubject, firstValueFrom, Subject} from "rxjs";
 import {MessageDto} from "../dtos/response/message.dto";
 import {AttachmentDto} from "./file.service";
 import {CallDto} from "../dtos/response/call.dto";
+import {ProfileService} from "./profile.service";
 
 export enum ConnectionState {
   Connected,
@@ -44,6 +45,7 @@ export class MessagingWebsocketService {
   private hubConnection: signalR.HubConnection;
   private oAuthService = inject(OAuthService);
   private notificationService = inject(NotificationService);
+  private profileService = inject(ProfileService);
 
   public messageObservable = new Subject<MessageDto>()
   public messageUpdatedObservable = new Subject<MessageUpdatedEvent>()
@@ -80,8 +82,7 @@ export class MessagingWebsocketService {
       console.log('Friend request accepted:', data);
       await this.notificationService.createNotification({
         title: 'Friend request accepted',
-        message: `${data.acceptantUserName} has accepted your friend request`,
-        icon: 'person_add',
+        message: `${data.acceptantUserName} accepted your friend request`,
         sound: NotificationSound.NewMessage
       });
     })
@@ -121,10 +122,11 @@ export class MessagingWebsocketService {
       if (data.conversationId) extra['conversationId'] = data.conversationId;
       if (data.channelId) extra['channelId'] = data.channelId;
 
+      const sender = await firstValueFrom(this.profileService.getByUserId(data.authorId));
       await this.notificationService.createNotification({
-        title: 'New message',
+        title: sender.userName,
         message: body,
-        icon: 'message',
+        profile: sender,
         sound: NotificationSound.NewMessage,
         actionTypeId: 'message',
         extra,
@@ -148,7 +150,6 @@ export class MessagingWebsocketService {
       this.notificationService.createNotification({
         title: 'Reconnecting',
         message: 'Attempting to reconnect...',
-        icon: 'refresh',
         sound: NotificationSound.NewMessage
       })
       this.connectionState.set(ConnectionState.Connecting);

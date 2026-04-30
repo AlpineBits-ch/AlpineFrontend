@@ -9,6 +9,7 @@ import {
 } from '@tauri-apps/plugin-notification';
 import { UserSettingsService } from './user-settings.service';
 import { ToastService } from '../toast/toast.service';
+import type { ProfileDto } from '../dtos/response/profile.dto';
 
 export enum NotificationSound {
   None,
@@ -59,7 +60,7 @@ export class NotificationService {
   async createNotification(params: {
     message: string;
     title: string;
-    icon: string | undefined;
+    profile?: ProfileDto;
     sound: NotificationSound;
     category?: NotificationCategory;
     actionTypeId?: string;
@@ -80,7 +81,6 @@ export class NotificationService {
       sendNotification({
         title: params.title,
         body: params.message,
-        icon: params.icon,
         actionTypeId,
         extra,
       });
@@ -88,10 +88,9 @@ export class NotificationService {
       this.toastService.show({
         title: params.title,
         body: params.message,
-        avatarUrl: params.icon,
-        sound: ns.sounds && params.sound === NotificationSound.NewMessage
-          ? '/assets/sounds/new_message.wav'
-          : false,
+        avatarUrl: params.profile?.avatarUrl,
+        avatarLabel: params.profile?.userName,
+        sound: ns.sounds && params.sound === NotificationSound.NewMessage,
         onClick: () => this.action$.next({ actionTypeId, extra }),
       });
     }

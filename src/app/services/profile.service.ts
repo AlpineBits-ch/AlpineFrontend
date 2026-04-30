@@ -17,6 +17,7 @@ const FALLBACK_PROFILE: ProfileDto = {
   userName:  'Unknown User',
   hash:      0,
   bio:       undefined,
+  avatarUrl: undefined,
   createdAt: new Date(),
   updatedAt: new Date(),
 };

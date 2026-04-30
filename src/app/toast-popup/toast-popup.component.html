@@ -1,8 +1,9 @@
 <div class="card" [class.leaving]="leaving" (click)="handleClick()">
 
   <div class="avatar">
-    @if (avatarUrl) {
-      <img class="avatar__img" [src]="avatarUrl" [alt]="title" />
+    @if (avatarUrl && !avatarBroken) {
+      <img class="avatar__img" [src]="avatarUrl" [alt]="title"
+           (error)="onAvatarError()" />
     } @else {
       <div class="avatar__fallback">{{ avatarLetter }}</div>
     }

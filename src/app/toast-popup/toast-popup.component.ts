@@ -20,6 +20,7 @@ export class ToastPopupComponent implements OnInit, OnDestroy {
   protected avatarLetter = '';
   protected duration = 5000;
   protected leaving = false;
+  protected avatarBroken = false;
 
   ngOnInit(): void {
     document.documentElement.style.background = 'transparent';
@@ -60,6 +61,8 @@ export class ToastPopupComponent implements OnInit, OnDestroy {
     ).catch(() => {});
     this.bc.postMessage({ type: 'clicked', id: this.id });
   }
+
+  protected onAvatarError(): void { this.avatarBroken = true; }
 
   protected handleDismiss(event: MouseEvent): void {
     event.stopPropagation();

@@ -85,7 +85,6 @@ export class VoiceWebsocketService {
       this.notificationService.createNotification({
         title: 'Reconnecting',
         message: 'Attempting to reconnect...',
-        icon: 'refresh',
         sound: NotificationSound.NewMessage
       })
       this.connectionState.set(ConnectionState.Connecting);

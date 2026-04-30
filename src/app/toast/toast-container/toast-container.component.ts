@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { ToastService } from '../toast.service';
 import type { ToastItem } from '../toast.types';
 
@@ -9,6 +9,7 @@ import type { ToastItem } from '../toast.types';
 })
 export class ToastContainerComponent {
   protected toast = inject(ToastService);
+  protected brokenAvatars = signal(new Set<string>());
 
   protected handleClick(item: ToastItem): void {
     item.onClick?.();
@@ -22,5 +23,9 @@ export class ToastContainerComponent {
 
   protected avatarLetter(item: ToastItem): string {
     return (item.avatarLabel ?? item.title).charAt(0).toUpperCase();
+  }
+
+  protected onAvatarError(id: string): void {
+    this.brokenAvatars.update(s => new Set(s).add(id));
   }
 }
