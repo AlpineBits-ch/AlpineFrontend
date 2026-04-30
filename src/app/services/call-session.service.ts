@@ -224,8 +224,18 @@ export class CallSessionService {
     const s = this.session();
     const conv = this.conversationStore.entities().find(c => c.id === s?.conversationId);
     const displayName = conv?.members.find(m => m.userId === userId)?.cachedUserName ?? 'Unknown';
-    const share: ScreenShareUi = { shareId, userId, displayName, isLocal: false, stream };
-    this.session.update(st => st ? { ...st, screenShares: [...st.screenShares, share] } : st);
+    this.session.update(st => {
+      if (!st) return st;
+      const idx = st.screenShares.findIndex(sh => sh.shareId === shareId);
+      if (idx !== -1) {
+        if (!stream) return st;
+        const updated = [...st.screenShares];
+        updated[idx] = { ...updated[idx], stream };
+        return { ...st, screenShares: updated };
+      }
+      const share: ScreenShareUi = { shareId, userId, displayName, isLocal: false, stream };
+      return { ...st, screenShares: [...st.screenShares, share] };
+    });
   }
 
   onScreenShareStopped(shareId: string): void {

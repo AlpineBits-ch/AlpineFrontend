@@ -412,6 +412,10 @@ export class CallWebRtcService {
       const audio = new Audio();
       audio.srcObject = stream;
       audio.autoplay = true;
+      const speakerId = this.audioSettings.settings().speakerId;
+      if (speakerId && speakerId !== 'default' && typeof (audio as any).setSinkId === 'function') {
+        (audio as any).setSinkId(speakerId).catch(() => void 0);
+      }
       audio.play().catch(() => void 0);
       this.remoteAudio.get(info.userId)?.pause();
       this.remoteAudio.set(info.userId, audio);
