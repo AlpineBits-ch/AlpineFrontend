@@ -71,9 +71,21 @@
     </div>
   </div>
 
+  <!-- Typing indicator -->
+  @if (typingText(); as text) {
+    <div class="px-5 pb-1 pt-0.5 flex items-center gap-2 text-white/40 text-xs shrink-0 select-none">
+      <span class="flex gap-0.5 items-end">
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+        <span class="typing-dot"></span>
+      </span>
+      {{ text }}
+    </div>
+  }
+
   <!-- Composer -->
   <footer class="shrink-0">
-    <app-composer class="block" [friends]="friends()" (message)="createMessage($event)"></app-composer>
+    <app-composer class="block" [friends]="friends()" (message)="createMessage($event)" (typing)="onTyping()"></app-composer>
   </footer>
 
 </div>

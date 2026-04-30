@@ -25,6 +25,8 @@ import { RelationshipService } from '../../../../services/relationship.service';
 import { CallStateService } from '../../../../services/call-state.service';
 import { CallSessionService } from '../../../../services/call-session.service';
 import { CallPanelComponent } from './call-panel/call-panel.component';
+import { MessagingWebsocketService } from '../../../../services/messaging-websocket.service';
+import { TypingService } from '../../../../services/typing.service';
 
 const SCROLL_BOTTOM_THRESHOLD = 100; // px from bottom — auto-scroll kicks in
 const LOAD_MORE_THRESHOLD = 150;     // px from top — fetch older messages
@@ -45,6 +47,8 @@ export class ConversationComponent implements AfterViewInit {
   private relationshipService = inject(RelationshipService);
   private callStateService = inject(CallStateService);
   private callSessionService = inject(CallSessionService);
+  private messagingWs = inject(MessagingWebsocketService);
+  private typingService = inject(TypingService);
 
   protected activeCall = computed(() => {
     const s = this.callSessionService.session();
@@ -66,6 +70,17 @@ export class ConversationComponent implements AfterViewInit {
     const ownId = this.profileService.ownProfile()?.userId;
     const others = this.conversation().members.filter(m => m.userId !== ownId);
     return (others[0]?.cachedUserName?.[0] ?? '?').toUpperCase();
+  });
+
+  protected typingText = computed(() => {
+    const ownId = this.profileService.ownProfile()?.userId;
+    const ids = [...(this.typingService.state().get(this.conversation().id) ?? [])].filter(id => id !== ownId);
+    if (ids.length === 0) return null;
+    const members = this.conversation().members;
+    const names = ids.map(id => members.find(m => m.userId === id)?.cachedUserName ?? 'Someone');
+    if (names.length === 1) return `${names[0]} is typing…`;
+    if (names.length === 2) return `${names[0]} and ${names[1]} are typing…`;
+    return 'Several people are typing…';
   });
 
   @ViewChild('messageScroll') private scrollRef!: ElementRef<HTMLDivElement>;
@@ -165,6 +180,10 @@ export class ConversationComponent implements AfterViewInit {
   }
 
   // ── Actions ──────────────────────────────────────────────────────────────
+
+  protected onTyping(): void {
+    this.messagingWs.invokeStartTyping(this.conversation().id);
+  }
 
   protected startCall(): void {
     const ownId = this.profileService.ownProfile()?.userId;

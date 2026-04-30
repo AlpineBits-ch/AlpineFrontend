@@ -38,6 +38,11 @@ export interface MessageDeletedEvent {
 export interface ConversationRemoved {
   conversationId: string;
 }
+
+export interface UserTypingEvent {
+  conversationId: string;
+  userId: string;
+}
 @Injectable({
   providedIn: 'root',
 })
@@ -52,6 +57,7 @@ export class MessagingWebsocketService {
   public messageDeletedObservable = new Subject<MessageDeletedEvent>()
   public conversationRemovedObservable = new Subject<ConversationRemoved>()
   public conversationMemberRemovedObservable = new Subject<ConversationMemberRemoved>()
+  public userTypingObservable = new Subject<UserTypingEvent>()
 
 
   public connectionState = signal(ConnectionState.Disconnected)
@@ -104,6 +110,10 @@ export class MessagingWebsocketService {
     this.hubConnection.on('MemberLeft', async (data: ConversationMemberRemoved) => {
       console.log('Conversation member removed:', data);
       this.conversationMemberRemovedObservable.next(data);
+    })
+
+    this.hubConnection.on('UserTyping', (data: UserTypingEvent) => {
+      this.userTypingObservable.next(data);
     })
 
 
@@ -159,6 +169,12 @@ export class MessagingWebsocketService {
       this.connectionState.set(ConnectionState.Connected);
     })
 
+  }
+
+  invokeStartTyping(conversationId: string): void {
+    if (this.hubConnection.state === signalR.HubConnectionState.Connected) {
+      this.hubConnection.invoke('StartTyping', conversationId).catch(() => void 0);
+    }
   }
 
 }

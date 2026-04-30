@@ -11,6 +11,8 @@ import { ConversationService } from '../../../../services/conversation.service';
 import { MessageStore } from '../../../../stores/message.store';
 import { ToastService } from '../../../../services/toast.service';
 import { NavigationService } from '../../navigation.service';
+import { TypingService } from '../../../../services/typing.service';
+import { MessagingWebsocketService } from '../../../../services/messaging-websocket.service';
 
 @Component({
   selector: 'app-conversation-list',
@@ -30,13 +32,6 @@ import { NavigationService } from '../../navigation.service';
                 style({ opacity: 1, transform: 'translateY(0) scale(1)' })
             )
           ]),
-        ], { optional: true }),
-
-        // Move Animation: Smoother reordering (FLIP technique)
-        query(':move', [
-          animate('300ms cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-              style({ transform: 'none' }) // Ensures it settles perfectly
-          ),
         ], { optional: true }),
 
         // Leave Animation: Slide out to the right
@@ -59,6 +54,8 @@ export class ConversationListComponent {
   private conversationService = inject(ConversationService);
   private messageStore = inject(MessageStore);
   private toast = inject(ToastService);
+  private typingService = inject(TypingService);
+  private messagingWs = inject(MessagingWebsocketService);
 
   // Derived from navService so programmatic navigation (e.g. notification click)
   // updates the highlight without requiring a click in this list.
@@ -83,6 +80,13 @@ export class ConversationListComponent {
 
   constructor() {
     this.conversationStore.loadInitial();
+
+    // Update preview when a new message arrives via WebSocket
+    this.messagingWs.messageObservable.subscribe(msg => {
+      if (msg.conversationId) {
+        this.lastMessages.update(map => new Map(map).set(msg.conversationId!, msg));
+      }
+    });
 
     // Whenever the conversation list changes, fetch the last message for any new entries
     effect(() => {
@@ -137,6 +141,15 @@ export class ConversationListComponent {
 
   public getUnreadCount(convId: string): number {
     return this.unreadCounts().get(convId) ?? 0;
+  }
+
+  public getTypingLabel(conv: ConversationDto): string | null {
+    const ownId = this.profileService.ownProfile()?.userId;
+    const ids = [...(this.typingService.state().get(conv.id) ?? [])].filter(id => id !== ownId);
+    if (ids.length === 0) return null;
+    const names = ids.map(id => conv.members.find(m => m.userId === id)?.cachedUserName ?? 'Someone');
+    if (names.length === 1) return `${names[0]} is typing…`;
+    return 'Several people are typing…';
   }
 
   /** Call this when a real-time message arrives to update the preview */

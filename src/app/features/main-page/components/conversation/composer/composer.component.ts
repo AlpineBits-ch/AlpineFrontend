@@ -29,6 +29,7 @@ export class ComposerComponent {
   friends = input<RelationshipModel[]>([]);
   message = output<{ content: string; attachments: string[] }>();
   commandAction = output<{ name: string; payload?: unknown }>();
+  typing = output<void>();
 
   // ── View ─────────────────────────────────────────────────────────────────
 
@@ -84,6 +85,10 @@ export class ComposerComponent {
     return paramHints ? `/${cmd.name} ${paramHints} — press Enter to send` : `/${cmd.name} — press Enter to send`;
   });
 
+  // ── Typing throttle ───────────────────────────────────────────────────────
+
+  private typingThrottle: ReturnType<typeof setTimeout> | null = null;
+
   // ── Trigger range ─────────────────────────────────────────────────────────
 
   private triggerRange: Range | null = null;
@@ -138,6 +143,8 @@ export class ComposerComponent {
       }
     }
 
+    this.emitTypingIfNeeded(editor);
+
     const result = detectTrigger(editor);
     if (result) {
       this.overlayType.set(result.type);
@@ -151,6 +158,13 @@ export class ComposerComponent {
       this.closeOverlay();
       this.applyMarkdownHighlighting(editor);
     }
+  }
+
+  private emitTypingIfNeeded(editor: HTMLElement): void {
+    const hasContent = getMessage(editor).trim().length > 0;
+    if (!hasContent || this.typingThrottle !== null) return;
+    this.typing.emit();
+    this.typingThrottle = setTimeout(() => { this.typingThrottle = null; }, 2000);
   }
 
   private applyMarkdownHighlighting(editor: HTMLElement): void {
@@ -329,6 +343,7 @@ export class ComposerComponent {
   // ── Send ─────────────────────────────────────────────────────────────────
 
   send(): void {
+    if (this.typingThrottle !== null) { clearTimeout(this.typingThrottle); this.typingThrottle = null; }
     let text = getMessage(this.editorRef().nativeElement);
 
     const cmd = this.activeCommand();

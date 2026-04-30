@@ -32,7 +32,16 @@
           </div>
         </div>
 
-        @if (preview) {
+        @if (getTypingLabel(conv); as typingLabel) {
+          <span class="text-[11px] truncate flex items-center gap-1 text-brand-dim italic">
+            <span class="flex gap-0.5 items-end shrink-0">
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+              <span class="typing-dot"></span>
+            </span>
+            {{ typingLabel }}
+          </span>
+        } @else if (preview) {
           <span class="text-[11px] truncate block"
             [ngClass]="unread > 0 ? 'text-white/50 font-medium' : 'text-white/30'">
             <span class="text-white/45">{{ preview.sender }}:</span> {{ preview.text }}
