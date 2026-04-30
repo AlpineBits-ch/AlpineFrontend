@@ -4,8 +4,9 @@ import { CallDto } from '../dtos/response/call.dto';
 import { ConversationStore } from '../stores/conversation.store';
 import { ProfileService } from './profile.service';
 import { VoiceService } from './voice.service';
-import { MessagingWebsocketService } from './messaging-websocket.service';
-import {VoiceWebsocketService} from "./voice-websocket.service";
+import { VoiceWebsocketService } from './voice-websocket.service';
+import { CallSessionService } from './call-session.service';
+import { NavigationService } from '../features/main-page/navigation.service';
 
 export interface IncomingCallState {
   call: CallDto;
@@ -24,6 +25,8 @@ export class CallStateService implements OnDestroy {
   private voiceService = inject(VoiceService);
   private profileService = inject(ProfileService);
   private conversationStore = inject(ConversationStore);
+  private callSession = inject(CallSessionService);
+  private navService = inject(NavigationService);
 
   readonly incomingCall = signal<IncomingCallState | null>(null);
   readonly outgoingCall = signal<OutgoingCallState | null>(null);
@@ -40,13 +43,21 @@ export class CallStateService implements OnDestroy {
     document.addEventListener('keydown', this.devKeyHandler);
   }
 
-  // Ctrl+Alt+I → fake incoming  |  Ctrl+Alt+O → fake outgoing
+  // Ctrl+Alt+I → fake incoming  |  Ctrl+Alt+O → fake outgoing  |  Ctrl+Alt+C → fake active call
   private handleDevShortcut(e: KeyboardEvent): void {
     if (!e.ctrlKey || !e.altKey) return;
+
     if (e.key === 'I') {
       e.preventDefault();
       this.incomingCall.set({
-        call: { id: 'dev-fake', createdAt: new Date(), updatedAt: new Date(), tracks: [], participants: [] },
+        call: {
+          id: 'dev-fake',
+          conversationId: 'dev-conv',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          tracks: [],
+          participants: [],
+        },
         displayName: 'Alice Devman',
         avatarLabel: 'A',
       });
@@ -55,6 +66,32 @@ export class CallStateService implements OnDestroy {
       e.preventDefault();
       this.outgoingCall.set({ displayName: 'Bob Testuser', avatarLabel: 'B' });
       this.startRingback();
+    } else if (e.key === 'C') {
+      e.preventDefault();
+      // If already in a call, end it (toggle behaviour)
+      if (this.callSession.session()) {
+        this.callSession.end();
+        return;
+      }
+      // Use the currently open conversation, fall back to first in store
+      const view = this.navService.mainView();
+      const conv = view.type === 'conversation'
+        ? view.conversation
+        : this.conversationStore.entities()[0];
+      if (!conv) return;
+      const ownId = this.profileService.ownProfile()?.userId ?? 'me';
+      // Participants = all actual members of the conversation
+      this.callSession.join(
+        {
+          id: 'dev-call',
+          conversationId: conv.id,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          tracks: [],
+          participants: conv.members.map(m => ({ userId: m.userId })),
+        },
+        conv.id,
+      );
     }
   }
 
@@ -86,23 +123,37 @@ export class CallStateService implements OnDestroy {
     this.outgoingCall.set({ displayName, avatarLabel });
     this.startRingback();
     this.voiceService.createCall({ conversationId, participants }).subscribe({
+      next: (callDto) => {
+        this.stopRingtone();
+        this.outgoingCall.set(null);
+        this.callSession.join(callDto, conversationId);
+      },
       error: () => { this.outgoingCall.set(null); this.stopRingtone(); },
     });
   }
 
   accept(): void {
+    const incoming = this.incomingCall();
+    if (!incoming) return;
     this.stopRingtone();
     this.incomingCall.set(null);
+    this.voiceService.acceptCall(incoming.call.id).subscribe({
+      next: (callDto) => this.callSession.join(callDto, callDto.conversationId),
+    });
   }
 
   reject(): void {
+    const incoming = this.incomingCall();
+    if (!incoming) return;
     this.stopRingtone();
     this.incomingCall.set(null);
+    this.voiceService.declineCall(incoming.call.id).subscribe();
   }
 
   cancelOutgoing(): void {
     this.stopRingtone();
     this.outgoingCall.set(null);
+    // Call is being set up — end it once we have an ID (handled by WebRTC service later)
   }
 
   // ── Web Audio ────────────────────────────────────────────────────────

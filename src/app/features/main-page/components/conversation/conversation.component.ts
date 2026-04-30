@@ -23,13 +23,15 @@ import { ProfileService } from '../../../../services/profile.service';
 import { MessageDto } from '../../../../dtos/response/message.dto';
 import { RelationshipService } from '../../../../services/relationship.service';
 import { CallStateService } from '../../../../services/call-state.service';
+import { CallSessionService } from '../../../../services/call-session.service';
+import { CallPanelComponent } from './call-panel/call-panel.component';
 
 const SCROLL_BOTTOM_THRESHOLD = 100; // px from bottom — auto-scroll kicks in
 const LOAD_MORE_THRESHOLD = 150;     // px from top — fetch older messages
 
 @Component({
   selector: 'app-conversation',
-  imports: [ComposerComponent, MessageComponent, Avatar, Button],
+  imports: [ComposerComponent, MessageComponent, Avatar, Button, CallPanelComponent],
   templateUrl: './conversation.component.html',
   styleUrl: './conversation.component.css',
 })
@@ -42,6 +44,12 @@ export class ConversationComponent implements AfterViewInit {
   private profileService = inject(ProfileService);
   private relationshipService = inject(RelationshipService);
   private callStateService = inject(CallStateService);
+  private callSessionService = inject(CallSessionService);
+
+  protected activeCall = computed(() => {
+    const s = this.callSessionService.session();
+    return s?.conversationId === this.conversation().id ? s : null;
+  });
 
   protected friends = toSignal(this.relationshipService.getRelationships(), { initialValue: [] });
 

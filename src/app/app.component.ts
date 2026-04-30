@@ -8,6 +8,7 @@ import {CallOverlayComponent} from "./features/call/call-overlay/call-overlay.co
 import {getCurrentWindow} from "@tauri-apps/api/window";
 import {TitlebarComponent} from "./titlebar/titlebar.component";
 import {ToastContainerComponent} from "./toast/toast-container/toast-container.component";
+import {CallWebRtcService} from "./services/call-webrtc.service";
 
 @Component({
   selector: "app-root",
@@ -17,6 +18,8 @@ import {ToastContainerComponent} from "./toast/toast-container/toast-container.c
 })
 export class AppComponent {
   private profileService = inject(ProfileService);
+  // Eagerly instantiate CallWebRtcService so its session-watch effect starts immediately
+  private callWebRtc = inject(CallWebRtcService);
   protected readonly isPopup = window.location.pathname === '/toast-popup';
 
   public ngOnInit(): void {

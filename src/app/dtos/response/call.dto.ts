@@ -1,5 +1,6 @@
 ﻿export interface CallDto {
     id: string;
+    conversationId: string;
     createdAt: Date;
     updatedAt: Date;
     tracks: CallTack[];

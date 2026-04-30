@@ -29,6 +29,11 @@
     </div>
   </header>
 
+  <!-- Active call panel — shown only when this conversation has an ongoing call -->
+  @if (activeCall()) {
+    <app-call-panel />
+  }
+
   <!-- Messages scroll container -->
   <div
     #messageScroll

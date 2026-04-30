@@ -1,0 +1,148 @@
+@let s = session();
+@if (s) {
+
+  <div class="panel">
+
+    <!-- ── Status bar ──────────────────────────────────────────────────── -->
+    <div class="status-bar">
+      <span class="live-dot"></span>
+      <span class="status-label">Voice Call · {{ duration }}</span>
+    </div>
+
+    <!-- ── Participants grid ───────────────────────────────────────────── -->
+    <div class="participants" [attr.data-count]="s.participants.length">
+      @for (p of s.participants; track p.userId) {
+        <div class="tile" [class.tile--speaking]="p.isSpeaking">
+
+          <div class="avatar-ring" [class.ring--speaking]="p.isSpeaking" [class.ring--video]="p.isCameraOn">
+            @if (p.isCameraOn && p.videoStream) {
+              <video class="avatar-video" autoplay playsinline muted
+                     [class.avatar-video--mirror]="p.isLocal"
+                     [srcObject]="p.videoStream"></video>
+            } @else if (p.avatarUrl) {
+              <img class="avatar-img" [src]="p.avatarUrl" [alt]="p.displayName" />
+            } @else {
+              <div class="avatar-fallback">{{ p.avatarLabel }}</div>
+            }
+          </div>
+
+          <div class="tile-footer">
+            <span class="tile-name">{{ p.isLocal ? 'You' : p.displayName }}</span>
+            <div class="tile-icons">
+              @if (p.isMuted) {
+                <span class="icon-badge icon-badge--muted" title="Muted">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
+                    <path d="M12 1a4 4 0 0 0-4 4v7a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4z" opacity=".5"/>
+                    <path d="M19 11a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V20H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2h-2v-2.08A7 7 0 0 0 19 11z"/>
+                    <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                  </svg>
+                </span>
+              }
+              @if (p.isCameraOn) {
+                <span class="icon-badge" title="Camera on">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
+                    <path d="M15 8v8H5V8h10m1-2H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4V7a1 1 0 0 0-1-1z"/>
+                  </svg>
+                </span>
+              }
+            </div>
+          </div>
+
+        </div>
+      }
+    </div>
+
+    <!-- ── Screen shares ───────────────────────────────────────────────── -->
+    @if (s.screenShares.length > 0) {
+      <div class="shares-row">
+        @for (share of s.screenShares; track share.shareId) {
+          <div class="share-tile">
+            <div class="share-preview">
+              @if (share.stream) {
+                <video class="share-video" autoplay playsinline muted [srcObject]="share.stream"></video>
+              } @else {
+                <div class="share-empty">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+                    <path d="M21 3H3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7v2h4v-2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 16H3V5h18v14z"/>
+                    <path d="M12 6l-4 4h3v4h2v-4h3z"/>
+                  </svg>
+                </div>
+              }
+            </div>
+            <div class="share-footer">
+              <span class="share-label">{{ share.displayName }}'s screen</span>
+              <button class="join-btn" (click)="joinScreenShare(share.shareId)">Join</button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- ── Controls bar ────────────────────────────────────────────────── -->
+    <div class="controls">
+
+      <!-- Mute -->
+      <button class="ctrl-btn" [class.ctrl-btn--off]="s.local.isMuted"
+        (click)="toggleMute()" [title]="s.local.isMuted ? 'Unmute' : 'Mute'">
+        @if (s.local.isMuted) {
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+            <path d="M12 1a4 4 0 0 0-4 4v7a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4z" opacity=".5"/>
+            <path d="M19 11a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V20H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2h-2v-2.08A7 7 0 0 0 19 11z"/>
+            <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        } @else {
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+            <path d="M12 1a4 4 0 0 0-4 4v7a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4z"/>
+            <path d="M19 11a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V20H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2h-2v-2.08A7 7 0 0 0 19 11z"/>
+          </svg>
+        }
+      </button>
+
+      <!-- Deafen -->
+      <button class="ctrl-btn" [class.ctrl-btn--off]="s.local.isDeafened"
+        (click)="toggleDeafen()" [title]="s.local.isDeafened ? 'Undeafen' : 'Deafen'">
+        @if (s.local.isDeafened) {
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+            <path d="M12 3a9 9 0 0 0-9 9v3a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H5v-1a7 7 0 0 1 14 0v1h-2a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-3a9 9 0 0 0-9-9z" opacity=".5"/>
+            <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+        } @else {
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+            <path d="M12 3a9 9 0 0 0-9 9v3a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H5v-1a7 7 0 0 1 14 0v1h-2a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-3a9 9 0 0 0-9-9z"/>
+          </svg>
+        }
+      </button>
+
+      <!-- Camera -->
+      <button class="ctrl-btn" [class.ctrl-btn--on]="s.local.isCameraOn"
+        [class.ctrl-btn--off]="!s.local.isCameraOn"
+        (click)="toggleCamera()" title="Toggle camera">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+          <path d="M15 8v8H5V8h10m1-2H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4V7a1 1 0 0 0-1-1z"/>
+        </svg>
+      </button>
+
+      <!-- Screen share -->
+      <button class="ctrl-btn" [class.ctrl-btn--on]="s.local.isSharing"
+        [class.ctrl-btn--off]="!s.local.isSharing"
+        (click)="toggleScreenShare()" title="Toggle screen share">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+          <path d="M21 3H3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7v2h4v-2h7a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 16H3V5h18v14z"/>
+          <path d="M12 6l-4 4h3v4h2v-4h3z"/>
+        </svg>
+      </button>
+
+      <div class="ctrl-divider"></div>
+
+      <!-- End call -->
+      <button class="ctrl-btn ctrl-btn--end" (click)="endCall()" title="End call">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+          <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+        </svg>
+      </button>
+
+    </div>
+
+  </div>
+
+}

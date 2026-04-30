@@ -23,7 +23,9 @@
       "Bash(grep -E \"\\\\.\\(ts|html\\)$\")",
       "Bash(grep -E \"\\\\.service\\\\.ts$\")",
       "Bash(grep -E \"\\\\.rs$\")",
-      "Bash(grep -r \"action\\\\$\" /c/Users/Domin/WebstormProjects/Alpine/src --include=\"*.ts\" -n)"
+      "Bash(grep -r \"action\\\\$\" /c/Users/Domin/WebstormProjects/Alpine/src --include=\"*.ts\" -n)",
+      "WebFetch(domain:developers.cloudflare.com)",
+      "WebFetch(domain:raw.githubusercontent.com)"
     ]
   }
 }
