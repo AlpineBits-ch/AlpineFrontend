@@ -162,9 +162,14 @@ export class CallStateService implements OnDestroy {
   }
 
   cancelOutgoing(): void {
+    this.pendingCallSub?.unsubscribe();
+    this.pendingCallSub = null;
+    if (this.pendingCallDto) {
+      this.voiceService.endCall(this.pendingCallDto.id).subscribe();
+      this.pendingCallDto = null;
+    }
     this.stopRingtone();
     this.outgoingCall.set(null);
-    // Call is being set up — end it once we have an ID (handled by WebRTC service later)
   }
 
   // ── Web Audio ────────────────────────────────────────────────────────
@@ -256,6 +261,7 @@ export class CallStateService implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.pendingCallSub?.unsubscribe();
     this.stopRingtone();
     this.sub.unsubscribe();
     document.removeEventListener('keydown', this.devKeyHandler);
