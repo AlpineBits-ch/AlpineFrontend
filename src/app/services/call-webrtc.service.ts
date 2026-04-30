@@ -46,6 +46,9 @@ export class CallWebRtcService {
   // Audio elements for remote participants — browser won't auto-play WebRTC audio in Tauri/WebView2
   private readonly remoteAudio = new Map<string, HTMLAudioElement>();
 
+  // ontrack events that arrived before their midMap entry was written — replayed after subscribe completes
+  private readonly pendingTracks: RTCTrackEvent[] = [];
+
   // ── Speaking detection ───────────────────────────────────────────────────
   private audioCtx: AudioContext | null = null;
   private rafHandle: number | null = null;
@@ -194,6 +197,7 @@ export class CallWebRtcService {
     this.screenTrackName = null;
     this.screenShareId = null;
     this.midMap.clear();
+    this.pendingTracks.length = 0;
     this.negotiationChain = Promise.resolve();
     this.wsSubs = [];
     this.lastSpeaking = false;
@@ -369,7 +373,24 @@ export class CallWebRtcService {
     // Map the MID (from CF response or our transceiver) so handleRemoteTrack can route it
     const mid = results.find(r => r.trackName === trackName)?.mid ?? transceiver.mid;
     console.log('[WebRTC] midMap set', mid, '→', { userId, kind });
-    if (mid) this.midMap.set(mid, { userId, kind, shareId });
+    if (mid) {
+      this.midMap.set(mid, { userId, kind, shareId });
+      this.processPendingTracks();
+    }
+  }
+
+  private processPendingTracks(): void {
+    const remaining: RTCTrackEvent[] = [];
+    for (const event of this.pendingTracks) {
+      const mid = event.transceiver.mid;
+      if (mid && this.midMap.has(mid)) {
+        this.handleRemoteTrack(event);
+      } else {
+        remaining.push(event);
+      }
+    }
+    this.pendingTracks.length = 0;
+    this.pendingTracks.push(...remaining);
   }
 
   // ── Remote track routing ──────────────────────────────────────────────────
@@ -379,7 +400,10 @@ export class CallWebRtcService {
     console.log('[WebRTC] ontrack', { mid, kind: event.track.kind, midMapKeys: [...this.midMap.keys()] });
     if (!mid) return;
     const info = this.midMap.get(mid);
-    if (!info) return;
+    if (!info) {
+      this.pendingTracks.push(event);
+      return;
+    }
 
     const stream = event.streams[0] ?? new MediaStream([event.track]);
 
