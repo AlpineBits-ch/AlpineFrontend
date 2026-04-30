@@ -98,7 +98,7 @@ export class MessageComponent {
 
   public isOnlyEmoji = computed(() => {
     const content = this.content().trim();
-    if(content.length > 15) return false;
+    if(content.length > 30) return false;
     if (content.length === 0) return false;
 
     // Checks that the entire string consists only of emoji characters and combinations
