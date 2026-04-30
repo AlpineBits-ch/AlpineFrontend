@@ -1,8 +1,9 @@
-import { ChangeDetectionStrategy, Component, NgZone, OnDestroy, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, NgZone, OnDestroy, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NgClass } from '@angular/common';
 import { Select } from 'primeng/select';
 import { ToggleSwitch } from 'primeng/toggleswitch';
+import { AudioSettingsService } from '../../../../../services/audio-settings.service';
 
 interface DeviceOption {
   label: string;
@@ -17,33 +18,50 @@ interface DeviceOption {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VoiceVideoSettingsComponent implements OnDestroy {
-  readonly micOptions    = signal<DeviceOption[]>([{ label: 'Default', value: 'default' }]);
+  private audioSettings = inject(AudioSettingsService);
+  private zone = inject(NgZone);
+
+  readonly micOptions     = signal<DeviceOption[]>([{ label: 'Default', value: 'default' }]);
   readonly speakerOptions = signal<DeviceOption[]>([{ label: 'Default', value: 'default' }]);
   readonly cameraOptions  = signal<DeviceOption[]>([{ label: 'None', value: '' }]);
 
-  selectedMicId      = 'default';
-  selectedSpeakerId  = 'default';
-  selectedCameraId   = '';
+  // ── Persisted settings — setters write through to AudioSettingsService ───
+
+  get selectedMicId(): string { return this.audioSettings.settings().micId; }
+  set selectedMicId(v: string) { this.audioSettings.update({ micId: v }); }
+
+  get selectedSpeakerId(): string { return this.audioSettings.settings().speakerId; }
+  set selectedSpeakerId(v: string) { this.audioSettings.update({ speakerId: v }); }
+
+  get selectedCameraId(): string { return this.audioSettings.settings().cameraId; }
+  set selectedCameraId(v: string) { this.audioSettings.update({ cameraId: v }); }
+
+  get noiseSuppression(): boolean { return this.audioSettings.settings().noiseSuppression; }
+  set noiseSuppression(v: boolean) { this.audioSettings.update({ noiseSuppression: v }); }
+
+  get echoCancellation(): boolean { return this.audioSettings.settings().echoCancellation; }
+  set echoCancellation(v: boolean) { this.audioSettings.update({ echoCancellation: v }); }
+
+  get autoGainControl(): boolean { return this.audioSettings.settings().autoGainControl; }
+  set autoGainControl(v: boolean) { this.audioSettings.update({ autoGainControl: v }); }
+
+  // ── Mic test state ───────────────────────────────────────────────────────
 
   readonly micLevel        = signal(0);
   readonly isMicActive     = signal(false);
   readonly isVoiceTesting  = signal(false);
   readonly permissionError = signal(false);
 
-  noiseSuppression = true;
-  echoCancellation = true;
-  autoGainControl  = true;
-
   readonly micBars = Array.from({ length: 24 }, (_, i) => i);
 
-  private audioCtx:   AudioContext | null  = null;
-  private analyser:   AnalyserNode | null  = null;
-  private gainNode:   GainNode | null      = null;
-  private micStream:  MediaStream | null   = null;
+  private audioCtx:    AudioContext | null = null;
+  private analyser:    AnalyserNode | null = null;
+  private gainNode:    GainNode | null     = null;
+  private micStream:   MediaStream | null  = null;
   private animFrameId: number | null       = null;
   private lastTick = 0;
 
-  constructor(private zone: NgZone) {
+  constructor() {
     void this.loadDevices();
   }
 
@@ -91,12 +109,7 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     if (!navigator?.mediaDevices) return;
     try {
       this.micStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          deviceId: this.selectedMicId !== 'default' ? { exact: this.selectedMicId } : undefined,
-          noiseSuppression: this.noiseSuppression,
-          echoCancellation: this.echoCancellation,
-          autoGainControl:  this.autoGainControl,
-        },
+        audio: this.audioSettings.buildAudioConstraint(),
       });
       this.audioCtx = new AudioContext();
       const source = this.audioCtx.createMediaStreamSource(this.micStream);

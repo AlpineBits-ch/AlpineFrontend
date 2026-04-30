@@ -3,6 +3,7 @@ import { firstValueFrom, Subscription } from 'rxjs';
 import { CallSessionService } from './call-session.service';
 import { VoiceService, CfTrackNew, CfTrackResult } from './voice.service';
 import { VoiceWebsocketService } from './voice-websocket.service';
+import { AudioSettingsService } from './audio-settings.service';
 
 /**
  * Manages the full WebRTC lifecycle for a Cloudflare Calls SFU session.
@@ -26,6 +27,7 @@ export class CallWebRtcService {
   private callSession = inject(CallSessionService);
   private voiceService = inject(VoiceService);
   private voiceWs = inject(VoiceWebsocketService);
+  private audioSettings = inject(AudioSettingsService);
 
   // ── WebRTC state ─────────────────────────────────────────────────────────
   private pc: RTCPeerConnection | null = null;
@@ -113,16 +115,9 @@ export class CallWebRtcService {
   private async connect(callId: string): Promise<void> {
     this.callId = callId; // Set immediately so re-entry is prevented
 
-    const iceDto = await firstValueFrom(this.voiceService.getIceServers());
-    if (!this.callId) return;
-
-    this.pc = new RTCPeerConnection({
-      iceServers: iceDto.iceServers.map(s => ({
-        urls: s.urls,
-        username: s.username,
-        credential: s.credential,
-      })),
-    });
+    // CF Calls SFU has a publicly routable server — no STUN/TURN needed.
+    // bundlePolicy: 'max-bundle' is required by Cloudflare Calls.
+    this.pc = new RTCPeerConnection({ bundlePolicy: 'max-bundle' });
     this.pc.ontrack = (e) => this.handleRemoteTrack(e);
 
     // TODO(backend): Implement POST /api/v1/messaging/voice/calls/{callId}/session.
@@ -141,7 +136,10 @@ export class CallWebRtcService {
     // Acquire microphone (video is handled separately by CallSessionService.toggleCamera)
     let micStream: MediaStream;
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: this.audioSettings.buildAudioConstraint(),
+        video: false,
+      });
     } catch {
       console.warn('[WebRTC] Microphone access denied — joining without audio');
       this.setupWsListeners();
