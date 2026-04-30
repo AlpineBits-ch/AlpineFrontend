@@ -81,12 +81,14 @@ export class ConversationListComponent {
   constructor() {
     this.conversationStore.loadInitial();
 
-    // Update preview when a new message arrives via WebSocket
-    this.messagingWs.messageObservable.subscribe(msg => {
+    // Update preview on inbound WS messages and outbound confirmed sends
+    const updatePreview = (msg: MessageDto) => {
       if (msg.conversationId) {
         this.lastMessages.update(map => new Map(map).set(msg.conversationId!, msg));
       }
-    });
+    };
+    this.messagingWs.messageObservable.subscribe(updatePreview);
+    this.messagingService.messageSentObservable.subscribe(updatePreview);
 
     // Whenever the conversation list changes, fetch the last message for any new entries
     effect(() => {

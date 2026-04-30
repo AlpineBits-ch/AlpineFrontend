@@ -222,7 +222,10 @@ export class ConversationComponent implements AfterViewInit {
       conversationId: this.conversation().id,
       attachments,
     }).pipe(
-      tap(confirmed => this.messageStore.confirmMessage(tempId, confirmed)),
+      tap(confirmed => {
+        this.messageStore.confirmMessage(tempId, confirmed);
+        this.messagingService.messageSentObservable.next(confirmed);
+      }),
       catchError(() => {
         this.messageStore.failMessage(tempId);
         return EMPTY;
