@@ -355,20 +355,20 @@ export class CallWebRtcService {
     shareId?: string,
   ): Promise<void> {
     if (!this.pc) return;
+    console.log('[WebRTC] subscribeToTrack', { userId, remoteCfSessionId, trackName, kind });
     const mediaKind = kind === 'audio' ? 'audio' : 'video';
     const transceiver = this.pc.addTransceiver(mediaKind, { direction: 'recvonly' });
 
-    // TODO(backend): The cfTracksNew endpoint must also handle remote-track subscription.
-    // When a track has location='remote', the backend proxies to CF which fills in
-    // the recvonly m-line in the answer SDP with the remote participant's track.
     const results = await this.offerAnswerCycle(() => [{
       location: 'remote',
       sessionId: remoteCfSessionId,
       trackName,
     }]);
+    console.log('[WebRTC] subscribeToTrack results', results);
 
     // Map the MID (from CF response or our transceiver) so handleRemoteTrack can route it
     const mid = results.find(r => r.trackName === trackName)?.mid ?? transceiver.mid;
+    console.log('[WebRTC] midMap set', mid, '→', { userId, kind });
     if (mid) this.midMap.set(mid, { userId, kind, shareId });
   }
 
@@ -376,6 +376,7 @@ export class CallWebRtcService {
 
   private handleRemoteTrack(event: RTCTrackEvent): void {
     const mid = event.transceiver.mid;
+    console.log('[WebRTC] ontrack', { mid, kind: event.track.kind, midMapKeys: [...this.midMap.keys()] });
     if (!mid) return;
     const info = this.midMap.get(mid);
     if (!info) return;
@@ -438,6 +439,7 @@ export class CallWebRtcService {
     this.wsSubs = [
       // Someone joined → add to UI and subscribe to their audio track
       this.voiceWs.participantJoinedObservable.subscribe(e => {
+        console.log('[WebRTC] ParticipantJoined received in WS listener', e);
         this.callSession.onParticipantJoined(e.userId);
         void this.subscribeToTrack(e.userId, e.cfSessionId, e.audioTrackName, 'audio');
       }),
