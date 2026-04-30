@@ -95,7 +95,8 @@
             Friends — {{ list.length }}
           </p>
           @for (rel of list; track rel.id) {
-            <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all group">
+            <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all group cursor-pointer"
+                 (click)="profileDialogSvc.open(rel.target.userId)">
               <div class="relative shrink-0">
                 <app-avatar [userId]="rel.target.userId" [label]="rel.target.userName[0].toUpperCase()" size="normal" />
                 <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-app-bg"
@@ -107,7 +108,8 @@
                   {{ getOnlineStatus(rel.target.userId) === OnlineStatus.Online ? 'Online' : 'Offline' }}
                 </p>
               </div>
-              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                   (click)="$event.stopPropagation()">
                 <button class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.06] border-0 bg-transparent cursor-pointer transition-all" (click)="createConversation(rel.target.userId)" title="Message">
                   <i class="pi pi-comment text-xs" style="color: rgba(255,255,255,0.55)"></i>
                 </button>
@@ -134,13 +136,14 @@
             <p class="text-sm text-white/25 italic py-2">No incoming requests.</p>
           } @else {
             @for (rel of incoming(); track rel.id) {
-              <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all">
+              <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all group cursor-pointer"
+                   (click)="profileDialogSvc.open(rel.target.userId)">
                 <app-avatar [userId]="rel.target.userId" [label]="rel.target.userName[0].toUpperCase()" size="normal" />
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-semibold text-white/80">{{ rel.target.userName }}<span class="text-white/30 font-normal">#{{ rel.target.hash }}</span></p>
                   <p class="text-xs text-white/35">Incoming friend request</p>
                 </div>
-                <div class="flex items-center gap-1.5">
+                <div class="flex items-center gap-1.5" (click)="$event.stopPropagation()">
                   <p-button icon="pi pi-check" label="Accept" [text]="true" severity="success" size="small" (onClick)="accept(rel.id)" />
                   <p-button icon="pi pi-times" label="Decline" [text]="true" severity="danger" size="small" (onClick)="decline(rel.id)" />
                 </div>
@@ -160,13 +163,14 @@
             <p class="text-sm text-white/25 italic py-2">No sent requests.</p>
           } @else {
             @for (rel of outgoing(); track rel.id) {
-              <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all">
+              <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all group cursor-pointer"
+                   (click)="profileDialogSvc.open(rel.target.userId)">
                 <app-avatar [userId]="rel.target.userId" [label]="rel.target.userName[0].toUpperCase()" size="normal" />
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-semibold text-white/80">{{ rel.target.userName }}<span class="text-white/30 font-normal">#{{ rel.target.hash }}</span></p>
                   <p class="text-xs text-white/35">Friend request sent</p>
                 </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2" (click)="$event.stopPropagation()">
                   <span class="text-[11px] font-medium text-amber-400/70 bg-amber-400/10 px-2.5 py-1 rounded-lg">Pending</span>
                   <p-button icon="pi pi-times" label="Cancel" [text]="true" severity="danger" size="small" (onClick)="cancel(rel.id)" />
                 </div>
@@ -191,13 +195,16 @@
           </div>
         } @else {
           @for (rel of blocked(); track rel.id) {
-            <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all">
+            <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all group cursor-pointer"
+                 (click)="profileDialogSvc.open(rel.target.userId)">
               <app-avatar [userId]="rel.target.userId" [label]="rel.target.userName[0].toUpperCase()" size="normal" />
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-semibold text-white/50">{{ rel.target.userName }}<span class="text-white/25 font-normal">#{{ rel.target.hash }}</span></p>
                 <p class="text-xs text-white/25">Blocked</p>
               </div>
-              <p-button label="Unblock" [text]="true" severity="secondary" size="small" (onClick)="unblock(rel.id)" />
+              <div (click)="$event.stopPropagation()">
+                <p-button label="Unblock" [text]="true" severity="secondary" size="small" (onClick)="unblock(rel.id)" />
+              </div>
             </div>
           }
         }

@@ -1,13 +1,15 @@
 import { Component, computed, inject, input } from '@angular/core';
-import { AppAvatarComponent } from '../../../../components/avatar/avatar.component';
 import { NgClass } from '@angular/common';
 import { ConversationDto } from '../../../../dtos/response/conversation.dto';
-import { ProfileService } from '../../../../services/profile.service';
 import { OnlineStatus } from '../../../../dtos/response/profile.dto';
+import { AppAvatarComponent } from '../../../../components/avatar/avatar.component';
+import { UserStatusDotComponent } from '../../../../components/user-status-dot/user-status-dot.component';
+import { ProfileService } from '../../../../services/profile.service';
+import { ConversationUtilsService } from '../../../../services/conversation-utils.service';
 
 @Component({
   selector: 'app-conversation-info-panel',
-  imports: [AppAvatarComponent, NgClass],
+  imports: [AppAvatarComponent, NgClass, UserStatusDotComponent],
   templateUrl: './conversation-info-panel.component.html',
   styleUrl: './conversation-info-panel.component.css',
 })
@@ -15,13 +17,10 @@ export class ConversationInfoPanelComponent {
   conversation = input.required<ConversationDto>();
 
   private profileService = inject(ProfileService);
+  protected convUtils    = inject(ConversationUtilsService);
 
-  protected others = computed(() => {
-    const ownId = this.profileService.ownProfile()?.userId;
-    return this.conversation().members.filter(m => m.userId !== ownId);
-  });
-
-  protected isDirect = computed(() => this.others().length === 1);
+  protected others    = computed(() => this.convUtils.getOtherMembers(this.conversation()));
+  protected isDirect  = computed(() => this.others().length === 1);
 
   protected readonly OnlineStatus = OnlineStatus;
 

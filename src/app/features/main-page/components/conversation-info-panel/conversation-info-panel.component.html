@@ -3,6 +3,7 @@
 
   @if (isDirect()) {
     @let partner = others()[0];
+    @let partnerStatus = getOnlineStatus(partner.userId);
 
     <!-- Profile card (1-on-1) -->
     <div class="flex flex-col items-center px-5 pt-8 pb-5 border-b border-white/[0.06]">
@@ -11,16 +12,15 @@
           [userId]="partner.userId"
           [label]="partner.cachedUserName[0].toUpperCase()"
           styleClass="!w-16 !h-16 !text-2xl" />
-        <span class="absolute -bottom-0.5 -right-0.5 block h-3.5 w-3.5 rounded-full border-2 border-sidebar"
-              [ngClass]="getOnlineStatus(partner.userId) === OnlineStatus.Online ? 'bg-emerald-400' : 'bg-white/20'"></span>
+        <app-user-status-dot [status]="partnerStatus" size="lg" />
       </div>
       <h2 class="text-sm font-semibold text-white/90 m-0">{{ partner.cachedUserName }}</h2>
       <span class="text-xs text-white/40">#{{ partner.cachedUserHash }}</span>
       <span class="mt-1.5 text-[11px] flex items-center gap-1"
-            [ngClass]="getOnlineStatus(partner.userId) === OnlineStatus.Online ? 'text-emerald-400/80' : 'text-white/30'">
+            [ngClass]="partnerStatus === OnlineStatus.Online ? 'text-emerald-400/80' : 'text-white/30'">
         <span class="w-1.5 h-1.5 rounded-full inline-block"
-              [ngClass]="getOnlineStatus(partner.userId) === OnlineStatus.Online ? 'bg-emerald-400' : 'bg-white/30'"></span>
-        {{ getOnlineStatus(partner.userId) === OnlineStatus.Online ? 'Online' : 'Offline' }}
+              [ngClass]="partnerStatus === OnlineStatus.Online ? 'bg-emerald-400' : 'bg-white/30'"></span>
+        {{ partnerStatus === OnlineStatus.Online ? 'Online' : 'Offline' }}
       </span>
     </div>
 
@@ -52,8 +52,7 @@
                 [userId]="member.userId"
                 [label]="member.cachedUserName[0].toUpperCase()"
                 size="normal" />
-              <span class="absolute -bottom-0.5 -right-0.5 block h-2.5 w-2.5 rounded-full border-2 border-sidebar"
-                    [ngClass]="getOnlineStatus(member.userId) === OnlineStatus.Online ? 'bg-emerald-400' : 'bg-white/20'"></span>
+              <app-user-status-dot [status]="getOnlineStatus(member.userId)" />
             </div>
             <div class="flex flex-col min-w-0">
               <span class="text-sm text-white/75 truncate leading-tight">{{ member.cachedUserName }}</span>

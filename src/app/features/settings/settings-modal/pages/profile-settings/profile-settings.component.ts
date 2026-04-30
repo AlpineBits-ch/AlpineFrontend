@@ -1,10 +1,11 @@
 import { Component, computed, ElementRef, inject, signal, ViewChild } from '@angular/core';
 import { Button } from 'primeng/button';
+import { Dialog } from 'primeng/dialog';
 import { ProfileService } from '../../../../../services/profile.service';
 
 @Component({
   selector: 'app-profile-settings',
-  imports: [Button],
+  imports: [Button, Dialog],
   templateUrl: './profile-settings.component.html',
   styleUrl: './profile-settings.component.css',
 })
@@ -15,6 +16,7 @@ export class ProfileSettingsComponent {
 
   protected ownProfile = this.profileService.ownProfile;
   protected uploading = signal(false);
+  protected avatarExpanded = signal(false);
 
   protected avatarLabel = computed(() =>
     (this.ownProfile()?.userName?.[0] ?? '?').toUpperCase()

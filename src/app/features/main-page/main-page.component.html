@@ -69,4 +69,9 @@
     }
 
   </div>
+
+  <app-profile-dialog
+    [userId]="profileDialogSvc.selectedUserId()"
+    [visible]="profileDialogSvc.selectedUserId() !== null"
+    (visibleChange)="profileDialogSvc.close()" />
 </div>

@@ -10,23 +10,19 @@
       class="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl transition-all cursor-pointer border-0 text-left">
 
       <div class="relative shrink-0">
-        @let member = getPartnerMember(conv);
+        @let member = convUtils.getPartnerMember(conv);
         <app-avatar
           [userId]="member?.userId"
           [label]="member?.cachedUserName?.[0]?.toUpperCase()"
           size="normal" />
-        @let partnerStatus = getPartnerStatus(conv);
-        @if (partnerStatus !== null) {
-          <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-sidebar"
-               [ngClass]="partnerStatus === OnlineStatus.Online ? 'bg-emerald-400' : 'bg-white/20'"></div>
-        }
+        <app-user-status-dot [status]="convUtils.getPartnerStatus(conv)" />
       </div>
 
       <div class="flex-1 min-w-0">
         <div class="flex items-center justify-between gap-1">
           <span class="text-sm font-medium truncate"
             [ngClass]="selectedId() === conv.id ? 'text-white/90' : 'text-white/65'">
-            {{ getChatName(conv) }}
+            {{ convUtils.getChatTitle(conv) }}
           </span>
           <div class="flex items-center gap-1.5 shrink-0">
             @if (preview) {
@@ -40,13 +36,9 @@
           </div>
         </div>
 
-        @if (getTypingLabel(conv); as typingLabel) {
+        @if (convUtils.getTypingLabel(conv); as typingLabel) {
           <span class="text-[11px] truncate flex items-center gap-1 text-brand-dim italic">
-            <span class="flex gap-0.5 items-end shrink-0">
-              <span class="typing-dot"></span>
-              <span class="typing-dot"></span>
-              <span class="typing-dot"></span>
-            </span>
+            <app-typing-dots />
             {{ typingLabel }}
           </span>
         } @else if (preview) {

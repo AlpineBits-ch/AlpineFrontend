@@ -13,7 +13,9 @@ import { NavigationService } from './navigation.service';
 import { NotificationService } from '../../services/notification.service';
 import { ConversationStore } from '../../stores/conversation.store';
 import { Subscription } from 'rxjs';
-import {VoiceWebsocketService} from "../../services/voice-websocket.service";
+import { VoiceWebsocketService } from '../../services/voice-websocket.service';
+import { ProfileDialogComponent } from '../../components/profile-dialog/profile-dialog.component';
+import { ProfileDialogService } from '../../services/profile-dialog.service';
 
 @Component({
   selector: 'app-main-page',
@@ -24,6 +26,7 @@ import {VoiceWebsocketService} from "../../services/voice-websocket.service";
     ServerTaskbarComponent,
     ActivityFeedComponent,
     ConversationInfoPanelComponent,
+    ProfileDialogComponent,
   ],
   templateUrl: './main-page.component.html',
   styleUrl: './main-page.component.css',
@@ -32,6 +35,7 @@ export class MainPageComponent implements OnDestroy {
   protected authService = inject(AuthService);
   protected oAuthService = inject(OAuthService);
   protected navService = inject(NavigationService);
+  protected profileDialogSvc = inject(ProfileDialogService);
 
   private websocketService = inject(MessagingWebsocketService);
   private voiceWebsocketService = inject(VoiceWebsocketService);

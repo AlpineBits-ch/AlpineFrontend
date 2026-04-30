@@ -10,6 +10,7 @@ import {
 import { UserSettingsService } from './user-settings.service';
 import { ToastService } from '../toast/toast.service';
 import type { ProfileDto } from '../dtos/response/profile.dto';
+import {getCurrentWindow, UserAttentionType} from "@tauri-apps/api/window";
 
 export enum NotificationSound {
   None,
@@ -32,6 +33,12 @@ export class NotificationService {
 
   constructor() {
     if (this.isMobile()) void this.setupMobileActions();
+
+    this.action$.subscribe(async action => {
+      const window = getCurrentWindow();
+      await window.requestUserAttention(null);
+
+    })
   }
 
   private isMobile(): boolean {
@@ -72,6 +79,10 @@ export class NotificationService {
     const category = params.category ?? 'system';
     if (category === 'dm' && !ns.dm) return;
     if (category === 'mention' && !ns.mentions) return;
+
+
+    const window = getCurrentWindow();
+    await window.requestUserAttention(UserAttentionType.Informational);
 
     const actionTypeId = params.actionTypeId ?? 'message';
     const extra = params.extra ?? {};

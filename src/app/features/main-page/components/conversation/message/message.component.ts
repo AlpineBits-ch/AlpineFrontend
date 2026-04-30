@@ -12,6 +12,7 @@ import { MarkdownPipe } from '../../../../../pipes/markdown.pipe';
 import { AttachmentDto, FileService } from '../../../../../services/file.service';
 import { MessagingService } from '../../../../../services/messaging.service';
 import { MessageStore } from '../../../../../stores/message.store';
+import { ProfileDialogService } from '../../../../../services/profile-dialog.service';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 @Component({
@@ -35,6 +36,7 @@ export class MessageComponent {
   private fileService = inject(FileService);
   private messagingService = inject(MessagingService);
   private messageStore = inject(MessageStore);
+  protected profileDialogSvc = inject(ProfileDialogService);
 
   private destroyRef = inject(DestroyRef);
 
