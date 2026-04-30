@@ -1,58 +1,122 @@
 @let s = session();
 @if (s) {
 
-  <div class="panel">
+  <div class="panel" [class.panel--focused]="focusedStream()">
 
-    <!-- ── Status bar ──────────────────────────────────────────────────── -->
+    <!-- ── Status bar ──────────────────────────────────────────────────────── -->
     <div class="status-bar">
       <span class="live-dot"></span>
       <span class="status-label">Voice Call · {{ duration }}</span>
+      <button class="stats-toggle" [class.stats-toggle--active]="showStats()"
+        (click)="toggleStats()" title="Connection stats">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
+          <rect x="2" y="12" width="4" height="10" rx="1"/>
+          <rect x="9" y="7" width="4" height="15" rx="1"/>
+          <rect x="16" y="2" width="4" height="20" rx="1"/>
+        </svg>
+      </button>
     </div>
 
-    <!-- ── Participants grid ───────────────────────────────────────────── -->
-    <div class="participants" [attr.data-count]="s.participants.length">
-      @for (p of s.participants; track p.userId) {
-        <div class="tile" [class.tile--speaking]="p.isSpeaking">
+    <!-- ── Stats bar ───────────────────────────────────────────────────────── -->
+    @if (showStats() && stats(); as st) {
+      <div class="stats-bar">
+        <span class="stats-item">
+          <span class="stats-arrow stats-arrow--down">↓</span>
+          <span>{{ st.inboundKbps }} kbps</span>
+        </span>
+        <span class="stats-sep">·</span>
+        <span class="stats-item">
+          <span class="stats-arrow stats-arrow--up">↑</span>
+          <span>{{ st.outboundKbps }} kbps</span>
+        </span>
+        @if (st.inboundVideoKbps > 0) {
+          <span class="stats-sep">·</span>
+          <span class="stats-item stats-item--muted">vid ↓ {{ st.inboundVideoKbps }}k</span>
+        }
+        @if (st.outboundVideoKbps > 0) {
+          <span class="stats-sep">·</span>
+          <span class="stats-item stats-item--muted">vid ↑ {{ st.outboundVideoKbps }}k</span>
+        }
+        @if (st.packetsLost > 0) {
+          <span class="stats-sep">·</span>
+          <span class="stats-item stats-item--warn">✗ {{ st.packetsLost }}</span>
+        }
+      </div>
+    }
 
-          <div class="avatar-ring" [class.ring--speaking]="p.isSpeaking" [class.ring--video]="p.isCameraOn">
-            @if (p.isCameraOn && p.videoStream) {
-              <video class="avatar-video" autoplay playsinline muted
-                     [class.avatar-video--mirror]="p.isLocal"
-                     [srcObject]="p.videoStream"></video>
-            } @else if (p.avatarUrl) {
-              <img class="avatar-img" [src]="p.avatarUrl" [alt]="p.displayName" />
-            } @else {
-              <div class="avatar-fallback">{{ p.avatarLabel }}</div>
-            }
-          </div>
+    <!-- ── Focused stream view ────────────────────────────────────────────── -->
+    @if (focusedStream(); as focused) {
+      <div class="focused-view">
+        <div class="focused-header">
+          <span class="focused-label">{{ focused.label }}</span>
+          <button class="focused-close" (click)="unfocus()" title="Close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+        <video class="focused-video" autoplay playsinline muted
+          [class.focused-video--mirror]="focused.mirror"
+          [srcObject]="focused.stream"></video>
+      </div>
 
-          <div class="tile-footer">
-            <span class="tile-name">{{ p.isLocal ? 'You' : p.displayName }}</span>
-            <div class="tile-icons">
-              @if (p.isMuted) {
-                <span class="icon-badge icon-badge--muted" title="Muted">
-                  <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
-                    <path d="M12 1a4 4 0 0 0-4 4v7a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4z" opacity=".5"/>
-                    <path d="M19 11a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V20H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2h-2v-2.08A7 7 0 0 0 19 11z"/>
-                    <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                  </svg>
-                </span>
-              }
-              @if (p.isCameraOn) {
-                <span class="icon-badge" title="Camera on">
-                  <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
-                    <path d="M15 8v8H5V8h10m1-2H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4V7a1 1 0 0 0-1-1z"/>
-                  </svg>
-                </span>
+    } @else {
+
+      <!-- ── Participants grid ───────────────────────────────────────────── -->
+      <div class="participants" [attr.data-count]="s.participants.length">
+        @for (p of s.participants; track p.userId) {
+          <div class="tile" [class.tile--speaking]="p.isSpeaking">
+
+            <div class="avatar-ring" [class.ring--speaking]="p.isSpeaking" [class.ring--video]="p.isCameraOn">
+              @if (p.isCameraOn && p.videoStream) {
+                <video class="avatar-video" autoplay playsinline muted
+                       [class.avatar-video--mirror]="p.isLocal"
+                       [srcObject]="p.videoStream"></video>
+              } @else if (p.avatarUrl) {
+                <img class="avatar-img" [src]="p.avatarUrl" [alt]="p.displayName" />
+              } @else {
+                <div class="avatar-fallback">{{ p.avatarLabel }}</div>
               }
             </div>
+
+            <div class="tile-footer">
+              <span class="tile-name">{{ p.isLocal ? 'You' : p.displayName }}</span>
+              <div class="tile-icons">
+                @if (p.isMuted) {
+                  <span class="icon-badge icon-badge--muted" title="Muted">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
+                      <path d="M12 1a4 4 0 0 0-4 4v7a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4z" opacity=".5"/>
+                      <path d="M19 11a1 1 0 0 0-2 0 5 5 0 0 1-10 0 1 1 0 0 0-2 0 7 7 0 0 0 6 6.92V20H9a1 1 0 0 0 0 2h6a1 1 0 0 0 0-2h-2v-2.08A7 7 0 0 0 19 11z"/>
+                      <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                    </svg>
+                  </span>
+                }
+                @if (p.isCameraOn) {
+                  <span class="icon-badge" title="Camera on">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="10" height="10">
+                      <path d="M15 8v8H5V8h10m1-2H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4V7a1 1 0 0 0-1-1z"/>
+                    </svg>
+                  </span>
+                }
+              </div>
+            </div>
+
+            @if (p.isCameraOn && p.videoStream) {
+              <button class="tile-expand" (click)="focusCamera(p)" title="Expand">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                </svg>
+              </button>
+            }
+
           </div>
+        }
+      </div>
 
-        </div>
-      }
-    </div>
+    }
 
-    <!-- ── Screen shares ───────────────────────────────────────────────── -->
+    <!-- ── Screen shares ───────────────────────────────────────────────────── -->
     @if (s.screenShares.length > 0) {
       <div class="shares-row">
         @for (share of s.screenShares; track share.shareId) {
@@ -60,6 +124,11 @@
             <div class="share-preview">
               @if (share.stream) {
                 <video class="share-video" autoplay playsinline muted [srcObject]="share.stream"></video>
+                <button class="share-expand" (click)="focusShare(share)" title="Expand">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                  </svg>
+                </button>
               } @else {
                 <div class="share-empty">
                   <svg viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
@@ -78,7 +147,7 @@
       </div>
     }
 
-    <!-- ── Controls bar ────────────────────────────────────────────────── -->
+    <!-- ── Controls bar ────────────────────────────────────────────────────── -->
     <div class="controls">
 
       <!-- Mute -->

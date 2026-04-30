@@ -1,9 +1,19 @@
-import { effect, inject, Injectable } from '@angular/core';
+import { effect, inject, Injectable, signal } from '@angular/core';
 import { firstValueFrom, Subscription } from 'rxjs';
 import { CallSessionService } from './call-session.service';
 import { VoiceService, CfTrackNew, CfTrackResult } from './voice.service';
 import { VoiceWebsocketService } from './voice-websocket.service';
 import { AudioSettingsService } from './audio-settings.service';
+
+export interface CallStats {
+  inboundKbps: number;
+  outboundKbps: number;
+  inboundAudioKbps: number;
+  inboundVideoKbps: number;
+  outboundAudioKbps: number;
+  outboundVideoKbps: number;
+  packetsLost: number;
+}
 
 /**
  * Manages the full WebRTC lifecycle for a Cloudflare Calls SFU session.
@@ -68,6 +78,12 @@ export class CallWebRtcService {
 
   // ── RxJS subscriptions to WS observables ────────────────────────────────
   private wsSubs: Subscription[] = [];
+
+  // ── Stats polling ────────────────────────────────────────────────────────
+  readonly stats = signal<CallStats | null>(null);
+  private statsInterval?: ReturnType<typeof setInterval>;
+  private prevBytes = { inAudio: 0, inVideo: 0, outAudio: 0, outVideo: 0 };
+  private prevStatsTs = 0;
 
   constructor() {
     // Connect when a session starts; disconnect when it ends.
@@ -174,10 +190,12 @@ export class CallWebRtcService {
     if (!this.callId) return;
 
     this.startSpeakingDetection(micStream);
+    this.startStatsPolling();
   }
 
   private disconnect(): void {
     if (this.rafHandle !== null) cancelAnimationFrame(this.rafHandle);
+    this.stopStatsPolling();
     this.audioCtx?.close().catch(() => void 0);
     this.audioTrack?.stop();
     this.pc?.close();
@@ -430,6 +448,64 @@ export class CallWebRtcService {
       this.callSession.onScreenShareStarted(info.shareId, info.userId, stream);
       event.track.onended = () => this.callSession.onScreenShareStopped(info.shareId!);
     }
+  }
+
+  // ── Stats polling ─────────────────────────────────────────────────────────
+
+  private startStatsPolling(): void {
+    this.prevBytes = { inAudio: 0, inVideo: 0, outAudio: 0, outVideo: 0 };
+    this.prevStatsTs = 0;
+    this.statsInterval = setInterval(() => void this.pollStats(), 2000);
+  }
+
+  private stopStatsPolling(): void {
+    clearInterval(this.statsInterval);
+    this.statsInterval = undefined;
+    this.stats.set(null);
+    this.prevStatsTs = 0;
+  }
+
+  private async pollStats(): Promise<void> {
+    if (!this.pc) return;
+    const report = await this.pc.getStats();
+    const now = Date.now();
+
+    let inAudio = 0, inVideo = 0, outAudio = 0, outVideo = 0, packetsLost = 0;
+    report.forEach((stat: RTCStats) => {
+      if (stat.type === 'inbound-rtp') {
+        const s = stat as RTCInboundRtpStreamStats;
+        if (s.kind === 'audio') inAudio += s.bytesReceived ?? 0;
+        else inVideo += s.bytesReceived ?? 0;
+        packetsLost += s.packetsLost ?? 0;
+      } else if (stat.type === 'outbound-rtp') {
+        const s = stat as RTCOutboundRtpStreamStats;
+        if (s.kind === 'audio') outAudio += s.bytesSent ?? 0;
+        else outVideo += s.bytesSent ?? 0;
+      }
+    });
+
+    if (!this.prevStatsTs) {
+      this.prevBytes = { inAudio, inVideo, outAudio, outVideo };
+      this.prevStatsTs = now;
+      return;
+    }
+
+    const dt = (now - this.prevStatsTs) / 1000;
+    const kbps = (cur: number, prev: number) =>
+      Math.max(0, Math.round(((cur - prev) * 8) / dt / 1000));
+
+    this.stats.set({
+      inboundKbps:      kbps(inAudio + inVideo,  this.prevBytes.inAudio + this.prevBytes.inVideo),
+      outboundKbps:     kbps(outAudio + outVideo, this.prevBytes.outAudio + this.prevBytes.outVideo),
+      inboundAudioKbps: kbps(inAudio,  this.prevBytes.inAudio),
+      inboundVideoKbps: kbps(inVideo,  this.prevBytes.inVideo),
+      outboundAudioKbps: kbps(outAudio, this.prevBytes.outAudio),
+      outboundVideoKbps: kbps(outVideo, this.prevBytes.outVideo),
+      packetsLost,
+    });
+
+    this.prevBytes = { inAudio, inVideo, outAudio, outVideo };
+    this.prevStatsTs = now;
   }
 
   // ── Speaking detection (local) ────────────────────────────────────────────
