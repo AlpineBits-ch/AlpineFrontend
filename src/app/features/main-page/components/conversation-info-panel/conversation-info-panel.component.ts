@@ -6,6 +6,7 @@ import { AppAvatarComponent } from '../../../../components/avatar/avatar.compone
 import { UserStatusDotComponent } from '../../../../components/user-status-dot/user-status-dot.component';
 import { ProfileService } from '../../../../services/profile.service';
 import { ConversationUtilsService } from '../../../../services/conversation-utils.service';
+import { ProfileDialogService } from '../../../../services/profile-dialog.service';
 
 @Component({
   selector: 'app-conversation-info-panel',
@@ -16,8 +17,9 @@ import { ConversationUtilsService } from '../../../../services/conversation-util
 export class ConversationInfoPanelComponent {
   conversation = input.required<ConversationDto>();
 
-  private profileService = inject(ProfileService);
-  protected convUtils    = inject(ConversationUtilsService);
+  private profileService    = inject(ProfileService);
+  protected convUtils       = inject(ConversationUtilsService);
+  protected profileDialogSvc = inject(ProfileDialogService);
 
   protected others    = computed(() => this.convUtils.getOtherMembers(this.conversation()));
   protected isDirect  = computed(() => this.others().length === 1);

@@ -46,7 +46,8 @@
       </p>
       <div class="flex flex-col gap-0.5">
         @for (member of others(); track member.id) {
-          <div class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors">
+          <div class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer"
+               (click)="profileDialogSvc.open(member.userId)">
             <div class="relative shrink-0">
               <app-avatar
                 [userId]="member.userId"

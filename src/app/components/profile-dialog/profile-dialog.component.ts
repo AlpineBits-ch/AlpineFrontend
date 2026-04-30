@@ -1,4 +1,4 @@
-import { Component, inject, Input, OnChanges, Output, EventEmitter, signal, computed, SimpleChanges } from '@angular/core';
+import { Component, inject, Input, OnChanges, Output, EventEmitter, signal, computed, SimpleChanges, ChangeDetectionStrategy } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { Dialog } from 'primeng/dialog';
 import { ProfileDto } from '../../dtos/response/profile.dto';
@@ -16,13 +16,14 @@ export class ProfileDialogComponent implements OnChanges {
   @Input() userId: string | null = null;
   @Input() friendsSince: Date | null = null;
   @Input() bannerUrl: string | null = null;
-  @Input() visible = false;
   @Output() visibleChange = new EventEmitter<boolean>();
 
   private profileService = inject(ProfileService);
 
+  protected dialogVisible = false;
   protected profile = signal<ProfileDto | undefined>(undefined);
   protected avatarExpanded = false;
+  protected avatarError = signal(false);
 
   protected formattedHash = computed(() =>
     String(this.profile()?.hash ?? 0).padStart(4, '0')
@@ -35,28 +36,36 @@ export class ProfileDialogComponent implements OnChanges {
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['userId']) {
       const id = this.userId;
-      if (!id) {
+      if (id) {
+        this.dialogVisible = true;
+        this.avatarError.set(false);
+        const cached = this.profileService.getCachedByUserId(id);
+        if (cached) {
+          this.profile.set(cached);
+        } else {
+          this.profile.set(undefined);
+          this.profileService.getByUserId(id).subscribe(p => this.profile.set(p));
+        }
+      } else {
+        this.dialogVisible = false;
         this.profile.set(undefined);
         this.avatarExpanded = false;
-        return;
-      }
-      const cached = this.profileService.getCachedByUserId(id);
-      if (cached) {
-        this.profile.set(cached);
-      } else {
-        this.profile.set(undefined);
-        this.profileService.getByUserId(id).subscribe(p => this.profile.set(p));
+        this.avatarError.set(false);
       }
     }
   }
 
-  protected close(): void {
+  protected onHide(): void {
     this.visibleChange.emit(false);
   }
 
   protected onAvatarClick(): void {
-    if (this.profile()?.avatarUrl) {
+    if (this.profile()?.avatarUrl && !this.avatarError()) {
       this.avatarExpanded = true;
     }
+  }
+
+  protected onAvatarError(): void {
+    this.avatarError.set(true);
   }
 }

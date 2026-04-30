@@ -1,107 +1,112 @@
 <p-dialog
-  [visible]="visible"
-  (visibleChange)="visibleChange.emit($event)"
+  [(visible)]="dialogVisible"
   [modal]="true"
-  [closable]="false"
+  [showHeader]="false"
+  [closable]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [dismissableMask]="true"
+  (onHide)="onHide()"
   styleClass="profile-dialog"
   [style]="{ width: '360px' }"
   [breakpoints]="{ '480px': '95vw' }">
 
-  <ng-template pTemplate="content">
+  @if (profile(); as p) {
+    <div class="relative">
 
-    @if (profile(); as p) {
-      <div class="relative">
+      <!-- Banner -->
+      <div class="profile-banner"
+           [style.backgroundImage]="bannerUrl ? 'url(' + bannerUrl + ')' : null">
+        <button class="close-btn" (click)="dialogVisible = false">
+          <i class="pi pi-times"></i>
+        </button>
+      </div>
 
-        <!-- Banner -->
-        <div class="profile-banner"
-             [style.backgroundImage]="bannerUrl ? 'url(' + bannerUrl + ')' : null">
-          <button class="close-btn" (click)="close()">
-            <i class="pi pi-times"></i>
-          </button>
-        </div>
-
-        <!-- Avatar (overlapping banner/body boundary) -->
-        <div class="absolute left-4 z-10" style="top: 56px;">
-          <div class="relative"
-               [class.cursor-pointer]="p.avatarUrl"
-               (click)="onAvatarClick()">
-            @if (p.avatarUrl) {
-              <img
-                [src]="p.avatarUrl"
-                class="w-[88px] h-[88px] rounded-full object-cover ring-[3px] ring-card transition-opacity hover:opacity-90"
-                alt="Profile avatar" />
-            } @else {
-              <div class="w-[88px] h-[88px] rounded-full ring-[3px] ring-card bg-brand flex items-center justify-center text-2xl font-bold text-white select-none">
-                {{ avatarLabel() }}
-              </div>
-            }
-            <app-user-status-dot
-              [status]="p.onlineStatus"
-              size="lg"
-              borderColor="border-card" />
-          </div>
-        </div>
-
-        <!-- Body -->
-        <div class="px-4 pb-4" style="padding-top: 56px;">
-
-          <h2 class="text-[17px] font-bold leading-tight text-text-primary mb-1">
-            {{ p.userName }}<span class="text-text-muted font-normal">#{{ formattedHash() }}</span>
-          </h2>
-
-          @if (p.bio) {
-            <p class="text-sm text-text-secondary leading-snug mb-3">{{ p.bio }}</p>
-          }
-
-          <div class="border-t border-border-subtle my-3"></div>
-
-          <div class="flex flex-col gap-2.5">
-            <div class="flex flex-col gap-0.5">
-              <span class="text-[10px] font-semibold tracking-widest uppercase text-text-muted">Member Since</span>
-              <span class="text-sm text-text-secondary">{{ p.createdAt | date:'MMM d, yyyy' }}</span>
+      <!-- Avatar (overlapping banner/body boundary) -->
+      <div class="absolute left-4 z-10" style="top: 56px;">
+        <div class="relative"
+             [class.cursor-pointer]="p.avatarUrl && !avatarError()"
+             (click)="onAvatarClick()">
+          @if (p.avatarUrl && !avatarError()) {
+            <img
+              [src]="p.avatarUrl"
+              class="w-[88px] h-[88px] rounded-full object-cover ring-[3px] ring-card transition-opacity hover:opacity-90"
+              alt="Profile avatar"
+              (error)="onAvatarError()" />
+          } @else {
+            <div class="w-[88px] h-[88px] rounded-full ring-[3px] ring-card bg-brand flex items-center justify-center text-2xl font-bold text-white select-none">
+              {{ avatarLabel() }}
             </div>
-            @if (friendsSince) {
-              <div class="flex flex-col gap-0.5">
-                <span class="text-[10px] font-semibold tracking-widest uppercase text-text-muted">Friends Since</span>
-                <span class="text-sm text-text-secondary">{{ friendsSince | date:'MMM d, yyyy' }}</span>
-              </div>
-            }
+          }
+          <app-user-status-dot
+            [status]="p.onlineStatus"
+            size="lg"
+            borderColor="border-card" />
+        </div>
+      </div>
+
+      <!-- Body -->
+      <div class="px-4 pb-4" style="padding-top: 56px;">
+
+        <h2 class="text-[17px] font-bold leading-tight text-text-primary mb-1">
+          {{ p.userName }}<span class="text-text-muted font-normal">#{{ formattedHash() }}</span>
+        </h2>
+
+        @if (p.bio) {
+          <p class="text-sm text-text-secondary leading-snug mb-3">{{ p.bio }}</p>
+        }
+
+        <div class="border-t border-border-subtle my-3"></div>
+
+        <div class="flex flex-col gap-2.5">
+          <div class="flex flex-col gap-0.5">
+            <span class="text-[10px] font-semibold tracking-widest uppercase text-text-muted">Member Since</span>
+            <span class="text-sm text-text-secondary">{{ p.createdAt | date:'MMM d, yyyy' }}</span>
           </div>
-
+          @if (friendsSince) {
+            <div class="flex flex-col gap-0.5">
+              <span class="text-[10px] font-semibold tracking-widest uppercase text-text-muted">Friends Since</span>
+              <span class="text-sm text-text-secondary">{{ friendsSince | date:'MMM d, yyyy' }}</span>
+            </div>
+          }
         </div>
+
       </div>
+    </div>
 
-    } @else {
-      <!-- Loading skeleton -->
-      <div class="relative">
-        <div class="profile-banner">
-          <button class="close-btn" (click)="close()">
-            <i class="pi pi-times"></i>
-          </button>
-        </div>
-        <div class="px-4 pb-5" style="padding-top: 56px;">
-          <div class="h-4 w-36 bg-white/[0.08] rounded-md animate-pulse mb-2 mt-1"></div>
-          <div class="h-3 w-24 bg-white/[0.05] rounded-md animate-pulse mb-4"></div>
-          <div class="border-t border-border-subtle my-3"></div>
-          <div class="h-3 w-20 bg-white/[0.05] rounded-md animate-pulse mb-1.5"></div>
-          <div class="h-3 w-28 bg-white/[0.08] rounded-md animate-pulse"></div>
-        </div>
+  } @else {
+    <!-- Loading skeleton -->
+    <div class="relative">
+      <div class="profile-banner">
+        <button class="close-btn" (click)="dialogVisible = false">
+          <i class="pi pi-times"></i>
+        </button>
       </div>
-    }
+      <div class="px-4 pb-5" style="padding-top: 56px;">
+        <div class="h-4 w-36 bg-white/[0.08] rounded-md animate-pulse mb-2 mt-1"></div>
+        <div class="h-3 w-24 bg-white/[0.05] rounded-md animate-pulse mb-4"></div>
+        <div class="border-t border-border-subtle my-3"></div>
+        <div class="h-3 w-20 bg-white/[0.05] rounded-md animate-pulse mb-1.5"></div>
+        <div class="h-3 w-28 bg-white/[0.08] rounded-md animate-pulse"></div>
+      </div>
+    </div>
+  }
 
-  </ng-template>
 </p-dialog>
 
 <!-- Avatar lightbox -->
-@if (avatarExpanded && profile()?.avatarUrl) {
+@if (avatarExpanded && profile()?.avatarUrl && !avatarError()) {
   <p-dialog
     [(visible)]="avatarExpanded"
     [modal]="true"
-    [closable]="true"
+    [showHeader]="false"
+    [draggable]="false"
+    [resizable]="false"
+    [dismissableMask]="true"
     styleClass="avatar-lightbox-dialog"
-    [style]="{ width: 'auto' }">
-    <ng-template pTemplate="content">
+    [style]="{ background: 'transparent', boxShadow: 'none', border: 'none' }">
+    <div class="flex items-center justify-center p-1">
       <img [src]="profile()!.avatarUrl" class="w-72 h-72 rounded-2xl object-cover" alt="Profile avatar" />
-    </ng-template>
+    </div>
   </p-dialog>
 }

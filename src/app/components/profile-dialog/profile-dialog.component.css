@@ -7,15 +7,10 @@
   padding: 0 !important;
 }
 
-::ng-deep .profile-dialog .p-dialog-header {
-  display: none !important;
-}
-
 ::ng-deep .profile-dialog .p-dialog-content {
   background: var(--color-card) !important;
   padding: 0 !important;
   border-radius: 0 !important;
-  overflow: visible !important;
 }
 
 /* ── Banner ───────────────────────────────────────────────────────────── */
@@ -49,23 +44,4 @@
 .close-btn:hover {
   background: rgba(0, 0, 0, 0.6);
   color: #fff;
-}
-
-/* ── Avatar lightbox ──────────────────────────────────────────────────── */
-::ng-deep .avatar-lightbox-dialog.p-dialog {
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-}
-
-::ng-deep .avatar-lightbox-dialog .p-dialog-header {
-  display: none !important;
-}
-
-::ng-deep .avatar-lightbox-dialog .p-dialog-content {
-  background: transparent !important;
-  padding: 0 !important;
-  border-radius: 16px !important;
-  overflow: hidden !important;
 }
