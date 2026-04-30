@@ -1,9 +1,11 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { MessagingWebsocketService } from './messaging-websocket.service';
+import { MessagingService } from './messaging.service';
 
 @Injectable({ providedIn: 'root' })
 export class TypingService {
   private ws = inject(MessagingWebsocketService);
+  private messagingService = inject(MessagingService);
 
   private readonly timeouts = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly _state = signal<Map<string, Set<string>>>(new Map());
@@ -13,6 +15,20 @@ export class TypingService {
   constructor() {
     this.ws.userTypingObservable.subscribe(event => {
       this.markTyping(event.conversationId, event.userId);
+    });
+
+    // Clear typing indicator when a message is received from that user
+    this.ws.messageObservable.subscribe(msg => {
+      if (msg.conversationId && msg.authorId) {
+        this.clearTyping(msg.conversationId, msg.authorId);
+      }
+    });
+
+    // Clear own typing indicator when a message is sent
+    this.messagingService.messageSentObservable.subscribe(msg => {
+      if (msg.conversationId && msg.authorId) {
+        this.clearTyping(msg.conversationId, msg.authorId);
+      }
     });
   }
 
