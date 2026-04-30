@@ -96,6 +96,15 @@ export class MessageComponent {
     return this.emojiDataService.resolveShortcodes(decoded);
   });
 
+  public isOnlyEmoji = computed(() => {
+    const content = this.content().trim();
+    if(content.length > 15) return false;
+    if (content.length === 0) return false;
+
+    // Checks that the entire string consists only of emoji characters and combinations
+    return /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F?|\u200D)+$/u.test(content);
+  });
+
   public contentSegments = computed(() => {
     const text = this.content();
     const segments: { type: 'text' | 'mention' | 'gif'; value: string }[] = [];

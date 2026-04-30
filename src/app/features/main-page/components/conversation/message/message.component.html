@@ -83,15 +83,22 @@
       <div class="text-sm leading-relaxed m-0 break-words"
          (click)="onLinkClick($event)"
          [ngClass]="message().isFailed ? 'text-rose-300' : message().isPending ? 'text-white/40' : 'text-white/70'">
+        @if (isOnlyEmoji()){
+            <p class="text-4xl text-white/70">
+                {{ content() }}
+            </p>
+        }@else {
         @for (seg of contentSegments(); track $index) {
-          @if (seg.type === 'gif') {
+        @if (seg.type === 'gif') {
             <img [src]="seg.value" alt="GIF" class="gif-message rounded-xl mt-1 max-w-xs max-h-48 object-contain block" loading="lazy" />
-          } @else if (seg.type === 'mention') {
+            } @else if (seg.type === 'mention') {
             <span class="mention-chip">{{ seg.value }}</span>
-          } @else {
+            } @else {
             <div class="contents" [innerHTML]="seg.value | markdown"></div>
-          }
+            }
+                    }
         }
+
       </div>
     }
 
@@ -111,7 +118,7 @@
                 </button>
               </div>
             </div>
-          } @else {
+          }  @else {
             <div class="flex items-center gap-3 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 py-2.5 max-w-xs">
               <div class="shrink-0 w-9 h-9 rounded-lg bg-white/[0.06] flex items-center justify-center">
                 <i [class]="'pi ' + fileIcon(att.contentType) + ' ' + fileIconColor(att.contentType)"></i>
@@ -194,3 +201,4 @@
   </div>
 
 </div>
+
