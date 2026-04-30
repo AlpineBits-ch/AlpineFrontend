@@ -19,6 +19,11 @@ interface VolumeMenu {
   volume: number; // 0–100
 }
 
+const MIN_HEIGHT = 200;
+const MAX_HEIGHT = 900;
+const DEFAULT_HEIGHT = 420;
+const FOCUSED_MIN_HEIGHT = 500;
+
 @Component({
   selector: 'app-call-panel',
   templateUrl: './call-panel.component.html',
@@ -34,10 +39,15 @@ export class CallPanelComponent implements OnInit, OnDestroy {
   protected focusedStream = signal<FocusedStream | null>(null);
   protected showStats = signal(false);
   protected volumeMenu = signal<VolumeMenu | null>(null);
+  protected panelHeight = signal(DEFAULT_HEIGHT);
+  protected isResizing = signal(false);
   protected duration = '00:00';
   private durationInterval?: ReturnType<typeof setInterval>;
+  private resizeStartY = 0;
+  private resizeStartHeight = 0;
 
   constructor() {
+    // Auto-unfocus when the focused stream is no longer active
     effect(() => {
       const focused = this.focusedStream();
       if (!focused) return;
@@ -47,6 +57,13 @@ export class CallPanelComponent implements OnInit, OnDestroy {
         ? s.participants.some(p => p.videoStream === focused.stream && p.isCameraOn)
         : s.screenShares.some(sh => sh.stream === focused.stream);
       if (!stillActive) this.focusedStream.set(null);
+    });
+
+    // Ensure panel is tall enough to comfortably show the focused video
+    effect(() => {
+      if (this.focusedStream()) {
+        this.panelHeight.update(h => Math.max(h, FOCUSED_MIN_HEIGHT));
+      }
     });
   }
 
@@ -65,11 +82,37 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     clearInterval(this.durationInterval);
   }
 
+  // ── Resize ───────────────────────────────────────────────────────────────
+
+  protected onResizeStart(event: MouseEvent): void {
+    this.isResizing.set(true);
+    this.resizeStartY = event.clientY;
+    this.resizeStartHeight = this.panelHeight();
+    event.preventDefault();
+  }
+
+  @HostListener('document:mousemove', ['$event'])
+  protected onMouseMove(event: MouseEvent): void {
+    if (!this.isResizing()) return;
+    const delta = event.clientY - this.resizeStartY;
+    const next = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, this.resizeStartHeight + delta));
+    this.panelHeight.set(next);
+  }
+
+  @HostListener('document:mouseup')
+  protected onMouseUp(): void {
+    this.isResizing.set(false);
+  }
+
+  // ── Menu / volume ─────────────────────────────────────────────────────────
+
   @HostListener('document:click')
   protected closeVolumeMenu(): void { this.volumeMenu.set(null); }
 
   @HostListener('document:keydown.escape')
   protected closeVolumeMenuKey(): void { this.volumeMenu.set(null); }
+
+  // ── Actions ───────────────────────────────────────────────────────────────
 
   protected toggleMute():        void { this.callSession.toggleMute(); }
   protected toggleDeafen():      void { this.callSession.toggleDeafen(); }

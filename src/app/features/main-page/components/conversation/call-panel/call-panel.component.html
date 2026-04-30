@@ -1,7 +1,7 @@
 @let s = session();
 @if (s) {
 
-  <div class="panel" [class.panel--focused]="focusedStream()">
+  <div class="panel" [class.panel--resizing]="isResizing()" [style.height.px]="panelHeight()">
 
     <!-- ── Status bar ──────────────────────────────────────────────────────── -->
     <div class="status-bar">
@@ -211,6 +211,11 @@
         </svg>
       </button>
 
+    </div>
+
+    <!-- ── Resize handle ───────────────────────────────────────────────────── -->
+    <div class="resize-handle" (mousedown)="onResizeStart($event)">
+      <div class="resize-grip"></div>
     </div>
 
   </div>

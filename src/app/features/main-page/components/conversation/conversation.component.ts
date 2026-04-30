@@ -55,6 +55,11 @@ export class ConversationComponent implements AfterViewInit {
     return s?.conversationId === this.conversation().id ? s : null;
   });
 
+  protected isRinging = computed(() => {
+    const out = this.callStateService.outgoingCall();
+    return out?.conversationId === this.conversation().id ? out : null;
+  });
+
   protected friends = toSignal(this.relationshipService.getRelationships(), { initialValue: [] });
 
   protected chatTitle = computed(() => {
@@ -184,6 +189,8 @@ export class ConversationComponent implements AfterViewInit {
   protected onTyping(): void {
     this.messagingWs.invokeStartTyping(this.conversation().id);
   }
+
+  protected cancelCall(): void { this.callStateService.cancelOutgoing(); }
 
   protected startCall(): void {
     const ownId = this.profileService.ownProfile()?.userId;

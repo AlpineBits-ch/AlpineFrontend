@@ -15,6 +15,7 @@ export interface IncomingCallState {
 }
 
 export interface OutgoingCallState {
+  conversationId: string;
   displayName: string;
   avatarLabel: string;
 }
@@ -39,6 +40,7 @@ export class CallStateService implements OnDestroy {
 
   constructor() {
     this.sub = this.ws.incomingCallObservable.subscribe(call => {
+      if (this.callSession.session()) return; // already in a call, ignore late/duplicate events
       this.incomingCall.set(this.resolveCallInfo(call));
       this.startRingtone();
     });
@@ -66,7 +68,7 @@ export class CallStateService implements OnDestroy {
       this.startRingtone();
     } else if (e.key === 'O') {
       e.preventDefault();
-      this.outgoingCall.set({ displayName: 'Bob Testuser', avatarLabel: 'B' });
+      this.outgoingCall.set({ conversationId: 'dev-conv', displayName: 'Bob Testuser', avatarLabel: 'B' });
       this.startRingback();
     } else if (e.key === 'C') {
       e.preventDefault();
@@ -122,7 +124,7 @@ export class CallStateService implements OnDestroy {
   }
 
   startCall(conversationId: string, participants: string[], displayName: string, avatarLabel: string): void {
-    this.outgoingCall.set({ displayName, avatarLabel });
+    this.outgoingCall.set({ conversationId, displayName, avatarLabel });
     this.startRingback();
     this.voiceService.createCall({ conversationId, participants }).subscribe({
       next: (callDto) => {
@@ -150,6 +152,8 @@ export class CallStateService implements OnDestroy {
     if (!incoming) return;
     this.stopRingtone();
     this.incomingCall.set(null);
+    const conv = this.conversationStore.entities().find(c => c.id === incoming.call.conversationId);
+    if (conv) this.navService.openConversation(conv);
     this.voiceService.acceptCall(incoming.call.id).subscribe({
       next: (callDto) => this.callSession.join(callDto, callDto.conversationId),
     });
@@ -188,7 +192,10 @@ export class CallStateService implements OnDestroy {
 
   // Incoming: urgent ascending 3-note arpeggio, repeats every 2.2s
   private incomingCycle(): void {
-    if (!this.incomingCall()) return;
+    if (!this.incomingCall() || this.callSession.session()) {
+      this.incomingCall.set(null);
+      return;
+    }
     this.playIncomingRing();
     this.ringTimer = setTimeout(() => this.incomingCycle(), 2200);
   }

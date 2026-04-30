@@ -32,6 +32,24 @@
   <!-- Active call panel — shown only when this conversation has an ongoing call -->
   @if (activeCall()) {
     <app-call-panel />
+  } @else if (isRinging(); as ringing) {
+    <!-- Ringing banner — visible to the caller while waiting for the other side to accept -->
+    <div class="ringing-banner shrink-0">
+      <div class="ringing-pulse">
+        <div class="ringing-ring"></div>
+        <p-avatar [label]="ringing.avatarLabel" shape="circle"
+          styleClass="relative z-10 !w-8 !h-8 !text-sm" />
+      </div>
+      <div class="ringing-info">
+        <div class="ringing-status">
+          Ringing<span class="ringing-dot" style="animation-delay:0ms">.</span
+                 ><span class="ringing-dot" style="animation-delay:280ms">.</span
+                 ><span class="ringing-dot" style="animation-delay:560ms">.</span>
+        </div>
+        <p class="ringing-name">{{ ringing.displayName }}</p>
+      </div>
+      <button class="ringing-cancel" (click)="cancelCall()">Cancel</button>
+    </div>
   }
 
   <!-- Messages scroll container -->

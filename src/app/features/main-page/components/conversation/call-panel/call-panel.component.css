@@ -6,13 +6,41 @@
   background: var(--color-sidebar);
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
-  max-height: 320px;
+  /* Height is controlled dynamically via [style.height.px] binding */
   overflow: hidden;
 }
 
-.panel--focused {
-  height: 460px;
-  max-height: 460px;
+.panel--resizing {
+  user-select: none;
+}
+
+/* ── Resize handle ───────────────────────────────────────────────────────── */
+
+.resize-handle {
+  flex-shrink: 0;
+  height: 10px;
+  cursor: ns-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.resize-handle:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+.resize-grip {
+  width: 40px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.10);
+  transition: background 0.15s, width 0.15s;
+}
+
+.resize-handle:hover .resize-grip {
+  background: rgba(99,102,241,0.5);
+  width: 56px;
 }
 
 /* ── Status bar ──────────────────────────────────────────────────────────── */
