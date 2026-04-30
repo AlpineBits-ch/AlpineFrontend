@@ -21,7 +21,9 @@
       "Bash(grep -o \"darkModeSelector[^;\\\\\"']{0,300}\" \"C:/Users/Domin/WebstormProjects/Alpine/node_modules/@primeuix/styled/dist/index.mjs\")",
       "Bash(node -e ' *)",
       "Bash(grep -E \"\\\\.\\(ts|html\\)$\")",
-      "Bash(grep -E \"\\\\.service\\\\.ts$\")"
+      "Bash(grep -E \"\\\\.service\\\\.ts$\")",
+      "Bash(grep -E \"\\\\.rs$\")",
+      "Bash(grep -r \"action\\\\$\" /c/Users/Domin/WebstormProjects/Alpine/src --include=\"*.ts\" -n)"
     ]
   }
 }

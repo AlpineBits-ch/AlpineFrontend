@@ -35,6 +35,7 @@ export class NavigationService {
   }
 
   openConversation(conversation: ConversationDto): void {
+    this.workspace.set({ type: 'dms' });
     this.mainView.set({ type: 'conversation', conversation });
     this.mobileNavOpen.set(false);
   }

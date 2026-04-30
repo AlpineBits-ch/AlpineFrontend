@@ -18,4 +18,14 @@ export class VoiceService {
   public createCall(createCallDto: CreateCallDto): Observable<CallDto>{
     return this.client.post<CallDto>(environment.apiUrl + '/api/v1/messaging/voice/call', createCallDto);
   }
+
+  public acceptCall(callId: string): Observable<CallDto>{
+    return this.client.put<CallDto>(environment.apiUrl + `/api/v1/messaging/voice/call/${callId}/accept`, {});
+  }
+  public declineCall(callId: string): Observable<CallDto>{
+    return this.client.put<CallDto>(environment.apiUrl + `/api/v1/messaging/voice/call/${callId}/decline`, {});
+  }
+  public endCall(callId: string): Observable<CallDto>{
+    return this.client.put<CallDto>(environment.apiUrl + `/api/v1/messaging/voice/call/${callId}/end`, {});
+  }
 }

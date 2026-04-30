@@ -1,4 +1,5 @@
 import { inject, Injectable } from '@angular/core';
+import { Subject } from 'rxjs';
 import {
   isPermissionGranted,
   onAction,
@@ -6,14 +7,12 @@ import {
   requestPermission,
   sendNotification,
 } from '@tauri-apps/plugin-notification';
-import { invoke } from '@tauri-apps/api/core';
-import { Subject } from 'rxjs';
 import { UserSettingsService } from './user-settings.service';
-import {getCurrentWindow, UserAttentionType} from "@tauri-apps/api/window";
+import { ToastService } from '../toast/toast.service';
 
 export enum NotificationSound {
   None,
-  NewMessage
+  NewMessage,
 }
 
 export type NotificationCategory = 'dm' | 'mention' | 'system';
@@ -23,29 +22,27 @@ export interface NotificationActionEvent {
   extra: Record<string, string>;
 }
 
-@Injectable({
-  providedIn: 'root',
-})
+@Injectable({ providedIn: 'root' })
 export class NotificationService {
   private userSettings = inject(UserSettingsService);
+  private toastService = inject(ToastService);
 
-  /** Emits when the user interacts with a notification action. */
   readonly action$ = new Subject<NotificationActionEvent>();
 
   constructor() {
-    void this.setup();
+    if (this.isMobile()) void this.setupMobileActions();
   }
 
-  private async setup(): Promise<void> {
-    await registerActionTypes([
-      {
-        id: 'message',
-        actions: [{ id: 'open', title: 'Open' }],
-      },
-    ]);
+  private isMobile(): boolean {
+    return typeof navigator !== 'undefined' &&
+      /android|iphone|ipad|ipod/.test(navigator.userAgent.toLowerCase());
+  }
 
-    await onAction(async notification => {
-      await invoke('focus_window');
+  private async setupMobileActions(): Promise<void> {
+    await registerActionTypes([
+      { id: 'message', actions: [{ id: 'open', title: 'Open' }] },
+    ]);
+    await onAction(notification => {
       this.action$.next({
         actionTypeId: notification.actionTypeId ?? 'message',
         extra: (notification.extra ?? {}) as Record<string, string>,
@@ -53,15 +50,13 @@ export class NotificationService {
     });
   }
 
-  private async getPermission(): Promise<void> {
-    let permissionGranted = await isPermissionGranted();
-    if (!permissionGranted) {
-      const permission = await requestPermission();
-      permissionGranted = permission === 'granted';
-    }
+  private async ensurePermission(): Promise<boolean> {
+    let granted = await isPermissionGranted();
+    if (!granted) granted = (await requestPermission()) === 'granted';
+    return granted;
   }
 
-  public async createNotification(params: {
+  async createNotification(params: {
     message: string;
     title: string;
     icon: string | undefined;
@@ -71,34 +66,34 @@ export class NotificationService {
     extra?: Record<string, string>;
   }): Promise<void> {
     const ns = this.userSettings.notificationSettings();
-
     if (!ns.enabled) return;
 
-    const windows = getCurrentWindow();
-    await windows.requestUserAttention(UserAttentionType.Critical);
     const category = params.category ?? 'system';
     if (category === 'dm' && !ns.dm) return;
     if (category === 'mention' && !ns.mentions) return;
 
-    await this.getPermission();
-    sendNotification({
-      title: params.title,
-      body: params.message,
-      icon: params.icon,
-      actionTypeId: params.actionTypeId,
-      extra: params.extra,
+    const actionTypeId = params.actionTypeId ?? 'message';
+    const extra = params.extra ?? {};
 
-    });
-
-    if (ns.sounds) {
-      this.playSoundNotification(params.sound);
-    }
-  }
-
-  private playSoundNotification(sound: NotificationSound): void {
-    if (sound === NotificationSound.NewMessage) {
-      const audio = new Audio('/assets/sounds/new_message.wav');
-      audio.play().then();
+    if (this.isMobile()) {
+      if (!await this.ensurePermission()) return;
+      sendNotification({
+        title: params.title,
+        body: params.message,
+        icon: params.icon,
+        actionTypeId,
+        extra,
+      });
+    } else {
+      this.toastService.show({
+        title: params.title,
+        body: params.message,
+        avatarUrl: params.icon,
+        sound: ns.sounds && params.sound === NotificationSound.NewMessage
+          ? '/assets/sounds/new_message.wav'
+          : false,
+        onClick: () => this.action$.next({ actionTypeId, extra }),
+      });
     }
   }
 }
