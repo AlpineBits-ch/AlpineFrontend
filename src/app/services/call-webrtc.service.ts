@@ -56,6 +56,9 @@ export class CallWebRtcService {
   // Audio elements for remote participants — browser won't auto-play WebRTC audio in Tauri/WebView2
   private readonly remoteAudio = new Map<string, HTMLAudioElement>();
 
+  // Per-user volume overrides (0–1.0), persisted for the call duration
+  private readonly userVolumes = new Map<string, number>();
+
   // ontrack events that arrived before their midMap entry was written — replayed after subscribe completes
   private readonly pendingTracks: RTCTrackEvent[] = [];
 
@@ -215,6 +218,7 @@ export class CallWebRtcService {
     this.screenTrackName = null;
     this.screenShareId = null;
     this.midMap.clear();
+    this.userVolumes.clear();
     this.pendingTracks.length = 0;
     this.negotiationChain = Promise.resolve();
     this.wsSubs = [];
@@ -430,6 +434,7 @@ export class CallWebRtcService {
       const audio = new Audio();
       audio.srcObject = stream;
       audio.autoplay = true;
+      audio.volume = this.userVolumes.get(info.userId) ?? 1;
       const speakerId = this.audioSettings.settings().speakerId;
       if (speakerId && speakerId !== 'default' && typeof (audio as any).setSinkId === 'function') {
         (audio as any).setSinkId(speakerId).catch(() => void 0);
@@ -448,6 +453,19 @@ export class CallWebRtcService {
       this.callSession.onScreenShareStarted(info.shareId, info.userId, stream);
       event.track.onended = () => this.callSession.onScreenShareStopped(info.shareId!);
     }
+  }
+
+  // ── Per-user volume control ───────────────────────────────────────────────
+
+  setUserVolume(userId: string, volume: number): void {
+    const clamped = Math.max(0, Math.min(1, volume));
+    this.userVolumes.set(userId, clamped);
+    const audio = this.remoteAudio.get(userId);
+    if (audio) audio.volume = clamped;
+  }
+
+  getUserVolume(userId: string): number {
+    return this.userVolumes.get(userId) ?? 1;
   }
 
   // ── Stats polling ─────────────────────────────────────────────────────────

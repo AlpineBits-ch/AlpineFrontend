@@ -1,4 +1,4 @@
-import { Component, effect, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, effect, HostListener, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { CallSessionService } from '../../../../../services/call-session.service';
 import { CallWebRtcService } from '../../../../../services/call-webrtc.service';
 import { CallParticipantUi, ScreenShareUi } from '../../../../../services/call-session.types';
@@ -9,6 +9,14 @@ interface FocusedStream {
   stream: MediaStream;
   label: string;
   mirror: boolean;
+}
+
+interface VolumeMenu {
+  x: number;
+  y: number;
+  userId: string;
+  displayName: string;
+  volume: number; // 0–100
 }
 
 @Component({
@@ -25,6 +33,7 @@ export class CallPanelComponent implements OnInit, OnDestroy {
   protected stats = this.callWebRtc.stats;
   protected focusedStream = signal<FocusedStream | null>(null);
   protected showStats = signal(false);
+  protected volumeMenu = signal<VolumeMenu | null>(null);
   protected duration = '00:00';
   private durationInterval?: ReturnType<typeof setInterval>;
 
@@ -56,6 +65,12 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     clearInterval(this.durationInterval);
   }
 
+  @HostListener('document:click')
+  protected closeVolumeMenu(): void { this.volumeMenu.set(null); }
+
+  @HostListener('document:keydown.escape')
+  protected closeVolumeMenuKey(): void { this.volumeMenu.set(null); }
+
   protected toggleMute():        void { this.callSession.toggleMute(); }
   protected toggleDeafen():      void { this.callSession.toggleDeafen(); }
   protected toggleCamera():      void { void this.callSession.toggleCamera(); }
@@ -83,5 +98,20 @@ export class CallPanelComponent implements OnInit, OnDestroy {
       label: `${share.displayName}'s screen`,
       mirror: false,
     });
+  }
+
+  protected onTileContextMenu(event: MouseEvent, p: CallParticipantUi): void {
+    if (p.isLocal) return;
+    event.preventDefault();
+    const volume = Math.round(this.callWebRtc.getUserVolume(p.userId) * 100);
+    this.volumeMenu.set({ x: event.clientX, y: event.clientY, userId: p.userId, displayName: p.displayName, volume });
+  }
+
+  protected onVolumeInput(event: Event): void {
+    const value = parseInt((event.target as HTMLInputElement).value, 10);
+    const menu = this.volumeMenu();
+    if (!menu) return;
+    this.volumeMenu.set({ ...menu, volume: value });
+    this.callWebRtc.setUserVolume(menu.userId, value / 100);
   }
 }
