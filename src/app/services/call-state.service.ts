@@ -1,5 +1,5 @@
 import { inject, Injectable, OnDestroy, signal } from '@angular/core';
-import { Subscription } from 'rxjs';
+import { first, race, Subscription, map } from 'rxjs';
 import { CallDto } from '../dtos/response/call.dto';
 import { ConversationStore } from '../stores/conversation.store';
 import { ProfileService } from './profile.service';
@@ -32,6 +32,8 @@ export class CallStateService implements OnDestroy {
   readonly outgoingCall = signal<OutgoingCallState | null>(null);
 
   private ringTimer: ReturnType<typeof setTimeout> | null = null;
+  private pendingCallDto: CallDto | null = null;
+  private pendingCallSub: Subscription | null = null;
   private sub: Subscription;
   private readonly devKeyHandler = (e: KeyboardEvent) => this.handleDevShortcut(e);
 
@@ -124,9 +126,18 @@ export class CallStateService implements OnDestroy {
     this.startRingback();
     this.voiceService.createCall({ conversationId, participants }).subscribe({
       next: (callDto) => {
-        this.stopRingtone();
-        this.outgoingCall.set(null);
-        this.callSession.join(callDto, conversationId);
+        this.pendingCallDto = callDto;
+        // Stay in ringback until callee accepts (ParticipantJoined) or call ends (declined/cancelled)
+        this.pendingCallSub = race(
+          this.ws.participantJoinedObservable.pipe(first(), map(() => 'joined' as const)),
+          this.ws.callEndedObservable.pipe(first(), map(() => 'ended' as const)),
+        ).subscribe(result => {
+          this.pendingCallDto = null;
+          this.pendingCallSub = null;
+          this.stopRingtone();
+          this.outgoingCall.set(null);
+          if (result === 'joined') this.callSession.join(callDto, conversationId);
+        });
       },
       error: () => { this.outgoingCall.set(null); this.stopRingtone(); },
     });
