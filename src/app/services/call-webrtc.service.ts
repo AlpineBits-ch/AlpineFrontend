@@ -43,6 +43,9 @@ export class CallWebRtcService {
   // MID → { userId, kind, shareId } — used to route ontrack events
   private readonly midMap = new Map<string, { userId: string; kind: 'audio' | 'video' | 'screen'; shareId?: string }>();
 
+  // Audio elements for remote participants — browser won't auto-play WebRTC audio in Tauri/WebView2
+  private readonly remoteAudio = new Map<string, HTMLAudioElement>();
+
   // ── Speaking detection ───────────────────────────────────────────────────
   private audioCtx: AudioContext | null = null;
   private rafHandle: number | null = null;
@@ -118,6 +121,8 @@ export class CallWebRtcService {
     // CF Calls SFU has a publicly routable server — no STUN/TURN needed.
     // bundlePolicy: 'max-bundle' is required by Cloudflare Calls.
     this.pc = new RTCPeerConnection({ bundlePolicy: 'max-bundle' });
+    (window as any).__pc = this.pc;  // ← add this line
+    this.pc.ontrack = (e) => this.handleRemoteTrack(e);
     this.pc.ontrack = (e) => this.handleRemoteTrack(e);
 
     // TODO(backend): Implement POST /api/v1/messaging/voice/calls/{callId}/session.
@@ -133,6 +138,11 @@ export class CallWebRtcService {
     if (!this.callId) return;
     this.cfSessionId = cfSessionId;
 
+    // Set up WS listeners NOW — cfSessionId is ready and we need to be subscribed before
+    // publishAudioTrack triggers ExchangeParticipantJoined on the server, which sends
+    // ParticipantJoined back to us for any already-connected participants.
+    this.setupWsListeners();
+
     // Acquire microphone (video is handled separately by CallSessionService.toggleCamera)
     let micStream: MediaStream;
     try {
@@ -142,7 +152,6 @@ export class CallWebRtcService {
       });
     } catch {
       console.warn('[WebRTC] Microphone access denied — joining without audio');
-      this.setupWsListeners();
       return;
     }
     if (!this.callId) { micStream.getTracks().forEach(t => t.stop()); return; }
@@ -157,7 +166,6 @@ export class CallWebRtcService {
     if (!this.callId) return;
 
     this.startSpeakingDetection(micStream);
-    this.setupWsListeners();
   }
 
   private disconnect(): void {
@@ -165,6 +173,8 @@ export class CallWebRtcService {
     this.audioCtx?.close().catch(() => void 0);
     this.audioTrack?.stop();
     this.pc?.close();
+    this.remoteAudio.forEach(a => { a.pause(); a.srcObject = null; });
+    this.remoteAudio.clear();
     this.wsSubs.forEach(s => s.unsubscribe());
 
     this.pc = null;
@@ -364,14 +374,25 @@ export class CallWebRtcService {
 
     const stream = event.streams[0] ?? new MediaStream([event.track]);
 
-    if (info.kind === 'video') {
+    if (info.kind === 'audio') {
+      // WebView2/Tauri does not auto-render WebRTC audio — requires explicit <audio> element.
+      const audio = new Audio();
+      audio.srcObject = stream;
+      audio.autoplay = true;
+      audio.play().catch(() => void 0);
+      this.remoteAudio.get(info.userId)?.pause();
+      this.remoteAudio.set(info.userId, audio);
+      event.track.onended = () => {
+        this.remoteAudio.get(info.userId)?.pause();
+        this.remoteAudio.delete(info.userId);
+      };
+    } else if (info.kind === 'video') {
       this.callSession.onCameraChanged(info.userId, true, stream);
       event.track.onended = () => this.callSession.onCameraChanged(info.userId, false);
     } else if (info.kind === 'screen' && info.shareId) {
       this.callSession.onScreenShareStarted(info.shareId, info.userId, stream);
       event.track.onended = () => this.callSession.onScreenShareStopped(info.shareId!);
     }
-    // Audio: the browser plays remote audio automatically via the RTCPeerConnection streams
   }
 
   // ── Speaking detection (local) ────────────────────────────────────────────
