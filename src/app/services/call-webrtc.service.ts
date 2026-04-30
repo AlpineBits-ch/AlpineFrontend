@@ -57,6 +57,12 @@ export class CallWebRtcService {
   private prevCameraOn = false;
   private prevSharing = false;
 
+  // ── Negotiation serialisation ────────────────────────────────────────────
+  // RTCPeerConnection only allows one offer/answer exchange at a time. Queuing
+  // ensures publishAudioTrack and any concurrent subscribeToTrack calls never
+  // race on setLocalDescription / setRemoteDescription.
+  private negotiationChain: Promise<unknown> = Promise.resolve();
+
   // ── RxJS subscriptions to WS observables ────────────────────────────────
   private wsSubs: Subscription[] = [];
 
@@ -188,6 +194,7 @@ export class CallWebRtcService {
     this.screenTrackName = null;
     this.screenShareId = null;
     this.midMap.clear();
+    this.negotiationChain = Promise.resolve();
     this.wsSubs = [];
     this.lastSpeaking = false;
     this.prevMuted = false;
@@ -197,15 +204,17 @@ export class CallWebRtcService {
 
   // ── SDP offer/answer cycle ────────────────────────────────────────────────
 
-  /**
-   * Creates an SDP offer, sends it to the backend CF proxy, and applies the
-   * answer. If CF signals requiresImmediateRenegotiation, creates a fresh
-   * offer and calls the renegotiate endpoint.
-   *
-   * The buildTracks callback is called AFTER setLocalDescription so that
-   * transceiver.mid is populated.
-   */
-  private async offerAnswerCycle(buildTracks: () => CfTrackNew[]): Promise<CfTrackResult[]> {
+  // Serialise all SDP exchanges through a promise chain so concurrent publish
+  // and subscribe calls never race on setLocalDescription/setRemoteDescription.
+  private offerAnswerCycle(buildTracks: () => CfTrackNew[]): Promise<CfTrackResult[]> {
+    const next = this.negotiationChain
+      .catch(() => void 0)
+      .then(() => this.doOfferAnswer(buildTracks));
+    this.negotiationChain = next.catch(() => void 0);
+    return next;
+  }
+
+  private async doOfferAnswer(buildTracks: () => CfTrackNew[]): Promise<CfTrackResult[]> {
     if (!this.pc || !this.cfSessionId || !this.callId) return [];
 
     const offer = await this.pc.createOffer();
