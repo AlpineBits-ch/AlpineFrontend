@@ -1,23 +1,26 @@
 import {Component, computed, inject, signal} from '@angular/core';
 import {NgClass} from "@angular/common";
-import {Avatar} from "primeng/avatar";
+import {AppAvatarComponent} from "../../../../components/avatar/avatar.component";
 import {Button} from "primeng/button";
 import {FormsModule} from "@angular/forms";
 import {RelationshipService} from "../../../../services/relationship.service";
 import {RelationshipModel, RelationshipStatus} from "../../../friendship/components/friendship-modal/dto/relationship.model";
 import {ConversationService} from "../../../../services/conversation.service";
 import {ConversationEncryption} from "../../../../enums/conversation-encryption.enum";
+import {ProfileService} from "../../../../services/profile.service";
+import {OnlineStatus} from "../../../../dtos/response/profile.dto";
 
 type FriendsTab = 'online' | 'all' | 'pending' | 'blocked';
 
 @Component({
   selector: 'app-home',
-  imports: [Avatar, Button, FormsModule, NgClass],
+  imports: [AppAvatarComponent, Button, FormsModule, NgClass],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
 })
 export class HomeComponent {
   private relationshipService = inject(RelationshipService);
+  private profileService = inject(ProfileService);
 
   public tab = signal<FriendsTab>('online');
   public addFriendOpen = signal(false);
@@ -26,18 +29,29 @@ export class HomeComponent {
   public conversationService = inject(ConversationService);
   public relationships = signal<RelationshipModel[]>([]);
 
-  public incoming = computed(() => this.relationships().filter(r => r.status === RelationshipStatus.PendingIncoming));
-  public outgoing = computed(() => this.relationships().filter(r => r.status === RelationshipStatus.PendingOutgoing));
-  public friends  = computed(() => this.relationships().filter(r => r.status === RelationshipStatus.Friends));
-  public blocked  = computed(() => this.relationships().filter(r => r.status === RelationshipStatus.Blocked));
+  public incoming     = computed(() => this.relationships().filter(r => r.status === RelationshipStatus.PendingIncoming));
+  public outgoing     = computed(() => this.relationships().filter(r => r.status === RelationshipStatus.PendingOutgoing));
+  public friends      = computed(() => this.relationships().filter(r => r.status === RelationshipStatus.Friends));
+  public onlineFriends = computed(() => this.friends().filter(r => this.profileService.getOnlineStatus(r.target.userId) === OnlineStatus.Online));
+  public blocked      = computed(() => this.relationships().filter(r => r.status === RelationshipStatus.Blocked));
   public pendingCount = computed(() => this.incoming().length + this.outgoing().length);
+
+  protected readonly OnlineStatus = OnlineStatus;
+
+  public getOnlineStatus(userId: string): OnlineStatus {
+    return this.profileService.getOnlineStatus(userId);
+  }
 
   constructor() {
     this.load();
   }
 
   private load(): void {
-    this.relationshipService.getRelationships().subscribe(d => this.relationships.set(d));
+    this.relationshipService.getRelationships().subscribe(d => {
+      this.relationships.set(d);
+      d.filter(r => r.status === RelationshipStatus.Friends)
+       .forEach(r => this.profileService.resolveByUserId(r.target.userId));
+    });
   }
 
   public sendRequest(): void {

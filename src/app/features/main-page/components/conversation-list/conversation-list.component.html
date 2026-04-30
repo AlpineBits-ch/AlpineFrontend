@@ -10,8 +10,16 @@
       class="w-full flex items-center gap-2.5 px-2 py-2 rounded-xl transition-all cursor-pointer border-0 text-left">
 
       <div class="relative shrink-0">
-        <p-avatar icon="pi pi-user" shape="circle" size="normal"></p-avatar>
-        <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-sidebar"></div>
+        @let member = getPartnerMember(conv);
+        <app-avatar
+          [userId]="member?.userId"
+          [label]="member?.cachedUserName?.[0]?.toUpperCase()"
+          size="normal" />
+        @let partnerStatus = getPartnerStatus(conv);
+        @if (partnerStatus !== null) {
+          <div class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-sidebar"
+               [ngClass]="partnerStatus === OnlineStatus.Online ? 'bg-emerald-400' : 'bg-white/20'"></div>
+        }
       </div>
 
       <div class="flex-1 min-w-0">

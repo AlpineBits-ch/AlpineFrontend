@@ -46,15 +46,22 @@
 
     <!-- ── Focused stream view ────────────────────────────────────────────── -->
     @if (focusedStream(); as focused) {
-      <div class="focused-view">
+      <div class="focused-view" #focusedViewEl>
         <div class="focused-header">
           <span class="focused-label">{{ focused.label }}</span>
-          <button class="focused-close" (click)="unfocus()" title="Close">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
-              <line x1="18" y1="6" x2="6" y2="18"/>
-              <line x1="6" y1="6" x2="18" y2="18"/>
-            </svg>
-          </button>
+          <div class="focused-actions">
+            <button class="focused-action-btn" (click)="toggleFullscreen(focusedViewEl)" title="Fullscreen">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+              </svg>
+            </button>
+            <button class="focused-action-btn focused-close" (click)="unfocus()" title="Close">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
+                <line x1="18" y1="6" x2="6" y2="18"/>
+                <line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
         </div>
         <video class="focused-video" autoplay playsinline muted
           [class.focused-video--mirror]="focused.mirror"
@@ -141,7 +148,6 @@
             </div>
             <div class="share-footer">
               <span class="share-label">{{ share.displayName }}'s screen</span>
-              <button class="join-btn" (click)="joinScreenShare(share.shareId)">Join</button>
             </div>
           </div>
         }

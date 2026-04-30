@@ -1,8 +1,8 @@
-import { inject, Injectable, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
-import { catchError, Observable, of, tap } from 'rxjs';
-import { environment } from '../../environments/environment';
-import { ProfileDto } from '../dtos/response/profile.dto';
+import {inject, Injectable, signal} from '@angular/core';
+import {HttpClient} from '@angular/common/http';
+import {catchError, EMPTY, Observable, of, tap} from 'rxjs';
+import {environment} from '../../environments/environment';
+import {OnlineStatus, ProfileDto} from '../dtos/response/profile.dto';
 
 // ── Circuit breaker config ───────────────────────────────────────────────────
 
@@ -20,6 +20,7 @@ const FALLBACK_PROFILE: ProfileDto = {
   avatarUrl: undefined,
   createdAt: new Date(),
   updatedAt: new Date(),
+  onlineStatus: OnlineStatus.Offline,
 };
 
 // ── Service ──────────────────────────────────────────────────────────────────
@@ -141,6 +142,43 @@ export class ProfileService {
     if (!this.byUserId()[userId]) {
       this.fetchByUserId(userId).subscribe();
     }
+  }
+
+  // ── Avatar ───────────────────────────────────────────────────────────────
+
+  public uploadAvatar(file: File): Observable<ProfileDto> {
+    const current = this.ownProfile();
+    if (!current) return EMPTY;
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.httpClient
+      .patch<ProfileDto>(
+        `${environment.apiUrl}/api/v1/social/profiles/${current.id}/avatar`,
+        form,
+      )
+      .pipe(tap(p => { this.ownProfile.set(p); this.store(p); }));
+  }
+
+  public removeAvatar(): Observable<ProfileDto> {
+    const current = this.ownProfile();
+    if (!current) return EMPTY;
+    return this.httpClient
+      .delete<ProfileDto>(
+        `${environment.apiUrl}/api/v1/social/profiles/${current.id}/avatar`,
+      )
+      .pipe(tap(p => { this.ownProfile.set(p); this.store(p); }));
+  }
+
+  // ── Online status ────────────────────────────────────────────────────────
+
+  public setOnlineStatus(userId: string, status: OnlineStatus): void {
+    const cached = this.byUserId()[userId];
+    if (!cached) return;
+    this.store({ ...cached, onlineStatus: status });
+  }
+
+  public getOnlineStatus(userId: string): OnlineStatus {
+    return this.byUserId()[userId]?.onlineStatus ?? OnlineStatus.Offline;
   }
 
   // ── Private helpers ──────────────────────────────────────────────────────

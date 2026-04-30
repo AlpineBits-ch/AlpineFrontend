@@ -117,8 +117,6 @@ export class ConversationComponent implements AfterViewInit {
   );
 
   private lastScrollConvId = '';
-  /** Set by the messages effect; consumed and cleared by afterEveryRender. */
-  private pendingScrollToBottom = false;
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -128,7 +126,7 @@ export class ConversationComponent implements AfterViewInit {
       this.messageStore.loadForConversation(this.conversation().id);
     });
 
-    // Tracks message list changes — only schedules a scroll when content actually changes
+    // Tracks message list changes — schedules a scroll when near bottom or on conversation switch
     effect(() => {
       const convId = this.conversation().id;
       const _ = this.messages(); // track message list
@@ -140,11 +138,15 @@ export class ConversationComponent implements AfterViewInit {
       }
 
       if (this.isNearBottom) {
-        this.pendingScrollToBottom = true;
+        // setTimeout ensures the new message node is in the DOM before we scroll.
+        // Effects run after afterEveryRender, so a 0ms timeout fires after the
+        // current rendering task completes, guaranteeing the DOM is fully updated.
+        setTimeout(() => this.scrollToBottom(), 0);
       }
     });
 
-    // afterEveryRender executes the pending scroll after the DOM is committed
+    // afterEveryRender is only used to restore scroll position after loading older messages.
+    // Keeping scroll-to-bottom out of here prevents window resize from triggering it.
     afterEveryRender(() => {
       if (this.restoreScroll && this.scrollRef) {
         const el = this.scrollRef.nativeElement;
@@ -152,9 +154,6 @@ export class ConversationComponent implements AfterViewInit {
         if (heightDiff > 0) el.scrollTop += heightDiff;
         this.restoreScroll = false;
         this.savedScrollHeight = 0;
-      } else if (this.pendingScrollToBottom) {
-        this.scrollToBottom();
-        this.pendingScrollToBottom = false;
       }
     });
   }

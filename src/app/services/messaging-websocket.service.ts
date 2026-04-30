@@ -6,6 +6,7 @@ import {environment} from "../../environments/environment";
 import {BehaviorSubject, firstValueFrom, Subject} from "rxjs";
 import {MessageDto} from "../dtos/response/message.dto";
 import {AttachmentDto} from "./file.service";
+import {OnlineStatus} from '../dtos/response/profile.dto';
 import {CallDto} from "../dtos/response/call.dto";
 import {ProfileService} from "./profile.service";
 
@@ -58,6 +59,9 @@ export class MessagingWebsocketService {
   public conversationRemovedObservable = new Subject<ConversationRemoved>()
   public conversationMemberRemovedObservable = new Subject<ConversationMemberRemoved>()
   public userTypingObservable = new Subject<UserTypingEvent>()
+
+  public userOnlineObservable = new Subject<string>()
+  public userOfflineObservable = new Subject<string>()
 
 
   public connectionState = signal(ConnectionState.Disconnected)
@@ -114,6 +118,16 @@ export class MessagingWebsocketService {
 
     this.hubConnection.on('UserTyping', (data: UserTypingEvent) => {
       this.userTypingObservable.next(data);
+    })
+
+    this.hubConnection.on('UserOnline', async (str: string) => {
+      this.userOnlineObservable.next(str);
+      this.profileService.setOnlineStatus(str, OnlineStatus.Online);
+    })
+
+    this.hubConnection.on('UserOffline', async (str: string) => {
+      this.userOfflineObservable.next(str);
+      this.profileService.setOnlineStatus(str, OnlineStatus.Offline);
     })
 
 

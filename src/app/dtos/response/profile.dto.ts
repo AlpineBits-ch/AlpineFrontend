@@ -7,4 +7,10 @@
     bio: string | undefined;
     userId: string;
     avatarUrl: string | undefined;
+    onlineStatus: OnlineStatus;
+}
+
+export enum OnlineStatus {
+    Online = 'Online',
+    Offline = 'Offline',
 }

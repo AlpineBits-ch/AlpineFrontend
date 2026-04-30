@@ -123,6 +123,14 @@ export class CallPanelComponent implements OnInit, OnDestroy {
   protected toggleStats():       void { this.showStats.update(v => !v); }
   protected unfocus():           void { this.focusedStream.set(null); }
 
+  protected toggleFullscreen(el: HTMLElement): void {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => void 0);
+    } else {
+      el.requestFullscreen().catch(() => void 0);
+    }
+  }
+
   protected focusCamera(p: CallParticipantUi): void {
     if (!p.videoStream) return;
     this.focusedStream.set({

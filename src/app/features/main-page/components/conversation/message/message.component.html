@@ -2,7 +2,7 @@
      [class.opacity-50]="message().isPending"
      [ngClass]="message().isFailed ? 'bg-rose-500/5' : ''">
 
-  <p-avatar [label]="message().authorId[0].toUpperCase()" shape="circle" styleClass="shrink-0 mt-0.5"></p-avatar>
+  <app-avatar [userId]="message().authorId" styleClass="shrink-0 mt-0.5" />
 
   <div class="flex flex-col min-w-0 flex-1">
     <div class="flex items-center gap-2 mb-1">
@@ -76,6 +76,7 @@
     } @else {
       <!-- Normal message content -->
       <div class="text-sm leading-relaxed m-0 break-words"
+         (click)="onLinkClick($event)"
          [ngClass]="message().isFailed ? 'text-rose-300' : message().isPending ? 'text-white/40' : 'text-white/70'">
         @for (seg of contentSegments(); track $index) {
           @if (seg.type === 'gif') {
@@ -146,11 +147,10 @@
                 class="w-8 h-8 rounded-lg bg-black/70 border border-white/[0.12] flex items-center justify-center text-white/60 hover:text-white cursor-pointer transition-colors backdrop-blur-sm">
                 <i class="pi pi-download text-xs"></i>
               </button>
-              <a [href]="lightbox()!.att!.url" target="_blank" rel="noopener"
-                (click)="$event.stopPropagation()"
-                class="w-8 h-8 rounded-lg bg-black/70 border border-white/[0.12] flex items-center justify-center text-white/60 hover:text-white transition-colors backdrop-blur-sm">
+              <button (click)="openUrl(lightbox()!.att!.url); $event.stopPropagation()"
+                class="w-8 h-8 rounded-lg bg-black/70 border border-white/[0.12] flex items-center justify-center text-white/60 hover:text-white cursor-pointer transition-colors backdrop-blur-sm">
                 <i class="pi pi-external-link text-xs"></i>
-              </a>
+              </button>
               <button (click)="closeLightbox()"
                 class="w-8 h-8 rounded-lg bg-black/70 border border-white/[0.12] flex items-center justify-center text-white/60 hover:text-white cursor-pointer transition-colors backdrop-blur-sm">
                 <i class="pi pi-times text-xs"></i>

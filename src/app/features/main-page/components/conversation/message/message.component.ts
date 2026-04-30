@@ -1,7 +1,7 @@
 import {ChangeDetectionStrategy, Component, computed, DestroyRef, ElementRef, HostListener, inject, input, signal, ViewChild} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {MessageAttachment, MessageDto} from "../../../../../dtos/response/message.dto";
-import {Avatar} from "primeng/avatar";
+import {AppAvatarComponent} from "../../../../../components/avatar/avatar.component";
 import {AsyncPipe, DatePipe, NgClass} from "@angular/common";
 import {ProfileService} from "../../../../../services/profile.service";
 import {Observable} from "rxjs";
@@ -12,11 +12,12 @@ import { MarkdownPipe } from '../../../../../pipes/markdown.pipe';
 import { AttachmentDto, FileService } from '../../../../../services/file.service';
 import { MessagingService } from '../../../../../services/messaging.service';
 import { MessageStore } from '../../../../../stores/message.store';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 @Component({
   selector: 'app-message',
   imports: [
-    Avatar,
+    AppAvatarComponent,
     DatePipe,
     AsyncPipe,
     NgClass,
@@ -27,6 +28,8 @@ import { MessageStore } from '../../../../../stores/message.store';
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class MessageComponent {
+  protected readonly openUrl = openUrl;
+
   public profileService = inject(ProfileService);
   private emojiDataService = inject(EmojiDataService);
   private fileService = inject(FileService);
@@ -184,6 +187,15 @@ export class MessageComponent {
   autoResize(el: HTMLTextAreaElement): void {
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 240) + 'px';
+  }
+
+  onLinkClick(event: MouseEvent): void {
+    const anchor = (event.target as HTMLElement).closest('a');
+    if (!anchor) return;
+    const href = anchor.getAttribute('href');
+    if (!href) return;
+    event.preventDefault();
+    openUrl(href);
   }
 
   public getProfile(): Observable<ProfileDto>{

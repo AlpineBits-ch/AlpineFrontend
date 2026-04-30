@@ -2,9 +2,10 @@ import { animate, query, stagger, style, transition, trigger } from '@angular/an
 import {Component, computed, effect, inject, output, signal} from '@angular/core';
 import { ConversationDto } from '../../../../dtos/response/conversation.dto';
 import { MessageDto } from '../../../../dtos/response/message.dto';
-import { Avatar } from 'primeng/avatar';
+import { AppAvatarComponent } from '../../../../components/avatar/avatar.component';
 import { DatePipe, NgClass } from '@angular/common';
 import { ProfileService } from '../../../../services/profile.service';
+import { OnlineStatus } from '../../../../dtos/response/profile.dto';
 import { ConversationStore } from '../../../../stores/conversation.store';
 import { MessagingService } from '../../../../services/messaging.service';
 import { ConversationService } from '../../../../services/conversation.service';
@@ -16,7 +17,7 @@ import { MessagingWebsocketService } from '../../../../services/messaging-websoc
 
 @Component({
   selector: 'app-conversation-list',
-  imports: [Avatar, DatePipe, NgClass],
+  imports: [AppAvatarComponent, DatePipe, NgClass],
   templateUrl: './conversation-list.component.html',
   styleUrl: './conversation-list.component.css',
   animations: [
@@ -46,6 +47,8 @@ import { MessagingWebsocketService } from '../../../../services/messaging-websoc
 })
 export class ConversationListComponent {
   public conversationSelected = output<ConversationDto>();
+
+  protected readonly OnlineStatus = OnlineStatus;
 
   protected conversationStore = inject(ConversationStore);
   private navService = inject(NavigationService);
@@ -157,6 +160,18 @@ export class ConversationListComponent {
   /** Call this when a real-time message arrives to update the preview */
   public updateLastMessage(convId: string, msg: MessageDto): void {
     this.lastMessages.update(map => new Map(map).set(convId, msg));
+  }
+
+  public getPartnerMember(conv: ConversationDto): typeof conv.members[0] | null {
+    const ownId = this.profileService.ownProfile()?.userId;
+    const others = conv.members.filter(m => m.userId !== ownId);
+    return others.length === 1 ? others[0] : null;
+  }
+
+  public getPartnerStatus(conv: ConversationDto): OnlineStatus | null {
+    const member = this.getPartnerMember(conv);
+    if (!member) return null;
+    return this.profileService.getOnlineStatus(member.userId);
   }
 
   public deleteConversation(conv: ConversationDto, event: MouseEvent): void {
