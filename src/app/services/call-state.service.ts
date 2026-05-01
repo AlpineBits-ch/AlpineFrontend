@@ -7,6 +7,7 @@ import { VoiceService } from './voice.service';
 import { VoiceWebsocketService } from './voice-websocket.service';
 import { CallSessionService } from './call-session.service';
 import { NavigationService } from '../features/main-page/navigation.service';
+import { SoundSettingsService } from './sound-settings.service';
 
 export interface IncomingCallState {
   call: CallDto;
@@ -28,6 +29,7 @@ export class CallStateService implements OnDestroy {
   private conversationStore = inject(ConversationStore);
   private callSession = inject(CallSessionService);
   private navService = inject(NavigationService);
+  private soundSettings = inject(SoundSettingsService);
 
   readonly incomingCall = signal<IncomingCallState | null>(null);
   readonly outgoingCall = signal<OutgoingCallState | null>(null);
@@ -201,32 +203,7 @@ export class CallStateService implements OnDestroy {
   }
 
   private playIncomingRing(): void {
-    try {
-      const ctx = new AudioContext();
-      const pulse = (freq: number, t: number, vol = 0.20) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = freq;
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0, t);
-        gain.gain.linearRampToValueAtTime(vol, t + 0.01);
-        gain.gain.setValueAtTime(vol, t + 0.09);
-        gain.gain.linearRampToValueAtTime(0, t + 0.13);
-        osc.start(t);
-        osc.stop(t + 0.15);
-      };
-      // Three ascending notes: E5 → A5 → C6
-      pulse(659, ctx.currentTime);
-      pulse(880, ctx.currentTime + 0.14);
-      pulse(1047, ctx.currentTime + 0.28, 0.18);
-      // Repeat the triplet once
-      pulse(659, ctx.currentTime + 0.55);
-      pulse(880, ctx.currentTime + 0.69);
-      pulse(1047, ctx.currentTime + 0.83, 0.18);
-      setTimeout(() => ctx.close(), 1200);
-    } catch { /* AudioContext unavailable */ }
+    this.soundSettings.playIncomingRing();
   }
 
   // Outgoing ringback: classic dual-tone (440+480 Hz), 2 pulses then silence — repeats every 6s
@@ -237,29 +214,7 @@ export class CallStateService implements OnDestroy {
   }
 
   private playRingback(): void {
-    try {
-      const ctx = new AudioContext();
-      const tone = (freq: number, t: number) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = freq;
-        osc.type = 'sine';
-        gain.gain.setValueAtTime(0, t);
-        gain.gain.linearRampToValueAtTime(0.12, t + 0.015);
-        gain.gain.setValueAtTime(0.12, t + 0.38);
-        gain.gain.linearRampToValueAtTime(0, t + 0.42);
-        osc.start(t);
-        osc.stop(t + 0.45);
-      };
-      // 440+480 Hz chord, two pulses (classic PSTN ringback)
-      tone(440, ctx.currentTime);
-      tone(480, ctx.currentTime);
-      tone(440, ctx.currentTime + 0.65);
-      tone(480, ctx.currentTime + 0.65);
-      setTimeout(() => ctx.close(), 1800);
-    } catch { /* AudioContext unavailable */ }
+    this.soundSettings.playRingback();
   }
 
   private stopRingtone(): void {

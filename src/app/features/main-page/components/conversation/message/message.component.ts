@@ -108,7 +108,7 @@ export class MessageComponent {
 
   public contentSegments = computed(() => {
     const text = this.content();
-    const segments: { type: 'text' | 'mention' | 'gif'; value: string }[] = [];
+    const segments: { type: 'text' | 'mention' | 'gif' | 'emoji'; value: string }[] = [];
 
     // If the entire message is a GIF URL, render it as a single GIF segment
     if (isKlipyGifUrl(text)) {

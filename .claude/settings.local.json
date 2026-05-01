@@ -26,7 +26,8 @@
       "Bash(grep -r \"action\\\\$\" /c/Users/Domin/WebstormProjects/Alpine/src --include=\"*.ts\" -n)",
       "WebFetch(domain:developers.cloudflare.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(xargs cat *)"
+      "Bash(xargs cat *)",
+      "Bash(grep -E '\\\\.\\(mp3|wav|ogg|m4a\\)$')"
     ]
   }
 }

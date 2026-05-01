@@ -1,8 +1,9 @@
-import { Injectable, signal } from '@angular/core';
+import { inject, Injectable, signal } from '@angular/core';
 import { getCurrentWindow, primaryMonitor } from '@tauri-apps/api/window';
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { LogicalPosition } from '@tauri-apps/api/dpi';
 import type { ToastConfig, ToastItem } from './toast.types';
+import { SoundSettingsService } from '../services/sound-settings.service';
 
 const LEAVE_MS    = 320;
 const POPUP_ANIM  = 230; // matches popup leave-animation (220ms) + tiny buffer
@@ -16,6 +17,7 @@ const GAP = 8;
 export class ToastService {
   readonly toasts = signal<ToastItem[]>([]);
 
+  private soundSettings = inject(SoundSettingsService);
   private isFocused = true;
   private isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
   private clickHandlers  = new Map<string, () => void>();
@@ -172,30 +174,6 @@ export class ToastService {
     const now = Date.now();
     if (now - this.soundAt < 1000) return;
     this.soundAt = now;
-
-    if (typeof sound === 'string') {
-      void new Audio(sound).play();
-      return;
-    }
-    try {
-      const ctx = new AudioContext();
-      const t = ctx.currentTime;
-      const gain = ctx.createGain();
-      gain.connect(ctx.destination);
-      gain.gain.setValueAtTime(0, t);
-      gain.gain.linearRampToValueAtTime(0.07, t + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
-      for (const [freq, start, stop] of [
-        [880, t, t + 0.18],
-        [1108, t + 0.09, t + 0.45],
-      ] as const) {
-        const osc = ctx.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        osc.connect(gain);
-        osc.start(start);
-        osc.stop(stop);
-      }
-    } catch { /* AudioContext unavailable */ }
+    this.soundSettings.playMessage();
   }
 }

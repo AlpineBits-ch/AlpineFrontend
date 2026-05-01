@@ -57,6 +57,75 @@
         [ngModel]="userSettings.notificationSettings().sounds"
         (ngModelChange)="userSettings.updateNotifications({ sounds: $event })" />
     </div>
+
+    <!-- Per-sound cards -->
+    <div class="flex flex-col gap-3 transition-opacity duration-200"
+         [class.opacity-40]="!userSettings.notificationSettings().sounds"
+         [class.pointer-events-none]="!userSettings.notificationSettings().sounds">
+
+      @for (item of soundItems; track item.key) {
+        <div class="flex flex-col gap-3 bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-4">
+
+          <!-- Card header: label + preview -->
+          <div class="flex items-center justify-between">
+            <div>
+              <p class="text-sm text-white/75">{{ item.label }}</p>
+              <p class="text-xs text-white/35 mt-0.5">{{ item.description }}</p>
+            </div>
+            <button (click)="preview(item.key)"
+                    class="flex items-center gap-1.5 text-xs text-white/40 hover:text-brand-dim border border-white/[0.08] hover:border-brand-dim/30 px-2.5 py-1.5 rounded-lg transition-colors">
+              <i class="pi pi-play" style="font-size: 10px;"></i>
+              Preview
+            </button>
+          </div>
+
+          <!-- Volume row -->
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-white/35 w-12 shrink-0">Volume</span>
+            <i class="pi pi-volume-off text-xs text-white/20 shrink-0"></i>
+            <input
+              type="range" min="0" max="100"
+              [value]="getVolumePct(item.key)"
+              (input)="updateVolume(item.key, +$any($event.target).value)"
+              [style.--pct]="getVolumePct(item.key) + '%'"
+              class="sound-slider flex-1" />
+            <i class="pi pi-volume-up text-xs text-white/20 shrink-0"></i>
+            <span class="text-xs text-white/35 w-8 text-right shrink-0">{{ getVolumePct(item.key) }}%</span>
+          </div>
+
+          <!-- File picker row -->
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-white/35 w-12 shrink-0">Sound</span>
+            <div class="flex-1 flex items-center gap-2 min-w-0">
+              @if (soundSettings.settings()[item.key].customUrl) {
+                <i class="pi pi-file-audio text-xs text-brand-dim shrink-0"></i>
+                <span class="text-xs text-white/60 truncate flex-1">{{ soundSettings.settings()[item.key].customName }}</span>
+                <button (click)="clearCustom(item.key)"
+                        class="text-white/25 hover:text-white/55 transition-colors shrink-0 p-1">
+                  <i class="pi pi-times" style="font-size: 10px;"></i>
+                </button>
+              } @else {
+                <span class="text-xs text-white/35 flex-1">Default</span>
+              }
+            </div>
+            <button (click)="triggerUpload(item.key)"
+                    class="text-xs text-white/40 hover:text-white/70 border border-white/[0.1] hover:border-white/20 px-2.5 py-1.5 rounded-lg transition-colors shrink-0">
+              Upload .wav
+            </button>
+          </div>
+
+        </div>
+      }
+
+      <!-- Shared hidden file input -->
+      <input #fileInput type="file" accept=".wav,.mp3,.ogg,.aac,.flac" class="hidden"
+             (change)="onFileSelected($event)" />
+
+      @if (uploadError()) {
+        <p class="text-xs text-rose-400">{{ uploadError() }}</p>
+      }
+
+    </div>
   </section>
 
 </div>
