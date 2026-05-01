@@ -20,6 +20,13 @@
 .typing-dot:nth-child(2) { animation-delay: 0.2s; }
 .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
+.search-highlight {
+  background: rgba(99, 102, 241, 0.30);
+  color: rgba(255, 255, 255, 0.92);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
 /**
  * Alpine Design System — Tailwind v4 theme tokens
  *

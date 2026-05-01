@@ -26,4 +26,10 @@ export class MessagingService {
   public updateMessage(messageId: string, content: string): Observable<MessageDto>{
     return this.httpClient.put<MessageDto>(environment.apiUrl + '/api/v1/messaging/messaging/' + messageId, {content});
   }
+
+  public searchMessages(conversationId: string, query: string): Observable<MessageDto[]> {
+    return this.httpClient.get<MessageDto[]>(
+      `${environment.apiUrl}/api/v1/messaging/messaging/conversations/${conversationId}/messages/search?q=${encodeURIComponent(query)}`
+    );
+  }
 }

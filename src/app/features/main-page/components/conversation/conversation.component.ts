@@ -8,14 +8,16 @@ import {
   inject,
   input,
   output,
+  signal,
   ViewChild,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { NgClass } from '@angular/common';
-import { catchError, EMPTY, tap } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { DatePipe, NgClass } from '@angular/common';
+import { catchError, debounceTime, EMPTY, Subject, tap } from 'rxjs';
 
 import { ConversationDto } from '../../../../dtos/response/conversation.dto';
-import { MessageDto } from '../../../../dtos/response/message.dto';
+import { MessageAttachment, MessageDto } from '../../../../dtos/response/message.dto';
 import { OnlineStatus } from '../../../../dtos/response/profile.dto';
 
 import { Avatar } from 'primeng/avatar';
@@ -35,16 +37,26 @@ import { MessageComponent } from './message/message.component';
 import { CallPanelComponent } from './call-panel/call-panel.component';
 import { UserStatusDotComponent } from '../../../../components/user-status-dot/user-status-dot.component';
 import { TypingDotsComponent } from '../../../../components/typing-dots/typing-dots.component';
+import { HighlightPipe } from '../../../../pipes/highlight.pipe';
 
 const SCROLL_BOTTOM_THRESHOLD = 100;
 const LOAD_MORE_THRESHOLD     = 150;
+
+function decodeContent(encoded: string): string {
+  try {
+    const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return '';
+  }
+}
 
 @Component({
   selector: 'app-conversation',
   imports: [
     ComposerComponent, MessageComponent, Avatar, Button,
-    CallPanelComponent, NgClass,
-    UserStatusDotComponent, TypingDotsComponent,
+    CallPanelComponent, NgClass, DatePipe,
+    UserStatusDotComponent, TypingDotsComponent, HighlightPipe,
   ],
   templateUrl: './conversation.component.html',
   styleUrl: './conversation.component.css',
@@ -101,6 +113,37 @@ export class ConversationComponent implements AfterViewInit {
     this.messageStore.conversationMeta()[this.conversation().id]?.loadingMore ?? false
   );
 
+  // ── Search ───────────────────────────────────────────────────────────────
+
+  private searchSubject = new Subject<string>();
+  protected searchQuery = signal('');
+
+  protected searchEntry = computed(() =>
+    this.messageStore.searchEntries()[this.conversation().id] ?? null
+  );
+  protected isSearchActive = computed(() => this.searchQuery().trim().length > 0);
+  protected isSearching    = computed(() => this.searchEntry()?.searching ?? false);
+
+  protected msgResults = computed(() => {
+    const q = this.searchQuery().trim().toLowerCase();
+    if (!q) return [];
+    return (this.searchEntry()?.results ?? []).filter(m => {
+      return decodeContent(m.content).toLowerCase().includes(q);
+    });
+  });
+
+  protected attResults = computed(() => {
+    const q = this.searchQuery().trim().toLowerCase();
+    if (!q) return [];
+    const out: Array<{ message: MessageDto; attachment: MessageAttachment }> = [];
+    for (const m of (this.searchEntry()?.results ?? [])) {
+      for (const a of m.attachments) {
+        if (a.fileName.toLowerCase().includes(q)) out.push({ message: m, attachment: a });
+      }
+    }
+    return out;
+  });
+
   // ── Scroll state ─────────────────────────────────────────────────────────
 
   @ViewChild('messageScroll') private scrollRef!: ElementRef<HTMLDivElement>;
@@ -128,7 +171,6 @@ export class ConversationComponent implements AfterViewInit {
       }
 
       if (this.isNearBottom) {
-        // setTimeout ensures the new message node is in the DOM before we scroll.
         setTimeout(() => this.scrollToBottom(), 0);
       }
     });
@@ -138,7 +180,12 @@ export class ConversationComponent implements AfterViewInit {
       setTimeout(() => this.composerRef?.focus(), 0);
     });
 
-    // Only used to restore scroll position after loading older messages.
+    // Clear search when switching conversations
+    effect(() => {
+      this.conversation().id;
+      this.searchQuery.set('');
+    }, { allowSignalWrites: true });
+
     afterEveryRender(() => {
       if (this.restoreScroll && this.scrollRef) {
         const el = this.scrollRef.nativeElement;
@@ -146,6 +193,17 @@ export class ConversationComponent implements AfterViewInit {
         if (heightDiff > 0) el.scrollTop += heightDiff;
         this.restoreScroll    = false;
         this.savedScrollHeight = 0;
+      }
+    });
+
+    this.searchSubject.pipe(
+      debounceTime(300),
+      takeUntilDestroyed(),
+    ).subscribe(query => {
+      if (query.trim()) {
+        this.messageStore.searchInConversation(this.conversation().id, query);
+      } else {
+        this.messageStore.clearSearch(this.conversation().id);
       }
     });
   }
@@ -174,7 +232,50 @@ export class ConversationComponent implements AfterViewInit {
     el.scrollTop = el.scrollHeight;
   }
 
-  // ── Actions ──────────────────────────────────────────────────────────────
+  // ── Search actions ───────────────────────────────────────────────────────
+
+  protected onSearchInput(value: string): void {
+    this.searchQuery.set(value);
+    this.searchSubject.next(value);
+  }
+
+  protected clearSearch(): void {
+    this.searchQuery.set('');
+    this.messageStore.clearSearch(this.conversation().id);
+  }
+
+  protected jumpToMessage(messageId: string): void {
+    this.clearSearch();
+    setTimeout(() => {
+      const el = this.scrollRef?.nativeElement.querySelector(`[data-message-id="${messageId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('msg-highlight');
+        setTimeout(() => el.classList.remove('msg-highlight'), 2000);
+      }
+    }, 50);
+  }
+
+  protected getSnippet(encoded: string): string {
+    return decodeContent(encoded);
+  }
+
+  protected getAuthorName(authorId: string): string {
+    if (authorId === this.profileService.ownProfile()?.userId) return 'You';
+    const member = this.conversation().members.find(m => m.userId === authorId);
+    return member ? `${member.cachedUserName}` : 'Unknown';
+  }
+
+  protected fileIcon(contentType: string): string {
+    if (contentType.startsWith('video/')) return 'pi-video';
+    if (contentType.startsWith('audio/')) return 'pi-volume-up';
+    if (contentType === 'application/pdf') return 'pi-file-pdf';
+    if (contentType.includes('zip') || contentType.includes('rar')) return 'pi-folder';
+    if (contentType.startsWith('text/')) return 'pi-file-edit';
+    return 'pi-file';
+  }
+
+  // ── Other actions ────────────────────────────────────────────────────────
 
   protected onTyping(): void {
     this.messagingWs.invokeStartTyping(this.conversation().id);

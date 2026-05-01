@@ -25,7 +25,8 @@
       "Bash(grep -E \"\\\\.rs$\")",
       "Bash(grep -r \"action\\\\$\" /c/Users/Domin/WebstormProjects/Alpine/src --include=\"*.ts\" -n)",
       "WebFetch(domain:developers.cloudflare.com)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(xargs cat *)"
     ]
   }
 }

@@ -14,15 +14,37 @@ interface ConversationMeta {
   loadingMore: boolean;
 }
 
+interface SearchEntry {
+  query: string;
+  results: MessageDto[];
+  searching: boolean;
+}
+
 interface MessageState {
   /** Per-conversation fetch metadata */
   conversationMeta: Record<string, ConversationMeta>;
+  /** Per-conversation search state */
+  searchEntries: Record<string, SearchEntry>;
+}
+
+function decodeContent(encoded: string): string {
+  try {
+    const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return '';
+  }
+}
+
+function messageMatchesQuery(msg: MessageDto, q: string): boolean {
+  if (decodeContent(msg.content).toLowerCase().includes(q)) return true;
+  return msg.attachments.some(a => a.fileName.toLowerCase().includes(q));
 }
 
 export const MessageStore = signalStore(
   { providedIn: 'root' },
   withEntities<MessageDto>(),
-  withState<MessageState>({ conversationMeta: {} }),
+  withState<MessageState>({ conversationMeta: {}, searchEntries: {} }),
 
   withMethods((store, messagingService = inject(MessagingService)) => ({
     loadForConversation(conversationId: string): void {
@@ -109,6 +131,63 @@ export const MessageStore = signalStore(
       const meta = { ...store.conversationMeta() };
       delete meta[conversationId];
       patchState(store, removeEntities(ids), { conversationMeta: meta });
+    },
+
+    searchInConversation(conversationId: string, query: string): void {
+      const q = query.trim().toLowerCase();
+      if (!q) {
+        const entries = { ...store.searchEntries() };
+        delete entries[conversationId];
+        patchState(store, { searchEntries: entries });
+        return;
+      }
+
+      const localResults = store.entities()
+        .filter(m => m.conversationId === conversationId && !m.isPending && !m.isFailed)
+        .filter(m => messageMatchesQuery(m, q));
+
+      const meta = store.conversationMeta()[conversationId];
+      const needsRemote = meta?.hasMore ?? true;
+
+      patchState(store, {
+        searchEntries: {
+          ...store.searchEntries(),
+          [conversationId]: { query: q, results: localResults, searching: needsRemote },
+        },
+      });
+
+      if (!needsRemote) return;
+
+      messagingService.searchMessages(conversationId, q).subscribe({
+        next: remoteResults => {
+          patchState(store, addEntities(remoteResults));
+          const localIds = new Set(localResults.map(m => m.id));
+          const merged = [
+            ...localResults,
+            ...remoteResults.filter(r => !localIds.has(r.id)),
+          ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          patchState(store, {
+            searchEntries: {
+              ...store.searchEntries(),
+              [conversationId]: { query: q, results: merged, searching: false },
+            },
+          });
+        },
+        error: () => {
+          patchState(store, {
+            searchEntries: {
+              ...store.searchEntries(),
+              [conversationId]: { ...store.searchEntries()[conversationId], searching: false },
+            },
+          });
+        },
+      });
+    },
+
+    clearSearch(conversationId: string): void {
+      const entries = { ...store.searchEntries() };
+      delete entries[conversationId];
+      patchState(store, { searchEntries: entries });
     },
   })),
 
