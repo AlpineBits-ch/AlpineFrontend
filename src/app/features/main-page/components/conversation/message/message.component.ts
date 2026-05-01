@@ -108,7 +108,7 @@ export class MessageComponent {
 
   public contentSegments = computed(() => {
     const text = this.content();
-    const segments: { type: 'text' | 'mention' | 'gif' | 'emoji'; value: string }[] = [];
+    let segments: { type: 'text' | 'mention' | 'gif' | 'emoji'; value: string }[] = [];
 
     // If the entire message is a GIF URL, render it as a single GIF segment
     if (isKlipyGifUrl(text)) {
@@ -118,13 +118,58 @@ export class MessageComponent {
     const regex = /@[\w\-.]+#\w+/g;
     let last = 0;
     let match;
+
+    // 1. Extract mentions and text
     while ((match = regex.exec(text)) !== null) {
-      if (match.index > last) segments.push({ type: 'text', value: text.slice(last, match.index) });
+      if (match.index > last) {
+        segments.push({ type: 'text', value: text.slice(last, match.index) });
+      }
       segments.push({ type: 'mention', value: match[0] });
       last = match.index + match[0].length;
     }
-    if (last < text.length) segments.push({ type: 'text', value: text.slice(last) });
-    return segments;
+    if (last < text.length) {
+      segments.push({ type: 'text', value: text.slice(last) });
+    }
+
+    // 2. Process text segments to separate single emojis
+    const finalSegments: { type: 'text' | 'mention' | 'gif' | 'emoji'; value: string }[] = [];
+
+    // A standard regex for detecting a single emoji or a small subset of emoji characters
+    const emojiRegex = /^\p{Emoji}$/u;
+
+    for (const segment of segments) {
+      if (segment.type === 'text') {
+        // Split the text segment into individual characters or tokens
+        // We use spread operator to handle multi-byte Unicode characters (like emojis) correctly
+        const chars = [...segment.value];
+        let currentText = '';
+
+        for (const char of chars) {
+          if (emojiRegex.test(char)) {
+            // If we have accumulated text before this emoji, push it as a text segment first
+            if (currentText.length > 0) {
+              finalSegments.push({ type: 'text', value: currentText });
+              currentText = '';
+            }
+            // Push the single emoji segment
+            finalSegments.push({ type: 'emoji', value: char });
+          } else {
+            // Accumulate non-emoji characters
+            currentText += char;
+          }
+        }
+
+        // Add any remaining text after checking for emojis
+        if (currentText.length > 0) {
+          finalSegments.push({ type: 'text', value: currentText });
+        }
+      } else {
+        // Push mention or gif segments as-is
+        finalSegments.push(segment);
+      }
+    }
+
+    return finalSegments;
   });
 
 

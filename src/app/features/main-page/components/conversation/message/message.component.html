@@ -93,10 +93,12 @@
             <img [src]="seg.value" alt="GIF" class="gif-message rounded-xl mt-1 max-w-xs max-h-48 object-contain block" loading="lazy" />
             } @else if (seg.type === 'mention') {
             <span class="mention-chip">{{ seg.value }}</span>
+            } @else if (seg.type === 'emoji') {
+             <span class="text-xl">{{ seg.value }}</span>
             } @else {
             <div class="contents" [innerHTML]="seg.value | markdown"></div>
             }
-                    }
+        }
         }
 
       </div>
