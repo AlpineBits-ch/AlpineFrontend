@@ -135,7 +135,7 @@ export class MessageComponent {
     // 2. Process text segments to separate single emojis
     const finalSegments: { type: 'text' | 'mention' | 'gif' | 'emoji' | 'flag'; value: string }[] = [];
 
-    const emojiRegex = /^\p{Emoji}$/u;
+    const emojiRegex = /^(?=\p{Emoji})(?!\p{Number}).$/u;
 
     for (const segment of segments) {
       if (segment.type === 'text') {
