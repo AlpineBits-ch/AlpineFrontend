@@ -9,7 +9,8 @@
         "height": 600,
         "title": "alpine",
         "width": 800,
-        "decorations": false
+        "decorations": false,
+        "focus": false
       }
     ]
   },

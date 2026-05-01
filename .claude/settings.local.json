@@ -28,7 +28,9 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(xargs cat *)",
       "Bash(grep -E '\\\\.\\(mp3|wav|ogg|m4a\\)$')",
-      "Bash(cmd.exe /c \"bun add flag-icons\")"
+      "Bash(cmd.exe /c \"bun add flag-icons\")",
+      "Bash(grep -E \"\\\\.\\(ts|tsx\\)$\")",
+      "Bash(cargo check *)"
     ]
   }
 }

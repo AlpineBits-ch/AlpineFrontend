@@ -2,16 +2,14 @@ import {Component, HostListener, inject, OnDestroy, OnInit} from "@angular/core"
 import { RouterOutlet } from "@angular/router";
 import {ProfileService} from "./services/profile.service";
 import {CallOverlayComponent} from "./features/call/call-overlay/call-overlay.component";
-import {getCurrentWindow} from "@tauri-apps/api/window";
 import {TitlebarComponent} from "./titlebar/titlebar.component";
-import {ToastContainerComponent} from "./toast/toast-container/toast-container.component";
 import {CallWebRtcService} from "./services/call-webrtc.service";
 import {UpdateDialogComponent} from "./features/update-dialog/update-dialog.component";
 import {UpdateService} from "./services/update.service";
 
 @Component({
   selector: "app-root",
-  imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ToastContainerComponent, UpdateDialogComponent],
+  imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, UpdateDialogComponent],
   templateUrl: "./app.component.html",
   styleUrl: "./app.component.css",
 })

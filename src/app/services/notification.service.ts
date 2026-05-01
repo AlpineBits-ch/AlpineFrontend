@@ -8,9 +8,9 @@ import {
   sendNotification,
 } from '@tauri-apps/plugin-notification';
 import { UserSettingsService } from './user-settings.service';
-import { ToastService } from '../toast/toast.service';
+import { SoundSettingsService } from './sound-settings.service';
 import type { ProfileDto } from '../dtos/response/profile.dto';
-import {getCurrentWindow, UserAttentionType} from "@tauri-apps/api/window";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 export enum NotificationSound {
   None,
@@ -27,18 +27,17 @@ export interface NotificationActionEvent {
 @Injectable({ providedIn: 'root' })
 export class NotificationService {
   private userSettings = inject(UserSettingsService);
-  private toastService = inject(ToastService);
+  private soundSettings = inject(SoundSettingsService);
 
   readonly action$ = new Subject<NotificationActionEvent>();
 
   constructor() {
     if (this.isMobile()) void this.setupMobileActions();
 
-    this.action$.subscribe(async action => {
+    this.action$.subscribe(async () => {
       const window = getCurrentWindow();
       await window.requestUserAttention(null);
-
-    })
+    });
   }
 
   private isMobile(): boolean {
@@ -80,30 +79,19 @@ export class NotificationService {
     if (category === 'dm' && !ns.dm) return;
     if (category === 'mention' && !ns.mentions) return;
 
-
-    const window = getCurrentWindow();
-    await window.requestUserAttention(UserAttentionType.Informational);
+    if (!await this.ensurePermission()) return;
 
     const actionTypeId = params.actionTypeId ?? 'message';
     const extra = params.extra ?? {};
+    const playSound = ns.sounds && params.sound === NotificationSound.NewMessage;
+    if (playSound) this.soundSettings.playMessage();
 
-    if (this.isMobile()) {
-      if (!await this.ensurePermission()) return;
-      sendNotification({
-        title: params.title,
-        body: params.message,
-        actionTypeId,
-        extra,
-      });
-    } else {
-      this.toastService.show({
-        title: params.title,
-        body: params.message,
-        avatarUrl: params.profile?.avatarUrl,
-        avatarLabel: params.profile?.userName,
-        sound: ns.sounds && params.sound === NotificationSound.NewMessage,
-        onClick: () => this.action$.next({ actionTypeId, extra }),
-      });
-    }
+    sendNotification({
+      title: params.title,
+      body: params.message,
+      silent: true,
+      actionTypeId,
+      extra,
+    });
   }
 }

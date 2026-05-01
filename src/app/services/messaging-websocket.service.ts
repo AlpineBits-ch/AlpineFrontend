@@ -1,6 +1,6 @@
 import {inject, Injectable, signal} from '@angular/core';
 import * as signalR from '@microsoft/signalr';
-import {NotificationService, NotificationSound} from "./notification.service";
+import { NotificationService, NotificationSound } from "./notification.service";
 import {OAuthService} from "angular-oauth2-oidc";
 import {environment} from "../../environments/environment";
 import {BehaviorSubject, firstValueFrom, Subject} from "rxjs";
@@ -93,7 +93,7 @@ export class MessagingWebsocketService {
       await this.notificationService.createNotification({
         title: 'Friend request accepted',
         message: `${data.acceptantUserName} accepted your friend request`,
-        sound: NotificationSound.NewMessage
+        sound: NotificationSound.NewMessage,
       });
     })
 
@@ -174,7 +174,7 @@ export class MessagingWebsocketService {
       this.notificationService.createNotification({
         title: 'Reconnecting',
         message: 'Attempting to reconnect...',
-        sound: NotificationSound.NewMessage
+        sound: NotificationSound.NewMessage,
       })
       this.connectionState.set(ConnectionState.Connecting);
     })
