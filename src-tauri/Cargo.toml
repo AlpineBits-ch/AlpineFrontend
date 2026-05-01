@@ -1,6 +1,6 @@
 [package]
 name = "alpine"
-version = "3.0.14"
+version = "3.0.15"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -34,4 +34,5 @@ debug = true
 debug-assertions = true
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"

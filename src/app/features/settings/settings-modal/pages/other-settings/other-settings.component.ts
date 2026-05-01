@@ -1,10 +1,11 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { ToggleSwitch } from 'primeng/toggleswitch';
 import { Select } from 'primeng/select';
 import { FormsModule } from '@angular/forms';
 import { Button } from 'primeng/button';
-import {check} from "@tauri-apps/plugin-updater";
-import {relaunch} from "@tauri-apps/plugin-process";
+import { check } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
+import { UserSettingsService } from '../../../../../services/user-settings.service';
 
 @Component({
   selector: 'app-other-settings',
@@ -13,6 +14,8 @@ import {relaunch} from "@tauri-apps/plugin-process";
   styleUrl: './other-settings.component.css',
 })
 export class OtherSettingsComponent {
+  protected readonly userSettings = inject(UserSettingsService);
+
   selectedLanguage = 'en-us';
 
   public readonly languages = [
@@ -20,7 +23,6 @@ export class OtherSettingsComponent {
   ];
 
   public readonly systemToggles = [
-    { label: 'Launch on startup',    desc: 'Start Alpine automatically when your device boots.' },
     { label: 'Minimize to tray',     desc: 'Keep Alpine running in the system tray when closed.' },
     { label: 'Run in background',    desc: 'Continue receiving notifications when minimized.' },
   ];
