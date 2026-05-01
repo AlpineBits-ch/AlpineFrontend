@@ -16,7 +16,10 @@ import { Subscription } from 'rxjs';
 import { VoiceWebsocketService } from '../../services/voice-websocket.service';
 import { ProfileDialogComponent } from '../../components/profile-dialog/profile-dialog.component';
 import { ProfileDialogService } from '../../services/profile-dialog.service';
-
+import {
+  restoreStateCurrent,
+  StateFlags,
+} from '@tauri-apps/plugin-window-state';
 @Component({
   selector: 'app-main-page',
   imports: [
@@ -53,6 +56,8 @@ export class MainPageComponent implements OnDestroy {
   constructor() {
     void this.websocketService.start();
     void this.voiceWebsocketService.start();
+
+
 
     this.oAuthService.setupAutomaticSilentRefresh();
     this.oAuthService.events.subscribe(e => {

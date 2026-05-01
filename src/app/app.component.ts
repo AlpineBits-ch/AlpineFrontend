@@ -27,9 +27,7 @@ export class AppComponent implements OnInit, OnDestroy {
   public ngOnInit(): void {
     if (this.isPopup) return;
 
-    if ('__TAURI_INTERNALS__' in window) {
-      void getCurrentWindow().maximize();
-    }
+
     this.profileService.getSelf().subscribe((profile) => {
       console.log('Profile:', profile);
     });
