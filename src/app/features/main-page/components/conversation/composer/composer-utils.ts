@@ -67,7 +67,7 @@ export function detectTrigger(editor: HTMLElement): TriggerDetection {
   }
 
   // Emoji shortcode: :word (at least 1 char after colon)
-  const emojiMatch = textBefore.match(/(?:^|[\s\u00a0]):(\w{1,32})$/);
+  const emojiMatch = textBefore.match(/(?:^|[^\w]):(\w{1,32})$/);
   if (emojiMatch) {
     const colonPos = textBefore.lastIndexOf(':');
     const r = document.createRange();

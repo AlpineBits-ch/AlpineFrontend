@@ -120,7 +120,7 @@ export class ComposerComponent {
       const node = range.startContainer;
       if (node.nodeType === Node.TEXT_NODE) {
         const textBefore = (node.textContent ?? '').slice(0, range.startOffset);
-        const autoMatch = textBefore.match(/(?:^|[\s ]):(\w+):$/);
+        const autoMatch = textBefore.match(/(?:^|[^\w]):(\w+):$/);
         if (autoMatch) {
           const native = this.emojiData.resolveOne(autoMatch[1]);
           if (native) {
@@ -195,7 +195,7 @@ export class ComposerComponent {
     // is content after it. Add a sentinel so the cursor can visually land on
     // the new line after Shift+Enter.
     const last = editor.lastChild;
-    if (last instanceof HTMLElement && last.tagName === 'BR') {
+    if (last instanceof HTMLElement && last.tagName === 'BR' && (editor.textContent ?? '').length > 0) {
       const sentinel = document.createElement('br');
       sentinel.dataset['sentinel'] = '1';
       editor.appendChild(sentinel);
