@@ -59,7 +59,29 @@
       <p class="text-xs text-white/30">Version 0.1.0-alpha</p>
       <p class="text-xs text-white/20 mt-1">Built with Angular · Tauri · PrimeNG</p>
     </div>
-    <p-button label="Check for updates" [text]="true" severity="secondary" size="small" styleClass="w-fit !px-0" (onClick)="checkUpdates()" />
+    <div class="flex items-center gap-3">
+      <p-button
+        [label]="updateService.isChecking() ? 'Checking…' : 'Check for updates'"
+        [text]="true"
+        severity="secondary"
+        size="small"
+        styleClass="w-fit !px-0"
+        [loading]="updateService.isChecking()"
+        [disabled]="updateService.isChecking() || updateService.isDownloading()"
+        (onClick)="updateService.checkForUpdates(true)" />
+      @if (updateService.checkStatus() === 'up-to-date') {
+        <span class="flex items-center gap-1.5 text-xs" style="color: var(--color-online)">
+          <i class="pi pi-check-circle text-xs"></i>
+          You're up to date
+        </span>
+      }
+      @if (updateService.checkStatus() === 'error') {
+        <span class="flex items-center gap-1.5 text-xs" style="color: var(--color-offline)">
+          <i class="pi pi-times-circle text-xs"></i>
+          Check failed
+        </span>
+      }
+    </div>
   </section>
 
 </div>

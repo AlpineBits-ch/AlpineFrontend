@@ -3,9 +3,8 @@ import { ToggleSwitch } from 'primeng/toggleswitch';
 import { Select } from 'primeng/select';
 import { FormsModule } from '@angular/forms';
 import { Button } from 'primeng/button';
-import { check } from '@tauri-apps/plugin-updater';
-import { relaunch } from '@tauri-apps/plugin-process';
 import { UserSettingsService } from '../../../../../services/user-settings.service';
+import { UpdateService } from '../../../../../services/update.service';
 
 @Component({
   selector: 'app-other-settings',
@@ -15,6 +14,7 @@ import { UserSettingsService } from '../../../../../services/user-settings.servi
 })
 export class OtherSettingsComponent {
   protected readonly userSettings = inject(UserSettingsService);
+  protected readonly updateService = inject(UpdateService);
 
   selectedLanguage = 'en-us';
 
@@ -31,25 +31,4 @@ export class OtherSettingsComponent {
     { label: 'Hardware acceleration', desc: 'Use GPU rendering for smoother performance.' },
     { label: 'Developer mode',        desc: 'Show additional debug information and tools.' },
   ];
-
-
-  public async checkUpdates(){
-    try {
-      const update = await check();
-
-      if (update) {
-        console.log(`Update found: ${update.version}`);
-
-        await update.downloadAndInstall();
-
-        // Restart the app
-        await relaunch();
-      }else {
-        console.log('No update available');
-      }
-    } catch (error) {
-      console.error('Error checking for updates:', error);
-    }
-
-  }
 }
