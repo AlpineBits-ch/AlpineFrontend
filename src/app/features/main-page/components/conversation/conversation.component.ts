@@ -3,6 +3,7 @@ import {
   AfterViewInit,
   Component,
   computed,
+  DestroyRef,
   effect,
   ElementRef,
   inject,
@@ -147,16 +148,23 @@ export class ConversationComponent implements AfterViewInit {
   // ── Scroll state ─────────────────────────────────────────────────────────
 
   @ViewChild('messageScroll') private scrollRef!: ElementRef<HTMLDivElement>;
+  @ViewChild('messageList')   private messageListRef?: ElementRef<HTMLDivElement>;
   @ViewChild(ComposerComponent) private composerRef?: ComposerComponent;
   private isNearBottom          = true;
   private savedScrollHeight     = 0;
   private restoreScroll         = false;
   private lastScrollConvId      = '';
   private pendingScrollToBottom = false;
+  private contentObserver       = new ResizeObserver(() => {
+    if (this.isNearBottom) this.scrollToBottom();
+  });
+  private observedListEl?: HTMLDivElement;
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   constructor() {
+    inject(DestroyRef).onDestroy(() => this.contentObserver.disconnect());
+
     effect(() => {
       this.messageStore.loadForConversation(this.conversation().id);
     });
@@ -197,6 +205,15 @@ export class ConversationComponent implements AfterViewInit {
       } else if (this.pendingScrollToBottom && this.scrollRef) {
         this.scrollToBottom();
         this.pendingScrollToBottom = false;
+      }
+
+      // Keep ResizeObserver pointed at the current message list element
+      // (it may appear/disappear as search is toggled)
+      const listEl = this.messageListRef?.nativeElement;
+      if (listEl !== this.observedListEl) {
+        this.contentObserver.disconnect();
+        this.observedListEl = listEl;
+        if (listEl) this.contentObserver.observe(listEl);
       }
     });
 
