@@ -43,6 +43,45 @@
   margin-left: 2px;
 }
 
+/* ── highlight.js token colours inside composer code blocks ─────────────── */
+:host ::ng-deep .hljs-keyword,
+:host ::ng-deep .hljs-selector-tag,
+:host ::ng-deep .hljs-built_in,
+:host ::ng-deep .hljs-name { color: #c792ea; }
+
+:host ::ng-deep .hljs-string,
+:host ::ng-deep .hljs-attr { color: #c3e88d; }
+
+:host ::ng-deep .hljs-number,
+:host ::ng-deep .hljs-literal { color: #f78c6c; }
+
+:host ::ng-deep .hljs-comment,
+:host ::ng-deep .hljs-quote { color: rgba(255,255,255,0.30); font-style: italic; }
+
+:host ::ng-deep .hljs-title,
+:host ::ng-deep .hljs-section { color: #82aaff; }
+
+:host ::ng-deep .hljs-type,
+:host ::ng-deep .hljs-class { color: #ffcb6b; }
+
+:host ::ng-deep .hljs-variable,
+:host ::ng-deep .hljs-params { color: rgba(255,255,255,0.78); }
+
+:host ::ng-deep .hljs-operator,
+:host ::ng-deep .hljs-punctuation { color: #89ddff; }
+
+:host ::ng-deep .hljs-tag { color: #f07178; }
+
+:host ::ng-deep .hljs-attribute { color: #ffcb6b; }
+
+:host ::ng-deep .hljs-regexp,
+:host ::ng-deep .hljs-link { color: #f07178; }
+
+:host ::ng-deep .hljs-meta { color: rgba(255,255,255,0.45); }
+
+:host ::ng-deep .hljs-deletion { color: #f07178; background: rgba(240,113,120,0.12); }
+:host ::ng-deep .hljs-addition { color: #c3e88d; background: rgba(195,232,141,0.10); }
+
 /* ── Mention chip ─────────────────────────────────────────────────────────── */
 /* Chips are created via document.createElement — Angular's scoped attribute
    is never added, so ::ng-deep is required to reach them. */

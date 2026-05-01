@@ -191,6 +191,15 @@ export class ComposerComponent {
     const frag = buildHighlightedFragment(segments);
     editor.innerHTML = '';
     editor.appendChild(frag);
+    // Browsers don't render a trailing <br> as a visible new line unless there
+    // is content after it. Add a sentinel so the cursor can visually land on
+    // the new line after Shift+Enter.
+    const last = editor.lastChild;
+    if (last instanceof HTMLElement && last.tagName === 'BR') {
+      const sentinel = document.createElement('br');
+      sentinel.dataset['sentinel'] = '1';
+      editor.appendChild(sentinel);
+    }
     restoreCursorOffset(editor, offset);
   }
 

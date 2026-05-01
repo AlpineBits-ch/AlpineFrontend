@@ -1,3 +1,5 @@
+import hljs from 'highlight.js';
+
 /** A raw text run or an atomic mention chip from the contenteditable. */
 export type EditorSegment = { type: 'text'; text: string } | { type: 'chip'; el: HTMLElement };
 
@@ -20,7 +22,7 @@ export function getEditorSegments(editor: HTMLElement): EditorSegment[] {
       if (child.nodeType === Node.TEXT_NODE) {
         textAcc += child.textContent ?? '';
       } else if (child instanceof HTMLElement && child.tagName === 'BR') {
-        textAcc += '\n';
+        if (!child.dataset['sentinel']) textAcc += '\n';
       } else {
         walk(child);
       }
@@ -64,20 +66,45 @@ export function highlightInlineMarkdown(text: string): string {
       parts.push(applyInlineStyles(text.slice(lastIndex, match.index)));
     }
     const lang = match[1];
-    const code = escapeHtml(match[2]);
-    const langSpan = lang ? `<span class="md-mark md-lang">${lang}</span>` : '';
-    // The <br> at the end of code already represents the trailing \n captured
-    // by the regex, so no extra separator is needed before the closing fence.
+    const rawCode = match[2];
+    const langSpan = lang ? `<span class="md-mark md-lang">${escapeHtml(lang)}</span>` : '';
+    const codeHtml = (lang && hljs.getLanguage(lang))
+      ? hljs.highlight(rawCode, { language: lang }).value.replace(/\n/g, '<br>')
+      : escapeHtml(rawCode).replace(/\n/g, '<br>');
     parts.push(
       `<span class="md-mark">\`\`\`</span>${langSpan}<br>` +
-      `<code class="md-codeblock">${code.replace(/\n/g, '<br>')}</code>` +
+      `<code class="md-codeblock">${codeHtml}</code>` +
       `<span class="md-mark">\`\`\`</span>`
     );
     lastIndex = match.index + match[0].length;
   }
 
   if (lastIndex < text.length) {
-    parts.push(applyInlineStyles(text.slice(lastIndex)));
+    const remaining = text.slice(lastIndex);
+    const unterminatedRe = /```(\w*)(\n([\s\S]*))?/;
+    const um = unterminatedRe.exec(remaining);
+    if (um !== null) {
+      if (um.index > 0) parts.push(applyInlineStyles(remaining.slice(0, um.index)));
+      const lang = um[1];
+      const hasNewline = um[2] !== undefined;
+      const rawCode = um[3] ?? '';
+      const langSpan = lang ? `<span class="md-mark md-lang">${escapeHtml(lang)}</span>` : '';
+      if (hasNewline) {
+        const codeHtml = (lang && hljs.getLanguage(lang))
+          ? hljs.highlight(rawCode, { language: lang }).value.replace(/\n/g, '<br>')
+          : escapeHtml(rawCode).replace(/\n/g, '<br>');
+        parts.push(
+          `<span class="md-mark">\`\`\`</span>${langSpan}<br>` +
+          `<code class="md-codeblock">${codeHtml}</code>`
+        );
+      } else {
+        parts.push(`<span class="md-mark">\`\`\`</span>${langSpan}`);
+        const afterMatch = remaining.slice(um.index + um[0].length);
+        if (afterMatch) parts.push(applyInlineStyles(afterMatch));
+      }
+    } else {
+      parts.push(applyInlineStyles(remaining));
+    }
   }
 
   return parts.join('');
@@ -91,14 +118,18 @@ function applyInlineStyles(text: string): string {
   let html = escapeHtml(text);
 
   html = html.replace(
-    /\*\*([^*\n]+?)\*\*|__([^_\n]+?)__|~~([^~\n]+?)~~|`([^`\n]+?)`|\*([^*\n]+?)\*|_([^_\n]+?)_/g,
-    (_, b1, b2, s, c, i1, i2) => {
-      if (b1 != null) return `<span class="md-mark">**</span><strong>${b1}</strong><span class="md-mark">**</span>`;
-      if (b2 != null) return `<span class="md-mark">__</span><strong>${b2}</strong><span class="md-mark">__</span>`;
-      if (s  != null) return `<span class="md-mark">~~</span><s>${s}</s><span class="md-mark">~~</span>`;
-      if (c  != null) return `<span class="md-mark">\`</span><code>${c}</code><span class="md-mark">\`</span>`;
-      if (i1 != null) return `<span class="md-mark">*</span><em>${i1}</em><span class="md-mark">*</span>`;
-      if (i2 != null) return `<span class="md-mark">_</span><em>${i2}</em><span class="md-mark">_</span>`;
+    /\*\*([^*\n]+?)\*\*|__([^_\n]+?)__|~~([^~\n]+?)~~|`([^`\n]+?)`|\*([^*\n]+?)\*|_([^_\n]+?)_|\*\*([^*\n]+)$|__([^_\n]+)$|~~([^~\n]+)$|`([^`\n]+)$/gm,
+    (_, b1, b2, s, c, i1, i2, ub1, ub2, us, uc) => {
+      if (b1  != null) return `<span class="md-mark">**</span><strong>${b1}</strong><span class="md-mark">**</span>`;
+      if (b2  != null) return `<span class="md-mark">__</span><strong>${b2}</strong><span class="md-mark">__</span>`;
+      if (s   != null) return `<span class="md-mark">~~</span><s>${s}</s><span class="md-mark">~~</span>`;
+      if (c   != null) return `<span class="md-mark">\`</span><code>${c}</code><span class="md-mark">\`</span>`;
+      if (i1  != null) return `<span class="md-mark">*</span><em>${i1}</em><span class="md-mark">*</span>`;
+      if (i2  != null) return `<span class="md-mark">_</span><em>${i2}</em><span class="md-mark">_</span>`;
+      if (ub1 != null) return `<span class="md-mark">**</span><strong>${ub1}</strong>`;
+      if (ub2 != null) return `<span class="md-mark">__</span><strong>${ub2}</strong>`;
+      if (us  != null) return `<span class="md-mark">~~</span><s>${us}</s>`;
+      if (uc  != null) return `<span class="md-mark">\`</span><code>${uc}</code>`;
       return _;
     }
   );
