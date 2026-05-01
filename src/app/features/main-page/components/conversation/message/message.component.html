@@ -84,17 +84,19 @@
          (click)="onLinkClick($event)"
          [ngClass]="message().isFailed ? 'text-rose-300' : message().isPending ? 'text-white/40' : 'text-white/70'">
         @if (isOnlyEmoji()){
-            <p class="text-4xl text-white/70">
+            <div class="flex items-center justify-start p-2 text-4xl text-white/70 leading-none">
                 {{ content() }}
-            </p>
+            </div>
         }@else {
         @for (seg of contentSegments(); track $index) {
         @if (seg.type === 'gif') {
             <img [src]="seg.value" alt="GIF" class="gif-message rounded-xl mt-1 max-w-xs max-h-48 object-contain block" loading="lazy" />
             } @else if (seg.type === 'mention') {
             <span class="mention-chip">{{ seg.value }}</span>
+            } @else if (seg.type === 'flag') {
+              <span [class]="'fi fi-' + seg.value" style="font-size:1.2em;vertical-align:middle"></span>
             } @else if (seg.type === 'emoji') {
-             <span class="text-xl">{{ seg.value }}</span>
+             <span class="text-xl m-1">{{ seg.value }}</span>
             } @else {
             <div class="contents" [innerHTML]="seg.value | markdown"></div>
             }

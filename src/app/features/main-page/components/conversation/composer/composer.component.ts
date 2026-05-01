@@ -372,7 +372,7 @@ export class ComposerComponent {
 
   send(): void {
     if (this.typingThrottle !== null) { clearTimeout(this.typingThrottle); this.typingThrottle = null; }
-    let text = getMessage(this.editorRef().nativeElement);
+    let text = this.emojiData.resolveShortcodes(getMessage(this.editorRef().nativeElement));
 
     const cmd = this.activeCommand();
     if (cmd) {

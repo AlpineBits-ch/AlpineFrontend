@@ -7,7 +7,7 @@ import {ProfileService} from "../../../../../services/profile.service";
 import {Observable} from "rxjs";
 import {ProfileDto} from "../../../../../dtos/response/profile.dto";
 import { isKlipyGifUrl } from '../../../../../services/gif.service';
-import { EmojiDataService } from '../../../../../services/emoji-data.service';
+import { EmojiDataService, getFlagCode, isRegionalIndicator } from '../../../../../services/emoji-data.service';
 import { MarkdownPipe } from '../../../../../pipes/markdown.pipe';
 import { AttachmentDto, FileService } from '../../../../../services/file.service';
 import { MessagingService } from '../../../../../services/messaging.service';
@@ -102,13 +102,14 @@ export class MessageComponent {
     // 30 is the new 15 btw
     if(content.length > 30) return false;
     if (content.length === 0) return false;
+    if ([...content].some(isRegionalIndicator)) return false;
 
     return /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F?|\u200D)+$/u.test(content);
   });
 
   public contentSegments = computed(() => {
     const text = this.content();
-    let segments: { type: 'text' | 'mention' | 'gif' | 'emoji'; value: string }[] = [];
+    let segments: { type: 'text' | 'mention' | 'gif' | 'emoji' | 'flag'; value: string }[] = [];
 
     // If the entire message is a GIF URL, render it as a single GIF segment
     if (isKlipyGifUrl(text)) {
@@ -132,39 +133,45 @@ export class MessageComponent {
     }
 
     // 2. Process text segments to separate single emojis
-    const finalSegments: { type: 'text' | 'mention' | 'gif' | 'emoji'; value: string }[] = [];
+    const finalSegments: { type: 'text' | 'mention' | 'gif' | 'emoji' | 'flag'; value: string }[] = [];
 
-    // A standard regex for detecting a single emoji or a small subset of emoji characters
     const emojiRegex = /^\p{Emoji}$/u;
 
     for (const segment of segments) {
       if (segment.type === 'text') {
-        // Split the text segment into individual characters or tokens
-        // We use spread operator to handle multi-byte Unicode characters (like emojis) correctly
         const chars = [...segment.value];
         let currentText = '';
 
-        for (const char of chars) {
+        for (let i = 0; i < chars.length; i++) {
+          const char = chars[i];
+          if (isRegionalIndicator(char)) {
+            const next = chars[i + 1];
+            const code = next ? getFlagCode(char, next) : null;
+            if (code) {
+              if (currentText.length > 0) {
+                finalSegments.push({ type: 'text', value: currentText });
+                currentText = '';
+              }
+              finalSegments.push({ type: 'flag', value: code });
+              i++;
+              continue;
+            }
+          }
           if (emojiRegex.test(char)) {
-            // If we have accumulated text before this emoji, push it as a text segment first
             if (currentText.length > 0) {
               finalSegments.push({ type: 'text', value: currentText });
               currentText = '';
             }
-            // Push the single emoji segment
             finalSegments.push({ type: 'emoji', value: char });
           } else {
-            // Accumulate non-emoji characters
             currentText += char;
           }
         }
 
-        // Add any remaining text after checking for emojis
         if (currentText.length > 0) {
           finalSegments.push({ type: 'text', value: currentText });
         }
       } else {
-        // Push mention or gif segments as-is
         finalSegments.push(segment);
       }
     }

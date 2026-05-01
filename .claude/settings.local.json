@@ -27,7 +27,8 @@
       "WebFetch(domain:developers.cloudflare.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "Bash(xargs cat *)",
-      "Bash(grep -E '\\\\.\\(mp3|wav|ogg|m4a\\)$')"
+      "Bash(grep -E '\\\\.\\(mp3|wav|ogg|m4a\\)$')",
+      "Bash(cmd.exe /c \"bun add flag-icons\")"
     ]
   }
 }

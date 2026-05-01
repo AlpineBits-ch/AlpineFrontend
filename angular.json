@@ -44,6 +44,11 @@
                 "glob": "**/*",
                 "input": "src/assets",
                 "output": "assets"
+              },
+              {
+                "glob": "**/*",
+                "input": "node_modules/flag-icons",
+                "output": "flag-icons"
               }
             ],
             "browser": "src/main.ts",
