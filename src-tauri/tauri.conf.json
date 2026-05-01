@@ -36,7 +36,7 @@
   },
   "identifier": "com.alpinebits.alpine",
   "productName": "alpine",
-  "version": "3.0.25",
+  "version": "3.0.26",
   "plugins": {
     "updater": {
       "endpoints": [
