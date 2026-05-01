@@ -148,10 +148,11 @@ export class ConversationComponent implements AfterViewInit {
 
   @ViewChild('messageScroll') private scrollRef!: ElementRef<HTMLDivElement>;
   @ViewChild(ComposerComponent) private composerRef?: ComposerComponent;
-  private isNearBottom     = true;
-  private savedScrollHeight = 0;
-  private restoreScroll    = false;
-  private lastScrollConvId = '';
+  private isNearBottom          = true;
+  private savedScrollHeight     = 0;
+  private restoreScroll         = false;
+  private lastScrollConvId      = '';
+  private pendingScrollToBottom = false;
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -171,7 +172,7 @@ export class ConversationComponent implements AfterViewInit {
       }
 
       if (this.isNearBottom) {
-        setTimeout(() => this.scrollToBottom(), 0);
+        this.pendingScrollToBottom = true;
       }
     });
 
@@ -193,6 +194,9 @@ export class ConversationComponent implements AfterViewInit {
         if (heightDiff > 0) el.scrollTop += heightDiff;
         this.restoreScroll    = false;
         this.savedScrollHeight = 0;
+      } else if (this.pendingScrollToBottom && this.scrollRef) {
+        this.scrollToBottom();
+        this.pendingScrollToBottom = false;
       }
     });
 
