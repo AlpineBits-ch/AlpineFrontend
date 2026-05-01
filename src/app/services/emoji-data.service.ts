@@ -40,7 +40,7 @@ export class EmojiDataService {
     const data = this._data();
     if (!data) return text;
 
-    return text.replace(/:(\w+):/g, (match, shortcode) => {
+    return text.replace(/:(\w[\w-]*):/g, (match, shortcode) => {
       const q = shortcode.toLowerCase();
       let emoji = data.emojis[q];
       if (!emoji) {
@@ -60,7 +60,7 @@ export class EmojiDataService {
     const seen = new Set<string>();
 
     for (const [alias, id] of Object.entries<string>(data.aliases ?? {})) {
-      if (alias.startsWith(q) && !seen.has(id)) {
+      if (alias.includes(q) && !seen.has(id)) {
         const emoji = data.emojis[id];
         if (emoji?.skins?.[0]?.native) {
           seen.add(id);
@@ -69,12 +69,12 @@ export class EmojiDataService {
       }
     }
     for (const [id, emoji] of Object.entries<any>(data.emojis ?? {})) {
-      if (id.startsWith(q) && !seen.has(id) && (emoji as any)?.skins?.[0]?.native) {
+      if (id.includes(q) && !seen.has(id) && (emoji as any)?.skins?.[0]?.native) {
         seen.add(id);
         results.push({ id, native: (emoji as any).skins[0].native, name: (emoji as any).name });
       }
     }
-    return results.slice(0, 8);
+    return results.slice(0, 12);
   }
 
   /** Resolve a single :shortcode: to its native character, or null if not found. */

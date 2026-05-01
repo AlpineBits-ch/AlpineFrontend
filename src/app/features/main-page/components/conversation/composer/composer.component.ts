@@ -92,7 +92,7 @@ export class ComposerComponent {
   // ── Trigger range ─────────────────────────────────────────────────────────
 
   private triggerRange: Range | null = null;
-  private savedEmojiRange: Range | null = null;
+  private savedEmojiOffset = 0;
 
   // ── File input ────────────────────────────────────────────────────────────
 
@@ -112,6 +112,7 @@ export class ComposerComponent {
 
   onInput(): void {
     const editor = this.editorRef().nativeElement;
+    this.savedEmojiOffset = getTextCursorOffset(editor);
 
     // Auto-replace :shortcode: on closing colon
     const sel = window.getSelection();
@@ -120,7 +121,7 @@ export class ComposerComponent {
       const node = range.startContainer;
       if (node.nodeType === Node.TEXT_NODE) {
         const textBefore = (node.textContent ?? '').slice(0, range.startOffset);
-        const autoMatch = textBefore.match(/(?:^|[^\w]):(\w+):$/);
+        const autoMatch = textBefore.match(/(?:^|[^\w]):([\w-]+):$/);
         if (autoMatch) {
           const native = this.emojiData.resolveOne(autoMatch[1]);
           if (native) {
@@ -235,14 +236,11 @@ export class ComposerComponent {
   }
 
   onEditorFocus(): void {
-    const sel = window.getSelection();
-    if (sel && sel.rangeCount > 0) {
-      this.savedEmojiRange = sel.getRangeAt(0).cloneRange();
-    }
+    this.savedEmojiOffset = getTextCursorOffset(this.editorRef().nativeElement);
   }
 
   onEditorClick(): void {
-    this.onEditorFocus();
+    this.savedEmojiOffset = getTextCursorOffset(this.editorRef().nativeElement);
   }
 
   // ── Mention handling ──────────────────────────────────────────────────────
@@ -348,24 +346,20 @@ export class ComposerComponent {
 
   onEmojiSelected(emoji: string): void {
     const editor = this.editorRef().nativeElement;
+    editor.focus();
+    restoreCursorOffset(editor, this.savedEmojiOffset);
 
-    const range = this.savedEmojiRange ?? (() => {
-      const r = document.createRange();
-      r.selectNodeContents(editor);
-      r.collapse(false);
-      return r;
-    })();
-
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+    const range = sel.getRangeAt(0);
     range.deleteContents();
     const node = document.createTextNode(emoji);
     range.insertNode(node);
     range.setStartAfter(node);
     range.collapse(true);
-
-    const sel = window.getSelection();
-    if (sel) { sel.removeAllRanges(); sel.addRange(range); }
-
-    editor.focus();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    this.savedEmojiOffset += [...emoji].length;
   }
 
   // ── Send ─────────────────────────────────────────────────────────────────
