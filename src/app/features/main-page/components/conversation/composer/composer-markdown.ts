@@ -93,10 +93,7 @@ export function highlightInlineMarkdown(text: string): string {
         const codeHtml = (lang && hljs.getLanguage(lang))
           ? hljs.highlight(rawCode, { language: lang }).value.replace(/\n/g, '<br>')
           : escapeHtml(rawCode).replace(/\n/g, '<br>');
-        parts.push(
-          `<span class="md-mark">\`\`\`</span>${langSpan}<br>` +
-          `<code class="md-codeblock">${codeHtml}</code>`
-        );
+        parts.push(`<span class="md-mark">\`\`\`</span>${langSpan}<br>${codeHtml}`);
       } else {
         parts.push(`<span class="md-mark">\`\`\`</span>${langSpan}`);
         const afterMatch = remaining.slice(um.index + um[0].length);
