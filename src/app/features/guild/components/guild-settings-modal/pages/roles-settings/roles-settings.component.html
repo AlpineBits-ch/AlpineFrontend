@@ -1,0 +1,170 @@
+<div class="flex gap-4 h-full min-h-0">
+
+  <!-- Roles list -->
+  <div class="w-44 shrink-0 flex flex-col gap-2">
+    <p-button icon="pi pi-plus" label="New Role" severity="secondary" size="small"
+      styleClass="w-full !justify-start" (onClick)="showCreateDialog.set(true)" />
+
+    <div class="flex-1 overflow-y-auto space-y-0.5"
+         style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+      @for (role of roles(); track role.id) {
+        <button
+          (click)="selectRole(role)"
+          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-sm font-medium transition-all cursor-pointer border-0"
+          [class.bg-indigo-500\/15]="selectedRole()?.id === role.id"
+          [class.text-indigo-400]="selectedRole()?.id === role.id"
+          [class.text-white\/50]="selectedRole()?.id !== role.id"
+          [class.hover\:bg-white\/\[0\.05\]]="selectedRole()?.id !== role.id">
+          <span class="w-3 h-3 rounded-full shrink-0"
+            [style.background]="role.color || '#6366f1'"></span>
+          <span class="truncate">{{ role.name }}</span>
+          @if (role.type === RoleType.Everyone) {
+            <i class="pi pi-users text-[10px] ml-auto shrink-0 opacity-50"></i>
+          }
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- Role editor -->
+  <div class="flex-1 min-w-0 overflow-y-auto"
+       style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+    @if (selectedRole()) {
+      <div class="space-y-5 pb-4">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <span class="w-4 h-4 rounded-full" [style.background]="editColor()"></span>
+            <h3 class="text-sm font-semibold text-white/80">{{ selectedRole()!.name }}</h3>
+          </div>
+          @if (selectedRole()!.type !== RoleType.Everyone) {
+            <p-button icon="pi pi-trash" [text]="true" severity="danger" size="small"
+              pTooltip="Delete Role" tooltipPosition="left"
+              (onClick)="confirmDeleteRole.set(selectedRole()!); showDeleteDialog.set(true)" />
+          }
+        </div>
+
+        <div class="border-t border-white/[0.06]"></div>
+
+        <!-- Name -->
+        <div>
+          <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Role Name</label>
+          <input pInputText
+            [ngModel]="editName()"
+            (ngModelChange)="editName.set($event); onEditField()"
+            [disabled]="selectedRole()!.type === RoleType.Everyone"
+            class="w-full" />
+        </div>
+
+        <!-- Description -->
+        <div>
+          <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Description</label>
+          <textarea pTextarea
+            [ngModel]="editDescription()"
+            (ngModelChange)="editDescription.set($event); onEditField()"
+            rows="2" class="w-full resize-none"></textarea>
+        </div>
+
+        <!-- Color -->
+        <div>
+          <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Role Color</label>
+          <div class="flex items-center gap-3">
+            <div class="relative">
+              <input type="color"
+                [ngModel]="editColor()"
+                (ngModelChange)="editColor.set($event); onEditField()"
+                class="w-10 h-10 rounded-xl cursor-pointer border border-white/[0.08] bg-transparent p-0.5" />
+            </div>
+            <input pInputText
+              [ngModel]="editColor()"
+              (ngModelChange)="editColor.set($event); onEditField()"
+              placeholder="#6366f1"
+              class="w-28 font-mono text-sm" />
+          </div>
+        </div>
+
+        <div class="border-t border-white/[0.06]"></div>
+
+        <!-- Permissions -->
+        <div>
+          <p class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">Permissions</p>
+          <app-permission-toggle [mask]="editPermMask()" (maskChange)="onPermChange($event)" />
+        </div>
+
+        <!-- Save -->
+        @if (editDirty()) {
+          <div class="flex items-center gap-3 pt-1 sticky bottom-0 bg-app-bg pb-1">
+            <p-button label="Save Changes" severity="primary" size="small"
+              [loading]="editSaving()" (onClick)="saveRole()" />
+            <p-button label="Reset" severity="secondary" size="small" [text]="true"
+              (onClick)="selectRole(selectedRole()!)" />
+          </div>
+        }
+      </div>
+    } @else {
+      <div class="flex flex-col items-center justify-center h-full text-center gap-2 text-white/30">
+        <i class="pi pi-shield text-2xl"></i>
+        <p class="text-sm">Select a role to edit</p>
+      </div>
+    }
+  </div>
+</div>
+
+<!-- Create Role Dialog -->
+<p-dialog
+  [(visible)]="showCreateDialog"
+  [modal]="true" [closable]="true" [draggable]="false" [resizable]="false"
+  appendTo="body" [dismissableMask]="true"
+  [style]="{width: '360px'}">
+  <ng-template pTemplate="header">
+    <span class="text-sm font-semibold text-white/85">Create Role</span>
+  </ng-template>
+  <div class="space-y-4 py-2">
+    <div>
+      <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Name <span class="text-rose-400">*</span></label>
+      <input pInputText [ngModel]="createName()" (ngModelChange)="createName.set($event)" placeholder="e.g. Moderator" class="w-full" />
+    </div>
+    <div>
+      <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Color</label>
+      <div class="flex items-center gap-3">
+        <input type="color"
+          [ngModel]="createColor()" (ngModelChange)="createColor.set($event)"
+          class="w-10 h-10 rounded-xl cursor-pointer border border-white/[0.08] bg-transparent p-0.5" />
+        <input pInputText
+          [ngModel]="createColor()" (ngModelChange)="createColor.set($event)"
+          class="w-28 font-mono text-sm" />
+      </div>
+    </div>
+  </div>
+  <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.06]">
+    <p-button label="Cancel" severity="secondary" size="small" [text]="true"
+      (onClick)="showCreateDialog.set(false)" />
+    <p-button label="Create" severity="primary" size="small"
+      [loading]="creating()" [disabled]="!createName().trim()"
+      (onClick)="createRole()" />
+  </div>
+</p-dialog>
+
+<!-- Confirm Delete Dialog -->
+<p-dialog
+  [(visible)]="showDeleteDialog"
+  [modal]="true" [closable]="true" [draggable]="false" [resizable]="false"
+  appendTo="body" [dismissableMask]="true"
+  [style]="{width: '360px'}">
+  <ng-template pTemplate="header">
+    <span class="text-sm font-semibold text-white/85">Delete Role</span>
+  </ng-template>
+  @if (confirmDeleteRole()) {
+    <p class="text-sm text-white/60 py-2">
+      Delete role <strong class="text-white/80">{{ confirmDeleteRole()!.name }}</strong>?
+      This cannot be undone.
+    </p>
+    <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.06]">
+      <p-button label="Cancel" severity="secondary" size="small" [text]="true"
+        (onClick)="showDeleteDialog.set(false)" />
+      <p-button label="Delete" severity="danger" size="small" [outlined]="true"
+        [loading]="deleting()" (onClick)="deleteRole(confirmDeleteRole()!)" />
+    </div>
+  }
+</p-dialog>

@@ -1,0 +1,100 @@
+<p-dialog
+  [(visible)]="isVisible"
+  [modal]="true"
+  [closable]="true"
+  [draggable]="false"
+  [resizable]="false"
+  appendTo="body"
+  [dismissableMask]="true"
+  styleClass="settings-dialog"
+  [style]="{width: '990px', height: '620px'}"
+  [breakpoints]="{'960px': '92vw', '640px': '100vw'}">
+
+  <div class="flex h-full flex-col sm:flex-row">
+
+    <!-- ── Left nav ────────────────────────────────────────────────────────── -->
+    <nav class="sm:w-52 shrink-0 bg-sidebar border-b sm:border-b-0 sm:border-r border-white/[0.06] flex sm:flex-col py-2 sm:py-4 overflow-x-auto sm:overflow-x-hidden overflow-y-hidden sm:overflow-y-auto"
+         style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+
+      <!-- Desktop: guild identity + groups -->
+      <div class="hidden sm:flex flex-col flex-1">
+
+        <!-- Guild name header -->
+        <div class="px-4 mb-4">
+          <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest mb-1">Server</p>
+          <div class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/[0.04]">
+            @if (guild().iconUrl) {
+              <img [src]="guild().iconUrl!" [alt]="guild().name" class="w-6 h-6 rounded-lg object-cover shrink-0" />
+            } @else {
+              <div class="w-6 h-6 rounded-lg bg-brand/20 flex items-center justify-center shrink-0">
+                <span class="text-xs font-bold text-brand-dim">{{ guild().name.charAt(0).toUpperCase() }}</span>
+              </div>
+            }
+            <span class="text-sm font-semibold text-white/85 truncate">{{ guild().name }}</span>
+          </div>
+        </div>
+
+        @for (group of navGroups; track group.title) {
+          <div class="px-3 mb-4">
+            <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest px-3 mb-1">
+              {{ group.title }}
+            </p>
+            @for (item of group.items; track item.id) {
+              <button (click)="activePage.set(item.id)"
+                class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left"
+                [ngClass]="navItemClasses(item.id)">
+                <i class="text-sm shrink-0" [class]="item.icon"></i>
+                {{ item.label }}
+              </button>
+            }
+          </div>
+        }
+      </div>
+
+      <!-- Mobile: flat tab bar -->
+      <div class="flex sm:hidden items-center gap-1 px-2">
+        @for (group of navGroups; track group.title) {
+          @for (item of group.items; track item.id) {
+            <button (click)="activePage.set(item.id)"
+              class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all cursor-pointer border-0 shrink-0"
+              [ngClass]="navItemClasses(item.id)">
+              <i class="text-xs" [class]="item.icon"></i>
+              {{ item.label }}
+            </button>
+          }
+        }
+      </div>
+    </nav>
+
+    <!-- ── Content area ────────────────────────────────────────────────────── -->
+    <div class="flex-1 flex flex-col min-w-0 overflow-hidden bg-app-bg">
+
+      <!-- Header -->
+      <div class="flex items-center justify-between px-6 sm:px-8 py-4 border-b border-white/[0.06] shrink-0">
+        <h1 class="text-sm font-semibold text-white/85">{{ currentLabel() }}</h1>
+        <p-button icon="pi pi-times" [text]="true" severity="secondary" size="small"
+          (onClick)="isVisible.set(false)" />
+      </div>
+
+      <!-- Page content -->
+      <div class="flex-1 overflow-y-auto px-6 sm:px-8 py-6 min-h-0"
+           style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+        @switch (activePage()) {
+          @case ('overview') {
+            <app-overview-settings [guild]="guild()" (guildUpdated)="onGuildUpdated($event)" />
+          }
+          @case ('members') {
+            <app-members-settings [guild]="guild()" />
+          }
+          @case ('roles') {
+            <app-roles-settings [guild]="guild()" (rolesChanged)="onRolesChanged($event)" />
+          }
+          @case ('invites') {
+            <app-invites-settings [guild]="guild()" />
+          }
+        }
+      </div>
+    </div>
+
+  </div>
+</p-dialog>

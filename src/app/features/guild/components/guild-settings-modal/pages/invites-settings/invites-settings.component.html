@@ -1,0 +1,71 @@
+<div class="space-y-5">
+
+  <!-- Actions -->
+  <div class="flex items-center gap-2">
+    <p-button icon="pi pi-plus" label="Permanent Invite" severity="secondary" size="small"
+      [loading]="creating()" (onClick)="createPermanentInvite()" />
+    <p-button icon="pi pi-plus" label="One-time Invite" severity="secondary" size="small"
+      [loading]="creating()" (onClick)="createOneTimeInvite()" />
+  </div>
+
+  <p class="text-xs text-white/30">
+    Permanent invites never expire. One-time invites can only be used once.
+  </p>
+
+  @if (loading()) {
+    <div class="flex items-center justify-center py-10">
+      <i class="pi pi-spin pi-spinner text-white/30 text-xl"></i>
+    </div>
+  } @else if (invites().length === 0) {
+    <div class="flex flex-col items-center justify-center py-12 gap-3 text-center">
+      <i class="pi pi-link text-3xl text-white/15"></i>
+      <p class="text-sm text-white/30">No invites yet</p>
+      <p class="text-xs text-white/20">Create one above to share with others</p>
+    </div>
+  } @else {
+    <div class="space-y-2">
+      @for (invite of invites(); track invite.id) {
+        <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+
+          <!-- Icon + info -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-0.5">
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
+                [class.bg-indigo-500\/15]="invite.type === InviteType.Permanent"
+                [class.text-indigo-400]="invite.type === InviteType.Permanent"
+                [class.bg-amber-500\/15]="invite.type === InviteType.OneTime"
+                [class.text-amber-400]="invite.type === InviteType.OneTime">
+                @if (invite.type === InviteType.Permanent) {
+                  <i class="pi pi-infinity text-[9px]"></i> Permanent
+                } @else {
+                  <i class="pi pi-ticket text-[9px]"></i> One-time
+                }
+              </span>
+              @if (invite.state === InviteState.Expired) {
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-rose-500/15 text-rose-400">
+                  Expired
+                </span>
+              }
+            </div>
+            <p class="text-xs font-mono text-white/35 truncate">{{ inviteLink(invite) }}</p>
+            <p class="text-[11px] text-white/25 mt-0.5">Created {{ formatDate(invite.createdAt) }}</p>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex items-center gap-1 shrink-0">
+            <p-button
+              [icon]="copiedId() === invite.id ? 'pi pi-check' : 'pi pi-copy'"
+              [text]="true" severity="secondary" size="small"
+              [pTooltip]="copiedId() === invite.id ? 'Copied!' : 'Copy link'"
+              tooltipPosition="top"
+              (onClick)="copyInvite(invite)" />
+            <p-button icon="pi pi-trash" [text]="true" severity="danger" size="small"
+              pTooltip="Revoke" tooltipPosition="top"
+              [loading]="deletingId() === invite.id"
+              (onClick)="revokeInvite(invite)" />
+          </div>
+        </div>
+      }
+    </div>
+  }
+</div>

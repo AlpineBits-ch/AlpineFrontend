@@ -1,0 +1,93 @@
+<div class="max-w-lg space-y-6">
+
+  <!-- Channel type badge -->
+  <div class="flex items-center gap-2">
+    @if (channel().type === ChannelType.Text) {
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-white/50">
+        <span class="font-bold text-base leading-none text-white/35">#</span> Text Channel
+      </span>
+    } @else {
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-white/50">
+        <i class="pi pi-volume-up text-white/35"></i> Voice Channel
+      </span>
+    }
+    @if (channel().categoryId) {
+      <span class="text-xs text-white/25">in a category</span>
+    }
+  </div>
+
+  <!-- Name -->
+  <div>
+    <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">
+      Channel Name <span class="text-rose-400">*</span>
+    </label>
+    <input pInputText
+      [ngModel]="name()"
+      (ngModelChange)="name.set($event); onChange()"
+      placeholder="e.g. general"
+      class="w-full" />
+    <p class="text-[11px] text-white/25 mt-1">Use lowercase letters, numbers, and hyphens.</p>
+  </div>
+
+  <!-- Description -->
+  <div>
+    <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Description</label>
+    <textarea pTextarea
+      [ngModel]="description()"
+      (ngModelChange)="description.set($event); onChange()"
+      placeholder="What's this channel about?"
+      rows="2" class="w-full resize-none"></textarea>
+  </div>
+
+  <div class="border-t border-white/[0.06]"></div>
+
+  <!-- Flags -->
+  <div class="space-y-3">
+    <p class="text-xs font-semibold text-white/40 uppercase tracking-widest">Channel Flags</p>
+
+    <!-- Private -->
+    <div class="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.03]">
+      <div>
+        <p class="text-sm font-medium text-white/80">Private Channel</p>
+        <p class="text-xs text-white/35 mt-0.5">Only members with explicit access can see this channel</p>
+      </div>
+      <button
+        (click)="isPrivate.set(!isPrivate()); onChange()"
+        class="relative w-9 h-5 rounded-full transition-colors cursor-pointer border-0 shrink-0"
+        [class.bg-brand]="isPrivate()"
+        [class.bg-white\/\[0\.12\]]="!isPrivate()">
+        <span class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-150"
+          [class.left-\[18px\]]="isPrivate()"
+          [class.left-0\.5]="!isPrivate()"></span>
+      </button>
+    </div>
+
+    <!-- Age restricted -->
+    <div class="flex items-center justify-between px-4 py-3 rounded-xl bg-white/[0.03]">
+      <div>
+        <p class="text-sm font-medium text-white/80">Age-Restricted Channel</p>
+        <p class="text-xs text-white/35 mt-0.5">Restrict this channel to users who have agreed to our terms</p>
+      </div>
+      <button
+        (click)="isAgeRestricted.set(!isAgeRestricted()); onChange()"
+        class="relative w-9 h-5 rounded-full transition-colors cursor-pointer border-0 shrink-0"
+        [class.bg-brand]="isAgeRestricted()"
+        [class.bg-white\/\[0\.12\]]="!isAgeRestricted()">
+        <span class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-150"
+          [class.left-\[18px\]]="isAgeRestricted()"
+          [class.left-0\.5]="!isAgeRestricted()"></span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Save -->
+  @if (dirty()) {
+    <div class="flex items-center gap-3 pt-1">
+      <p-button label="Save Changes" severity="primary" size="small"
+        [loading]="saving()" (onClick)="save()" />
+      <p-button label="Reset" severity="secondary" size="small" [text]="true"
+        (onClick)="ngOnInit()" />
+    </div>
+  }
+
+</div>

@@ -33,7 +33,8 @@
       "Bash(cargo check *)",
       "Bash(grep -E \"\\\\.\\(ts|js\\)$\")",
       "Bash(npx tsc *)",
-      "Bash(npx ng *)"
+      "Bash(npx ng *)",
+      "Bash(xargs ls *)"
     ]
   }
 }
