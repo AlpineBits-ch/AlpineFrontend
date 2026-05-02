@@ -7,10 +7,10 @@ import { SoundSettingsService, SoundKey } from '../../../../../services/sound-se
 @Component({
   selector: 'app-notification-settings',
   imports: [ToggleSwitch, FormsModule],
-  templateUrl: './notifiaction-settings.component.html',
-  styleUrl: './notifiaction-settings.component.css',
+  templateUrl: './notification-settings.component.html',
+  styleUrl: './notification-settings.component.css',
 })
-export class NotifiactionSettingsComponent {
+export class NotificationSettingsComponent {
   protected readonly userSettings = inject(UserSettingsService);
   protected readonly soundSettings = inject(SoundSettingsService);
 

@@ -7,7 +7,7 @@ import {ConfirmationService} from "primeng/api";
 import {ProfileSettingsComponent} from "./pages/profile-settings/profile-settings.component";
 import {PrivacySettingsComponent} from "./pages/privacy-settings/privacy-settings.component";
 import {OtherSettingsComponent} from "./pages/other-settings/other-settings.component";
-import {NotifiactionSettingsComponent} from "./pages/notification-settings/notifiaction-settings.component";
+import {NotificationSettingsComponent} from "./pages/notification-settings/notification-settings.component";
 import {VoiceVideoSettingsComponent} from "./pages/voice-video-settings/voice-video-settings.component";
 import {AuthService} from "../../../services/auth.service";
 import {Router} from "@angular/router";
@@ -33,7 +33,7 @@ export interface SettingsNavGroup {
     ProfileSettingsComponent,
     PrivacySettingsComponent,
     OtherSettingsComponent,
-    NotifiactionSettingsComponent,
+    NotificationSettingsComponent,
     VoiceVideoSettingsComponent,
   ],
   providers: [ConfirmationService],

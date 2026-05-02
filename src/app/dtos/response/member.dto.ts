@@ -5,6 +5,7 @@ export interface GuildMemberDto {
     guildId: string;
     userId: string;
     inviteId: string;
+    permissions: string;
 }
 
 export enum MemberType {

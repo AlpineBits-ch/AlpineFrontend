@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Button } from 'primeng/button';
-import { ConversationListComponent } from '../conversation-list/conversation-list.component';
+import { ConversationListComponent } from '../../../messaging/components/conversation-list/conversation-list.component';
 import { NavigationService } from '../../navigation.service';
 import { ConversationDto } from '../../../../dtos/response/conversation.dto';
 import { NewConversationDialogComponent } from './new-conversation-dialog/new-conversation-dialog.component';

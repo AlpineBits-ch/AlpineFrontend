@@ -1,6 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { DmSidepanelComponent } from '../dm-sidepanel/dm-sidepanel.component';
-import { ChannelListComponent } from '../channel-list/channel-list.component';
+import { ChannelListComponent } from '../../../guild/components/channel-list/channel-list.component';
 import { NavigationService } from '../../navigation.service';
 
 @Component({

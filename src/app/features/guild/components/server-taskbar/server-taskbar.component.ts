@@ -1,6 +1,6 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ServerData, ServerIconComponent } from '../server-icon/server-icon.component';
-import { NavigationService } from '../../navigation.service';
+import { NavigationService } from '../../../main-page/navigation.service';
 import { GuildDto } from '../../../../dtos/response/guild.dto';
 import { GuildService } from '../../../../services/guild.service';
 import { CreateGuildModalComponent } from '../create-guild-modal/create-guild-modal.component';

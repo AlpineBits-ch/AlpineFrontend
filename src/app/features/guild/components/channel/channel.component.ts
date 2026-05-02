@@ -27,8 +27,8 @@ import { MessageStore } from '../../../../stores/message.store';
 import { ProfileService } from '../../../../services/profile.service';
 import { RelationshipService } from '../../../../services/relationship.service';
 
-import { ComposerComponent } from '../conversation/composer/composer.component';
-import { MessageComponent } from '../conversation/message/message.component';
+import { ComposerComponent } from '../../../messaging/components/conversation/composer/composer.component';
+import { MessageComponent } from '../../../messaging/components/conversation/message/message.component';
 import { HighlightPipe } from '../../../../pipes/highlight.pipe';
 
 const SCROLL_BOTTOM_THRESHOLD = 100;

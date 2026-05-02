@@ -19,7 +19,7 @@ import { ConversationStore } from '../../../../stores/conversation.store';
 import { MessageStore } from '../../../../stores/message.store';
 
 import { ToastService } from '../../../../services/toast.service';
-import { NavigationService } from '../../navigation.service';
+import { NavigationService } from '../../../main-page/navigation.service';
 
 @Component({
   selector: 'app-conversation-list',
