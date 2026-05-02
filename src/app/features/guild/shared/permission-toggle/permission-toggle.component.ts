@@ -1,5 +1,6 @@
 import {Component, input, output} from '@angular/core';
-import {NgClass} from '@angular/common';
+import {FormsModule} from '@angular/forms';
+import {ToggleSwitch} from 'primeng/toggleswitch';
 import {PermissionKey, Permissions} from '../../../../enums/permissions.enum';
 
 interface PermGroup {
@@ -40,7 +41,7 @@ const PERM_GROUPS: PermGroup[] = [
 
 @Component({
   selector: 'app-permission-toggle',
-  imports: [NgClass],
+  imports: [ToggleSwitch, FormsModule],
   templateUrl: './permission-toggle.component.html',
 })
 export class PermissionToggleComponent {

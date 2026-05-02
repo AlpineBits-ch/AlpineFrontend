@@ -1,4 +1,5 @@
 import {Component, inject, input, OnInit, output, signal} from '@angular/core';
+import {NgClass} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -13,7 +14,7 @@ import {PrimeTemplate} from "primeng/api";
 
 @Component({
   selector: 'app-roles-settings',
-  imports: [FormsModule, Button, InputText, Textarea, Dialog, Tooltip, PermissionToggleComponent, PrimeTemplate],
+  imports: [NgClass, FormsModule, Button, InputText, Textarea, Dialog, Tooltip, PermissionToggleComponent, PrimeTemplate],
   templateUrl: './roles-settings.component.html',
 })
 export class RolesSettingsComponent implements OnInit {

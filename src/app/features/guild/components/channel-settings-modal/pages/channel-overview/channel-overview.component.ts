@@ -1,5 +1,6 @@
 import {Component, inject, input, OnInit, output, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
+import {ToggleSwitch} from 'primeng/toggleswitch';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
 import {Textarea} from 'primeng/textarea';
@@ -8,7 +9,7 @@ import {GuildService, UpdateChannelDto} from '../../../../../../services/guild.s
 
 @Component({
   selector: 'app-channel-overview',
-  imports: [FormsModule, Button, InputText, Textarea],
+  imports: [FormsModule, ToggleSwitch, Button, InputText, Textarea],
   templateUrl: './channel-overview.component.html',
 })
 export class ChannelOverviewComponent implements OnInit {

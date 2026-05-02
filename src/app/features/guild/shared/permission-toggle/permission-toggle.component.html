@@ -6,15 +6,7 @@
         @for (key of group.perms; track key) {
           <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.05] transition-colors">
             <span class="text-sm text-white/70">{{ label(key) }}</span>
-            <button
-              (click)="toggle(key)"
-              class="relative w-9 h-5 rounded-full transition-colors cursor-pointer border-0 shrink-0 focus:outline-none"
-              [ngClass]="has(key) ? 'bg-brand' : 'bg-white/[0.12]'">
-              <span
-                class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-150"
-                [ngClass]="has(key) ? 'left-[18px]' : 'left-0.5'">
-              </span>
-            </button>
+            <p-toggleswitch [ngModel]="has(key)" (ngModelChange)="toggle(key)" />
           </div>
         }
       </div>

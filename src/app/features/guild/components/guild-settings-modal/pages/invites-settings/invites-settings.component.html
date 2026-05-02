@@ -31,10 +31,7 @@
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-0.5">
               <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
-                [class.bg-indigo-500\/15]="invite.type === InviteType.Permanent"
-                [class.text-indigo-400]="invite.type === InviteType.Permanent"
-                [class.bg-amber-500\/15]="invite.type === InviteType.OneTime"
-                [class.text-amber-400]="invite.type === InviteType.OneTime">
+                [ngClass]="invite.type === InviteType.Permanent ? 'bg-indigo-500/15 text-indigo-400' : 'bg-amber-500/15 text-amber-400'">
                 @if (invite.type === InviteType.Permanent) {
                   <i class="pi pi-infinity text-[9px]"></i> Permanent
                 } @else {

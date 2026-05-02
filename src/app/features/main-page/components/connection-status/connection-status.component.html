@@ -3,10 +3,11 @@
 <div class="flex items-center gap-1.5">
   <!-- Status dot -->
   <div class="w-1.5 h-1.5 rounded-full shrink-0"
-    [class.bg-emerald-400]="state === ConnectionState.Connected"
-    [class.bg-amber-400]="state === ConnectionState.Connecting"
-    [class.animate-pulse]="state === ConnectionState.Connecting"
-    [class.bg-rose-500]="state === ConnectionState.Disconnected">
+    [ngClass]="{
+      'bg-emerald-400': state === ConnectionState.Connected,
+      'bg-amber-400 animate-pulse': state === ConnectionState.Connecting,
+      'bg-rose-500': state === ConnectionState.Disconnected
+    }">
   </div>
 
   <!-- Status text -->

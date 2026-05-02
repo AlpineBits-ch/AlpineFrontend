@@ -10,17 +10,13 @@
     <button
       (click)="switchTab('roles')"
       class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border-0"
-      [class.bg-white\/\[0\.08\]]="activeTab() === 'roles'"
-      [class.text-white\/85]="activeTab() === 'roles'"
-      [class.text-white\/40]="activeTab() !== 'roles'">
+      [ngClass]="activeTab() === 'roles' ? 'bg-white/[0.08] text-white/85' : 'text-white/40'">
       Roles
     </button>
     <button
       (click)="switchTab('members')"
       class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border-0"
-      [class.bg-white\/\[0\.08\]]="activeTab() === 'members'"
-      [class.text-white\/85]="activeTab() === 'members'"
-      [class.text-white\/40]="activeTab() !== 'members'">
+      [ngClass]="activeTab() === 'members' ? 'bg-white/[0.08] text-white/85' : 'text-white/40'">
       Members
     </button>
   </div>

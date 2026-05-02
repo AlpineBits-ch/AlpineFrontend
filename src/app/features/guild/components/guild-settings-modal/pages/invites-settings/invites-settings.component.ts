@@ -1,4 +1,5 @@
 import {Component, inject, input, OnInit, signal} from '@angular/core';
+import {NgClass} from '@angular/common';
 import {Button} from 'primeng/button';
 import {Tooltip} from 'primeng/tooltip';
 import {GuildDto, InviteDto, InviteState, InviteType} from '../../../../../../dtos/response/guild.dto';
@@ -6,7 +7,7 @@ import {GuildService} from '../../../../../../services/guild.service';
 
 @Component({
   selector: 'app-invites-settings',
-  imports: [Button, Tooltip],
+  imports: [NgClass, Button, Tooltip],
   templateUrl: './invites-settings.component.html',
 })
 export class InvitesSettingsComponent implements OnInit {

@@ -1,4 +1,5 @@
 import {Component, inject, input, OnInit, signal} from '@angular/core';
+import {NgClass} from '@angular/common';
 import {Button} from 'primeng/button';
 import {CategoryDto, ChannelPermission, GuildDto, RoleDto} from '../../../../../../dtos/response/guild.dto';
 import {GuildMemberDto} from '../../../../../../dtos/response/member.dto';
@@ -30,7 +31,7 @@ interface MemberOverride {
 
 @Component({
   selector: 'app-category-permissions',
-  imports: [Button, PermissionOverrideEditorComponent],
+  imports: [NgClass, Button, PermissionOverrideEditorComponent],
   templateUrl: './category-permissions.component.html',
 })
 export class CategoryPermissionsComponent implements OnInit {

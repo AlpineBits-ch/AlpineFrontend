@@ -253,10 +253,7 @@
         <button
           (click)="createChannelType.set(ChannelType.Text)"
           class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer"
-          [class.border-brand\/50]="createChannelType() === ChannelType.Text"
-          [class.bg-brand\/10]="createChannelType() === ChannelType.Text"
-          [class.border-white\/\[0\.08\]]="createChannelType() !== ChannelType.Text"
-          [class.bg-white\/\[0\.03\]]="createChannelType() !== ChannelType.Text">
+          [ngClass]="createChannelType() === ChannelType.Text ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'">
           <span class="text-base font-bold text-white/50">#</span>
           <span class="text-sm font-medium text-white/80">Text</span>
           <span class="text-[11px] text-white/35">Send messages</span>
@@ -264,10 +261,7 @@
         <button
           (click)="createChannelType.set(ChannelType.Voice)"
           class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer"
-          [class.border-brand\/50]="createChannelType() === ChannelType.Voice"
-          [class.bg-brand\/10]="createChannelType() === ChannelType.Voice"
-          [class.border-white\/\[0\.08\]]="createChannelType() !== ChannelType.Voice"
-          [class.bg-white\/\[0\.03\]]="createChannelType() !== ChannelType.Voice">
+          [ngClass]="createChannelType() === ChannelType.Voice ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'">
           <i class="pi pi-volume-up text-white/50"></i>
           <span class="text-sm font-medium text-white/80">Voice</span>
           <span class="text-[11px] text-white/35">Talk in real time</span>

@@ -1,4 +1,5 @@
 import {Component, inject, input, OnInit, signal} from '@angular/core';
+import {NgClass} from '@angular/common';
 import {Button} from 'primeng/button';
 import {Tooltip} from 'primeng/tooltip';
 import {
@@ -36,7 +37,7 @@ interface MemberOverride {
 
 @Component({
   selector: 'app-channel-permissions',
-  imports: [Button, Tooltip, PermissionOverrideEditorComponent],
+  imports: [NgClass, Button, Tooltip, PermissionOverrideEditorComponent],
   templateUrl: './channel-permissions.component.html',
 })
 export class ChannelPermissionsComponent implements OnInit {

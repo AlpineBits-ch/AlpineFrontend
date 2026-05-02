@@ -51,15 +51,7 @@
         <p class="text-sm font-medium text-white/80">Private Channel</p>
         <p class="text-xs text-white/35 mt-0.5">Only members with explicit access can see this channel</p>
       </div>
-      <button
-        (click)="isPrivate.set(!isPrivate()); onChange()"
-        class="relative w-9 h-5 rounded-full transition-colors cursor-pointer border-0 shrink-0"
-        [class.bg-brand]="isPrivate()"
-        [class.bg-white\/\[0\.12\]]="!isPrivate()">
-        <span class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-150"
-          [class.left-\[18px\]]="isPrivate()"
-          [class.left-0\.5]="!isPrivate()"></span>
-      </button>
+      <p-toggleswitch [ngModel]="isPrivate()" (ngModelChange)="isPrivate.set($event); onChange()" />
     </div>
 
     <!-- Age restricted -->
@@ -68,15 +60,7 @@
         <p class="text-sm font-medium text-white/80">Age-Restricted Channel</p>
         <p class="text-xs text-white/35 mt-0.5">Restrict this channel to users who have agreed to our terms</p>
       </div>
-      <button
-        (click)="isAgeRestricted.set(!isAgeRestricted()); onChange()"
-        class="relative w-9 h-5 rounded-full transition-colors cursor-pointer border-0 shrink-0"
-        [class.bg-brand]="isAgeRestricted()"
-        [class.bg-white\/\[0\.12\]]="!isAgeRestricted()">
-        <span class="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-150"
-          [class.left-\[18px\]]="isAgeRestricted()"
-          [class.left-0\.5]="!isAgeRestricted()"></span>
-      </button>
+      <p-toggleswitch [ngModel]="isAgeRestricted()" (ngModelChange)="isAgeRestricted.set($event); onChange()" />
     </div>
   </div>
 
