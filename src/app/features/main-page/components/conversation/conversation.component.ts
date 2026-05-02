@@ -114,6 +114,10 @@ export class ConversationComponent implements AfterViewInit {
     this.messageStore.conversationMeta()[this.conversation().id]?.loadingMore ?? false
   );
 
+  protected loadError = computed(() =>
+    this.messageStore.conversationMeta()[this.conversation().id]?.error ?? null
+  );
+
   // ── Search ───────────────────────────────────────────────────────────────
 
   private searchSubject = new Subject<string>();
@@ -297,6 +301,11 @@ export class ConversationComponent implements AfterViewInit {
   }
 
   // ── Other actions ────────────────────────────────────────────────────────
+
+  protected retryLoad(): void {
+    this.messageStore.clearConversationError(this.conversation().id);
+    this.messageStore.loadForConversation(this.conversation().id);
+  }
 
   protected onTyping(): void {
     this.messagingWs.invokeStartTyping(this.conversation().id);

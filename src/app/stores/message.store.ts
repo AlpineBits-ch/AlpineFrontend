@@ -5,6 +5,7 @@ import { MessageDto } from '../dtos/response/message.dto';
 import { MessagingService } from '../services/messaging.service';
 import { MessagingWebsocketService, MessageUpdatedEvent, MessageDeletedEvent } from '../services/messaging-websocket.service';
 import { ProfileService } from '../services/profile.service';
+import { HttpErrorResponse } from '@angular/common/http';
 
 const PAGE_SIZE = 30;
 
@@ -12,6 +13,7 @@ interface ConversationMeta {
   offset: number;
   hasMore: boolean;
   loadingMore: boolean;
+  error?: number;
 }
 
 interface SearchEntry {
@@ -61,17 +63,27 @@ export const MessageStore = signalStore(
 
       messagingService
         .getMessagesForConversation(conversationId, 0, PAGE_SIZE)
-        .subscribe(messages => {
-          patchState(store, addEntities(messages), {
-            conversationMeta: {
-              ...store.conversationMeta(),
-              [conversationId]: {
-                offset: messages.length,
-                hasMore: messages.length === PAGE_SIZE,
-                loadingMore: false,
+        .subscribe({
+          next: messages => {
+            patchState(store, addEntities(messages), {
+              conversationMeta: {
+                ...store.conversationMeta(),
+                [conversationId]: {
+                  offset: messages.length,
+                  hasMore: messages.length === PAGE_SIZE,
+                  loadingMore: false,
+                },
               },
-            },
-          });
+            });
+          },
+          error: (err: HttpErrorResponse) => {
+            patchState(store, {
+              conversationMeta: {
+                ...store.conversationMeta(),
+                [conversationId]: { offset: 0, hasMore: false, loadingMore: false, error: err.status || 0 },
+              },
+            });
+          },
         });
     },
 
@@ -88,18 +100,34 @@ export const MessageStore = signalStore(
 
       messagingService
         .getMessagesForConversation(conversationId, meta.offset, PAGE_SIZE)
-        .subscribe(messages => {
-          patchState(store, addEntities(messages), {
-            conversationMeta: {
-              ...store.conversationMeta(),
-              [conversationId]: {
-                offset: meta.offset + messages.length,
-                hasMore: messages.length === PAGE_SIZE,
-                loadingMore: false,
+        .subscribe({
+          next: messages => {
+            patchState(store, addEntities(messages), {
+              conversationMeta: {
+                ...store.conversationMeta(),
+                [conversationId]: {
+                  offset: meta.offset + messages.length,
+                  hasMore: messages.length === PAGE_SIZE,
+                  loadingMore: false,
+                },
               },
-            },
-          });
+            });
+          },
+          error: () => {
+            patchState(store, {
+              conversationMeta: {
+                ...store.conversationMeta(),
+                [conversationId]: { ...meta, loadingMore: false },
+              },
+            });
+          },
         });
+    },
+
+    clearConversationError(conversationId: string): void {
+      const meta = { ...store.conversationMeta() };
+      delete meta[conversationId];
+      patchState(store, { conversationMeta: meta });
     },
 
     addMessage(msg: MessageDto): void {
@@ -200,17 +228,27 @@ export const MessageStore = signalStore(
       });
       messagingService
         .getMessagesForChannel(channelId, 0, PAGE_SIZE)
-        .subscribe(messages => {
-          patchState(store, addEntities(messages), {
-            channelMeta: {
-              ...store.channelMeta(),
-              [channelId]: {
-                offset: messages.length,
-                hasMore: messages.length === PAGE_SIZE,
-                loadingMore: false,
+        .subscribe({
+          next: messages => {
+            patchState(store, addEntities(messages), {
+              channelMeta: {
+                ...store.channelMeta(),
+                [channelId]: {
+                  offset: messages.length,
+                  hasMore: messages.length === PAGE_SIZE,
+                  loadingMore: false,
+                },
               },
-            },
-          });
+            });
+          },
+          error: (err: HttpErrorResponse) => {
+            patchState(store, {
+              channelMeta: {
+                ...store.channelMeta(),
+                [channelId]: { offset: 0, hasMore: false, loadingMore: false, error: err.status || 0 },
+              },
+            });
+          },
         });
     },
 
@@ -225,18 +263,34 @@ export const MessageStore = signalStore(
       });
       messagingService
         .getMessagesForChannel(channelId, meta.offset, PAGE_SIZE)
-        .subscribe(messages => {
-          patchState(store, addEntities(messages), {
-            channelMeta: {
-              ...store.channelMeta(),
-              [channelId]: {
-                offset: meta.offset + messages.length,
-                hasMore: messages.length === PAGE_SIZE,
-                loadingMore: false,
+        .subscribe({
+          next: messages => {
+            patchState(store, addEntities(messages), {
+              channelMeta: {
+                ...store.channelMeta(),
+                [channelId]: {
+                  offset: meta.offset + messages.length,
+                  hasMore: messages.length === PAGE_SIZE,
+                  loadingMore: false,
+                },
               },
-            },
-          });
+            });
+          },
+          error: () => {
+            patchState(store, {
+              channelMeta: {
+                ...store.channelMeta(),
+                [channelId]: { ...meta, loadingMore: false },
+              },
+            });
+          },
         });
+    },
+
+    clearChannelError(channelId: string): void {
+      const meta = { ...store.channelMeta() };
+      delete meta[channelId];
+      patchState(store, { channelMeta: meta });
     },
 
     removeMessagesForChannel(channelId: string): void {

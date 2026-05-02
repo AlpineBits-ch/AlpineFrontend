@@ -80,6 +80,10 @@ export class ChannelComponent implements AfterViewInit {
     this.messageStore.channelMeta()[this.channel().id]?.loadingMore ?? false
   );
 
+  protected loadError = computed(() =>
+    this.messageStore.channelMeta()[this.channel().id]?.error ?? null
+  );
+
   // ── Search ───────────────────────────────────────────────────────────────
 
   private searchSubject = new Subject<string>();
@@ -238,6 +242,11 @@ export class ChannelComponent implements AfterViewInit {
         setTimeout(() => el.classList.remove('msg-highlight'), 2000);
       }
     }, 50);
+  }
+
+  protected retryLoad(): void {
+    this.messageStore.clearChannelError(this.channel().id);
+    this.messageStore.loadForChannel(this.channel().id);
   }
 
   protected getSnippet(encoded: string): string {

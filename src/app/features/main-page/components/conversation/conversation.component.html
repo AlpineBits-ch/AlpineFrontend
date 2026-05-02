@@ -159,6 +159,38 @@
       </div>
     </div>
 
+  } @else if (loadError(); as errCode) {
+
+    <!-- Load error state -->
+    <div class="flex-1 min-h-0 flex flex-col items-center justify-center px-8 gap-4 select-none">
+      @if (errCode === 403) {
+        <div class="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
+          <i class="pi pi-lock text-2xl text-rose-400/70"></i>
+        </div>
+        <div class="flex flex-col items-center gap-1 text-center">
+          <p class="text-sm font-semibold text-white/70 m-0">Permission denied</p>
+          <p class="text-xs text-white/30 m-0 max-w-xs leading-relaxed">
+            You don't have access to this conversation. Try a different account or ask someone to invite you.
+          </p>
+        </div>
+      } @else {
+        <div class="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0">
+          <i class="pi pi-server text-2xl text-amber-400/70"></i>
+        </div>
+        <div class="flex flex-col items-center gap-1 text-center">
+          <p class="text-sm font-semibold text-white/70 m-0">The server had a moment</p>
+          <p class="text-xs text-white/30 m-0 max-w-xs leading-relaxed">
+            Our backend tripped over its own shoelaces ({{ errCode || '???' }}). It's probably fine. Maybe.
+          </p>
+        </div>
+        <button
+          (click)="retryLoad()"
+          class="mt-1 px-4 py-1.5 rounded-lg bg-white/[0.06] border border-white/[0.08] text-xs text-white/50 hover:bg-white/[0.10] hover:text-white/75 transition-colors cursor-pointer">
+          Try again
+        </button>
+      }
+    </div>
+
   } @else {
 
     <!-- Messages scroll container -->
