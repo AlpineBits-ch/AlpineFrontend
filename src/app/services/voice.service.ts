@@ -1,6 +1,5 @@
 import { inject, Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
-import { IceServersDto } from '../dtos/response/ice-servers.dto';
 import { HttpClient } from '@angular/common/http';
 import { environment } from '../../environments/environment';
 import { CallDto } from '../dtos/response/call.dto';
@@ -46,11 +45,7 @@ export class VoiceService {
 
   private readonly base = environment.apiUrl + '/api/v1/messaging/voice';
 
-  // ── Existing endpoints ───────────────────────────────────────────────────
-
-  getIceServers(): Observable<IceServersDto> {
-    return this.client.get<IceServersDto>(`${this.base}/ice-servers`);
-  }
+  // ── Existing endpoints ──────────────────────────────────────────────────
 
   createCall(createCallDto: CreateCallDto): Observable<CallDto> {
     return this.client.post<CallDto>(`${this.base}/call`, createCallDto);

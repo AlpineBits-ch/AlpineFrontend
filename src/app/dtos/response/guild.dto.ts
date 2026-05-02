@@ -1,3 +1,4 @@
+
 export enum ChannelType {
   Text  = 'Text',
   Voice = 'Voice',
@@ -14,8 +15,20 @@ export interface ChannelDto {
   isAgeRestricted: boolean;
   isPrivate: boolean;
   categoryId: string | undefined;
+  permissions: ChannelPermission[];
 }
 
+export interface ChannelPermission {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  channelId: string | undefined;
+  roleId: string | undefined;
+  memberId: string | undefined;
+  categoryId: string | undefined;
+  allowPermissions: string;
+  denyPermissions: string;
+}
 export interface RoleDto {
   id: string;
   createdAt: Date;
@@ -25,6 +38,8 @@ export interface RoleDto {
   color: string;
   guildId: string;
   userId: string;
+  permissions: string;
+  type: RoleType;
 }
 
 export interface CategoryDto {
@@ -33,6 +48,26 @@ export interface CategoryDto {
   updatedAt: Date;
   name: string;
   description: string;
+  permissions: ChannelPermission[];
+}
+
+
+export enum InviteType {
+  OneTime = 'OneTime',
+  Permanent = 'Permanent',
+}
+
+export enum InviteState {
+  Active = 'Active',
+  Expired = 'Expired',
+}
+export interface InviteDto {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  type: InviteType;
+  state: InviteState;
+  guildId: string;
 }
 export interface GuildDto {
   id: string;
@@ -46,4 +81,9 @@ export interface GuildDto {
   roles: RoleDto[];
   iconUrl?: string;
   bannerUrl?: string;
+}
+
+export enum RoleType {
+  None = 'None',
+  Everyone = 'Everyone',
 }
