@@ -1,0 +1,61 @@
+<p-dialog
+  [(visible)]="visible"
+  [modal]="true"
+  [draggable]="false"
+  appendTo="body"
+  [resizable]="false"
+  [style]="{ width: '420px' }"
+  styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
+  maskStyleClass="backdrop-blur-sm"
+  (onHide)="close()">
+
+  <ng-template pTemplate="header">
+    <span class="text-base font-semibold text-white/85">Create a Server</span>
+  </ng-template>
+
+  <div class="px-1 py-1 flex flex-col gap-4">
+
+    <div class="flex flex-col gap-1.5">
+      <label class="text-[10.5px] font-semibold text-white/30 uppercase tracking-widest">
+        Server Name <span class="text-rose-400/70 normal-case font-normal">*</span>
+      </label>
+      <input pInputText
+             [ngModel]="name()"
+             (ngModelChange)="name.set($event)"
+             placeholder="My Awesome Server"
+             class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
+             [disabled]="loading()" />
+    </div>
+
+    <div class="flex flex-col gap-1.5">
+      <label class="text-[10.5px] font-semibold text-white/30 uppercase tracking-widest">
+        Description
+        <span class="text-white/20 normal-case font-normal tracking-normal">(optional)</span>
+      </label>
+      <textarea
+        [ngModel]="description()"
+        (ngModelChange)="description.set($event)"
+        placeholder="What's this server about?"
+        rows="3"
+        class="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white/85 placeholder:text-white/25 px-3 py-2 outline-none focus:border-white/20 transition-colors resize-none"
+        [disabled]="loading()">
+      </textarea>
+    </div>
+
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="flex items-center justify-end gap-2 pt-1">
+      <p-button label="Cancel" severity="secondary" [text]="true" size="small"
+                (onClick)="close()" [disabled]="loading()" />
+      <p-button
+        label="Create Server"
+        severity="primary"
+        size="small"
+        [disabled]="!name().trim() || loading()"
+        [loading]="loading()"
+        (onClick)="submit()" />
+    </div>
+  </ng-template>
+
+</p-dialog>

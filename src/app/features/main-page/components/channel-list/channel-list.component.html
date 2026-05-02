@@ -11,8 +11,8 @@
   <!-- Channel list -->
   <div class="flex-1 min-h-0 overflow-y-auto px-2 py-2" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
 
-    @if (textChannels().length > 0) {
-      <!-- Text channels -->
+    <!-- Uncategorized text channels -->
+    @if (uncategorizedText().length > 0) {
       <div class="mb-1">
         <div class="flex items-center justify-between px-2 py-1 mb-0.5">
           <span class="text-[10.5px] font-semibold text-white/25 uppercase tracking-widest">Text Channels</span>
@@ -20,7 +20,7 @@
             <i class="pi pi-plus text-[10px]"></i>
           </button>
         </div>
-        @for (channel of textChannels(); track channel.id) {
+        @for (channel of uncategorizedText(); track channel.id) {
           <button
             (click)="navService.openChannel(channel)"
             [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : 'bg-transparent text-white/50 hover:bg-white/[0.05] hover:text-white/80'"
@@ -35,8 +35,8 @@
       </div>
     }
 
-    @if (voiceChannels().length > 0) {
-      <!-- Voice channels -->
+    <!-- Uncategorized voice channels -->
+    @if (uncategorizedVoice().length > 0) {
       <div class="mb-1">
         <div class="flex items-center justify-between px-2 py-1 mb-0.5">
           <span class="text-[10.5px] font-semibold text-white/25 uppercase tracking-widest">Voice Channels</span>
@@ -44,7 +44,7 @@
             <i class="pi pi-plus text-[10px]"></i>
           </button>
         </div>
-        @for (channel of voiceChannels(); track channel.id) {
+        @for (channel of uncategorizedVoice(); track channel.id) {
           <button
             (click)="navService.openChannel(channel)"
             [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : 'bg-transparent text-white/50 hover:bg-white/[0.05] hover:text-white/80'"
@@ -59,7 +59,48 @@
       </div>
     }
 
-    @if (guild().channels.length === 0) {
+    <!-- Categories -->
+    @for (category of guild().categories; track category.id) {
+      <div class="mb-1">
+        <button
+          (click)="toggleCollapse(category.id)"
+          class="flex items-center justify-between w-full px-2 py-1 mb-0.5 group cursor-pointer border-0 bg-transparent">
+          <div class="flex items-center gap-1 min-w-0">
+            <i class="pi text-[8px] text-white/25 shrink-0 transition-transform duration-150"
+               [ngClass]="isCollapsed(category.id) ? 'pi-chevron-right' : 'pi-chevron-down'"></i>
+            <span class="text-[10.5px] font-semibold text-white/25 uppercase tracking-widest truncate group-hover:text-white/45 transition-colors">
+              {{ category.name }}
+            </span>
+          </div>
+          <button
+            (click)="$event.stopPropagation()"
+            class="w-4 h-4 flex items-center justify-center text-white/25 hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent opacity-0 group-hover:opacity-100">
+            <i class="pi pi-plus text-[10px]"></i>
+          </button>
+        </button>
+
+        @if (!isCollapsed(category.id)) {
+          @for (channel of categoryChannels(category.id); track channel.id) {
+            <button
+              (click)="navService.openChannel(channel)"
+              [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : 'bg-transparent text-white/50 hover:bg-white/[0.05] hover:text-white/80'"
+              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0">
+              @if (channel.type === ChannelType.Voice) {
+                <i class="pi pi-volume-up text-xs text-white/30 shrink-0"></i>
+              } @else {
+                <span class="text-white/30 text-base leading-none font-medium shrink-0">#</span>
+              }
+              <span class="text-sm truncate">{{ channel.name }}</span>
+              @if (channel.isPrivate) {
+                <i class="pi pi-lock text-[10px] text-white/25 ml-auto shrink-0"></i>
+              }
+            </button>
+          }
+        }
+      </div>
+    }
+
+    @if (guild().channels.length === 0 && guild().categories.length === 0) {
       <p class="text-xs text-white/25 text-center mt-6">No channels yet</p>
     }
 

@@ -6,6 +6,7 @@ import { OAuthService } from 'angular-oauth2-oidc';
 import { MessagingWebsocketService } from '../../services/messaging-websocket.service';
 import { ActionSidepanelComponent } from './components/action-sidepanel/action-sidepanel.component';
 import { ConversationComponent } from './components/conversation/conversation.component';
+import { ChannelComponent } from './components/channel/channel.component';
 import { ServerTaskbarComponent } from './components/server-taskbar/server-taskbar.component';
 import { ActivityFeedComponent } from './components/activity-feed/activity-feed.component';
 import { ConversationInfoPanelComponent } from './components/conversation-info-panel/conversation-info-panel.component';
@@ -16,6 +17,7 @@ import { Subscription } from 'rxjs';
 import { VoiceWebsocketService } from '../../services/voice-websocket.service';
 import { ProfileDialogComponent } from '../../components/profile-dialog/profile-dialog.component';
 import { ProfileDialogService } from '../../services/profile-dialog.service';
+import { QuickSettingsComponent } from './components/quick-settings/quick-settings.component';
 import {
   restoreStateCurrent,
   StateFlags,
@@ -26,10 +28,12 @@ import {
     HomeComponent,
     ActionSidepanelComponent,
     ConversationComponent,
+    ChannelComponent,
     ServerTaskbarComponent,
     ActivityFeedComponent,
     ConversationInfoPanelComponent,
     ProfileDialogComponent,
+    QuickSettingsComponent,
   ],
   templateUrl: './main-page.component.html',
   styleUrl: './main-page.component.css',

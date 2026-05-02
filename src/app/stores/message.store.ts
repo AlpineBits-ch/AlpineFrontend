@@ -21,10 +21,10 @@ interface SearchEntry {
 }
 
 interface MessageState {
-  /** Per-conversation fetch metadata */
   conversationMeta: Record<string, ConversationMeta>;
-  /** Per-conversation search state */
   searchEntries: Record<string, SearchEntry>;
+  channelMeta: Record<string, ConversationMeta>;
+  channelSearchEntries: Record<string, SearchEntry>;
 }
 
 function decodeContent(encoded: string): string {
@@ -44,7 +44,7 @@ function messageMatchesQuery(msg: MessageDto, q: string): boolean {
 export const MessageStore = signalStore(
   { providedIn: 'root' },
   withEntities<MessageDto>(),
-  withState<MessageState>({ conversationMeta: {}, searchEntries: {} }),
+  withState<MessageState>({ conversationMeta: {}, searchEntries: {}, channelMeta: {}, channelSearchEntries: {} }),
 
   withMethods((store, messagingService = inject(MessagingService)) => ({
     loadForConversation(conversationId: string): void {
@@ -158,7 +158,7 @@ export const MessageStore = signalStore(
 
       if (!needsRemote) return;
 
-      messagingService.searchMessages(conversationId, q).subscribe({
+      messagingService.searchMessagesForConversation(conversationId, q).subscribe({
         next: remoteResults => {
           patchState(store, addEntities(remoteResults));
           const localIds = new Set(localResults.map(m => m.id));
@@ -188,6 +188,116 @@ export const MessageStore = signalStore(
       const entries = { ...store.searchEntries() };
       delete entries[conversationId];
       patchState(store, { searchEntries: entries });
+    },
+
+    loadForChannel(channelId: string): void {
+      if (store.channelMeta()[channelId]) return;
+      patchState(store, {
+        channelMeta: {
+          ...store.channelMeta(),
+          [channelId]: { offset: 0, hasMore: true, loadingMore: true },
+        },
+      });
+      messagingService
+        .getMessagesForChannel(channelId, 0, PAGE_SIZE)
+        .subscribe(messages => {
+          patchState(store, addEntities(messages), {
+            channelMeta: {
+              ...store.channelMeta(),
+              [channelId]: {
+                offset: messages.length,
+                hasMore: messages.length === PAGE_SIZE,
+                loadingMore: false,
+              },
+            },
+          });
+        });
+    },
+
+    loadMoreForChannel(channelId: string): void {
+      const meta = store.channelMeta()[channelId];
+      if (!meta || meta.loadingMore || !meta.hasMore) return;
+      patchState(store, {
+        channelMeta: {
+          ...store.channelMeta(),
+          [channelId]: { ...meta, loadingMore: true },
+        },
+      });
+      messagingService
+        .getMessagesForChannel(channelId, meta.offset, PAGE_SIZE)
+        .subscribe(messages => {
+          patchState(store, addEntities(messages), {
+            channelMeta: {
+              ...store.channelMeta(),
+              [channelId]: {
+                offset: meta.offset + messages.length,
+                hasMore: messages.length === PAGE_SIZE,
+                loadingMore: false,
+              },
+            },
+          });
+        });
+    },
+
+    removeMessagesForChannel(channelId: string): void {
+      const ids = store.entities()
+        .filter(m => m.channelId === channelId)
+        .map(m => m.id);
+      const meta = { ...store.channelMeta() };
+      delete meta[channelId];
+      patchState(store, removeEntities(ids), { channelMeta: meta });
+    },
+
+    searchInChannel(channelId: string, query: string): void {
+      const q = query.trim().toLowerCase();
+      if (!q) {
+        const entries = { ...store.channelSearchEntries() };
+        delete entries[channelId];
+        patchState(store, { channelSearchEntries: entries });
+        return;
+      }
+      const localResults = store.entities()
+        .filter(m => m.channelId === channelId && !m.isPending && !m.isFailed)
+        .filter(m => messageMatchesQuery(m, q));
+      const meta = store.channelMeta()[channelId];
+      const needsRemote = meta?.hasMore ?? true;
+      patchState(store, {
+        channelSearchEntries: {
+          ...store.channelSearchEntries(),
+          [channelId]: { query: q, results: localResults, searching: needsRemote },
+        },
+      });
+      if (!needsRemote) return;
+      messagingService.searchMessagesForChannel(channelId, q).subscribe({
+        next: remoteResults => {
+          patchState(store, addEntities(remoteResults));
+          const localIds = new Set(localResults.map(m => m.id));
+          const merged = [
+            ...localResults,
+            ...remoteResults.filter(r => !localIds.has(r.id)),
+          ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+          patchState(store, {
+            channelSearchEntries: {
+              ...store.channelSearchEntries(),
+              [channelId]: { query: q, results: merged, searching: false },
+            },
+          });
+        },
+        error: () => {
+          patchState(store, {
+            channelSearchEntries: {
+              ...store.channelSearchEntries(),
+              [channelId]: { ...store.channelSearchEntries()[channelId], searching: false },
+            },
+          });
+        },
+      });
+    },
+
+    clearChannelSearch(channelId: string): void {
+      const entries = { ...store.channelSearchEntries() };
+      delete entries[channelId];
+      patchState(store, { channelSearchEntries: entries });
     },
   })),
 

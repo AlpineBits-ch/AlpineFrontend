@@ -13,6 +13,7 @@ export interface ChannelDto {
   guildId: string;
   isAgeRestricted: boolean;
   isPrivate: boolean;
+  categoryId: string | undefined;
 }
 
 export interface RoleDto {
@@ -26,6 +27,13 @@ export interface RoleDto {
   userId: string;
 }
 
+export interface CategoryDto {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  name: string;
+  description: string;
+}
 export interface GuildDto {
   id: string;
   createdAt: Date;
@@ -33,6 +41,7 @@ export interface GuildDto {
   name: string;
   description: string;
   ownerId: string;
+  categories: CategoryDto[];
   channels: ChannelDto[];
   roles: RoleDto[];
   iconUrl?: string;

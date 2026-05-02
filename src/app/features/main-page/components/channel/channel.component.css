@@ -1,0 +1,9 @@
+@keyframes msg-flash {
+  0%   { background: transparent; border-radius: 6px; }
+  20%  { background: rgba(99, 102, 241, 0.15); border-radius: 6px; }
+  100% { background: transparent; border-radius: 6px; }
+}
+
+.msg-highlight {
+  animation: msg-flash 2s ease-out forwards;
+}

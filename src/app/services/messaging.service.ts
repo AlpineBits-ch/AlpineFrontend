@@ -20,6 +20,10 @@ export class MessagingService {
     return this.httpClient.get<MessageDto[]>(environment.apiUrl + '/api/v1/messaging/messaging/conversations/' + conversationId + '/messages?offset=' + offset + '&limit=' + limit);
   }
 
+  public getMessagesForChannel(channelId: string, offset: number, limit: number): Observable<MessageDto[]>{
+    return this.httpClient.get<MessageDto[]>(environment.apiUrl + '/api/v1/messaging/messaging/channels/' + channelId + '/messages?offset=' + offset + '&limit=' + limit);
+  }
+
   public deleteMessage(messageId: string): Observable<void>{
     return this.httpClient.delete<void>(environment.apiUrl + '/api/v1/messaging/messaging/' + messageId);
   }
@@ -27,7 +31,12 @@ export class MessagingService {
     return this.httpClient.put<MessageDto>(environment.apiUrl + '/api/v1/messaging/messaging/' + messageId, {content});
   }
 
-  public searchMessages(conversationId: string, query: string): Observable<MessageDto[]> {
+  public searchMessagesForChannel(channelId: string, query: string): Observable<MessageDto[]> {
+    return this.httpClient.get<MessageDto[]>(
+        `${environment.apiUrl}/api/v1/messaging/messaging/channels/${channelId}/messages/search?q=${encodeURIComponent(query)}`
+    );
+  }
+  public searchMessagesForConversation(conversationId: string, query: string): Observable<MessageDto[]> {
     return this.httpClient.get<MessageDto[]>(
       `${environment.apiUrl}/api/v1/messaging/messaging/conversations/${conversationId}/messages/search?q=${encodeURIComponent(query)}`
     );

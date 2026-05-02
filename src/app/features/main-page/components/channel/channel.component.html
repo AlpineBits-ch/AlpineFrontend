@@ -1,0 +1,179 @@
+<div class="flex flex-col h-full bg-app-bg overflow-hidden">
+
+  <!-- Header -->
+  <header class="flex items-center px-3 sm:px-5 h-14 border-b border-white/[0.06] shrink-0 bg-app-bg">
+    <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+      <span class="text-lg font-semibold text-white/20 leading-none shrink-0">#</span>
+      <span class="text-sm font-semibold text-white/85 truncate">{{ channel().name }}</span>
+      @if (channel().description) {
+        <span class="hidden sm:block text-white/25 text-xs border-l border-white/10 pl-3 ml-1 truncate max-w-xs">
+          {{ channel().description }}
+        </span>
+      }
+    </div>
+
+    <div class="ml-auto flex items-center gap-0.5 text-white/35">
+      <div class="flex items-center gap-2 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 mx-1 focus-within:border-white/20 transition-colors">
+        <i class="pi pi-search text-xs text-white/30 shrink-0"></i>
+        <input
+          type="text"
+          placeholder="Search…"
+          class="bg-transparent border-0 outline-none text-xs text-white/75 placeholder-white/25 py-1.5 w-32 min-w-0"
+          [value]="searchQuery()"
+          (input)="onSearchInput($any($event.target).value)"
+        />
+        @if (isSearchActive()) {
+          <button class="shrink-0 text-white/25 hover:text-white/60 transition-colors leading-none" (click)="clearSearch()">
+            <i class="pi pi-times text-[10px]"></i>
+          </button>
+        }
+      </div>
+      <p-button icon="pi pi-ellipsis-v" [text]="true" severity="secondary" size="small" />
+    </div>
+  </header>
+
+  <!-- Search results panel -->
+  @if (isSearchActive()) {
+    <div
+      class="flex-1 min-h-0 overflow-y-auto"
+      style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+      <div class="px-4 pt-4 pb-6">
+
+        <!-- Status row -->
+        <div class="flex items-center gap-2 mb-4 px-1">
+          @if (isSearching()) {
+            <i class="pi pi-spinner pi-spin text-[11px] text-white/30"></i>
+            <span class="text-xs text-white/30">Searching…</span>
+          } @else {
+            @let total = msgResults().length + attResults().length;
+            <span class="text-xs text-white/30">
+              {{ total }} result{{ total !== 1 ? 's' : '' }} for
+              <span class="text-white/50">"{{ searchQuery() }}"</span>
+            </span>
+          }
+        </div>
+
+        <!-- Message matches -->
+        @if (msgResults().length > 0) {
+          <div class="mb-5">
+            <div class="flex items-center gap-1.5 mb-2 px-1">
+              <i class="pi pi-comment text-[10px] text-white/25"></i>
+              <span class="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Messages</span>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              @for (msg of msgResults(); track msg.id) {
+                <button
+                  class="flex flex-col gap-1.5 bg-card/60 border border-white/[0.06] rounded-xl p-3 text-left hover:bg-hover hover:border-white/[0.10] transition-colors w-full"
+                  (click)="jumpToMessage(msg.id)">
+                  <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold text-white/75">{{ getAuthorName(msg.authorId) }}</span>
+                    <span class="text-[10px] text-white/25">{{ msg.createdAt | date:'MMM d, y · h:mm a' }}</span>
+                  </div>
+                  <p
+                    class="text-xs text-white/50 leading-relaxed m-0 line-clamp-2"
+                    [innerHTML]="getSnippet(msg.content) | highlight:searchQuery()">
+                  </p>
+                </button>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- Attachment matches -->
+        @if (attResults().length > 0) {
+          <div>
+            <div class="flex items-center gap-1.5 mb-2 px-1">
+              <i class="pi pi-paperclip text-[10px] text-white/25"></i>
+              <span class="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Attachments</span>
+            </div>
+            <div class="flex flex-col gap-1.5">
+              @for (item of attResults(); track item.attachment.id) {
+                <button
+                  class="flex items-center gap-3 bg-card/60 border border-white/[0.06] rounded-xl p-3 text-left hover:bg-hover hover:border-white/[0.10] transition-colors w-full"
+                  (click)="jumpToMessage(item.message.id)">
+                  <div class="shrink-0 w-8 h-8 rounded-lg bg-white/[0.05] border border-white/[0.07] flex items-center justify-center">
+                    <i class="pi {{ fileIcon(item.attachment.contentType) }} text-xs text-white/40"></i>
+                  </div>
+                  <div class="flex flex-col gap-0.5 min-w-0">
+                    <span
+                      class="text-xs font-medium text-white/75 truncate"
+                      [innerHTML]="item.attachment.fileName | highlight:searchQuery()">
+                    </span>
+                    <span class="text-[10px] text-white/25">
+                      from {{ getAuthorName(item.message.authorId) }} · {{ item.message.createdAt | date:'MMM d, y' }}
+                    </span>
+                  </div>
+                  <i class="pi pi-arrow-right text-[10px] text-white/20 ml-auto shrink-0"></i>
+                </button>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- Empty state -->
+        @if (!isSearching() && msgResults().length === 0 && attResults().length === 0) {
+          <div class="flex flex-col items-center justify-center py-14 gap-3">
+            <i class="pi pi-search text-3xl text-white/10"></i>
+            <p class="text-sm text-white/25 m-0">
+              No results for <span class="text-white/40">"{{ searchQuery() }}"</span>
+            </p>
+          </div>
+        }
+
+      </div>
+    </div>
+
+  } @else {
+
+    <!-- Messages scroll container -->
+    <div
+      #messageScroll
+      class="flex-1 min-h-0 overflow-y-auto"
+      style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;"
+      (scroll)="onScroll()">
+
+      <div #messageList class="flex flex-col justify-end min-h-full px-4">
+
+        <!-- Loading older messages indicator -->
+        @if (loadingMore()) {
+          <div class="flex items-center justify-center py-3 gap-2 text-white/30 text-xs">
+            <i class="pi pi-spinner pi-spin text-xs"></i>
+            Loading older messages…
+          </div>
+        } @else if (!hasMore()) {
+          <!-- Channel start — only show when all history is loaded -->
+          <div class="py-8 flex flex-col items-start gap-2">
+            <div class="w-16 h-16 rounded-2xl bg-white/[0.05] border border-white/[0.06] flex items-center justify-center">
+              <span class="text-3xl font-bold text-white/20 leading-none">#</span>
+            </div>
+            <h2 class="text-2xl font-bold text-white/90 mt-3">Welcome to #{{ channel().name }}!</h2>
+            <p class="text-sm text-white/40 max-w-md leading-relaxed">
+              This is the beginning of the <span class="text-white/65">#{{ channel().name }}</span> channel.
+              @if (channel().description) {
+                {{ channel().description }}
+              }
+            </p>
+            <hr class="w-full border-t border-white/[0.06] mt-4" />
+          </div>
+        }
+
+        <!-- Messages list -->
+        <div class="flex flex-col gap-0.5 pb-4">
+          @for (msg of messages(); track msg.id) {
+            <div [attr.data-message-id]="msg.id">
+              <app-message [message]="msg"></app-message>
+            </div>
+          }
+        </div>
+
+      </div>
+    </div>
+
+  }
+
+  <!-- Composer -->
+  <footer class="shrink-0">
+    <app-composer autofocus class="block" [friends]="friends()" (message)="createMessage($event)"></app-composer>
+  </footer>
+
+</div>

@@ -1,6 +1,5 @@
-<div class="flex flex-col w-72 h-full bg-sidebar border-r border-white/[0.06]">
+<div class="flex flex-col w-60 h-full bg-sidebar border-r border-white/[0.06]">
 
-  <!-- Workspace-specific panel fills remaining space -->
   <div class="flex-1 min-h-0 flex flex-col">
     @let workspace = navService.workspace();
     @switch (workspace.type) {
@@ -8,19 +7,9 @@
         <app-dm-sidepanel />
       }
       @case ('server') {
-        <div class="border-b border-white/[0.06] shrink-0">
-          <button (click)="navService.selectDMs()"
-            class="flex items-center gap-2.5 w-full px-3 py-2.5 text-sm text-white/40 hover:text-white/70 hover:bg-white/[0.03] transition-all cursor-pointer bg-transparent border-0 text-left">
-            <i class="pi pi-arrow-left text-xs"></i>
-            <span>Direct Messages</span>
-          </button>
-        </div>
         <app-channel-list [guild]="workspace.guild" />
       }
     }
   </div>
-
-  <!-- Quick settings pinned to bottom -->
-  <app-quick-settings />
 
 </div>
