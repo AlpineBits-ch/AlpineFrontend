@@ -38,6 +38,10 @@ export const Permissions = {
     ManageChannel: 1n << 20n,
     ManagePermissions: 1n << 21n,
 
+    // ── Stuff I forgot ────────────────────────────────────────────────────────────
+
+    CreateInvite: 1n << 22n,
+
     // ── Catch-all ────────────────────────────────────────────────────────────
     Superadmin: 1n << 63n,
 } as const;

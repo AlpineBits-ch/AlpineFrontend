@@ -8,20 +8,20 @@
     <div class="flex-1 overflow-y-auto space-y-0.5"
          style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
       @for (role of roles(); track role.id) {
-        <button
-          (click)="selectRole(role)"
-          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-sm font-medium transition-all cursor-pointer border-0"
-          [class.bg-indigo-500\/15]="selectedRole()?.id === role.id"
-          [class.text-indigo-400]="selectedRole()?.id === role.id"
-          [class.text-white\/50]="selectedRole()?.id !== role.id"
-          [class.hover\:bg-white\/\[0\.05\]]="selectedRole()?.id !== role.id">
+          <button
+                  (click)="selectRole(role)"
+                  class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left text-sm font-medium transition-all cursor-pointer border-0"
+                  [class.bg-indigo-500/15]="selectedRole()?.id === role.id"
+                  [class.text-indigo-400]="selectedRole()?.id === role.id"
+                  [class.text-white/50]="selectedRole()?.id !== role.id"
+                  [class.hover:bg-white/[0.05]]="selectedRole()?.id !== role.id">
           <span class="w-3 h-3 rounded-full shrink-0"
-            [style.background]="role.color || '#6366f1'"></span>
+                [style.background]="role.color || '#6366f1'"></span>
           <span class="truncate">{{ role.name }}</span>
           @if (role.type === RoleType.Everyone) {
-            <i class="pi pi-users text-[10px] ml-auto shrink-0 opacity-50"></i>
+              <i class="pi pi-users text-[10px] ml-auto shrink-0 opacity-50"></i>
           }
-        </button>
+          </button>
       }
     </div>
   </div>

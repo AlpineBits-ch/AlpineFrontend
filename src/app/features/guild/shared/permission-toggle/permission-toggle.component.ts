@@ -10,7 +10,7 @@ interface PermGroup {
 const PERM_GROUPS: PermGroup[] = [
   {
     label: 'General',
-    perms: ['ViewChannel'],
+    perms: ['ViewChannel', 'CreateInvite'],
   },
   {
     label: 'Messages',

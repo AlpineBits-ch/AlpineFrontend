@@ -11,6 +11,7 @@ import {ProfileService} from '../../../../../../services/profile.service';
 import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
 import {parsePermissions, Permissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
 import {PermissionToggleComponent} from '../../../../shared/permission-toggle/permission-toggle.component';
+import {PrimeTemplate} from "primeng/api";
 
 interface MemberRow {
   member: GuildMemberDto;
@@ -20,7 +21,7 @@ interface MemberRow {
 
 @Component({
   selector: 'app-members-settings',
-  imports: [FormsModule, Button, InputText, Dialog, Tooltip, PermissionToggleComponent],
+    imports: [FormsModule, Button, InputText, Dialog, Tooltip, PermissionToggleComponent, PrimeTemplate],
   templateUrl: './members-settings.component.html',
 })
 export class MembersSettingsComponent implements OnInit {
