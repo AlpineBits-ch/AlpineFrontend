@@ -14,17 +14,17 @@
         <div class="flex items-center gap-0.5 bg-white/[0.04] border border-white/[0.07] rounded-xl p-1">
           <button (click)="tab.set('online')"
             class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
-            [ngClass]="tab() === 'online' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/40'">
+            [ngClass]="tab() === 'online' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
             Online
           </button>
           <button (click)="tab.set('all')"
             class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
-            [ngClass]="tab() === 'all' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/40'">
+            [ngClass]="tab() === 'all' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
             All
           </button>
           <button (click)="tab.set('pending')"
             class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all flex items-center gap-1.5"
-            [ngClass]="tab() === 'pending' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/40'">
+            [ngClass]="tab() === 'pending' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
             Pending
             @if (pendingCount() > 0) {
               <span class="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
@@ -35,7 +35,7 @@
           </button>
           <button (click)="tab.set('blocked')"
             class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
-            [ngClass]="tab() === 'blocked' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/40'">
+            [ngClass]="tab() === 'blocked' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
             Blocked
           </button>
         </div>
@@ -75,7 +75,7 @@
       </div>
     }
 
-    <div class="border-b border-white/[0.06]"></div>
+    <div class="border-b border-white/[0.10]"></div>
   </div>
 
   <!-- ── Content ─────────────────────────────────────────────────────────── -->
@@ -152,7 +152,7 @@
           }
         </div>
 
-        <div class="border-t border-white/[0.06]"></div>
+        <div class="border-t border-white/[0.10]"></div>
 
         <!-- Outgoing -->
         <div class="flex flex-col gap-2">

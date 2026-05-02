@@ -1,0 +1,33 @@
+@if (voiceSvc.isInVoice()) {
+  <div class="shrink-0 bg-sidebar border-t border-white/[0.10] px-3 py-2 select-none">
+    <div class="flex items-center gap-2">
+
+      <!-- Live indicator dot -->
+      <div class="w-2 h-2 rounded-full bg-online shrink-0" style="box-shadow: 0 0 6px rgba(52,211,153,0.6)"></div>
+
+      <!-- Channel info (clickable) -->
+      <button
+        (click)="navigateToChannel()"
+        class="flex-1 min-w-0 text-left border-0 bg-transparent p-0 cursor-pointer group">
+        <p class="text-xs font-semibold text-online leading-tight group-hover:text-online/80 transition-colors">
+          Voice Connected
+        </p>
+        <p class="text-[11px] text-white/55 truncate leading-tight mt-0.5">
+          {{ voiceSvc.joinedChannelName() }}
+          @if (voiceSvc.joinedGuildName()) {
+            <span class="text-white/35"> · {{ voiceSvc.joinedGuildName() }}</span>
+          }
+        </p>
+      </button>
+
+      <!-- Disconnect -->
+      <button
+        (click)="voiceSvc.leaveChannel()"
+        class="w-7 h-7 flex items-center justify-center rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 transition-colors cursor-pointer border-0 shrink-0"
+        title="Disconnect from voice">
+        <i class="pi pi-phone text-xs" style="transform: rotate(135deg); display: inline-block;"></i>
+      </button>
+
+    </div>
+  </div>
+}

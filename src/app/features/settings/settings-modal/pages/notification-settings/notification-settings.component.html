@@ -2,9 +2,9 @@
 
   <!-- General -->
   <section class="flex flex-col gap-4">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">General</h2>
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">General</h2>
 
-    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
       <div>
         <p class="text-sm text-white/75">Enable Notifications</p>
         <p class="text-xs text-white/35 mt-0.5">Receive alerts for messages and activity.</p>
@@ -19,9 +19,9 @@
   <section class="flex flex-col gap-4 transition-opacity duration-200"
            [class.opacity-40]="!userSettings.notificationSettings().enabled"
            [class.pointer-events-none]="!userSettings.notificationSettings().enabled">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">Messages</h2>
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Messages</h2>
 
-    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
       <div>
         <p class="text-sm text-white/75">Direct Messages</p>
         <p class="text-xs text-white/35 mt-0.5">Notify me when I receive a direct message.</p>
@@ -31,7 +31,7 @@
         (ngModelChange)="userSettings.updateNotifications({ dm: $event })" />
     </div>
 
-    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
       <div>
         <p class="text-sm text-white/75">Mentions & Replies</p>
         <p class="text-xs text-white/35 mt-0.5">Notify me when someone mentions or replies to me.</p>
@@ -46,9 +46,9 @@
   <section class="flex flex-col gap-4 transition-opacity duration-200"
            [class.opacity-40]="!userSettings.notificationSettings().enabled"
            [class.pointer-events-none]="!userSettings.notificationSettings().enabled">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">Sounds</h2>
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Sounds</h2>
 
-    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
       <div>
         <p class="text-sm text-white/75">Notification Sounds</p>
         <p class="text-xs text-white/35 mt-0.5">Play a sound when a notification arrives.</p>
@@ -64,7 +64,7 @@
          [class.pointer-events-none]="!userSettings.notificationSettings().sounds">
 
       @for (item of soundItems; track item.key) {
-        <div class="flex flex-col gap-3 bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-4">
+        <div class="flex flex-col gap-3 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-4">
 
           <!-- Card header: label + preview -->
           <div class="flex items-center justify-between">

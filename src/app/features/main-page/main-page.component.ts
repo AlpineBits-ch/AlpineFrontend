@@ -7,6 +7,7 @@ import { MessagingWebsocketService } from '../../services/messaging-websocket.se
 import { ActionSidepanelComponent } from './components/action-sidepanel/action-sidepanel.component';
 import { ConversationComponent } from '../messaging/components/conversation/conversation.component';
 import { ChannelComponent } from '../guild/components/channel/channel.component';
+import { VoiceChannelComponent } from '../guild/components/voice-channel/voice-channel.component';
 import { ServerTaskbarComponent } from '../guild/components/server-taskbar/server-taskbar.component';
 import { ActivityFeedComponent } from './components/activity-feed/activity-feed.component';
 import { ConversationInfoPanelComponent } from '../messaging/components/conversation-info-panel/conversation-info-panel.component';
@@ -18,6 +19,8 @@ import { VoiceWebsocketService } from '../../services/voice-websocket.service';
 import { ProfileDialogComponent } from '../../components/profile-dialog/profile-dialog.component';
 import { ProfileDialogService } from '../../services/profile-dialog.service';
 import { QuickSettingsComponent } from './components/quick-settings/quick-settings.component';
+import { VoiceStatusBarComponent } from './components/voice-status-bar/voice-status-bar.component';
+import { ChannelType } from '../../dtos/response/guild.dto';
 import {
   restoreStateCurrent,
   StateFlags,
@@ -29,11 +32,13 @@ import {
     ActionSidepanelComponent,
     ConversationComponent,
     ChannelComponent,
+    VoiceChannelComponent,
     ServerTaskbarComponent,
     ActivityFeedComponent,
     ConversationInfoPanelComponent,
     ProfileDialogComponent,
     QuickSettingsComponent,
+    VoiceStatusBarComponent,
   ],
   templateUrl: './main-page.component.html',
   styleUrl: './main-page.component.css',
@@ -43,6 +48,7 @@ export class MainPageComponent implements OnDestroy {
   protected oAuthService = inject(OAuthService);
   protected navService = inject(NavigationService);
   protected profileDialogSvc = inject(ProfileDialogService);
+  protected readonly ChannelType = ChannelType;
 
   private websocketService = inject(MessagingWebsocketService);
   private voiceWebsocketService = inject(VoiceWebsocketService);

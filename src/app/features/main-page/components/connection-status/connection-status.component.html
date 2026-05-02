@@ -12,9 +12,9 @@
   <!-- Status text -->
   <span class="text-[11px] font-medium leading-none"
     [ngClass]="{
-      'text-emerald-400/70': state === ConnectionState.Connected,
-      'text-amber-400/80':   state === ConnectionState.Connecting,
-      'text-rose-400/80':    state === ConnectionState.Disconnected
+      'text-emerald-400/85': state === ConnectionState.Connected,
+      'text-amber-400/90':   state === ConnectionState.Connecting,
+      'text-rose-400/90':    state === ConnectionState.Disconnected
     }">
     @switch (state) {
       @case (ConnectionState.Connected)    { Connected }

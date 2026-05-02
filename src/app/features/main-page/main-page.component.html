@@ -17,6 +17,8 @@
       <app-action-sidepanel />
     </div>
 
+    <!-- Voice connected status bar (shown above profile when in a voice channel) -->
+    <app-voice-status-bar />
     <!-- Profile spans both columns -->
     <app-quick-settings />
   </div>
@@ -33,7 +35,11 @@
         <app-conversation [conversation]="view.conversation" (back)="navService.showHome()" />
       }
       @case ('channel') {
-        <app-channel [channel]="view.channel" (back)="navService.showHome()" />
+        @if (view.channel.type === ChannelType.Voice) {
+          <app-voice-channel [channel]="view.channel" />
+        } @else {
+          <app-channel [channel]="view.channel" (back)="navService.showHome()" />
+        }
       }
     }
   </div>

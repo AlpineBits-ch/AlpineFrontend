@@ -1,10 +1,12 @@
 import {Component, inject, signal} from '@angular/core';
+import {NgClass} from '@angular/common';
 import {ProfileService} from "../../../../services/profile.service";
 import {AppAvatarComponent} from "../../../../components/avatar/avatar.component";
 import {Button} from "primeng/button";
 import {ConnectionState, MessagingWebsocketService} from "../../../../services/messaging-websocket.service";
 import {ConnectionStatusComponent} from "../connection-status/connection-status.component";
 import {SettingsModalComponent} from "../../../../features/settings/settings-modal/settings-modal.component";
+import {VoiceChannelService} from "../../../../services/voice-channel.service";
 
 @Component({
   selector: 'app-quick-settings',
@@ -13,13 +15,15 @@ import {SettingsModalComponent} from "../../../../features/settings/settings-mod
     Button,
     ConnectionStatusComponent,
     SettingsModalComponent,
+    NgClass,
   ],
   templateUrl: './quick-settings.component.html',
   styleUrl: './quick-settings.component.css',
 })
 export class QuickSettingsComponent {
-  protected profileService = inject(ProfileService);
-  protected websocketService = inject(MessagingWebsocketService);
+  protected profileService    = inject(ProfileService);
+  protected websocketService  = inject(MessagingWebsocketService);
+  protected voiceSvc          = inject(VoiceChannelService);
   protected readonly ConnectionState = ConnectionState;
 
   public isSettingsOpen = signal(false);

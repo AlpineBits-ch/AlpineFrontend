@@ -1,4 +1,4 @@
-import {Component, computed, inject, input, signal, ViewChild} from '@angular/core';
+import {Component, computed, effect, inject, input, signal, ViewChild} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Menu} from 'primeng/menu';
@@ -15,6 +15,9 @@ import {
 } from '../../../../dtos/response/guild.dto';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {GuildService} from '../../../../services/guild.service';
+import {VoiceChannelService} from '../../../../services/voice-channel.service';
+import {ProfileService} from '../../../../services/profile.service';
+import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
 import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-settings-modal.component';
 import {ChannelSettingsModalComponent} from '../channel-settings-modal/channel-settings-modal.component';
 import {CategorySettingsModalComponent} from '../category-settings-modal/category-settings-modal.component';
@@ -28,6 +31,7 @@ import {CategorySettingsModalComponent} from '../category-settings-modal/categor
     Button,
     Dialog,
     InputText,
+    AppAvatarComponent,
     GuildSettingsModalComponent,
     ChannelSettingsModalComponent,
     CategorySettingsModalComponent,
@@ -38,8 +42,21 @@ export class ChannelListComponent {
   guild = input.required<GuildDto>();
 
   protected readonly ChannelType = ChannelType;
-  protected navService = inject(NavigationService);
-  private guildService = inject(GuildService);
+  protected navService      = inject(NavigationService);
+  protected voiceChannelSvc = inject(VoiceChannelService);
+  private   guildService    = inject(GuildService);
+  protected profileService  = inject(ProfileService);
+
+  protected avatarUrl(userId: string): string | undefined {
+    return this.profileService.getCachedByUserId(userId)?.avatarUrl;
+  }
+
+  constructor() {
+    // Seed mock voice participants whenever the guild changes
+    effect(() => {
+      this.voiceChannelSvc.seedMockParticipants(this.guild().channels);
+    });
+  }
 
   // ── Collapse state ────────────────────────────────────────────────────────
   private collapsedIds = signal(new Set<string>());
@@ -60,6 +77,18 @@ export class ChannelListComponent {
   protected isActive(channel: ChannelDto): boolean {
     const view = this.navService.mainView();
     return view.type === 'channel' && view.channel.id === channel.id;
+  }
+
+  protected isJoinedVoice(channel: ChannelDto): boolean {
+    return this.voiceChannelSvc.joinedChannelId() === channel.id;
+  }
+
+  protected onVoiceChannelClick(channel: ChannelDto): void {
+    this.navService.openChannel(channel);
+    if (this.voiceChannelSvc.joinedChannelId() !== channel.id) {
+      this.voiceChannelSvc.joinChannel(channel, this.guild().name);
+    }
+    this.navService.mobileNavOpen.set(false);
   }
 
   protected isCollapsed(id: string): boolean {

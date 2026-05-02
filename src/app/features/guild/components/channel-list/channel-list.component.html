@@ -1,7 +1,7 @@
 <div class="flex flex-col flex-1 min-h-0">
 
   <!-- Guild name header -->
-  <div class="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between shrink-0">
+  <div class="px-4 py-3 border-b border-white/[0.10] flex items-center justify-between shrink-0">
     <span class="text-sm font-semibold text-white/90 truncate">{{ guild().name }}</span>
     <button
       (click)="toggleGuildMenu($event)"
@@ -18,7 +18,7 @@
     @if (uncategorizedText().length > 0) {
       <div class="mb-1">
         <div class="flex items-center justify-between px-2 py-1 mb-0.5">
-          <span class="text-[10.5px] font-semibold text-white/25 uppercase tracking-widest">Text Channels</span>
+          <span class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest">Text Channels</span>
           <button
             (click)="openCreateChannel(undefined)"
             class="w-4 h-4 flex items-center justify-center text-white/25 hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
@@ -29,12 +29,12 @@
           <button
             (click)="navService.openChannel(channel)"
             (contextmenu)="onChannelContextMenu($event, channel)"
-            [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : 'bg-transparent text-white/50 hover:bg-white/[0.05] hover:text-white/80'"
+            [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : 'bg-transparent text-white/60 hover:bg-white/[0.05] hover:text-white/85'"
             class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0">
             <span class="text-white/30 text-base leading-none font-medium shrink-0">#</span>
             <span class="text-sm truncate">{{ channel.name }}</span>
             @if (channel.isPrivate) {
-              <i class="pi pi-lock text-[10px] text-white/25 ml-auto shrink-0"></i>
+              <i class="pi pi-lock text-[10px] text-white/35 ml-auto shrink-0"></i>
             }
           </button>
         }
@@ -45,7 +45,7 @@
     @if (uncategorizedVoice().length > 0) {
       <div class="mb-1">
         <div class="flex items-center justify-between px-2 py-1 mb-0.5">
-          <span class="text-[10.5px] font-semibold text-white/25 uppercase tracking-widest">Voice Channels</span>
+          <span class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest">Voice Channels</span>
           <button
             (click)="openCreateChannel(undefined)"
             class="w-4 h-4 flex items-center justify-center text-white/25 hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
@@ -53,17 +53,45 @@
           </button>
         </div>
         @for (channel of uncategorizedVoice(); track channel.id) {
-          <button
-            (click)="navService.openChannel(channel)"
-            (contextmenu)="onChannelContextMenu($event, channel)"
-            [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : 'bg-transparent text-white/50 hover:bg-white/[0.05] hover:text-white/80'"
-            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0">
-            <i class="pi pi-volume-up text-xs text-white/30 shrink-0"></i>
-            <span class="text-sm truncate">{{ channel.name }}</span>
-            @if (channel.isPrivate) {
-              <i class="pi pi-lock text-[10px] text-white/25 ml-auto shrink-0"></i>
+          <!-- Voice channel row -->
+          <div>
+            <button
+              (click)="onVoiceChannelClick(channel)"
+              (contextmenu)="onChannelContextMenu($event, channel)"
+              [ngClass]="isJoinedVoice(channel)
+                ? 'bg-online/10 text-online/80'
+                : isActive(channel)
+                  ? 'bg-white/[0.08] text-white/90'
+                  : 'bg-transparent text-white/60 hover:bg-white/[0.05] hover:text-white/85'"
+              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0">
+              <i class="pi pi-volume-up text-xs shrink-0"
+                 [ngClass]="isJoinedVoice(channel) ? 'text-online/60' : 'text-white/30'"></i>
+              <span class="text-sm truncate">{{ channel.name }}</span>
+              @if (channel.isPrivate) {
+                <i class="pi pi-lock text-[10px] text-white/35 ml-auto shrink-0"></i>
+              }
+              @let vcParticipants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
+              @if (vcParticipants.length > 0 && !channel.isPrivate) {
+                <span class="ml-auto text-[10px] text-white/40 shrink-0">{{ vcParticipants.length }}</span>
+              }
+            </button>
+            <!-- Participant list below channel -->
+            @let participants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
+            @for (p of participants; track p.userId) {
+              <div class="flex items-center gap-2 pl-6 pr-2 py-0.5">
+                <app-avatar [userId]="p.userId" [label]="p.avatarLabel" styleClass="!w-5 !h-5 !text-[9px]" class="flex shrink-0" />
+                <span class="text-xs flex-1 truncate"
+                      [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/60'">
+                  {{ p.displayName }}
+                </span>
+                @if (p.isScreenSharing) {
+                  <span class="text-[9px] font-bold text-red-400 bg-red-500/15 px-1 py-0.5 rounded leading-none shrink-0">LIVE</span>
+                } @else if (p.isMuted) {
+                  <i class="pi pi-microphone-slash text-[9px] text-white/35 shrink-0"></i>
+                }
+              </div>
             }
-          </button>
+          </div>
         }
       </div>
     }
@@ -78,7 +106,7 @@
           <div class="flex items-center gap-1 min-w-0">
             <i class="pi text-[8px] text-white/25 shrink-0 transition-transform duration-150"
                [ngClass]="isCollapsed(category.id) ? 'pi-chevron-right' : 'pi-chevron-down'"></i>
-            <span class="text-[10.5px] font-semibold text-white/25 uppercase tracking-widest truncate group-hover:text-white/45 transition-colors">
+            <span class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest truncate group-hover:text-white/45 transition-colors">
               {{ category.name }}
             </span>
           </div>
@@ -91,21 +119,60 @@
 
         @if (!isCollapsed(category.id)) {
           @for (channel of categoryChannels(category.id); track channel.id) {
-            <button
-              (click)="navService.openChannel(channel)"
-              (contextmenu)="onChannelContextMenu($event, channel)"
-              [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : 'bg-transparent text-white/50 hover:bg-white/[0.05] hover:text-white/80'"
-              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0">
-              @if (channel.type === ChannelType.Voice) {
-                <i class="pi pi-volume-up text-xs text-white/30 shrink-0"></i>
-              } @else {
+            @if (channel.type === ChannelType.Voice) {
+              <!-- Voice channel row (categorized) -->
+              <div>
+                <button
+                  (click)="onVoiceChannelClick(channel)"
+                  (contextmenu)="onChannelContextMenu($event, channel)"
+                  [ngClass]="isJoinedVoice(channel)
+                    ? 'bg-online/10 text-online/80'
+                    : isActive(channel)
+                      ? 'bg-white/[0.08] text-white/90'
+                      : 'bg-transparent text-white/60 hover:bg-white/[0.05] hover:text-white/85'"
+                  class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0">
+                  <i class="pi pi-volume-up text-xs shrink-0"
+                     [ngClass]="isJoinedVoice(channel) ? 'text-online/60' : 'text-white/30'"></i>
+                  <span class="text-sm truncate">{{ channel.name }}</span>
+                  @if (channel.isPrivate) {
+                    <i class="pi pi-lock text-[10px] text-white/35 ml-auto shrink-0"></i>
+                  }
+                  @let vcCount = (voiceChannelSvc.channelParticipants().get(channel.id) ?? []).length;
+                  @if (vcCount > 0 && !channel.isPrivate) {
+                    <span class="ml-auto text-[10px] text-white/40 shrink-0">{{ vcCount }}</span>
+                  }
+                </button>
+                <!-- Participant list -->
+                @let catParticipants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
+                @for (p of catParticipants; track p.userId) {
+                  <div class="flex items-center gap-2 pl-6 pr-2 py-0.5">
+                    <app-avatar [userId]="p.userId" [label]="p.avatarLabel" styleClass="!w-5 !h-5 !text-[9px]" class="flex shrink-0" />
+                    <span class="text-xs flex-1 truncate"
+                          [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/60'">
+                      {{ p.displayName }}
+                    </span>
+                    @if (p.isScreenSharing) {
+                      <span class="text-[9px] font-bold text-red-400 bg-red-500/15 px-1 py-0.5 rounded leading-none shrink-0">LIVE</span>
+                    } @else if (p.isMuted) {
+                      <i class="pi pi-microphone-slash text-[9px] text-white/35 shrink-0"></i>
+                    }
+                  </div>
+                }
+              </div>
+            } @else {
+              <!-- Text channel row -->
+              <button
+                (click)="navService.openChannel(channel)"
+                (contextmenu)="onChannelContextMenu($event, channel)"
+                [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : 'bg-transparent text-white/60 hover:bg-white/[0.05] hover:text-white/85'"
+                class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0">
                 <span class="text-white/30 text-base leading-none font-medium shrink-0">#</span>
-              }
-              <span class="text-sm truncate">{{ channel.name }}</span>
-              @if (channel.isPrivate) {
-                <i class="pi pi-lock text-[10px] text-white/25 ml-auto shrink-0"></i>
-              }
-            </button>
+                <span class="text-sm truncate">{{ channel.name }}</span>
+                @if (channel.isPrivate) {
+                  <i class="pi pi-lock text-[10px] text-white/35 ml-auto shrink-0"></i>
+                }
+              </button>
+            }
           }
         }
       </div>

@@ -2,7 +2,7 @@
 
   <!-- ── Microphone ────────────────────────────────────────────────────── -->
   <section class="flex flex-col gap-4">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
       Microphone
     </h2>
 
@@ -14,7 +14,7 @@
     </div>
 
     <!-- Test card -->
-    <div class="flex flex-col gap-4 bg-white/[0.03] border border-white/[0.06] rounded-xl p-4">
+    <div class="flex flex-col gap-4 bg-white/[0.03] border border-white/[0.10] rounded-xl p-4">
 
       <div class="flex items-center justify-between gap-4">
         <div>
@@ -67,7 +67,7 @@
 
   <!-- ── Speaker ───────────────────────────────────────────────────────── -->
   <section class="flex flex-col gap-4">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
       Speaker
     </h2>
 
@@ -82,7 +82,7 @@
 
   <!-- ── Camera ────────────────────────────────────────────────────────── -->
   <section class="flex flex-col gap-4">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
       Camera
     </h2>
 
@@ -96,11 +96,11 @@
 
   <!-- ── Voice Processing ──────────────────────────────────────────────── -->
   <section class="flex flex-col gap-3">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
       Voice Processing
     </h2>
 
-    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
       <div>
         <p class="text-sm text-white/75">Noise Suppression</p>
         <p class="text-xs text-white/35 mt-0.5">Filter background noise from your microphone</p>
@@ -108,7 +108,7 @@
       <p-toggleswitch [(ngModel)]="noiseSuppression" />
     </div>
 
-    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
       <div>
         <p class="text-sm text-white/75">Echo Cancellation</p>
         <p class="text-xs text-white/35 mt-0.5">Prevent your speakers from feeding back into your mic</p>
@@ -116,7 +116,7 @@
       <p-toggleswitch [(ngModel)]="echoCancellation" />
     </div>
 
-    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-3">
+    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
       <div>
         <p class="text-sm text-white/75">Auto Gain Control</p>
         <p class="text-xs text-white/35 mt-0.5">Automatically adjust mic sensitivity to keep a consistent level</p>

@@ -83,7 +83,7 @@
         <app-permission-toggle [mask]="editPermMask()" (maskChange)="onPermissionChange($event)" />
       </div>
     </div>
-    <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.06]">
+    <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.10]">
       <p-button label="Cancel" severity="secondary" size="small" [text]="true"
         (onClick)="showEditDialog.set(false)" />
       <p-button label="Save" severity="primary" size="small"
@@ -108,7 +108,7 @@
       Are you sure you want to kick <strong class="text-white/80">{{ displayName(confirmKickMember()!) }}</strong>?
       They will be able to rejoin with a new invite.
     </p>
-    <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.06]">
+    <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.10]">
       <p-button label="Cancel" severity="secondary" size="small" [text]="true"
         (onClick)="closeKickDialog()" />
       <p-button label="Kick" severity="danger" size="small" [outlined]="true"

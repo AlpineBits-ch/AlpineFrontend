@@ -61,8 +61,8 @@
 .dark .p-select.p-focus { border-color: #818cf8 !important; }
 
 .dark .p-select-label { color: rgba(255, 255, 255, 0.80); }
-.dark .p-select-label.p-placeholder { color: rgba(255, 255, 255, 0.25) !important; }
-.dark .p-select-dropdown { color: rgba(255, 255, 255, 0.30); }
+.dark .p-select-label.p-placeholder { color: rgba(255, 255, 255, 0.35) !important; }
+.dark .p-select-dropdown { color: rgba(255, 255, 255, 0.40); }
 
 .dark .p-select-overlay {
   background: #161b27 !important;
@@ -85,7 +85,7 @@
   background: rgba(99, 102, 241, 0.22) !important;
   color: #a5b4fc !important;
 }
-.dark .p-select-empty-message { color: rgba(255, 255, 255, 0.30); }
+.dark .p-select-empty-message { color: rgba(255, 255, 255, 0.40); }
 
 @theme {
   /* ── Surfaces ──────────────────────────────────────────── */
@@ -110,11 +110,11 @@
   /* ── Text shorthands (use with opacity modifier) ────────── */
   /* bg-white/[0.85] → text-primary feel; these aliases make intent clearer */
   --color-text-primary:   rgba(255 255 255 / 0.85);
-  --color-text-secondary: rgba(255 255 255 / 0.50);
-  --color-text-muted:     rgba(255 255 255 / 0.30);
+  --color-text-secondary: rgba(255 255 255 / 0.60);
+  --color-text-muted:     rgba(255 255 255 / 0.40);
   --color-text-faint:     rgba(255 255 255 / 0.06);
 
   /* ── Borders ────────────────────────────────────────────── */
-  --color-border-subtle:  rgba(255 255 255 / 0.06);
-  --color-border-default: rgba(255 255 255 / 0.10);
+  --color-border-subtle:  rgba(255 255 255 / 0.08);
+  --color-border-default: rgba(255 255 255 / 0.12);
 }

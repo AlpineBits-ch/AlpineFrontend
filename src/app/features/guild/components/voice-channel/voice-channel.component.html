@@ -1,0 +1,250 @@
+<div class="flex flex-col h-full bg-app-bg overflow-hidden">
+
+  <!-- Header -->
+  <header class="flex items-center px-5 h-14 border-b border-white/[0.10] shrink-0 bg-app-bg">
+    <div class="flex items-center gap-2.5 min-w-0">
+      <i class="pi pi-volume-up text-base text-white/50 shrink-0"></i>
+      <span class="font-semibold text-white/85 truncate">{{ channel().name }}</span>
+      @if (participants().length > 0) {
+        <span class="text-sm text-white/45">— {{ participants().length }} connected</span>
+      }
+    </div>
+    <div class="ml-auto flex items-center gap-1 text-white/45">
+      <button class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/[0.05] hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
+        <i class="pi pi-users text-base"></i>
+      </button>
+      <button class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/[0.05] hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
+        <i class="pi pi-link text-base"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Content -->
+  @if (!isJoined()) {
+
+    <!-- ── Not joined — lobby view ─────────────────────────────────────────── -->
+    <div class="flex-1 flex flex-col items-center justify-center gap-8 px-8 select-none">
+
+      <div class="w-24 h-24 rounded-2xl bg-brand/10 border border-brand/20 flex items-center justify-center">
+        <i class="pi pi-volume-up text-5xl text-brand/70"></i>
+      </div>
+
+      <div class="text-center">
+        <h2 class="text-2xl font-bold text-white/90 mb-2">{{ channel().name }}</h2>
+        @if (participants().length > 0) {
+          <p class="text-base text-white/55">{{ participants().length }} {{ participants().length === 1 ? 'person' : 'people' }} in voice</p>
+        } @else {
+          <p class="text-base text-white/40">No one here yet. Be the first!</p>
+        }
+      </div>
+
+      <!-- Participants preview -->
+      @if (participants().length > 0) {
+        <div class="flex flex-wrap justify-center gap-5 max-w-md">
+          @for (p of participants(); track p.userId) {
+            <div class="flex flex-col items-center gap-2">
+              <div class="relative">
+                <app-avatar [userId]="p.userId" [label]="p.avatarLabel" size="large" />
+                @if (p.isMuted) {
+                  <div class="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-sidebar border border-white/10 flex items-center justify-center">
+                    <i class="pi pi-microphone-slash text-[9px] text-rose-400"></i>
+                  </div>
+                }
+              </div>
+              <span class="text-xs text-white/70 max-w-[70px] truncate text-center">{{ p.displayName }}</span>
+            </div>
+          }
+        </div>
+      }
+
+      <button
+        (click)="joinChannel()"
+        class="px-10 py-3 bg-brand hover:bg-brand-hover text-white font-semibold rounded-xl transition-colors cursor-pointer border-0">
+        Join Voice
+      </button>
+    </div>
+
+  } @else {
+
+    <!-- ── Joined ──────────────────────────────────────────────────────────── -->
+    <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
+
+      @if (screenSharers().length > 0) {
+
+        <!-- Screen share layout -->
+        <div class="flex-1 min-h-0 flex flex-col gap-3 p-4 overflow-hidden">
+
+          <!-- Stream tiles -->
+          <div class="flex-1 min-h-0 grid gap-3"
+               [ngClass]="screenSharers().length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
+            @for (sharer of screenSharers(); track sharer.userId) {
+              <div class="relative bg-black/80 rounded-xl overflow-hidden border border-white/[0.12] flex items-center justify-center min-h-0">
+                <!-- Placeholder for the actual video stream -->
+                <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
+                  <i class="pi pi-desktop text-5xl"></i>
+                  <span>{{ sharer.displayName }}'s screen</span>
+                  <!-- TODO(backend): render sharer's MediaStream in a <video> element here -->
+                </div>
+
+                <!-- LIVE badge -->
+                <div class="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded tracking-wider">
+                  LIVE
+                </div>
+
+                <!-- Watch button for remote streams -->
+                @if (!sharer.isLocal) {
+                  <button
+                    (click)="joinScreenShare(sharer)"
+                    class="absolute bottom-3 right-3 bg-white/10 hover:bg-white/20 text-white text-sm px-4 py-1.5 rounded-lg transition-colors border border-white/10 cursor-pointer">
+                    Watch
+                  </button>
+                }
+
+                <!-- Sharer name pill -->
+                <div class="absolute bottom-3 left-3 flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-lg px-2.5 py-1.5">
+                  <div class="w-5 h-5 rounded-full bg-sidebar flex items-center justify-center text-[9px] font-semibold text-white/70 shrink-0">
+                    {{ sharer.avatarLabel }}
+                  </div>
+                  <span class="text-sm text-white/80">{{ sharer.displayName }}</span>
+                </div>
+              </div>
+            }
+          </div>
+
+          <!-- Participants strip -->
+          <div class="flex items-center gap-2 overflow-x-auto shrink-0 pb-1"
+               style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+            @for (p of participants(); track p.userId) {
+              <div
+                class="shrink-0 flex flex-col items-center gap-2 px-3 py-2.5 rounded-xl bg-card border min-w-[84px]"
+                [ngClass]="p.isSpeaking ? 'border-online/60 shadow-[0_0_0_2px_rgba(52,211,153,0.25)]' : 'border-white/[0.12]'">
+                <div class="relative">
+                  <app-avatar [userId]="p.userId" [label]="p.avatarLabel" />
+                  @if (p.isMuted) {
+                    <div class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-sidebar border border-white/10 flex items-center justify-center">
+                      <i class="pi pi-microphone-slash text-[8px] text-rose-400"></i>
+                    </div>
+                  }
+                </div>
+                <span class="text-xs text-white/75 truncate max-w-[68px] text-center">{{ p.displayName }}</span>
+              </div>
+            }
+          </div>
+        </div>
+
+      } @else {
+
+        <!-- Participant grid (no screen shares) -->
+        <div class="flex-1 min-h-0 overflow-y-auto p-6 flex items-start justify-center"
+             style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+          <div class="grid gap-4 w-full" [ngClass]="participantGridClass()">
+            @for (p of participants(); track p.userId) {
+
+              <!-- Participant tile -->
+              <div
+                class="relative flex flex-col items-center justify-center gap-3 bg-card rounded-2xl p-6 aspect-square border transition-all shadow-[0_4px_24px_rgba(0,0,0,0.5)]"
+                [ngClass]="p.isSpeaking
+                  ? 'border-online/60 shadow-[0_0_0_2px_rgba(52,211,153,0.2),0_4px_24px_rgba(0,0,0,0.5)]'
+                  : 'border-white/[0.12]'">
+
+                <!-- Speaking glow ring -->
+                @if (p.isSpeaking) {
+                  <div class="absolute inset-0 rounded-2xl ring-2 ring-online/40 pointer-events-none"></div>
+                }
+
+                <!-- LIVE badge -->
+                @if (p.isScreenSharing) {
+                  <div class="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded tracking-wider">
+                    LIVE
+                  </div>
+                }
+
+                <!-- Camera placeholder or avatar -->
+                @if (p.isCameraOn) {
+                  <div class="w-20 h-20 rounded-full bg-gradient-to-br from-brand/20 to-brand-dark/20 border-2 border-brand/30 flex items-center justify-center">
+                    <i class="pi pi-camera text-2xl text-brand/60"></i>
+                    <!-- TODO(backend): render p.videoStream in a <video> element -->
+                  </div>
+                } @else {
+                  <app-avatar [userId]="p.userId" [label]="p.avatarLabel" size="xlarge" />
+                }
+
+                <!-- Name + muted icon -->
+                <div class="flex items-center justify-center gap-1.5 max-w-full">
+                  @if (p.isMuted) {
+                    <i class="pi pi-microphone-slash text-xs text-rose-400/80 shrink-0"></i>
+                  }
+                  <span class="text-sm font-medium text-white/85 truncate">{{ p.displayName }}</span>
+                </div>
+              </div>
+
+            }
+          </div>
+        </div>
+
+      }
+
+      <!-- ── Controls bar ──────────────────────────────────────────────────── -->
+      <div class="shrink-0 border-t border-white/[0.10] bg-sidebar px-4 py-4 flex items-center justify-center gap-3">
+
+        <!-- Mute -->
+        <button
+          (click)="toggleMute()"
+          class="w-12 h-12 rounded-xl flex items-center justify-center transition-all cursor-pointer border-0"
+          [ngClass]="voiceSvc.localState().isMuted
+            ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'
+            : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
+          [title]="voiceSvc.localState().isMuted ? 'Unmute' : 'Mute'">
+          <i class="pi text-base"
+             [ngClass]="voiceSvc.localState().isMuted ? 'pi-microphone-slash' : 'pi-microphone'"></i>
+        </button>
+
+        <!-- Deafen -->
+        <button
+          (click)="toggleDeafen()"
+          class="w-12 h-12 rounded-xl flex items-center justify-center transition-all cursor-pointer border-0"
+          [ngClass]="voiceSvc.localState().isDeafened
+            ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'
+            : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
+          [title]="voiceSvc.localState().isDeafened ? 'Undeafen' : 'Deafen'">
+          <i class="pi pi-volume-off text-base"></i>
+        </button>
+
+        <!-- Camera -->
+        <button
+          (click)="toggleCamera()"
+          class="w-12 h-12 rounded-xl flex items-center justify-center transition-all cursor-pointer border-0"
+          [ngClass]="voiceSvc.localState().isCameraOn
+            ? 'bg-brand/20 text-brand-dim hover:bg-brand/30'
+            : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
+          [title]="voiceSvc.localState().isCameraOn ? 'Turn off camera' : 'Turn on camera'">
+          <i class="pi pi-camera text-base"></i>
+        </button>
+
+        <!-- Screen share -->
+        <button
+          (click)="toggleScreenShare()"
+          class="w-12 h-12 rounded-xl flex items-center justify-center transition-all cursor-pointer border-0"
+          [ngClass]="voiceSvc.localState().isScreenSharing
+            ? 'bg-brand/20 text-brand-dim hover:bg-brand/30'
+            : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
+          [title]="voiceSvc.localState().isScreenSharing ? 'Stop sharing' : 'Share screen'">
+          <i class="pi pi-desktop text-base"></i>
+        </button>
+
+        <div class="w-px h-7 bg-white/[0.12] mx-1"></div>
+
+        <!-- Disconnect — pi-phone rotated 135deg = hang-up orientation -->
+        <button
+          (click)="leaveChannel()"
+          class="w-12 h-12 rounded-xl flex items-center justify-center bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 hover:text-rose-300 transition-all cursor-pointer border-0"
+          title="Disconnect">
+          <i class="pi pi-phone text-base" style="transform: rotate(135deg); display: inline-block;"></i>
+        </button>
+
+      </div>
+    </div>
+
+  }
+
+</div>
