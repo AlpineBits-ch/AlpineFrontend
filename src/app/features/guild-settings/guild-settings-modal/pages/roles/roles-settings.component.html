@@ -1,0 +1,121 @@
+<div class="h-full flex overflow-hidden">
+
+  <!-- ── Role list (left) ─────────────────────────────────────────────────── -->
+  <div class="w-56 shrink-0 flex flex-col border-r border-white/[0.06]">
+    <div class="px-3 pt-3 pb-2 shrink-0">
+      <button
+        (click)="createRole()"
+        class="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-dashed border-white/20 text-white/35 hover:text-indigo-400 hover:border-indigo-400/60 hover:bg-indigo-500/[0.06] text-xs font-medium transition-all cursor-pointer bg-transparent"
+        [class.opacity-50]="creating()">
+        @if (creating()) {
+          <i class="pi pi-spin pi-spinner text-xs"></i>
+        } @else {
+          <i class="pi pi-plus text-xs"></i>
+        }
+        Add Role
+      </button>
+    </div>
+
+    <div class="flex-1 min-h-0 overflow-y-auto px-2 pb-3"
+         style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+      @for (role of roles(); track role.id) {
+        <button
+          (click)="selectRole(role)"
+          class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left"
+          [ngClass]="roleItemClasses(role)">
+          <!-- Color dot -->
+          <span class="w-2.5 h-2.5 rounded-full shrink-0 border border-white/10"
+                [style.background-color]="role.color || '#6366f1'"></span>
+          <span class="truncate">{{ role.name }}</span>
+          @if (role.type === RoleType.Everyone) {
+            <i class="pi pi-users text-[10px] text-white/25 ml-auto shrink-0"></i>
+          }
+        </button>
+      }
+      @if (roles().length === 0) {
+        <p class="text-xs text-white/25 text-center mt-6 px-3">No roles yet</p>
+      }
+    </div>
+  </div>
+
+  <!-- ── Role editor (right) ──────────────────────────────────────────────── -->
+  <div class="flex-1 min-w-0 flex flex-col overflow-hidden">
+    @if (selectedRole()) {
+      <div class="flex-1 overflow-y-auto px-6 py-5"
+           style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+        <div class="flex flex-col gap-6 max-w-xl">
+
+          <!-- Role identity -->
+          <section class="flex flex-col gap-4">
+            <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">
+              Identity
+            </h2>
+
+            <div class="flex gap-4 items-start">
+              <!-- Color picker -->
+              <div class="flex flex-col gap-1.5 shrink-0">
+                <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Color</label>
+                <div class="relative">
+                  <input type="color"
+                    [value]="editColor()"
+                    (input)="editColor.set($any($event.target).value)"
+                    class="w-10 h-10 rounded-xl border border-white/[0.09] cursor-pointer bg-transparent p-0.5" />
+                </div>
+              </div>
+
+              <!-- Name -->
+              <div class="flex-1 flex flex-col gap-1.5">
+                <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Role Name</label>
+                <input type="text"
+                  [value]="editName()"
+                  (input)="editName.set($any($event.target).value)"
+                  placeholder="Role name"
+                  class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 text-sm text-white/85 placeholder:text-white/20 outline-none focus:border-indigo-500/60 transition-colors" />
+              </div>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+              <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Description</label>
+              <textarea
+                rows="2"
+                [value]="editDescription()"
+                (input)="editDescription.set($any($event.target).value)"
+                placeholder="Describe this role…"
+                class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 text-sm text-white/85 placeholder:text-white/20 outline-none focus:border-indigo-500/60 transition-colors resize-none"></textarea>
+            </div>
+          </section>
+
+          <!-- Permissions -->
+          <section class="flex flex-col gap-4">
+            <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.06] pb-3">
+              Permissions
+            </h2>
+            <app-permissions-editor
+              [permissions]="editPermissions()"
+              (permissionsChange)="editPermissions.set($event)" />
+          </section>
+
+        </div>
+      </div>
+
+      <!-- Footer actions -->
+      <div class="shrink-0 flex items-center gap-3 px-6 py-4 border-t border-white/[0.06]">
+        <p-button label="Save Role" severity="primary"
+          [loading]="saving()" [disabled]="!isDirty()"
+          (onClick)="saveRole()" />
+        @if (selectedRole()!.type !== RoleType.Everyone) {
+          <p-button label="Delete Role" severity="danger" [text]="true"
+            [loading]="deleting()" (onClick)="deleteRole()" />
+        }
+      </div>
+    } @else {
+      <div class="flex-1 flex items-center justify-center">
+        <div class="text-center">
+          <i class="pi pi-tag text-3xl text-white/10 mb-3 block"></i>
+          <p class="text-sm text-white/25">Select a role to edit</p>
+        </div>
+      </div>
+    }
+  </div>
+
+</div>

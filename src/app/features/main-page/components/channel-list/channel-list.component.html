@@ -3,8 +3,10 @@
   <!-- Guild name header -->
   <div class="px-4 py-3 border-b border-white/[0.06] flex items-center justify-between shrink-0">
     <span class="text-sm font-semibold text-white/90 truncate">{{ guild().name }}</span>
-    <button class="w-6 h-6 flex items-center justify-center text-white/40 hover:text-white/70 transition-colors cursor-pointer border-0 bg-transparent rounded-lg hover:bg-white/[0.05]">
-      <i class="pi pi-chevron-down text-xs"></i>
+    <button
+      (click)="showSettings.set(true)"
+      class="w-6 h-6 flex items-center justify-center text-white/40 hover:text-white/70 transition-colors cursor-pointer border-0 bg-transparent rounded-lg hover:bg-white/[0.05]">
+      <i class="pi pi-cog text-xs"></i>
     </button>
   </div>
 
@@ -107,3 +109,7 @@
   </div>
 
 </div>
+
+<app-guild-settings-modal
+  [(isVisible)]="showSettings"
+  [guild]="guild()" />

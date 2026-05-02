@@ -1,0 +1,101 @@
+<div class="h-full overflow-y-auto px-6 sm:px-8 py-6"
+     style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+
+  <!-- Header bar -->
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <p class="text-sm text-white/45">
+        Share invite links to let people join your server.
+      </p>
+    </div>
+    <div class="flex items-center gap-2 shrink-0 ml-4">
+      <p-button label="One-time" icon="pi pi-ticket" size="small" severity="secondary"
+        [loading]="creating()"
+        (onClick)="createInvite(InviteType.OneTime)" />
+      <p-button label="Permanent" icon="pi pi-link" size="small" severity="primary"
+        [loading]="creating()"
+        (onClick)="createInvite(InviteType.Permanent)" />
+    </div>
+  </div>
+
+  <!-- Invite list -->
+  @if (invites().length > 0) {
+    <div class="rounded-xl border border-white/[0.07] overflow-hidden">
+      <!-- Table header -->
+      <div class="grid grid-cols-[1fr_100px_90px_auto] gap-4 px-4 py-2 border-b border-white/[0.06] bg-white/[0.02]">
+        <span class="text-[10px] font-semibold text-white/25 uppercase tracking-widest">Code</span>
+        <span class="text-[10px] font-semibold text-white/25 uppercase tracking-widest">Type</span>
+        <span class="text-[10px] font-semibold text-white/25 uppercase tracking-widest">Status</span>
+        <span class="text-[10px] font-semibold text-white/25 uppercase tracking-widest">Actions</span>
+      </div>
+
+      @for (invite of invites(); track invite.id) {
+        <div class="grid grid-cols-[1fr_100px_90px_auto] gap-4 items-center px-4 py-3 border-b border-white/[0.05] last:border-0 hover:bg-white/[0.02] transition-colors">
+
+          <!-- Code -->
+          <div class="flex items-center gap-2 min-w-0">
+            <code class="text-sm font-mono text-indigo-300 truncate">{{ inviteCode(invite.id) }}</code>
+            <span class="text-[10px] text-white/20 shrink-0">
+              {{ invite.createdAt | date:'MMM d, y' }}
+            </span>
+          </div>
+
+          <!-- Type badge -->
+          <div>
+            @if (invite.type === InviteType.OneTime) {
+              <span class="inline-flex items-center gap-1 text-[10px] font-medium text-amber-300/80 bg-amber-400/10 border border-amber-400/20 rounded-full px-2 py-0.5">
+                <i class="pi pi-ticket text-[9px]"></i> One-time
+              </span>
+            } @else {
+              <span class="inline-flex items-center gap-1 text-[10px] font-medium text-indigo-300/80 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-2 py-0.5">
+                <i class="pi pi-link text-[9px]"></i> Permanent
+              </span>
+            }
+          </div>
+
+          <!-- State badge -->
+          <div>
+            @if (invite.state === InviteState.Active) {
+              <span class="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-300/80 bg-emerald-400/10 border border-emerald-400/20 rounded-full px-2 py-0.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> Active
+              </span>
+            } @else {
+              <span class="inline-flex items-center gap-1 text-[10px] font-medium text-white/30 bg-white/[0.05] border border-white/[0.08] rounded-full px-2 py-0.5">
+                <span class="w-1.5 h-1.5 rounded-full bg-white/30"></span> Expired
+              </span>
+            }
+          </div>
+
+          <!-- Actions -->
+          <div class="flex items-center gap-1">
+            <p-button
+              [icon]="copiedId() === invite.id ? 'pi pi-check' : 'pi pi-copy'"
+              [text]="true"
+              [severity]="copiedId() === invite.id ? 'success' : 'secondary'"
+              size="small"
+              pTooltip="Copy code"
+              (onClick)="copyCode(invite)" />
+            @if (invite.state === InviteState.Active) {
+              <p-button
+                icon="pi pi-trash"
+                [text]="true"
+                severity="danger"
+                size="small"
+                pTooltip="Revoke invite"
+                [loading]="revokingId() === invite.id"
+                (onClick)="revokeInvite(invite)" />
+            }
+          </div>
+
+        </div>
+      }
+    </div>
+  } @else {
+    <div class="flex flex-col items-center justify-center py-16 text-center">
+      <i class="pi pi-link text-4xl text-white/10 mb-4"></i>
+      <p class="text-sm text-white/30">No invites yet</p>
+      <p class="text-xs text-white/20 mt-1">Create an invite link to share with others</p>
+    </div>
+  }
+
+</div>

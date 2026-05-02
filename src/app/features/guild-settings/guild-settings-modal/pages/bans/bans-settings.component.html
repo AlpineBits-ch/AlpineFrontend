@@ -1,0 +1,44 @@
+<div class="h-full overflow-y-auto px-6 sm:px-8 py-6"
+     style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+
+  <!-- Mock notice -->
+  <div class="flex items-center gap-2.5 bg-amber-400/[0.08] border border-amber-400/20 rounded-xl px-4 py-3 mb-6">
+    <i class="pi pi-info-circle text-amber-400/80 shrink-0"></i>
+    <p class="text-xs text-amber-300/70">This view shows mock data. Ban management is not yet implemented.</p>
+  </div>
+
+  @if (bans.length > 0) {
+    <div class="rounded-xl border border-white/[0.07] overflow-hidden">
+      @for (ban of bans; track ban.id) {
+        <div class="flex items-center gap-4 px-4 py-3.5 border-b border-white/[0.05] last:border-0 hover:bg-white/[0.02] transition-colors">
+
+          <!-- Avatar -->
+          <div class="w-9 h-9 rounded-full bg-rose-500/15 flex items-center justify-center text-sm font-semibold text-rose-400 shrink-0">
+            {{ avatarLabel(ban.userName) }}
+          </div>
+
+          <!-- Info -->
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-medium text-white/80">{{ ban.userName }}</span>
+              <span class="text-[10px] text-white/25">banned {{ ban.bannedAt | date:'MMM d, y' }}</span>
+            </div>
+            <p class="text-xs text-white/40 mt-0.5 truncate">{{ ban.reason }}</p>
+          </div>
+
+          <!-- Actions -->
+          <p-button label="Unban" icon="pi pi-undo" [text]="true" severity="secondary" size="small"
+            [disabled]="true" />
+
+        </div>
+      }
+    </div>
+  } @else {
+    <div class="flex flex-col items-center justify-center py-16 text-center">
+      <i class="pi pi-ban text-4xl text-white/10 mb-4"></i>
+      <p class="text-sm text-white/30">No bans</p>
+      <p class="text-xs text-white/20 mt-1">All members are in good standing</p>
+    </div>
+  }
+
+</div>

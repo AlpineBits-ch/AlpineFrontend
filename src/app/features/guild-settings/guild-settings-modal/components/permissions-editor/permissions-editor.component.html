@@ -1,0 +1,34 @@
+<div class="flex flex-col gap-5">
+  @for (group of groups; track group.label) {
+    <div>
+      <h3 class="text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-2.5">
+        {{ group.label }}
+      </h3>
+      <div class="rounded-xl border border-white/[0.07] overflow-hidden">
+        @for (item of group.items; track item.key) {
+          <div class="flex items-center justify-between px-4 py-3 border-b border-white/[0.05] last:border-0 transition-colors"
+               [class.bg-indigo-500/[0.04]]="isEnabled(item.key)">
+            <div class="flex-1 min-w-0 pr-4">
+              <p class="text-sm font-medium"
+                 [class.text-white/85]="isEnabled(item.key)"
+                 [class.text-white/60]="!isEnabled(item.key)">{{ item.label }}</p>
+              <p class="text-xs text-white/30 mt-0.5 leading-relaxed">{{ item.hint }}</p>
+            </div>
+            <!-- Toggle switch -->
+            <button
+              type="button"
+              class="relative w-10 h-5 rounded-full transition-all duration-200 shrink-0 border-0"
+              [class.cursor-pointer]="!readonly()"
+              [class.cursor-not-allowed]="readonly()"
+              [class.bg-indigo-500]="isEnabled(item.key)"
+              [class.bg-white/20]="!isEnabled(item.key)"
+              (click)="toggle(item.key)">
+              <span class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200"
+                    [style.transform]="isEnabled(item.key) ? 'translateX(22px)' : 'translateX(2px)'"></span>
+            </button>
+          </div>
+        }
+      </div>
+    </div>
+  }
+</div>

@@ -2,14 +2,17 @@ import { Component, computed, inject, input, signal } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { ChannelDto, ChannelType, GuildDto } from '../../../../dtos/response/guild.dto';
 import { NavigationService } from '../../navigation.service';
+import { GuildSettingsModalComponent } from '../../../guild-settings/guild-settings-modal/guild-settings-modal.component';
 
 @Component({
   selector: 'app-channel-list',
-  imports: [NgClass],
+  imports: [NgClass, GuildSettingsModalComponent],
   templateUrl: './channel-list.component.html',
 })
 export class ChannelListComponent {
   guild = input.required<GuildDto>();
+
+  protected showSettings = signal(false);
 
   protected readonly ChannelType = ChannelType;
   protected navService = inject(NavigationService);
