@@ -10,6 +10,7 @@ import {ConversationEncryption} from "../../../../enums/conversation-encryption.
 import {ProfileService} from "../../../../services/profile.service";
 import {OnlineStatus} from "../../../../dtos/response/profile.dto";
 import {ProfileDialogService} from "../../../../services/profile-dialog.service";
+import {NavigationService} from "../../navigation.service";
 
 type FriendsTab = 'online' | 'all' | 'pending' | 'blocked';
 
@@ -23,6 +24,7 @@ export class HomeComponent {
   private relationshipService = inject(RelationshipService);
   private profileService = inject(ProfileService);
   protected profileDialogSvc = inject(ProfileDialogService);
+  protected navService = inject(NavigationService);
 
   public tab = signal<FriendsTab>('online');
   public addFriendOpen = signal(false);

@@ -1,7 +1,11 @@
 <div class="flex flex-col h-full bg-app-bg overflow-hidden">
 
   <!-- Header -->
-  <header class="flex items-center px-5 h-14 border-b border-white/[0.10] shrink-0 bg-app-bg">
+  <header class="flex items-center px-3 sm:px-5 h-14 border-b border-white/[0.10] shrink-0 bg-app-bg">
+    <button class="lg:hidden shrink-0 mr-1 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/[0.07] text-white/50 border-0 bg-transparent cursor-pointer transition-colors"
+      (click)="navService.mobileNavOpen.set(true)">
+      <i class="pi pi-bars text-sm"></i>
+    </button>
     <div class="flex items-center gap-2.5 min-w-0">
       <i class="pi pi-volume-up text-base text-white/50 shrink-0"></i>
       <span class="font-semibold text-white/85 truncate">{{ channel().name }}</span>

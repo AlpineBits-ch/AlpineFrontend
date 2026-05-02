@@ -28,6 +28,7 @@ import { ProfileService } from '../../../../services/profile.service';
 import { RelationshipService } from '../../../../services/relationship.service';
 
 import { ComposerComponent } from '../../../messaging/components/conversation/composer/composer.component';
+import { NavigationService } from '../../../main-page/navigation.service';
 import { MessageComponent } from '../../../messaging/components/conversation/message/message.component';
 import { HighlightPipe } from '../../../../pipes/highlight.pipe';
 
@@ -60,6 +61,7 @@ export class ChannelComponent implements AfterViewInit {
   private messagingService = inject(MessagingService);
   private profileService   = inject(ProfileService);
   private relationshipService = inject(RelationshipService);
+  protected navService = inject(NavigationService);
 
   protected friends = toSignal(this.relationshipService.getRelationships(), { initialValue: [] });
 

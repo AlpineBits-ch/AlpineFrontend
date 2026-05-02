@@ -2,6 +2,8 @@
 
   <!-- Header -->
   <header class="flex items-center px-3 sm:px-5 h-14 border-b border-white/[0.10] shrink-0 bg-app-bg">
+    <p-button icon="pi pi-bars" [text]="true" severity="secondary" size="small"
+      class="lg:hidden" styleClass="mr-1" (onClick)="navService.mobileNavOpen.set(true)" />
     <div class="flex items-center gap-2 sm:gap-3 min-w-0">
       <span class="text-lg font-semibold text-white/30 leading-none shrink-0">#</span>
       <span class="text-sm font-semibold text-white/85 truncate">{{ channel().name }}</span>
@@ -13,7 +15,7 @@
     </div>
 
     <div class="ml-auto flex items-center gap-0.5 text-white/35">
-      <div class="flex items-center gap-2 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 mx-1 focus-within:border-white/20 transition-colors">
+      <div class="hidden sm:flex items-center gap-2 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 mx-1 focus-within:border-white/20 transition-colors">
         <i class="pi pi-search text-xs text-white/30 shrink-0"></i>
         <input
           type="text"

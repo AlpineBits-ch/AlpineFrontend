@@ -34,7 +34,8 @@
       "Bash(grep -E \"\\\\.\\(ts|js\\)$\")",
       "Bash(npx tsc *)",
       "Bash(npx ng *)",
-      "Bash(xargs ls *)"
+      "Bash(xargs ls *)",
+      "Bash(grep -E \"\\\\.\\(html|css|ts\\)$\")"
     ]
   }
 }

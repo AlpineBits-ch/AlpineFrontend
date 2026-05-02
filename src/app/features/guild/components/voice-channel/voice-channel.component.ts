@@ -14,7 +14,7 @@ export class VoiceChannelComponent {
   channel = input.required<ChannelDto>();
 
   protected voiceSvc     = inject(VoiceChannelService);
-  private   navService   = inject(NavigationService);
+  protected navService   = inject(NavigationService);
 
   protected participants = computed(() =>
     this.voiceSvc.channelParticipants().get(this.channel().id) ?? [],

@@ -3,41 +3,14 @@
   <!-- ── Header ─────────────────────────────────────────────────────────── -->
   <div class="shrink-0 px-6 pt-5 pb-0 flex flex-col gap-4">
 
-    <div class="flex items-center justify-between flex-wrap gap-3">
-      <div class="flex items-center gap-4">
+    <!-- Title row -->
+    <div class="flex items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <p-button icon="pi pi-bars" [text]="true" severity="secondary" size="small"
+          class="lg:hidden" (onClick)="navService.mobileNavOpen.set(true)" />
         <div class="flex items-center gap-2">
           <i class="pi pi-users text-white/50 text-sm"></i>
           <h1 class="text-[15px] font-semibold text-white/85">Friends</h1>
-        </div>
-
-        <!-- Tabs (kept as custom: conditional active-state classes don't fit p-button) -->
-        <div class="flex items-center gap-0.5 bg-white/[0.04] border border-white/[0.07] rounded-xl p-1">
-          <button (click)="tab.set('online')"
-            class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
-            [ngClass]="tab() === 'online' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
-            Online
-          </button>
-          <button (click)="tab.set('all')"
-            class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
-            [ngClass]="tab() === 'all' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
-            All
-          </button>
-          <button (click)="tab.set('pending')"
-            class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all flex items-center gap-1.5"
-            [ngClass]="tab() === 'pending' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
-            Pending
-            @if (pendingCount() > 0) {
-              <span class="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
-                [ngClass]="tab() === 'pending' ? 'bg-indigo-400/30 text-indigo-300' : 'bg-rose-500 text-white'">
-                {{ pendingCount() }}
-              </span>
-            }
-          </button>
-          <button (click)="tab.set('blocked')"
-            class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
-            [ngClass]="tab() === 'blocked' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
-            Blocked
-          </button>
         </div>
       </div>
 
@@ -46,6 +19,36 @@
         [severity]="addFriendOpen() ? 'secondary' : 'primary'"
         size="small"
         (onClick)="addFriendOpen.set(!addFriendOpen())" />
+    </div>
+
+    <!-- Tabs row -->
+    <div class="flex items-center gap-0.5 bg-white/[0.04] border border-white/[0.07] rounded-xl p-1 self-start">
+      <button (click)="tab.set('online')"
+        class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
+        [ngClass]="tab() === 'online' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
+        Online
+      </button>
+      <button (click)="tab.set('all')"
+        class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
+        [ngClass]="tab() === 'all' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
+        All
+      </button>
+      <button (click)="tab.set('pending')"
+        class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all flex items-center gap-1.5"
+        [ngClass]="tab() === 'pending' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
+        Pending
+        @if (pendingCount() > 0) {
+          <span class="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
+            [ngClass]="tab() === 'pending' ? 'bg-indigo-400/30 text-indigo-300' : 'bg-rose-500 text-white'">
+            {{ pendingCount() }}
+          </span>
+        }
+      </button>
+      <button (click)="tab.set('blocked')"
+        class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
+        [ngClass]="tab() === 'blocked' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
+        Blocked
+      </button>
     </div>
 
     <!-- Add friend panel -->
