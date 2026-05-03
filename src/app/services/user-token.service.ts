@@ -20,7 +20,7 @@ export class UserTokenService {
       const token = await registerForPushNotifications();
       console.log('Push token:', token);
 
-      await firstValueFrom(this.client.post(environment.apiUrl + 'api/v1/identity/users/self/device-token', {
+      await firstValueFrom(this.client.post(environment.apiUrl + '/api/v1/identity/users/self/device-token', {
         token
       }));
       // Send this token to your server to send push notifications
