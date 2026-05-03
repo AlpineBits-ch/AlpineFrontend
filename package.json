@@ -7,6 +7,7 @@
     "@angular/forms": "^21.2.9",
     "@angular/platform-browser": "^21.2.9",
     "@angular/router": "^21.2.9",
+    "@choochmeque/tauri-plugin-notifications-api": "^0.4.5",
     "@emoji-mart/data": "^1.2.1",
     "@microsoft/signalr": "^10.0.0",
     "@ngrx/signals": "^21.1.0",

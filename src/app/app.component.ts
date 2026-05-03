@@ -23,9 +23,22 @@ export class AppComponent implements OnInit, OnDestroy {
 
   private updateInterval: ReturnType<typeof setInterval> | null = null;
 
+  // iOS: visual viewport scrolls when keyboard opens, making position:fixed elements
+  // appear to shift. Track offsetTop/height and mirror them onto CSS variables so
+  // app-root always occupies exactly the visible area.
+  private readonly viewportHandler = (): void => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    document.documentElement.style.setProperty('--vv-top', `${vv.offsetTop}px`);
+    document.documentElement.style.setProperty('--vv-height', `${vv.height}px`);
+  };
+
   public ngOnInit(): void {
     if (this.isPopup) return;
 
+    window.visualViewport?.addEventListener('resize', this.viewportHandler);
+    window.visualViewport?.addEventListener('scroll', this.viewportHandler);
+    this.viewportHandler();
 
     this.profileService.getSelf().subscribe((profile) => {
       console.log('Profile:', profile);
@@ -46,6 +59,8 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   public ngOnDestroy(): void {
+    window.visualViewport?.removeEventListener('resize', this.viewportHandler);
+    window.visualViewport?.removeEventListener('scroll', this.viewportHandler);
     if (this.updateInterval !== null) {
       clearInterval(this.updateInterval);
     }
