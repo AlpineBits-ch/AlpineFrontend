@@ -1,4 +1,7 @@
-import {ChangeDetectionStrategy, Component, computed, DestroyRef, ElementRef, HostListener, inject, input, output, signal, ViewChild} from '@angular/core';
+import {
+  ChangeDetectionStrategy, Component, computed, DestroyRef, ElementRef, HostListener, inject, input, output, signal,
+  viewChild, ViewChild
+} from '@angular/core';
 import {takeUntilDestroyed, toObservable, toSignal} from '@angular/core/rxjs-interop';
 import {MessageAttachment, MessageDto} from "../../../../../dtos/response/message.dto";
 import {AppAvatarComponent} from "../../../../../components/avatar/avatar.component";

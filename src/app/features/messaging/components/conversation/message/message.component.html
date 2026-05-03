@@ -1,4 +1,4 @@
-<div class="relative flex items-start gap-3 px-4 py-1.5 hover:bg-white/[0.02] rounded-lg transition-colors group"
+<div #msgElement class="relative flex items-start gap-3 px-4 py-1.5 hover:bg-white/[0.02] rounded-lg transition-colors group"
      [class.opacity-50]="message().isPending"
      [ngClass]="message().isFailed ? 'bg-rose-500/5' : ''"
      (touchstart)="onTouchStart()"
