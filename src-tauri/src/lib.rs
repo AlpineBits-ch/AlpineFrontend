@@ -48,12 +48,16 @@ fn show_noactivate(label: String, app: tauri::AppHandle) -> Result<(), String> {
     }
 
     // On non-Windows desktop and mobile, just show normally
-    #[cfg(not(target_os = "windows"))]
-    {
-        use tauri::WebviewWindowExt;
-        win.set_visible(true).map_err(|e| e.to_string())?;
-    }
+    #[cfg(all(not(target_os = "windows"), not(mobile)))]
+{
+    win.show().map_err(|e| e.to_string())?;
+}
 
+#[cfg(mobile)]
+{
+    // iOS/Android: window visibility is managed by the OS
+    // Nothing to do here
+}
     Ok(())
 }
 
