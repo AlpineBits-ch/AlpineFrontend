@@ -131,7 +131,7 @@
               <label class="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Password</label>
               <input pPassword [formField]="loginForm.password" type="password" placeholder="Your password" autocomplete="current-password" />
             </div>
-            <p-button (onClick)="login().subscribe()" label="Sign In" />
+            <p-button (onClick)="login()" label="Sign In" />
           </div>
         }
 

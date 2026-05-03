@@ -6,10 +6,11 @@ import {TitlebarComponent} from "./titlebar/titlebar.component";
 import {CallWebRtcService} from "./services/call-webrtc.service";
 import {UpdateDialogComponent} from "./features/update-dialog/update-dialog.component";
 import {UpdateService} from "./services/update.service";
+import {Toast} from "primeng/toast";
 
 @Component({
   selector: "app-root",
-  imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, UpdateDialogComponent],
+  imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, UpdateDialogComponent, Toast],
   templateUrl: "./app.component.html",
   styleUrl: "./app.component.css",
 })

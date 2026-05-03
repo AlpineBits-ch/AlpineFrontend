@@ -4,6 +4,26 @@
    <body class="dark"> is always present, so dark utilities are always active. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ── Mobile-native feel ─────────────────────────────────────────────────── */
+/* Remove blue tap flash on iOS/Android */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Prevent rubber-band scroll and font inflation.
+   background-color fills iOS safe-area bars (status bar + home indicator). */
+html, body {
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  background-color: #06090f;
+}
+
+/* Prevent double-tap zoom on all interactive elements without disabling gestures */
+button, a, [role="button"], input, select, textarea, label {
+  touch-action: manipulation;
+}
+
 @keyframes typing-bounce {
   0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
   30% { transform: translateY(-3px); opacity: 1; }
