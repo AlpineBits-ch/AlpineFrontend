@@ -139,7 +139,7 @@ export class ConversationListComponent {
         }
         this.toast.success('Conversation deleted', { detail: name });
       },
-      error: () => this.toast.error('Failed to delete conversation'),
+      error: (err) => this.toast.httpError('Failed to delete conversation', err),
     });
   }
 }

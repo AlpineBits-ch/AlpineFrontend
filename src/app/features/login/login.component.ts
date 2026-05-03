@@ -70,8 +70,8 @@ export class Login {
           this.userSettings.load();
           this.router.navigate(['/overview']);
         }),
-        catchError(() => {
-          this.toast.error('Sign in failed', { detail: 'Invalid username or password.' });
+        catchError((err) => {
+          this.toast.httpError('Sign in failed', err, { detail: 'Invalid username or password.' });
           return EMPTY;
         })
     ).subscribe();
@@ -88,8 +88,8 @@ export class Login {
           this.toast.success('Account created!', { detail: 'Welcome to Alpine. You can now sign in.' });
           this.isLoginMode.set(true);
         }),
-        catchError(() => {
-          this.toast.error('Registration failed', { detail: 'Please check your details and try again.' });
+        catchError((err) => {
+          this.toast.httpError('Registration failed', err, { detail: 'Please check your details and try again.' });
           return EMPTY;
         })
     ).subscribe();

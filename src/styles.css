@@ -24,6 +24,24 @@ button, a, [role="button"], input, select, textarea, label {
   touch-action: manipulation;
 }
 
+/* ── Toast — mobile fix ──────────────────────────────────────────────────── */
+/* Override PrimeNG's default top-center position on narrow screens.
+   transform:none removes the translateX(-50%) that causes the "halfway" shift. */
+@media (max-width: 576px) {
+  .p-toast {
+    bottom: env(safe-area-inset-bottom, 0) !important;
+    top: auto !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    transform: none !important;
+  }
+  .p-toast .p-toast-message {
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+}
+
 @keyframes typing-bounce {
   0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
   30% { transform: translateY(-3px); opacity: 1; }

@@ -1,4 +1,5 @@
 import { inject, Injectable } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { MessageService } from 'primeng/api';
 
 export interface ToastOptions {
@@ -26,5 +27,10 @@ export class ToastService {
 
   warn(summary: string, options: ToastOptions = {}): void {
     this.messageService.add({ severity: 'warn', summary, ...options });
+  }
+
+  httpError(summary: string, err?: unknown, options: ToastOptions = {}): void {
+    const status = err instanceof HttpErrorResponse && err.status ? ` [${err.status}]` : '';
+    this.messageService.add({ severity: 'error', summary: summary + status, ...options });
   }
 }
