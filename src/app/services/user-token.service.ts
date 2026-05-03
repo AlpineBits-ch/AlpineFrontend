@@ -1,7 +1,8 @@
 import {inject, Injectable} from '@angular/core';
 import {firstValueFrom, Observable} from "rxjs";
 import {HttpClient} from "@angular/common/http";
-import {registerForPushNotifications} from "@choochmeque/tauri-plugin-notifications-api";
+import {registerForPushNotifications,   isPermissionGranted,
+  requestPermission,} from "@choochmeque/tauri-plugin-notifications-api";
 import {environment} from "../../environments/environment";
 
 @Injectable({
@@ -10,7 +11,11 @@ import {environment} from "../../environments/environment";
 export class UserTokenService {
   private client = inject(HttpClient);
   public async ensureTokenRegistered(): Promise<void>{
-
+    let permissionGranted = await isPermissionGranted();
+    if (!permissionGranted) {
+      const permission = await requestPermission();
+      permissionGranted = permission === 'granted';
+    }
     try {
       const token = await registerForPushNotifications();
       console.log('Push token:', token);
