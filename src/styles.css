@@ -11,22 +11,28 @@
 }
 
 /* Prevent rubber-band scroll and font inflation.
-   background-color fills iOS safe-area bars (status bar + home indicator).
-   height:100dvh + overflow:hidden locks the layout to the visual viewport so
-   iOS doesn't scroll the page when the keyboard opens (which would hide the header). */
+   background-color fills iOS safe-area bars (status bar + home indicator). */
 html, body {
   overscroll-behavior: none;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   background-color: #06090f;
-  height: 100dvh;
+  height: 100%;
   overflow: hidden;
 }
 
+/* position:fixed + height:100dvh is the only reliable way to prevent iOS WKWebView
+   from scrolling the page when a text input is focused (which would push the header
+   out of view). Fixed elements cannot be scrolled by the viewport, and dvh resizes
+   the layout to match the visual viewport as the keyboard animates in/out. */
 app-root {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
-  height: 100%;
   overflow: hidden;
 }
 

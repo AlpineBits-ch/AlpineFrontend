@@ -12,12 +12,10 @@
 
   <div class="flex h-full flex-col sm:flex-row">
 
-    <!-- ── Left nav ──────────────────────────────────────────────────────── -->
-    <nav class="sm:w-52 shrink-0 bg-sidebar border-b sm:border-b-0 sm:border-r border-white/[0.10] flex sm:flex-col py-2 sm:py-4 overflow-x-auto sm:overflow-x-hidden overflow-y-hidden sm:overflow-y-auto"
+    <!-- ── Desktop sidebar (sm+ only) ──────────────────────────────────── -->
+    <nav class="hidden sm:flex sm:w-52 shrink-0 bg-sidebar border-r border-white/[0.10] flex-col py-4 overflow-y-auto"
          style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
-
-      <!-- Desktop: grouped nav -->
-      <div class="hidden sm:flex flex-col flex-1">
+      <div class="flex flex-col flex-1">
         @for (group of navGroups; track group.title) {
           <div class="px-3 mb-4">
             <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest px-3 mb-1">
@@ -38,28 +36,63 @@
             styleClass="w-full !justify-start" (onClick)="confirmLogout()" />
         </div>
       </div>
-
-      <!-- Mobile: flat scrollable tab bar -->
-      <div class="flex sm:hidden items-center gap-1 px-2">
-        @for (group of navGroups; track group.title) {
-          @for (item of group.items; track item.id) {
-            <button (click)="activePage.set(item.id)"
-              class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all cursor-pointer border-0 shrink-0"
-              [ngClass]="navItemClasses(item.id, 'text-white/45')">
-              <i class="text-xs" [class]="item.icon"></i>
-              {{ item.label }}
-            </button>
-          }
-        }
-      </div>
     </nav>
 
-    <!-- ── Content area ──────────────────────────────────────────────────── -->
-    <div class="flex-1 flex flex-col min-w-0 overflow-hidden bg-app-bg">
+    <!-- ── Mobile nav list (full-screen, shown on mobile when no page selected) ── -->
+    @if (mobileView() === 'nav') {
+      <div class="flex flex-col flex-1 sm:hidden bg-app-bg overflow-hidden">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between px-4 border-b border-white/[0.10] shrink-0"
+             style="padding-top: calc(env(safe-area-inset-top) + 1rem); padding-bottom: 1rem">
+          <h1 class="text-base font-semibold text-white/85">Settings</h1>
+          <p-button icon="pi pi-times" [text]="true" severity="secondary" size="small"
+            (onClick)="isVisible.set(false)" />
+        </div>
+
+        <!-- Nav items -->
+        <div class="flex-1 overflow-y-auto px-4 py-4"
+             style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+          @for (group of navGroups; track group.title) {
+            <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest px-1 mb-2"
+               [class.mt-5]="!$first">
+              {{ group.title }}
+            </p>
+            <div class="flex flex-col gap-1 mb-2">
+              @for (item of group.items; track item.id) {
+                <button (click)="selectPage(item.id)"
+                  class="flex items-center gap-3 w-full px-4 py-3.5 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left bg-white/[0.04] active:bg-white/[0.08]">
+                  <i class="text-base text-white/50 w-5 text-center shrink-0" [class]="item.icon"></i>
+                  <span class="flex-1 text-white/80">{{ item.label }}</span>
+                  <i class="pi pi-angle-right text-sm text-white/25"></i>
+                </button>
+              }
+            </div>
+          }
+
+          <!-- Log Out -->
+          <div class="mt-4 pt-5 border-t border-white/[0.10]">
+            <button (click)="confirmLogout()"
+              class="flex items-center gap-3 w-full px-4 py-3.5 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left bg-white/[0.04] active:bg-rose-500/10 text-rose-400">
+              <i class="pi pi-sign-out text-base w-5 text-center shrink-0"></i>
+              <span class="flex-1">Log Out</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    }
+
+    <!-- ── Content area (desktop always, mobile only when page selected) ── -->
+    <div class="flex-1 flex-col min-w-0 overflow-hidden bg-app-bg"
+         [class]="mobileView() === 'content' ? 'flex' : 'hidden sm:flex'">
 
       <!-- Content header -->
-      <div class="flex items-center justify-between px-6 sm:px-8 py-4 border-b border-white/[0.10] shrink-0">
-        <h1 class="text-sm font-semibold text-white/85">
+      <div class="flex items-center gap-2 px-4 sm:px-8 border-b border-white/[0.10] shrink-0"
+           style="padding-top: calc(env(safe-area-inset-top) + 1rem); padding-bottom: 1rem">
+        <p-button icon="pi pi-arrow-left" [text]="true" severity="secondary" size="small"
+          class="sm:hidden" (onClick)="mobileView.set('nav')" />
+        <h1 class="text-sm font-semibold text-white/85 flex-1">
           @for (group of navGroups; track group.title) {
             @for (item of group.items; track item.id) {
               @if (item.id === activePage()) { {{ item.label }} }
@@ -67,16 +100,16 @@
           }
         </h1>
         <p-button icon="pi pi-times" [text]="true" severity="secondary" size="small"
-          (onClick)="isVisible.set(false)" />
+          class="hidden sm:flex" (onClick)="isVisible.set(false)" />
       </div>
 
       <!-- Page content -->
-      <div class="flex-1 overflow-y-auto px-6 sm:px-8 py-6"
+      <div class="flex-1 overflow-y-auto px-4 sm:px-8 py-6"
            style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
         @switch (activePage()) {
-          @case ('profile') { <app-profile-settings /> }
-          @case ('privacy') { <app-privacy-settings /> }
-          @case ('other')   { <app-other-settings /> }
+          @case ('profile')       { <app-profile-settings /> }
+          @case ('privacy')       { <app-privacy-settings /> }
+          @case ('other')         { <app-other-settings /> }
           @case ('notifications') { <app-notification-settings /> }
           @case ('voice-video')   { <app-voice-video-settings /> }
         }

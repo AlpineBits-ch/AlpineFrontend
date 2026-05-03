@@ -37,10 +37,6 @@
     height: 100dvh !important;
   }
 
-  /* Stack nav on top on very small screens */
-  ::ng-deep .settings-dialog .p-dialog-content > p-dialog > div > div {
-    flex-direction: column !important;
-  }
 }
 
 /* ── Tablet: narrower nav ─────────────────────────────────────────────── */

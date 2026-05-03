@@ -1,4 +1,4 @@
-import {Component, inject, model, signal} from '@angular/core';
+import {Component, effect, inject, model, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Dialog} from "primeng/dialog";
 import {Button} from "primeng/button";
@@ -43,10 +43,22 @@ export interface SettingsNavGroup {
 export class SettingsModalComponent {
   public isVisible = model.required<boolean>();
   public activePage = signal('profile');
+  public mobileView = signal<'nav' | 'content'>('nav');
 
   private authService = inject(AuthService);
   private router = inject(Router);
   private confirmationService = inject(ConfirmationService);
+
+  constructor() {
+    effect(() => {
+      if (!this.isVisible()) this.mobileView.set('nav');
+    });
+  }
+
+  selectPage(id: string): void {
+    this.activePage.set(id);
+    this.mobileView.set('content');
+  }
 
   confirmLogout(): void {
     this.confirmationService.confirm({
