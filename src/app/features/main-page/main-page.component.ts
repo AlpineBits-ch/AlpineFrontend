@@ -26,6 +26,7 @@ import {
   restoreStateCurrent,
   StateFlags,
 } from '@tauri-apps/plugin-window-state';
+import {UserTokenService} from "../../services/user-token.service";
 @Component({
   selector: 'app-main-page',
   imports: [
@@ -56,6 +57,9 @@ export class MainPageComponent implements OnDestroy {
   private voiceWebsocketService = inject(VoiceWebsocketService);
   private notificationService = inject(NotificationService);
   private conversationStore = inject(ConversationStore);
+
+  private userTokenService = inject(UserTokenService);
+
   protected router = inject(Router);
 
   private actionSub: Subscription;
@@ -69,6 +73,8 @@ export class MainPageComponent implements OnDestroy {
     void this.websocketService.start();
     void this.voiceWebsocketService.start();
 
+
+    this.userTokenService.ensureTokenRegistered().then();
 
 
     this.oAuthService.setupAutomaticSilentRefresh();
