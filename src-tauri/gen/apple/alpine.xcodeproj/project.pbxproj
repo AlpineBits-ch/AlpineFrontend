@@ -10,6 +10,7 @@
 		015B8B81E4F474C49EF122D5 /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E9A399B789638A6CE0831FAA /* UIKit.framework */; };
 		0D2AC63873A9684AF3263F28 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 52F66FE8531D2BF57AF26723 /* Assets.xcassets */; };
 		150BF4248443EB121E3647C6 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = BAAC9C1C68FA2FCCC786B09E /* LaunchScreen.storyboard */; };
+		2697F9512FA76BA7002363AF /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 2697F9502FA76BA6002363AF /* GoogleService-Info.plist */; };
 		3D93CFEC3EC11C2FF0F33EF0 /* main.mm in Sources */ = {isa = PBXBuildFile; fileRef = F3909627AC17BB9765D733F3 /* main.mm */; };
 		436BEB552D85FAA52BF8A1DB /* MetalKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8CAB8DA7C13231A5210FB174 /* MetalKit.framework */; };
 		4F198E5EBF5EC3F99EF10210 /* assets in Resources */ = {isa = PBXBuildFile; fileRef = 8A9BC2BF7BA461F68F2A4C13 /* assets */; };
@@ -22,6 +23,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2697F9502FA76BA6002363AF /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
 		425954730E2729D4E36EED45 /* mod.rs */ = {isa = PBXFileReference; lastKnownFileType = text; path = mod.rs; sourceTree = "<group>"; };
 		4C16AFE145CB29E04118A917 /* alpine_iOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = alpine_iOS.entitlements; sourceTree = "<group>"; };
 		52F66FE8531D2BF57AF26723 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -92,6 +94,7 @@
 				4E71D96411A701F09A73C2C8 /* src */,
 				EC93AABAFE2C33CD54FB4A82 /* Frameworks */,
 				AFAA1B7B59C9B77D1D40AAF0 /* Products */,
+				2697F9502FA76BA6002363AF /* GoogleService-Info.plist */,
 			);
 			sourceTree = "<group>";
 		};
@@ -224,6 +227,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0D2AC63873A9684AF3263F28 /* Assets.xcassets in Resources */,
+				2697F9512FA76BA7002363AF /* GoogleService-Info.plist in Resources */,
 				150BF4248443EB121E3647C6 /* LaunchScreen.storyboard in Resources */,
 				4F198E5EBF5EC3F99EF10210 /* assets in Resources */,
 			);
