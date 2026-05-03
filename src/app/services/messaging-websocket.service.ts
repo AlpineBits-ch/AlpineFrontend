@@ -131,7 +131,7 @@ export class MessagingWebsocketService {
     })
 
 
-    this.hubConnection.on('MessageCreated', async (data: {messageId: string, content: string, authorId: string, conversationId: string, channelId: string | undefined, attachments: AttachmentDto[]}) => {
+    this.hubConnection.on('MessageCreated', async (data: {messageId: string, content: string, authorId: string, conversationId: string, channelId: string | undefined, attachments: AttachmentDto[], inReplyTo: string | undefined}) => {
       console.log('Message created:', data);
 
       let body: string;
@@ -167,6 +167,7 @@ export class MessagingWebsocketService {
         isPending: false,
         isFailed: false,
         attachments: data.attachments,
+        inReplyTo: data.inReplyTo,
       })
     })
 

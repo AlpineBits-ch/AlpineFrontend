@@ -41,4 +41,16 @@ export class MessagingService {
       `${environment.apiUrl}/api/v1/messaging/messaging/conversations/${conversationId}/messages/search?q=${encodeURIComponent(query)}`
     );
   }
+
+  public getMessageById(params: { messageId: string; conversationId?: string; channelId?: string }): Observable<MessageDto> {
+    const { messageId, conversationId, channelId } = params;
+    if (conversationId) {
+      return this.httpClient.get<MessageDto>(
+        `${environment.apiUrl}/api/v1/messaging/messaging/conversations/${conversationId}/messages/${messageId}`
+      );
+    }
+    return this.httpClient.get<MessageDto>(
+      `${environment.apiUrl}/api/v1/messaging/messaging/channels/${channelId}/messages/${messageId}`
+    );
+  }
 }

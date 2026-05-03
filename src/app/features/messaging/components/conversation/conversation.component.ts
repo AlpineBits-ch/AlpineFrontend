@@ -91,8 +91,9 @@ export class ConversationComponent implements AfterViewInit {
 
   // ── Conversation meta ────────────────────────────────────────────────────
 
-  protected friends       = toSignal(this.relationshipService.getRelationships(), { initialValue: [] });
-  protected chatTitle     = computed(() => this.convUtils.getChatTitle(this.conversation()));
+  protected friends         = toSignal(this.relationshipService.getRelationships(), { initialValue: [] });
+  protected replyingTo      = signal<MessageDto | null>(null);
+  protected chatTitle       = computed(() => this.convUtils.getChatTitle(this.conversation()));
   protected chatAvatarLabel = computed(() => this.convUtils.getChatAvatarLabel(this.conversation()));
   protected partnerStatus = computed(() => this.convUtils.getPartnerStatus(this.conversation()));
   protected typingText    = computed(() => this.convUtils.getTypingLabel(this.conversation()));
@@ -307,6 +308,15 @@ export class ConversationComponent implements AfterViewInit {
     this.messageStore.loadForConversation(this.conversation().id);
   }
 
+  protected onReply(msg: MessageDto): void {
+    this.replyingTo.set(msg);
+    setTimeout(() => this.composerRef?.focus(), 0);
+  }
+
+  protected onCancelReply(): void {
+    this.replyingTo.set(null);
+  }
+
   protected onTyping(): void {
     this.messagingWs.invokeStartTyping(this.conversation().id);
   }
@@ -324,10 +334,12 @@ export class ConversationComponent implements AfterViewInit {
     );
   }
 
-  public createMessage(event: { content: string; attachments: string[] }): void {
-    const { content, attachments } = event;
+  public createMessage(event: { content: string; attachments: string[]; inReplyTo?: string }): void {
+    const { content, attachments, inReplyTo } = event;
     const tempId = crypto.randomUUID();
     const now    = new Date();
+
+    this.replyingTo.set(null);
 
     const optimistic: MessageDto = {
       id:             tempId,
@@ -340,6 +352,7 @@ export class ConversationComponent implements AfterViewInit {
       isPending:      true,
       isFailed:       false,
       attachments:    [],
+      inReplyTo,
     };
 
     this.messageStore.addMessage(optimistic);
@@ -349,6 +362,7 @@ export class ConversationComponent implements AfterViewInit {
       channelId:      undefined,
       conversationId: this.conversation().id,
       attachments,
+      inReplyTo,
     }).pipe(
       tap(confirmed => {
         this.messageStore.confirmMessage(tempId, confirmed);

@@ -3,4 +3,5 @@
     conversationId: string | undefined;
     channelId: string | undefined;
     attachments: string[];
+    inReplyTo: string | undefined;
 }

@@ -6,6 +6,7 @@ import { MessagingService } from '../services/messaging.service';
 import { MessagingWebsocketService, MessageUpdatedEvent, MessageDeletedEvent } from '../services/messaging-websocket.service';
 import { ProfileService } from '../services/profile.service';
 import { HttpErrorResponse } from '@angular/common/http';
+import { catchError, Observable, of, tap } from 'rxjs';
 
 const PAGE_SIZE = 30;
 
@@ -352,6 +353,15 @@ export const MessageStore = signalStore(
       const entries = { ...store.channelSearchEntries() };
       delete entries[channelId];
       patchState(store, { channelSearchEntries: entries });
+    },
+
+    getOrFetchMessage(messageId: string, context: { conversationId?: string; channelId?: string }): Observable<MessageDto | null> {
+      const existing = store.entityMap()[messageId];
+      if (existing) return of(existing);
+      return messagingService.getMessageById({ messageId, ...context }).pipe(
+        tap(msg => patchState(store, upsertEntity(msg))),
+        catchError(() => of(null)),
+      );
     },
   })),
 

@@ -17,4 +17,6 @@ export interface MessageDto {
     isPending: boolean;
     isFailed: boolean;
     attachments: MessageAttachment[];
+    inReplyTo: string | undefined;
+
 }

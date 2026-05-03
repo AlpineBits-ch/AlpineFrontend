@@ -1,10 +1,10 @@
-import {ChangeDetectionStrategy, Component, computed, DestroyRef, ElementRef, HostListener, inject, input, signal, ViewChild} from '@angular/core';
-import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {ChangeDetectionStrategy, Component, computed, DestroyRef, ElementRef, HostListener, inject, input, output, signal, ViewChild} from '@angular/core';
+import {takeUntilDestroyed, toObservable, toSignal} from '@angular/core/rxjs-interop';
 import {MessageAttachment, MessageDto} from "../../../../../dtos/response/message.dto";
 import {AppAvatarComponent} from "../../../../../components/avatar/avatar.component";
 import {AsyncPipe, DatePipe, NgClass} from "@angular/common";
 import {ProfileService} from "../../../../../services/profile.service";
-import {Observable} from "rxjs";
+import {Observable, of, switchMap} from "rxjs";
 import {ProfileDto} from "../../../../../dtos/response/profile.dto";
 import { isKlipyGifUrl } from '../../../../../services/gif.service';
 import { EmojiDataService, getFlagCode, isRegionalIndicator } from '../../../../../services/emoji-data.service';
@@ -47,6 +47,44 @@ export class MessageComponent {
   @HostListener('document:keydown.escape')
   closeLightbox(): void {
     this.lightbox.set(null);
+    this.longPressMenu.set(false);
+  }
+
+  onTouchStart(): void {
+    this.longPressTimer = setTimeout(() => {
+      this.longPressMenu.set(true);
+      this.longPressTimer = null;
+      if ('vibrate' in navigator) navigator.vibrate(30);
+    }, 500);
+  }
+
+  onTouchMove(): void {
+    if (this.longPressTimer !== null) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+  }
+
+  onTouchEnd(): void {
+    if (this.longPressTimer !== null) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+    }
+  }
+
+  onLongPressReply(): void {
+    this.longPressMenu.set(false);
+    this.reply.emit(this.message());
+  }
+
+  onLongPressEdit(): void {
+    this.longPressMenu.set(false);
+    this.startEdit();
+  }
+
+  onLongPressDelete(): void {
+    this.longPressMenu.set(false);
+    this.confirmDelete();
   }
 
   openLightbox(minimal: MessageAttachment): void {
@@ -89,6 +127,9 @@ export class MessageComponent {
   }
 
   public message = input.required<MessageDto>();
+
+  public reply = output<MessageDto>();
+  public jumpTo = output<string>();
 
   public content = computed(() => {
     const bytes = Uint8Array.from(atob(this.message().content), c => c.charCodeAt(0));
@@ -182,9 +223,44 @@ export class MessageComponent {
 
 
 
+  private readonly replyCtx = computed(() => ({
+    id: this.message().inReplyTo,
+    conversationId: this.message().conversationId,
+    channelId: this.message().channelId,
+  }));
+
+  protected readonly replyMessage = toSignal(
+    toObservable(this.replyCtx).pipe(
+      switchMap(ctx => ctx.id
+        ? this.messageStore.getOrFetchMessage(ctx.id, { conversationId: ctx.conversationId, channelId: ctx.channelId })
+        : of(null as MessageDto | null)
+      )
+    ),
+    { initialValue: null as MessageDto | null }
+  );
+
+  protected readonly replyAuthorName = computed(() => {
+    const msg = this.replyMessage();
+    if (!msg) return '';
+    if (msg.authorId === this.profileService.ownProfile()?.userId) return 'You';
+    return this.profileService.getCachedByUserId(msg.authorId)?.userName ?? 'Unknown';
+  });
+
+  protected readonly replySnippet = computed(() => {
+    const msg = this.replyMessage();
+    if (!msg) return '';
+    try {
+      const bytes = Uint8Array.from(atob(msg.content), c => c.charCodeAt(0));
+      return new TextDecoder().decode(bytes).slice(0, 80);
+    } catch { return ''; }
+  });
+
   readonly isOwn = computed(() =>
     this.message().authorId === this.profileService.ownProfile()?.userId
   );
+
+  readonly longPressMenu = signal(false);
+  private longPressTimer: ReturnType<typeof setTimeout> | null = null;
 
   readonly isEditing = signal(false);
   readonly editText = signal('');

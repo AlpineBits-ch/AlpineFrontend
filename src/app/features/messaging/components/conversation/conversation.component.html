@@ -225,7 +225,9 @@
         <div class="flex flex-col gap-0.5 pb-4">
           @for (msg of messages(); track msg.id) {
             <div [attr.data-message-id]="msg.id">
-              <app-message [message]="msg"></app-message>
+              <app-message [message]="msg"
+                           (reply)="onReply($event)"
+                           (jumpTo)="jumpToMessage($event)"></app-message>
             </div>
           }
         </div>
@@ -245,7 +247,8 @@
 
   <!-- Composer -->
   <footer class="shrink-0">
-    <app-composer autofocus class="block" [friends]="friends()" (message)="createMessage($event)" (typing)="onTyping()"></app-composer>
+    <app-composer autofocus class="block" [friends]="friends()" [replyTo]="replyingTo()"
+                  (message)="createMessage($event)" (typing)="onTyping()" (cancelReply)="onCancelReply()"></app-composer>
   </footer>
 
 </div>

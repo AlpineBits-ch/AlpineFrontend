@@ -1,5 +1,7 @@
 import { Component, computed, ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
 import { Button } from 'primeng/button';
+import { MessageDto } from '../../../../../dtos/response/message.dto';
+import { ProfileService } from '../../../../../services/profile.service';
 import { RelationshipModel, RelationshipStatus } from '../../../../friendship/components/friendship-modal/dto/relationship.model';
 import { CommandDef, COMMANDS } from './commands';
 import { detectTrigger, EmojiSuggestion, getMessage } from './composer-utils';
@@ -23,13 +25,32 @@ export class ComposerComponent {
   protected readonly attachments = inject(ComposerAttachmentsService);
   private readonly emojiData = inject(EmojiDataService);
   private readonly gifService = inject(GifService);
+  protected readonly profileService = inject(ProfileService);
 
   // ── Inputs / Outputs ─────────────────────────────────────────────────────
 
   friends = input<RelationshipModel[]>([]);
-  message = output<{ content: string; attachments: string[] }>();
+  replyTo = input<MessageDto | null>(null);
+  message = output<{ content: string; attachments: string[]; inReplyTo?: string }>();
+  cancelReply = output<void>();
   commandAction = output<{ name: string; payload?: unknown }>();
   typing = output<void>();
+
+  replyAuthorName = computed(() => {
+    const msg = this.replyTo();
+    if (!msg) return '';
+    if (msg.authorId === this.profileService.ownProfile()?.userId) return 'yourself';
+    return this.profileService.getCachedByUserId(msg.authorId)?.userName ?? 'Unknown';
+  });
+
+  replySnippet = computed(() => {
+    const msg = this.replyTo();
+    if (!msg) return '';
+    try {
+      const bytes = Uint8Array.from(atob(msg.content), c => c.charCodeAt(0));
+      return new TextDecoder().decode(bytes).slice(0, 60);
+    } catch { return ''; }
+  });
 
   // ── View ─────────────────────────────────────────────────────────────────
 
@@ -379,7 +400,7 @@ export class ComposerComponent {
     const attachments = this.attachments.flushAndClear();
 
     if (text || attachments.length > 0) {
-      this.message.emit({ content: text, attachments });
+      this.message.emit({ content: text, attachments, inReplyTo: this.replyTo()?.id });
     }
 
     this.editorRef().nativeElement.innerHTML = '';

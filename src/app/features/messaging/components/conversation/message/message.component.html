@@ -1,12 +1,36 @@
 <div class="relative flex items-start gap-3 px-4 py-1.5 hover:bg-white/[0.02] rounded-lg transition-colors group"
      [class.opacity-50]="message().isPending"
-     [ngClass]="message().isFailed ? 'bg-rose-500/5' : ''">
+     [ngClass]="message().isFailed ? 'bg-rose-500/5' : ''"
+     (touchstart)="onTouchStart()"
+     (touchmove)="onTouchMove()"
+     (touchend)="onTouchEnd()">
 
   <div class="cursor-pointer shrink-0 mt-0.5" (click)="profileDialogSvc.open(message().authorId)">
     <app-avatar [userId]="message().authorId" />
   </div>
 
   <div class="flex flex-col min-w-0 flex-1">
+
+    <!-- Reply reference -->
+    @if (message().inReplyTo) {
+      <div class="flex items-center gap-1.5 mb-1 min-w-0 cursor-pointer group/reply select-none"
+           (click)="jumpTo.emit(message().inReplyTo!)">
+        <i class="pi pi-reply text-[10px] text-white/25 shrink-0 scale-x-[-1]"></i>
+        @if (replyMessage()) {
+          <span class="text-[11px] font-semibold text-white/45 shrink-0
+                       group-hover/reply:text-white/65 transition-colors">
+            {{ replyAuthorName() }}
+          </span>
+          <span class="text-[11px] text-white/25 truncate
+                       group-hover/reply:text-white/40 transition-colors">
+            {{ replySnippet() || '(attachment)' }}
+          </span>
+        } @else {
+          <span class="text-[11px] text-white/20 italic">Original message</span>
+        }
+      </div>
+    }
+
     <div class="flex items-center gap-2 mb-1">
       @let user = (getProfile() | async);
       <span class="text-sm font-semibold text-white/85 cursor-pointer hover:text-white transition-colors"
@@ -24,23 +48,31 @@
       }
     </div>
 
-    <!-- Hover action toolbar — own messages only, absolute so it never shifts layout -->
-    @if (isOwn() && !message().isPending && !message().isFailed && !isEditing()) {
-      <div class="absolute top-1 right-3 flex items-center gap-0.5
+    <!-- Hover action toolbar — desktop only (mobile uses long-press menu) -->
+    @if (!message().isPending && !message().isFailed && !isEditing()) {
+      <div class="absolute top-1 right-3 hidden sm:flex items-center gap-0.5
                   opacity-0 group-hover:opacity-100 transition-opacity duration-100
                   bg-card border border-white/[0.08] rounded-md px-0.5 py-0.5 z-20 shadow-sm">
-        <button (click)="startEdit()"
+        <button (click)="reply.emit(message())"
           class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-white/75
                  hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-colors"
-          title="Edit">
-          <i class="pi pi-pencil text-[10px]"></i>
+          title="Reply">
+          <i class="pi pi-reply text-[10px]"></i>
         </button>
-        <button (click)="confirmDelete()"
-          class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-rose-400
-                 hover:bg-rose-500/10 cursor-pointer border-0 bg-transparent transition-colors"
-          title="Delete">
-          <i class="pi pi-trash text-[10px]"></i>
-        </button>
+        @if (isOwn()) {
+          <button (click)="startEdit()"
+            class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-white/75
+                   hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-colors"
+            title="Edit">
+            <i class="pi pi-pencil text-[10px]"></i>
+          </button>
+          <button (click)="confirmDelete()"
+            class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-rose-400
+                   hover:bg-rose-500/10 cursor-pointer border-0 bg-transparent transition-colors"
+            title="Delete">
+            <i class="pi pi-trash text-[10px]"></i>
+          </button>
+        }
       </div>
     }
 
@@ -205,4 +237,43 @@
   </div>
 
 </div>
+
+<!-- Mobile long-press action sheet -->
+@if (longPressMenu()) {
+  <div class="fixed inset-0 z-40 bg-black/50" (click)="longPressMenu.set(false)"></div>
+  <div class="fixed bottom-0 left-0 right-0 z-50 bg-sidebar border-t border-white/[0.08] rounded-t-2xl"
+       style="padding-bottom: max(env(safe-area-inset-bottom), 1rem)">
+    <div class="flex flex-col px-4 pt-3 pb-1 gap-1">
+
+      <button (click)="onLongPressReply()"
+        class="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-white/80 hover:bg-white/[0.07]
+               text-sm text-left bg-transparent border-0 cursor-pointer transition-colors">
+        <i class="pi pi-reply text-base text-white/50"></i>
+        Reply
+      </button>
+
+      @if (isOwn() && !message().isPending && !message().isFailed) {
+        <button (click)="onLongPressEdit()"
+          class="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-white/80 hover:bg-white/[0.07]
+                 text-sm text-left bg-transparent border-0 cursor-pointer transition-colors">
+          <i class="pi pi-pencil text-base text-white/50"></i>
+          Edit
+        </button>
+        <button (click)="onLongPressDelete()"
+          class="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-rose-400 hover:bg-rose-500/10
+                 text-sm text-left bg-transparent border-0 cursor-pointer transition-colors">
+          <i class="pi pi-trash text-base"></i>
+          Delete
+        </button>
+      }
+
+      <div class="h-px bg-white/[0.06] my-1"></div>
+      <button (click)="longPressMenu.set(false)"
+        class="flex items-center justify-center w-full px-3 py-3 rounded-xl text-white/40
+               text-sm bg-transparent border-0 cursor-pointer hover:bg-white/[0.05] transition-colors">
+        Cancel
+      </button>
+    </div>
+  </div>
+}
 

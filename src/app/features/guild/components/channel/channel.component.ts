@@ -63,7 +63,8 @@ export class ChannelComponent implements AfterViewInit {
   private relationshipService = inject(RelationshipService);
   protected navService = inject(NavigationService);
 
-  protected friends = toSignal(this.relationshipService.getRelationships(), { initialValue: [] });
+  protected friends     = toSignal(this.relationshipService.getRelationships(), { initialValue: [] });
+  protected replyingTo  = signal<MessageDto | null>(null);
 
   // ── Messages ─────────────────────────────────────────────────────────────
 
@@ -251,6 +252,15 @@ export class ChannelComponent implements AfterViewInit {
     this.messageStore.loadForChannel(this.channel().id);
   }
 
+  protected onReply(msg: MessageDto): void {
+    this.replyingTo.set(msg);
+    setTimeout(() => this.composerRef?.focus(), 0);
+  }
+
+  protected onCancelReply(): void {
+    this.replyingTo.set(null);
+  }
+
   protected getSnippet(encoded: string): string {
     return decodeContent(encoded);
   }
@@ -271,10 +281,12 @@ export class ChannelComponent implements AfterViewInit {
 
   // ── Message actions ──────────────────────────────────────────────────────
 
-  public createMessage(event: { content: string; attachments: string[] }): void {
-    const { content, attachments } = event;
+  public createMessage(event: { content: string; attachments: string[]; inReplyTo?: string }): void {
+    const { content, attachments, inReplyTo } = event;
     const tempId = crypto.randomUUID();
     const now    = new Date();
+
+    this.replyingTo.set(null);
 
     const optimistic: MessageDto = {
       id:             tempId,
@@ -287,6 +299,7 @@ export class ChannelComponent implements AfterViewInit {
       isPending:      true,
       isFailed:       false,
       attachments:    [],
+      inReplyTo,
     };
 
     this.messageStore.addMessage(optimistic);
@@ -296,6 +309,7 @@ export class ChannelComponent implements AfterViewInit {
       channelId:      this.channel().id,
       conversationId: undefined,
       attachments,
+      inReplyTo,
     }).pipe(
       tap(confirmed => {
         this.messageStore.confirmMessage(tempId, confirmed);
