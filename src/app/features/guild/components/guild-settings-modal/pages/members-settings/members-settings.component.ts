@@ -30,8 +30,13 @@ export class MembersSettingsComponent implements OnInit {
   private guildService = inject(GuildService);
   private profileService = inject(ProfileService);
 
+  private readonly TAKE = 50;
+  private nextSkip = 0;
+
   members = signal<MemberRow[]>([]);
   loading = signal(true);
+  loadingMore = signal(false);
+  hasMore = signal(true);
   filter = signal('');
 
   editMember = signal<MemberRow | null>(null);
@@ -49,29 +54,65 @@ export class MembersSettingsComponent implements OnInit {
 
   load(): void {
     this.loading.set(true);
-    this.guildService.getMembers(this.guild().id).subscribe({
-      next: members => {
-        const rows: MemberRow[] = members.map(m => ({
+    this.nextSkip = 0;
+    this.hasMore.set(true);
+    this.members.set([]);
+    this.fetchPage();
+  }
+
+  private fetchPage(): void {
+    const skip = this.nextSkip;
+    this.guildService.getMembers(this.guild().id, skip, this.TAKE).subscribe({
+      next: incoming => {
+        const baseIdx = skip === 0 ? 0 : this.members().length;
+        const rows: MemberRow[] = incoming.map(m => ({
           member: m,
           profile: null,
           roleNames: this.roleNamesFor(m),
         }));
-        this.members.set(rows);
-        this.loading.set(false);
+
+        if (skip === 0) {
+          this.members.set(rows);
+          this.loading.set(false);
+        } else {
+          this.members.update(list => [...list, ...rows]);
+          this.loadingMore.set(false);
+        }
+
+        this.nextSkip = skip + incoming.length;
+        if (incoming.length < this.TAKE) this.hasMore.set(false);
+
         rows.forEach((row, i) => {
           this.profileService.fetchByUserId(row.member.userId).subscribe({
             next: p => {
               this.members.update(list => {
                 const next = [...list];
-                next[i] = {...next[i], profile: p};
+                const idx = baseIdx + i;
+                if (next[idx]) next[idx] = {...next[idx], profile: p};
                 return next;
               });
             },
           });
         });
       },
-      error: () => this.loading.set(false),
+      error: () => {
+        this.loading.set(false);
+        this.loadingMore.set(false);
+      },
     });
+  }
+
+  loadMore(): void {
+    if (this.loadingMore() || !this.hasMore() || this.loading()) return;
+    this.loadingMore.set(true);
+    this.fetchPage();
+  }
+
+  onScroll(event: Event): void {
+    const el = event.target as HTMLElement;
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 150) {
+      this.loadMore();
+    }
   }
 
   private roleNamesFor(member: GuildMemberDto): string[] {

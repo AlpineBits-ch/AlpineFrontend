@@ -21,6 +21,7 @@ import { ProfileDialogService } from '../../services/profile-dialog.service';
 import { QuickSettingsComponent } from './components/quick-settings/quick-settings.component';
 import { VoiceStatusBarComponent } from './components/voice-status-bar/voice-status-bar.component';
 import { ChannelType } from '../../dtos/response/guild.dto';
+import { GuildMemberListComponent } from '../guild/components/guild-member-list/guild-member-list.component';
 import {
   restoreStateCurrent,
   StateFlags,
@@ -39,6 +40,7 @@ import {
     ProfileDialogComponent,
     QuickSettingsComponent,
     VoiceStatusBarComponent,
+    GuildMemberListComponent,
   ],
   templateUrl: './main-page.component.html',
   styleUrl: './main-page.component.css',

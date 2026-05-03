@@ -44,7 +44,7 @@
     }
   </div>
 
-  <!-- Right sidebar: activity feed on home, conversation info on conversation -->
+  <!-- Right sidebar: activity feed on home, conversation info on conversation, member list on channel -->
   @if (view.type === 'home') {
     <div class="hidden xl:flex shrink-0 h-full">
       <app-activity-feed />
@@ -53,6 +53,13 @@
     <div class="hidden xl:flex shrink-0 h-full">
       <app-conversation-info-panel [conversation]="view.conversation" />
     </div>
+  } @else if (view.type === 'channel') {
+    @let ws = navService.workspace();
+    @if (ws.type === 'server') {
+      <div class="hidden xl:flex shrink-0 h-full">
+        <app-guild-member-list [guild]="ws.guild" />
+      </div>
+    }
   }
 
   <app-profile-dialog

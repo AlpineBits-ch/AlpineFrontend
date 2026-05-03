@@ -87,7 +87,7 @@ export class ChannelPermissionsComponent implements OnInit {
 
   private loadMembers(): void {
     this.membersLoading.set(true);
-    this.guildService.getMembers(this.guild().id).subscribe({
+    this.guildService.getMembers(this.guild().id, 0, 1000).subscribe({
       next: members => {
         const overrides = this.channel().permissions;
         const rows: MemberOverride[] = members.map(m => {

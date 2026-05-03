@@ -22,4 +22,5 @@ export interface RoleMemberDto {
     role: RoleDto
     roleId: string;
     memberId: string;
+    userId: string;
 }

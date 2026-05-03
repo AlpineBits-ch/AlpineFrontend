@@ -78,7 +78,7 @@ export class CategoryPermissionsComponent implements OnInit {
 
   private loadMembers(): void {
     this.membersLoading.set(true);
-    this.guildService.getMembers(this.guild().id).subscribe({
+    this.guildService.getMembers(this.guild().id, 0, 1000).subscribe({
       next: members => {
         const overrides = this.category().permissions;
         this.memberOverrides.set(

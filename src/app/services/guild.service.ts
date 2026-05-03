@@ -117,9 +117,7 @@ export class GuildService {
   }
 
   // ── Members ─────────────────────────────────────────────────────────────
-  getMembers(guildId: string): Observable<GuildMemberDto[]> {
-    return this.http.get<GuildMemberDto[]>(`${this.base}/guild/${guildId}/member`);
-  }
+
 
   updateMemberPermissions(guildId: string, memberId: string, permissions: string): Observable<GuildMemberDto> {
     return this.http.patch<GuildMemberDto>(`${this.base}/guild/${guildId}/member/${memberId}`, {permissions});
@@ -203,5 +201,9 @@ export class GuildService {
 
   deleteInvite(id: string): Observable<void> {
     return this.http.delete<void>(`${this.base}/invite/${id}`);
+  }
+
+  getMembers(guildId: string, skip: number, take: number): Observable<GuildMemberDto[]> {
+    return this.http.get<GuildMemberDto[]>(`${this.base}/guilds/${guildId}/members?skip=${skip}&take=${take}`);
   }
 }

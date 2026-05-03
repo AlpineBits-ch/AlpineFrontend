@@ -5,7 +5,7 @@ import {Menu} from 'primeng/menu';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
 import {InputText} from 'primeng/inputtext';
-import {MenuItem} from 'primeng/api';
+import {MenuItem, PrimeTemplate} from 'primeng/api';
 import {
   CategoryDto,
   ChannelDto,
@@ -24,18 +24,19 @@ import {CategorySettingsModalComponent} from '../category-settings-modal/categor
 
 @Component({
   selector: 'app-channel-list',
-  imports: [
-    NgClass,
-    FormsModule,
-    Menu,
-    Button,
-    Dialog,
-    InputText,
-    AppAvatarComponent,
-    GuildSettingsModalComponent,
-    ChannelSettingsModalComponent,
-    CategorySettingsModalComponent,
-  ],
+    imports: [
+        NgClass,
+        FormsModule,
+        Menu,
+        Button,
+        Dialog,
+        InputText,
+        AppAvatarComponent,
+        GuildSettingsModalComponent,
+        ChannelSettingsModalComponent,
+        CategorySettingsModalComponent,
+        PrimeTemplate,
+    ],
   templateUrl: './channel-list.component.html',
 })
 export class ChannelListComponent {
