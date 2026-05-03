@@ -35,8 +35,8 @@
       "developmentTeam": "S33LPKH83B"
     }
   },
-  "identifier": "com.alpinebits.alpine",
-  "productName": "alpine",
+  "identifier": "com.alpinebits.echo",
+  "productName": "Echo",
   "version": "3.0.35",
   "plugins": {
     "updater": {

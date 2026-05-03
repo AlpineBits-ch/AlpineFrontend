@@ -5,7 +5,6 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
 }
 
-// Win32 declarations — no extra crate needed; user32 is always linked on Windows.
 #[cfg(target_os = "windows")]
 mod win32 {
     pub const GWL_EXSTYLE: i32 = -20;
@@ -25,10 +24,6 @@ mod win32 {
     }
 }
 
-/// Show a Tauri webview-window without activating it or stealing focus from the
-/// foreground application. On Windows this sets WS_EX_NOACTIVATE via SetWindowLongPtrW
-/// and calls ShowWindow(SW_SHOWNOACTIVATE) so Windows never hands us the foreground.
-/// On other platforms it falls back to the regular show().
 #[tauri::command]
 fn show_noactivate(label: String, app: tauri::AppHandle) -> Result<(), String> {
     use tauri::Manager;
@@ -52,8 +47,12 @@ fn show_noactivate(label: String, app: tauri::AppHandle) -> Result<(), String> {
         }
     }
 
+    // On non-Windows desktop and mobile, just show normally
     #[cfg(not(target_os = "windows"))]
-    win.show().map_err(|e| e.to_string())?;
+    {
+        use tauri::WebviewWindowExt;
+        win.set_visible(true).map_err(|e| e.to_string())?;
+    }
 
     Ok(())
 }
@@ -61,13 +60,14 @@ fn show_noactivate(label: String, app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 fn setup_toast_window(label: String, app: tauri::AppHandle) -> Result<(), String> {
     use tauri::Manager;
-    let win = app.get_webview_window(&label)
+    let _win = app
+        .get_webview_window(&label)
         .ok_or_else(|| format!("window '{}' not found", label))?;
 
     #[cfg(target_os = "windows")]
     {
-        use win32::*; // Ensure you have the right imports (e.g. from window-v2 or similar)
-        let hwnd = win.hwnd().map_err(|e| e.to_string())?.0 as *mut core::ffi::c_void;
+        use win32::*;
+        let hwnd = _win.hwnd().map_err(|e| e.to_string())?.0 as *mut core::ffi::c_void;
         unsafe {
             let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
             SetWindowLongPtrW(
@@ -77,6 +77,7 @@ fn setup_toast_window(label: String, app: tauri::AppHandle) -> Result<(), String
             );
         }
     }
+
     Ok(())
 }
 
@@ -91,33 +92,43 @@ fn get_memory_usage() -> u64 {
 #[tauri::command]
 fn prepare_notification(label: String, app: tauri::AppHandle) -> Result<(), String> {
     use tauri::Manager;
-    let win = app.get_webview_window(&label)
+    let _win = app
+        .get_webview_window(&label)
         .ok_or_else(|| format!("window '{}' not found", label))?;
 
     #[cfg(target_os = "windows")]
     {
-        use win32::*; // Ensure your win32 crate/bindings are accessible
-        let hwnd = win.hwnd().map_err(|e| e.to_string())?.0 as *mut core::ffi::c_void;
+        use win32::*;
+        let hwnd = _win.hwnd().map_err(|e| e.to_string())?.0 as *mut core::ffi::c_void;
         unsafe {
             let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-            // Apply styles immediately while hidden
-            SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex | WS_EX_NOACTIVATE as isize | WS_EX_TOOLWINDOW as isize);
+            SetWindowLongPtrW(
+                hwnd,
+                GWL_EXSTYLE,
+                ex | WS_EX_NOACTIVATE as isize | WS_EX_TOOLWINDOW as isize,
+            );
         }
     }
+
     Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
-
-        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
-        .plugin(tauri_plugin_window_state::Builder::new().build())
-        .plugin(tauri_plugin_autostart::Builder::new().build())
+    let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_process::init());
+
+    // Desktop-only plugins
+    #[cfg(desktop)]
+    let builder = builder
+        .plugin(tauri_plugin_single_instance::Builder::new().build())
+        .plugin(tauri_plugin_window_state::Builder::new().build())
+        .plugin(tauri_plugin_autostart::Builder::new().build());
+
+    builder
         .invoke_handler(tauri::generate_handler![
             greet,
             get_memory_usage,
