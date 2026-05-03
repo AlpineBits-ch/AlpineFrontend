@@ -11,12 +11,23 @@
 }
 
 /* Prevent rubber-band scroll and font inflation.
-   background-color fills iOS safe-area bars (status bar + home indicator). */
+   background-color fills iOS safe-area bars (status bar + home indicator).
+   height:100dvh + overflow:hidden locks the layout to the visual viewport so
+   iOS doesn't scroll the page when the keyboard opens (which would hide the header). */
 html, body {
   overscroll-behavior: none;
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
   background-color: #06090f;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+app-root {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
 }
 
 /* Prevent double-tap zoom on all interactive elements without disabling gestures */

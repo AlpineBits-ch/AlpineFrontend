@@ -1,4 +1,5 @@
-<div class="relative px-4 py-3"
+<div class="relative px-3 pt-2 sm:px-4 sm:pt-3"
+     style="padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem)"
      (dragenter)="attachments.onDragEnter($event)"
      (dragover)="attachments.onDragOver($event)"
      (dragleave)="attachments.onDragLeave()"
@@ -53,7 +54,7 @@
       (remove)="attachments.remove($event)" />
 
     <!-- Text + action row -->
-    <div class="flex items-end gap-2 px-2 py-1.5">
+    <div class="flex items-end gap-1 sm:gap-2 px-1.5 sm:px-2 py-1 sm:py-1.5">
 
       <p-button icon="pi pi-plus" [text]="true" severity="secondary" size="small"
                 styleClass="shrink-0 self-end mb-0.5" (onClick)="onAttachClick()" />
@@ -64,7 +65,7 @@
         role="textbox"
         aria-multiline="true"
         [attr.data-placeholder]="placeholder()"
-        class="composer-editor flex-1 min-w-0 py-1.5 max-h-[160px] overflow-y-auto outline-none text-sm text-white/80"
+        class="composer-editor flex-1 min-w-0 py-1.5 max-h-[120px] sm:max-h-[160px] overflow-y-auto outline-none text-sm text-white/80"
         style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.06) transparent;"
         (input)="onInput()"
         (keydown)="onKeydown($event)"
@@ -74,8 +75,10 @@
         autofocus
       ></div>
 
-      <div class="flex items-center gap-1 self-end mb-0.5 shrink-0">
-        <app-gif-picker-button (gifSelected)="onGifSelected($event)" />
+      <div class="flex items-center gap-0.5 sm:gap-1 self-end mb-0.5 shrink-0">
+        <div class="hidden sm:contents">
+          <app-gif-picker-button (gifSelected)="onGifSelected($event)" />
+        </div>
         <app-emoji-picker-button (emojiSelected)="onEmojiSelected($event)" />
         <p-button icon="pi pi-send" [text]="true" severity="primary" size="small" (onClick)="send()" />
       </div>
