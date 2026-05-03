@@ -19,7 +19,7 @@ interface SettingsPayload {
 
 const DEFAULTS: SettingsPayload = {
   notifications: { enabled: true, dm: true, mentions: true, sounds: true },
-  autostart: true,
+  autostart: false,
 };
 
 @Injectable({ providedIn: 'root' })
