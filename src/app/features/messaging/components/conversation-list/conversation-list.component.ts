@@ -21,6 +21,8 @@ import { MessageStore } from '../../../../stores/message.store';
 import { ToastService } from '../../../../services/toast.service';
 import { NavigationService } from '../../../main-page/navigation.service';
 
+const PREVIEW_SIZE = 30;
+
 @Component({
   selector: 'app-conversation-list',
   imports: [AppAvatarComponent, DatePipe, NgClass, UserStatusDotComponent, TypingDotsComponent],
@@ -73,37 +75,73 @@ export class ConversationListComponent {
 
   readonly sortKey = computed(() => this.sortedConversations().map(c => c.id).join(','));
 
-  lastMessages = signal<Map<string, MessageDto>>(new Map());
-  unreadCounts = signal<Map<string, number>>(new Map());
+  // Per-conversation preview: last PREVIEW_SIZE messages, newest first.
+  // Used for the last-message preview text, timestamp, and unread count.
+  // Intentionally separate from MessageStore to avoid the list recomputing
+  // whenever the open conversation loads its full message history.
+  previewMessages = signal<Map<string, MessageDto[]>>(new Map());
+
+  // Unread count per conversation.
+  // Only depends on previewMessages + conversationStore (for lastReadMessageId).
+  // Does NOT read from MessageStore — that was the source of the UI freeze.
+  readonly unreadCounts = computed(() => {
+    const ownId  = this.profileService.ownProfile()?.userId;
+    const prevMap = this.previewMessages();
+    const result  = new Map<string, number>();
+
+    for (const conv of this.conversationStore.entities()) {
+      const ownMember  = conv.members.find(m => m.userId === ownId);
+      const lastReadId = ownMember?.lastReadMessageId;
+      // msgs are newest-first; index 0 is the most recent message.
+      const msgs = prevMap.get(conv.id) ?? [];
+
+      if (!lastReadId) {
+        result.set(conv.id, msgs.length);
+      } else {
+        const readIdx = msgs.map(m => m.id).indexOf(lastReadId);
+        // readIdx === -1: lastRead is older than all previewed messages → all PREVIEW_SIZE unread.
+        // readIdx ===  0: newest message is already read → 0 unread.
+        // readIdx ===  N: N messages newer than the last-read position.
+        result.set(conv.id, readIdx === -1 ? msgs.length : readIdx);
+      }
+    }
+
+    return result;
+  });
 
   constructor() {
     this.conversationStore.loadInitial();
 
-    const updatePreview = (msg: MessageDto) => {
-      if (msg.conversationId) {
-        this.lastMessages.update(map => new Map(map).set(msg.conversationId!, msg));
-      }
+    // Prepend new messages to the preview window (keeps newest-first order).
+    const prependPreview = (msg: MessageDto) => {
+      if (!msg.conversationId) return;
+      this.previewMessages.update(map => {
+        const existing = map.get(msg.conversationId!) ?? [];
+        const updated  = [msg, ...existing].slice(0, PREVIEW_SIZE);
+        return new Map(map).set(msg.conversationId!, updated);
+      });
     };
-    this.messagingWs.messageObservable.subscribe(updatePreview);
-    this.messagingService.messageSentObservable.subscribe(updatePreview);
+    this.messagingWs.messageObservable.subscribe(prependPreview);
+    this.messagingService.messageSentObservable.subscribe(prependPreview);
 
+    // Fetch the initial preview for any conversation not yet loaded.
     effect(() => {
       const convs  = this.conversationStore.entities();
-      const loaded = this.lastMessages();
+      const loaded = this.previewMessages();
       convs
         .filter(c => !loaded.has(c.id))
         .forEach(c => {
-          this.messagingService.getMessagesForConversation(c.id, 0, 1).subscribe(msgs => {
-            if (msgs.length > 0) {
-              this.lastMessages.update(map => new Map(map).set(c.id, msgs[0]));
-            }
+          this.messagingService.getMessagesForConversation(c.id, 0, PREVIEW_SIZE).subscribe(msgs => {
+            // API returns messages ascending (oldest-first); reverse so index 0 is always the newest,
+            // consistent with the websocket prepend behaviour.
+            this.previewMessages.update(map => new Map(map).set(c.id, [...msgs].reverse()));
           });
         });
     });
   }
 
   public getPreview(conv: ConversationDto): { sender: string; text: string } | null {
-    const msg = this.lastMessages().get(conv.id);
+    const msg = this.previewMessages().get(conv.id)?.[0]; // [0] is newest
     if (!msg) return null;
 
     const ownId  = this.profileService.ownProfile()?.userId;

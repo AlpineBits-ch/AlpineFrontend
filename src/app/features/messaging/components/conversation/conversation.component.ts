@@ -9,6 +9,7 @@ import {
   input,
   output,
   signal,
+  untracked,
   ViewChild,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
@@ -24,6 +25,7 @@ import { Button } from 'primeng/button';
 
 import { MessagingService } from '../../../../services/messaging.service';
 import { MessageStore } from '../../../../stores/message.store';
+import { ConversationStore } from '../../../../stores/conversation.store';
 import { ProfileService } from '../../../../services/profile.service';
 import { RelationshipService } from '../../../../services/relationship.service';
 import { CallStateService } from '../../../../services/call-state.service';
@@ -57,8 +59,9 @@ export class ConversationComponent implements AfterViewInit {
   public conversation = input.required<ConversationDto>();
   public back = output();
 
-  private messageStore     = inject(MessageStore);
-  private messagingService  = inject(MessagingService);
+  private messageStore       = inject(MessageStore);
+  private conversationStore  = inject(ConversationStore);
+  private messagingService   = inject(MessagingService);
   private profileService   = inject(ProfileService);
   private relationshipService = inject(RelationshipService);
   private callStateService   = inject(CallStateService);
@@ -131,6 +134,15 @@ export class ConversationComponent implements AfterViewInit {
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
+  // ── Unread state ─────────────────────────────────────────────────────────
+
+  // ID of the first unread message when the conversation was opened.
+  // Snapped once per conversation visit so the divider doesn't jump as you read.
+  protected firstUnreadId = signal<string | null>(null);
+  private _snappedForConvId = '';
+
+  // ── Lifecycle ────────────────────────────────────────────────────────────
+
   constructor() {
     this.setupMessageLoading();
     this.setupSearchSync();
@@ -138,6 +150,7 @@ export class ConversationComponent implements AfterViewInit {
     this.setupComposerFocus();
     this.setupRenderHook();
     this.setupReadTracking();
+    this.setupFirstUnreadSnapshot();
   }
 
   ngAfterViewInit(): void {
@@ -148,7 +161,8 @@ export class ConversationComponent implements AfterViewInit {
   // Triggers a (re)load whenever the active conversation changes.
   private setupMessageLoading(): void {
     effect(() => {
-      this.messageStore.loadForConversation(this.conversation().id);
+      const id = this.conversation().id;
+      untracked(() => this.messageStore.loadForConversation(id));
     });
   }
 
@@ -181,14 +195,53 @@ export class ConversationComponent implements AfterViewInit {
     });
   }
 
-  // Notifies the backend whenever the latest confirmed message changes.
+  // Notifies the backend and updates the local store whenever the latest confirmed message changes.
   private setupReadTracking(): void {
     effect(() => {
-      const msg = this.latestMessage();
-      if (msg) {
-        void this.messagingWs.updateLastReadMessageByConversation(msg.id, this.conversation().id);
-      }
+      const msg    = this.latestMessage();
+      const convId = this.conversation().id;
+      const ownId  = this.profileService.ownProfile()?.userId;
+      if (!msg || !ownId) return;
+      // untracked: updateMemberLastRead reads entityMap() internally; tracking it would
+      // make this effect a dependency of conversationStore and create an infinite loop
+      // (write → entityMap changes → effect re-runs → write → ...).
+      untracked(() => {
+        void this.messagingWs.updateLastReadMessageByConversation(msg.id, convId);
+        this.conversationStore.updateMemberLastRead(convId, ownId, msg.id);
+      });
     });
+  }
+
+  // Snapshots the first unread message ID once when each conversation's messages
+  // first load. Reads from the stable conversation() input (nav service snapshot)
+  // so the divider position is unaffected by subsequent read-receipt store updates.
+  private setupFirstUnreadSnapshot(): void {
+    effect(() => {
+      const convId = this.conversation().id;
+      const loaded = this.isLoaded();
+      const msgs   = this.messages();
+
+      if (convId !== this._snappedForConvId) {
+        this.firstUnreadId.set(null);
+        if (!loaded) return;
+
+        this._snappedForConvId = convId;
+
+        const ownId     = this.profileService.ownProfile()?.userId;
+        const ownMember = this.conversation().members.find(m => m.userId === ownId);
+        const lastReadId = ownMember?.lastReadMessageId;
+
+        if (lastReadId) {
+          const confirmed = msgs.filter(m => !m.isPending && !m.isFailed);
+          const readIdx   = confirmed.map(m => m.id).lastIndexOf(lastReadId);
+          this.firstUnreadId.set(
+            readIdx >= 0 && readIdx < confirmed.length - 1
+              ? confirmed[readIdx + 1].id
+              : null
+          );
+        }
+      }
+    }, { allowSignalWrites: true });
   }
 
   // Delegates post-render work (scroll restore, ResizeObserver update) to the scroll service.

@@ -26,11 +26,11 @@
           </span>
           <div class="flex items-center gap-1.5 shrink-0">
             @if (preview) {
-              <span class="text-[10px] text-white/25">{{ preview && lastMessages().get(conv.id)?.createdAt | date: 'shortTime' }}</span>
+              <span class="text-[10px] text-white/25">{{ previewMessages().get(conv.id)?.[0]?.createdAt | date: 'shortTime' }}</span>
             }
             @if (unread > 0) {
               <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center">
-                {{ unread > 99 ? '99+' : unread }}
+                {{ unread >= 30 ? '30+' : unread }}
               </span>
             }
           </div>

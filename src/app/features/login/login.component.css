@@ -102,30 +102,6 @@
   color: var(--color-text-secondary) !important;
 }
 
-/* date picker */
-::ng-deep .login-form p-date-picker {
-  display: block !important;
-  width: 100% !important;
-}
-::ng-deep .login-form .p-datepicker .p-datepicker-input {
-  width: 100% !important;
-  background: rgba(255, 255, 255, 0.04) !important;
-  border: 1px solid rgba(255, 255, 255, 0.09) !important;
-  border-radius: 11px !important;
-  color: var(--color-text-primary) !important;
-  padding: 11px 14px !important;
-  font-size: 16px !important;
-  transition: border-color 0.18s, box-shadow 0.18s !important;
-}
-::ng-deep .login-form .p-datepicker .p-datepicker-input:focus {
-  border-color: var(--color-brand-dim) !important;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-brand-dim) 20%, transparent) !important;
-  outline: none !important;
-}
-::ng-deep .login-form .p-datepicker .p-datepicker-input::placeholder {
-  color: var(--color-text-muted) !important;
-}
-
 /* submit button */
 ::ng-deep .login-form .p-button {
   width: 100% !important;

@@ -6,6 +6,8 @@ export interface ConversationMemberDto {
     userId: string;
     cachedUserName: string;
     cachedUserHash: number;
+    lastReadMessageId: string | undefined;
+    mentionCount: number;
 }
 export interface ConversationDto {
     id: string;

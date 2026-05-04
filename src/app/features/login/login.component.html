@@ -16,11 +16,11 @@
         <div class="w-[46px] h-[46px] bg-gradient-to-br from-indigo-400 to-indigo-700 rounded-[14px] flex items-center justify-center text-[22px] font-black text-white shadow-[0_4px_20px_rgba(67,56,202,0.45)]">A</div>
         <span class="text-[22px] font-bold text-slate-100 tracking-tight">Alpine</span>
       </div>
-      <h1 class="text-[40px] font-extrabold leading-[1.15] text-slate-100 mb-5 tracking-[-1.5px]">
+      <h1 class="text-4xl font-bold leading-tight text-slate-100 mb-5">
         Private conversations,<br>
         <span class="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">beautifully simple.</span>
       </h1>
-      <p class="text-slate-500 text-[15px] leading-[1.7] mb-8">
+      <p class="text-slate-500 text-sm leading-relaxed mb-8">
         End-to-end encrypted messaging built for people who value their privacy. Modern, fast, and always secure.
       </p>
       <ul class="flex flex-col gap-3.5 list-none p-0 m-0">
@@ -54,11 +54,6 @@
         <span class="text-xl font-bold text-slate-100 tracking-tight">Alpine</span>
       </div>
 
-      <!--
-        Card:
-          mobile (<sm):  invisible — no background, no border, no shadow, no inner padding
-          sm+:           full card box
-      -->
       <div class="login-form w-full max-w-[400px]
                   p-0            sm:p-9
                   bg-transparent sm:bg-app-bg/85
@@ -70,7 +65,7 @@
         <!-- Mode toggle -->
         <div class="flex bg-white/[0.04] border border-white/[0.07] rounded-2xl p-1 gap-1 mb-7">
           <button
-            class="flex-1 py-3 px-3 rounded-xl text-[13.5px] font-medium cursor-pointer transition-all border-0 outline-none bg-transparent touch-manipulation"
+            class="flex-1 py-3 px-3 rounded-xl text-sm font-medium cursor-pointer transition-all border-0 outline-none bg-transparent touch-manipulation"
             [ngClass]="{
               'bg-indigo-500/15 text-indigo-400 shadow-sm': isLoginMode(),
               'text-slate-500': !isLoginMode()
@@ -79,7 +74,7 @@
             Sign In
           </button>
           <button
-            class="flex-1 py-3 px-3 rounded-xl text-[13.5px] font-medium cursor-pointer transition-all border-0 outline-none bg-transparent touch-manipulation"
+            class="flex-1 py-3 px-3 rounded-xl text-sm font-medium cursor-pointer transition-all border-0 outline-none bg-transparent touch-manipulation"
             [ngClass]="{
               'bg-indigo-500/15 text-indigo-400 shadow-sm': !isLoginMode(),
               'text-slate-500': isLoginMode()
@@ -92,44 +87,47 @@
         @if (!isLoginMode()) {
           <div class="flex flex-col gap-4">
             <div class="mb-1">
-              <h2 class="text-[22px] font-bold text-slate-100 mb-1 tracking-tight">Create your account</h2>
-              <p class="text-[13.5px] text-slate-500">Join Alpine — messaging the way it should be.</p>
+              <h2 class="text-xl font-semibold text-slate-100 mb-1">Create your account</h2>
+              <p class="text-sm text-slate-500">Join Alpine — messaging the way it should be.</p>
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Username</label>
+              <label class="text-sm font-medium text-slate-400">Username</label>
               <input [formField]="registerForm.username" pInputText type="text" placeholder="Choose a username" autocomplete="username" />
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Email</label>
+              <label class="text-sm font-medium text-slate-400">Email</label>
               <input [formField]="registerForm.email" pInputText type="email" placeholder="you@example.com" autocomplete="email" inputmode="email" />
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Date of Birth</label>
-              <p-date-picker [formField]="$any(registerForm.birthdate)" placeholder="Select your birthday"></p-date-picker>
+              <label class="text-sm font-medium text-slate-400">Date of Birth</label>
+              <input [formField]="registerForm.birthdate" pInputText type="text" placeholder="30.12.1999" autocomplete="bday" />
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Password</label>
-              <input [formField]="registerForm.password" pPassword type="password" placeholder="Create a strong password" autocomplete="new-password" />
+              <label class="text-sm font-medium text-slate-400">Password</label>
+              <input [formField]="registerForm.password" pPassword type="password" placeholder="Create a strong password" autocomplete="new-password" (input)="passwordMismatch.set(false)" />
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Confirm Password</label>
-              <input pPassword type="password" placeholder="Repeat your password" autocomplete="new-password" />
+              <label class="text-sm font-medium text-slate-400">Confirm Password</label>
+              <input [formField]="registerForm.confirmPassword" pPassword type="password" placeholder="Repeat your password" autocomplete="new-password" (input)="passwordMismatch.set(false)" (keydown.enter)="register()" />
+              @if (passwordMismatch()) {
+                <span class="text-xs text-rose-400">Passwords do not match.</span>
+              }
             </div>
             <p-button (onClick)="register()" label="Create Account" />
           </div>
         } @else {
           <div class="flex flex-col gap-4">
             <div class="mb-1">
-              <h2 class="text-[22px] font-bold text-slate-100 mb-1 tracking-tight">Welcome back</h2>
-              <p class="text-[13.5px] text-slate-500">Sign in to continue your conversations.</p>
+              <h2 class="text-xl font-semibold text-slate-100 mb-1">Welcome back</h2>
+              <p class="text-sm text-slate-500">Sign in to continue your conversations.</p>
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Username</label>
-              <input pInputText [formField]="loginForm.username" type="text" placeholder="Your username" autocomplete="username" />
+              <label class="text-sm font-medium text-slate-400">Email</label>
+              <input pInputText [formField]="loginForm.email" type="email" placeholder="you@example.com" autocomplete="email" inputmode="email" (keydown.enter)="login()" />
             </div>
             <div class="flex flex-col gap-1.5">
-              <label class="text-[11px] font-semibold text-white/40 uppercase tracking-widest">Password</label>
-              <input pPassword [formField]="loginForm.password" type="password" placeholder="Your password" autocomplete="current-password" />
+              <label class="text-sm font-medium text-slate-400">Password</label>
+              <input pPassword [formField]="loginForm.password" type="password" placeholder="Your password" autocomplete="current-password" (keydown.enter)="login()" />
             </div>
             <p-button (onClick)="login()" label="Sign In" />
           </div>
@@ -137,7 +135,7 @@
 
       </div>
 
-      <p class="mt-5 text-center text-[12px] text-slate-600 max-w-sm leading-relaxed">
+      <p class="mt-5 text-center text-xs text-slate-600 max-w-sm leading-relaxed">
         By continuing, you agree to Alpine's
         <a href="#" class="text-indigo-400/70 hover:text-indigo-400 no-underline transition-colors">Terms of Service</a>
         and

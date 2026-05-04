@@ -57,6 +57,19 @@ export const ConversationStore = signalStore(
     bumpUpdatedAt(conversationId: string): void {
       patchState(store, updateEntity({ id: conversationId, changes: { updatedAt: new Date() } }));
     },
+
+    updateMemberLastRead(conversationId: string, userId: string, lastReadMessageId: string): void {
+      const conv = store.entityMap()[conversationId];
+      if (!conv) return;
+      patchState(store, updateEntity({
+        id: conversationId,
+        changes: {
+          members: conv.members.map(m =>
+            m.userId === userId ? { ...m, lastReadMessageId } : m
+          ),
+        },
+      }));
+    },
   })),
 
   withHooks({

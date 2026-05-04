@@ -11,6 +11,32 @@
   contain-intrinsic-size: auto 72px;
 }
 
+/* ── Unread divider ──────────────────────────────────────────────────────── */
+
+.unread-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 0 6px;
+}
+
+.unread-divider::before,
+.unread-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(244, 63, 94, 0.35);
+}
+
+.unread-divider span {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(244, 63, 94, 0.65);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  white-space: nowrap;
+}
+
 /* ── Message jump highlight ───────────────────────────────────────────────── */
 
 @keyframes msg-flash {

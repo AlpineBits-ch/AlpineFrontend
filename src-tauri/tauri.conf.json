@@ -37,7 +37,7 @@
   },
   "identifier": "com.alpinebits.echo",
   "productName": "Echo",
-  "version": "3.0.39",
+  "version": "3.0.40",
   "plugins": {
     "updater": {
       "endpoints": [

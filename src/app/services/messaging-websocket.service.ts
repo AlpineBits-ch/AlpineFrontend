@@ -88,9 +88,9 @@ export class MessagingWebsocketService {
   }
 
   async updateLastReadMessageByConversation(id: string, conversationId: string){
-    if(this.hubConnection.state === signalR.HubConnectionState.Connected) {
-      await this.hubConnection.invoke('UpdateLastReadMessageByConversation', {conversationId, id}).catch(() => void 0);
-    }
+    if(this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
+    await this.hubConnection.invoke('UpdateLastReadMessageByConversation', {conversationId, id})
+      .catch(err => console.error('UpdateLastReadMessageByConversation failed:', err));
   }
 
   private async setupListeners(): Promise<void>{
