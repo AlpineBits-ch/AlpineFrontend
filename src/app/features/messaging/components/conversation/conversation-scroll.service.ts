@@ -1,7 +1,7 @@
 import { DestroyRef, inject, Injectable } from '@angular/core';
 
 const SCROLL_BOTTOM_THRESHOLD = 100;
-const LOAD_MORE_THRESHOLD     = 150;
+const LOAD_MORE_THRESHOLD     = 400;
 
 /**
  * Manages all scroll mechanics for the conversation view:

@@ -133,7 +133,7 @@ export class CallSessionService {
     } else {
       let stream: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       } catch {
         return; // User cancelled the picker or denied
       }

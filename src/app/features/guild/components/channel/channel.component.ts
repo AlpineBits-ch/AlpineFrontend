@@ -33,7 +33,7 @@ import { MessageComponent } from '../../../messaging/components/conversation/mes
 import { HighlightPipe } from '../../../../pipes/highlight.pipe';
 
 const SCROLL_BOTTOM_THRESHOLD = 100;
-const LOAD_MORE_THRESHOLD     = 150;
+const LOAD_MORE_THRESHOLD     = 400;
 
 function decodeContent(encoded: string): string {
   try {
