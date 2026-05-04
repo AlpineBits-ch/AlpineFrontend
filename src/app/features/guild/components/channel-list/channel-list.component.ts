@@ -11,7 +11,6 @@ import {
   ChannelDto,
   ChannelType,
   GuildDto,
-  InviteType,
 } from '../../../../dtos/response/guild.dto';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {GuildService} from '../../../../services/guild.service';
@@ -21,6 +20,7 @@ import {AppAvatarComponent} from '../../../../components/avatar/avatar.component
 import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-settings-modal.component';
 import {ChannelSettingsModalComponent} from '../channel-settings-modal/channel-settings-modal.component';
 import {CategorySettingsModalComponent} from '../category-settings-modal/category-settings-modal.component';
+import { InviteType } from '../../../../dtos/response/invite.dto';
 
 @Component({
   selector: 'app-channel-list',
@@ -244,9 +244,9 @@ export class ChannelListComponent {
     this.inviteCopied.set(false);
     this.inviteLoading.set(true);
     this.showInviteDialog.set(true);
-    this.guildService.createInvite({guildId: this.guild().id, type: InviteType.Permanent}).subscribe({
+    this.guildService.createInvite({type: InviteType.Permanent}, this.guild().id).subscribe({
       next: invite => {
-        const link = `${window.location.origin}/invite/${invite.id}`;
+        const link = `https://venta.gg/invite/${invite.id}`;
         this.inviteLink.set(link);
         this.inviteLoading.set(false);
       },

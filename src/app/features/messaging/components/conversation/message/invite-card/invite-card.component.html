@@ -1,0 +1,60 @@
+<div class="inline-flex items-center gap-3 bg-card border border-border-default rounded-xl px-4 py-3 mt-1 max-w-sm w-full">
+
+  @if (cardState() === 'loading') {
+    <div class="w-10 h-10 rounded-full bg-white/[0.06] animate-pulse shrink-0"></div>
+    <div class="flex flex-col gap-1.5 flex-1">
+      <div class="w-28 h-3 rounded bg-white/[0.06] animate-pulse"></div>
+      <div class="w-20 h-2.5 rounded bg-white/[0.04] animate-pulse"></div>
+    </div>
+  } @else if (cardState() === 'error') {
+    <div class="flex items-center gap-2 text-white/35 text-xs">
+      <i class="pi pi-exclamation-circle text-rose-400/60 text-sm"></i>
+      Invalid or expired invite
+    </div>
+  } @else if (invite(); as inv) {
+    <!-- Guild icon -->
+    <div class="shrink-0 w-10 h-10 rounded-full overflow-hidden bg-brand/20 flex items-center justify-center text-brand-dim font-bold text-sm">
+      @if (inv.guild?.iconUrl) {
+        <img [src]="inv.guild!.iconUrl" [alt]="inv.guild!.name" class="w-full h-full object-cover" />
+      } @else {
+        {{ guildInitials() }}
+      }
+    </div>
+
+    <!-- Guild info -->
+    <div class="flex-1 min-w-0">
+      <p class="text-sm font-semibold text-white/85 m-0 leading-snug truncate">{{ inv.guild?.name ?? 'Unknown Server' }}</p>
+      @if (inv.guild?.description) {
+        <p class="text-xs text-white/40 m-0 mt-0.5 truncate">{{ inv.guild!.description }}</p>
+      }
+      <p class="text-[11px] text-white/30 m-0 mt-0.5">
+        @if (inv.state === InviteState.Expired) {
+          <span class="text-rose-400/70">Invite expired</span>
+        } @else {
+          {{ inv.type }} invite
+        }
+      </p>
+    </div>
+
+    <!-- Action -->
+    @if (inv.state !== InviteState.Expired) {
+      @if (cardState() === 'joined') {
+        <div class="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-online/10 text-online text-xs font-medium">
+          <i class="pi pi-check text-[10px]"></i>
+          Joined
+        </div>
+      } @else {
+        <button (click)="join()" [disabled]="cardState() === 'joining'"
+          class="shrink-0 px-3 py-1.5 rounded-lg bg-brand hover:bg-brand-hover disabled:opacity-50
+                 text-white text-xs font-medium cursor-pointer border-0 transition-colors
+                 flex items-center gap-1.5">
+          @if (cardState() === 'joining') {
+            <i class="pi pi-spin pi-spinner text-[10px]"></i>
+          }
+          Join
+        </button>
+      }
+    }
+  }
+
+</div>

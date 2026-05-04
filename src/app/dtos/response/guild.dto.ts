@@ -52,23 +52,7 @@ export interface CategoryDto {
 }
 
 
-export enum InviteType {
-  OneTime = 'OneTime',
-  Permanent = 'Permanent',
-}
 
-export enum InviteState {
-  Active = 'Active',
-  Expired = 'Expired',
-}
-export interface InviteDto {
-  id: string;
-  createdAt: Date;
-  updatedAt: Date;
-  type: InviteType;
-  state: InviteState;
-  guildId: string;
-}
 export interface GuildDto {
   id: string;
   createdAt: Date;

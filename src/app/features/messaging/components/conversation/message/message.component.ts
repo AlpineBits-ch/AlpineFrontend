@@ -17,6 +17,7 @@ import { MessagingService } from '../../../../../services/messaging.service';
 import { MessageStore } from '../../../../../stores/message.store';
 import { ProfileDialogService } from '../../../../../services/profile-dialog.service';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { InviteCardComponent } from './invite-card/invite-card.component';
 
 @Component({
   selector: 'app-message',
@@ -26,6 +27,7 @@ import { openUrl } from '@tauri-apps/plugin-opener';
     AsyncPipe,
     NgClass,
     MarkdownPipe,
+    InviteCardComponent,
   ],
   templateUrl: './message.component.html',
   styleUrl: './message.component.css',
@@ -151,13 +153,21 @@ export class MessageComponent {
     return /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F?|\u200D)+$/u.test(content);
   });
 
+  private static readonly INVITE_URL_RE = /https:\/\/venta\.gg\/invite\/([A-Za-z0-9_-]+)/g;
+
   public contentSegments = computed(() => {
     const text = this.content();
-    let segments: { type: 'text' | 'mention' | 'gif' | 'emoji' | 'flag'; value: string }[] = [];
+    let segments: { type: 'text' | 'mention' | 'gif' | 'emoji' | 'flag' | 'invite'; value: string }[] = [];
 
     // If the entire message is a GIF URL, render it as a single GIF segment
     if (isKlipyGifUrl(text)) {
       return [{ type: 'gif' as const, value: text.trim() }];
+    }
+
+    // If the entire message is a single invite URL, render only the card
+    const singleInvite = /^https:\/\/venta\.gg\/invite\/([A-Za-z0-9_-]+)$/.exec(text.trim());
+    if (singleInvite) {
+      return [{ type: 'invite' as const, value: singleInvite[1] }];
     }
 
     const regex = /@[\w\-.]+#\w+/g;
@@ -177,7 +187,7 @@ export class MessageComponent {
     }
 
     // 2. Process text segments to separate single emojis
-    const finalSegments: { type: 'text' | 'mention' | 'gif' | 'emoji' | 'flag'; value: string }[] = [];
+    const emojiSegments: { type: 'text' | 'mention' | 'gif' | 'emoji' | 'flag' | 'invite'; value: string }[] = [];
 
     const emojiRegex = /^(?=\p{Emoji})(?!\p{Number}).$/u;
 
@@ -193,30 +203,53 @@ export class MessageComponent {
             const code = next ? getFlagCode(char, next) : null;
             if (code) {
               if (currentText.length > 0) {
-                finalSegments.push({ type: 'text', value: currentText });
+                emojiSegments.push({ type: 'text', value: currentText });
                 currentText = '';
               }
-              finalSegments.push({ type: 'flag', value: code });
+              emojiSegments.push({ type: 'flag', value: code });
               i++;
               continue;
             }
           }
           if (emojiRegex.test(char)) {
             if (currentText.length > 0) {
-              finalSegments.push({ type: 'text', value: currentText });
+              emojiSegments.push({ type: 'text', value: currentText });
               currentText = '';
             }
-            finalSegments.push({ type: 'emoji', value: char });
+            emojiSegments.push({ type: 'emoji', value: char });
           } else {
             currentText += char;
           }
         }
 
         if (currentText.length > 0) {
-          finalSegments.push({ type: 'text', value: currentText });
+          emojiSegments.push({ type: 'text', value: currentText });
         }
       } else {
+        emojiSegments.push(segment);
+      }
+    }
+
+    // 3. Split text segments by invite URLs
+    const finalSegments: typeof emojiSegments = [];
+    const inviteRe = MessageComponent.INVITE_URL_RE;
+    for (const segment of emojiSegments) {
+      if (segment.type !== 'text') {
         finalSegments.push(segment);
+        continue;
+      }
+      inviteRe.lastIndex = 0;
+      let lastIdx = 0;
+      let m: RegExpExecArray | null;
+      while ((m = inviteRe.exec(segment.value)) !== null) {
+        if (m.index > lastIdx) {
+          finalSegments.push({ type: 'text', value: segment.value.slice(lastIdx, m.index) });
+        }
+        finalSegments.push({ type: 'invite', value: m[1] });
+        lastIdx = m.index + m[0].length;
+      }
+      if (lastIdx < segment.value.length) {
+        finalSegments.push({ type: 'text', value: segment.value.slice(lastIdx) });
       }
     }
 

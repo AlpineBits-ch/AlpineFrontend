@@ -1,4 +1,6 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, DestroyRef, inject, OnInit, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { switchMap } from 'rxjs';
 import { ServerData, ServerIconComponent } from '../server-icon/server-icon.component';
 import { NavigationService } from '../../../main-page/navigation.service';
 import { GuildDto } from '../../../../dtos/response/guild.dto';
@@ -15,6 +17,7 @@ import {NgClass} from "@angular/common";
 export class ServerTaskbarComponent implements OnInit {
   protected navService = inject(NavigationService);
   private guildService = inject(GuildService);
+  private destroyRef = inject(DestroyRef);
 
   protected guilds = signal<GuildDto[]>([]);
   protected showCreateModal = signal(false);
@@ -23,6 +26,11 @@ export class ServerTaskbarComponent implements OnInit {
 
   ngOnInit(): void {
     this.guildService.getGuilds().subscribe(guilds => this.guilds.set(guilds));
+
+    this.guildService.guildJoined$.pipe(
+      takeUntilDestroyed(this.destroyRef),
+      switchMap(() => this.guildService.getGuilds()),
+    ).subscribe(guilds => this.guilds.set(guilds));
   }
 
   protected serverIcons = computed<ServerData[]>(() => {

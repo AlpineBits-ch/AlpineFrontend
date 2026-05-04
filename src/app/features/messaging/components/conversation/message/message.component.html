@@ -129,6 +129,8 @@
               <span [class]="'fi fi-' + seg.value" style="font-size:1.2em;vertical-align:middle"></span>
             } @else if (seg.type === 'emoji') {
              <span class="text-xl m-1">{{ seg.value }}</span>
+            } @else if (seg.type === 'invite') {
+              <app-invite-card [inviteId]="seg.value" class="block" />
             } @else {
             <div class="contents" [innerHTML]="seg.value | markdown"></div>
             }

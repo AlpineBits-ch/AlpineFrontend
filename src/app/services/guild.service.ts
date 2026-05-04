@@ -5,13 +5,13 @@ import {
   ChannelDto,
   ChannelPermission,
   GuildDto,
-  InviteDto,
-  InviteType,
   RoleDto,
 } from '../dtos/response/guild.dto';
 import {environment} from '../../environments/environment';
-import {Observable} from 'rxjs';
+import {Observable, Subject} from 'rxjs';
 import {GuildMemberDto} from '../dtos/response/member.dto';
+import {InviteDto, InviteType} from "../dtos/response/invite.dto";
+import {CreateInviteDto} from "../dtos/request/create-invite.dto";
 
 export interface UpdateGuildDto {
   name?: string;
@@ -69,10 +69,7 @@ export interface UpsertPermissionOverrideDto {
   denyPermissions: string;
 }
 
-export interface CreateInviteDto {
-  guildId: string;
-  type: InviteType;
-}
+
 
 export interface GuildMemberWithProfileDto extends GuildMemberDto {
   username?: string;
@@ -84,6 +81,8 @@ export interface GuildMemberWithProfileDto extends GuildMemberDto {
 export class GuildService {
   private http = inject(HttpClient);
   private base = environment.apiUrl + '/api/v1/guild';
+
+  readonly guildJoined$ = new Subject<void>();
 
   // ── Guilds ──────────────────────────────────────────────────────────────
   createGuild(name: string, description: string | undefined): Observable<GuildDto> {
@@ -191,16 +190,24 @@ export class GuildService {
   }
 
   // ── Invites ──────────────────────────────────────────────────────────────
-  createInvite(dto: CreateInviteDto): Observable<InviteDto> {
-    return this.http.post<InviteDto>(`${this.base}/guild/${dto.guildId}/invite`, dto);
+  createInvite(dto: CreateInviteDto, guildId: string): Observable<InviteDto> {
+    return this.http.post<InviteDto>(`${this.base}/guilds/${guildId}/invite`, dto);
   }
 
   getInvites(guildId: string): Observable<InviteDto[]> {
-    return this.http.get<InviteDto[]>(`${this.base}/guild/${guildId}/invite`);
+    return this.http.get<InviteDto[]>(`${this.base}/guilds/${guildId}/invites`);
+  }
+
+  getInvite(id: string): Observable<InviteDto> {
+    return this.http.get<InviteDto>(`${this.base}/invites/${id}`);
+  }
+
+  redeemInvite(id: string): Observable<unknown> {
+    return this.http.post(`${this.base}/invites/${id}/redeem`, {});
   }
 
   deleteInvite(id: string): Observable<void> {
-    return this.http.delete<void>(`${this.base}/invite/${id}`);
+    return this.http.delete<void>(`${this.base}/invites/${id}`);
   }
 
   getMembers(guildId: string, skip: number, take: number): Observable<GuildMemberDto[]> {

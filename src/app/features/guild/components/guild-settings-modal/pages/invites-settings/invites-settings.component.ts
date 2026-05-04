@@ -2,8 +2,9 @@ import {Component, inject, input, OnInit, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Button} from 'primeng/button';
 import {Tooltip} from 'primeng/tooltip';
-import {GuildDto, InviteDto, InviteState, InviteType} from '../../../../../../dtos/response/guild.dto';
+import {GuildDto} from '../../../../../../dtos/response/guild.dto';
 import {GuildService} from '../../../../../../services/guild.service';
+import {InviteDto, InviteState, InviteType} from "../../../../../../dtos/response/invite.dto";
 
 @Component({
   selector: 'app-invites-settings',
@@ -21,8 +22,9 @@ export class InvitesSettingsComponent implements OnInit {
   deletingId = signal<string | null>(null);
   copiedId = signal<string | null>(null);
 
-  protected readonly InviteType = InviteType;
-  protected readonly InviteState = InviteState;
+  protected  InviteType = InviteType;
+  protected  InviteState = InviteState;
+
 
   ngOnInit(): void {
     this.load();
@@ -50,7 +52,7 @@ export class InvitesSettingsComponent implements OnInit {
   private createInvite(type: InviteType): void {
     if (this.creating()) return;
     this.creating.set(true);
-    this.guildService.createInvite({guildId: this.guild().id, type}).subscribe({
+    this.guildService.createInvite({type}, this.guild().id, ).subscribe({
       next: invite => {
         this.invites.update(list => [invite, ...list]);
         this.creating.set(false);
@@ -80,7 +82,7 @@ export class InvitesSettingsComponent implements OnInit {
   }
 
   inviteLink(invite: InviteDto): string {
-    return `${window.location.origin}/invite/${invite.id}`;
+    return `https://venta.gg/invite/${invite.id}`;
   }
 
   formatDate(d: Date): string {
