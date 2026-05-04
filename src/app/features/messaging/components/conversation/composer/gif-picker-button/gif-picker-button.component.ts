@@ -1,9 +1,11 @@
 import {
   Component,
+  ElementRef,
   inject,
   OnDestroy,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Button } from 'primeng/button';
@@ -20,6 +22,8 @@ import { Subject } from 'rxjs';
 })
 export class GifPickerButtonComponent implements OnDestroy {
   gifSelected = output<string>();
+
+  private searchInputRef = viewChild<ElementRef<HTMLInputElement>>('searchInput');
 
   showPicker = signal(false);
   searchQuery = signal('');
@@ -67,6 +71,7 @@ export class GifPickerButtonComponent implements OnDestroy {
     });
 
     setTimeout(() => {
+      this.searchInputRef()?.nativeElement.focus();
       this.outsideClickListener = (e: MouseEvent) => {
         const panel = document.querySelector('.gif-picker-panel');
         const btn = document.querySelector('.gif-picker-btn');

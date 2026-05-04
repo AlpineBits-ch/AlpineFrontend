@@ -60,6 +60,8 @@ export class ComposerComponent {
 
   // ── Overlay state ────────────────────────────────────────────────────────
 
+  isEmpty = signal(true);
+
   overlayType = signal<'mention' | 'command' | 'emoji' | null>(null);
   query = signal('');
   selectedIndex = signal(0);
@@ -134,6 +136,7 @@ export class ComposerComponent {
   onInput(): void {
     const editor = this.editorRef().nativeElement;
     this.savedEmojiOffset = getTextCursorOffset(editor);
+    this.isEmpty.set((editor.textContent ?? '').trim() === '' && !editor.querySelector('.mention-chip'));
 
     // Auto-replace :shortcode: on closing colon
     const sel = window.getSelection();
@@ -404,6 +407,7 @@ export class ComposerComponent {
     }
 
     this.editorRef().nativeElement.innerHTML = '';
+    this.isEmpty.set(true);
     this.closeOverlay();
     this.editorRef().nativeElement.focus();
   }

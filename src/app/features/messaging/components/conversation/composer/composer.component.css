@@ -5,7 +5,7 @@
   white-space: pre-wrap;
 }
 
-.composer-editor:empty::before {
+.composer-editor.is-empty::before {
   content: attr(data-placeholder);
   color: rgba(255, 255, 255, 0.25);
   pointer-events: none;

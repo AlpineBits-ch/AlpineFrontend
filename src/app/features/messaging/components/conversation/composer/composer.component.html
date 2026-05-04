@@ -82,6 +82,7 @@
         role="textbox"
         aria-multiline="true"
         [attr.data-placeholder]="placeholder()"
+        [class.is-empty]="isEmpty()"
         class="composer-editor flex-1 min-w-0 py-1.5 max-h-[120px] sm:max-h-[160px] overflow-y-auto outline-none text-sm text-white/80"
         style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.06) transparent;"
         (input)="onInput()"
