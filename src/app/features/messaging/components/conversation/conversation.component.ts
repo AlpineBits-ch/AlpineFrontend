@@ -137,6 +137,7 @@ export class ConversationComponent implements AfterViewInit {
     this.setupScrollBehavior();
     this.setupComposerFocus();
     this.setupRenderHook();
+    this.setupReadTracking();
   }
 
   ngAfterViewInit(): void {
@@ -177,6 +178,16 @@ export class ConversationComponent implements AfterViewInit {
     effect(() => {
       const _conv = this.conversation();
       setTimeout(() => this.composerRef?.focus(), 0);
+    });
+  }
+
+  // Notifies the backend whenever the latest confirmed message changes.
+  private setupReadTracking(): void {
+    effect(() => {
+      const msg = this.latestMessage();
+      if (msg) {
+        void this.messagingWs.updateLastReadMessageByConversation(msg.id, this.conversation().id);
+      }
     });
   }
 
