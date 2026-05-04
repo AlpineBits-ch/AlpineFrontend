@@ -182,6 +182,12 @@ export class ConversationComponent implements AfterViewInit {
         this.lastScrollConvId = convId;
         this.isNearBottom  = true;
         this.restoreScroll = false;
+        // afterEveryRender may fire before the new messages paint; use RAF as
+        // a belt-and-suspenders so we always land at the bottom after the
+        // first real layout of the switched conversation.
+        requestAnimationFrame(() => {
+          if (this.isNearBottom) this.scrollToBottom();
+        });
       }
 
       if (this.isNearBottom) {
