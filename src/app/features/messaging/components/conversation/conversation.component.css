@@ -1,3 +1,16 @@
+/* ── Virtual scrolling ───────────────────────────────────────────────────── */
+
+/*
+ * Skip layout and paint for off-screen messages. The browser remembers each
+ * row's actual rendered height (the `auto` keyword) so scroll position stays
+ * accurate even when many rows are skipped. 72px is just the initial fallback
+ * estimate until the row has been painted at least once.
+ */
+.message-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 72px;
+}
+
 /* ── Message jump highlight ───────────────────────────────────────────────── */
 
 @keyframes msg-flash {

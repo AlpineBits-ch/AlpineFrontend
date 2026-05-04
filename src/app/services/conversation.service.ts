@@ -22,4 +22,5 @@ export class ConversationService {
   public deleteConversation(id: string): Observable<void>{
     return this.httpClient.delete<void>(environment.apiUrl + `/api/v1/messaging/conversations/${id}`);
   }
+
 }

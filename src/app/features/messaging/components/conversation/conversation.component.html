@@ -33,11 +33,11 @@
           type="text"
           placeholder="Search…"
           class="bg-transparent border-0 outline-none text-xs text-white/75 placeholder-white/25 py-1.5 w-32 min-w-0"
-          [value]="searchQuery()"
-          (input)="onSearchInput($any($event.target).value)"
+          [value]="search.searchQuery()"
+          (input)="search.onInput($any($event.target).value)"
         />
-        @if (isSearchActive()) {
-          <button class="shrink-0 text-white/25 hover:text-white/60 transition-colors leading-none" (click)="clearSearch()">
+        @if (search.isSearchActive()) {
+          <button class="shrink-0 text-white/25 hover:text-white/60 transition-colors leading-none" (click)="search.clear()">
             <i class="pi pi-times text-[10px]"></i>
           </button>
         }
@@ -70,7 +70,7 @@
   }
 
   <!-- Search results panel -->
-  @if (isSearchActive()) {
+  @if (search.isSearchActive()) {
     <div
       class="flex-1 min-h-0 overflow-y-auto"
       style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
@@ -78,27 +78,27 @@
 
         <!-- Status row -->
         <div class="flex items-center gap-2 mb-4 px-1">
-          @if (isSearching()) {
+          @if (search.isSearching()) {
             <i class="pi pi-spinner pi-spin text-[11px] text-white/30"></i>
             <span class="text-xs text-white/30">Searching…</span>
           } @else {
-            @let total = msgResults().length + attResults().length;
+            @let total = search.msgResults().length + search.attResults().length;
             <span class="text-xs text-white/30">
               {{ total }} result{{ total !== 1 ? 's' : '' }} for
-              <span class="text-white/50">"{{ searchQuery() }}"</span>
+              <span class="text-white/50">"{{ search.searchQuery() }}"</span>
             </span>
           }
         </div>
 
         <!-- Message matches -->
-        @if (msgResults().length > 0) {
+        @if (search.msgResults().length > 0) {
           <div class="mb-5">
             <div class="flex items-center gap-1.5 mb-2 px-1">
               <i class="pi pi-comment text-[10px] text-white/25"></i>
               <span class="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Messages</span>
             </div>
             <div class="flex flex-col gap-1.5">
-              @for (msg of msgResults(); track msg.id) {
+              @for (msg of search.msgResults(); track msg.id) {
                 <button
                   class="flex flex-col gap-1.5 bg-card/60 border border-white/[0.06] rounded-xl p-3 text-left hover:bg-hover hover:border-white/[0.10] transition-colors w-full"
                   (click)="jumpToMessage(msg.id)">
@@ -108,7 +108,7 @@
                   </div>
                   <p
                     class="text-xs text-white/50 leading-relaxed m-0 line-clamp-2"
-                    [innerHTML]="getSnippet(msg.content) | highlight:searchQuery()">
+                    [innerHTML]="getSnippet(msg.content) | highlight:search.searchQuery()">
                   </p>
                 </button>
               }
@@ -117,14 +117,14 @@
         }
 
         <!-- Attachment matches -->
-        @if (attResults().length > 0) {
+        @if (search.attResults().length > 0) {
           <div>
             <div class="flex items-center gap-1.5 mb-2 px-1">
               <i class="pi pi-paperclip text-[10px] text-white/25"></i>
               <span class="text-[10px] font-semibold text-white/25 uppercase tracking-wider">Attachments</span>
             </div>
             <div class="flex flex-col gap-1.5">
-              @for (item of attResults(); track item.attachment.id) {
+              @for (item of search.attResults(); track item.attachment.id) {
                 <button
                   class="flex items-center gap-3 bg-card/60 border border-white/[0.06] rounded-xl p-3 text-left hover:bg-hover hover:border-white/[0.10] transition-colors w-full"
                   (click)="jumpToMessage(item.message.id)">
@@ -134,7 +134,7 @@
                   <div class="flex flex-col gap-0.5 min-w-0">
                     <span
                       class="text-xs font-medium text-white/75 truncate"
-                      [innerHTML]="item.attachment.fileName | highlight:searchQuery()">
+                      [innerHTML]="item.attachment.fileName | highlight:search.searchQuery()">
                     </span>
                     <span class="text-[10px] text-white/25">
                       from {{ getAuthorName(item.message.authorId) }} · {{ item.message.createdAt | date:'MMM d, y' }}
@@ -148,11 +148,11 @@
         }
 
         <!-- Empty state -->
-        @if (!isSearching() && msgResults().length === 0 && attResults().length === 0) {
+        @if (!search.isSearching() && search.msgResults().length === 0 && search.attResults().length === 0) {
           <div class="flex flex-col items-center justify-center py-14 gap-3">
             <i class="pi pi-search text-3xl text-white/10"></i>
             <p class="text-sm text-white/25 m-0">
-              No results for <span class="text-white/40">"{{ searchQuery() }}"</span>
+              No results for <span class="text-white/40">"{{ search.searchQuery() }}"</span>
             </p>
           </div>
         }
@@ -224,7 +224,7 @@
         <!-- Messages list -->
         <div class="flex flex-col gap-0.5 pb-4">
           @for (msg of messages(); track msg.id) {
-            <div [attr.data-message-id]="msg.id">
+            <div class="message-row" [attr.data-message-id]="msg.id">
               <app-message [message]="msg"
                            (reply)="onReply($event)"
                            (jumpTo)="jumpToMessage($event)"></app-message>

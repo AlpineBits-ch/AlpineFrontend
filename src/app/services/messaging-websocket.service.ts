@@ -87,6 +87,12 @@ export class MessagingWebsocketService {
     }
   }
 
+  async updateLastReadMessageByConversation(id: string, conversationId: string){
+    if(this.hubConnection.state === signalR.HubConnectionState.Connected) {
+      await this.hubConnection.invoke('UpdateLastReadMessageByConversation', {conversationId, id}).catch(() => void 0);
+    }
+  }
+
   private async setupListeners(): Promise<void>{
     this.hubConnection.on('FriendRequestAccepted', async (data: {acceptantUserName: string}) => {
       console.log('Friend request accepted:', data);

@@ -3,7 +3,6 @@ import {
   AfterViewInit,
   Component,
   computed,
-  DestroyRef,
   effect,
   ElementRef,
   inject,
@@ -13,12 +12,11 @@ import {
   ViewChild,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe, NgClass } from '@angular/common';
-import { catchError, debounceTime, EMPTY, Subject, tap } from 'rxjs';
+import { catchError, EMPTY, tap } from 'rxjs';
 
 import { ConversationDto } from '../../../../dtos/response/conversation.dto';
-import { MessageAttachment, MessageDto } from '../../../../dtos/response/message.dto';
+import { MessageDto } from '../../../../dtos/response/message.dto';
 import { OnlineStatus } from '../../../../dtos/response/profile.dto';
 
 import { Avatar } from 'primeng/avatar';
@@ -40,20 +38,13 @@ import { UserStatusDotComponent } from '../../../../components/user-status-dot/u
 import { TypingDotsComponent } from '../../../../components/typing-dots/typing-dots.component';
 import { HighlightPipe } from '../../../../pipes/highlight.pipe';
 
-const SCROLL_BOTTOM_THRESHOLD = 100;
-const LOAD_MORE_THRESHOLD     = 150;
-
-function decodeContent(encoded: string): string {
-  try {
-    const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
-    return new TextDecoder().decode(bytes);
-  } catch {
-    return '';
-  }
-}
+import { ConversationSearchService } from './conversation-search.service';
+import { ConversationScrollService } from './conversation-scroll.service';
+import { decodeContent, fileIcon } from './message-utils';
 
 @Component({
   selector: 'app-conversation',
+  providers: [ConversationSearchService, ConversationScrollService],
   imports: [
     ComposerComponent, MessageComponent, Avatar, Button,
     CallPanelComponent, NgClass, DatePipe,
@@ -66,16 +57,25 @@ export class ConversationComponent implements AfterViewInit {
   public conversation = input.required<ConversationDto>();
   public back = output();
 
-  private messageStore    = inject(MessageStore);
-  private messagingService = inject(MessagingService);
-  private profileService  = inject(ProfileService);
+  private messageStore     = inject(MessageStore);
+  private messagingService  = inject(MessagingService);
+  private profileService   = inject(ProfileService);
   private relationshipService = inject(RelationshipService);
-  private callStateService  = inject(CallStateService);
-  private callSessionService = inject(CallSessionService);
-  private messagingWs     = inject(MessagingWebsocketService);
-  protected convUtils     = inject(ConversationUtilsService);
+  private callStateService   = inject(CallStateService);
+  private callSessionService  = inject(CallSessionService);
+  private messagingWs      = inject(MessagingWebsocketService);
+  protected convUtils      = inject(ConversationUtilsService);
+
+  protected search = inject(ConversationSearchService);
+  protected scroll = inject(ConversationScrollService);
 
   protected readonly OnlineStatus = OnlineStatus;
+
+  // ── View refs ─────────────────────────────────────────────────────────────
+
+  @ViewChild('messageScroll') private scrollRef!: ElementRef<HTMLDivElement>;
+  @ViewChild('messageList')   private messageListRef?: ElementRef<HTMLDivElement>;
+  @ViewChild(ComposerComponent) private composerRef?: ComposerComponent;
 
   // ── Call state ───────────────────────────────────────────────────────────
 
@@ -95,8 +95,8 @@ export class ConversationComponent implements AfterViewInit {
   protected replyingTo      = signal<MessageDto | null>(null);
   protected chatTitle       = computed(() => this.convUtils.getChatTitle(this.conversation()));
   protected chatAvatarLabel = computed(() => this.convUtils.getChatAvatarLabel(this.conversation()));
-  protected partnerStatus = computed(() => this.convUtils.getPartnerStatus(this.conversation()));
-  protected typingText    = computed(() => this.convUtils.getTypingLabel(this.conversation()));
+  protected partnerStatus   = computed(() => this.convUtils.getPartnerStatus(this.conversation()));
+  protected typingText      = computed(() => this.convUtils.getTypingLabel(this.conversation()));
 
   // ── Messages ─────────────────────────────────────────────────────────────
 
@@ -107,207 +107,101 @@ export class ConversationComponent implements AfterViewInit {
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
   );
 
-  protected hasMore = computed(() =>
-    this.messageStore.conversationMeta()[this.conversation().id]?.hasMore ?? false
-  );
-
-  protected loadingMore = computed(() =>
-    this.messageStore.conversationMeta()[this.conversation().id]?.loadingMore ?? false
-  );
-
-  protected loadError = computed(() =>
-    this.messageStore.conversationMeta()[this.conversation().id]?.error ?? null
-  );
-
-  // ── Search ───────────────────────────────────────────────────────────────
-
-  private searchSubject = new Subject<string>();
-  protected searchQuery = signal('');
-
-  protected searchEntry = computed(() =>
-    this.messageStore.searchEntries()[this.conversation().id] ?? null
-  );
-  protected isSearchActive = computed(() => this.searchQuery().trim().length > 0);
-  protected isSearching    = computed(() => this.searchEntry()?.searching ?? false);
-
-  protected msgResults = computed(() => {
-    const q = this.searchQuery().trim().toLowerCase();
-    if (!q) return [];
-    return (this.searchEntry()?.results ?? []).filter(m => {
-      return decodeContent(m.content).toLowerCase().includes(q);
-    });
+  // The most recent confirmed message — watch this to react to incoming messages.
+  protected latestMessage = computed(() => {
+    const confirmed = this.messages().filter(m => !m.isPending && !m.isFailed);
+    return confirmed.at(-1) ?? null;
   });
 
-  protected attResults = computed(() => {
-    const q = this.searchQuery().trim().toLowerCase();
-    if (!q) return [];
-    const out: Array<{ message: MessageDto; attachment: MessageAttachment }> = [];
-    for (const m of (this.searchEntry()?.results ?? [])) {
-      for (const a of m.attachments) {
-        if (a.fileName.toLowerCase().includes(q)) out.push({ message: m, attachment: a });
-      }
-    }
-    return out;
-  });
+  // ── Load state ───────────────────────────────────────────────────────────
 
-  // ── Scroll state ─────────────────────────────────────────────────────────
+  private conversationMeta = computed(() =>
+    this.messageStore.conversationMeta()[this.conversation().id] ?? null
+  );
 
-  @ViewChild('messageScroll') private scrollRef!: ElementRef<HTMLDivElement>;
-  @ViewChild('messageList')   private messageListRef?: ElementRef<HTMLDivElement>;
-  @ViewChild(ComposerComponent) private composerRef?: ComposerComponent;
-  private isNearBottom          = true;
-  private savedScrollHeight     = 0;
-  private restoreScroll         = false;
-  private lastScrollConvId      = '';
-  private pendingScrollToBottom = false;
-  private contentObserver       = new ResizeObserver(() => {
-    if (this.isNearBottom) this.scrollToBottom();
+  // True until the first batch of messages arrives (or an error occurs).
+  protected isInitialLoading = computed(() => this.conversationMeta() == null);
+  protected isLoaded         = computed(() => {
+    const meta = this.conversationMeta();
+    return meta != null && !meta.loadingMore && meta.error == null;
   });
-  private observedListEl?: HTMLDivElement;
+  protected hasMore     = computed(() => this.conversationMeta()?.hasMore ?? false);
+  protected loadingMore = computed(() => this.conversationMeta()?.loadingMore ?? false);
+  protected loadError   = computed(() => this.conversationMeta()?.error ?? null);
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.contentObserver.disconnect());
-
-    effect(() => {
-      this.messageStore.loadForConversation(this.conversation().id);
-    });
-
-    effect(() => {
-      const convId = this.conversation().id;
-      const _ = this.messages();
-
-      if (convId !== this.lastScrollConvId) {
-        this.lastScrollConvId = convId;
-        this.isNearBottom  = true;
-        this.restoreScroll = false;
-        // afterEveryRender may fire before the new messages paint; use RAF as
-        // a belt-and-suspenders so we always land at the bottom after the
-        // first real layout of the switched conversation.
-        requestAnimationFrame(() => {
-          if (this.isNearBottom) this.scrollToBottom();
-        });
-      }
-
-      if (this.isNearBottom) {
-        this.pendingScrollToBottom = true;
-      }
-    });
-
-    effect(() => {
-      const _ = this.conversation();
-      setTimeout(() => this.composerRef?.focus(), 0);
-    });
-
-    // Clear search when switching conversations
-    effect(() => {
-      this.conversation().id;
-      this.searchQuery.set('');
-    }, { allowSignalWrites: true });
-
-    afterEveryRender(() => {
-      if (this.restoreScroll && this.scrollRef) {
-        const el = this.scrollRef.nativeElement;
-        const heightDiff = el.scrollHeight - this.savedScrollHeight;
-        if (heightDiff > 0) el.scrollTop += heightDiff;
-        this.restoreScroll    = false;
-        this.savedScrollHeight = 0;
-      } else if (this.pendingScrollToBottom && this.scrollRef) {
-        this.scrollToBottom();
-        this.pendingScrollToBottom = false;
-      }
-
-      // Keep ResizeObserver pointed at the current message list element
-      // (it may appear/disappear as search is toggled)
-      const listEl = this.messageListRef?.nativeElement;
-      if (listEl !== this.observedListEl) {
-        this.contentObserver.disconnect();
-        this.observedListEl = listEl;
-        if (listEl) this.contentObserver.observe(listEl);
-      }
-    });
-
-    this.searchSubject.pipe(
-      debounceTime(300),
-      takeUntilDestroyed(),
-    ).subscribe(query => {
-      if (query.trim()) {
-        this.messageStore.searchInConversation(this.conversation().id, query);
-      } else {
-        this.messageStore.clearSearch(this.conversation().id);
-      }
-    });
+    this.setupMessageLoading();
+    this.setupSearchSync();
+    this.setupScrollBehavior();
+    this.setupComposerFocus();
+    this.setupRenderHook();
   }
 
   ngAfterViewInit(): void {
-    this.scrollToBottom();
+    this.scroll.attach(this.scrollRef.nativeElement);
+    this.scroll.scrollToBottom();
   }
 
-  // ── Scroll handling ──────────────────────────────────────────────────────
+  // Triggers a (re)load whenever the active conversation changes.
+  private setupMessageLoading(): void {
+    effect(() => {
+      this.messageStore.loadForConversation(this.conversation().id);
+    });
+  }
+
+  // Keeps the search service in sync with the active conversation ID.
+  private setupSearchSync(): void {
+    effect(() => {
+      this.search.conversationId.set(this.conversation().id);
+    }, { allowSignalWrites: true });
+  }
+
+  // Keeps the scroll position correct on conversation switch and new messages.
+  private setupScrollBehavior(): void {
+    effect(() => {
+      const convId = this.conversation().id;
+      const _msgs  = this.messages();
+
+      if (convId !== this.scroll.lastConvId) {
+        this.scroll.lastConvId = convId;
+        this.scroll.onConversationSwitch();
+      }
+      this.scroll.markNewMessages();
+    });
+  }
+
+  // Re-focuses the composer whenever the active conversation changes.
+  private setupComposerFocus(): void {
+    effect(() => {
+      const _conv = this.conversation();
+      setTimeout(() => this.composerRef?.focus(), 0);
+    });
+  }
+
+  // Delegates post-render work (scroll restore, ResizeObserver update) to the scroll service.
+  private setupRenderHook(): void {
+    afterEveryRender(() => {
+      this.scroll.onRender(this.messageListRef?.nativeElement);
+    });
+  }
+
+  // ── Event handlers ───────────────────────────────────────────────────────
 
   protected onScroll(): void {
-    const el = this.scrollRef.nativeElement;
-    const fromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    this.isNearBottom = fromBottom < SCROLL_BOTTOM_THRESHOLD;
-
-    if (el.scrollTop < LOAD_MORE_THRESHOLD && this.hasMore() && !this.loadingMore()) {
-      this.savedScrollHeight = el.scrollHeight;
-      this.restoreScroll     = true;
-      this.messageStore.loadMoreForConversation(this.conversation().id);
-    }
-  }
-
-  private scrollToBottom(): void {
-    if (!this.scrollRef) return;
-    const el = this.scrollRef.nativeElement;
-    el.scrollTop = el.scrollHeight;
-  }
-
-  // ── Search actions ───────────────────────────────────────────────────────
-
-  protected onSearchInput(value: string): void {
-    this.searchQuery.set(value);
-    this.searchSubject.next(value);
-  }
-
-  protected clearSearch(): void {
-    this.searchQuery.set('');
-    this.messageStore.clearSearch(this.conversation().id);
+    this.scroll.onScroll(
+      this.hasMore(),
+      this.loadingMore(),
+      () => this.messageStore.loadMoreForConversation(this.conversation().id),
+    );
   }
 
   protected jumpToMessage(messageId: string): void {
-    this.clearSearch();
-    setTimeout(() => {
-      const el = this.scrollRef?.nativeElement.querySelector(`[data-message-id="${messageId}"]`);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('msg-highlight');
-        setTimeout(() => el.classList.remove('msg-highlight'), 2000);
-      }
-    }, 50);
+    this.search.clear();
+    // Delay until the message list re-renders after clearing search.
+    setTimeout(() => this.scroll.jumpToMessage(messageId), 50);
   }
-
-  protected getSnippet(encoded: string): string {
-    return decodeContent(encoded);
-  }
-
-  protected getAuthorName(authorId: string): string {
-    if (authorId === this.profileService.ownProfile()?.userId) return 'You';
-    const member = this.conversation().members.find(m => m.userId === authorId);
-    return member ? `${member.cachedUserName}` : 'Unknown';
-  }
-
-  protected fileIcon(contentType: string): string {
-    if (contentType.startsWith('video/')) return 'pi-video';
-    if (contentType.startsWith('audio/')) return 'pi-volume-up';
-    if (contentType === 'application/pdf') return 'pi-file-pdf';
-    if (contentType.includes('zip') || contentType.includes('rar')) return 'pi-folder';
-    if (contentType.startsWith('text/')) return 'pi-file-edit';
-    return 'pi-file';
-  }
-
-  // ── Other actions ────────────────────────────────────────────────────────
 
   protected retryLoad(): void {
     this.messageStore.clearConversationError(this.conversation().id);
@@ -319,9 +213,7 @@ export class ConversationComponent implements AfterViewInit {
     setTimeout(() => this.composerRef?.focus(), 0);
   }
 
-  protected onCancelReply(): void {
-    this.replyingTo.set(null);
-  }
+  protected onCancelReply(): void { this.replyingTo.set(null); }
 
   protected onTyping(): void {
     this.messagingWs.invokeStartTyping(this.conversation().id);
@@ -339,6 +231,20 @@ export class ConversationComponent implements AfterViewInit {
       this.chatAvatarLabel(),
     );
   }
+
+  // ── Template helpers ─────────────────────────────────────────────────────
+
+  protected getSnippet(encoded: string): string { return decodeContent(encoded); }
+
+  protected fileIcon(contentType: string): string { return fileIcon(contentType); }
+
+  protected getAuthorName(authorId: string): string {
+    if (authorId === this.profileService.ownProfile()?.userId) return 'You';
+    const member = this.conversation().members.find(m => m.userId === authorId);
+    return member?.cachedUserName ?? 'Unknown';
+  }
+
+  // ── Message creation ─────────────────────────────────────────────────────
 
   public createMessage(event: { content: string; attachments: string[]; inReplyTo?: string }): void {
     const { content, attachments, inReplyTo } = event;
