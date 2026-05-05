@@ -3,6 +3,7 @@ import { GuildDto } from '../../../../dtos/response/guild.dto';
 import { GuildMemberDto } from '../../../../dtos/response/member.dto';
 import { OnlineStatus } from '../../../../dtos/response/profile.dto';
 import { GuildService } from '../../../../services/guild.service';
+import { environment } from '../../../../../environments/environment';
 
 @Component({
   selector: 'app-guild-member-list',
@@ -78,5 +79,10 @@ export class GuildMemberListComponent implements OnChanges {
 
   displayName(member: GuildMemberDto): string {
     return member.profile?.userName ?? member.userId.slice(0, 8) + '…';
+  }
+
+  avatarUrl(member: GuildMemberDto): string | undefined {
+    if (!member.profile) return undefined;
+    return `${environment.apiUrl}/api/v1/social/profiles/${member.profile.id}/avatar`;
   }
 }

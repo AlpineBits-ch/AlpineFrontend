@@ -17,8 +17,8 @@
           <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors cursor-pointer">
             <div class="relative shrink-0">
               <div class="w-8 h-8 rounded-full overflow-hidden bg-card flex items-center justify-center">
-                @if (member.profile?.avatarUrl) {
-                  <img [src]="member.profile!.avatarUrl" [alt]="displayName(member)" class="w-full h-full object-cover" />
+                @if (avatarUrl(member)) {
+                  <img [src]="avatarUrl(member)" [alt]="displayName(member)" class="w-full h-full object-cover" />
                 } @else {
                   <span class="text-xs font-semibold text-white/40">{{ displayName(member).charAt(0).toUpperCase() }}</span>
                 }
@@ -38,8 +38,8 @@
           <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors cursor-pointer">
             <div class="relative shrink-0">
               <div class="w-8 h-8 rounded-full overflow-hidden bg-card flex items-center justify-center">
-                @if (member.profile?.avatarUrl) {
-                  <img [src]="member.profile!.avatarUrl" [alt]="displayName(member)" class="w-full h-full object-cover" />
+                @if (avatarUrl(member)) {
+                  <img [src]="avatarUrl(member)" [alt]="displayName(member)" class="w-full h-full object-cover" />
                 } @else {
                   <span class="text-xs font-semibold text-white/40">{{ displayName(member).charAt(0).toUpperCase() }}</span>
                 }

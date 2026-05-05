@@ -207,10 +207,18 @@
 
   }
 
+  <!-- Typing indicator -->
+  @if (typingText(); as text) {
+    <div class="px-5 pb-1 pt-0.5 flex items-center gap-2 text-white/40 text-xs shrink-0 select-none">
+      <app-typing-dots />
+      {{ text }}
+    </div>
+  }
+
   <!-- Composer -->
   <footer class="shrink-0">
     <app-composer autofocus class="block" [friends]="friends()" [replyTo]="replyingTo()"
-                  (message)="createMessage($event)" (cancelReply)="onCancelReply()"></app-composer>
+                  (message)="createMessage($event)" (typing)="onTyping()" (cancelReply)="onCancelReply()"></app-composer>
   </footer>
 
 </div>

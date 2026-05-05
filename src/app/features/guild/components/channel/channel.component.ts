@@ -28,11 +28,13 @@ import { ProfileService } from '../../../../services/profile.service';
 import { RelationshipService } from '../../../../services/relationship.service';
 import { GuildWebsocketService } from '../../../../services/guild-websocket.service';
 import { GuildReadStateService } from '../../../../services/guild-read-state.service';
+import { TypingService } from '../../../../services/typing.service';
 
 import { ComposerComponent } from '../../../messaging/components/conversation/composer/composer.component';
 import { NavigationService } from '../../../main-page/navigation.service';
 import { MessageComponent } from '../../../messaging/components/conversation/message/message.component';
 import { HighlightPipe } from '../../../../pipes/highlight.pipe';
+import { TypingDotsComponent } from '../../../../components/typing-dots/typing-dots.component';
 
 const SCROLL_BOTTOM_THRESHOLD = 100;
 const LOAD_MORE_THRESHOLD     = 400;
@@ -50,7 +52,7 @@ function decodeContent(encoded: string): string {
   selector: 'app-channel',
   imports: [
     ComposerComponent, MessageComponent, Button,
-    DatePipe, HighlightPipe,
+    DatePipe, HighlightPipe, TypingDotsComponent,
   ],
   templateUrl: './channel.component.html',
   styleUrl: './channel.component.css',
@@ -65,10 +67,21 @@ export class ChannelComponent implements AfterViewInit {
   private relationshipService = inject(RelationshipService);
   private guildWs            = inject(GuildWebsocketService);
   private readStateService   = inject(GuildReadStateService);
+  private typingService      = inject(TypingService);
   protected navService = inject(NavigationService);
 
   protected friends     = toSignal(this.relationshipService.getRelationships(), { initialValue: [] });
   protected replyingTo  = signal<MessageDto | null>(null);
+
+  protected typingText = computed(() => {
+    const ownId = this.profileService.ownProfile()?.userId;
+    const ids = [...(this.typingService.state().get(this.channel().id) ?? [])].filter(id => id !== ownId);
+    if (ids.length === 0) return null;
+    const names = ids.map(id => this.profileService.getCachedByUserId(id)?.userName ?? 'Someone');
+    if (names.length === 1) return `${names[0]} is typing…`;
+    if (names.length === 2) return `${names[0]} and ${names[1]} are typing…`;
+    return 'Several people are typing…';
+  });
 
   // ── Messages ─────────────────────────────────────────────────────────────
 
@@ -299,6 +312,10 @@ export class ChannelComponent implements AfterViewInit {
   }
 
   // ── Message actions ──────────────────────────────────────────────────────
+
+  protected onTyping(): void {
+    this.guildWs.invokeStartTyping(this.channel().id);
+  }
 
   public createMessage(event: { content: string; attachments: string[]; inReplyTo?: string }): void {
     const { content, attachments, inReplyTo } = event;

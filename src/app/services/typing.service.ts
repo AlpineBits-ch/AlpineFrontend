@@ -1,11 +1,13 @@
 import { inject, Injectable, signal } from '@angular/core';
 import { MessagingWebsocketService } from './messaging-websocket.service';
 import { MessagingService } from './messaging.service';
+import { GuildWebsocketService } from './guild-websocket.service';
 
 @Injectable({ providedIn: 'root' })
 export class TypingService {
   private ws = inject(MessagingWebsocketService);
   private messagingService = inject(MessagingService);
+  private guildWs = inject(GuildWebsocketService);
 
   private readonly timeouts = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly _state = signal<Map<string, Set<string>>>(new Map());
@@ -26,8 +28,20 @@ export class TypingService {
 
     // Clear own typing indicator when a message is sent
     this.messagingService.messageSentObservable.subscribe(msg => {
-      if (msg.conversationId && msg.authorId) {
-        this.clearTyping(msg.conversationId, msg.authorId);
+      const key = msg.conversationId ?? msg.channelId;
+      if (key && msg.authorId) {
+        this.clearTyping(key, msg.authorId);
+      }
+    });
+
+    // Guild channel typing events
+    this.guildWs.userTypingObservable.subscribe(event => {
+      this.markTyping(event.channelId, event.userId);
+    });
+
+    this.guildWs.messageObservable.subscribe(msg => {
+      if (msg.channelId && msg.authorId) {
+        this.clearTyping(msg.channelId, msg.authorId);
       }
     });
   }

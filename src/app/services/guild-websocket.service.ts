@@ -9,6 +9,11 @@ import {MessageDto} from "../dtos/response/message.dto";
 import {AttachmentDto} from "./file.service";
 import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
 
+export interface ChannelTypingEvent {
+  channelId: string;
+  userId: string;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -20,6 +25,7 @@ export class GuildWebsocketService {
   public connectionState = signal(ConnectionState.Disconnected);
   public messageObservable = new Subject<MessageDto>();
   public channelReorderedObservable = new Subject<ReorderChannesDto>();
+  public userTypingObservable = new Subject<ChannelTypingEvent>();
 
   constructor() {
     this.hubConnection = new signalR.HubConnectionBuilder()
@@ -41,6 +47,12 @@ export class GuildWebsocketService {
     }
   }
 
+  invokeStartTyping(channelId: string): void {
+    if (this.hubConnection.state === signalR.HubConnectionState.Connected) {
+      this.hubConnection.invoke('StartTyping', channelId).catch(() => void 0);
+    }
+  }
+
   async updateLastReadMessageByChannel(id: string, channelId: string): Promise<void> {
     if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
     await this.hubConnection.invoke('UpdateLastReadMessageByChannel', {channelId, id})
@@ -59,6 +71,10 @@ export class GuildWebsocketService {
 
     this.hubConnection.on('ChannelReordered', (data: ReorderChannesDto) => {
       this.channelReorderedObservable.next(data);
+    });
+
+    this.hubConnection.on('UserTyping', (data: ChannelTypingEvent) => {
+      this.userTypingObservable.next(data);
     });
 
     this.hubConnection.on('MessageCreated', (data: {
