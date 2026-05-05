@@ -15,4 +15,7 @@
       {{ serverData().badge }}
     </span>
   }
+  @if (serverData().hasUnread && !serverData().isActive) {
+    <span class="absolute -bottom-0.5 -left-0.5 w-3 h-3 rounded-full bg-white border-2 border-app-bg pointer-events-none"></span>
+  }
 </div>

@@ -8,6 +8,7 @@ export interface ServerData {
   isHome: boolean;
   badge?: number;
   isActive?: boolean;
+  hasUnread?: boolean;
 }
 @Component({
   selector: 'app-server-icon',

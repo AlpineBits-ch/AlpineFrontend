@@ -12,6 +12,7 @@ import {Observable, Subject} from 'rxjs';
 import {GuildMemberDto} from '../dtos/response/member.dto';
 import {InviteDto, InviteType} from "../dtos/response/invite.dto";
 import {CreateInviteDto} from "../dtos/request/create-invite.dto";
+import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
 
 export interface UpdateGuildDto {
   name?: string;
@@ -94,7 +95,12 @@ export class GuildService {
   }
 
   getGuild(id: string): Observable<GuildDto> {
-    return this.http.get<GuildDto>(`${this.base}/guild/${id}`);
+    return this.http.get<GuildDto>(`${this.base}/guilds/${id}`);
+  }
+
+
+  reorderChannels(guildId: string, dto: ReorderChannesDto): Observable<void> {
+    return this.http.patch<void>(`${this.base}/guilds/${guildId}/channels/reorder`, dto);
   }
 
   updateGuild(id: string, dto: UpdateGuildDto): Observable<GuildDto> {
@@ -212,5 +218,9 @@ export class GuildService {
 
   getMembers(guildId: string, skip: number, take: number): Observable<GuildMemberDto[]> {
     return this.http.get<GuildMemberDto[]>(`${this.base}/guilds/${guildId}/members?skip=${skip}&take=${take}`);
+  }
+
+  getOwnMember(guildId: string): Observable<GuildMemberDto> {
+    return this.http.get<GuildMemberDto>(`${this.base}/guilds/${guildId}/me`);
   }
 }

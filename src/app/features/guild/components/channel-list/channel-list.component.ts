@@ -16,6 +16,7 @@ import {NavigationService} from '../../../main-page/navigation.service';
 import {GuildService} from '../../../../services/guild.service';
 import {VoiceChannelService} from '../../../../services/voice-channel.service';
 import {ProfileService} from '../../../../services/profile.service';
+import {GuildReadStateService} from '../../../../services/guild-read-state.service';
 import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
 import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-settings-modal.component';
 import {ChannelSettingsModalComponent} from '../channel-settings-modal/channel-settings-modal.component';
@@ -43,19 +44,23 @@ export class ChannelListComponent {
   guild = input.required<GuildDto>();
 
   protected readonly ChannelType = ChannelType;
-  protected navService      = inject(NavigationService);
-  protected voiceChannelSvc = inject(VoiceChannelService);
-  private   guildService    = inject(GuildService);
-  protected profileService  = inject(ProfileService);
+  protected navService       = inject(NavigationService);
+  protected voiceChannelSvc  = inject(VoiceChannelService);
+  private   guildService     = inject(GuildService);
+  protected profileService   = inject(ProfileService);
+  protected readStateService = inject(GuildReadStateService);
 
   protected avatarUrl(userId: string): string | undefined {
     return this.profileService.getCachedByUserId(userId)?.avatarUrl;
   }
 
   constructor() {
-    // Seed mock voice participants whenever the guild changes
     effect(() => {
       this.voiceChannelSvc.seedMockParticipants(this.guild().channels);
+    });
+
+    effect(() => {
+      this.readStateService.loadForGuild(this.guild().id);
     });
   }
 

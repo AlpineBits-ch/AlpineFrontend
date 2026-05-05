@@ -9,6 +9,7 @@ export interface GuildMemberDto {
     permissions: string;
     status: OnlineStatus;
     profile: ProfileDto | undefined;
+    readState: ReadStateDto[]
 }
 
 export enum MemberType {
@@ -26,4 +27,14 @@ export interface RoleMemberDto {
     roleId: string;
     memberId: string;
     userId: string;
+}
+
+export interface ReadStateDto {
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    channelId: string;
+    lastReadMessageId: string | undefined;
+    mentionCount: number;
+    memberId: string;
 }

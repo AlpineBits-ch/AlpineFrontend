@@ -140,7 +140,7 @@
       </div>
     }
 
-    @if (message().attachments.length) {
+    @if (message().attachments?.length) {
       <div class="flex flex-wrap gap-2 mt-2">
         @for (att of message().attachments; track att.id) {
           @if (att.contentType.startsWith('image/')) {

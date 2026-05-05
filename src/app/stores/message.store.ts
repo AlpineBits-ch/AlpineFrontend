@@ -4,6 +4,7 @@ import { addEntities, removeEntities, removeEntity, updateEntity, upsertEntity, 
 import { MessageDto } from '../dtos/response/message.dto';
 import { MessagingService } from '../services/messaging.service';
 import { MessagingWebsocketService, MessageUpdatedEvent, MessageDeletedEvent } from '../services/messaging-websocket.service';
+import { GuildWebsocketService } from '../services/guild-websocket.service';
 import { ProfileService } from '../services/profile.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, Observable, of, tap } from 'rxjs';
@@ -368,9 +369,14 @@ export const MessageStore = signalStore(
   withHooks({
     onInit(store) {
       const wsService = inject(MessagingWebsocketService);
+      const guildWsService = inject(GuildWebsocketService);
       const profileService = inject(ProfileService);
 
       wsService.messageObservable.subscribe(msg =>
+        patchState(store, upsertEntity(msg))
+      );
+
+      guildWsService.messageObservable.subscribe(msg =>
         patchState(store, upsertEntity(msg))
       );
 

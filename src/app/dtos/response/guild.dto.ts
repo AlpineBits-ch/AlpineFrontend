@@ -16,6 +16,7 @@ export interface ChannelDto {
   isPrivate: boolean;
   categoryId: string | undefined;
   permissions: ChannelPermission[];
+  position: number;
 }
 
 export interface ChannelPermission {
@@ -49,6 +50,7 @@ export interface CategoryDto {
   name: string;
   description: string;
   permissions: ChannelPermission[];
+  position: number;
 }
 
 

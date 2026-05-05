@@ -5,6 +5,7 @@ import { ServerData, ServerIconComponent } from '../server-icon/server-icon.comp
 import { NavigationService } from '../../../main-page/navigation.service';
 import { GuildDto } from '../../../../dtos/response/guild.dto';
 import { GuildService } from '../../../../services/guild.service';
+import { GuildReadStateService } from '../../../../services/guild-read-state.service';
 import { CreateGuildModalComponent } from '../create-guild-modal/create-guild-modal.component';
 import {NgClass} from "@angular/common";
 
@@ -17,6 +18,7 @@ import {NgClass} from "@angular/common";
 export class ServerTaskbarComponent implements OnInit {
   protected navService = inject(NavigationService);
   private guildService = inject(GuildService);
+  private readStateService = inject(GuildReadStateService);
   private destroyRef = inject(DestroyRef);
 
   protected guilds = signal<GuildDto[]>([]);
@@ -35,12 +37,14 @@ export class ServerTaskbarComponent implements OnInit {
 
   protected serverIcons = computed<ServerData[]>(() => {
     const workspace = this.navService.workspace();
+    const readStates = this.readStateService.channelStates();
     return this.guilds().map(g => ({
       id: g.id,
       name: g.name,
       icon: g.iconUrl ?? '',
       isHome: false,
       isActive: workspace.type === 'server' && workspace.guild.id === g.id,
+      hasUnread: g.channels.some(c => readStates[c.id]?.isUnread ?? false),
     }));
   });
 

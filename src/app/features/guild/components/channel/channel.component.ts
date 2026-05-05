@@ -26,6 +26,8 @@ import { MessagingService } from '../../../../services/messaging.service';
 import { MessageStore } from '../../../../stores/message.store';
 import { ProfileService } from '../../../../services/profile.service';
 import { RelationshipService } from '../../../../services/relationship.service';
+import { GuildWebsocketService } from '../../../../services/guild-websocket.service';
+import { GuildReadStateService } from '../../../../services/guild-read-state.service';
 
 import { ComposerComponent } from '../../../messaging/components/conversation/composer/composer.component';
 import { NavigationService } from '../../../main-page/navigation.service';
@@ -57,10 +59,12 @@ export class ChannelComponent implements AfterViewInit {
   public channel = input.required<ChannelDto>();
   public back = output();
 
-  private messageStore     = inject(MessageStore);
-  private messagingService = inject(MessagingService);
-  private profileService   = inject(ProfileService);
+  private messageStore       = inject(MessageStore);
+  private messagingService   = inject(MessagingService);
+  private profileService     = inject(ProfileService);
   private relationshipService = inject(RelationshipService);
+  private guildWs            = inject(GuildWebsocketService);
+  private readStateService   = inject(GuildReadStateService);
   protected navService = inject(NavigationService);
 
   protected friends     = toSignal(this.relationshipService.getRelationships(), { initialValue: [] });
@@ -185,6 +189,16 @@ export class ChannelComponent implements AfterViewInit {
         this.observedListEl = listEl;
         if (listEl) this.contentObserver.observe(listEl);
       }
+    });
+
+    effect(() => {
+      const msgs = this.messages();
+      const channelId = this.channel().id;
+      if (msgs.length === 0) return;
+      const latest = msgs[msgs.length - 1];
+      if (latest.isPending || latest.isFailed) return;
+      void this.guildWs.updateLastReadMessageByChannel(latest.id, channelId);
+      this.readStateService.markChannelRead(channelId);
     });
 
     this.searchSubject.pipe(

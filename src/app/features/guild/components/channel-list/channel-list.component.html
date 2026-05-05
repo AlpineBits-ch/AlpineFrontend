@@ -26,15 +26,21 @@
           </button>
         </div>
         @for (channel of uncategorizedText(); track channel.id) {
+          @let rs = readStateService.getChannelState(channel.id);
           <button
             (click)="navService.openChannel(channel)"
             (contextmenu)="onChannelContextMenu($event, channel)"
-            [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : 'bg-transparent text-white/60 hover:bg-white/[0.05] hover:text-white/85'"
+            [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : rs.isUnread ? 'bg-transparent text-white/85 font-medium hover:bg-white/[0.05] hover:text-white' : 'bg-transparent text-white/60 hover:bg-white/[0.05] hover:text-white/85'"
             class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0">
             <span class="text-white/30 text-base leading-none font-medium shrink-0">#</span>
-            <span class="text-sm truncate">{{ channel.name }}</span>
+            <span class="text-sm truncate flex-1">{{ channel.name }}</span>
+            @if (rs.mentionCount > 0) {
+              <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                {{ rs.mentionCount }}
+              </span>
+            }
             @if (channel.isPrivate) {
-              <i class="pi pi-lock text-[10px] text-white/35 ml-auto shrink-0"></i>
+              <i class="pi pi-lock text-[10px] text-white/35 shrink-0"></i>
             }
           </button>
         }
@@ -161,15 +167,21 @@
               </div>
             } @else {
               <!-- Text channel row -->
+              @let catRs = readStateService.getChannelState(channel.id);
               <button
                 (click)="navService.openChannel(channel)"
                 (contextmenu)="onChannelContextMenu($event, channel)"
-                [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : 'bg-transparent text-white/60 hover:bg-white/[0.05] hover:text-white/85'"
+                [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : catRs.isUnread ? 'bg-transparent text-white/85 font-medium hover:bg-white/[0.05] hover:text-white' : 'bg-transparent text-white/60 hover:bg-white/[0.05] hover:text-white/85'"
                 class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0">
                 <span class="text-white/30 text-base leading-none font-medium shrink-0">#</span>
-                <span class="text-sm truncate">{{ channel.name }}</span>
+                <span class="text-sm truncate flex-1">{{ channel.name }}</span>
+                @if (catRs.mentionCount > 0) {
+                  <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                    {{ catRs.mentionCount }}
+                  </span>
+                }
                 @if (channel.isPrivate) {
-                  <i class="pi pi-lock text-[10px] text-white/35 ml-auto shrink-0"></i>
+                  <i class="pi pi-lock text-[10px] text-white/35 shrink-0"></i>
                 }
               </button>
             }
