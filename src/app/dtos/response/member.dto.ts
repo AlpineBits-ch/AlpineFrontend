@@ -1,4 +1,5 @@
 ﻿import {RoleDto} from "./guild.dto";
+import {OnlineStatus, ProfileDto} from "./profile.dto";
 
 export interface GuildMemberDto {
     id: string;
@@ -6,6 +7,8 @@ export interface GuildMemberDto {
     userId: string;
     inviteId: string;
     permissions: string;
+    status: OnlineStatus;
+    profile: ProfileDto | undefined;
 }
 
 export enum MemberType {

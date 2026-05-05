@@ -27,6 +27,7 @@ import {
   StateFlags,
 } from '@tauri-apps/plugin-window-state';
 import {UserTokenService} from "../../services/user-token.service";
+import {GuildWebsocketService} from "../../services/guild-websocket.service";
 @Component({
   selector: 'app-main-page',
   imports: [
@@ -55,6 +56,7 @@ export class MainPageComponent implements OnDestroy {
 
   private websocketService = inject(MessagingWebsocketService);
   private voiceWebsocketService = inject(VoiceWebsocketService);
+  private guildWebsocketService = inject(GuildWebsocketService);
   private notificationService = inject(NotificationService);
   private conversationStore = inject(ConversationStore);
 
@@ -72,6 +74,7 @@ export class MainPageComponent implements OnDestroy {
   constructor() {
     void this.websocketService.start();
     void this.voiceWebsocketService.start();
+    void this.guildWebsocketService.start();
 
 
     this.userTokenService.ensureTokenRegistered().then();
