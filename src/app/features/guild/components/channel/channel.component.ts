@@ -148,7 +148,7 @@ export class ChannelComponent implements AfterViewInit {
 
 
     effect(() => {
-      console.log(this.messages());
+      //console.log(this.messages());
     });
 
     effect(() => {
