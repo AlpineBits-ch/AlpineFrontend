@@ -1,40 +1,80 @@
-<div class="flex flex-col flex-1 min-h-0">
+<div class="flex flex-col flex-1 min-h-0" [class.select-none]="reorderMode()">
 
   <!-- Guild name header -->
   <div class="px-4 py-3 border-b border-white/[0.10] flex items-center justify-between shrink-0">
     <span class="text-sm font-semibold text-white/90 truncate">{{ guild().name }}</span>
-    <button
-      (click)="toggleGuildMenu($event)"
-      class="w-6 h-6 flex items-center justify-center text-white/40 hover:text-white/70 transition-colors cursor-pointer border-0 bg-transparent rounded-lg hover:bg-white/[0.05]">
-      <i class="pi pi-chevron-down text-xs"></i>
-    </button>
+    <div class="flex items-center gap-1">
+      @if (canReorder()) {
+        <button
+          (click)="toggleReorderMode()"
+          [ngClass]="reorderMode() ? 'text-brand bg-brand/10' : 'text-white/40 hover:text-white/70 hover:bg-white/[0.05]'"
+          class="w-6 h-6 flex items-center justify-center transition-colors cursor-pointer border-0 bg-transparent rounded-lg"
+          title="Reorder channels">
+          <i class="pi pi-sort-alt text-xs"></i>
+        </button>
+      }
+      <button
+        (click)="toggleGuildMenu($event)"
+        class="w-6 h-6 flex items-center justify-center text-white/40 hover:text-white/70 transition-colors cursor-pointer border-0 bg-transparent rounded-lg hover:bg-white/[0.05]">
+        <i class="pi pi-chevron-down text-xs"></i>
+      </button>
+    </div>
   </div>
+
+  <!-- Reorder mode banner -->
+  @if (reorderMode()) {
+    <div class="mx-2 mt-2 px-3 py-1.5 rounded-lg bg-brand/10 border border-brand/20 flex items-center justify-between shrink-0">
+      <span class="text-[11px] text-brand-dim font-medium">Drag to reorder</span>
+      <button (click)="toggleReorderMode()" class="text-[11px] text-white/50 hover:text-white/80 border-0 bg-transparent cursor-pointer transition-colors">
+        Done
+      </button>
+    </div>
+  }
 
   <!-- Channel list -->
   <div class="flex-1 min-h-0 overflow-y-auto px-2 py-2"
        style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
 
     <!-- Uncategorized text channels -->
-    @if (uncategorizedText().length > 0) {
+    @if (uncategorizedText().length > 0 || (reorderMode() && uncategorizedVoice().length === 0)) {
       <div class="mb-1">
-        <div class="flex items-center justify-between px-2 py-1 mb-0.5">
+        <div
+          class="flex items-center justify-between px-2 py-1 mb-0.5"
+          (dragover)="$event.preventDefault()"
+          (drop)="onDropOnUncategorized($event)">
           <span class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest">Text Channels</span>
-          <button
-            (click)="openCreateChannel(undefined)"
-            class="w-4 h-4 flex items-center justify-center text-white/25 hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
-            <i class="pi pi-plus text-[10px]"></i>
-          </button>
+          @if (!reorderMode()) {
+            <button
+              (click)="openCreateChannel(undefined)"
+              class="w-4 h-4 flex items-center justify-center text-white/25 hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
+              <i class="pi pi-plus text-[10px]"></i>
+            </button>
+          }
         </div>
         @for (channel of uncategorizedText(); track channel.id) {
           @let rs = readStateService.getChannelState(channel.id);
+          @if (reorderMode() && dropTargetId() === channel.id && dropPos() === 'before') {
+            <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+          }
           <button
-            (click)="navService.openChannel(channel)"
+            (click)="onChannelClick(channel)"
             (contextmenu)="onChannelContextMenu($event, channel)"
+            [attr.draggable]="reorderMode() ? 'true' : null"
+            (dragstart)="onChannelDragStart($event, channel)"
+            (dragend)="onDragEnd()"
+            (dragover)="onItemDragOver($event, channel.id)"
+            (drop)="onDropOnChannel($event, channel)"
             [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : rs.isUnread ? 'bg-transparent text-white/85 font-medium hover:bg-white/[0.05] hover:text-white' : 'bg-transparent text-white/60 hover:bg-white/[0.05] hover:text-white/85'"
-            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0">
-            <span class="text-white/30 text-base leading-none font-medium shrink-0">#</span>
+            class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all border-0"
+            [class.cursor-pointer]="!reorderMode()"
+            [class.cursor-grab]="reorderMode()">
+            @if (reorderMode()) {
+              <i class="pi pi-bars text-[10px] text-white/25 shrink-0"></i>
+            } @else {
+              <span class="text-white/30 text-base leading-none font-medium shrink-0">#</span>
+            }
             <span class="text-sm truncate flex-1">{{ channel.name }}</span>
-            @if (rs.mentionCount > 0) {
+            @if (!reorderMode() && rs.mentionCount > 0) {
               <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
                 {{ rs.mentionCount }}
               </span>
@@ -43,6 +83,9 @@
               <i class="pi pi-lock text-[10px] text-white/35 shrink-0"></i>
             }
           </button>
+          @if (reorderMode() && dropTargetId() === channel.id && dropPos() === 'after') {
+            <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+          }
         }
       </div>
     }
@@ -50,17 +93,29 @@
     <!-- Uncategorized voice channels -->
     @if (uncategorizedVoice().length > 0) {
       <div class="mb-1">
-        <div class="flex items-center justify-between px-2 py-1 mb-0.5">
+        <div
+          class="flex items-center justify-between px-2 py-1 mb-0.5"
+          (dragover)="$event.preventDefault()"
+          (drop)="onDropOnUncategorized($event)">
           <span class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest">Voice Channels</span>
-          <button
-            (click)="openCreateChannel(undefined)"
-            class="w-4 h-4 flex items-center justify-center text-white/25 hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
-            <i class="pi pi-plus text-[10px]"></i>
-          </button>
+          @if (!reorderMode()) {
+            <button
+              (click)="openCreateChannel(undefined)"
+              class="w-4 h-4 flex items-center justify-center text-white/25 hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
+              <i class="pi pi-plus text-[10px]"></i>
+            </button>
+          }
         </div>
         @for (channel of uncategorizedVoice(); track channel.id) {
-          <!-- Voice channel row -->
-          <div>
+          @if (reorderMode() && dropTargetId() === channel.id && dropPos() === 'before') {
+            <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+          }
+          <div
+            [attr.draggable]="reorderMode() ? 'true' : null"
+            (dragstart)="onChannelDragStart($event, channel)"
+            (dragend)="onDragEnd()"
+            (dragover)="onItemDragOver($event, channel.id)"
+            (drop)="onDropOnChannel($event, channel)">
             <button
               (click)="onVoiceChannelClick(channel)"
               (contextmenu)="onChannelContextMenu($event, channel)"
@@ -69,65 +124,99 @@
                 : isActive(channel)
                   ? 'bg-white/[0.08] text-white/90'
                   : 'bg-transparent text-white/60 hover:bg-white/[0.05] hover:text-white/85'"
-              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0">
-              <i class="pi pi-volume-up text-xs shrink-0"
-                 [ngClass]="isJoinedVoice(channel) ? 'text-online/60' : 'text-white/30'"></i>
+              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all border-0"
+              [class.cursor-pointer]="!reorderMode()"
+              [class.cursor-grab]="reorderMode()">
+              @if (reorderMode()) {
+                <i class="pi pi-bars text-[10px] text-white/25 shrink-0"></i>
+              } @else {
+                <i class="pi pi-volume-up text-xs shrink-0"
+                   [ngClass]="isJoinedVoice(channel) ? 'text-online/60' : 'text-white/30'"></i>
+              }
               <span class="text-sm truncate">{{ channel.name }}</span>
               @if (channel.isPrivate) {
                 <i class="pi pi-lock text-[10px] text-white/35 ml-auto shrink-0"></i>
               }
               @let vcParticipants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
-              @if (vcParticipants.length > 0 && !channel.isPrivate) {
+              @if (!reorderMode() && vcParticipants.length > 0 && !channel.isPrivate) {
                 <span class="ml-auto text-[10px] text-white/40 shrink-0">{{ vcParticipants.length }}</span>
               }
             </button>
-            <!-- Participant list below channel -->
-            @let participants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
-            @for (p of participants; track p.userId) {
-              <div class="flex items-center gap-2 pl-6 pr-2 py-0.5">
-                <app-avatar [userId]="p.userId" [label]="p.avatarLabel" styleClass="!w-5 !h-5 !text-[9px]" class="flex shrink-0" />
-                <span class="text-xs flex-1 truncate"
-                      [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/60'">
-                  {{ p.displayName }}
-                </span>
-                @if (p.isScreenSharing) {
-                  <span class="text-[9px] font-bold text-red-400 bg-red-500/15 px-1 py-0.5 rounded leading-none shrink-0">LIVE</span>
-                } @else if (p.isMuted) {
-                  <i class="pi pi-microphone-slash text-[9px] text-white/35 shrink-0"></i>
-                }
-              </div>
+            @if (!reorderMode()) {
+              @let participants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
+              @for (p of participants; track p.userId) {
+                <div class="flex items-center gap-2 pl-6 pr-2 py-0.5">
+                  <app-avatar [userId]="p.userId" [label]="p.avatarLabel" styleClass="!w-5 !h-5 !text-[9px]" class="flex shrink-0" />
+                  <span class="text-xs flex-1 truncate"
+                        [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/60'">
+                    {{ p.displayName }}
+                  </span>
+                  @if (p.isScreenSharing) {
+                    <span class="text-[9px] font-bold text-red-400 bg-red-500/15 px-1 py-0.5 rounded leading-none shrink-0">LIVE</span>
+                  } @else if (p.isMuted) {
+                    <i class="pi pi-microphone-slash text-[9px] text-white/35 shrink-0"></i>
+                  }
+                </div>
+              }
             }
           </div>
+          @if (reorderMode() && dropTargetId() === channel.id && dropPos() === 'after') {
+            <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+          }
         }
       </div>
     }
 
     <!-- Categories -->
-    @for (category of guild().categories; track category.id) {
+    @for (category of sortedCategories(); track category.id) {
+      @if (reorderMode() && dropTargetId() === category.id && dropPos() === 'before') {
+        <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+      }
       <div class="mb-1">
         <button
           (click)="toggleCollapse(category.id)"
           (contextmenu)="onCategoryContextMenu($event, category)"
-          class="flex items-center justify-between w-full px-2 py-1 mb-0.5 group cursor-pointer border-0 bg-transparent">
+          [attr.draggable]="reorderMode() ? 'true' : null"
+          (dragstart)="onCategoryDragStart($event, category)"
+          (dragend)="onDragEnd()"
+          (dragover)="onItemDragOver($event, category.id)"
+          (drop)="onDropOnCategory($event, category)"
+          class="flex items-center justify-between w-full px-2 py-1 mb-0.5 group border-0 bg-transparent"
+          [class.cursor-pointer]="!reorderMode()"
+          [class.cursor-grab]="reorderMode()">
           <div class="flex items-center gap-1 min-w-0">
-            <i class="pi text-[8px] text-white/25 shrink-0 transition-transform duration-150"
-               [ngClass]="isCollapsed(category.id) ? 'pi-chevron-right' : 'pi-chevron-down'"></i>
+            @if (reorderMode()) {
+              <i class="pi pi-bars text-[9px] text-white/25 shrink-0"></i>
+            } @else {
+              <i class="pi text-[8px] text-white/25 shrink-0 transition-transform duration-150"
+                 [ngClass]="isCollapsed(category.id) ? 'pi-chevron-right' : 'pi-chevron-down'"></i>
+            }
             <span class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest truncate group-hover:text-white/45 transition-colors">
               {{ category.name }}
             </span>
           </div>
-          <button
-            (click)="$event.stopPropagation(); openCreateChannel(category.id)"
-            class="w-4 h-4 flex items-center justify-center text-white/25 hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent opacity-0 group-hover:opacity-100">
-            <i class="pi pi-plus text-[10px]"></i>
-          </button>
+          @if (!reorderMode()) {
+            <button
+              (click)="$event.stopPropagation(); openCreateChannel(category.id)"
+              class="w-4 h-4 flex items-center justify-center text-white/25 hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent opacity-0 group-hover:opacity-100">
+              <i class="pi pi-plus text-[10px]"></i>
+            </button>
+          }
         </button>
 
         @if (!isCollapsed(category.id)) {
           @for (channel of categoryChannels(category.id); track channel.id) {
+            @if (reorderMode() && dropTargetId() === channel.id && dropPos() === 'before') {
+              <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+            }
             @if (channel.type === ChannelType.Voice) {
               <!-- Voice channel row (categorized) -->
-              <div>
+              <div
+                [attr.draggable]="reorderMode() ? 'true' : null"
+                (dragstart)="onChannelDragStart($event, channel)"
+                (dragend)="onDragEnd()"
+                (dragover)="onItemDragOver($event, channel.id)"
+                (drop)="onDropOnChannel($event, channel)">
                 <button
                   (click)="onVoiceChannelClick(channel)"
                   (contextmenu)="onChannelContextMenu($event, channel)"
@@ -136,46 +225,64 @@
                     : isActive(channel)
                       ? 'bg-white/[0.08] text-white/90'
                       : 'bg-transparent text-white/60 hover:bg-white/[0.05] hover:text-white/85'"
-                  class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0">
-                  <i class="pi pi-volume-up text-xs shrink-0"
-                     [ngClass]="isJoinedVoice(channel) ? 'text-online/60' : 'text-white/30'"></i>
+                  class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all border-0"
+                  [class.cursor-pointer]="!reorderMode()"
+                  [class.cursor-grab]="reorderMode()">
+                  @if (reorderMode()) {
+                    <i class="pi pi-bars text-[10px] text-white/25 shrink-0"></i>
+                  } @else {
+                    <i class="pi pi-volume-up text-xs shrink-0"
+                       [ngClass]="isJoinedVoice(channel) ? 'text-online/60' : 'text-white/30'"></i>
+                  }
                   <span class="text-sm truncate">{{ channel.name }}</span>
                   @if (channel.isPrivate) {
                     <i class="pi pi-lock text-[10px] text-white/35 ml-auto shrink-0"></i>
                   }
                   @let vcCount = (voiceChannelSvc.channelParticipants().get(channel.id) ?? []).length;
-                  @if (vcCount > 0 && !channel.isPrivate) {
+                  @if (!reorderMode() && vcCount > 0 && !channel.isPrivate) {
                     <span class="ml-auto text-[10px] text-white/40 shrink-0">{{ vcCount }}</span>
                   }
                 </button>
-                <!-- Participant list -->
-                @let catParticipants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
-                @for (p of catParticipants; track p.userId) {
-                  <div class="flex items-center gap-2 pl-6 pr-2 py-0.5">
-                    <app-avatar [userId]="p.userId" [label]="p.avatarLabel" styleClass="!w-5 !h-5 !text-[9px]" class="flex shrink-0" />
-                    <span class="text-xs flex-1 truncate"
-                          [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/60'">
-                      {{ p.displayName }}
-                    </span>
-                    @if (p.isScreenSharing) {
-                      <span class="text-[9px] font-bold text-red-400 bg-red-500/15 px-1 py-0.5 rounded leading-none shrink-0">LIVE</span>
-                    } @else if (p.isMuted) {
-                      <i class="pi pi-microphone-slash text-[9px] text-white/35 shrink-0"></i>
-                    }
-                  </div>
+                @if (!reorderMode()) {
+                  @let catParticipants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
+                  @for (p of catParticipants; track p.userId) {
+                    <div class="flex items-center gap-2 pl-6 pr-2 py-0.5">
+                      <app-avatar [userId]="p.userId" [label]="p.avatarLabel" styleClass="!w-5 !h-5 !text-[9px]" class="flex shrink-0" />
+                      <span class="text-xs flex-1 truncate"
+                            [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/60'">
+                        {{ p.displayName }}
+                      </span>
+                      @if (p.isScreenSharing) {
+                        <span class="text-[9px] font-bold text-red-400 bg-red-500/15 px-1 py-0.5 rounded leading-none shrink-0">LIVE</span>
+                      } @else if (p.isMuted) {
+                        <i class="pi pi-microphone-slash text-[9px] text-white/35 shrink-0"></i>
+                      }
+                    </div>
+                  }
                 }
               </div>
             } @else {
               <!-- Text channel row -->
               @let catRs = readStateService.getChannelState(channel.id);
               <button
-                (click)="navService.openChannel(channel)"
+                (click)="onChannelClick(channel)"
                 (contextmenu)="onChannelContextMenu($event, channel)"
+                [attr.draggable]="reorderMode() ? 'true' : null"
+                (dragstart)="onChannelDragStart($event, channel)"
+                (dragend)="onDragEnd()"
+                (dragover)="onItemDragOver($event, channel.id)"
+                (drop)="onDropOnChannel($event, channel)"
                 [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/90' : catRs.isUnread ? 'bg-transparent text-white/85 font-medium hover:bg-white/[0.05] hover:text-white' : 'bg-transparent text-white/60 hover:bg-white/[0.05] hover:text-white/85'"
-                class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all cursor-pointer border-0">
-                <span class="text-white/30 text-base leading-none font-medium shrink-0">#</span>
+                class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-left transition-all border-0"
+                [class.cursor-pointer]="!reorderMode()"
+                [class.cursor-grab]="reorderMode()">
+                @if (reorderMode()) {
+                  <i class="pi pi-bars text-[10px] text-white/25 shrink-0"></i>
+                } @else {
+                  <span class="text-white/30 text-base leading-none font-medium shrink-0">#</span>
+                }
                 <span class="text-sm truncate flex-1">{{ channel.name }}</span>
-                @if (catRs.mentionCount > 0) {
+                @if (!reorderMode() && catRs.mentionCount > 0) {
                   <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
                     {{ catRs.mentionCount }}
                   </span>
@@ -185,12 +292,18 @@
                 }
               </button>
             }
+            @if (reorderMode() && dropTargetId() === channel.id && dropPos() === 'after') {
+              <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+            }
           }
         }
       </div>
+      @if (reorderMode() && dropTargetId() === category.id && dropPos() === 'after') {
+        <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+      }
     }
 
-    @if (guild().channels.length === 0 && guild().categories.length === 0) {
+    @if (localChannels().length === 0 && localCategories().length === 0) {
       <p class="text-xs text-white/25 text-center mt-6">No channels yet</p>
     }
 

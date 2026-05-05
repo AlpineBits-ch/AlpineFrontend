@@ -7,6 +7,7 @@ import {NotificationService, NotificationSound} from "./notification.service";
 import {Subject} from "rxjs";
 import {MessageDto} from "../dtos/response/message.dto";
 import {AttachmentDto} from "./file.service";
+import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
 
 @Injectable({
   providedIn: 'root',
@@ -18,6 +19,7 @@ export class GuildWebsocketService {
 
   public connectionState = signal(ConnectionState.Disconnected);
   public messageObservable = new Subject<MessageDto>();
+  public channelReorderedObservable = new Subject<ReorderChannesDto>();
 
   constructor() {
     this.hubConnection = new signalR.HubConnectionBuilder()
@@ -53,6 +55,10 @@ export class GuildWebsocketService {
         message: `${data.acceptantUserName} accepted your friend request`,
         sound: NotificationSound.NewMessage,
       });
+    });
+
+    this.hubConnection.on('ChannelReordered', (data: ReorderChannesDto) => {
+      this.channelReorderedObservable.next(data);
     });
 
     this.hubConnection.on('MessageCreated', (data: {

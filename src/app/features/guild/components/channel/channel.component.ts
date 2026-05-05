@@ -146,6 +146,11 @@ export class ChannelComponent implements AfterViewInit {
       this.messageStore.loadForChannel(this.channel().id);
     });
 
+
+    effect(() => {
+      console.log(this.messages());
+    });
+
     effect(() => {
       const channelId = this.channel().id;
       const _ = this.messages();
