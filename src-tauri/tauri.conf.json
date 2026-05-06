@@ -43,9 +43,12 @@
   },
   "identifier": "com.alpinebits.echo",
   "productName": "Echo",
-  "version": "3.0.43",
+  "version": "3.0.45",
   "plugins": {
     "updater": {
+      "windows": {
+        "installMode": "passive"
+      },
       "endpoints": [
         "https://api.alpinebits.ch/api/v1/update/check/{{current_version}}"
       ],
