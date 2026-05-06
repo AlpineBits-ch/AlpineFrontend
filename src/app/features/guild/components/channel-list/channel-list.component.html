@@ -319,7 +319,8 @@
 <!-- ── Guild settings modal ───────────────────────────────────────────────── -->
 <app-guild-settings-modal
   [(isVisible)]="showGuildSettings"
-  [guild]="guild()" />
+  [guild]="guild()"
+  (guildUpdated)="onGuildUpdated($event)" />
 
 <!-- ── Channel settings modal ─────────────────────────────────────────────── -->
 <app-channel-settings-modal

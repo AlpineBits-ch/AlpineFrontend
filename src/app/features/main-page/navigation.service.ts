@@ -16,10 +16,12 @@ export class NavigationService {
   readonly workspace = signal<WorkspaceContext>({ type: 'dms' });
   readonly mainView = signal<MainView>({ type: 'home' });
   readonly mobileNavOpen = signal(false);
+  readonly mobileSection = signal<'conversations' | 'friends'>('conversations');
 
   selectDMs(): void {
     this.workspace.set({ type: 'dms' });
     this.mainView.set({ type: 'home' });
+    this.mobileSection.set('conversations');
   }
 
   selectServer(guild: GuildDto): void {
@@ -30,8 +32,22 @@ export class NavigationService {
     if (first) this.mainView.set({ type: 'channel', channel: first });
   }
 
+  updateCurrentGuild(guild: GuildDto): void {
+    const current = this.workspace();
+    if (current.type === 'server' && current.guild.id === guild.id) {
+      this.workspace.set({ type: 'server', guild });
+    }
+  }
+
   showHome(): void {
     this.mainView.set({ type: 'home' });
+    this.mobileSection.set('conversations');
+  }
+
+  showFriends(): void {
+    this.mainView.set({ type: 'home' });
+    this.mobileSection.set('friends');
+    this.mobileNavOpen.set(false);
   }
 
   openConversation(conversation: ConversationDto): void {

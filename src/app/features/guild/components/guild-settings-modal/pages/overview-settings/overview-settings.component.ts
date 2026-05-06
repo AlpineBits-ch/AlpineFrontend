@@ -1,17 +1,20 @@
-import {Component, inject, input, OnInit, output, signal} from '@angular/core';
-import {FormsModule} from '@angular/forms';
-import {Button} from 'primeng/button';
-import {InputText} from 'primeng/inputtext';
-import {Textarea} from 'primeng/textarea';
-import {GuildDto} from '../../../../../../dtos/response/guild.dto';
-import {GuildService, UpdateGuildDto} from '../../../../../../services/guild.service';
+import { Component, inject, input, OnDestroy, OnInit, output, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { Button } from 'primeng/button';
+import { InputText } from 'primeng/inputtext';
+import { Textarea } from 'primeng/textarea';
+import { Dialog } from 'primeng/dialog';
+import { GuildDto } from '../../../../../../dtos/response/guild.dto';
+import { GuildService, UpdateGuildDto } from '../../../../../../services/guild.service';
+import { ImageCropperComponent } from '../../../../../../components/image-cropper/image-cropper.component';
+import { environment } from '../../../../../../../environments/environment';
 
 @Component({
   selector: 'app-overview-settings',
-  imports: [FormsModule, Button, InputText, Textarea],
+  imports: [FormsModule, Button, InputText, Textarea, Dialog, ImageCropperComponent],
   templateUrl: './overview-settings.component.html',
 })
-export class OverviewSettingsComponent implements OnInit {
+export class OverviewSettingsComponent implements OnInit, OnDestroy {
   guild = input.required<GuildDto>();
   guildUpdated = output<GuildDto>();
 
@@ -24,11 +27,31 @@ export class OverviewSettingsComponent implements OnInit {
 
   iconPreview = signal<string | null>(null);
   pendingIconFile = signal<File | null>(null);
+  iconRemoved = signal(false);
+
+  cropVisible = signal(false);
+  cropSrc = signal('');
+
+  private previewObjectUrl: string | null = null;
+
+  private iconUrl(guildId: string): string {
+    return `${environment.apiUrl}/api/v1/guild/guilds/${guildId}/icon`;
+  }
 
   ngOnInit(): void {
     this.name.set(this.guild().name);
     this.description.set(this.guild().description ?? '');
-    this.iconPreview.set(this.guild().iconUrl ?? null);
+    if (this.previewObjectUrl) {
+      URL.revokeObjectURL(this.previewObjectUrl);
+      this.previewObjectUrl = null;
+    }
+    this.pendingIconFile.set(null);
+    this.iconRemoved.set(false);
+    this.iconPreview.set(this.iconUrl(this.guild().id));
+  }
+
+  ngOnDestroy(): void {
+    if (this.previewObjectUrl) URL.revokeObjectURL(this.previewObjectUrl);
   }
 
   onFieldChange(): void {
@@ -41,18 +64,40 @@ export class OverviewSettingsComponent implements OnInit {
   onIconSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
+    input.value = '';
     if (!file) return;
-    this.pendingIconFile.set(file);
     const reader = new FileReader();
-    reader.onload = () => this.iconPreview.set(reader.result as string);
+    reader.onload = () => {
+      this.cropSrc.set(reader.result as string);
+      this.cropVisible.set(true);
+    };
     reader.readAsDataURL(file);
+  }
+
+  onCropConfirmed(file: File): void {
+    this.cropVisible.set(false);
+    if (this.previewObjectUrl) URL.revokeObjectURL(this.previewObjectUrl);
+    this.previewObjectUrl = URL.createObjectURL(file);
+    this.pendingIconFile.set(file);
+    this.iconPreview.set(this.previewObjectUrl);
     this.dirty.set(true);
   }
 
   removeIcon(): void {
+    if (this.previewObjectUrl) {
+      URL.revokeObjectURL(this.previewObjectUrl);
+      this.previewObjectUrl = null;
+    }
     this.iconPreview.set(null);
     this.pendingIconFile.set(null);
+    this.iconRemoved.set(true);
     this.dirty.set(true);
+  }
+
+  onIconLoadError(): void {
+    if (this.iconPreview() === this.iconUrl(this.guild().id)) {
+      this.iconPreview.set(null);
+    }
   }
 
   save(): void {
@@ -60,9 +105,10 @@ export class OverviewSettingsComponent implements OnInit {
     this.saving.set(true);
 
     const doUpdate = (g: GuildDto) => {
-      const dto: UpdateGuildDto = {name: this.name(), description: this.description()};
+      const dto: UpdateGuildDto = { name: this.name(), description: this.description() };
       this.guildService.updateGuild(g.id, dto).subscribe({
         next: updated => {
+          this.guildService.guildUpdated$.next(updated);
           this.guildUpdated.emit(updated);
           this.dirty.set(false);
           this.saving.set(false);
@@ -73,15 +119,13 @@ export class OverviewSettingsComponent implements OnInit {
 
     if (this.pendingIconFile()) {
       this.guildService.uploadGuildIcon(this.guild().id, this.pendingIconFile()!).subscribe({
-        next: updated => {
+        next: () => {
           this.pendingIconFile.set(null);
-          doUpdate(updated);
+          doUpdate(this.guild());
         },
-        error: () => {
-          this.saving.set(false);
-        },
+        error: () => this.saving.set(false),
       });
-    } else if (this.guild().iconUrl && !this.iconPreview()) {
+    } else if (this.iconRemoved()) {
       this.guildService.removeGuildIcon(this.guild().id).subscribe({
         next: updated => doUpdate(updated),
         error: () => this.saving.set(false),

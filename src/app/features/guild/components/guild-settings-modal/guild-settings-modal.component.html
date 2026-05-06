@@ -23,8 +23,10 @@
         <div class="px-4 mb-4">
           <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest mb-1">Server</p>
           <div class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/[0.04]">
-            @if (guild().iconUrl) {
-              <img [src]="guild().iconUrl!" [alt]="guild().name" class="w-6 h-6 rounded-lg object-cover shrink-0" />
+            @if (!headerIconFailed()) {
+              <img [src]="guildIconUrl()" [alt]="guild().name"
+                   class="w-6 h-6 rounded-lg object-cover shrink-0"
+                   (error)="onHeaderIconError()" />
             } @else {
               <div class="w-6 h-6 rounded-lg bg-brand/20 flex items-center justify-center shrink-0">
                 <span class="text-xs font-bold text-brand-dim">{{ guild().name.charAt(0).toUpperCase() }}</span>

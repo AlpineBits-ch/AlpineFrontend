@@ -61,6 +61,10 @@ export class ChannelListComponent {
     return this.profileService.getCachedByUserId(userId)?.avatarUrl;
   }
 
+  protected onGuildUpdated(updated: GuildDto): void {
+    this.navService.updateCurrentGuild(updated);
+  }
+
   // ── Permission checking ───────────────────────────────────────────────────
   private ownMember = signal<GuildMemberDto | null>(null);
 

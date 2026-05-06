@@ -65,7 +65,6 @@ export interface GuildDto {
   categories: CategoryDto[];
   channels: ChannelDto[];
   roles: RoleDto[];
-  iconUrl?: string;
   bannerUrl?: string;
 }
 

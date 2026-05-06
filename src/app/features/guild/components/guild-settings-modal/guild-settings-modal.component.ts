@@ -1,8 +1,9 @@
-import {Component, input, model, output, signal} from '@angular/core';
+import {Component, computed, input, model, output, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {GuildDto, RoleDto} from '../../../../dtos/response/guild.dto';
+import {environment} from '../../../../../environments/environment';
 import {OverviewSettingsComponent} from './pages/overview-settings/overview-settings.component';
 import {MembersSettingsComponent} from './pages/members-settings/members-settings.component';
 import {RolesSettingsComponent} from './pages/roles-settings/roles-settings.component';
@@ -38,6 +39,15 @@ export class GuildSettingsModalComponent {
   guildUpdated = output<GuildDto>();
 
   activePage = signal('overview');
+  headerIconFailed = signal(false);
+
+  guildIconUrl = computed(() =>
+    `${environment.apiUrl}/api/v1/guild/guilds/${this.guild().id}/icon`
+  );
+
+  onHeaderIconError(): void {
+    this.headerIconFailed.set(true);
+  }
 
   navGroups: NavGroup[] = [
     {

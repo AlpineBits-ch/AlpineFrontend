@@ -84,6 +84,7 @@ export class GuildService {
   private base = environment.apiUrl + '/api/v1/guild';
 
   readonly guildJoined$ = new Subject<void>();
+  readonly guildUpdated$ = new Subject<GuildDto>();
 
   // ── Guilds ──────────────────────────────────────────────────────────────
   createGuild(name: string, description: string | undefined): Observable<GuildDto> {
@@ -104,21 +105,21 @@ export class GuildService {
   }
 
   updateGuild(id: string, dto: UpdateGuildDto): Observable<GuildDto> {
-    return this.http.patch<GuildDto>(`${this.base}/guild/${id}`, dto);
+    return this.http.patch<GuildDto>(`${this.base}/guilds/${id}`, dto);
   }
 
   deleteGuild(id: string): Observable<void> {
-    return this.http.delete<void>(`${this.base}/guild/${id}`);
+    return this.http.delete<void>(`${this.base}/guilds/${id}`);
   }
 
   uploadGuildIcon(id: string, file: File): Observable<GuildDto> {
     const fd = new FormData();
-    fd.append('icon', file);
-    return this.http.post<GuildDto>(`${this.base}/guild/${id}/icon`, fd);
+    fd.append('file', file);
+    return this.http.post<GuildDto>(`${this.base}/guilds/${id}/icon`, fd);
   }
 
   removeGuildIcon(id: string): Observable<GuildDto> {
-    return this.http.delete<GuildDto>(`${this.base}/guild/${id}/icon`);
+    return this.http.delete<GuildDto>(`${this.base}/guilds/${id}/icon`);
   }
 
   // ── Members ─────────────────────────────────────────────────────────────

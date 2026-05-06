@@ -7,7 +7,8 @@
       <div class="relative group">
         <div class="w-20 h-20 rounded-2xl overflow-hidden bg-card flex items-center justify-center border border-white/[0.08]">
           @if (iconPreview()) {
-            <img [src]="iconPreview()!" alt="guild icon" class="w-full h-full object-cover" />
+            <img [src]="iconPreview()!" alt="guild icon" class="w-full h-full object-cover"
+                 (error)="onIconLoadError()" />
           } @else {
             <span class="text-2xl font-bold text-white/30">{{ guild().name.charAt(0).toUpperCase() }}</span>
           }
@@ -71,3 +72,22 @@
   }
 
 </div>
+
+<!-- Crop dialog -->
+<p-dialog
+  [(visible)]="cropVisible"
+  header="Crop Server Icon"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  appendTo="body"
+  [style]="{width: '380px'}">
+  @if (cropVisible() && cropSrc()) {
+    <app-image-cropper
+      [imageSrc]="cropSrc()"
+      [circular]="false"
+      [outputSize]="400"
+      (confirmed)="onCropConfirmed($event)"
+      (cancelled)="cropVisible.set(false)" />
+  }
+</p-dialog>

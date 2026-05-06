@@ -29,7 +29,11 @@
   <div class="flex-1 min-w-0 overflow-hidden">
     @switch (view.type) {
       @case ('home') {
-        <app-home />
+        @if (navService.mobileSection() === 'conversations') {
+          <app-mobile-conversations-page class="lg:hidden" />
+        }
+        <app-home [class.hidden]="navService.mobileSection() === 'conversations'"
+                  class="lg:!block" />
       }
       @case ('conversation') {
         <app-conversation [conversation]="view.conversation" (back)="navService.showHome()" />

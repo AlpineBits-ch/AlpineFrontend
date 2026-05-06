@@ -33,6 +33,7 @@
         <input #fileInput type="file" accept="image/*" class="hidden" (change)="onFileSelected($event)" />
         <p-button label="Change Avatar" severity="primary" size="small"
           [disabled]="uploading()" (onClick)="pickFile()" />
+
         @if (ownProfile()?.avatarUrl) {
           <p-button label="Remove" severity="secondary" size="small"
             [disabled]="uploading()" (onClick)="removeAvatar()" />
@@ -96,6 +97,25 @@
   </div>
 
 </div>
+
+<!-- Avatar crop dialog -->
+<p-dialog
+  [(visible)]="cropVisible"
+  header="Crop Avatar"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  appendTo="body"
+  [style]="{width: '380px'}">
+  @if (cropVisible() && cropSrc()) {
+    <app-image-cropper
+      [imageSrc]="cropSrc()"
+      [circular]="true"
+      [outputSize]="400"
+      (confirmed)="onCropConfirmed($event)"
+      (cancelled)="cropVisible.set(false)" />
+  }
+</p-dialog>
 
 <!-- Avatar lightbox -->
 <p-dialog

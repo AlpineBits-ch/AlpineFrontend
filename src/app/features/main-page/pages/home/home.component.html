@@ -6,8 +6,8 @@
     <!-- Title row -->
     <div class="flex items-center justify-between gap-3">
       <div class="flex items-center gap-2">
-        <p-button icon="pi pi-bars" [text]="true" severity="secondary" size="small"
-          class="lg:hidden" (onClick)="navService.mobileNavOpen.set(true)" />
+        <p-button icon="pi pi-arrow-left" [text]="true" severity="secondary" size="small"
+          class="lg:hidden" (onClick)="navService.mobileSection.set('conversations')" />
         <div class="flex items-center gap-2">
           <i class="pi pi-users text-white/50 text-sm"></i>
           <h1 class="text-[15px] font-semibold text-white/85">Friends</h1>

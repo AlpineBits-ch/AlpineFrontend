@@ -7,7 +7,8 @@ import { GuildDto } from '../../../../dtos/response/guild.dto';
 import { GuildService } from '../../../../services/guild.service';
 import { GuildReadStateService } from '../../../../services/guild-read-state.service';
 import { CreateGuildModalComponent } from '../create-guild-modal/create-guild-modal.component';
-import {NgClass} from "@angular/common";
+import { NgClass } from '@angular/common';
+import { environment } from '../../../../../environments/environment';
 
 @Component({
   selector: 'app-server-taskbar',
@@ -33,6 +34,12 @@ export class ServerTaskbarComponent implements OnInit {
       takeUntilDestroyed(this.destroyRef),
       switchMap(() => this.guildService.getGuilds()),
     ).subscribe(guilds => this.guilds.set(guilds));
+
+    this.guildService.guildUpdated$.pipe(
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe(updated => {
+      this.guilds.update(gs => gs.map(g => g.id === updated.id ? updated : g));
+    });
   }
 
   protected serverIcons = computed<ServerData[]>(() => {
@@ -45,7 +52,7 @@ export class ServerTaskbarComponent implements OnInit {
       return {
         id: g.id,
         name: g.name,
-        icon: g.iconUrl ?? '',
+        icon: `${environment.apiUrl}/api/v1/guild/guilds/${g.id}/icon/thumbnail`,
         isHome: false,
         isActive: workspace.type === 'server' && workspace.guild.id === g.id,
         hasUnread: g.channels.some(c => readStates[c.id]?.isUnread ?? false),

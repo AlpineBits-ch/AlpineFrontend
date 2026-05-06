@@ -2,6 +2,7 @@ import { Component, inject, OnDestroy } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { Router } from '@angular/router';
 import { HomeComponent } from './pages/home/home.component';
+import { MobileConversationsPageComponent } from './pages/mobile-conversations/mobile-conversations-page.component';
 import { OAuthService } from 'angular-oauth2-oidc';
 import { MessagingWebsocketService } from '../../services/messaging-websocket.service';
 import { ActionSidepanelComponent } from './components/action-sidepanel/action-sidepanel.component';
@@ -32,6 +33,7 @@ import {GuildWebsocketService} from "../../services/guild-websocket.service";
   selector: 'app-main-page',
   imports: [
     HomeComponent,
+    MobileConversationsPageComponent,
     ActionSidepanelComponent,
     ConversationComponent,
     ChannelComponent,
