@@ -29,8 +29,32 @@ tauri-plugin-notification = "2.3.3"
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-process = "2.3.1"
 tauri-plugin-single-instance = "2"
+
+
+# Android
+[target.aarch64-linux-android.dependencies]
 tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
 
+[target.armv7-linux-androideabi.dependencies]
+tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+
+[target.i686-linux-android.dependencies]
+tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+
+[target.x86_64-linux-android.dependencies]
+tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+
+# iOS (device)
+[target.aarch64-apple-ios.dependencies]
+tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+
+# iOS Simulator (Apple Silicon Mac)
+[target.aarch64-apple-ios-sim.dependencies]
+tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+
+# iOS Simulator (Intel Mac)
+[target.x86_64-apple-ios.dependencies]
+tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
 
 [profile.release.package.wry]
 debug = true

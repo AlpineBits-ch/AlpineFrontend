@@ -49,15 +49,15 @@ fn show_noactivate(label: String, app: tauri::AppHandle) -> Result<(), String> {
 
     // On non-Windows desktop and mobile, just show normally
     #[cfg(all(not(target_os = "windows"), not(mobile)))]
-{
-    win.show().map_err(|e| e.to_string())?;
-}
+    {
+        win.show().map_err(|e| e.to_string())?;
+    }
 
-#[cfg(mobile)]
-{
-    // iOS/Android: window visibility is managed by the OS
-    // Nothing to do here
-}
+    #[cfg(mobile)]
+    {
+        // iOS/Android: window visibility is managed by the OS
+        // Nothing to do here
+    }
     Ok(())
 }
 
@@ -121,9 +121,7 @@ fn prepare_notification(label: String, app: tauri::AppHandle) -> Result<(), Stri
 pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_notifications::init())
         .plugin(tauri_plugin_process::init());
 
     // Desktop-only plugins
@@ -131,7 +129,13 @@ pub fn run() {
     let builder = builder
         .plugin(tauri_plugin_single_instance::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::new().build())
-        .plugin(tauri_plugin_autostart::Builder::new().build());
+        .plugin(tauri_plugin_autostart::Builder::new().build())
+        .plugin(tauri_plugin_notification::init());
+
+    // Mobile-only plugins
+    #[cfg(mobile)]
+    let builder = builder
+        .plugin(tauri_plugin_notifications::init());
 
     builder
         .invoke_handler(tauri::generate_handler![

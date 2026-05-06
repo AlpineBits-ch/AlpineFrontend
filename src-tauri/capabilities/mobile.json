@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "description": "Mobile-only capabilities",
+  "identifier": "mobile",
+  "platforms": ["android", "iOS"],
+  "permissions": [
+    "notifications:default"
+  ],
+  "windows": [
+    "main"
+  ]
+}
