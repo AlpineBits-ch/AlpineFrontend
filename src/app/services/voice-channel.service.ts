@@ -78,6 +78,10 @@ export class VoiceChannelService {
   private localScreenAudioTrack: MediaStreamTrack | null = null;
   private screenShareId: string | null = null;
 
+  // Serialises all SDP offer/answer cycles — concurrent calls to subscribeAudio/subscribeVideo
+  // or onnegotiationneeded would race on setLocalDescription otherwise.
+  private negotiationChain: Promise<void> = Promise.resolve();
+
   // Maps a remote transceiver MID → { userId, kind }
   private midMeta = new Map<string, { userId: string; kind: 'audio' | 'video' | 'screen' | 'screenAudio' }>();
 
@@ -238,9 +242,6 @@ export class VoiceChannelService {
     this.setupDone = false;
     this.pc = new RTCPeerConnection({ iceServers: environment.iceServers });
     this.pc.ontrack = e => this.handleRemoteTrack(e);
-    this.pc.onnegotiationneeded = () => {
-      if (this.setupDone) void this.renegotiate(guildId, channelId);
-    };
 
     let localStream: MediaStream;
     try {
@@ -286,44 +287,46 @@ export class VoiceChannelService {
     }
   }
 
-  private async subscribeAudio(
+  private subscribeAudio(
     guildId: string,
     channelId: string,
     targets: { userId: string; cfSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' }[],
   ): Promise<void> {
-    if (!this.pc || !this.cfSessionId) return;
+    return this.enqueueNegotiation(async () => {
+      if (!this.pc || !this.cfSessionId) return;
 
-    const entries = targets.map(t => ({
-      ...t,
-      kind: t.kind ?? ('audio' as const),
-      transceiver: this.pc!.addTransceiver('audio', { direction: 'recvonly' }),
-    }));
+      const entries = targets.map(t => ({
+        ...t,
+        kind: t.kind ?? ('audio' as const),
+        transceiver: this.pc!.addTransceiver('audio', { direction: 'recvonly' }),
+      }));
 
-    const offer = await this.pc.createOffer();
-    await this.pc.setLocalDescription(offer);
+      const offer = await this.pc.createOffer();
+      await this.pc.setLocalDescription(offer);
 
-    const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
-      cfSessionId: this.cfSessionId,
-      sessionDescription: this.pc.localDescription!,
-      tracks: entries.map(e => ({
-        location: 'remote' as const,
-        mid: e.transceiver.mid ?? undefined,
-        trackName: e.trackName,
-        sessionId: e.cfSessionId,
-      })),
-    }));
+      const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
+        cfSessionId: this.cfSessionId,
+        sessionDescription: this.pc.localDescription!,
+        tracks: entries.map(e => ({
+          location: 'remote' as const,
+          mid: e.transceiver.mid ?? undefined,
+          trackName: e.trackName,
+          sessionId: e.cfSessionId,
+        })),
+      }));
 
-    resp.tracks.forEach((t, i) => {
-      if (t.mid && entries[i]) {
-        this.midMeta.set(t.mid, { userId: entries[i].userId, kind: entries[i].kind });
-      }
+      resp.tracks.forEach((t, i) => {
+        if (t.mid && entries[i]) {
+          this.midMeta.set(t.mid, { userId: entries[i].userId, kind: entries[i].kind });
+        }
+      });
+
+      await this.pc.setRemoteDescription(resp.sessionDescription);
+      if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
     });
-
-    await this.pc.setRemoteDescription(resp.sessionDescription);
-    if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
   }
 
-  private async subscribeVideo(
+  private subscribeVideo(
     guildId: string,
     channelId: string,
     userId: string,
@@ -331,24 +334,26 @@ export class VoiceChannelService {
     trackName: string,
     kind: 'video' | 'screen',
   ): Promise<void> {
-    if (!this.pc || !this.cfSessionId) return;
+    return this.enqueueNegotiation(async () => {
+      if (!this.pc || !this.cfSessionId) return;
 
-    const transceiver = this.pc.addTransceiver('video', { direction: 'recvonly' });
-    const offer = await this.pc.createOffer();
-    await this.pc.setLocalDescription(offer);
+      const transceiver = this.pc.addTransceiver('video', { direction: 'recvonly' });
+      const offer = await this.pc.createOffer();
+      await this.pc.setLocalDescription(offer);
 
-    const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
-      cfSessionId: this.cfSessionId,
-      sessionDescription: this.pc.localDescription!,
-      tracks: [{ location: 'remote', mid: transceiver.mid ?? undefined, trackName, sessionId: cfSessionId }],
-    }));
+      const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
+        cfSessionId: this.cfSessionId,
+        sessionDescription: this.pc.localDescription!,
+        tracks: [{ location: 'remote', mid: transceiver.mid ?? undefined, trackName, sessionId: cfSessionId }],
+      }));
 
-    if (resp.tracks[0]?.mid) {
-      this.midMeta.set(resp.tracks[0].mid, { userId, kind });
-    }
+      if (resp.tracks[0]?.mid) {
+        this.midMeta.set(resp.tracks[0].mid, { userId, kind });
+      }
 
-    await this.pc.setRemoteDescription(resp.sessionDescription);
-    if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
+      await this.pc.setRemoteDescription(resp.sessionDescription);
+      if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
+    });
   }
 
   private handleRemoteTrack(event: RTCTrackEvent): void {
@@ -378,6 +383,12 @@ export class VoiceChannelService {
     } else {
       this.screenStreamsSignal.update(m => { const n = new Map(m); n.set(meta.userId, stream); return n; });
     }
+  }
+
+  private enqueueNegotiation(fn: () => Promise<void>): Promise<void> {
+    const next = this.negotiationChain.catch(() => {}).then(fn);
+    this.negotiationChain = next.catch(() => {});
+    return next;
   }
 
   private async renegotiate(guildId: string, channelId: string): Promise<void> {
@@ -412,6 +423,7 @@ export class VoiceChannelService {
     this.cfSessionId = null;
     this.setupDone = false;
     this.midMeta.clear();
+    this.negotiationChain = Promise.resolve();
   }
 
   // ── Local controls ────────────────────────────────────────────────────────
@@ -459,19 +471,21 @@ export class VoiceChannelService {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         this.localVideoTrack = stream.getVideoTracks()[0];
         this.localVideoStream.set(new MediaStream([this.localVideoTrack]));
-        const sender = this.pc.addTrack(this.localVideoTrack, stream);
 
-        const offer = await this.pc.createOffer();
-        await this.pc.setLocalDescription(offer);
-        const mid = this.pc.getTransceivers().find(t => t.sender === sender)?.mid ?? '0';
-
-        const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
-          cfSessionId: this.cfSessionId,
-          sessionDescription: this.pc.localDescription!,
-          tracks: [{ location: 'local', mid, trackName: 'video' }],
-        }));
-        await this.pc.setRemoteDescription(resp.sessionDescription);
-        if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
+        await this.enqueueNegotiation(async () => {
+          if (!this.pc || !this.cfSessionId) return;
+          const sender = this.pc.addTrack(this.localVideoTrack!, stream);
+          const offer = await this.pc.createOffer();
+          await this.pc.setLocalDescription(offer);
+          const mid = this.pc.getTransceivers().find(t => t.sender === sender)?.mid ?? '0';
+          const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
+            cfSessionId: this.cfSessionId!,
+            sessionDescription: this.pc.localDescription!,
+            tracks: [{ location: 'local', mid, trackName: 'video' }],
+          }));
+          await this.pc.setRemoteDescription(resp.sessionDescription);
+          if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
+        });
 
         this.localState.update(s => ({ ...s, isCameraOn: true }));
         this.guildWsSvc.invokeVoiceCameraChanged(channelId, true);
@@ -513,37 +527,40 @@ export class VoiceChannelService {
         const audioTracks = stream.getAudioTracks();
         this.localScreenAudioTrack = audioTracks.length > 0 ? audioTracks[0] : null;
 
-        const shareId    = crypto.randomUUID();
+        const shareId = crypto.randomUUID();
         this.screenShareId = shareId;
 
         this.localScreenTrack.onended = () => {
           if (this.localState().isScreenSharing) void this.toggleScreenShare();
         };
 
-        const videoSender = this.pc.addTrack(this.localScreenTrack, stream);
-        const audioSender = this.localScreenAudioTrack
-          ? this.pc.addTrack(this.localScreenAudioTrack, stream)
-          : null;
+        await this.enqueueNegotiation(async () => {
+          if (!this.pc || !this.cfSessionId) return;
+          const videoSender = this.pc.addTrack(this.localScreenTrack!, stream);
+          const audioSender = this.localScreenAudioTrack
+            ? this.pc.addTrack(this.localScreenAudioTrack, stream)
+            : null;
 
-        const offer = await this.pc.createOffer();
-        await this.pc.setLocalDescription(offer);
+          const offer = await this.pc.createOffer();
+          await this.pc.setLocalDescription(offer);
 
-        const videoMid = this.pc.getTransceivers().find(t => t.sender === videoSender)?.mid ?? '0';
-        const tracks: { location: 'local'; mid: string; trackName: string }[] = [
-          { location: 'local', mid: videoMid, trackName: `screen-${shareId}` },
-        ];
-        if (audioSender) {
-          const audioMid = this.pc.getTransceivers().find(t => t.sender === audioSender)?.mid ?? '1';
-          tracks.push({ location: 'local', mid: audioMid, trackName: `screen-audio-${shareId}` });
-        }
+          const videoMid = this.pc.getTransceivers().find(t => t.sender === videoSender)?.mid ?? '0';
+          const tracks: { location: 'local'; mid: string; trackName: string }[] = [
+            { location: 'local', mid: videoMid, trackName: `screen-${shareId}` },
+          ];
+          if (audioSender) {
+            const audioMid = this.pc.getTransceivers().find(t => t.sender === audioSender)?.mid ?? '1';
+            tracks.push({ location: 'local', mid: audioMid, trackName: `screen-audio-${shareId}` });
+          }
 
-        const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
-          cfSessionId: this.cfSessionId,
-          sessionDescription: this.pc.localDescription!,
-          tracks,
-        }));
-        await this.pc.setRemoteDescription(resp.sessionDescription);
-        if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
+          const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
+            cfSessionId: this.cfSessionId!,
+            sessionDescription: this.pc.localDescription!,
+            tracks,
+          }));
+          await this.pc.setRemoteDescription(resp.sessionDescription);
+          if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
+        });
 
         this.guildWsSvc.invokeVoiceScreenShareStarted(channelId, shareId, `screen-${shareId}`);
         this.localState.update(s => ({ ...s, isScreenSharing: true }));
