@@ -220,7 +220,12 @@ export class VoiceChannelService {
     if (!silent) {
       await firstValueFrom(this.guildVoiceSvc.leave(guildId, channelId)).catch(() => {});
     }
-    this.channelParticipantsSignal.update(map => { const n = new Map(map); n.delete(channelId); return n; });
+    this.channelParticipantsSignal.update(map => {
+      const n = new Map(map);
+      const remaining = (n.get(channelId) ?? []).filter(p => !p.isLocal);
+      n.set(channelId, remaining);
+      return n;
+    });
     this.videoStreamsSignal.set(new Map());
     this.screenStreamsSignal.set(new Map());
     this.localVideoStream.set(null);
