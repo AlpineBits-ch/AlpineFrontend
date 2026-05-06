@@ -39,7 +39,8 @@
       "WebFetch(domain:v2.tauri.app)",
       "WebFetch(domain:docs.rs)",
       "Bash(curl -s https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-bundler/src/bundle/linux/rpm.rs)",
-      "Bash(grep -E \"\\\\.\\(ts|html|css\\)$\")"
+      "Bash(grep -E \"\\\\.\\(ts|html|css\\)$\")",
+      "Bash(grep -v \"^$\")"
     ]
   }
 }

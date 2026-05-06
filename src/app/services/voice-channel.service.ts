@@ -1,4 +1,4 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { ChannelDto, ChannelType } from '../dtos/response/guild.dto';
 import { ProfileService } from './profile.service';
@@ -90,9 +90,12 @@ export class VoiceChannelService {
   // Maps a remote transceiver MID → { userId, kind }
   private midMeta = new Map<string, { userId: string; kind: 'audio' | 'video' | 'screen' | 'screenAudio' }>();
 
-  // Audio playback elements keyed by userId
+  // Audio playback elements keyed by userId — WebView2/Tauri requires explicit <audio> elements
   private remoteAudioEls       = new Map<string, HTMLAudioElement>();
   private remoteScreenAudioEls = new Map<string, HTMLAudioElement>();
+
+  // Track local senders so bitrate can be changed on the fly
+  private readonly localSenders = new Map<string, RTCRtpSender>();
 
   // Per-participant local screen-audio mute
   private screenAudioMutedSignal = signal<Set<string>>(new Set());
@@ -117,6 +120,14 @@ export class VoiceChannelService {
   private lastLoadedGuildId: string | null = null;
 
   constructor() {
+    effect(() => {
+      const s = this.audioSettings.settings();
+      void this.applyBitrate(this.localSenders.get('audio'),       s.audioBitrate);
+      void this.applyBitrate(this.localSenders.get('video'),       s.videoBitrate);
+      void this.applyBitrate(this.localSenders.get('screenVideo'), s.screenVideoBitrate);
+      void this.applyBitrate(this.localSenders.get('screenAudio'), s.screenAudioBitrate);
+    });
+
     this.guildWsSvc.userJoinedVoiceObservable.subscribe(e        => this.onUserJoinedVoice(e));
     this.guildWsSvc.userLeftVoiceObservable.subscribe(e          => this.onUserLeftVoice(e));
     this.guildWsSvc.guildParticipantJoinedObservable.subscribe(e => this.onParticipantJoined(e));
@@ -276,6 +287,7 @@ export class VoiceChannelService {
       this.setupLocalVAD(localStream);
 
       const sender = this.pc.addTrack(this.localAudioTrack, localStream);
+      this.localSenders.set('audio', sender);
 
       const { cfSessionId } = await firstValueFrom(this.guildVoiceSvc.createSession(guildId, channelId));
       this.cfSessionId = cfSessionId;
@@ -293,6 +305,7 @@ export class VoiceChannelService {
 
       await this.pc.setRemoteDescription(publishResp.sessionDescription);
       if (publishResp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
+      await this.applyBitrate(sender, this.audioSettings.settings().audioBitrate);
 
       this.setupDone = true;
     } finally {
@@ -380,11 +393,14 @@ export class VoiceChannelService {
 
     if (meta.kind === 'audio' || meta.kind === 'screenAudio') {
       const elMap = meta.kind === 'screenAudio' ? this.remoteScreenAudioEls : this.remoteAudioEls;
+
       let audio = elMap.get(meta.userId);
       if (!audio) {
         audio = new Audio();
         audio.autoplay = true;
         elMap.set(meta.userId, audio);
+      } else {
+        audio.pause();
       }
       audio.srcObject = stream;
       audio.volume = meta.kind === 'audio'
@@ -395,6 +411,7 @@ export class VoiceChannelService {
         (audio as any).setSinkId(speakerId).catch(() => void 0);
       }
       void audio.play().catch(() => {});
+
       if (meta.kind === 'audio') this.setupRemoteVAD(meta.userId, stream);
     } else if (meta.kind === 'video') {
       this.videoStreamsSignal.update(m => { const n = new Map(m); n.set(meta.userId, stream); return n; });
@@ -425,6 +442,7 @@ export class VoiceChannelService {
     this.remoteAudioEls.clear();
     this.remoteScreenAudioEls.forEach(a => { a.pause(); a.srcObject = null; });
     this.remoteScreenAudioEls.clear();
+    this.localSenders.clear();
 
     this.localAudioTrack?.stop();
     this.localVideoTrack?.stop();
@@ -482,6 +500,7 @@ export class VoiceChannelService {
       await firstValueFrom(this.guildVoiceSvc.closeTracks(guildId, channelId, this.cfSessionId, ['video'])).catch(() => {});
       this.localVideoTrack = null;
       this.localVideoStream.set(null);
+      this.localSenders.delete('video');
       this.localState.update(s => ({ ...s, isCameraOn: false }));
       this.guildWsSvc.invokeVoiceCameraChanged(channelId, false);
     } else {
@@ -503,6 +522,8 @@ export class VoiceChannelService {
           }));
           await this.pc.setRemoteDescription(resp.sessionDescription);
           if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
+          await this.applyBitrate(sender, this.audioSettings.settings().videoBitrate);
+          this.localSenders.set('video', sender);
         });
 
         this.localState.update(s => ({ ...s, isCameraOn: true }));
@@ -537,10 +558,21 @@ export class VoiceChannelService {
       this.guildWsSvc.invokeVoiceScreenShareStopped(channelId, shareId);
       this.localScreenTrack = null;
       this.screenShareId    = null;
+      this.localSenders.delete('screenVideo');
+      this.localSenders.delete('screenAudio');
       this.localState.update(s => ({ ...s, isScreenSharing: false }));
     } else {
       try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: {
+            sampleRate: 48000,
+            channelCount: 2,
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
+        });
         this.localScreenTrack = stream.getVideoTracks()[0];
         const audioTracks = stream.getAudioTracks();
         this.localScreenAudioTrack = audioTracks.length > 0 ? audioTracks[0] : null;
@@ -578,6 +610,12 @@ export class VoiceChannelService {
           }));
           await this.pc.setRemoteDescription(resp.sessionDescription);
           if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
+          await this.applyBitrate(videoSender, this.audioSettings.settings().screenVideoBitrate);
+          this.localSenders.set('screenVideo', videoSender);
+          if (audioSender) {
+            await this.applyBitrate(audioSender, this.audioSettings.settings().screenAudioBitrate);
+            this.localSenders.set('screenAudio', audioSender);
+          }
         });
 
         this.guildWsSvc.invokeVoiceScreenShareStarted(channelId, shareId, `screen-${shareId}`);
@@ -754,6 +792,16 @@ export class VoiceChannelService {
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
+
+  private async applyBitrate(sender: RTCRtpSender | undefined, kbps: number): Promise<void> {
+    if (!sender) return;
+    try {
+      const params = sender.getParameters();
+      if (!params.encodings?.length) params.encodings = [{}];
+      params.encodings[0].maxBitrate = kbps * 1000;
+      await sender.setParameters(params);
+    } catch { /* setParameters not supported or call already ended */ }
+  }
 
   private patchParticipant(
     channelId: string,

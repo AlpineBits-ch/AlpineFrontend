@@ -7,6 +7,10 @@ export interface AudioSettings {
   noiseSuppression: boolean;
   echoCancellation: boolean;
   autoGainControl: boolean;
+  audioBitrate: number;
+  screenAudioBitrate: number;
+  videoBitrate: number;
+  screenVideoBitrate: number;
 }
 
 const DEFAULTS: AudioSettings = {
@@ -16,6 +20,10 @@ const DEFAULTS: AudioSettings = {
   noiseSuppression: true,
   echoCancellation: true,
   autoGainControl: true,
+  audioBitrate: 64,
+  screenAudioBitrate: 256,
+  videoBitrate: 1500,
+  screenVideoBitrate: 4000,
 };
 
 const STORAGE_KEY = 'alpine_audio_settings';

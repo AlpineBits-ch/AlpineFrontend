@@ -53,8 +53,11 @@ export class CallWebRtcService {
   // MID → { userId, kind, shareId } — used to route ontrack events
   private readonly midMap = new Map<string, { userId: string; kind: 'audio' | 'video' | 'screen'; shareId?: string }>();
 
-  // Audio elements for remote participants — browser won't auto-play WebRTC audio in Tauri/WebView2
+  // Audio elements for remote participants — WebView2/Tauri requires explicit <audio> elements
   private readonly remoteAudio = new Map<string, HTMLAudioElement>();
+
+  // Local senders stored for on-the-fly bitrate updates
+  private audioSender: RTCRtpSender | null = null;
 
   // Per-user volume overrides (0–1.0), persisted for the call duration
   private readonly userVolumes = new Map<string, number>();
@@ -89,6 +92,14 @@ export class CallWebRtcService {
   private prevStatsTs = 0;
 
   constructor() {
+    // Apply bitrate changes on the fly whenever settings change.
+    effect(() => {
+      const s = this.audioSettings.settings();
+      void this.applyBitrate(this.audioSender,   s.audioBitrate);
+      void this.applyBitrate(this.videoSender,   s.videoBitrate);
+      void this.applyBitrate(this.screenSender,  s.screenVideoBitrate);
+    });
+
     // Connect when a session starts; disconnect when it ends.
     effect(() => {
       const s = this.callSession.session();
@@ -204,6 +215,7 @@ export class CallWebRtcService {
     this.pc?.close();
     this.remoteAudio.forEach(a => { a.pause(); a.srcObject = null; });
     this.remoteAudio.clear();
+    this.audioSender = null;
     this.wsSubs.forEach(s => s.unsubscribe());
 
     this.pc = null;
@@ -296,6 +308,8 @@ export class CallWebRtcService {
       mid: transceiver.mid ?? '0',
       trackName: 'audio',
     }]);
+    await this.applyBitrate(transceiver.sender, this.audioSettings.settings().audioBitrate);
+    this.audioSender = transceiver.sender;
   }
 
   private async publishVideoTrack(stream: MediaStream): Promise<void> {
@@ -310,6 +324,7 @@ export class CallWebRtcService {
     }]);
     this.videoSender = transceiver.sender;
     this.videoTrackName = results[0]?.trackName ?? 'video';
+    await this.applyBitrate(transceiver.sender, this.audioSettings.settings().videoBitrate);
     if (this.callId) this.voiceWs.invokeCameraChanged(this.callId, true);
   }
 
@@ -349,6 +364,7 @@ export class CallWebRtcService {
     this.screenSender = transceiver.sender;
     this.screenTrackName = results[0]?.trackName ?? cfTrackName;
     this.screenShareId = shareId;
+    await this.applyBitrate(transceiver.sender, this.audioSettings.settings().screenVideoBitrate);
     if (this.callId) this.voiceWs.invokeScreenShareStarted(this.callId, shareId, this.screenTrackName);
   }
 
@@ -430,21 +446,24 @@ export class CallWebRtcService {
     const stream = event.streams[0] ?? new MediaStream([event.track]);
 
     if (info.kind === 'audio') {
-      // WebView2/Tauri does not auto-render WebRTC audio — requires explicit <audio> element.
-      const audio = new Audio();
-      audio.srcObject = stream;
-      audio.autoplay = true;
-      audio.volume = this.userVolumes.get(info.userId) ?? 1;
+      const existing = this.remoteAudio.get(info.userId);
+      if (existing) { existing.pause(); existing.srcObject = null; }
+
+      const element = new Audio();
+      element.srcObject = stream;
+      element.autoplay  = true;
+      element.volume    = this.userVolumes.get(info.userId) ?? 1;
       const speakerId = this.audioSettings.settings().speakerId;
-      if (speakerId && speakerId !== 'default' && typeof (audio as any).setSinkId === 'function') {
-        (audio as any).setSinkId(speakerId).catch(() => void 0);
+      if (speakerId && speakerId !== 'default' && typeof (element as any).setSinkId === 'function') {
+        (element as any).setSinkId(speakerId).catch(() => void 0);
       }
-      audio.play().catch(() => void 0);
-      this.remoteAudio.get(info.userId)?.pause();
-      this.remoteAudio.set(info.userId, audio);
+      void element.play().catch(() => {});
+
+      this.remoteAudio.set(info.userId, element);
+
       event.track.onended = () => {
-        this.remoteAudio.get(info.userId)?.pause();
-        this.remoteAudio.delete(info.userId);
+        const el = this.remoteAudio.get(info.userId);
+        if (el) { el.pause(); el.srcObject = null; this.remoteAudio.delete(info.userId); }
       };
     } else if (info.kind === 'video') {
       this.callSession.onCameraChanged(info.userId, true, stream);
@@ -524,6 +543,18 @@ export class CallWebRtcService {
 
     this.prevBytes = { inAudio, inVideo, outAudio, outVideo };
     this.prevStatsTs = now;
+  }
+
+  // ── Bitrate control ───────────────────────────────────────────────────────
+
+  private async applyBitrate(sender: RTCRtpSender | null, kbps: number): Promise<void> {
+    if (!sender) return;
+    try {
+      const params = sender.getParameters();
+      if (!params.encodings?.length) params.encodings = [{}];
+      params.encodings[0].maxBitrate = kbps * 1000;
+      await sender.setParameters(params);
+    } catch { /* setParameters not supported or call already ended */ }
   }
 
   // ── Speaking detection (local) ────────────────────────────────────────────
