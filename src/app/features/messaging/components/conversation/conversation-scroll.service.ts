@@ -29,8 +29,17 @@ export class ConversationScrollService {
     if (this.isNearBottom && this.scrollEl) this.scrollToBottom();
   });
 
+  // Capture-phase listener: catches load events from child <img> elements
+  // (load does not bubble, so capture phase is required).
+  private readonly onContentLoad = (): void => {
+    if (this.isNearBottom && this.scrollEl) this.scrollToBottom();
+  };
+
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.contentObserver.disconnect());
+    inject(DestroyRef).onDestroy(() => {
+      this.contentObserver.disconnect();
+      this.observedListEl?.removeEventListener('load', this.onContentLoad, true);
+    });
   }
 
   /** Bind the scroll container element. Call once from ngAfterViewInit. */
@@ -90,8 +99,12 @@ export class ConversationScrollService {
     // appears/disappears as search mode and error states are toggled.
     if (messageListEl !== this.observedListEl) {
       this.contentObserver.disconnect();
+      this.observedListEl?.removeEventListener('load', this.onContentLoad, true);
       this.observedListEl = messageListEl;
-      if (messageListEl) this.contentObserver.observe(messageListEl);
+      if (messageListEl) {
+        this.contentObserver.observe(messageListEl);
+        messageListEl.addEventListener('load', this.onContentLoad, { capture: true, passive: true });
+      }
     }
   }
 

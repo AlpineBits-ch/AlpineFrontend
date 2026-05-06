@@ -146,11 +146,17 @@ export class ChannelComponent implements AfterViewInit {
     if (this.isNearBottom) this.scrollToBottom();
   });
   private observedListEl?: HTMLDivElement;
+  private readonly onContentLoad = (): void => {
+    if (this.isNearBottom) this.scrollToBottom();
+  };
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   constructor() {
-    inject(DestroyRef).onDestroy(() => this.contentObserver.disconnect());
+    inject(DestroyRef).onDestroy(() => {
+      this.contentObserver.disconnect();
+      this.observedListEl?.removeEventListener('load', this.onContentLoad, true);
+    });
 
     effect(() => {
       this.messageStore.loadForChannel(this.channel().id);
@@ -201,8 +207,12 @@ export class ChannelComponent implements AfterViewInit {
       const listEl = this.messageListRef?.nativeElement;
       if (listEl !== this.observedListEl) {
         this.contentObserver.disconnect();
+        this.observedListEl?.removeEventListener('load', this.onContentLoad, true);
         this.observedListEl = listEl;
-        if (listEl) this.contentObserver.observe(listEl);
+        if (listEl) {
+          this.contentObserver.observe(listEl);
+          listEl.addEventListener('load', this.onContentLoad, { capture: true, passive: true });
+        }
       }
     });
 
