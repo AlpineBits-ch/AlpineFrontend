@@ -71,6 +71,7 @@ export class VoiceChannelService {
   private pc: RTCPeerConnection | null = null;
   private cfSessionId: string | null = null;
   private setupDone = false;
+  private pendingJoinId: string | null = null;
 
   private localAudioTrack:      MediaStreamTrack | null = null;
   private localVideoTrack:      MediaStreamTrack | null = null;
@@ -153,45 +154,50 @@ export class VoiceChannelService {
   // ── Join / leave ──────────────────────────────────────────────────────────
 
   async joinChannel(channel: ChannelDto, guildName: string): Promise<void> {
+    if (this.pendingJoinId === channel.id || this.joinedChannelId() === channel.id) return;
+
     const prevId    = this.joinedChannelId();
     const prevGuild = this.joinedGuildId();
-
-    if (prevId === channel.id) return;
-
-    if (prevId && prevGuild) {
-      await this.doLeave(prevGuild, prevId, true);
-    }
-
-    this.joinedChannelId.set(channel.id);
-    this.joinedGuildId.set(channel.guildId);
-    this.joinedChannelName.set(channel.name);
-    this.joinedGuildName.set(guildName);
-    this.localState.set({ isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false });
+    this.pendingJoinId = channel.id;
 
     try {
-      const state   = await firstValueFrom(this.guildVoiceSvc.join(channel.guildId, channel.id));
-      const ownId   = this.profileService.ownProfile()?.userId ?? '';
-      const list    = state.participants.map(p => this.dtoToParticipant(p, ownId));
-
-      if (!list.find(p => p.isLocal)) {
-        const profile = this.profileService.ownProfile();
-        list.unshift({
-          userId:          ownId,
-          displayName:     profile?.userName ?? 'You',
-          avatarLabel:     (profile?.userName?.[0] ?? 'Y').toUpperCase(),
-          avatarUrl:       profile?.avatarUrl,
-          isMuted:         false,
-          isSpeaking:      false,
-          isCameraOn:      false,
-          isScreenSharing: false,
-          isLocal:         true,
-        });
+      if (prevId && prevGuild) {
+        await this.doLeave(prevGuild, prevId, true);
       }
 
-      this.channelParticipantsSignal.update(map => { const n = new Map(map); n.set(channel.id, list); return n; });
-      await this.initWebRTC(channel.guildId, channel.id, state.participants);
-    } catch (err) {
-      console.error('VoiceChannelService: join failed', err);
+      this.joinedChannelId.set(channel.id);
+      this.joinedGuildId.set(channel.guildId);
+      this.joinedChannelName.set(channel.name);
+      this.joinedGuildName.set(guildName);
+      this.localState.set({ isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false });
+
+      try {
+        const state   = await firstValueFrom(this.guildVoiceSvc.join(channel.guildId, channel.id));
+        const ownId   = this.profileService.ownProfile()?.userId ?? '';
+        const list    = state.participants.map(p => this.dtoToParticipant(p, ownId));
+
+        if (!list.find(p => p.isLocal)) {
+          const profile = this.profileService.ownProfile();
+          list.unshift({
+            userId:          ownId,
+            displayName:     profile?.userName ?? 'You',
+            avatarLabel:     (profile?.userName?.[0] ?? 'Y').toUpperCase(),
+            avatarUrl:       profile?.avatarUrl,
+            isMuted:         false,
+            isSpeaking:      false,
+            isCameraOn:      false,
+            isScreenSharing: false,
+            isLocal:         true,
+          });
+        }
+
+        this.channelParticipantsSignal.update(map => { const n = new Map(map); n.set(channel.id, list); return n; });
+        await this.initWebRTC(channel.guildId, channel.id);
+      } catch (err) {
+        console.error('VoiceChannelService: join failed', err);
+      }
+    } finally {
+      this.pendingJoinId = null;
     }
   }
 
