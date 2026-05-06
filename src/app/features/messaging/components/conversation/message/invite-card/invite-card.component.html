@@ -14,8 +14,9 @@
   } @else if (invite(); as inv) {
     <!-- Guild icon -->
     <div class="shrink-0 w-10 h-10 rounded-full overflow-hidden bg-brand/20 flex items-center justify-center text-brand-dim font-bold text-sm">
-      @if (inv.guild?.iconUrl) {
-        <img [src]="inv.guild!.iconUrl" [alt]="inv.guild!.name" class="w-full h-full object-cover" />
+      @if (guildIconUrl() && !iconFailed()) {
+        <img [src]="guildIconUrl()" [alt]="inv.guild!.name" class="w-full h-full object-cover"
+             (error)="iconFailed.set(true)" />
       } @else {
         {{ guildInitials() }}
       }

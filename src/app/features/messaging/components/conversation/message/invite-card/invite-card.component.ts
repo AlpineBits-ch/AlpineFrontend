@@ -2,6 +2,7 @@ import {ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input,
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {GuildService} from '../../../../../../services/guild.service';
 import {InviteDto, InviteState} from '../../../../../../dtos/response/invite.dto';
+import {environment} from '../../../../../../../environments/environment';
 
 type CardState = 'loading' | 'ready' | 'joining' | 'joined' | 'error';
 
@@ -19,6 +20,12 @@ export class InviteCardComponent implements OnInit {
 
   invite = signal<InviteDto | null>(null);
   cardState = signal<CardState>('loading');
+  iconFailed = signal(false);
+
+  protected guildIconUrl = computed(() => {
+    const id = this.invite()?.guild?.id;
+    return id ? `${environment.apiUrl}/api/v1/guild/guilds/${id}/icon` : '';
+  });
 
   protected readonly InviteState = InviteState;
 
