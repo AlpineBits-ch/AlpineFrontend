@@ -18,5 +18,6 @@ export interface MessageDto {
     isFailed: boolean;
     attachments: MessageAttachment[];
     inReplyTo: string | undefined;
+    mentions: string[];
 
 }

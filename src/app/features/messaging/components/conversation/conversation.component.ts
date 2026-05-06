@@ -12,7 +12,6 @@ import {
   untracked,
   ViewChild,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
 import { DatePipe, NgClass } from '@angular/common';
 import { catchError, EMPTY, tap } from 'rxjs';
 
@@ -27,13 +26,13 @@ import { MessagingService } from '../../../../services/messaging.service';
 import { MessageStore } from '../../../../stores/message.store';
 import { ConversationStore } from '../../../../stores/conversation.store';
 import { ProfileService } from '../../../../services/profile.service';
-import { RelationshipService } from '../../../../services/relationship.service';
 import { CallStateService } from '../../../../services/call-state.service';
 import { CallSessionService } from '../../../../services/call-session.service';
 import { MessagingWebsocketService } from '../../../../services/messaging-websocket.service';
 import { ConversationUtilsService } from '../../../../services/conversation-utils.service';
 
 import { ComposerComponent } from './composer/composer.component';
+import { MentionCandidate } from './composer/composer-utils';
 import { MessageComponent } from './message/message.component';
 import { CallPanelComponent } from './call-panel/call-panel.component';
 import { UserStatusDotComponent } from '../../../../components/user-status-dot/user-status-dot.component';
@@ -63,7 +62,6 @@ export class ConversationComponent implements AfterViewInit {
   private conversationStore  = inject(ConversationStore);
   private messagingService   = inject(MessagingService);
   private profileService   = inject(ProfileService);
-  private relationshipService = inject(RelationshipService);
   private callStateService   = inject(CallStateService);
   private callSessionService  = inject(CallSessionService);
   private messagingWs      = inject(MessagingWebsocketService);
@@ -94,8 +92,13 @@ export class ConversationComponent implements AfterViewInit {
 
   // ── Conversation meta ────────────────────────────────────────────────────
 
-  protected friends         = toSignal(this.relationshipService.getRelationships(), { initialValue: [] });
   protected replyingTo      = signal<MessageDto | null>(null);
+  protected conversationMemberCandidates = computed<MentionCandidate[]>(() => {
+    const ownId = this.profileService.ownProfile()?.userId;
+    return this.conversation().members
+      .filter(m => m.userId !== ownId)
+      .map(m => ({ userId: m.userId, userName: m.cachedUserName, hash: m.cachedUserHash }));
+  });
   protected chatTitle       = computed(() => this.convUtils.getChatTitle(this.conversation()));
   protected chatAvatarLabel = computed(() => this.convUtils.getChatAvatarLabel(this.conversation()));
   protected partnerStatus   = computed(() => this.convUtils.getPartnerStatus(this.conversation()));
@@ -170,7 +173,7 @@ export class ConversationComponent implements AfterViewInit {
   private setupSearchSync(): void {
     effect(() => {
       this.search.conversationId.set(this.conversation().id);
-    }, { allowSignalWrites: true });
+    });
   }
 
   // Keeps the scroll position correct on conversation switch and new messages.
@@ -241,13 +244,18 @@ export class ConversationComponent implements AfterViewInit {
           );
         }
       }
-    }, { allowSignalWrites: true });
+    });
   }
 
   // Delegates post-render work (scroll restore, ResizeObserver update) to the scroll service.
+  // Also passes the scroll container element so the service stays current after error→retry
+  // cycles where Angular re-creates the #messageScroll element inside the @else block.
   private setupRenderHook(): void {
     afterEveryRender(() => {
-      this.scroll.onRender(this.messageListRef?.nativeElement);
+      this.scroll.onRender(
+        this.messageListRef?.nativeElement,
+        this.scrollRef?.nativeElement,
+      );
     });
   }
 
@@ -310,8 +318,8 @@ export class ConversationComponent implements AfterViewInit {
 
   // ── Message creation ─────────────────────────────────────────────────────
 
-  public createMessage(event: { content: string; attachments: string[]; inReplyTo?: string }): void {
-    const { content, attachments, inReplyTo } = event;
+  public createMessage(event: { content: string; attachments: string[]; inReplyTo?: string; mentions: string[] }): void {
+    const { content, attachments, inReplyTo, mentions } = event;
     const tempId = crypto.randomUUID();
     const now    = new Date();
 
@@ -329,6 +337,7 @@ export class ConversationComponent implements AfterViewInit {
       isFailed:       false,
       attachments:    [],
       inReplyTo,
+      mentions,
     };
 
     this.messageStore.addMessage(optimistic);
@@ -339,6 +348,7 @@ export class ConversationComponent implements AfterViewInit {
       conversationId: this.conversation().id,
       attachments,
       inReplyTo,
+      mentions,
     }).pipe(
       tap(confirmed => {
         this.messageStore.confirmMessage(tempId, confirmed);

@@ -28,6 +28,13 @@ export function getMessage(editor: HTMLElement): string {
 
 export type { EmojiSuggestion } from '../../../../../services/emoji-data.service';
 
+export interface MentionCandidate {
+  userId: string;
+  userName: string;
+  hash: number;
+  avatarUrl?: string;
+}
+
 export type TriggerDetection =
   | { type: 'mention'; query: string; range: Range }
   | { type: 'command'; query: string; range: Range; atStart: boolean }

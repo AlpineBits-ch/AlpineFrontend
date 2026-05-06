@@ -4,10 +4,11 @@ import {environment} from "../../environments/environment";
 import {ConnectionState} from "./messaging-websocket.service";
 import {OAuthService} from "angular-oauth2-oidc";
 import {NotificationService, NotificationSound} from "./notification.service";
-import {Subject} from "rxjs";
+import {catchError, firstValueFrom, of, Subject, timeout} from "rxjs";
 import {MessageDto} from "../dtos/response/message.dto";
 import {AttachmentDto} from "./file.service";
 import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
+import {ProfileService} from "./profile.service";
 
 export interface ChannelTypingEvent {
   channelId: string;
@@ -35,6 +36,7 @@ export class GuildWebsocketService {
   private hubConnection: signalR.HubConnection;
   private oAuthService = inject(OAuthService);
   private notificationService = inject(NotificationService);
+  private profileService = inject(ProfileService);
 
   public connectionState = signal(ConnectionState.Disconnected);
   public messageObservable = new Subject<MessageDto>();
@@ -117,7 +119,7 @@ export class GuildWebsocketService {
     this.hubConnection.on('ScreenShareStopped', (d: WsVoiceScreenShareStopped)  => this.voiceScreenShareStoppedObservable.next(d));
     this.hubConnection.on('MovedToChannel',     (d: WsMovedToChannel)           => this.movedToChannelObservable.next(d));
 
-    this.hubConnection.on('MessageCreated', (data: {
+    this.hubConnection.on('MessageCreated', async (data: {
       messageId: string;
       content: string;
       authorId: string;
@@ -125,8 +127,10 @@ export class GuildWebsocketService {
       channelId: string;
       attachments: AttachmentDto[];
       inReplyTo: string | undefined;
+      mentions: string[] | undefined;
     }) => {
       console.log('Guild MessageCreated:', data);
+      const mentions = data.mentions ?? [];
       this.messageObservable.next({
         id: data.messageId,
         content: data.content,
@@ -139,7 +143,33 @@ export class GuildWebsocketService {
         isFailed: false,
         attachments: data.attachments,
         inReplyTo: data.inReplyTo,
+        mentions,
       });
+
+      const ownId = this.profileService.ownProfile()?.userId;
+      if (ownId && mentions.includes(ownId)) {
+        let body: string;
+        try {
+          const bytes = Uint8Array.from(atob(data.content), c => c.charCodeAt(0));
+          body = new TextDecoder().decode(bytes);
+        } catch {
+          body = data.content;
+        }
+        const sender = await firstValueFrom(
+          this.profileService.getByUserId(data.authorId).pipe(
+            timeout(5_000),
+            catchError(() => of(null)),
+          )
+        );
+        await this.notificationService.createNotification({
+          title: `${sender?.userName ?? 'Someone'} mentioned you`,
+          message: body,
+          profile: sender ?? undefined,
+          sound: NotificationSound.NewMessage,
+          category: 'mention',
+          extra: { channelId: data.channelId },
+        });
+      }
     });
   }
 

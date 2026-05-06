@@ -44,7 +44,7 @@ export class ConversationSearchService {
     effect(() => {
       this.conversationId();
       this.searchQuery.set('');
-    }, { allowSignalWrites: true });
+    });
 
     // Debounce keystrokes before dispatching to the store.
     this.searchSubject.pipe(

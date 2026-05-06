@@ -1,9 +1,9 @@
 import { Component, input, output } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { Avatar } from 'primeng/avatar';
-import { RelationshipModel } from '../../../../../friendship/components/friendship-modal/dto/relationship.model';
 import { CommandDef } from '../commands';
 import { EmojiSuggestion, getFlagCode, isRegionalIndicator } from '../../../../../../services/emoji-data.service';
+import { MentionCandidate } from '../composer-utils';
 
 @Component({
   selector: 'app-suggestion-overlay',
@@ -13,13 +13,13 @@ import { EmojiSuggestion, getFlagCode, isRegionalIndicator } from '../../../../.
 })
 export class SuggestionOverlayComponent {
   overlayType = input<'mention' | 'command' | 'emoji' | null>(null);
-  filteredFriends = input<RelationshipModel[]>([]);
+  filteredMentions = input<MentionCandidate[]>([]);
   filteredCommands = input<CommandDef[]>([]);
   filteredEmojis = input<EmojiSuggestion[]>([]);
   selectedIndex = input<number>(0);
   query = input<string>('');
 
-  mentionSelected = output<RelationshipModel>();
+  mentionSelected = output<MentionCandidate>();
   commandSelected = output<CommandDef>();
   emojiSelected = output<EmojiSuggestion>();
 

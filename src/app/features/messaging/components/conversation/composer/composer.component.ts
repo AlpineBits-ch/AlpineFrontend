@@ -1,10 +1,10 @@
 import { Component, computed, ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { catchError, debounceTime, map, of, switchMap } from 'rxjs';
 import { Button } from 'primeng/button';
 import { MessageDto } from '../../../../../dtos/response/message.dto';
-import { ProfileService } from '../../../../../services/profile.service';
-import { RelationshipModel, RelationshipStatus } from '../../../../friendship/components/friendship-modal/dto/relationship.model';
 import { CommandDef, COMMANDS } from './commands';
-import { detectTrigger, EmojiSuggestion, getMessage } from './composer-utils';
+import { detectTrigger, EmojiSuggestion, getMessage, MentionCandidate } from './composer-utils';
 import { buildHighlightedFragment, getEditorSegments, getTextCursorOffset, restoreCursorOffset } from './composer-markdown';
 import { SuggestionOverlayComponent } from './suggestion-overlay/suggestion-overlay.component';
 import { EmojiPickerButtonComponent } from './emoji-picker-button/emoji-picker-button.component';
@@ -13,6 +13,8 @@ import { GifService } from '../../../../../services/gif.service';
 import { EmojiDataService } from '../../../../../services/emoji-data.service';
 import { ComposerAttachmentsService } from './composer-attachments.service';
 import { AttachmentPreviewsComponent } from './attachment-previews/attachment-previews.component';
+import { GuildService } from '../../../../../services/guild.service';
+import {ProfileService} from "../../../../../services/profile.service";
 
 @Component({
   selector: 'app-composer',
@@ -25,13 +27,17 @@ export class ComposerComponent {
   protected readonly attachments = inject(ComposerAttachmentsService);
   private readonly emojiData = inject(EmojiDataService);
   private readonly gifService = inject(GifService);
-  protected readonly profileService = inject(ProfileService);
+  private readonly  profileService = inject(ProfileService);
+  private readonly guildService = inject(GuildService);
 
   // ── Inputs / Outputs ─────────────────────────────────────────────────────
 
-  friends = input<RelationshipModel[]>([]);
+  /** Set when composing in a guild channel — drives async member search. */
+  guildId = input<string | null>(null);
+  /** Set when composing in a DM/group conversation — filtered synchronously. */
+  conversationMembers = input<MentionCandidate[]>([]);
   replyTo = input<MessageDto | null>(null);
-  message = output<{ content: string; attachments: string[]; inReplyTo?: string }>();
+  message = output<{ content: string; attachments: string[]; inReplyTo?: string; mentions: string[] }>();
   cancelReply = output<void>();
   commandAction = output<{ name: string; payload?: unknown }>();
   typing = output<void>();
@@ -72,14 +78,43 @@ export class ComposerComponent {
 
   activeCommand = signal<CommandDef | null>(null);
 
+  // ── Guild member search (async, debounced) ────────────────────────────────
+
+  private readonly _queryStream = toObservable(this.query);
+
+  private readonly guildSearchResults = toSignal(
+    this._queryStream.pipe(
+      debounceTime(200),
+      switchMap(q => {
+        const gid = this.guildId();
+        if (!gid || this.overlayType() !== 'mention') return of<MentionCandidate[]>([]);
+        return this.guildService.searchMembers(gid, q).pipe(
+          map(members => members
+            .filter(m => m.profile)
+            .map(m => ({
+              userId: m.userId,
+              userName: m.profile!.userName,
+              hash: m.profile!.hash,
+              avatarUrl: m.profile?.avatarUrl,
+            }))
+          ),
+          catchError(() => of<MentionCandidate[]>([]))
+        );
+      }),
+    ),
+    { initialValue: [] as MentionCandidate[] }
+  );
+
   // ── Filtered suggestions ──────────────────────────────────────────────────
 
-  filteredFriends = computed(() => {
+  filteredMentions = computed<MentionCandidate[]>(() => {
     if (this.overlayType() !== 'mention') return [];
     const q = this.query().toLowerCase();
-    return this.friends()
-      .filter(f => f.status === RelationshipStatus.Friends)
-      .filter(f => f.target.userName.toLowerCase().includes(q))
+    if (this.guildId()) {
+      return this.guildSearchResults();
+    }
+    return this.conversationMembers()
+      .filter(m => m.userName.toLowerCase().includes(q))
       .slice(0, 8);
   });
 
@@ -95,7 +130,7 @@ export class ComposerComponent {
   filteredEmojis = signal<EmojiSuggestion[]>([]);
 
   overlayItems = computed<unknown[]>(() => {
-    if (this.overlayType() === 'mention') return this.filteredFriends();
+    if (this.overlayType() === 'mention') return this.filteredMentions();
     if (this.overlayType() === 'command') return this.filteredCommands();
     if (this.overlayType() === 'emoji') return this.filteredEmojis();
     return [];
@@ -269,7 +304,7 @@ export class ComposerComponent {
 
   // ── Mention handling ──────────────────────────────────────────────────────
 
-  onMentionSelected(friend: RelationshipModel): void {
+  onMentionSelected(candidate: MentionCandidate): void {
     if (!this.triggerRange) return;
 
     this.triggerRange.deleteContents();
@@ -277,9 +312,9 @@ export class ComposerComponent {
     const chip = document.createElement('span');
     chip.className = 'mention-chip';
     chip.contentEditable = 'false';
-    chip.dataset['userId'] = friend.targetId;
-    chip.dataset['display'] = `@${friend.target.userName}#${friend.target.hash}`;
-    chip.textContent = `@${friend.target.userName}`;
+    chip.dataset['userId'] = candidate.userId;
+    chip.dataset['display'] = `@${candidate.userName}#${candidate.hash}`;
+    chip.textContent = `@${candidate.userName}`;
 
     this.triggerRange.insertNode(chip);
     const space = document.createTextNode(' ');
@@ -328,7 +363,7 @@ export class ComposerComponent {
       editor.innerHTML = '';
       if (cmd.params.length === 0) {
         const result = cmd.execute('');
-        if (result.text) this.message.emit({ content: result.text, attachments: [] });
+        if (result.text) this.message.emit({ content: result.text, attachments: [], mentions: [] });
         if (result.action) this.dispatchAction(result.action);
       } else {
         this.activeCommand.set(cmd);
@@ -363,7 +398,7 @@ export class ComposerComponent {
   // ── GIF handling ──────────────────────────────────────────────────────────
 
   onGifSelected(url: string): void {
-    this.message.emit({ content: url, attachments: [] });
+    this.message.emit({ content: url, attachments: [], mentions: [] });
   }
 
   // ── Emoji picker handling ─────────────────────────────────────────────────
@@ -390,7 +425,8 @@ export class ComposerComponent {
 
   send(): void {
     if (this.typingThrottle !== null) { clearTimeout(this.typingThrottle); this.typingThrottle = null; }
-    let text = this.emojiData.resolveShortcodes(getMessage(this.editorRef().nativeElement));
+    const editor = this.editorRef().nativeElement;
+    let text = this.emojiData.resolveShortcodes(getMessage(editor));
 
     const cmd = this.activeCommand();
     if (cmd) {
@@ -401,15 +437,18 @@ export class ComposerComponent {
     }
 
     const attachments = this.attachments.flushAndClear();
+    const mentions = Array.from(editor.querySelectorAll<HTMLElement>('.mention-chip'))
+      .map(c => c.dataset['userId'] ?? '')
+      .filter(Boolean);
 
     if (text || attachments.length > 0) {
-      this.message.emit({ content: text, attachments, inReplyTo: this.replyTo()?.id });
+      this.message.emit({ content: text, attachments, inReplyTo: this.replyTo()?.id, mentions });
     }
 
-    this.editorRef().nativeElement.innerHTML = '';
+    editor.innerHTML = '';
     this.isEmpty.set(true);
     this.closeOverlay();
-    this.editorRef().nativeElement.focus();
+    editor.focus();
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
@@ -417,7 +456,7 @@ export class ComposerComponent {
   private confirmSelection(): void {
     const idx = this.selectedIndex();
     if (this.overlayType() === 'mention') {
-      const f = this.filteredFriends()[idx];
+      const f = this.filteredMentions()[idx];
       if (f) this.onMentionSelected(f);
     } else if (this.overlayType() === 'command') {
       const c = this.filteredCommands()[idx];
@@ -436,7 +475,7 @@ export class ComposerComponent {
     if (action.name === 'send-gif-search') {
       const query = (action.payload as { query: string }).query;
       this.gifService.search(query).subscribe(results => {
-        if (results.length > 0) this.message.emit({ content: results[0].url, attachments: [] });
+        if (results.length > 0) this.message.emit({ content: results[0].url, attachments: [], mentions: [] });
       });
       return;
     }

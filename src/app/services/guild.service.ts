@@ -8,7 +8,7 @@ import {
   RoleDto,
 } from '../dtos/response/guild.dto';
 import {environment} from '../../environments/environment';
-import {Observable, Subject} from 'rxjs';
+import {catchError, Observable, of, Subject, throwError} from 'rxjs';
 import {GuildMemberDto} from '../dtos/response/member.dto';
 import {InviteDto, InviteType} from "../dtos/response/invite.dto";
 import {CreateInviteDto} from "../dtos/request/create-invite.dto";
@@ -218,6 +218,14 @@ export class GuildService {
 
   getMembers(guildId: string, skip: number, take: number): Observable<GuildMemberDto[]> {
     return this.http.get<GuildMemberDto[]>(`${this.base}/guilds/${guildId}/members?skip=${skip}&take=${take}`);
+  }
+
+  searchMembers(guildId: string, search: string): Observable<GuildMemberDto[]> {
+    return this.http.get<GuildMemberDto[]>(
+      `${this.base}/guilds/${guildId}/members/search?search=${encodeURIComponent(search)}`
+    ).pipe(
+      catchError(err => err.status === 404 ? of([]) : throwError(() => err))
+    );
   }
 
   getOwnMember(guildId: string): Observable<GuildMemberDto> {

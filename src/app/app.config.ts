@@ -1,5 +1,6 @@
 import {
   ApplicationConfig,
+  ErrorHandler,
   provideBrowserGlobalErrorListeners,
   provideZoneChangeDetection,
 } from "@angular/core";
@@ -13,6 +14,8 @@ import {AlpinePreset} from './theme/alpine-preset';
 import {HTTP_INTERCEPTORS, provideHttpClient, withInterceptors} from "@angular/common/http";
 import {environment} from "../environments/environment";
 import {tokenInterceptor} from "./interceptors/token-interceptor";
+import {timeoutInterceptor} from "./interceptors/timeout.interceptor";
+import {GlobalErrorHandler} from "./core/global-error-handler";
 
 export const authConfig: AuthConfig = {
   issuer: 'http://identity:8080/', // Your OpenIddict server
@@ -30,9 +33,10 @@ export function storageFactory(): OAuthStorage {
 }
 export const appConfig: ApplicationConfig = {
   providers: [
-      provideHttpClient(withInterceptors([tokenInterceptor])),
+      provideHttpClient(withInterceptors([tokenInterceptor, timeoutInterceptor])),
     provideOAuthClient(),
     {provide: OAuthStorage, useFactory: storageFactory},
+    {provide: ErrorHandler, useClass: GlobalErrorHandler},
     provideBrowserGlobalErrorListeners(),
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),

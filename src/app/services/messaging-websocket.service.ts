@@ -3,7 +3,7 @@ import * as signalR from '@microsoft/signalr';
 import { NotificationService, NotificationSound } from "./notification.service";
 import {OAuthService} from "angular-oauth2-oidc";
 import {environment} from "../../environments/environment";
-import {BehaviorSubject, firstValueFrom, Subject} from "rxjs";
+import {BehaviorSubject, catchError, firstValueFrom, of, Subject, timeout} from "rxjs";
 import {MessageDto} from "../dtos/response/message.dto";
 import {AttachmentDto} from "./file.service";
 import {OnlineStatus} from '../dtos/response/profile.dto';
@@ -137,7 +137,7 @@ export class MessagingWebsocketService {
     })
 
 
-    this.hubConnection.on('MessageCreated', async (data: {messageId: string, content: string, authorId: string, conversationId: string, channelId: string | undefined, attachments: AttachmentDto[], inReplyTo: string | undefined}) => {
+    this.hubConnection.on('MessageCreated', async (data: {messageId: string, content: string, authorId: string, conversationId: string, channelId: string | undefined, attachments: AttachmentDto[], inReplyTo: string | undefined, mentions: string[] | undefined}) => {
       console.log('Message created:', data);
 
       let body: string;
@@ -152,16 +152,7 @@ export class MessagingWebsocketService {
       if (data.conversationId) extra['conversationId'] = data.conversationId;
       if (data.channelId) extra['channelId'] = data.channelId;
 
-      const sender = await firstValueFrom(this.profileService.getByUserId(data.authorId));
-      await this.notificationService.createNotification({
-        title: sender.userName,
-        message: body,
-        profile: sender,
-        sound: NotificationSound.NewMessage,
-        actionTypeId: 'message',
-        extra,
-      });
-
+      // Emit the message first so the UI updates immediately, regardless of notification delays.
       this.messageObservable.next({
         id: data.messageId,
         content: data.content,
@@ -174,7 +165,23 @@ export class MessagingWebsocketService {
         isFailed: false,
         attachments: data.attachments,
         inReplyTo: data.inReplyTo,
-      })
+        mentions: data.mentions ?? [],
+      });
+
+      const sender = await firstValueFrom(
+        this.profileService.getByUserId(data.authorId).pipe(
+          timeout(5_000),
+          catchError(() => of(null)),
+        )
+      );
+      await this.notificationService.createNotification({
+        title: sender?.userName ?? 'New message',
+        message: body,
+        profile: sender ?? undefined,
+        sound: NotificationSound.NewMessage,
+        actionTypeId: 'message',
+        extra,
+      });
     })
 
     this.hubConnection.onreconnecting(() => {

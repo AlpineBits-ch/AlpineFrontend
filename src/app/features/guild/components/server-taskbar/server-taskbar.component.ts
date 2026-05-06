@@ -38,14 +38,20 @@ export class ServerTaskbarComponent implements OnInit {
   protected serverIcons = computed<ServerData[]>(() => {
     const workspace = this.navService.workspace();
     const readStates = this.readStateService.channelStates();
-    return this.guilds().map(g => ({
-      id: g.id,
-      name: g.name,
-      icon: g.iconUrl ?? '',
-      isHome: false,
-      isActive: workspace.type === 'server' && workspace.guild.id === g.id,
-      hasUnread: g.channels.some(c => readStates[c.id]?.isUnread ?? false),
-    }));
+    return this.guilds().map(g => {
+      const totalMentions = g.channels.reduce(
+        (sum, c) => sum + (readStates[c.id]?.mentionCount ?? 0), 0
+      );
+      return {
+        id: g.id,
+        name: g.name,
+        icon: g.iconUrl ?? '',
+        isHome: false,
+        isActive: workspace.type === 'server' && workspace.guild.id === g.id,
+        hasUnread: g.channels.some(c => readStates[c.id]?.isUnread ?? false),
+        badge: totalMentions > 0 ? totalMentions : undefined,
+      };
+    });
   });
 
   protected onGuildCreated(guild: GuildDto): void {

@@ -12,7 +12,6 @@ import {
   signal,
   ViewChild,
 } from '@angular/core';
-import { toSignal } from '@angular/core/rxjs-interop';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { DatePipe } from '@angular/common';
 import { catchError, debounceTime, EMPTY, Subject, tap } from 'rxjs';
@@ -25,7 +24,6 @@ import { Button } from 'primeng/button';
 import { MessagingService } from '../../../../services/messaging.service';
 import { MessageStore } from '../../../../stores/message.store';
 import { ProfileService } from '../../../../services/profile.service';
-import { RelationshipService } from '../../../../services/relationship.service';
 import { GuildWebsocketService } from '../../../../services/guild-websocket.service';
 import { GuildReadStateService } from '../../../../services/guild-read-state.service';
 import { TypingService } from '../../../../services/typing.service';
@@ -64,13 +62,12 @@ export class ChannelComponent implements AfterViewInit {
   private messageStore       = inject(MessageStore);
   private messagingService   = inject(MessagingService);
   private profileService     = inject(ProfileService);
-  private relationshipService = inject(RelationshipService);
   private guildWs            = inject(GuildWebsocketService);
   private readStateService   = inject(GuildReadStateService);
   private typingService      = inject(TypingService);
   protected navService = inject(NavigationService);
 
-  protected friends     = toSignal(this.relationshipService.getRelationships(), { initialValue: [] });
+  protected guildId = computed(() => this.channel().guildId);
   protected replyingTo  = signal<MessageDto | null>(null);
 
   protected typingText = computed(() => {
@@ -187,7 +184,7 @@ export class ChannelComponent implements AfterViewInit {
     effect(() => {
       this.channel().id;
       this.searchQuery.set('');
-    }, { allowSignalWrites: true });
+    });
 
     afterEveryRender(() => {
       if (this.restoreScroll && this.scrollRef) {
@@ -253,6 +250,8 @@ export class ChannelComponent implements AfterViewInit {
     if (!this.scrollRef) return;
     const el = this.scrollRef.nativeElement;
     el.scrollTop = el.scrollHeight;
+    // Keep flag in sync so the ResizeObserver keeps scrolling for late-loading content.
+    this.isNearBottom = true;
   }
 
   // ── Search actions ───────────────────────────────────────────────────────
@@ -317,8 +316,8 @@ export class ChannelComponent implements AfterViewInit {
     this.guildWs.invokeStartTyping(this.channel().id);
   }
 
-  public createMessage(event: { content: string; attachments: string[]; inReplyTo?: string }): void {
-    const { content, attachments, inReplyTo } = event;
+  public createMessage(event: { content: string; attachments: string[]; inReplyTo?: string; mentions: string[] }): void {
+    const { content, attachments, inReplyTo, mentions } = event;
     const tempId = crypto.randomUUID();
     const now    = new Date();
 
@@ -336,6 +335,7 @@ export class ChannelComponent implements AfterViewInit {
       isFailed:       false,
       attachments:    [],
       inReplyTo,
+      mentions,
     };
 
     this.messageStore.addMessage(optimistic);
@@ -346,6 +346,7 @@ export class ChannelComponent implements AfterViewInit {
       conversationId: undefined,
       attachments,
       inReplyTo,
+      mentions,
     }).pipe(
       tap(confirmed => {
         this.messageStore.confirmMessage(tempId, confirmed);

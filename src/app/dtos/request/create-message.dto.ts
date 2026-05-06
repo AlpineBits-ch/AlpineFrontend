@@ -4,4 +4,5 @@
     channelId: string | undefined;
     attachments: string[];
     inReplyTo: string | undefined;
+    mentions: string[];
 }

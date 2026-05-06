@@ -67,8 +67,12 @@ export class ConversationScrollService {
     }
   }
 
-  /** Call from afterEveryRender. Handles scroll restoration and keeps the ResizeObserver current. */
-  onRender(messageListEl?: HTMLDivElement): void {
+  /** Call from afterEveryRender. Handles scroll restoration and keeps the ResizeObserver current.
+   *  Pass scrollEl to keep the container reference current after conditional re-renders. */
+  onRender(messageListEl?: HTMLDivElement, scrollEl?: HTMLDivElement): void {
+    // Keep reference current — the @else block recreates the element after error→retry.
+    if (scrollEl) this.scrollEl = scrollEl;
+
     const el = this.scrollEl;
     if (!el) return;
 
@@ -94,6 +98,8 @@ export class ConversationScrollService {
   scrollToBottom(): void {
     if (!this.scrollEl) return;
     this.scrollEl.scrollTop = this.scrollEl.scrollHeight;
+    // Mark as near-bottom so the ResizeObserver keeps scrolling for late-loading content.
+    this.isNearBottom = true;
   }
 
   /** Scroll to and briefly highlight a message by its ID. */

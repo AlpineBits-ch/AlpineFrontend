@@ -2,6 +2,7 @@ import {inject, Injectable, signal} from '@angular/core';
 import {GuildWebsocketService} from './guild-websocket.service';
 import {NavigationService} from '../features/main-page/navigation.service';
 import {GuildService} from './guild.service';
+import {ProfileService} from './profile.service';
 
 export interface ChannelReadState {
   isUnread: boolean;
@@ -13,6 +14,7 @@ export class GuildReadStateService {
   private guildWs = inject(GuildWebsocketService);
   private navService = inject(NavigationService);
   private guildService = inject(GuildService);
+  private profileService = inject(ProfileService);
 
   private loadedGuildIds = new Set<string>();
   private _channelStates = signal<Record<string, ChannelReadState>>({});
@@ -24,7 +26,9 @@ export class GuildReadStateService {
       const view = this.navService.mainView();
       const isActive = view.type === 'channel' && view.channel.id === msg.channelId;
       if (!isActive) {
-        this._markUnread(msg.channelId);
+        const ownId = this.profileService.ownProfile()?.userId;
+        const mentionIncrement = ownId && (msg.mentions ?? []).includes(ownId) ? 1 : 0;
+        this._markUnread(msg.channelId, mentionIncrement);
       }
     });
   }
@@ -57,10 +61,13 @@ export class GuildReadStateService {
     this._channelStates.update(s => ({...s, [channelId]: {isUnread: false, mentionCount: 0}}));
   }
 
-  private _markUnread(channelId: string): void {
+  private _markUnread(channelId: string, mentionIncrement: number = 0): void {
     this._channelStates.update(s => ({
       ...s,
-      [channelId]: {isUnread: true, mentionCount: s[channelId]?.mentionCount ?? 0},
+      [channelId]: {
+        isUnread: true,
+        mentionCount: (s[channelId]?.mentionCount ?? 0) + mentionIncrement,
+      },
     }));
   }
 
