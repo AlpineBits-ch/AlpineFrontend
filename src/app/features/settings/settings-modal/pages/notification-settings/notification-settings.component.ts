@@ -23,6 +23,8 @@ export class NotificationSettingsComponent {
     { key: 'incomingCall', label: 'Incoming Call',  description: 'Plays when someone calls you.' },
     { key: 'outgoingCall', label: 'Outgoing Call',  description: 'Plays while your call is connecting.' },
     { key: 'message',      label: 'Messages',       description: 'Plays when a new message arrives.' },
+    { key: 'voiceJoin',    label: 'Voice Join',     description: 'Plays when you join a voice channel.' },
+    { key: 'voiceLeave',   label: 'Voice Leave',    description: 'Plays when you leave a voice channel.' },
   ];
 
   protected preview(key: SoundKey): void {
@@ -30,6 +32,8 @@ export class NotificationSettingsComponent {
       case 'incomingCall': this.soundSettings.playIncomingRing(); break;
       case 'outgoingCall': this.soundSettings.playRingback();     break;
       case 'message':      this.soundSettings.playMessage();      break;
+      case 'voiceJoin':    this.soundSettings.playVoiceJoin();    break;
+      case 'voiceLeave':   this.soundSettings.playVoiceLeave();   break;
     }
   }
 

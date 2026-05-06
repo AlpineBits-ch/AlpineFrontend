@@ -1,6 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 
-export type SoundKey = 'incomingCall' | 'outgoingCall' | 'message';
+export type SoundKey = 'incomingCall' | 'outgoingCall' | 'message' | 'voiceJoin' | 'voiceLeave';
 
 export interface SoundConfig {
   volume: number;       // 0–1
@@ -12,6 +12,8 @@ export interface SoundSettings {
   incomingCall: SoundConfig;
   outgoingCall: SoundConfig;
   message: SoundConfig;
+  voiceJoin: SoundConfig;
+  voiceLeave: SoundConfig;
 }
 
 const STORAGE_KEY = 'alpine_sound_settings';
@@ -20,6 +22,8 @@ const DEFAULTS: SoundSettings = {
   incomingCall: { volume: 1 },
   outgoingCall: { volume: 1 },
   message: { volume: 1 },
+  voiceJoin: { volume: 1 },
+  voiceLeave: { volume: 1 },
 };
 
 @Injectable({ providedIn: 'root' })
@@ -121,6 +125,58 @@ export class SoundSettingsService {
     } catch { /* AudioContext unavailable */ }
   }
 
+  playVoiceJoin(): void {
+    const s = this.settings().voiceJoin;
+    if (s.volume === 0) return;
+    if (s.customUrl) { this.playFile(s.customUrl, s.volume); return; }
+    try {
+      const vol = 0.15 * s.volume;
+      const ctx = new AudioContext();
+      const note = (freq: number, t: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(vol, t + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+        osc.start(t);
+        osc.stop(t + 0.3);
+      };
+      note(880, ctx.currentTime);
+      note(1108, ctx.currentTime + 0.13);
+      setTimeout(() => ctx.close(), 600);
+    } catch { /* AudioContext unavailable */ }
+  }
+
+  playVoiceLeave(): void {
+    const s = this.settings().voiceLeave;
+    if (s.volume === 0) return;
+    if (s.customUrl) { this.playFile(s.customUrl, s.volume); return; }
+    try {
+      const vol = 0.15 * s.volume;
+      const ctx = new AudioContext();
+      const note = (freq: number, t: number) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(vol, t + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+        osc.start(t);
+        osc.stop(t + 0.3);
+      };
+      note(1108, ctx.currentTime);
+      note(880, ctx.currentTime + 0.13);
+      setTimeout(() => ctx.close(), 600);
+    } catch { /* AudioContext unavailable */ }
+  }
+
   private playFile(url: string, volume: number): void {
     const audio = new Audio(url);
     audio.volume = Math.max(0, Math.min(1, volume));
@@ -136,6 +192,8 @@ export class SoundSettingsService {
         incomingCall: { ...DEFAULTS.incomingCall, ...parsed.incomingCall },
         outgoingCall: { ...DEFAULTS.outgoingCall, ...parsed.outgoingCall },
         message: { ...DEFAULTS.message, ...parsed.message },
+        voiceJoin: { ...DEFAULTS.voiceJoin, ...parsed.voiceJoin },
+        voiceLeave: { ...DEFAULTS.voiceLeave, ...parsed.voiceLeave },
       };
     } catch {
       return structuredClone(DEFAULTS);

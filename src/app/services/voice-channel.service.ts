@@ -17,6 +17,8 @@ import {
   WsVoiceScreenShareStarted,
 } from './guild-websocket.service';
 import { environment } from '../../environments/environment';
+import { AudioSettingsService } from './audio-settings.service';
+import { SoundSettingsService } from './sound-settings.service';
 
 export interface VoiceChannelParticipant {
   userId: string;
@@ -43,6 +45,8 @@ export class VoiceChannelService {
   private profileService  = inject(ProfileService);
   private guildVoiceSvc   = inject(GuildVoiceService);
   private guildWsSvc      = inject(GuildWebsocketService);
+  private audioSettings   = inject(AudioSettingsService);
+  private soundSettings   = inject(SoundSettingsService);
 
   // ── Public state ──────────────────────────────────────────────────────────
 
@@ -192,6 +196,7 @@ export class VoiceChannelService {
         }
 
         this.channelParticipantsSignal.update(map => { const n = new Map(map); n.set(channel.id, list); return n; });
+        this.soundSettings.playVoiceJoin();
         await this.initWebRTC(channel.guildId, channel.id);
       } catch (err) {
         console.error('VoiceChannelService: join failed', err);
@@ -214,6 +219,7 @@ export class VoiceChannelService {
   }
 
   private async doLeave(guildId: string, channelId: string, silent: boolean): Promise<void> {
+    this.soundSettings.playVoiceLeave();
     if (this.cfSessionId) {
       const trackNames: string[] = [];
       if (this.localAudioTrack)  trackNames.push('audio');
@@ -259,7 +265,7 @@ export class VoiceChannelService {
 
       let localStream: MediaStream;
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: this.audioSettings.buildAudioConstraint(), video: false });
       } catch {
         this.setupDone = true;
         return;
@@ -384,6 +390,10 @@ export class VoiceChannelService {
       audio.volume = meta.kind === 'audio'
         ? (this.localState().isDeafened ? 0 : 1)
         : (this.screenAudioMutedSignal().has(meta.userId) ? 0 : 1);
+      const speakerId = this.audioSettings.settings().speakerId;
+      if (speakerId && speakerId !== 'default' && typeof (audio as any).setSinkId === 'function') {
+        (audio as any).setSinkId(speakerId).catch(() => void 0);
+      }
       void audio.play().catch(() => {});
       if (meta.kind === 'audio') this.setupRemoteVAD(meta.userId, stream);
     } else if (meta.kind === 'video') {
@@ -598,6 +608,8 @@ export class VoiceChannelService {
     const ownId = this.profileService.ownProfile()?.userId ?? '';
     if (e.userId === ownId) return;
 
+    if (e.channelId === this.joinedChannelId()) this.soundSettings.playVoiceJoin();
+
     const profile = this.profileService.getCachedByUserId(e.userId);
     const participant: VoiceChannelParticipant = {
       userId:          e.userId,
@@ -620,6 +632,8 @@ export class VoiceChannelService {
   }
 
   private onUserLeftVoice(e: WsUserLeftVoice): void {
+    if (e.channelId === this.joinedChannelId()) this.soundSettings.playVoiceLeave();
+
     this.channelParticipantsSignal.update(map => {
       const n = new Map(map);
       const list = n.get(e.channelId) ?? [];
