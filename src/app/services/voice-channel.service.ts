@@ -240,7 +240,7 @@ export class VoiceChannelService {
 
   private async initWebRTC(guildId: string, channelId: string, existing: VoiceParticipantDto[]): Promise<void> {
     this.setupDone = false;
-    this.pc = new RTCPeerConnection({ iceServers: environment.iceServers });
+    this.pc = new RTCPeerConnection({ iceServers: environment.iceServers, bundlePolicy: 'max-bundle' });
     this.pc.ontrack = e => this.handleRemoteTrack(e);
 
     let localStream: MediaStream;
