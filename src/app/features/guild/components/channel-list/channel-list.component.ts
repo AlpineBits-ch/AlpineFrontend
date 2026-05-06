@@ -79,7 +79,7 @@ export class ChannelListComponent {
 
   constructor() {
     effect(() => {
-      this.voiceChannelSvc.seedMockParticipants(this.guild().channels);
+      this.voiceChannelSvc.loadVoiceStatesForGuild(this.guild().channels, this.guild().id);
     });
 
     effect(() => {

@@ -14,6 +14,20 @@ export interface ChannelTypingEvent {
   userId: string;
 }
 
+// ── Guild voice events (server → client) ─────────────────────────────────────
+
+export interface WsUserJoinedVoice        { userId: string; channelId: string; guildId: string; }
+export interface WsUserLeftVoice          { userId: string; channelId: string; guildId: string; }
+export interface WsGuildParticipantJoined { userId: string; cfSessionId: string; audioTrackName: string; channelId: string; }
+export interface WsGuildTrackPublished    { userId: string; cfSessionId: string; trackName: string; kind: 'video' | 'screen' | 'screenAudio'; shareId?: string; channelId: string; }
+export interface WsGuildTrackClosed      { userId: string; trackName: string; channelId: string; }
+export interface WsVoiceMuteChanged      { userId: string; isMuted: boolean; channelId: string; serverForced: boolean; }
+export interface WsVoiceDeafenChanged    { userId: string; isDeafened: boolean; channelId: string; serverForced: boolean; }
+export interface WsVoiceCameraChanged    { userId: string; isCameraOn: boolean; channelId: string; }
+export interface WsVoiceScreenShareStarted { userId: string; shareId: string; trackName: string; channelId: string; }
+export interface WsVoiceScreenShareStopped { shareId: string; channelId: string; }
+export interface WsMovedToChannel        { channelId: string; guildId: string; movedBy: string; }
+
 @Injectable({
   providedIn: 'root',
 })
@@ -26,6 +40,19 @@ export class GuildWebsocketService {
   public messageObservable = new Subject<MessageDto>();
   public channelReorderedObservable = new Subject<ReorderChannesDto>();
   public userTypingObservable = new Subject<ChannelTypingEvent>();
+
+  // ── Voice observables ───────────────────────────────────────────────────────
+  public userJoinedVoiceObservable         = new Subject<WsUserJoinedVoice>();
+  public userLeftVoiceObservable           = new Subject<WsUserLeftVoice>();
+  public guildParticipantJoinedObservable  = new Subject<WsGuildParticipantJoined>();
+  public guildTrackPublishedObservable     = new Subject<WsGuildTrackPublished>();
+  public guildTrackClosedObservable        = new Subject<WsGuildTrackClosed>();
+  public voiceMuteChangedObservable        = new Subject<WsVoiceMuteChanged>();
+  public voiceDeafenChangedObservable      = new Subject<WsVoiceDeafenChanged>();
+  public voiceCameraChangedObservable      = new Subject<WsVoiceCameraChanged>();
+  public voiceScreenShareStartedObservable = new Subject<WsVoiceScreenShareStarted>();
+  public voiceScreenShareStoppedObservable = new Subject<WsVoiceScreenShareStopped>();
+  public movedToChannelObservable          = new Subject<WsMovedToChannel>();
 
   constructor() {
     this.hubConnection = new signalR.HubConnectionBuilder()
@@ -77,6 +104,19 @@ export class GuildWebsocketService {
       this.userTypingObservable.next(data);
     });
 
+    // ── Guild voice presence ────────────────────────────────────────────────
+    this.hubConnection.on('UserJoinedVoice',    (d: WsUserJoinedVoice)          => this.userJoinedVoiceObservable.next(d));
+    this.hubConnection.on('UserLeftVoice',      (d: WsUserLeftVoice)            => this.userLeftVoiceObservable.next(d));
+    this.hubConnection.on('ParticipantJoined',  (d: WsGuildParticipantJoined)   => this.guildParticipantJoinedObservable.next(d));
+    this.hubConnection.on('TrackPublished',     (d: WsGuildTrackPublished)      => this.guildTrackPublishedObservable.next(d));
+    this.hubConnection.on('TrackClosed',        (d: WsGuildTrackClosed)         => this.guildTrackClosedObservable.next(d));
+    this.hubConnection.on('MuteChanged',        (d: WsVoiceMuteChanged)         => this.voiceMuteChangedObservable.next(d));
+    this.hubConnection.on('DeafenChanged',      (d: WsVoiceDeafenChanged)       => this.voiceDeafenChangedObservable.next(d));
+    this.hubConnection.on('CameraChanged',      (d: WsVoiceCameraChanged)       => this.voiceCameraChangedObservable.next(d));
+    this.hubConnection.on('ScreenShareStarted', (d: WsVoiceScreenShareStarted)  => this.voiceScreenShareStartedObservable.next(d));
+    this.hubConnection.on('ScreenShareStopped', (d: WsVoiceScreenShareStopped)  => this.voiceScreenShareStoppedObservable.next(d));
+    this.hubConnection.on('MovedToChannel',     (d: WsMovedToChannel)           => this.movedToChannelObservable.next(d));
+
     this.hubConnection.on('MessageCreated', (data: {
       messageId: string;
       content: string;
@@ -101,5 +141,32 @@ export class GuildWebsocketService {
         inReplyTo: data.inReplyTo,
       });
     });
+  }
+
+  // ── Voice invoke methods (client → server) ───────────────────────────────────
+
+  invokeVoiceMuteChanged(channelId: string, isMuted: boolean): void {
+    if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
+    this.hubConnection.invoke('VoiceMuteChanged', { channelId, isMuted }).catch(() => void 0);
+  }
+
+  invokeVoiceDeafenChanged(channelId: string, isDeafened: boolean): void {
+    if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
+    this.hubConnection.invoke('VoiceDeafenChanged', { channelId, isDeafened }).catch(() => void 0);
+  }
+
+  invokeVoiceCameraChanged(channelId: string, isCameraOn: boolean): void {
+    if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
+    this.hubConnection.invoke('VoiceCameraChanged', { channelId, isCameraOn }).catch(() => void 0);
+  }
+
+  invokeVoiceScreenShareStarted(channelId: string, shareId: string, trackName: string): void {
+    if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
+    this.hubConnection.invoke('VoiceScreenShareStarted', { channelId, shareId, trackName }).catch(() => void 0);
+  }
+
+  invokeVoiceScreenShareStopped(channelId: string, shareId: string): void {
+    if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
+    this.hubConnection.invoke('VoiceScreenShareStopped', { channelId, shareId }).catch(() => void 0);
   }
 }

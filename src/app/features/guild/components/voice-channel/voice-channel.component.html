@@ -83,29 +83,41 @@
                [ngClass]="screenSharers().length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
             @for (sharer of screenSharers(); track sharer.userId) {
               <div class="relative bg-black/80 rounded-xl overflow-hidden border border-white/[0.12] flex items-center justify-center min-h-0">
-                <!-- Placeholder for the actual video stream -->
-                <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
-                  <i class="pi pi-desktop text-5xl"></i>
-                  <span>{{ sharer.displayName }}'s screen</span>
-                  <!-- TODO(backend): render sharer's MediaStream in a <video> element here -->
-                </div>
+
+                @if (sharer.isLocal && voiceSvc.localState().isScreenSharing) {
+                  <!-- Local screen share preview -->
+                  <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
+                    <i class="pi pi-desktop text-5xl"></i>
+                    <span>Your screen</span>
+                  </div>
+                } @else if (screenStreamFor(sharer.userId); as stream) {
+                  <video [streamSrc]="stream" autoplay playsinline muted
+                         class="absolute inset-0 w-full h-full object-contain"></video>
+                } @else {
+                  <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
+                    <i class="pi pi-desktop text-5xl"></i>
+                    <span>{{ sharer.displayName }}'s screen</span>
+                  </div>
+                }
 
                 <!-- LIVE badge -->
-                <div class="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded tracking-wider">
+                <div class="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded tracking-wider z-10">
                   LIVE
                 </div>
 
-                <!-- Watch button for remote streams -->
+                <!-- Screen audio mute button (remote only) -->
                 @if (!sharer.isLocal) {
                   <button
-                    (click)="joinScreenShare(sharer)"
-                    class="absolute bottom-3 right-3 bg-white/10 hover:bg-white/20 text-white text-sm px-4 py-1.5 rounded-lg transition-colors border border-white/10 cursor-pointer">
-                    Watch
+                    (click)="toggleScreenAudioMute(sharer.userId)"
+                    class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0 z-10"
+                    [title]="isScreenAudioMuted(sharer.userId) ? 'Unmute screen audio' : 'Mute screen audio'">
+                    <i class="pi text-sm"
+                       [ngClass]="isScreenAudioMuted(sharer.userId) ? 'pi-volume-off text-rose-400' : 'pi-volume-up text-white/70'"></i>
                   </button>
                 }
 
                 <!-- Sharer name pill -->
-                <div class="absolute bottom-3 left-3 flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-lg px-2.5 py-1.5">
+                <div class="absolute bottom-3 left-3 flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-lg px-2.5 py-1.5 z-10">
                   <div class="w-5 h-5 rounded-full bg-sidebar flex items-center justify-center text-[9px] font-semibold text-white/70 shrink-0">
                     {{ sharer.avatarLabel }}
                   </div>
@@ -131,6 +143,15 @@
                   }
                 </div>
                 <span class="text-xs text-white/75 truncate max-w-[68px] text-center">{{ p.displayName }}</span>
+                @if (!p.isLocal && p.isScreenSharing) {
+                  <button
+                    (click)="toggleScreenAudioMute(p.userId)"
+                    class="w-5 h-5 flex items-center justify-center rounded border-0 bg-transparent cursor-pointer transition-colors"
+                    [title]="isScreenAudioMuted(p.userId) ? 'Unmute screen audio' : 'Mute screen audio'">
+                    <i class="pi text-[9px]"
+                       [ngClass]="isScreenAudioMuted(p.userId) ? 'pi-volume-off text-rose-400' : 'pi-volume-up text-white/40 hover:text-white/70'"></i>
+                  </button>
+                }
               </div>
             }
           </div>
@@ -163,12 +184,19 @@
                   </div>
                 }
 
-                <!-- Camera placeholder or avatar -->
+                <!-- Camera or avatar -->
                 @if (p.isCameraOn) {
-                  <div class="w-20 h-20 rounded-full bg-gradient-to-br from-brand/20 to-brand-dark/20 border-2 border-brand/30 flex items-center justify-center">
-                    <i class="pi pi-camera text-2xl text-brand/60"></i>
-                    <!-- TODO(backend): render p.videoStream in a <video> element -->
-                  </div>
+                  @if (p.isLocal) {
+                    <video [streamSrc]="voiceSvc.localVideoStream()" autoplay playsinline muted
+                           class="w-20 h-20 rounded-full object-cover border-2 border-brand/30"></video>
+                  } @else if (videoStreamFor(p.userId); as stream) {
+                    <video [streamSrc]="stream" autoplay playsinline
+                           class="w-20 h-20 rounded-full object-cover border-2 border-brand/30"></video>
+                  } @else {
+                    <div class="w-20 h-20 rounded-full bg-gradient-to-br from-brand/20 to-brand-dark/20 border-2 border-brand/30 flex items-center justify-center">
+                      <i class="pi pi-camera text-2xl text-brand/60"></i>
+                    </div>
+                  }
                 } @else {
                   <app-avatar [userId]="p.userId" [label]="p.avatarLabel" size="xlarge" />
                 }
@@ -238,7 +266,7 @@
 
         <div class="w-px h-7 bg-white/[0.12] mx-1"></div>
 
-        <!-- Disconnect — pi-phone rotated 135deg = hang-up orientation -->
+        <!-- Disconnect -->
         <button
           (click)="leaveChannel()"
           class="w-12 h-12 rounded-xl flex items-center justify-center bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 hover:text-rose-300 transition-all cursor-pointer border-0"

@@ -1,20 +1,21 @@
 import { Component, computed, inject, input } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { ChannelDto } from '../../../../dtos/response/guild.dto';
-import { VoiceChannelParticipant, VoiceChannelService } from '../../../../services/voice-channel.service';
+import { VoiceChannelService } from '../../../../services/voice-channel.service';
 import { NavigationService } from '../../../main-page/navigation.service';
 import { AppAvatarComponent } from '../../../../components/avatar/avatar.component';
+import { StreamSrcDirective } from '../../../../directives/stream-src.directive';
 
 @Component({
   selector: 'app-voice-channel',
-  imports: [NgClass, AppAvatarComponent],
+  imports: [NgClass, AppAvatarComponent, StreamSrcDirective],
   templateUrl: './voice-channel.component.html',
 })
 export class VoiceChannelComponent {
   channel = input.required<ChannelDto>();
 
-  protected voiceSvc     = inject(VoiceChannelService);
-  protected navService   = inject(NavigationService);
+  protected voiceSvc   = inject(VoiceChannelService);
+  protected navService = inject(NavigationService);
 
   protected participants = computed(() =>
     this.voiceSvc.channelParticipants().get(this.channel().id) ?? [],
@@ -39,26 +40,21 @@ export class VoiceChannelComponent {
   protected joinChannel(): void {
     const view = this.navService.workspace();
     const guildName = view.type === 'server' ? view.guild.name : '';
-    this.voiceSvc.joinChannel(this.channel(), guildName);
-    // TODO(backend): initiate WebRTC connection after joinChannel confirms via WebSocket
+    void this.voiceSvc.joinChannel(this.channel(), guildName);
   }
 
   protected leaveChannel(): void {
-    this.voiceSvc.leaveChannel();
-    // TODO(backend): teardown WebRTC tracks before leaving
+    void this.voiceSvc.leaveChannel();
   }
 
-  protected toggleMute():         void  { this.voiceSvc.toggleMute(); }
-  protected toggleDeafen():       void  { this.voiceSvc.toggleDeafen(); }
-  protected toggleCamera():       void  { void this.voiceSvc.toggleCamera(); }
-  protected toggleScreenShare():  void  { void this.voiceSvc.toggleScreenShare(); }
+  protected toggleMute():        void { this.voiceSvc.toggleMute(); }
+  protected toggleDeafen():      void { this.voiceSvc.toggleDeafen(); }
+  protected toggleCamera():      void { void this.voiceSvc.toggleCamera(); }
+  protected toggleScreenShare(): void { void this.voiceSvc.toggleScreenShare(); }
 
-  protected joinScreenShare(sharer: VoiceChannelParticipant): void {
-    // TODO(backend): subscribe to sharer's remote MediaStream via WebRTC
-    console.log('Join screen share of', sharer.displayName);
-  }
+  protected videoStreamFor(userId: string):  MediaStream | null { return this.voiceSvc.getVideoStream(userId); }
+  protected screenStreamFor(userId: string): MediaStream | null { return this.voiceSvc.getScreenStream(userId); }
 
-  protected localParticipantLabel(): string {
-    return this.participants().find(p => p.userId === this.voiceSvc.channelParticipants().get(this.channel().id)?.[0]?.userId)?.displayName ?? 'You';
-  }
+  protected isScreenAudioMuted(userId: string): boolean { return this.voiceSvc.isScreenAudioMuted(userId); }
+  protected toggleScreenAudioMute(userId: string): void  { this.voiceSvc.toggleScreenAudioMute(userId); }
 }

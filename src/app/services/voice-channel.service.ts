@@ -1,6 +1,22 @@
-import { computed, effect, inject, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
+import { firstValueFrom } from 'rxjs';
 import { ChannelDto, ChannelType } from '../dtos/response/guild.dto';
 import { ProfileService } from './profile.service';
+import { GuildVoiceService, VoiceParticipantDto } from './guild-voice.service';
+import {
+  GuildWebsocketService,
+  WsGuildParticipantJoined,
+  WsGuildTrackClosed,
+  WsGuildTrackPublished,
+  WsMovedToChannel,
+  WsUserJoinedVoice,
+  WsUserLeftVoice,
+  WsVoiceCameraChanged,
+  WsVoiceDeafenChanged,
+  WsVoiceMuteChanged,
+  WsVoiceScreenShareStarted,
+} from './guild-websocket.service';
+import { environment } from '../../environments/environment';
 
 export interface VoiceChannelParticipant {
   userId: string;
@@ -12,6 +28,7 @@ export interface VoiceChannelParticipant {
   isCameraOn: boolean;
   isScreenSharing: boolean;
   isLocal: boolean;
+  cfSessionId?: string | null;
 }
 
 export interface VoiceLocalState {
@@ -21,176 +38,705 @@ export interface VoiceLocalState {
   isScreenSharing: boolean;
 }
 
-const MOCK_SEEDS: VoiceChannelParticipant[] = [
-  { userId: 'mock-alice', displayName: 'Alice',  avatarLabel: 'A', isMuted: false, isSpeaking: true,  isCameraOn: false, isScreenSharing: false, isLocal: false },
-  { userId: 'mock-bob',   displayName: 'Bob',    avatarLabel: 'B', isMuted: true,  isSpeaking: false, isCameraOn: false, isScreenSharing: false, isLocal: false },
-  { userId: 'mock-carol', displayName: 'Carol',  avatarLabel: 'C', isMuted: false, isSpeaking: false, isCameraOn: true,  isScreenSharing: true,  isLocal: false },
-  { userId: 'mock-dave',  displayName: 'Dave',   avatarLabel: 'D', isMuted: true,  isSpeaking: false, isCameraOn: false, isScreenSharing: false, isLocal: false },
-];
-
 @Injectable({ providedIn: 'root' })
 export class VoiceChannelService {
-  private profileService = inject(ProfileService);
+  private profileService  = inject(ProfileService);
+  private guildVoiceSvc   = inject(GuildVoiceService);
+  private guildWsSvc      = inject(GuildWebsocketService);
+
+  // ── Public state ──────────────────────────────────────────────────────────
 
   private channelParticipantsSignal = signal<Map<string, VoiceChannelParticipant[]>>(new Map());
   readonly channelParticipants = this.channelParticipantsSignal.asReadonly();
 
   readonly joinedChannelId   = signal<string | null>(null);
+  readonly joinedGuildId     = signal<string | null>(null);
   readonly joinedChannelName = signal<string | null>(null);
   readonly joinedGuildName   = signal<string | null>(null);
+  readonly localState        = signal<VoiceLocalState>({ isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false });
+  readonly isInVoice         = computed(() => this.joinedChannelId() !== null);
 
-  readonly localState = signal<VoiceLocalState>({
-    isMuted: false,
-    isDeafened: false,
-    isCameraOn: false,
-    isScreenSharing: false,
-  });
+  // Exposed streams for <video> bindings in the component
+  readonly localVideoStream  = signal<MediaStream | null>(null);
+  private videoStreamsSignal  = signal<Map<string, MediaStream>>(new Map());
+  private screenStreamsSignal = signal<Map<string, MediaStream>>(new Map());
+  readonly videoStreams       = this.videoStreamsSignal.asReadonly();
+  readonly screenStreams      = this.screenStreamsSignal.asReadonly();
 
-  readonly isInVoice = computed(() => this.joinedChannelId() !== null);
+  getVideoStream(userId: string):  MediaStream | null { return this.videoStreamsSignal().get(userId)  ?? null; }
+  getScreenStream(userId: string): MediaStream | null { return this.screenStreamsSignal().get(userId) ?? null; }
 
-  // ── Mock data seeding ────────────────────────────────────────────────────
+  // ── WebRTC internals ──────────────────────────────────────────────────────
 
-  /**
-   * Seeds mock participants into voice channels for visual demo.
-   * Safe to call multiple times — skips already-seeded channels.
-   */
-  seedMockParticipants(channels: ChannelDto[]): void {
-    const voiceChannels = channels.filter(c => c.type === ChannelType.Voice);
-    this.channelParticipantsSignal.update(map => {
-      const next = new Map(map);
-      voiceChannels.forEach((channel, index) => {
-        if (next.has(channel.id)) return;
-        const count = index % 3; // 0, 1, or 2 per channel — deterministic
-        if (count > 0) {
-          next.set(channel.id, MOCK_SEEDS.slice(0, count));
-        }
-      });
-      return next;
+  private pc: RTCPeerConnection | null = null;
+  private cfSessionId: string | null = null;
+  private setupDone = false;
+
+  private localAudioTrack:      MediaStreamTrack | null = null;
+  private localVideoTrack:      MediaStreamTrack | null = null;
+  private localScreenTrack:     MediaStreamTrack | null = null;
+  private localScreenAudioTrack: MediaStreamTrack | null = null;
+  private screenShareId: string | null = null;
+
+  // Maps a remote transceiver MID → { userId, kind }
+  private midMeta = new Map<string, { userId: string; kind: 'audio' | 'video' | 'screen' | 'screenAudio' }>();
+
+  // Audio playback elements keyed by userId
+  private remoteAudioEls       = new Map<string, HTMLAudioElement>();
+  private remoteScreenAudioEls = new Map<string, HTMLAudioElement>();
+
+  // Per-participant local screen-audio mute
+  private screenAudioMutedSignal = signal<Set<string>>(new Set());
+  readonly screenAudioMuted = this.screenAudioMutedSignal.asReadonly();
+
+  isScreenAudioMuted(userId: string): boolean { return this.screenAudioMutedSignal().has(userId); }
+
+  toggleScreenAudioMute(userId: string): void {
+    const willMute = !this.screenAudioMutedSignal().has(userId);
+    const audio = this.remoteScreenAudioEls.get(userId);
+    if (audio) audio.volume = willMute ? 0 : 1;
+    this.screenAudioMutedSignal.update(s => {
+      const n = new Set(s);
+      willMute ? n.add(userId) : n.delete(userId);
+      return n;
     });
   }
 
-  // ── Join / leave ─────────────────────────────────────────────────────────
+  // VAD interval handles keyed by userId (or 'local')
+  private vadHandles = new Map<string, ReturnType<typeof setInterval>>();
 
-  joinChannel(channel: ChannelDto, guildName: string): void {
-    const prevId = this.joinedChannelId();
+  private lastLoadedGuildId: string | null = null;
 
-    if (prevId === channel.id) return; // already here
+  constructor() {
+    this.guildWsSvc.userJoinedVoiceObservable.subscribe(e        => this.onUserJoinedVoice(e));
+    this.guildWsSvc.userLeftVoiceObservable.subscribe(e          => this.onUserLeftVoice(e));
+    this.guildWsSvc.guildParticipantJoinedObservable.subscribe(e => this.onParticipantJoined(e));
+    this.guildWsSvc.guildTrackPublishedObservable.subscribe(e    => this.onTrackPublished(e));
+    this.guildWsSvc.guildTrackClosedObservable.subscribe(e       => this.onTrackClosed(e));
+    this.guildWsSvc.voiceMuteChangedObservable.subscribe(e       => this.onMuteChanged(e));
+    this.guildWsSvc.voiceDeafenChangedObservable.subscribe(e     => this.onDeafenChanged(e));
+    this.guildWsSvc.voiceCameraChangedObservable.subscribe(e     => this.onCameraChanged(e));
+    this.guildWsSvc.voiceScreenShareStartedObservable.subscribe(e => this.onScreenShareStarted(e));
+    this.guildWsSvc.voiceScreenShareStoppedObservable.subscribe(() => { /* TrackClosed handles cleanup */ });
+    this.guildWsSvc.movedToChannelObservable.subscribe(e         => void this.onMovedToChannel(e));
+  }
 
-    if (prevId) this.removeLocalFromChannel(prevId);
+  // ── Voice state loading for sidebar display ───────────────────────────────
 
-    const profile = this.profileService.ownProfile();
-    const localParticipant: VoiceChannelParticipant = {
-      userId:          profile?.userId ?? 'local-user',
-      displayName:     profile?.userName ?? 'You',
-      avatarLabel:     (profile?.userName?.[0] ?? 'Y').toUpperCase(),
-      avatarUrl:       profile?.avatarUrl,
-      isMuted:         this.localState().isMuted,
-      isSpeaking:      false,
-      isCameraOn:      this.localState().isCameraOn,
-      isScreenSharing: false,
-      isLocal:         true,
-    };
+  loadVoiceStatesForGuild(channels: ChannelDto[], guildId: string): void {
+    if (this.lastLoadedGuildId === guildId) return;
+    this.lastLoadedGuildId = guildId;
 
-    this.channelParticipantsSignal.update(map => {
-      const next    = new Map(map);
-      const existing = next.get(channel.id) ?? [];
-      next.set(channel.id, [localParticipant, ...existing]);
-      return next;
-    });
+    channels
+      .filter(c => c.type === ChannelType.Voice)
+      .forEach(channel => {
+        if (this.joinedChannelId() === channel.id) return;
+        this.guildVoiceSvc.getState(guildId, channel.id).subscribe({
+          next: state => {
+            const ownId = this.profileService.ownProfile()?.userId ?? '';
+            const participants = state.participants.map(p => this.dtoToParticipant(p, ownId));
+            this.channelParticipantsSignal.update(map => {
+              const next = new Map(map);
+              next.set(channel.id, participants);
+              return next;
+            });
+          },
+          error: () => {},
+        });
+      });
+  }
+
+  // ── Join / leave ──────────────────────────────────────────────────────────
+
+  async joinChannel(channel: ChannelDto, guildName: string): Promise<void> {
+    const prevId    = this.joinedChannelId();
+    const prevGuild = this.joinedGuildId();
+
+    if (prevId === channel.id) return;
+
+    if (prevId && prevGuild) {
+      await this.doLeave(prevGuild, prevId, true);
+    }
 
     this.joinedChannelId.set(channel.id);
+    this.joinedGuildId.set(channel.guildId);
     this.joinedChannelName.set(channel.name);
     this.joinedGuildName.set(guildName);
     this.localState.set({ isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false });
 
-    // TODO(backend): send JoinVoiceChannel RPC to SignalR hub with channel.id
+    try {
+      const state   = await firstValueFrom(this.guildVoiceSvc.join(channel.guildId, channel.id));
+      const ownId   = this.profileService.ownProfile()?.userId ?? '';
+      const list    = state.participants.map(p => this.dtoToParticipant(p, ownId));
+
+      if (!list.find(p => p.isLocal)) {
+        const profile = this.profileService.ownProfile();
+        list.unshift({
+          userId:          ownId,
+          displayName:     profile?.userName ?? 'You',
+          avatarLabel:     (profile?.userName?.[0] ?? 'Y').toUpperCase(),
+          avatarUrl:       profile?.avatarUrl,
+          isMuted:         false,
+          isSpeaking:      false,
+          isCameraOn:      false,
+          isScreenSharing: false,
+          isLocal:         true,
+        });
+      }
+
+      this.channelParticipantsSignal.update(map => { const n = new Map(map); n.set(channel.id, list); return n; });
+      await this.initWebRTC(channel.guildId, channel.id, state.participants);
+    } catch (err) {
+      console.error('VoiceChannelService: join failed', err);
+    }
   }
 
-  leaveChannel(): void {
+  async leaveChannel(): Promise<void> {
     const channelId = this.joinedChannelId();
-    if (!channelId) return;
-    this.removeLocalFromChannel(channelId);
+    const guildId   = this.joinedGuildId();
+    if (!channelId || !guildId) return;
+    await this.doLeave(guildId, channelId, false);
     this.joinedChannelId.set(null);
+    this.joinedGuildId.set(null);
     this.joinedChannelName.set(null);
     this.joinedGuildName.set(null);
     this.localState.set({ isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false });
-
-    // TODO(backend): send LeaveVoiceChannel RPC to SignalR hub
   }
 
-  private removeLocalFromChannel(channelId: string): void {
-    const ownId = this.profileService.ownProfile()?.userId ?? 'local-user';
-    this.channelParticipantsSignal.update(map => {
-      const next     = new Map(map);
-      const existing = next.get(channelId) ?? [];
-      next.set(channelId, existing.filter(p => p.userId !== ownId));
-      return next;
+  private async doLeave(guildId: string, channelId: string, silent: boolean): Promise<void> {
+    if (this.cfSessionId) {
+      const trackNames: string[] = [];
+      if (this.localAudioTrack)  trackNames.push('audio');
+      if (this.localVideoTrack)  trackNames.push('video');
+      if (this.localScreenTrack && this.screenShareId) {
+        trackNames.push(`screen-${this.screenShareId}`);
+        if (this.localScreenAudioTrack) trackNames.push(`screen-audio-${this.screenShareId}`);
+      }
+      if (trackNames.length > 0) {
+        await firstValueFrom(this.guildVoiceSvc.closeTracks(guildId, channelId, this.cfSessionId, trackNames)).catch(() => {});
+      }
+    }
+    this.teardownWebRTC();
+    if (!silent) {
+      await firstValueFrom(this.guildVoiceSvc.leave(guildId, channelId)).catch(() => {});
+    }
+    this.channelParticipantsSignal.update(map => { const n = new Map(map); n.delete(channelId); return n; });
+    this.videoStreamsSignal.set(new Map());
+    this.screenStreamsSignal.set(new Map());
+    this.localVideoStream.set(null);
+    this.screenAudioMutedSignal.set(new Set());
+  }
+
+  // ── WebRTC setup ──────────────────────────────────────────────────────────
+
+  private async initWebRTC(guildId: string, channelId: string, existing: VoiceParticipantDto[]): Promise<void> {
+    this.setupDone = false;
+    this.pc = new RTCPeerConnection({ iceServers: environment.iceServers });
+    this.pc.ontrack = e => this.handleRemoteTrack(e);
+    this.pc.onnegotiationneeded = () => {
+      if (this.setupDone) void this.renegotiate(guildId, channelId);
+    };
+
+    let localStream: MediaStream;
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    } catch {
+      this.setupDone = true;
+      return;
+    }
+
+    this.localAudioTrack = localStream.getAudioTracks()[0];
+    this.localAudioTrack.enabled = !this.localState().isMuted;
+    this.setupLocalVAD(localStream);
+
+    const sender = this.pc.addTrack(this.localAudioTrack, localStream);
+
+    const { cfSessionId } = await firstValueFrom(this.guildVoiceSvc.createSession(guildId, channelId));
+    this.cfSessionId = cfSessionId;
+
+    const offer = await this.pc.createOffer();
+    await this.pc.setLocalDescription(offer);
+
+    const audioMid = this.pc.getTransceivers().find(t => t.sender === sender)?.mid ?? '0';
+
+    const publishResp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
+      cfSessionId,
+      sessionDescription: this.pc.localDescription!,
+      tracks: [{ location: 'local', mid: audioMid, trackName: 'audio' }],
+    }));
+
+    await this.pc.setRemoteDescription(publishResp.sessionDescription);
+    if (publishResp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
+
+    this.setupDone = true;
+
+    const ownId = this.profileService.ownProfile()?.userId ?? '';
+    const toSub = existing.filter(p => p.userId !== ownId && p.cfSessionId && p.audioTrackName);
+    if (toSub.length > 0) {
+      await this.subscribeAudio(guildId, channelId, toSub.map(p => ({
+        userId: p.userId,
+        cfSessionId: p.cfSessionId!,
+        trackName: p.audioTrackName!,
+      })));
+    }
+  }
+
+  private async subscribeAudio(
+    guildId: string,
+    channelId: string,
+    targets: { userId: string; cfSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' }[],
+  ): Promise<void> {
+    if (!this.pc || !this.cfSessionId) return;
+
+    const entries = targets.map(t => ({
+      ...t,
+      kind: t.kind ?? ('audio' as const),
+      transceiver: this.pc!.addTransceiver('audio', { direction: 'recvonly' }),
+    }));
+
+    const offer = await this.pc.createOffer();
+    await this.pc.setLocalDescription(offer);
+
+    const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
+      cfSessionId: this.cfSessionId,
+      sessionDescription: this.pc.localDescription!,
+      tracks: entries.map(e => ({
+        location: 'remote' as const,
+        mid: e.transceiver.mid ?? undefined,
+        trackName: e.trackName,
+        sessionId: e.cfSessionId,
+      })),
+    }));
+
+    resp.tracks.forEach((t, i) => {
+      if (t.mid && entries[i]) {
+        this.midMeta.set(t.mid, { userId: entries[i].userId, kind: entries[i].kind });
+      }
     });
+
+    await this.pc.setRemoteDescription(resp.sessionDescription);
+    if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
   }
 
-  // ── Local controls ───────────────────────────────────────────────────────
+  private async subscribeVideo(
+    guildId: string,
+    channelId: string,
+    userId: string,
+    cfSessionId: string,
+    trackName: string,
+    kind: 'video' | 'screen',
+  ): Promise<void> {
+    if (!this.pc || !this.cfSessionId) return;
+
+    const transceiver = this.pc.addTransceiver('video', { direction: 'recvonly' });
+    const offer = await this.pc.createOffer();
+    await this.pc.setLocalDescription(offer);
+
+    const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
+      cfSessionId: this.cfSessionId,
+      sessionDescription: this.pc.localDescription!,
+      tracks: [{ location: 'remote', mid: transceiver.mid ?? undefined, trackName, sessionId: cfSessionId }],
+    }));
+
+    if (resp.tracks[0]?.mid) {
+      this.midMeta.set(resp.tracks[0].mid, { userId, kind });
+    }
+
+    await this.pc.setRemoteDescription(resp.sessionDescription);
+    if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
+  }
+
+  private handleRemoteTrack(event: RTCTrackEvent): void {
+    const mid = event.transceiver.mid;
+    if (!mid) return;
+    const meta = this.midMeta.get(mid);
+    if (!meta) return;
+
+    const stream = event.streams[0] ?? new MediaStream([event.track]);
+
+    if (meta.kind === 'audio' || meta.kind === 'screenAudio') {
+      const elMap = meta.kind === 'screenAudio' ? this.remoteScreenAudioEls : this.remoteAudioEls;
+      let audio = elMap.get(meta.userId);
+      if (!audio) {
+        audio = new Audio();
+        audio.autoplay = true;
+        elMap.set(meta.userId, audio);
+      }
+      audio.srcObject = stream;
+      audio.volume = meta.kind === 'audio'
+        ? (this.localState().isDeafened ? 0 : 1)
+        : (this.screenAudioMutedSignal().has(meta.userId) ? 0 : 1);
+      void audio.play().catch(() => {});
+      if (meta.kind === 'audio') this.setupRemoteVAD(meta.userId, stream);
+    } else if (meta.kind === 'video') {
+      this.videoStreamsSignal.update(m => { const n = new Map(m); n.set(meta.userId, stream); return n; });
+    } else {
+      this.screenStreamsSignal.update(m => { const n = new Map(m); n.set(meta.userId, stream); return n; });
+    }
+  }
+
+  private async renegotiate(guildId: string, channelId: string): Promise<void> {
+    if (!this.pc || !this.cfSessionId) return;
+    const offer = await this.pc.createOffer();
+    await this.pc.setLocalDescription(offer);
+    const resp = await firstValueFrom(this.guildVoiceSvc.renegotiate(guildId, channelId, this.cfSessionId, offer));
+    await this.pc.setRemoteDescription(resp.sessionDescription);
+  }
+
+  private teardownWebRTC(): void {
+    this.vadHandles.forEach(h => clearInterval(h));
+    this.vadHandles.clear();
+
+    this.remoteAudioEls.forEach(a => { a.pause(); a.srcObject = null; });
+    this.remoteAudioEls.clear();
+    this.remoteScreenAudioEls.forEach(a => { a.pause(); a.srcObject = null; });
+    this.remoteScreenAudioEls.clear();
+
+    this.localAudioTrack?.stop();
+    this.localVideoTrack?.stop();
+    this.localScreenTrack?.stop();
+    this.localScreenAudioTrack?.stop();
+    this.localAudioTrack = null;
+    this.localVideoTrack = null;
+    this.localScreenTrack = null;
+    this.localScreenAudioTrack = null;
+    this.screenShareId = null;
+
+    this.pc?.close();
+    this.pc = null;
+    this.cfSessionId = null;
+    this.setupDone = false;
+    this.midMeta.clear();
+  }
+
+  // ── Local controls ────────────────────────────────────────────────────────
 
   toggleMute(): void {
     this.localState.update(s => ({ ...s, isMuted: !s.isMuted }));
-    this.syncLocalParticipant();
-    // TODO(backend): send MuteChanged event via VoiceWebsocketService
+    if (this.localAudioTrack) this.localAudioTrack.enabled = !this.localState().isMuted;
+    const channelId = this.joinedChannelId();
+    if (channelId) this.guildWsSvc.invokeVoiceMuteChanged(channelId, this.localState().isMuted);
+    this.syncLocal();
   }
 
   toggleDeafen(): void {
     this.localState.update(s => {
-      const isDeafened = !s.isDeafened;
-      return { ...s, isDeafened, isMuted: isDeafened ? true : s.isMuted };
+      const d = !s.isDeafened;
+      return { ...s, isDeafened: d, isMuted: d || s.isMuted };
     });
-    this.syncLocalParticipant();
-    // TODO(backend): send DeafenChanged event via VoiceWebsocketService
+    const { isDeafened, isMuted } = this.localState();
+    if (this.localAudioTrack) this.localAudioTrack.enabled = !isMuted;
+    this.remoteAudioEls.forEach(a => { a.volume = isDeafened ? 0 : 1; });
+    const channelId = this.joinedChannelId();
+    if (channelId) {
+      this.guildWsSvc.invokeVoiceDeafenChanged(channelId, isDeafened);
+      this.guildWsSvc.invokeVoiceMuteChanged(channelId, isMuted);
+    }
+    this.syncLocal();
   }
 
   async toggleCamera(): Promise<void> {
-    const current = this.localState();
-    if (current.isCameraOn) {
+    const guildId   = this.joinedGuildId();
+    const channelId = this.joinedChannelId();
+    if (!guildId || !channelId || !this.pc || !this.cfSessionId) return;
+
+    if (this.localState().isCameraOn && this.localVideoTrack) {
+      this.localVideoTrack.stop();
+      const sender = this.pc.getSenders().find(s => s.track === this.localVideoTrack);
+      if (sender) this.pc.removeTrack(sender);
+      await firstValueFrom(this.guildVoiceSvc.closeTracks(guildId, channelId, this.cfSessionId, ['video'])).catch(() => {});
+      this.localVideoTrack = null;
+      this.localVideoStream.set(null);
       this.localState.update(s => ({ ...s, isCameraOn: false }));
+      this.guildWsSvc.invokeVoiceCameraChanged(channelId, false);
     } else {
       try {
-        await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        this.localVideoTrack = stream.getVideoTracks()[0];
+        this.localVideoStream.set(new MediaStream([this.localVideoTrack]));
+        const sender = this.pc.addTrack(this.localVideoTrack, stream);
+
+        const offer = await this.pc.createOffer();
+        await this.pc.setLocalDescription(offer);
+        const mid = this.pc.getTransceivers().find(t => t.sender === sender)?.mid ?? '0';
+
+        const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
+          cfSessionId: this.cfSessionId,
+          sessionDescription: this.pc.localDescription!,
+          tracks: [{ location: 'local', mid, trackName: 'video' }],
+        }));
+        await this.pc.setRemoteDescription(resp.sessionDescription);
+        if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
+
         this.localState.update(s => ({ ...s, isCameraOn: true }));
-      } catch {
-        return;
-      }
+        this.guildWsSvc.invokeVoiceCameraChanged(channelId, true);
+      } catch { return; }
     }
-    this.syncLocalParticipant();
-    // TODO(backend): send CameraChanged event via VoiceWebsocketService
+    this.syncLocal();
   }
 
   async toggleScreenShare(): Promise<void> {
-    const current = this.localState();
-    if (current.isScreenSharing) {
+    const guildId   = this.joinedGuildId();
+    const channelId = this.joinedChannelId();
+    if (!guildId || !channelId || !this.pc || !this.cfSessionId) return;
+
+    if (this.localState().isScreenSharing && this.localScreenTrack) {
+      const shareId    = this.screenShareId ?? 'share';
+      const trackNames = [`screen-${shareId}`];
+      if (this.localScreenAudioTrack) trackNames.push(`screen-audio-${shareId}`);
+
+      this.localScreenTrack.stop();
+      const videoSender = this.pc.getSenders().find(s => s.track === this.localScreenTrack);
+      if (videoSender) this.pc.removeTrack(videoSender);
+
+      if (this.localScreenAudioTrack) {
+        this.localScreenAudioTrack.stop();
+        const audioSender = this.pc.getSenders().find(s => s.track === this.localScreenAudioTrack);
+        if (audioSender) this.pc.removeTrack(audioSender);
+        this.localScreenAudioTrack = null;
+      }
+
+      await firstValueFrom(this.guildVoiceSvc.closeTracks(guildId, channelId, this.cfSessionId, trackNames)).catch(() => {});
+      this.guildWsSvc.invokeVoiceScreenShareStopped(channelId, shareId);
+      this.localScreenTrack = null;
+      this.screenShareId    = null;
       this.localState.update(s => ({ ...s, isScreenSharing: false }));
     } else {
       try {
-        await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+        this.localScreenTrack = stream.getVideoTracks()[0];
+        const audioTracks = stream.getAudioTracks();
+        this.localScreenAudioTrack = audioTracks.length > 0 ? audioTracks[0] : null;
+
+        const shareId    = crypto.randomUUID();
+        this.screenShareId = shareId;
+
+        this.localScreenTrack.onended = () => {
+          if (this.localState().isScreenSharing) void this.toggleScreenShare();
+        };
+
+        const videoSender = this.pc.addTrack(this.localScreenTrack, stream);
+        const audioSender = this.localScreenAudioTrack
+          ? this.pc.addTrack(this.localScreenAudioTrack, stream)
+          : null;
+
+        const offer = await this.pc.createOffer();
+        await this.pc.setLocalDescription(offer);
+
+        const videoMid = this.pc.getTransceivers().find(t => t.sender === videoSender)?.mid ?? '0';
+        const tracks: { location: 'local'; mid: string; trackName: string }[] = [
+          { location: 'local', mid: videoMid, trackName: `screen-${shareId}` },
+        ];
+        if (audioSender) {
+          const audioMid = this.pc.getTransceivers().find(t => t.sender === audioSender)?.mid ?? '1';
+          tracks.push({ location: 'local', mid: audioMid, trackName: `screen-audio-${shareId}` });
+        }
+
+        const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
+          cfSessionId: this.cfSessionId,
+          sessionDescription: this.pc.localDescription!,
+          tracks,
+        }));
+        await this.pc.setRemoteDescription(resp.sessionDescription);
+        if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
+
+        this.guildWsSvc.invokeVoiceScreenShareStarted(channelId, shareId, `screen-${shareId}`);
         this.localState.update(s => ({ ...s, isScreenSharing: true }));
-      } catch {
-        return;
-      }
+      } catch { return; }
     }
-    this.syncLocalParticipant();
-    // TODO(backend): send ScreenShareStarted/Stopped event via VoiceWebsocketService
+    this.syncLocal();
   }
 
-  private syncLocalParticipant(): void {
+  private syncLocal(): void {
     const channelId = this.joinedChannelId();
     if (!channelId) return;
-    const ownId = this.profileService.ownProfile()?.userId ?? 'local-user';
-    const local = this.localState();
+    const ownId = this.profileService.ownProfile()?.userId ?? '';
+    const { isMuted, isCameraOn, isScreenSharing } = this.localState();
     this.channelParticipantsSignal.update(map => {
-      const next = new Map(map);
-      const list = (next.get(channelId) ?? []).map(p =>
-        p.userId === ownId
-          ? { ...p, isMuted: local.isMuted, isCameraOn: local.isCameraOn, isScreenSharing: local.isScreenSharing }
-          : p,
+      const n = new Map(map);
+      const list = (n.get(channelId) ?? []).map(p =>
+        p.userId === ownId ? { ...p, isMuted, isCameraOn, isScreenSharing } : p,
       );
-      next.set(channelId, list);
-      return next;
+      n.set(channelId, list);
+      return n;
     });
+  }
+
+  // ── SignalR event handlers ────────────────────────────────────────────────
+
+  private onUserJoinedVoice(e: WsUserJoinedVoice): void {
+    const ownId = this.profileService.ownProfile()?.userId ?? '';
+    if (e.userId === ownId) return;
+
+    const profile = this.profileService.getCachedByUserId(e.userId);
+    const participant: VoiceChannelParticipant = {
+      userId:          e.userId,
+      displayName:     profile?.userName ?? e.userId,
+      avatarLabel:     (profile?.userName?.[0] ?? '?').toUpperCase(),
+      avatarUrl:       profile?.avatarUrl,
+      isMuted:         false,
+      isSpeaking:      false,
+      isCameraOn:      false,
+      isScreenSharing: false,
+      isLocal:         false,
+    };
+
+    this.channelParticipantsSignal.update(map => {
+      const n = new Map(map);
+      const list = n.get(e.channelId) ?? [];
+      if (!list.find(p => p.userId === e.userId)) n.set(e.channelId, [...list, participant]);
+      return n;
+    });
+  }
+
+  private onUserLeftVoice(e: WsUserLeftVoice): void {
+    this.channelParticipantsSignal.update(map => {
+      const n = new Map(map);
+      const list = n.get(e.channelId) ?? [];
+      n.set(e.channelId, list.filter(p => p.userId !== e.userId));
+      return n;
+    });
+
+    const audio = this.remoteAudioEls.get(e.userId);
+    if (audio) { audio.pause(); audio.srcObject = null; this.remoteAudioEls.delete(e.userId); }
+    const screenAudio = this.remoteScreenAudioEls.get(e.userId);
+    if (screenAudio) { screenAudio.pause(); screenAudio.srcObject = null; this.remoteScreenAudioEls.delete(e.userId); }
+    const vad = this.vadHandles.get(e.userId);
+    if (vad) { clearInterval(vad); this.vadHandles.delete(e.userId); }
+    this.videoStreamsSignal.update(m  => { const n = new Map(m);  n.delete(e.userId); return n; });
+    this.screenStreamsSignal.update(m => { const n = new Map(m);  n.delete(e.userId); return n; });
+    this.screenAudioMutedSignal.update(s => { const n = new Set(s); n.delete(e.userId); return n; });
+  }
+
+  private onParticipantJoined(e: WsGuildParticipantJoined): void {
+    if (e.channelId !== this.joinedChannelId()) return;
+    this.patchParticipant(e.channelId, e.userId, p => ({ ...p, cfSessionId: e.cfSessionId }));
+
+    const guildId = this.joinedGuildId();
+    if (guildId) {
+      void this.subscribeAudio(guildId, e.channelId, [{
+        userId: e.userId, cfSessionId: e.cfSessionId, trackName: e.audioTrackName,
+      }]);
+    }
+  }
+
+  private onTrackPublished(e: WsGuildTrackPublished): void {
+    if (e.channelId !== this.joinedChannelId()) return;
+    const guildId = this.joinedGuildId();
+    if (!guildId) return;
+    if (e.kind === 'screenAudio') {
+      void this.subscribeAudio(guildId, e.channelId, [{
+        userId: e.userId, cfSessionId: e.cfSessionId, trackName: e.trackName, kind: 'screenAudio',
+      }]);
+    } else {
+      void this.subscribeVideo(guildId, e.channelId, e.userId, e.cfSessionId, e.trackName, e.kind === 'screen' ? 'screen' : 'video');
+    }
+  }
+
+  private onTrackClosed(e: WsGuildTrackClosed): void {
+    if (e.channelId !== this.joinedChannelId()) return;
+    if (e.trackName === 'video') {
+      this.patchParticipant(e.channelId, e.userId, p => ({ ...p, isCameraOn: false }));
+      this.videoStreamsSignal.update(m => { const n = new Map(m); n.delete(e.userId); return n; });
+    } else if (e.trackName.startsWith('screen-audio-')) {
+      const audio = this.remoteScreenAudioEls.get(e.userId);
+      if (audio) { audio.pause(); audio.srcObject = null; this.remoteScreenAudioEls.delete(e.userId); }
+    } else if (e.trackName.startsWith('screen-')) {
+      this.patchParticipant(e.channelId, e.userId, p => ({ ...p, isScreenSharing: false }));
+      this.screenStreamsSignal.update(m => { const n = new Map(m); n.delete(e.userId); return n; });
+    }
+  }
+
+  private onMuteChanged(e: WsVoiceMuteChanged): void {
+    this.patchParticipant(e.channelId, e.userId, p => ({ ...p, isMuted: e.isMuted }));
+  }
+
+  private onDeafenChanged(e: WsVoiceDeafenChanged): void {
+    if (e.isDeafened) this.patchParticipant(e.channelId, e.userId, p => ({ ...p, isMuted: true }));
+  }
+
+  private onCameraChanged(e: WsVoiceCameraChanged): void {
+    this.patchParticipant(e.channelId, e.userId, p => ({ ...p, isCameraOn: e.isCameraOn }));
+  }
+
+  private onScreenShareStarted(e: WsVoiceScreenShareStarted): void {
+    this.patchParticipant(e.channelId, e.userId, p => ({ ...p, isScreenSharing: true }));
+  }
+
+  private async onMovedToChannel(e: WsMovedToChannel): Promise<void> {
+    const pseudo: ChannelDto = {
+      id: e.channelId, guildId: e.guildId, name: 'Voice Channel',
+      type: ChannelType.Voice, createdAt: new Date(), updatedAt: new Date(),
+      description: '', isAgeRestricted: false, isPrivate: false,
+      categoryId: undefined, permissions: [], position: 0,
+    };
+    await this.joinChannel(pseudo, this.joinedGuildName() ?? '');
+  }
+
+  // ── VAD ───────────────────────────────────────────────────────────────────
+
+  private setupLocalVAD(stream: MediaStream): void {
+    const ownId = this.profileService.ownProfile()?.userId ?? 'local';
+    this.setupVAD('local', ownId, stream);
+  }
+
+  private setupRemoteVAD(userId: string, stream: MediaStream): void {
+    this.setupVAD(userId, userId, stream);
+  }
+
+  private setupVAD(handle: string, userId: string, stream: MediaStream): void {
+    try {
+      const ctx      = new AudioContext();
+      const source   = ctx.createMediaStreamSource(stream);
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      source.connect(analyser);
+      const data = new Uint8Array(analyser.frequencyBinCount);
+
+      const id = setInterval(() => {
+        analyser.getByteFrequencyData(data);
+        const avg      = data.reduce((a, b) => a + b, 0) / data.length;
+        const speaking = avg > 20;
+        const channelId = this.joinedChannelId();
+        if (channelId) {
+          this.patchParticipant(channelId, userId, p => p.isSpeaking === speaking ? p : { ...p, isSpeaking: speaking });
+        }
+      }, 100);
+
+      const prev = this.vadHandles.get(handle);
+      if (prev) clearInterval(prev);
+      this.vadHandles.set(handle, id);
+    } catch { /* AudioContext unavailable */ }
+  }
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  private patchParticipant(
+    channelId: string,
+    userId: string,
+    fn: (p: VoiceChannelParticipant) => VoiceChannelParticipant,
+  ): void {
+    this.channelParticipantsSignal.update(map => {
+      const n = new Map(map);
+      const list = n.get(channelId);
+      if (list) n.set(channelId, list.map(p => p.userId === userId ? fn(p) : p));
+      return n;
+    });
+  }
+
+  private dtoToParticipant(dto: VoiceParticipantDto, ownId: string): VoiceChannelParticipant {
+    const profile = this.profileService.getCachedByUserId(dto.userId);
+    return {
+      userId:          dto.userId,
+      displayName:     profile?.userName ?? dto.userId,
+      avatarLabel:     (profile?.userName?.[0] ?? '?').toUpperCase(),
+      avatarUrl:       profile?.avatarUrl,
+      isMuted:         dto.isSelfMuted || dto.isServerMuted,
+      isSpeaking:      false,
+      isCameraOn:      false,
+      isScreenSharing: dto.isStreaming,
+      isLocal:         dto.userId === ownId,
+      cfSessionId:     dto.cfSessionId,
+    };
   }
 }
