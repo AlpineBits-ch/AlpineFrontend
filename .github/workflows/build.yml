@@ -100,7 +100,7 @@ jobs:
             librsvg2-dev \
             libssl-dev \
             patchelf \
-            rpm
+            rpm-build
 
       - name: Install dependencies
         run: bun install
