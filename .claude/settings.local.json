@@ -35,7 +35,10 @@
       "Bash(npx tsc *)",
       "Bash(npx ng *)",
       "Bash(xargs ls *)",
-      "Bash(grep -E \"\\\\.\\(html|css|ts\\)$\")"
+      "Bash(grep -E \"\\\\.\\(html|css|ts\\)$\")",
+      "WebFetch(domain:v2.tauri.app)",
+      "WebFetch(domain:docs.rs)",
+      "Bash(curl -s https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-bundler/src/bundle/linux/rpm.rs)"
     ]
   }
 }

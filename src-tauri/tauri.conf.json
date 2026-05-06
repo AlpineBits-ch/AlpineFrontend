@@ -37,12 +37,7 @@
     "linux": {
       "rpm": {
         "epoch": 0,
-        "files": {},
-        "release": "1",
-        "preInstallScript": "/path/to/your/project/src-tauri/scripts/prescript.sh",
-        "postInstallScript": "/path/to/your/project/src-tauri/scripts/postscript.sh",
-        "preRemoveScript": "/path/to/your/project/src-tauri/scripts/prescript.sh",
-        "postRemoveScript": "/path/to/your/project/src-tauri/scripts/postscript.sh"
+        "release": "1"
       }
     }
   },
