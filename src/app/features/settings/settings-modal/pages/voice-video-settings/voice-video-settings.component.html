@@ -124,6 +124,32 @@
       <p-toggleswitch [(ngModel)]="autoGainControl" />
     </div>
 
+    <!-- Enhanced Noise Suppression (RNNoise via Rust) -->
+    <div class="flex flex-col gap-3 pt-1 border-t border-white/[0.06]">
+      <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <p class="text-sm text-white/75">Enhanced Noise Suppression</p>
+            <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide
+                         bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">RNNoise</span>
+          </div>
+          <p class="text-xs text-white/35 mt-0.5">AI-grade denoising via Rust — replaces the browser's basic filter</p>
+        </div>
+        <p-toggleswitch [(ngModel)]="enhancedNoiseSuppression" />
+      </div>
+
+      @if (enhancedNoiseSuppression) {
+        <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+          <div class="flex items-center justify-between">
+            <p class="text-sm text-white/75">Voice Gate Strength</p>
+            <span class="text-xs text-white/40 tabular-nums">{{ vadStrength }}%</span>
+          </div>
+          <p class="text-xs text-white/35 -mt-1">Suppress audio frames below this voice activity threshold — raise to cut ambient sound between words</p>
+          <p-slider [(ngModel)]="vadStrength" [min]="0" [max]="100" [step]="5" styleClass="w-full mt-1" />
+        </div>
+      }
+    </div>
+
     <p class="text-[11px] text-white/25 pt-1">
       Processing changes take effect the next time you start a mic test or join a call.
     </p>

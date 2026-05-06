@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { NgClass } from '@angular/common';
 import { Select } from 'primeng/select';
 import { ToggleSwitch } from 'primeng/toggleswitch';
+import { Slider } from 'primeng/slider';
 import { AudioSettingsService } from '../../../../../services/audio-settings.service';
 
 interface DeviceOption {
@@ -17,7 +18,7 @@ interface BitrateOption {
 
 @Component({
   selector: 'app-voice-video-settings',
-  imports: [FormsModule, NgClass, Select, ToggleSwitch],
+  imports: [FormsModule, NgClass, Select, ToggleSwitch, Slider],
   templateUrl: './voice-video-settings.component.html',
   styleUrl: './voice-video-settings.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -90,6 +91,12 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
 
   get screenVideoBitrate(): number { return this.audioSettings.settings().screenVideoBitrate; }
   set screenVideoBitrate(v: number) { this.audioSettings.update({ screenVideoBitrate: v }); }
+
+  get enhancedNoiseSuppression(): boolean { return this.audioSettings.settings().enhancedNoiseSuppression; }
+  set enhancedNoiseSuppression(v: boolean) { this.audioSettings.update({ enhancedNoiseSuppression: v }); }
+
+  get vadStrength(): number { return Math.round(this.audioSettings.settings().vadStrength * 100); }
+  set vadStrength(v: number) { this.audioSettings.update({ vadStrength: v / 100 }); }
 
   // ── Mic test state ───────────────────────────────────────────────────────
 

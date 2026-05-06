@@ -1,5 +1,8 @@
 mod crypto;
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod media;
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -137,6 +140,36 @@ pub fn run() {
     let builder = builder
         .plugin(tauri_plugin_notifications::init());
 
+    build_and_run(builder);
+}
+
+// Split into separate functions so #[cfg] can gate the full handler list.
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
+    builder
+        .manage(media::audio::AudioCaptureState::default())
+        .manage(media::screen::ScreenCaptureState::default())
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            get_memory_usage,
+            show_noactivate,
+            setup_toast_window,
+            prepare_notification,
+            crypto::crypto::generate_key,
+            media::audio::enumerate_audio_devices,
+            media::audio::start_audio_capture,
+            media::audio::stop_audio_capture,
+            media::screen::enumerate_screen_sources,
+            media::screen::start_screen_capture,
+            media::screen::stop_screen_capture,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+
+#[cfg(any(target_os = "android", target_os = "ios"))]
+fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
     builder
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -144,7 +177,7 @@ pub fn run() {
             show_noactivate,
             setup_toast_window,
             prepare_notification,
-            crypto::crypto::generate_key
+            crypto::crypto::generate_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

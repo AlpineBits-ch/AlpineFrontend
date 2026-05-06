@@ -19,6 +19,8 @@ import {
 import { environment } from '../../environments/environment';
 import { AudioSettingsService } from './audio-settings.service';
 import { SoundSettingsService } from './sound-settings.service';
+import { RustMediaService } from './rust-media.service';
+import { ScreenPickerService } from './screen-picker.service';
 
 export interface VoiceChannelParticipant {
   userId: string;
@@ -47,6 +49,8 @@ export class VoiceChannelService {
   private guildWsSvc      = inject(GuildWebsocketService);
   private audioSettings   = inject(AudioSettingsService);
   private soundSettings   = inject(SoundSettingsService);
+  private rustMedia       = inject(RustMediaService);
+  private screenPicker    = inject(ScreenPickerService);
 
   // ── Public state ──────────────────────────────────────────────────────────
 
@@ -274,13 +278,28 @@ export class VoiceChannelService {
       this.pc = new RTCPeerConnection({ iceServers: environment.iceServers, bundlePolicy: 'max-bundle' });
       this.pc.ontrack = e => this.handleRemoteTrack(e);
 
-      let localStream: MediaStream;
+      let audioTrack: MediaStreamTrack;
       try {
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: this.audioSettings.buildAudioConstraint(), video: false });
+        const s = this.audioSettings.settings();
+        if (s.enhancedNoiseSuppression) {
+          audioTrack = await this.rustMedia.startMicCapture({
+            deviceId: s.micId === 'default' ? null : s.micId,
+            noiseSuppression: s.noiseSuppression,
+            autoGainControl: s.autoGainControl,
+            vadThreshold: s.vadStrength,
+          });
+        } else {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: this.audioSettings.buildAudioConstraint(),
+            video: false,
+          });
+          audioTrack = stream.getAudioTracks()[0];
+        }
       } catch {
         this.setupDone = true;
         return;
       }
+      const localStream = new MediaStream([audioTrack]);
 
       this.localAudioTrack = localStream.getAudioTracks()[0];
       this.localAudioTrack.enabled = !this.localState().isMuted;
@@ -445,8 +464,10 @@ export class VoiceChannelService {
     this.localSenders.clear();
 
     this.localAudioTrack?.stop();
+    void this.rustMedia.stopMicCapture();
     this.localVideoTrack?.stop();
     this.localScreenTrack?.stop();
+    void this.rustMedia.stopScreenCapture();
     this.localScreenAudioTrack?.stop();
     this.localAudioTrack = null;
     this.localVideoTrack = null;
@@ -544,6 +565,7 @@ export class VoiceChannelService {
       if (this.localScreenAudioTrack) trackNames.push(`screen-audio-${shareId}`);
 
       this.localScreenTrack.stop();
+      void this.rustMedia.stopScreenCapture();
       const videoSender = this.pc.getSenders().find(s => s.track === this.localScreenTrack);
       if (videoSender) this.pc.removeTrack(videoSender);
 
@@ -563,19 +585,16 @@ export class VoiceChannelService {
       this.localState.update(s => ({ ...s, isScreenSharing: false }));
     } else {
       try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: {
-            sampleRate: 48000,
-            channelCount: 2,
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
-          },
-        });
-        this.localScreenTrack = stream.getVideoTracks()[0];
-        const audioTracks = stream.getAudioTracks();
-        this.localScreenAudioTrack = audioTracks.length > 0 ? audioTracks[0] : null;
+        // Use custom Rust picker to bypass the system screen picker UI
+        const sourceId = await this.screenPicker.show();
+        if (!sourceId) return; // user cancelled
+
+        const fps = Math.round((this.audioSettings.settings().screenVideoBitrate >= 8000) ? 30 : 15);
+        const videoTrack = await this.rustMedia.startScreenCapture(sourceId, fps);
+        const stream = new MediaStream([videoTrack]);
+        this.localScreenTrack = videoTrack;
+        // Screen audio not available from Rust capture — use separate system audio capture
+        this.localScreenAudioTrack = null;
 
         const shareId = crypto.randomUUID();
         this.screenShareId = shareId;

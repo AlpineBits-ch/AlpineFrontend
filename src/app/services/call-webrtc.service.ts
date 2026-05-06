@@ -4,6 +4,8 @@ import { CallSessionService } from './call-session.service';
 import { VoiceService, CfTrackNew, CfTrackResult } from './voice.service';
 import { VoiceWebsocketService } from './voice-websocket.service';
 import { AudioSettingsService } from './audio-settings.service';
+import { RustMediaService } from './rust-media.service';
+import { ScreenPickerService } from './screen-picker.service';
 
 export interface CallStats {
   inboundKbps: number;
@@ -34,10 +36,12 @@ export interface CallStats {
  */
 @Injectable({ providedIn: 'root' })
 export class CallWebRtcService {
-  private callSession = inject(CallSessionService);
-  private voiceService = inject(VoiceService);
-  private voiceWs = inject(VoiceWebsocketService);
+  private callSession   = inject(CallSessionService);
+  private voiceService  = inject(VoiceService);
+  private voiceWs       = inject(VoiceWebsocketService);
   private audioSettings = inject(AudioSettingsService);
+  private rustMedia     = inject(RustMediaService);
+  private screenPicker  = inject(ScreenPickerService);
 
   // ── WebRTC state ─────────────────────────────────────────────────────────
   private pc: RTCPeerConnection | null = null;
@@ -181,20 +185,31 @@ export class CallWebRtcService {
     // ParticipantJoined back to us for any already-connected participants.
     this.setupWsListeners();
 
-    // Acquire microphone (video is handled separately by CallSessionService.toggleCamera)
-    let micStream: MediaStream;
+    // Acquire microphone — use Rust pipeline when enhanced NS is on
+    let audioTrack: MediaStreamTrack;
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({
-        audio: this.audioSettings.buildAudioConstraint(),
-        video: false,
-      });
+      const s = this.audioSettings.settings();
+      if (s.enhancedNoiseSuppression) {
+        audioTrack = await this.rustMedia.startMicCapture({
+          deviceId: s.micId === 'default' ? null : s.micId,
+          noiseSuppression: s.noiseSuppression,
+          autoGainControl: s.autoGainControl,
+          vadThreshold: s.vadStrength,
+        });
+      } else {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: this.audioSettings.buildAudioConstraint(),
+          video: false,
+        });
+        audioTrack = stream.getAudioTracks()[0];
+      }
     } catch {
       console.warn('[WebRTC] Microphone access denied — joining without audio');
       return;
     }
-    if (!this.callId) { micStream.getTracks().forEach(t => t.stop()); return; }
+    if (!this.callId) { audioTrack.stop(); return; }
 
-    this.audioTrack = micStream.getAudioTracks()[0];
+    this.audioTrack = audioTrack;
     // Apply current mute state immediately (user may have muted before connecting)
     const isMuted = this.callSession.session()?.local.isMuted ?? false;
     this.audioTrack.enabled = !isMuted;
@@ -203,7 +218,7 @@ export class CallWebRtcService {
     await this.publishAudioTrack(this.audioTrack);
     if (!this.callId) return;
 
-    this.startSpeakingDetection(micStream);
+    this.startSpeakingDetection(new MediaStream([this.audioTrack]));
     this.startStatsPolling();
   }
 
@@ -212,6 +227,8 @@ export class CallWebRtcService {
     this.stopStatsPolling();
     this.audioCtx?.close().catch(() => void 0);
     this.audioTrack?.stop();
+    void this.rustMedia.stopMicCapture();
+    void this.rustMedia.stopScreenCapture();
     this.pc?.close();
     this.remoteAudio.forEach(a => { a.pause(); a.srcObject = null; });
     this.remoteAudio.clear();

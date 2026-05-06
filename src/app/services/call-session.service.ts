@@ -3,6 +3,8 @@ import { ProfileService } from './profile.service';
 import { ConversationStore } from '../stores/conversation.store';
 import { VoiceService } from './voice.service';
 import { AudioSettingsService } from './audio-settings.service';
+import { RustMediaService } from './rust-media.service';
+import { ScreenPickerService } from './screen-picker.service';
 import type { CallDto } from '../dtos/response/call.dto';
 import type {
   ActiveCallSession,
@@ -12,10 +14,12 @@ import type {
 
 @Injectable({ providedIn: 'root' })
 export class CallSessionService {
-  private profileService = inject(ProfileService);
+  private profileService    = inject(ProfileService);
   private conversationStore = inject(ConversationStore);
-  private voiceService = inject(VoiceService);
-  private audioSettings = inject(AudioSettingsService);
+  private voiceService      = inject(VoiceService);
+  private audioSettings     = inject(AudioSettingsService);
+  private rustMedia         = inject(RustMediaService);
+  private screenPicker      = inject(ScreenPickerService);
 
   readonly session = signal<ActiveCallSession | null>(null);
 
@@ -124,6 +128,7 @@ export class CallSessionService {
     if (s.local.isSharing) {
       const localShare = s.screenShares.find(sh => sh.isLocal);
       localShare?.stream?.getTracks().forEach(t => t.stop());
+      void this.rustMedia.stopScreenCapture();
       this.session.update(st => st ? {
         ...st,
         screenShares: st.screenShares.filter(sh => !sh.isLocal),
@@ -131,18 +136,25 @@ export class CallSessionService {
       } : st);
       // TODO(webrtc): remove screen share track from peer connections
     } else {
-      let stream: MediaStream;
+      // Show custom Rust-based screen picker instead of the system picker
+      const sourceId = await this.screenPicker.show();
+      if (!sourceId) return;
+
+      const fps = Math.round(
+        (this.audioSettings.settings().screenVideoBitrate >= 8000) ? 30 : 15,
+      );
+      let videoTrack: MediaStreamTrack;
       try {
-        stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        videoTrack = await this.rustMedia.startScreenCapture(sourceId, fps);
       } catch {
-        return; // User cancelled the picker or denied
+        return;
       }
 
+      const stream = new MediaStream([videoTrack]);
       const shareId = crypto.randomUUID();
       const ownId = this.profileService.ownProfile()?.userId ?? '';
 
-      // Auto-stop when the user clicks the browser's built-in "Stop sharing" button
-      stream.getVideoTracks()[0].onended = () => {
+      videoTrack.onended = () => {
         this.session.update(st => st ? {
           ...st,
           screenShares: st.screenShares.filter(sh => sh.shareId !== shareId),
