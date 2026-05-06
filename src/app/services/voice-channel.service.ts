@@ -309,7 +309,6 @@ export class VoiceChannelService {
         sessionDescription: this.pc.localDescription!,
         tracks: entries.map(e => ({
           location: 'remote' as const,
-          mid: e.transceiver.mid ?? undefined,
           trackName: e.trackName,
           sessionId: e.cfSessionId,
         })),
@@ -344,7 +343,7 @@ export class VoiceChannelService {
       const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
         cfSessionId: this.cfSessionId,
         sessionDescription: this.pc.localDescription!,
-        tracks: [{ location: 'remote', mid: transceiver.mid ?? undefined, trackName, sessionId: cfSessionId }],
+        tracks: [{ location: 'remote', trackName, sessionId: cfSessionId }],
       }));
 
       if (resp.tracks[0]?.mid) {
