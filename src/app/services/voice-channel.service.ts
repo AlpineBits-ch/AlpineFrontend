@@ -244,53 +244,56 @@ export class VoiceChannelService {
 
   // ── WebRTC setup ──────────────────────────────────────────────────────────
 
-  private async initWebRTC(guildId: string, channelId: string, existing: VoiceParticipantDto[]): Promise<void> {
+  private async initWebRTC(guildId: string, channelId: string): Promise<void> {
     this.setupDone = false;
-    this.pc = new RTCPeerConnection({ iceServers: environment.iceServers, bundlePolicy: 'max-bundle' });
-    this.pc.ontrack = e => this.handleRemoteTrack(e);
 
-    let localStream: MediaStream;
+    // Block the negotiation queue until the initial publish completes so that
+    // GuildParticipantJoined WS events (which the server sends as soon as we
+    // publish) don't try to subscribe before the base offer/answer is done.
+    let releaseQueue!: () => void;
+    this.negotiationChain = new Promise<void>(resolve => { releaseQueue = resolve; });
+
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    } catch {
+      this.pc = new RTCPeerConnection({ iceServers: environment.iceServers, bundlePolicy: 'max-bundle' });
+      this.pc.ontrack = e => this.handleRemoteTrack(e);
+
+      let localStream: MediaStream;
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      } catch {
+        this.setupDone = true;
+        return;
+      }
+
+      this.localAudioTrack = localStream.getAudioTracks()[0];
+      this.localAudioTrack.enabled = !this.localState().isMuted;
+      this.setupLocalVAD(localStream);
+
+      const sender = this.pc.addTrack(this.localAudioTrack, localStream);
+
+      const { cfSessionId } = await firstValueFrom(this.guildVoiceSvc.createSession(guildId, channelId));
+      this.cfSessionId = cfSessionId;
+
+      const offer = await this.pc.createOffer();
+      await this.pc.setLocalDescription(offer);
+
+      const audioMid = this.pc.getTransceivers().find(t => t.sender === sender)?.mid ?? '0';
+
+      const publishResp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
+        cfSessionId,
+        sessionDescription: this.pc.localDescription!,
+        tracks: [{ location: 'local', mid: audioMid, trackName: 'audio' }],
+      }));
+
+      await this.pc.setRemoteDescription(publishResp.sessionDescription);
+      if (publishResp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
+
       this.setupDone = true;
-      return;
+    } finally {
+      releaseQueue();
     }
-
-    this.localAudioTrack = localStream.getAudioTracks()[0];
-    this.localAudioTrack.enabled = !this.localState().isMuted;
-    this.setupLocalVAD(localStream);
-
-    const sender = this.pc.addTrack(this.localAudioTrack, localStream);
-
-    const { cfSessionId } = await firstValueFrom(this.guildVoiceSvc.createSession(guildId, channelId));
-    this.cfSessionId = cfSessionId;
-
-    const offer = await this.pc.createOffer();
-    await this.pc.setLocalDescription(offer);
-
-    const audioMid = this.pc.getTransceivers().find(t => t.sender === sender)?.mid ?? '0';
-
-    const publishResp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
-      cfSessionId,
-      sessionDescription: this.pc.localDescription!,
-      tracks: [{ location: 'local', mid: audioMid, trackName: 'audio' }],
-    }));
-
-    await this.pc.setRemoteDescription(publishResp.sessionDescription);
-    if (publishResp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
-
-    this.setupDone = true;
-
-    const ownId = this.profileService.ownProfile()?.userId ?? '';
-    const toSub = existing.filter(p => p.userId !== ownId && p.cfSessionId && p.audioTrackName);
-    if (toSub.length > 0) {
-      await this.subscribeAudio(guildId, channelId, toSub.map(p => ({
-        userId: p.userId,
-        cfSessionId: p.cfSessionId!,
-        trackName: p.audioTrackName!,
-      })));
-    }
+    // No batch subscription here — the server sends GuildParticipantJoined for
+    // each existing participant when we publish, and onParticipantJoined handles it.
   }
 
   private subscribeAudio(
