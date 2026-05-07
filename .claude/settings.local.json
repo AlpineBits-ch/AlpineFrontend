@@ -61,7 +61,8 @@
       "Bash(~/.cargo/bin/cargo check *)",
       "Bash(/c/Users/Domin/.cargo/bin/cargo.exe check *)",
       "Bash(/c/Users/Domin/.cargo/bin/cargo.exe metadata *)",
-      "Bash(/c/Users/Domin/.cargo/bin/cargo check *)"
+      "Bash(/c/Users/Domin/.cargo/bin/cargo check *)",
+      "Bash(grep -E '\\\\.\\(ts|html\\)$')"
     ]
   }
 }
