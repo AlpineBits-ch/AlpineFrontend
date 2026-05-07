@@ -47,7 +47,8 @@ export class RustMediaService {
   private screenCtx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null = null;
   private screenStream: MediaStream | null = null;
   private screenChannel: Channel<ScreenFrame> | null = null;
-  private drawingFrame = false;
+  private latestFrame: ScreenFrame | null = null;
+  private decodingFrame = false;
 
   // ── Screen sources ────────────────────────────────────────────────────────
 
@@ -78,21 +79,32 @@ export class RustMediaService {
     this.screenCanvas = canvas;
     this.screenCtx    = ctx;
 
-    const stream = (canvas as HTMLCanvasElement).captureStream(fps);
+    // captureStream(0) = manual control; we call requestFrame() after each draw
+    // so the video track only produces a new frame when the canvas is actually updated.
+    const stream = (canvas as HTMLCanvasElement).captureStream(0);
     this.screenStream = stream;
 
     const channel = new Channel<ScreenFrame>();
     this.screenChannel = channel;
 
     channel.onmessage = (frame) => {
-      this.drawFrame(frame);
+      this.queueFrame(frame);
     };
 
     await invoke('start_screen_capture', { sourceId, fps, onFrame: channel });
 
     const track = stream.getVideoTracks()[0];
     if (!track) throw new Error('No video track from canvas');
+    // 'motion' → MAINTAIN_FRAMERATE degradation: encoder reduces resolution before FPS.
+    // 'detail' (old value) → MAINTAIN_RESOLUTION: encoder drops FPS first, causing ~2fps.
+    try { (track as any).contentHint = 'motion'; } catch {}
     return track;
+  }
+
+  /** Change capture FPS mid-stream without stopping/restarting. Takes effect within one frame. */
+  async setCaptureFps(fps: number): Promise<void> {
+    if (!isTauri()) return;
+    await invoke('set_screen_capture_fps', { fps: Math.round(fps) }).catch(() => {});
   }
 
   async stopScreenCapture(): Promise<void> {
@@ -107,24 +119,44 @@ export class RustMediaService {
     this.screenStream = null;
     this.screenCanvas = null;
     this.screenCtx    = null;
-    this.drawingFrame = false;
+    this.latestFrame  = null;
+    this.decodingFrame = false;
   }
 
-  private drawFrame(frame: ScreenFrame): void {
-    if (!this.screenCtx || !this.screenCanvas || this.drawingFrame) return;
-    this.drawingFrame = true;
-    const blob = base64ToBlob(frame.data, 'image/jpeg');
-    createImageBitmap(blob).then(bitmap => {
-      this.drawingFrame = false;
-      if (!this.screenCtx || !this.screenCanvas) { bitmap.close(); return; }
-      const c = this.screenCanvas as HTMLCanvasElement;
-      if (c.width !== bitmap.width || c.height !== bitmap.height) {
-        c.width  = bitmap.width;
-        c.height = bitmap.height;
-      }
-      (this.screenCtx as CanvasRenderingContext2D).drawImage(bitmap, 0, 0);
-      bitmap.close();
-    }).catch(() => { this.drawingFrame = false; });
+  // Always store the newest frame; if a decode is already running it will
+  // pick up the latest frame when it finishes instead of dropping it.
+  private queueFrame(frame: ScreenFrame): void {
+    this.latestFrame = frame;
+    if (!this.decodingFrame) this.decodeNextFrame();
+  }
+
+  private decodeNextFrame(): void {
+    const frame = this.latestFrame;
+    if (!frame || !this.screenCtx || !this.screenCanvas) {
+      this.decodingFrame = false;
+      return;
+    }
+    this.latestFrame = null;
+    this.decodingFrame = true;
+    createImageBitmap(base64ToBlob(frame.data, 'image/jpeg'))
+      .then(bitmap => {
+        if (!this.screenCtx || !this.screenCanvas) { bitmap.close(); return; }
+        const c = this.screenCanvas as HTMLCanvasElement;
+        if (c.width !== bitmap.width || c.height !== bitmap.height) {
+          c.width  = bitmap.width;
+          c.height = bitmap.height;
+        }
+        (this.screenCtx as CanvasRenderingContext2D).drawImage(bitmap, 0, 0);
+        // Signal a new frame to the video track (captureStream(0) only captures on demand).
+        (this.screenStream?.getVideoTracks()[0] as any)?.requestFrame?.();
+        bitmap.close();
+        this.decodingFrame = false;
+        if (this.latestFrame) this.decodeNextFrame();
+      })
+      .catch(() => {
+        this.decodingFrame = false;
+        if (this.latestFrame) this.decodeNextFrame();
+      });
   }
 
   // ── Microphone capture ────────────────────────────────────────────────────

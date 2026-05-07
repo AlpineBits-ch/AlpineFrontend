@@ -25,6 +25,14 @@ mod win32 {
         ) -> isize;
         pub fn ShowWindow(hwnd: *mut core::ffi::c_void, n_cmd_show: i32) -> i32;
     }
+
+    /// Adds WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW to a window's extended style.
+    ///
+    /// Safety: hwnd must be a valid Win32 window handle for the lifetime of the call.
+    pub unsafe fn set_noactivate_exstyle(hwnd: *mut core::ffi::c_void) {
+        let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex | WS_EX_NOACTIVATE as isize | WS_EX_TOOLWINDOW as isize);
+    }
 }
 
 #[tauri::command]
@@ -37,15 +45,10 @@ fn show_noactivate(label: String, app: tauri::AppHandle) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         use win32::*;
-        let hwnd_struct = win.hwnd().map_err(|e| e.to_string())?;
-        let hwnd = hwnd_struct.0 as *mut core::ffi::c_void;
+        let hwnd = win.hwnd().map_err(|e| e.to_string())?.0;
+        // Safety: hwnd comes from a live Tauri window handle.
         unsafe {
-            let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-            SetWindowLongPtrW(
-                hwnd,
-                GWL_EXSTYLE,
-                ex | WS_EX_NOACTIVATE as isize | WS_EX_TOOLWINDOW as isize,
-            );
+            set_noactivate_exstyle(hwnd);
             ShowWindow(hwnd, SW_SHOWNOACTIVATE);
         }
     }
@@ -73,16 +76,9 @@ fn setup_toast_window(label: String, app: tauri::AppHandle) -> Result<(), String
 
     #[cfg(target_os = "windows")]
     {
-        use win32::*;
-        let hwnd = _win.hwnd().map_err(|e| e.to_string())?.0 as *mut core::ffi::c_void;
-        unsafe {
-            let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-            SetWindowLongPtrW(
-                hwnd,
-                GWL_EXSTYLE,
-                ex_style | WS_EX_NOACTIVATE as isize | WS_EX_TOOLWINDOW as isize,
-            );
-        }
+        let hwnd = _win.hwnd().map_err(|e| e.to_string())?.0;
+        // Safety: hwnd comes from a live Tauri window handle.
+        unsafe { win32::set_noactivate_exstyle(hwnd); }
     }
 
     Ok(())
@@ -105,16 +101,9 @@ fn prepare_notification(label: String, app: tauri::AppHandle) -> Result<(), Stri
 
     #[cfg(target_os = "windows")]
     {
-        use win32::*;
-        let hwnd = _win.hwnd().map_err(|e| e.to_string())?.0 as *mut core::ffi::c_void;
-        unsafe {
-            let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-            SetWindowLongPtrW(
-                hwnd,
-                GWL_EXSTYLE,
-                ex | WS_EX_NOACTIVATE as isize | WS_EX_TOOLWINDOW as isize,
-            );
-        }
+        let hwnd = _win.hwnd().map_err(|e| e.to_string())?.0;
+        // Safety: hwnd comes from a live Tauri window handle.
+        unsafe { win32::set_noactivate_exstyle(hwnd); }
     }
 
     Ok(())
@@ -166,6 +155,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             media::screen::enumerate_screen_sources,
             media::screen::start_screen_capture,
             media::screen::stop_screen_capture,
+            media::screen::set_screen_capture_fps,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

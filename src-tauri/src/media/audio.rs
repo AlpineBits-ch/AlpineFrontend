@@ -65,7 +65,7 @@ pub struct AudioChunk {
 const RNNOISE_FRAME: usize = 480; // 10 ms @ 48 kHz — nnnoiseless::FRAME_SIZE
 /// Number of RNNoise frames batched per IPC send (4 × 10 ms = 40 ms latency)
 const BATCH_FRAMES: usize = 4;
-const BATCH_SAMPLES: usize = RNNOISE_FRAME * BATCH_FRAMES;
+pub(super) const BATCH_SAMPLES: usize = RNNOISE_FRAME * BATCH_FRAMES;
 
 // cpal::Stream contains raw pointers and is not Send, but it is safe to move
 // between threads when we only keep it alive (no concurrent method calls).
@@ -354,7 +354,7 @@ fn pick_config(device: &cpal::Device) -> Result<cpal::StreamConfig, String> {
 }
 
 /// Linear resampling — adequate quality for voice.
-fn resample_linear(input: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
+pub(super) fn resample_linear(input: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
     if from_rate == to_rate || input.is_empty() {
         return input.to_vec();
     }
@@ -401,16 +401,21 @@ fn apply_agc(mut samples: Vec<f32>, gain: &mut f32) -> Vec<f32> {
     samples
 }
 
-fn base64_encode(data: &[u8]) -> String {
+pub(super) fn base64_encode(data: &[u8]) -> String {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD.encode(data)
 }
 
 // ── Loopback (system audio) capture ──────────────────────────────────────────
 
-/// Capture system audio output via WASAPI loopback.
-/// On Windows, building an input stream on the default *output* device causes
-/// cpal's WASAPI backend to set AUDCLNT_STREAMFLAGS_LOOPBACK automatically.
+/// Capture system audio output.
+///
+/// On Windows 10 2004+: uses process-excluded WASAPI loopback so that Alpine's
+/// own WebRTC playback (voices of other call participants) is NOT captured,
+/// eliminating the echo heard by the screen-share recipient.
+///
+/// Falls back to cpal device loopback if process-excluded activation fails
+/// (e.g. pre-2004 Windows or unsupported audio format).
 #[tauri::command]
 pub async fn start_loopback_capture(
     on_chunk: Channel<AudioChunk>,
@@ -418,18 +423,52 @@ pub async fn start_loopback_capture(
 ) -> Result<(), String> {
     stop_loopback_capture_inner(&state);
 
-    let (stop_tx, mut stop_rx) = oneshot::channel::<()>();
+    let (stop_tx, stop_rx) = oneshot::channel::<()>();
     *state.0.lock().unwrap() = Some(stop_tx);
 
-    let host = cpal::default_host();
-    let device = host
-        .default_output_device()
-        .ok_or("No output device available")?;
+    // Convert the async oneshot into an AtomicBool the blocking thread can poll.
+    let stop_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stop_flag_fwd = stop_flag.clone();
+    tauri::async_runtime::spawn(async move {
+        let _ = stop_rx.await;
+        stop_flag_fwd.store(true, std::sync::atomic::Ordering::Relaxed);
+    });
 
-    // Use the output device's own config — loopback must match what it plays.
-    let out_cfg = device
-        .default_output_config()
-        .map_err(|e| e.to_string())?;
+    let on_chunk2 = on_chunk;
+    let stop2 = stop_flag;
+
+    #[cfg(target_os = "windows")]
+    tokio::task::spawn_blocking(move || {
+        match crate::media::loopback_win::capture_excluded(on_chunk2.clone(), stop2.clone()) {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("[loopback] Process-excluded loopback failed ({e}), falling back");
+                loopback_cpal(on_chunk2, stop2);
+            }
+        }
+    });
+
+    #[cfg(not(target_os = "windows"))]
+    tokio::task::spawn_blocking(move || loopback_cpal(on_chunk2, stop2));
+
+    Ok(())
+}
+
+/// Device-loopback capture via cpal (fallback / non-Windows path).
+fn loopback_cpal(
+    on_chunk: Channel<AudioChunk>,
+    stop: Arc<std::sync::atomic::AtomicBool>,
+) {
+    let host = cpal::default_host();
+    let device = match host.default_output_device() {
+        Some(d) => d,
+        None => { eprintln!("[loopback] No output device"); return; }
+    };
+
+    let out_cfg = match device.default_output_config() {
+        Ok(c) => c,
+        Err(e) => { eprintln!("[loopback] Config error: {e}"); return; }
+    };
     let sample_rate = out_cfg.sample_rate().0;
     let channels = out_cfg.channels() as usize;
     let config: cpal::StreamConfig = out_cfg.into();
@@ -437,79 +476,54 @@ pub async fn start_loopback_capture(
     let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<f32>>(64);
     let tx_err = tx.clone();
 
-    // build_input_stream on an output device → WASAPI loopback on Windows
-    let stream = device
-        .build_input_stream(
-            &config,
-            move |data: &[f32], _| {
-                let _ = tx.send(data.to_vec());
-            },
-            move |err| {
-                eprintln!("[loopback] cpal error: {err}");
-                drop(tx_err.clone());
-            },
-            None,
-        )
-        .map_err(|e| e.to_string())?;
+    let stream = match device.build_input_stream(
+        &config,
+        move |data: &[f32], _| { let _ = tx.send(data.to_vec()); },
+        move |err| { eprintln!("[loopback] cpal error: {err}"); drop(tx_err.clone()); },
+        None,
+    ) {
+        Ok(s) => s,
+        Err(e) => { eprintln!("[loopback] Stream error: {e}"); return; }
+    };
+    if stream.play().is_err() { return; }
+    let _stream = SendStream(stream);
 
-    stream.play().map_err(|e| e.to_string())?;
-    let stream = SendStream(stream);
+    let mut input_buf: Vec<f32> = Vec::with_capacity(BATCH_SAMPLES * 2);
+    let mut output_batch: Vec<f32> = Vec::with_capacity(BATCH_SAMPLES);
 
-    tauri::async_runtime::spawn(async move {
-        let _stream = stream;
-        let mut input_buf: Vec<f32> = Vec::with_capacity(BATCH_SAMPLES * 2);
-        let mut output_batch: Vec<f32> = Vec::with_capacity(BATCH_SAMPLES);
+    loop {
+        if stop.load(std::sync::atomic::Ordering::Relaxed) { break; }
 
-        loop {
-            if stop_rx.try_recv().is_ok() {
-                break;
-            }
-
-            let mut got_data = false;
-            while let Ok(chunk) = rx.try_recv() {
-                // Mix down to mono
-                let mono: Vec<f32> = if channels > 1 {
-                    chunk
-                        .chunks(channels)
-                        .map(|ch| ch.iter().sum::<f32>() / channels as f32)
-                        .collect()
-                } else {
-                    chunk
-                };
-
-                let resampled = if sample_rate != 48_000 {
-                    resample_linear(&mono, sample_rate, 48_000)
-                } else {
-                    mono
-                };
-
-                input_buf.extend_from_slice(&resampled);
-                got_data = true;
-            }
-
-            while input_buf.len() >= BATCH_SAMPLES {
-                let samples: Vec<f32> = input_buf.drain(..BATCH_SAMPLES).collect();
-                let raw: Vec<u8> = samples.iter().flat_map(|&f| f.to_le_bytes()).collect();
-                let encoded = base64_encode(&raw);
-                if on_chunk
-                    .send(AudioChunk {
-                        data: encoded,
-                        sample_rate: 48_000,
-                        channels: 1,
-                    })
-                    .is_err()
-                {
-                    break;
-                }
-            }
-
-            if !got_data {
-                tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
-            }
+        let mut got_data = false;
+        while let Ok(chunk) = rx.try_recv() {
+            let mono: Vec<f32> = if channels > 1 {
+                chunk.chunks(channels).map(|ch| ch.iter().sum::<f32>() / channels as f32).collect()
+            } else {
+                chunk
+            };
+            let resampled = if sample_rate != 48_000 {
+                resample_linear(&mono, sample_rate, 48_000)
+            } else {
+                mono
+            };
+            input_buf.extend_from_slice(&resampled);
+            got_data = true;
         }
-    });
 
-    Ok(())
+        while input_buf.len() >= BATCH_SAMPLES {
+            let samples: Vec<f32> = input_buf.drain(..BATCH_SAMPLES).collect();
+            let raw: Vec<u8> = samples.iter().flat_map(|&f| f.to_le_bytes()).collect();
+            let encoded = base64_encode(&raw);
+            if on_chunk.send(AudioChunk { data: encoded, sample_rate: 48_000, channels: 1 }).is_err() {
+                return;
+            }
+            output_batch.clear();
+        }
+
+        if !got_data {
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+    }
 }
 
 #[tauri::command]

@@ -136,9 +136,10 @@ export class VoiceChannelService {
   constructor() {
     effect(() => {
       const s = this.audioSettings.settings();
+      const screenFps = s.screenVideoBitrate >= 8000 ? 30 : 15;
       void this.applyBitrate(this.localSenders.get('audio'),       s.audioBitrate);
       void this.applyBitrate(this.localSenders.get('video'),       s.videoBitrate);
-      void this.applyBitrate(this.localSenders.get('screenVideo'), s.screenVideoBitrate);
+      void this.applyBitrate(this.localSenders.get('screenVideo'), s.screenVideoBitrate, screenFps);
       void this.applyBitrate(this.localSenders.get('screenAudio'), s.screenAudioBitrate);
     });
 
@@ -397,6 +398,14 @@ export class VoiceChannelService {
       if (!this.pc || !this.cfSessionId) return;
 
       const transceiver = this.pc.addTransceiver('video', { direction: 'recvonly' });
+      // Prefer VP9 on the receive side for the same efficiency gains.
+      const caps = RTCRtpReceiver.getCapabilities('video')?.codecs ?? [];
+      const ordered = [
+        ...caps.filter(c => c.mimeType === 'video/VP9'),
+        ...caps.filter(c => c.mimeType === 'video/H264'),
+        ...caps.filter(c => c.mimeType !== 'video/VP9' && c.mimeType !== 'video/H264'),
+      ];
+      if (ordered.length) try { transceiver.setCodecPreferences(ordered); } catch {}
       const offer = await this.pc.createOffer();
       await this.pc.setLocalDescription(offer);
 
@@ -638,6 +647,19 @@ export class VoiceChannelService {
             ? this.pc.addTrack(this.localScreenAudioTrack, stream)
             : null;
 
+          // Prefer VP9 for screen sharing: better quality-per-bit means higher effective fps
+          // at the same bitrate compared to VP8.
+          const videoTransceiver = this.pc.getTransceivers().find(t => t.sender === videoSender);
+          if (videoTransceiver) {
+            const caps = RTCRtpSender.getCapabilities('video')?.codecs ?? [];
+            const ordered = [
+              ...caps.filter(c => c.mimeType === 'video/VP9'),
+              ...caps.filter(c => c.mimeType === 'video/H264'),
+              ...caps.filter(c => c.mimeType !== 'video/VP9' && c.mimeType !== 'video/H264'),
+            ];
+            if (ordered.length) try { videoTransceiver.setCodecPreferences(ordered); } catch {}
+          }
+
           const offer = await this.pc.createOffer();
           await this.pc.setLocalDescription(offer);
 
@@ -657,7 +679,7 @@ export class VoiceChannelService {
           }));
           await this.pc.setRemoteDescription(resp.sessionDescription);
           if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
-          await this.applyBitrate(videoSender, this.audioSettings.settings().screenVideoBitrate);
+          await this.applyBitrate(videoSender, this.audioSettings.settings().screenVideoBitrate, fps);
           this.localSenders.set('screenVideo', videoSender);
           if (audioSender) {
             await this.applyBitrate(audioSender, this.audioSettings.settings().screenAudioBitrate);
@@ -840,12 +862,13 @@ export class VoiceChannelService {
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
-  private async applyBitrate(sender: RTCRtpSender | undefined, kbps: number): Promise<void> {
+  private async applyBitrate(sender: RTCRtpSender | undefined, kbps: number, maxFps?: number): Promise<void> {
     if (!sender) return;
     try {
       const params = sender.getParameters();
       if (!params.encodings?.length) params.encodings = [{}];
       params.encodings[0].maxBitrate = kbps * 1000;
+      if (maxFps !== undefined) params.encodings[0].maxFramerate = maxFps;
       await sender.setParameters(params);
     } catch { /* setParameters not supported or call already ended */ }
   }

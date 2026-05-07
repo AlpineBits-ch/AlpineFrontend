@@ -372,6 +372,17 @@ export class CallWebRtcService {
     const track = stream.getVideoTracks()[0];
     if (!track) return;
     const transceiver = this.pc.addTransceiver(track, { direction: 'sendonly' });
+
+    // Prefer VP9 for screen sharing — better quality-per-bit means higher effective fps
+    // at the same bitrate compared to VP8.
+    const caps = RTCRtpSender.getCapabilities('video')?.codecs ?? [];
+    const ordered = [
+      ...caps.filter(c => c.mimeType === 'video/VP9'),
+      ...caps.filter(c => c.mimeType === 'video/H264'),
+      ...caps.filter(c => c.mimeType !== 'video/VP9' && c.mimeType !== 'video/H264'),
+    ];
+    if (ordered.length) try { transceiver.setCodecPreferences(ordered); } catch {}
+
     const cfTrackName = `screen-${shareId}`;
     const results = await this.offerAnswerCycle(() => [{
       location: 'local',
@@ -381,7 +392,8 @@ export class CallWebRtcService {
     this.screenSender = transceiver.sender;
     this.screenTrackName = results[0]?.trackName ?? cfTrackName;
     this.screenShareId = shareId;
-    await this.applyBitrate(transceiver.sender, this.audioSettings.settings().screenVideoBitrate);
+    const fps = this.audioSettings.settings().screenVideoBitrate >= 8000 ? 30 : 15;
+    await this.applyBitrate(transceiver.sender, this.audioSettings.settings().screenVideoBitrate, 1.0, fps);
     if (this.callId) this.voiceWs.invokeScreenShareStarted(this.callId, shareId, this.screenTrackName);
   }
 
@@ -417,6 +429,17 @@ export class CallWebRtcService {
     console.log('[WebRTC] subscribeToTrack', { userId, remoteCfSessionId, trackName, kind });
     const mediaKind = kind === 'audio' ? 'audio' : 'video';
     const transceiver = this.pc.addTransceiver(mediaKind, { direction: 'recvonly' });
+
+    // For video/screen tracks, prefer VP9 on the receive side for the same efficiency gains.
+    if (mediaKind === 'video') {
+      const caps = RTCRtpReceiver.getCapabilities('video')?.codecs ?? [];
+      const ordered = [
+        ...caps.filter(c => c.mimeType === 'video/VP9'),
+        ...caps.filter(c => c.mimeType === 'video/H264'),
+        ...caps.filter(c => c.mimeType !== 'video/VP9' && c.mimeType !== 'video/H264'),
+      ];
+      if (ordered.length) try { transceiver.setCodecPreferences(ordered); } catch {}
+    }
 
     const results = await this.offerAnswerCycle(() => [{
       location: 'remote',
@@ -564,12 +587,14 @@ export class CallWebRtcService {
 
   // ── Bitrate control ───────────────────────────────────────────────────────
 
-  private async applyBitrate(sender: RTCRtpSender | null, kbps: number): Promise<void> {
+  private async applyBitrate(sender: RTCRtpSender | null, kbps: number, scaleResolutionDownBy?: number, maxFps?: number): Promise<void> {
     if (!sender) return;
     try {
       const params = sender.getParameters();
       if (!params.encodings?.length) params.encodings = [{}];
       params.encodings[0].maxBitrate = kbps * 1000;
+      if (scaleResolutionDownBy !== undefined) params.encodings[0].scaleResolutionDownBy = scaleResolutionDownBy;
+      if (maxFps !== undefined) params.encodings[0].maxFramerate = maxFps;
       await sender.setParameters(params);
     } catch { /* setParameters not supported or call already ended */ }
   }

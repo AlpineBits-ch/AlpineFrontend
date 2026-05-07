@@ -57,7 +57,11 @@
       "Read(//tmp/**)",
       "Bash(tasklist.exe)",
       "Bash(RUST_BACKTRACE=full target/debug/alpine.exe)",
-      "Bash(echo \"EXIT: $?\")"
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(~/.cargo/bin/cargo check *)",
+      "Bash(/c/Users/Domin/.cargo/bin/cargo.exe check *)",
+      "Bash(/c/Users/Domin/.cargo/bin/cargo.exe metadata *)",
+      "Bash(/c/Users/Domin/.cargo/bin/cargo check *)"
     ]
   }
 }
