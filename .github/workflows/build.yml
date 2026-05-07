@@ -104,6 +104,7 @@ jobs:
             libayatana-appindicator3-dev \
             librsvg2-dev \
             libpipewire-0.3-dev \
+            libasound2-dev \
             patchelf
 
       - name: Install dependencies
