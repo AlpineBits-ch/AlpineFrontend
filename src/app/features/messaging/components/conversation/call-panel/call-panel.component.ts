@@ -40,6 +40,8 @@ export class CallPanelComponent implements OnInit, OnDestroy {
 
   protected session = this.callSession.session;
   protected stats = this.callWebRtc.stats;
+  protected rtcState = this.callWebRtc.rtcState;
+  protected participantsWithAudio = this.callWebRtc.participantsWithAudio;
   protected focusedStream = signal<FocusedStream | null>(null);
   protected showStats = signal(false);
   protected volumeMenu = signal<VolumeMenu | null>(null);

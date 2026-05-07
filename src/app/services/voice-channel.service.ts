@@ -298,6 +298,9 @@ export class VoiceChannelService {
     try {
       this.pc = new RTCPeerConnection({ iceServers: environment.iceServers, bundlePolicy: 'max-bundle' });
       this.pc.ontrack = e => this.handleRemoteTrack(e);
+      this.pc.onconnectionstatechange = () => {
+        if (this.pc) this.rtcState.set(this.pc.connectionState);
+      };
 
       let audioTrack: MediaStreamTrack;
       try {
@@ -461,7 +464,10 @@ export class VoiceChannelService {
       }
       void audio.play().catch(() => {});
 
-      if (meta.kind === 'audio') this.setupRemoteVAD(meta.userId, stream);
+      if (meta.kind === 'audio') {
+        this.participantsWithAudio.update(s => { const n = new Set(s); n.add(meta.userId); return n; });
+        this.setupRemoteVAD(meta.userId, stream);
+      }
     } else if (meta.kind === 'video') {
       this.videoStreamsSignal.update(m => { const n = new Map(m); n.set(meta.userId, stream); return n; });
     } else {
@@ -506,6 +512,8 @@ export class VoiceChannelService {
     this.screenShareId = null;
 
     this.pc?.close();
+    this.rtcState.set('new');
+    this.participantsWithAudio.set(new Set());
     this.pc = null;
     this.cfSessionId = null;
     this.cfAudioTrackName = null;
@@ -759,6 +767,7 @@ export class VoiceChannelService {
       return n;
     });
 
+    this.participantsWithAudio.update(s => { const n = new Set(s); n.delete(e.userId); return n; });
     const audio = this.remoteAudioEls.get(e.userId);
     if (audio) { audio.pause(); audio.srcObject = null; this.remoteAudioEls.delete(e.userId); }
     const screenAudio = this.remoteScreenAudioEls.get(e.userId);
