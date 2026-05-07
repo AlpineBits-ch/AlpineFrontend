@@ -41,59 +41,82 @@ impl Default for ScreenCaptureState {
 
 #[tauri::command]
 pub async fn enumerate_screen_sources() -> Result<Vec<ScreenSource>, String> {
-    tokio::task::spawn_blocking(|| {
-        let mut sources = Vec::new();
+    // Phase 1: enumerate metadata without capturing images (fast — just Win32 API calls).
+    type Meta = (usize, String, u32, u32);
+    let (monitor_meta, window_meta) = tokio::task::spawn_blocking(|| -> Result<(Vec<Meta>, Vec<Meta>), String> {
+        let monitors: Vec<Meta> = Monitor::all()
+            .map_err(|e| e.to_string())?
+            .into_iter()
+            .enumerate()
+            .map(|(i, m)| {
+                let w = m.width().unwrap_or(0);
+                let h = m.height().unwrap_or(0);
+                let name = format!("{} ({w}×{h})", m.name().unwrap_or_else(|_| format!("Display {}", i + 1)));
+                (i, name, w, h)
+            })
+            .collect();
 
-        // Monitors
-        let monitors = Monitor::all().map_err(|e| e.to_string())?;
-        for (i, monitor) in monitors.iter().enumerate() {
-            let w = monitor.width().unwrap_or(0);
-            let h = monitor.height().unwrap_or(0);
-            let name_str = monitor.name().unwrap_or_else(|_| format!("Display {}", i + 1));
-            let name = format!("{name_str} ({w}×{h})");
-            let thumbnail = capture_monitor_thumbnail(monitor);
-            sources.push(ScreenSource {
-                id: format!("monitor:{i}"),
-                name,
-                is_monitor: true,
-                thumbnail,
-                width: w,
-                height: h,
-            });
-        }
+        let windows: Vec<Meta> = Window::all()
+            .unwrap_or_default()
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, w)| {
+                let title = w.title().ok().filter(|t| !t.is_empty())?;
+                if w.is_minimized().unwrap_or(false) { return None; }
+                let width = w.width().unwrap_or(0);
+                let height = w.height().unwrap_or(0);
+                if width < 50 || height < 50 { return None; }
+                Some((i, title, width, height))
+            })
+            .collect();
 
-        // Windows — filter to visible, titled, large-enough windows
-        if let Ok(windows) = Window::all() {
-            for (i, window) in windows.iter().enumerate() {
-                let title = match window.title() {
-                    Ok(t) if !t.is_empty() => t,
-                    _ => continue,
-                };
-                // Skip minimized windows
-                if window.is_minimized().unwrap_or(false) {
-                    continue;
-                }
-                let w = window.width().unwrap_or(0);
-                let h = window.height().unwrap_or(0);
-                if w < 50 || h < 50 {
-                    continue;
-                }
-                let thumbnail = capture_window_thumbnail(window);
-                sources.push(ScreenSource {
-                    id: format!("window:{i}"),
-                    name: title,
-                    is_monitor: false,
-                    thumbnail,
-                    width: w,
-                    height: h,
-                });
-            }
-        }
-
-        Ok(sources)
+        Ok((monitors, windows))
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+
+    // Phase 2: capture all thumbnails in parallel — total time ≈ slowest single capture
+    // instead of sum of all captures.
+    let mut handles: Vec<tokio::task::JoinHandle<Option<ScreenSource>>> = Vec::new();
+
+    for (idx, name, w, h) in monitor_meta {
+        handles.push(tokio::task::spawn_blocking(move || {
+            let monitors = Monitor::all().ok()?;
+            let monitor = monitors.into_iter().nth(idx)?;
+            Some(ScreenSource {
+                id: format!("monitor:{idx}"),
+                name,
+                is_monitor: true,
+                thumbnail: capture_monitor_thumbnail(&monitor),
+                width: w,
+                height: h,
+            })
+        }));
+    }
+
+    for (idx, title, w, h) in window_meta {
+        handles.push(tokio::task::spawn_blocking(move || {
+            let windows = Window::all().ok()?;
+            let window = windows.into_iter().nth(idx)?;
+            Some(ScreenSource {
+                id: format!("window:{idx}"),
+                name: title,
+                is_monitor: false,
+                thumbnail: capture_window_thumbnail(&window),
+                width: w,
+                height: h,
+            })
+        }));
+    }
+
+    let mut sources = Vec::new();
+    for handle in handles {
+        if let Ok(Some(src)) = handle.await {
+            sources.push(src);
+        }
+    }
+
+    Ok(sources)
 }
 
 #[tauri::command]
@@ -126,13 +149,23 @@ pub async fn start_screen_capture(
 
             if let Ok(Some((rgba, w, h))) = frame_result {
                 let dyn_img = DynamicImage::ImageRgba8(rgba);
+                // Downscale to at most 1920×1080 to keep IPC payload manageable.
+                const MAX_W: u32 = 1920;
+                const MAX_H: u32 = 1080;
+                let dyn_img = if w > MAX_W || h > MAX_H {
+                    dyn_img.resize(MAX_W, MAX_H, image::imageops::FilterType::Nearest)
+                } else {
+                    dyn_img
+                };
+                let out_w = dyn_img.width();
+                let out_h = dyn_img.height();
                 let jpeg = encode_jpeg(&dyn_img, 82);
                 let data = base64_encode(&jpeg);
                 let ts = std::time::SystemTime::now()
                     .duration_since(std::time::UNIX_EPOCH)
                     .unwrap_or_default()
                     .as_millis() as u64;
-                if on_frame.send(ScreenFrame { data, width: w, height: h, timestamp_ms: ts }).is_err() {
+                if on_frame.send(ScreenFrame { data, width: out_w, height: out_h, timestamp_ms: ts }).is_err() {
                     break;
                 }
             }

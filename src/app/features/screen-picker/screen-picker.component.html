@@ -102,6 +102,17 @@
         }
       </div>
 
+      <!-- Live preview — shown when a source is selected and 1 fps capture is running -->
+      @if (previewStream()) {
+        <div class="shrink-0 px-5 pb-3">
+          <p class="text-[10px] font-medium text-text-muted mb-1.5 uppercase tracking-wide">Preview</p>
+          <div class="relative w-full bg-black rounded-xl overflow-hidden" style="aspect-ratio:16/9">
+            <video #livePreview autoplay muted playsinline
+                   class="w-full h-full object-contain"></video>
+          </div>
+        </div>
+      }
+
       <!-- Footer -->
       <div class="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-border-subtle shrink-0">
         <button (click)="cancel()"

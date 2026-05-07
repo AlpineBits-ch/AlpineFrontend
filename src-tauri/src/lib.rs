@@ -149,6 +149,7 @@ pub fn run() {
 fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
     builder
         .manage(media::audio::AudioCaptureState::default())
+        .manage(media::audio::LoopbackCaptureState::default())
         .manage(media::screen::ScreenCaptureState::default())
         .invoke_handler(tauri::generate_handler![
             greet,
@@ -160,6 +161,8 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             media::audio::enumerate_audio_devices,
             media::audio::start_audio_capture,
             media::audio::stop_audio_capture,
+            media::audio::start_loopback_capture,
+            media::audio::stop_loopback_capture,
             media::screen::enumerate_screen_sources,
             media::screen::start_screen_capture,
             media::screen::stop_screen_capture,

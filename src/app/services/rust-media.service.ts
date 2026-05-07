@@ -38,10 +38,16 @@ export class RustMediaService {
   private micDestination: MediaStreamAudioDestinationNode | null = null;
   private audioChannel: Channel<AudioChunk> | null = null;
 
+  private loopbackCtx: AudioContext | null = null;
+  private loopbackWorklet: AudioWorkletNode | null = null;
+  private loopbackDest: MediaStreamAudioDestinationNode | null = null;
+  private loopbackChannel: Channel<AudioChunk> | null = null;
+
   private screenCanvas: OffscreenCanvas | HTMLCanvasElement | null = null;
   private screenCtx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null = null;
   private screenStream: MediaStream | null = null;
   private screenChannel: Channel<ScreenFrame> | null = null;
+  private drawingFrame = false;
 
   // ── Screen sources ────────────────────────────────────────────────────────
 
@@ -101,12 +107,15 @@ export class RustMediaService {
     this.screenStream = null;
     this.screenCanvas = null;
     this.screenCtx    = null;
+    this.drawingFrame = false;
   }
 
   private drawFrame(frame: ScreenFrame): void {
-    if (!this.screenCtx || !this.screenCanvas) return;
+    if (!this.screenCtx || !this.screenCanvas || this.drawingFrame) return;
+    this.drawingFrame = true;
     const blob = base64ToBlob(frame.data, 'image/jpeg');
     createImageBitmap(blob).then(bitmap => {
+      this.drawingFrame = false;
       if (!this.screenCtx || !this.screenCanvas) { bitmap.close(); return; }
       const c = this.screenCanvas as HTMLCanvasElement;
       if (c.width !== bitmap.width || c.height !== bitmap.height) {
@@ -115,7 +124,7 @@ export class RustMediaService {
       }
       (this.screenCtx as CanvasRenderingContext2D).drawImage(bitmap, 0, 0);
       bitmap.close();
-    }).catch(() => {});
+    }).catch(() => { this.drawingFrame = false; });
   }
 
   // ── Microphone capture ────────────────────────────────────────────────────
@@ -129,6 +138,7 @@ export class RustMediaService {
 
     const ctx = new AudioContext({ sampleRate: 48_000 });
     this.audioCtx = ctx;
+    await ctx.resume(); // WebView2 may start the context suspended; force it running
 
     await ctx.audioWorklet.addModule('/assets/audio-capture-processor.js');
 
@@ -186,6 +196,62 @@ export class RustMediaService {
       const raw = base64ToArrayBuffer(chunk.data);
       this.workletNode.port.postMessage({ type: 'samples', buffer: raw }, [raw]);
     } catch { /* ignore decode errors */ }
+  }
+
+  // ── Loopback (system audio) capture ──────────────────────────────────────
+
+  async startLoopbackCapture(): Promise<MediaStreamTrack> {
+    await this.stopLoopbackCapture();
+
+    const ctx = new AudioContext({ sampleRate: 48_000 });
+    this.loopbackCtx = ctx;
+    await ctx.resume();
+
+    await ctx.audioWorklet.addModule('/assets/audio-capture-processor.js');
+
+    const worklet = new AudioWorkletNode(ctx, 'audio-capture-processor', {
+      numberOfInputs: 0,
+      numberOfOutputs: 1,
+      outputChannelCount: [1],
+    });
+    this.loopbackWorklet = worklet;
+
+    const destination = ctx.createMediaStreamDestination();
+    this.loopbackDest = destination;
+    worklet.connect(destination);
+
+    const channel = new Channel<AudioChunk>();
+    this.loopbackChannel = channel;
+    channel.onmessage = (chunk) => this.feedLoopback(chunk);
+
+    await invoke('start_loopback_capture', { onChunk: channel });
+
+    const track = destination.stream.getAudioTracks()[0];
+    if (!track) throw new Error('No audio track from loopback worklet');
+    return track;
+  }
+
+  async stopLoopbackCapture(): Promise<void> {
+    if (this.loopbackChannel) {
+      this.loopbackChannel.onmessage = () => {};
+      this.loopbackChannel = null;
+    }
+    if (isTauri()) {
+      await invoke('stop_loopback_capture').catch(() => {});
+    }
+    this.loopbackWorklet?.disconnect();
+    this.loopbackWorklet = null;
+    this.loopbackDest = null;
+    this.loopbackCtx?.close().catch(() => {});
+    this.loopbackCtx = null;
+  }
+
+  private feedLoopback(chunk: AudioChunk): void {
+    if (!this.loopbackWorklet) return;
+    try {
+      const raw = base64ToArrayBuffer(chunk.data);
+      this.loopbackWorklet.port.postMessage({ type: 'samples', buffer: raw }, [raw]);
+    } catch { /* ignore */ }
   }
 }
 

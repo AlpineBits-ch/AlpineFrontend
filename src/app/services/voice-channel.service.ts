@@ -566,6 +566,7 @@ export class VoiceChannelService {
 
       this.localScreenTrack.stop();
       void this.rustMedia.stopScreenCapture();
+      void this.rustMedia.stopLoopbackCapture();
       const videoSender = this.pc.getSenders().find(s => s.track === this.localScreenTrack);
       if (videoSender) this.pc.removeTrack(videoSender);
 
@@ -591,10 +592,18 @@ export class VoiceChannelService {
 
         const fps = Math.round((this.audioSettings.settings().screenVideoBitrate >= 8000) ? 30 : 15);
         const videoTrack = await this.rustMedia.startScreenCapture(sourceId, fps);
-        const stream = new MediaStream([videoTrack]);
         this.localScreenTrack = videoTrack;
-        // Screen audio not available from Rust capture — use separate system audio capture
-        this.localScreenAudioTrack = null;
+
+        // Capture system audio via WASAPI loopback
+        let audioTrack: MediaStreamTrack | null = null;
+        try {
+          audioTrack = await this.rustMedia.startLoopbackCapture();
+        } catch {
+          console.warn('[ScreenShare] Loopback audio unavailable');
+        }
+        this.localScreenAudioTrack = audioTrack;
+
+        const stream = new MediaStream(audioTrack ? [videoTrack, audioTrack] : [videoTrack]);
 
         const shareId = crypto.randomUUID();
         this.screenShareId = shareId;

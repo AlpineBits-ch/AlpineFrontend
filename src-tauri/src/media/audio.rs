@@ -43,6 +43,15 @@ impl Default for AudioCaptureState {
     }
 }
 
+/// Shared state for the running loopback capture stream.
+pub struct LoopbackCaptureState(pub Arc<Mutex<Option<oneshot::Sender<()>>>>);
+
+impl Default for LoopbackCaptureState {
+    fn default() -> Self {
+        Self(Arc::new(Mutex::new(None)))
+    }
+}
+
 /// PCM audio chunk sent to JS — base64-encoded f32 LE bytes, mono 48 kHz.
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
@@ -153,6 +162,11 @@ pub async fn start_audio_capture(
 
         let mut denoiser = DenoiseState::new();
         let mut agc_gain: f32 = 1.0;
+        let mut gate_gain: f32 = 1.0;
+        let mut hold_frames: u32 = 0;
+        // Pre/de-emphasis state — last input sample and last output sample.
+        let mut pre_emph_prev: f32 = 0.0;
+        let mut de_emph_prev: f32 = 0.0;
         let mut input_buf: Vec<f32> = Vec::with_capacity(BATCH_SAMPLES * 2);
         let mut output_batch: Vec<f32> = Vec::with_capacity(BATCH_SAMPLES);
 
@@ -188,18 +202,54 @@ pub async fn start_audio_capture(
                 let frame: Vec<f32> = input_buf.drain(..RNNOISE_FRAME).collect();
 
                 let processed = if settings.noise_suppression {
-                    // RNNoise expects 16-bit range
-                    let scaled: Vec<f32> = frame.iter().map(|&s| s * 32768.0).collect();
+                    // Pre-emphasis: y[n] = x[n] - 0.95*x[n-1]
+                    // Boosts high frequencies before RNNoise so the model has
+                    // more signal energy to work with in the upper voice bands,
+                    // reducing over-suppression that makes audio sound thin.
+                    let mut pre = Vec::with_capacity(frame.len());
+                    let mut prev = pre_emph_prev;
+                    for &s in &frame {
+                        pre.push(s - 0.95 * prev);
+                        prev = s;
+                    }
+                    pre_emph_prev = *frame.last().unwrap_or(&0.0);
+
+                    let scaled: Vec<f32> = pre.iter().map(|&s| s * 32768.0).collect();
                     let mut rnn_out = vec![0.0f32; RNNOISE_FRAME];
                     let vad = denoiser.process_frame(&mut rnn_out, &scaled);
 
-                    // Gate below VAD threshold (suppress non-speech)
-                    if settings.vad_threshold > 0.0 && vad < settings.vad_threshold {
-                        vec![0.0f32; RNNOISE_FRAME]
-                    } else {
-                        rnn_out.iter_mut().for_each(|s| *s /= 32768.0);
-                        rnn_out
+                    // De-emphasis: y[n] = x[n]/32768 + 0.95*y[n-1]
+                    // Restores the natural frequency balance after RNNoise.
+                    let mut denoised = Vec::with_capacity(rnn_out.len());
+                    let mut prev_d = de_emph_prev;
+                    for &s in &rnn_out {
+                        let y = s / 32768.0 + 0.95 * prev_d;
+                        denoised.push(y);
+                        prev_d = y;
                     }
+                    de_emph_prev = *denoised.last().unwrap_or(&0.0);
+
+                    // 80/20 blend: preserves more natural warmth and prevents
+                    // RNNoise from completely suppressing quiet/atypical voices.
+                    let mut blended: Vec<f32> = denoised.iter().zip(frame.iter())
+                        .map(|(&d, &o)| d * 0.8 + o * 0.2)
+                        .collect();
+
+                    // Smooth VAD gate (attack 50 ms, hold 250 ms, release ~200 ms).
+                    if settings.vad_threshold > 0.0 {
+                        if vad >= settings.vad_threshold {
+                            hold_frames = 25;
+                        }
+                        if hold_frames > 0 {
+                            hold_frames -= 1;
+                            gate_gain += (1.0 - gate_gain) * 0.6;
+                        } else {
+                            gate_gain *= 0.85;
+                        }
+                        blended.iter_mut().for_each(|s| *s *= gate_gain);
+                    }
+
+                    blended
                 } else {
                     frame
                 };
@@ -321,22 +371,30 @@ fn resample_linear(input: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
     out
 }
 
-/// Simple levelling AGC — keeps RMS around -18 dBFS.
+/// Levelling AGC — targets −16 dBFS RMS with fast gain reduction and slow
+/// gain increase to prevent pumping and overgain bursts.
 fn apply_agc(mut samples: Vec<f32>, gain: &mut f32) -> Vec<f32> {
-    const TARGET_RMS: f32 = 0.125; // ~-18 dBFS
-    const MAX_GAIN: f32 = 8.0;
-    const ATTACK: f32 = 0.01;
-    const RELEASE: f32 = 0.001;
+    const TARGET_RMS: f32 = 0.15;   // −16 dBFS
+    const MAX_GAIN: f32 = 4.0;      // +12 dB max boost
+    // Fast attack: reduces gain quickly when signal is loud (~4 frames = 40 ms).
+    const ATTACK: f32 = 0.25;
+    // Slow release: increases gain gradually when signal drops (~300 frames = 3 s).
+    const RELEASE: f32 = 0.003;
+    // Below this RMS the signal is silence/noise — freeze gain rather than
+    // boosting aggressively, which would cause an overgain burst on re-entry.
+    const NOISE_FLOOR: f32 = 0.008; // −42 dBFS
 
-    let rms = {
-        let sum: f32 = samples.iter().map(|&s| s * s).sum();
-        (sum / samples.len() as f32).sqrt()
-    };
+    let rms = (samples.iter().map(|&s| s * s).sum::<f32>() / samples.len() as f32).sqrt();
 
-    if rms > 0.0001 {
-        let desired = TARGET_RMS / rms;
+    if rms > NOISE_FLOOR {
+        let desired = (TARGET_RMS / rms).min(MAX_GAIN);
+        // Use fast path when gain needs to come down, slow path when going up.
         let alpha = if desired < *gain { ATTACK } else { RELEASE };
         *gain = (*gain * (1.0 - alpha) + desired * alpha).min(MAX_GAIN);
+    } else {
+        // During silence, bleed accumulated gain back toward 1.0 so that
+        // re-entry after a long pause doesn't explode at MAX_GAIN.
+        *gain = 1.0 + (*gain - 1.0) * 0.99;
     }
 
     samples.iter_mut().for_each(|s| *s = (*s * *gain).clamp(-1.0, 1.0));
@@ -346,4 +404,123 @@ fn apply_agc(mut samples: Vec<f32>, gain: &mut f32) -> Vec<f32> {
 fn base64_encode(data: &[u8]) -> String {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD.encode(data)
+}
+
+// ── Loopback (system audio) capture ──────────────────────────────────────────
+
+/// Capture system audio output via WASAPI loopback.
+/// On Windows, building an input stream on the default *output* device causes
+/// cpal's WASAPI backend to set AUDCLNT_STREAMFLAGS_LOOPBACK automatically.
+#[tauri::command]
+pub async fn start_loopback_capture(
+    on_chunk: Channel<AudioChunk>,
+    state: tauri::State<'_, LoopbackCaptureState>,
+) -> Result<(), String> {
+    stop_loopback_capture_inner(&state);
+
+    let (stop_tx, mut stop_rx) = oneshot::channel::<()>();
+    *state.0.lock().unwrap() = Some(stop_tx);
+
+    let host = cpal::default_host();
+    let device = host
+        .default_output_device()
+        .ok_or("No output device available")?;
+
+    // Use the output device's own config — loopback must match what it plays.
+    let out_cfg = device
+        .default_output_config()
+        .map_err(|e| e.to_string())?;
+    let sample_rate = out_cfg.sample_rate().0;
+    let channels = out_cfg.channels() as usize;
+    let config: cpal::StreamConfig = out_cfg.into();
+
+    let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<f32>>(64);
+    let tx_err = tx.clone();
+
+    // build_input_stream on an output device → WASAPI loopback on Windows
+    let stream = device
+        .build_input_stream(
+            &config,
+            move |data: &[f32], _| {
+                let _ = tx.send(data.to_vec());
+            },
+            move |err| {
+                eprintln!("[loopback] cpal error: {err}");
+                drop(tx_err.clone());
+            },
+            None,
+        )
+        .map_err(|e| e.to_string())?;
+
+    stream.play().map_err(|e| e.to_string())?;
+    let stream = SendStream(stream);
+
+    tauri::async_runtime::spawn(async move {
+        let _stream = stream;
+        let mut input_buf: Vec<f32> = Vec::with_capacity(BATCH_SAMPLES * 2);
+        let mut output_batch: Vec<f32> = Vec::with_capacity(BATCH_SAMPLES);
+
+        loop {
+            if stop_rx.try_recv().is_ok() {
+                break;
+            }
+
+            let mut got_data = false;
+            while let Ok(chunk) = rx.try_recv() {
+                // Mix down to mono
+                let mono: Vec<f32> = if channels > 1 {
+                    chunk
+                        .chunks(channels)
+                        .map(|ch| ch.iter().sum::<f32>() / channels as f32)
+                        .collect()
+                } else {
+                    chunk
+                };
+
+                let resampled = if sample_rate != 48_000 {
+                    resample_linear(&mono, sample_rate, 48_000)
+                } else {
+                    mono
+                };
+
+                input_buf.extend_from_slice(&resampled);
+                got_data = true;
+            }
+
+            while input_buf.len() >= BATCH_SAMPLES {
+                let samples: Vec<f32> = input_buf.drain(..BATCH_SAMPLES).collect();
+                let raw: Vec<u8> = samples.iter().flat_map(|&f| f.to_le_bytes()).collect();
+                let encoded = base64_encode(&raw);
+                if on_chunk
+                    .send(AudioChunk {
+                        data: encoded,
+                        sample_rate: 48_000,
+                        channels: 1,
+                    })
+                    .is_err()
+                {
+                    break;
+                }
+            }
+
+            if !got_data {
+                tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
+            }
+        }
+    });
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn stop_loopback_capture(state: tauri::State<'_, LoopbackCaptureState>) {
+    stop_loopback_capture_inner(&state);
+}
+
+fn stop_loopback_capture_inner(state: &LoopbackCaptureState) {
+    if let Ok(mut guard) = state.0.lock() {
+        if let Some(tx) = guard.take() {
+            let _ = tx.send(());
+        }
+    }
 }
