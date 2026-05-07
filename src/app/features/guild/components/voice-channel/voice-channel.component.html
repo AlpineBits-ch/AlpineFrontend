@@ -73,6 +73,37 @@
     <!-- ── Joined ──────────────────────────────────────────────────────────── -->
     <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
 
+      <!-- Connection state banners -->
+      @let rtc = voiceSvc.rtcState();
+      @if (rtc === 'failed' || rtc === 'disconnected') {
+        <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium"
+             style="background: rgba(244,63,94,0.12); border-bottom: 1px solid rgba(244,63,94,0.2); color: #fb7185;">
+          <div class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" style="animation: vc-rtc-pulse 0.8s ease-in-out infinite"></div>
+          <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12" class="shrink-0">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+          </svg>
+          {{ rtc === 'failed' ? 'Connection failed — audio unavailable' : 'Connection lost — attempting to reconnect' }}
+        </div>
+      } @else if (rtc === 'new' || rtc === 'connecting') {
+        <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium"
+             style="background: rgba(251,191,36,0.10); border-bottom: 1px solid rgba(251,191,36,0.2); color: #fbbf24;">
+          <div class="w-1.5 h-1.5 rounded-full shrink-0" style="background: #fbbf24; animation: vc-rtc-pulse 1s ease-in-out infinite"></div>
+          Establishing connection...
+        </div>
+      }
+
+      <!-- No-audio warning -->
+      @let pwa = voiceSvc.participantsWithAudio();
+      @if (participants().some(p => !p.isLocal && !pwa.has(p.userId))) {
+        <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium"
+             style="background: rgba(251,191,36,0.10); border-bottom: 1px solid rgba(251,191,36,0.2); color: #fbbf24;">
+          <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12" class="shrink-0">
+            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+          </svg>
+          No audio received from some participants — they may need to rejoin
+        </div>
+      }
+
       @if (screenSharers().length > 0) {
 
         <!-- Screen share layout -->
@@ -168,6 +199,15 @@
                   }
                 </div>
                 <span class="text-xs text-white/75 truncate max-w-[68px] text-center">{{ p.displayName }}</span>
+                @if (!p.isLocal && !voiceSvc.participantsWithAudio().has(p.userId)) {
+                  <div class="flex items-center gap-0.5 text-[9px] font-semibold"
+                       style="color: #fbbf24;" title="No audio received">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="8" height="8">
+                      <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                    </svg>
+                    No audio
+                  </div>
+                }
                 @if (!p.isLocal && p.isScreenSharing) {
                   <button
                     (click)="toggleScreenAudioMute(p.userId)"
@@ -233,6 +273,18 @@
                   }
                   <span class="text-sm font-medium text-white/85 truncate">{{ p.displayName }}</span>
                 </div>
+
+                <!-- No-audio badge -->
+                @if (!p.isLocal && !voiceSvc.participantsWithAudio().has(p.userId)) {
+                  <div class="absolute bottom-3 right-3 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold"
+                       style="background: rgba(251,191,36,0.18); border: 1px solid rgba(251,191,36,0.35); color: #fbbf24;"
+                       title="No audio received from this participant">
+                    <svg viewBox="0 0 24 24" fill="currentColor" width="8" height="8">
+                      <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                    </svg>
+                    No audio
+                  </div>
+                }
               </div>
 
             }
@@ -320,3 +372,10 @@
   }
 
 </div>
+
+<style>
+@keyframes vc-rtc-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+</style>

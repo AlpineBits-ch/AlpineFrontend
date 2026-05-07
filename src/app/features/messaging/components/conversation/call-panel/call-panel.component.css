@@ -632,11 +632,79 @@
   flex-shrink: 0;
 }
 
+/* ── Connection state variants ───────────────────────────────────────────── */
+
+.live-dot--connecting {
+  background: #fbbf24;
+  box-shadow: 0 0 5px rgba(251, 191, 36, 0.5);
+  animation: rtc-pulse 1s ease-in-out infinite !important;
+}
+
+.live-dot--failed {
+  background: #f43f5e;
+  box-shadow: 0 0 6px rgba(244, 63, 94, 0.6);
+  animation: rtc-pulse 0.8s ease-in-out infinite !important;
+}
+
+.status-label--connecting { color: #fbbf24; }
+.status-label--failed     { color: #f43f5e; }
+
+/* ── Connection banners ───────────────────────────────────────────────────── */
+
+.conn-banner {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 500;
+  flex-shrink: 0;
+  border-bottom: 1px solid transparent;
+}
+
+.conn-banner--error {
+  background: rgba(244, 63, 94, 0.12);
+  border-color: rgba(244, 63, 94, 0.2);
+  color: #fb7185;
+}
+
+.conn-banner--warn {
+  background: rgba(251, 191, 36, 0.10);
+  border-color: rgba(251, 191, 36, 0.2);
+  color: #fbbf24;
+}
+
+/* ── No-audio badge ──────────────────────────────────────────────────────── */
+
+.no-audio-badge {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(251, 191, 36, 0.18);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fbbf24;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  z-index: 2;
+  pointer-events: none;
+}
+
 /* ── Animations ──────────────────────────────────────────────────────────── */
 
 @keyframes live-pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.5; }
+}
+
+@keyframes rtc-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
 }
 
 @keyframes speaking-ring {
