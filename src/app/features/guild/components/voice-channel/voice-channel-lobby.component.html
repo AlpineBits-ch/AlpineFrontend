@@ -1,0 +1,40 @@
+<div class="flex flex-col items-center justify-center gap-8 px-8 h-full select-none">
+
+  <div class="w-24 h-24 rounded-2xl bg-brand/10 border border-brand/20 flex items-center justify-center">
+    <i class="pi pi-volume-up text-5xl text-brand/70"></i>
+  </div>
+
+  <div class="text-center">
+    <h2 class="text-2xl font-bold text-white/90 mb-2">{{ channel().name }}</h2>
+    @if (participants().length > 0) {
+      <p class="text-base text-white/55">{{ participants().length }} {{ participants().length === 1 ? 'person' : 'people' }} in voice</p>
+    } @else {
+      <p class="text-base text-white/40">No one here yet. Be the first!</p>
+    }
+  </div>
+
+  @if (participants().length > 0) {
+    <div class="flex flex-wrap justify-center gap-5 max-w-md">
+      @for (p of participants(); track p.userId) {
+        <div class="flex flex-col items-center gap-2">
+          <div class="relative">
+            <app-avatar [userId]="p.userId" [label]="p.avatarLabel" size="large" />
+            @if (p.isMuted) {
+              <div class="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-sidebar border border-white/10 flex items-center justify-center">
+                <i class="pi pi-microphone-slash text-[9px] text-rose-400"></i>
+              </div>
+            }
+          </div>
+          <span class="text-xs text-white/70 max-w-[70px] truncate text-center">{{ p.displayName }}</span>
+        </div>
+      }
+    </div>
+  }
+
+  <button
+    (click)="joinVoice.emit()"
+    class="px-10 py-3 bg-brand hover:bg-brand-hover text-white font-semibold rounded-xl transition-colors cursor-pointer border-0">
+    Join Voice
+  </button>
+
+</div>

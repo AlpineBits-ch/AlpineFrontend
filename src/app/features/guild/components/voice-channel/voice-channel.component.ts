@@ -4,33 +4,40 @@ import { firstValueFrom } from 'rxjs';
 import { ChannelDto } from '../../../../dtos/response/guild.dto';
 import { VoiceChannelParticipant, VoiceChannelService } from '../../../../services/voice-channel.service';
 import { NavigationService } from '../../../main-page/navigation.service';
-import { AppAvatarComponent } from '../../../../components/avatar/avatar.component';
-import { StreamSrcDirective } from '../../../../directives/stream-src.directive';
-import { RustMediaService } from '../../../../services/rust-media.service';
 import { GuildService } from '../../../../services/guild.service';
 import { GuildVoiceService } from '../../../../services/guild-voice.service';
 import { GuildMemberDto } from '../../../../dtos/response/member.dto';
 import { hasPermission, parsePermissions, Permissions } from '../../../../enums/permissions.enum';
+import { RustMediaService } from '../../../../services/rust-media.service';
 import { VoiceChannelContextMenuComponent, ParticipantMenuData } from './voice-channel-context-menu.component';
 import { VoiceChannelParticipantTileComponent } from './voice-channel-participant-tile.component';
+import { VoiceChannelLobbyComponent } from './voice-channel-lobby.component';
+import { VoiceChannelControlsBarComponent } from './voice-channel-controls-bar.component';
+import { VoiceChannelScreenLayoutComponent } from './voice-channel-screen-layout.component';
 
 @Component({
   selector: 'app-voice-channel',
-  imports: [NgClass, AppAvatarComponent, StreamSrcDirective, VoiceChannelContextMenuComponent, VoiceChannelParticipantTileComponent],
+  imports: [
+    NgClass,
+    VoiceChannelContextMenuComponent,
+    VoiceChannelParticipantTileComponent,
+    VoiceChannelLobbyComponent,
+    VoiceChannelControlsBarComponent,
+    VoiceChannelScreenLayoutComponent,
+  ],
   templateUrl: './voice-channel.component.html',
 })
 export class VoiceChannelComponent {
   channel = input.required<ChannelDto>();
 
-  protected voiceSvc    = inject(VoiceChannelService);
-  protected navService  = inject(NavigationService);
-  protected rustMedia   = inject(RustMediaService);
-  private   guildSvc    = inject(GuildService);
-  private   guildVoice  = inject(GuildVoiceService);
+  protected voiceSvc   = inject(VoiceChannelService);
+  protected navService = inject(NavigationService);
+  protected rustMedia  = inject(RustMediaService);
+  private   guildSvc   = inject(GuildService);
+  private   guildVoice = inject(GuildVoiceService);
 
-  readonly fpsList = [5, 10, 15, 30] as const;
+  // ── Permission check ───────────────────────────────────────────────────────
 
-  // ── Permission check ────────────────────────────────────────────────────
   private ownMember = signal<GuildMemberDto | null>(null);
 
   protected isSuperadmin = computed(() => {
@@ -46,7 +53,7 @@ export class VoiceChannelComponent {
     });
   }
 
-  // ── Computed helpers ─────────────────────────────────────────────────────
+  // ── Computed helpers ───────────────────────────────────────────────────────
 
   protected participants = computed(() =>
     this.voiceSvc.channelParticipants().get(this.channel().id) ?? [],
@@ -68,7 +75,7 @@ export class VoiceChannelComponent {
     return 'grid-cols-4';
   });
 
-  // ── Context menu ─────────────────────────────────────────────────────────
+  // ── Context menu ───────────────────────────────────────────────────────────
 
   protected participantMenu = signal<ParticipantMenuData | null>(null);
 
@@ -77,7 +84,7 @@ export class VoiceChannelComponent {
     event.preventDefault();
     event.stopPropagation();
     const volume = Math.round(this.voiceSvc.getUserVolume(p.userId) * 100);
-    const x = Math.min(event.clientX, window.innerWidth - 236);
+    const x = Math.min(event.clientX, window.innerWidth  - 236);
     const y = Math.min(event.clientY, window.innerHeight - 200);
     this.participantMenu.set({ x: Math.max(0, x), y: Math.max(0, y), participant: p, volume });
   }
@@ -121,7 +128,7 @@ export class VoiceChannelComponent {
     });
   }
 
-  // ── Channel actions ───────────────────────────────────────────────────────
+  // ── Channel actions ────────────────────────────────────────────────────────
 
   protected joinChannel(): void {
     const view = this.navService.workspace();
@@ -129,20 +136,10 @@ export class VoiceChannelComponent {
     void this.voiceSvc.joinChannel(this.channel(), guildName);
   }
 
-  protected leaveChannel(): void {
-    void this.voiceSvc.leaveChannel();
-  }
-
-  protected toggleMute():        void { this.voiceSvc.toggleMute(); }
-  protected toggleDeafen():      void { this.voiceSvc.toggleDeafen(); }
-  protected toggleCamera():      void { void this.voiceSvc.toggleCamera(); }
-  protected toggleScreenShare(): void { void this.voiceSvc.toggleScreenShare(); }
+  protected leaveChannel():       void { void this.voiceSvc.leaveChannel(); }
+  protected toggleMute():         void { this.voiceSvc.toggleMute(); }
+  protected toggleDeafen():       void { this.voiceSvc.toggleDeafen(); }
+  protected toggleCamera():       void { void this.voiceSvc.toggleCamera(); }
+  protected toggleScreenShare():  void { void this.voiceSvc.toggleScreenShare(); }
   protected setCaptureFps(fps: number): void { void this.rustMedia.setCaptureFps(fps); }
-
-  protected videoStreamFor(userId: string):  MediaStream | null { return this.voiceSvc.getVideoStream(userId); }
-  protected screenStreamFor(userId: string): MediaStream | null { return this.voiceSvc.getScreenStream(userId); }
-
-  protected isScreenAudioMuted(userId: string): boolean { return this.voiceSvc.isScreenAudioMuted(userId); }
-  protected toggleScreenAudioMute(userId: string): void  { this.voiceSvc.toggleScreenAudioMute(userId); }
-  protected toggleLocalScreenAudio(): void { this.voiceSvc.toggleLocalScreenAudio(); }
 }
