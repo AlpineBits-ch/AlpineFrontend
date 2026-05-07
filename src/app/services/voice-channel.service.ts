@@ -31,6 +31,7 @@ export interface VoiceChannelParticipant {
   isSpeaking: boolean;
   isCameraOn: boolean;
   isScreenSharing: boolean;
+  isServerDeafened: boolean;
   isLocal: boolean;
   cfSessionId?: string | null;
 }
@@ -107,6 +108,9 @@ export class VoiceChannelService {
   // Audio playback elements keyed by userId — WebView2/Tauri requires explicit <audio> elements
   private remoteAudioEls       = new Map<string, HTMLAudioElement>();
   private remoteScreenAudioEls = new Map<string, HTMLAudioElement>();
+
+  // Per-user volume overrides (0–1.0), persisted across track reconnections
+  private readonly userVolumes = new Map<string, number>();
 
   // Track local senders so bitrate can be changed on the fly
   private readonly localSenders = new Map<string, RTCRtpSender>();
@@ -216,15 +220,16 @@ export class VoiceChannelService {
         if (!list.find(p => p.isLocal)) {
           const profile = this.profileService.ownProfile();
           list.unshift({
-            userId:          ownId,
-            displayName:     profile?.userName ?? 'You',
-            avatarLabel:     (profile?.userName?.[0] ?? 'Y').toUpperCase(),
-            avatarUrl:       profile?.avatarUrl,
-            isMuted:         false,
-            isSpeaking:      false,
-            isCameraOn:      false,
-            isScreenSharing: false,
-            isLocal:         true,
+            userId:           ownId,
+            displayName:      profile?.userName ?? 'You',
+            avatarLabel:      (profile?.userName?.[0] ?? 'Y').toUpperCase(),
+            avatarUrl:        profile?.avatarUrl,
+            isMuted:          false,
+            isSpeaking:       false,
+            isCameraOn:       false,
+            isScreenSharing:  false,
+            isServerDeafened: false,
+            isLocal:          true,
           });
         }
 
@@ -456,7 +461,7 @@ export class VoiceChannelService {
       }
       audio.srcObject = stream;
       audio.volume = meta.kind === 'audio'
-        ? (this.localState().isDeafened ? 0 : 1)
+        ? (this.localState().isDeafened ? 0 : (this.userVolumes.get(meta.userId) ?? 1))
         : (this.screenAudioMutedSignal().has(meta.userId) ? 0 : 1);
       const speakerId = this.audioSettings.settings().speakerId;
       if (speakerId && speakerId !== 'default' && typeof (audio as any).setSinkId === 'function') {
@@ -514,6 +519,7 @@ export class VoiceChannelService {
     this.pc?.close();
     this.rtcState.set('new');
     this.participantsWithAudio.set(new Set());
+    this.userVolumes.clear();
     this.pc = null;
     this.cfSessionId = null;
     this.cfAudioTrackName = null;
@@ -540,7 +546,9 @@ export class VoiceChannelService {
     });
     const { isDeafened, isMuted } = this.localState();
     if (this.localAudioTrack) this.localAudioTrack.enabled = !isMuted;
-    this.remoteAudioEls.forEach(a => { a.volume = isDeafened ? 0 : 1; });
+    this.remoteAudioEls.forEach((a, userId) => {
+      a.volume = isDeafened ? 0 : (this.userVolumes.get(userId) ?? 1);
+    });
     const channelId = this.joinedChannelId();
     if (channelId) {
       this.guildWsSvc.invokeVoiceDeafenChanged(channelId, isDeafened);
@@ -713,6 +721,23 @@ export class VoiceChannelService {
     this.syncLocal();
   }
 
+  setServerDeafened(userId: string, isDeafened: boolean): void {
+    const channelId = this.joinedChannelId();
+    if (!channelId) return;
+    this.patchParticipant(channelId, userId, p => ({ ...p, isServerDeafened: isDeafened, isMuted: isDeafened || p.isMuted }));
+  }
+
+  setUserVolume(userId: string, volume: number): void {
+    const clamped = Math.max(0, Math.min(1, volume));
+    this.userVolumes.set(userId, clamped);
+    const audio = this.remoteAudioEls.get(userId);
+    if (audio && !this.localState().isDeafened) audio.volume = clamped;
+  }
+
+  getUserVolume(userId: string): number {
+    return this.userVolumes.get(userId) ?? 1;
+  }
+
   private syncLocal(): void {
     const channelId = this.joinedChannelId();
     if (!channelId) return;
@@ -742,11 +767,12 @@ export class VoiceChannelService {
       displayName:     profile?.userName ?? e.userId,
       avatarLabel:     (profile?.userName?.[0] ?? '?').toUpperCase(),
       avatarUrl:       profile?.avatarUrl,
-      isMuted:         false,
-      isSpeaking:      false,
-      isCameraOn:      false,
-      isScreenSharing: false,
-      isLocal:         false,
+      isMuted:           false,
+      isSpeaking:        false,
+      isCameraOn:        false,
+      isScreenSharing:   false,
+      isServerDeafened:  false,
+      isLocal:           false,
     };
 
     this.channelParticipantsSignal.update(map => {
@@ -913,12 +939,13 @@ export class VoiceChannelService {
       displayName:     profile?.userName ?? dto.userId,
       avatarLabel:     (profile?.userName?.[0] ?? '?').toUpperCase(),
       avatarUrl:       profile?.avatarUrl,
-      isMuted:         dto.isSelfMuted || dto.isServerMuted,
-      isSpeaking:      false,
-      isCameraOn:      false,
-      isScreenSharing: dto.isStreaming,
-      isLocal:         dto.userId === ownId,
-      cfSessionId:     dto.cfSessionId,
+      isMuted:           dto.isSelfMuted || dto.isServerMuted,
+      isSpeaking:        false,
+      isCameraOn:        false,
+      isScreenSharing:   dto.isStreaming,
+      isServerDeafened:  dto.isServerDeafened,
+      isLocal:           dto.userId === ownId,
+      cfSessionId:       dto.cfSessionId,
     };
   }
 }

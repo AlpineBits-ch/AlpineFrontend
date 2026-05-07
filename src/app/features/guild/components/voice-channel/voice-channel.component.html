@@ -189,7 +189,8 @@
             @for (p of participants(); track p.userId) {
               <div
                 class="shrink-0 flex flex-col items-center gap-2 px-3 py-2.5 rounded-xl bg-card border min-w-[84px]"
-                [ngClass]="p.isSpeaking ? 'border-online/60 shadow-[0_0_0_2px_rgba(52,211,153,0.25)]' : 'border-white/[0.12]'">
+                [ngClass]="p.isSpeaking ? 'border-online/60 shadow-[0_0_0_2px_rgba(52,211,153,0.25)]' : 'border-white/[0.12]'"
+                (contextmenu)="onParticipantContextMenu($event, p)">
                 <div class="relative">
                   <app-avatar [userId]="p.userId" [label]="p.avatarLabel" />
                   @if (p.isMuted) {
@@ -235,7 +236,8 @@
                 class="relative flex flex-col items-center justify-center gap-3 bg-card rounded-2xl p-6 aspect-square border transition-all shadow-[0_4px_24px_rgba(0,0,0,0.5)]"
                 [ngClass]="p.isSpeaking
                   ? 'border-online/60 shadow-[0_0_0_2px_rgba(52,211,153,0.2),0_4px_24px_rgba(0,0,0,0.5)]'
-                  : 'border-white/[0.12]'">
+                  : 'border-white/[0.12]'"
+                (contextmenu)="onParticipantContextMenu($event, p)">
 
                 <!-- Speaking glow ring -->
                 @if (p.isSpeaking) {
@@ -373,7 +375,230 @@
 
 </div>
 
+<!-- ── Participant context menu ──────────────────────────────────────────── -->
+@if (participantMenu(); as menu) {
+  <div class="vc-ctx-menu" [style.left.px]="menu.x" [style.top.px]="menu.y"
+    (click)="$event.stopPropagation()">
+
+    <!-- Header -->
+    <div class="vc-ctx-header">
+      <div class="vc-ctx-avatar">{{ menu.participant.avatarLabel }}</div>
+      <div class="vc-ctx-name">{{ menu.participant.displayName }}</div>
+      @if (menu.participant.isServerDeafened) {
+        <span class="vc-ctx-badge">Server deafened</span>
+      }
+    </div>
+
+    <!-- Volume -->
+    <div class="vc-ctx-section">
+      <div class="vc-ctx-label">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11">
+          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+        </svg>
+        Volume
+        <span class="vc-ctx-vol-value">{{ menu.volume }}%</span>
+      </div>
+      <input type="range" class="vc-ctx-slider" min="0" max="100" [value]="menu.volume"
+        (input)="onVolumeInput($event)" />
+    </div>
+
+    <!-- Admin actions (superadmin only) -->
+    @if (isSuperadmin()) {
+      <div class="vc-ctx-divider"></div>
+
+      <button class="vc-ctx-action vc-ctx-action--warn" (click)="toggleServerDeafen()">
+        @if (menu.participant.isServerDeafened) {
+          <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
+            <path d="M12 3a9 9 0 0 0-9 9v3a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H5v-1a7 7 0 0 1 14 0v1h-2a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-3a9 9 0 0 0-9-9z"/>
+          </svg>
+          Remove server deafen
+        } @else {
+          <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
+            <path d="M12 3a9 9 0 0 0-9 9v3a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H5v-1a7 7 0 0 1 14 0v1h-2a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-3a9 9 0 0 0-9-9z" opacity=".5"/>
+            <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+          </svg>
+          Server deafen
+        }
+      </button>
+
+      <button class="vc-ctx-action vc-ctx-action--danger" (click)="kickParticipant()">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
+          <path d="M13 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+          <path d="M19.5 8.5l-1.5 1.5 1.5 1.5L22 9z" opacity=".6"/>
+          <path d="M17 7l-1.5 1.5 3 3L20 10z" opacity=".6"/>
+        </svg>
+        Kick
+      </button>
+
+      <button class="vc-ctx-action vc-ctx-action--danger" (click)="banParticipant()">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 0 1 4 12zm8 8a7.9 7.9 0 0 1-4.9-1.69l11.21-11.21A7.9 7.9 0 0 1 20 12c0 4.42-3.58 8-8 8z"/>
+        </svg>
+        Ban
+      </button>
+    }
+
+  </div>
+}
+
 <style>
+/* ── Participant context menu ─────────────────────────────────────────────── */
+
+.vc-ctx-menu {
+  position: fixed;
+  z-index: 1000;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 8px;
+  min-width: 220px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vc-ctx-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 10px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin-bottom: 4px;
+}
+
+.vc-ctx-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--color-brand-dim) 0%, var(--color-brand-dark) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+.vc-ctx-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vc-ctx-badge {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: rgba(244, 63, 94, 0.15);
+  color: #fb7185;
+  flex-shrink: 0;
+}
+
+.vc-ctx-section {
+  padding: 4px 8px 6px;
+}
+
+.vc-ctx-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+
+.vc-ctx-vol-value {
+  margin-left: auto;
+  font-family: ui-monospace, monospace;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--color-text-secondary);
+}
+
+.vc-ctx-slider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-border);
+  outline: none;
+  cursor: pointer;
+}
+
+.vc-ctx-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-brand);
+  cursor: pointer;
+  transition: background 0.12s, transform 0.1s;
+}
+
+.vc-ctx-slider::-webkit-slider-thumb:hover {
+  background: var(--color-brand-hover);
+  transform: scale(1.2);
+}
+
+.vc-ctx-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-brand);
+  cursor: pointer;
+}
+
+.vc-ctx-divider {
+  height: 1px;
+  background: var(--color-border-subtle);
+  margin: 4px 0;
+}
+
+.vc-ctx-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s, color 0.1s;
+  color: var(--color-text-secondary);
+}
+
+.vc-ctx-action:hover {
+  background: rgba(255,255,255,0.06);
+  color: var(--color-text-primary);
+}
+
+.vc-ctx-action--warn { color: #fbbf24; }
+.vc-ctx-action--warn:hover { background: rgba(251,191,36,0.10); color: #fbbf24; }
+
+.vc-ctx-action--danger { color: #fb7185; }
+.vc-ctx-action--danger:hover { background: rgba(244,63,94,0.12); color: #fb7185; }
+
 @keyframes vc-rtc-pulse {
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.3; }

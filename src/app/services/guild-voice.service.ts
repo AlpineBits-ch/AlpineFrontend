@@ -100,4 +100,11 @@ export class GuildVoiceService {
       { cfSessionId, trackNames },
     );
   }
+
+  serverDeafen(guildId: string, channelId: string, userId: string, isDeafened: boolean): Observable<void> {
+    return this.client.patch<void>(
+      `${this.base(guildId, channelId)}/participants/${userId}/deafen`,
+      { isDeafened },
+    );
+  }
 }

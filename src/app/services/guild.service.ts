@@ -133,6 +133,14 @@ export class GuildService {
     return this.http.delete<void>(`${this.base}/guild/${guildId}/member/${memberId}`);
   }
 
+  kickMemberByUserId(guildId: string, userId: string): Observable<void> {
+    return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/by-user/${userId}`);
+  }
+
+  banMemberByUserId(guildId: string, userId: string): Observable<void> {
+    return this.http.post<void>(`${this.base}/guilds/${guildId}/bans/${userId}`, {});
+  }
+
   // ── Roles ────────────────────────────────────────────────────────────────
   createRole(dto: CreateRoleDto): Observable<RoleDto> {
     return this.http.post<RoleDto>(`${this.base}/guild/${dto.guildId}/role`, dto);
