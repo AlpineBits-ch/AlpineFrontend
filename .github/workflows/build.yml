@@ -105,6 +105,7 @@ jobs:
             librsvg2-dev \
             libpipewire-0.3-dev \
             libsoup-3.0-dev \
+            libgbm-dev \
             libasound2-dev \
             patchelf
 
