@@ -1,4 +1,4 @@
-import { Component, computed, effect, HostListener, inject, input, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { ChannelDto } from '../../../../dtos/response/guild.dto';
@@ -9,20 +9,14 @@ import { StreamSrcDirective } from '../../../../directives/stream-src.directive'
 import { RustMediaService } from '../../../../services/rust-media.service';
 import { GuildService } from '../../../../services/guild.service';
 import { GuildVoiceService } from '../../../../services/guild-voice.service';
-import { ProfileService } from '../../../../services/profile.service';
 import { GuildMemberDto } from '../../../../dtos/response/member.dto';
 import { hasPermission, parsePermissions, Permissions } from '../../../../enums/permissions.enum';
-
-interface ParticipantMenu {
-  x: number;
-  y: number;
-  participant: VoiceChannelParticipant;
-  volume: number; // 0–100
-}
+import { VoiceChannelContextMenuComponent, ParticipantMenuData } from './voice-channel-context-menu.component';
+import { VoiceChannelParticipantTileComponent } from './voice-channel-participant-tile.component';
 
 @Component({
   selector: 'app-voice-channel',
-  imports: [NgClass, AppAvatarComponent, StreamSrcDirective],
+  imports: [NgClass, AppAvatarComponent, StreamSrcDirective, VoiceChannelContextMenuComponent, VoiceChannelParticipantTileComponent],
   templateUrl: './voice-channel.component.html',
 })
 export class VoiceChannelComponent {
@@ -33,7 +27,6 @@ export class VoiceChannelComponent {
   protected rustMedia   = inject(RustMediaService);
   private   guildSvc    = inject(GuildService);
   private   guildVoice  = inject(GuildVoiceService);
-  private   profileSvc  = inject(ProfileService);
 
   readonly fpsList = [5, 10, 15, 30] as const;
 
@@ -77,18 +70,19 @@ export class VoiceChannelComponent {
 
   // ── Context menu ─────────────────────────────────────────────────────────
 
-  protected participantMenu = signal<ParticipantMenu | null>(null);
+  protected participantMenu = signal<ParticipantMenuData | null>(null);
 
   protected onParticipantContextMenu(event: MouseEvent, p: VoiceChannelParticipant): void {
     if (p.isLocal) return;
     event.preventDefault();
     event.stopPropagation();
     const volume = Math.round(this.voiceSvc.getUserVolume(p.userId) * 100);
-    this.participantMenu.set({ x: event.clientX, y: event.clientY, participant: p, volume });
+    const x = Math.min(event.clientX, window.innerWidth - 236);
+    const y = Math.min(event.clientY, window.innerHeight - 200);
+    this.participantMenu.set({ x: Math.max(0, x), y: Math.max(0, y), participant: p, volume });
   }
 
-  protected onVolumeInput(event: Event): void {
-    const value = parseInt((event.target as HTMLInputElement).value, 10);
+  protected onVolumeChange(value: number): void {
     const menu = this.participantMenu();
     if (!menu) return;
     this.participantMenu.set({ ...menu, volume: value });
@@ -123,16 +117,9 @@ export class VoiceChannelComponent {
     await firstValueFrom(
       this.guildVoice.serverDeafen(this.channel().guildId, this.channel().id, userId, newState)
     ).catch(() => {
-      // Rollback on failure
       this.voiceSvc.setServerDeafened(userId, isServerDeafened);
     });
   }
-
-  @HostListener('document:click')
-  protected closeMenu(): void { this.participantMenu.set(null); }
-
-  @HostListener('document:keydown.escape')
-  protected closeMenuKey(): void { this.participantMenu.set(null); }
 
   // ── Channel actions ───────────────────────────────────────────────────────
 

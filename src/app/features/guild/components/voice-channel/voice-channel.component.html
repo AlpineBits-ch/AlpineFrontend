@@ -76,8 +76,7 @@
       <!-- Connection state banners -->
       @let rtc = voiceSvc.rtcState();
       @if (rtc === 'failed' || rtc === 'disconnected') {
-        <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium"
-             style="background: rgba(244,63,94,0.12); border-bottom: 1px solid rgba(244,63,94,0.2); color: #fb7185;">
+        <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium bg-rose-500/[0.12] border-b border-rose-500/20 text-rose-400">
           <div class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" style="animation: vc-rtc-pulse 0.8s ease-in-out infinite"></div>
           <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12" class="shrink-0">
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
@@ -85,9 +84,8 @@
           {{ rtc === 'failed' ? 'Connection failed — audio unavailable' : 'Connection lost — attempting to reconnect' }}
         </div>
       } @else if (rtc === 'new' || rtc === 'connecting') {
-        <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium"
-             style="background: rgba(251,191,36,0.10); border-bottom: 1px solid rgba(251,191,36,0.2); color: #fbbf24;">
-          <div class="w-1.5 h-1.5 rounded-full shrink-0" style="background: #fbbf24; animation: vc-rtc-pulse 1s ease-in-out infinite"></div>
+        <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium bg-amber-400/10 border-b border-amber-400/20 text-amber-400">
+          <div class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="animation: vc-rtc-pulse 1s ease-in-out infinite"></div>
           Establishing connection...
         </div>
       }
@@ -95,8 +93,7 @@
       <!-- No-audio warning -->
       @let pwa = voiceSvc.participantsWithAudio();
       @if (participants().some(p => !p.isLocal && !pwa.has(p.userId))) {
-        <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium"
-             style="background: rgba(251,191,36,0.10); border-bottom: 1px solid rgba(251,191,36,0.2); color: #fbbf24;">
+        <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium bg-amber-400/10 border-b border-amber-400/20 text-amber-400">
           <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12" class="shrink-0">
             <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
           </svg>
@@ -201,8 +198,7 @@
                 </div>
                 <span class="text-xs text-white/75 truncate max-w-[68px] text-center">{{ p.displayName }}</span>
                 @if (!p.isLocal && !voiceSvc.participantsWithAudio().has(p.userId)) {
-                  <div class="flex items-center gap-0.5 text-[9px] font-semibold"
-                       style="color: #fbbf24;" title="No audio received">
+                  <div class="flex items-center gap-0.5 text-[9px] font-semibold text-amber-400" title="No audio received">
                     <svg viewBox="0 0 24 24" fill="currentColor" width="8" height="8">
                       <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
                     </svg>
@@ -230,65 +226,12 @@
              style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
           <div class="grid gap-4 w-full" [ngClass]="participantGridClass()">
             @for (p of participants(); track p.userId) {
-
-              <!-- Participant tile -->
-              <div
-                class="relative flex flex-col items-center justify-center gap-3 bg-card rounded-2xl p-6 aspect-square border transition-all shadow-[0_4px_24px_rgba(0,0,0,0.5)]"
-                [ngClass]="p.isSpeaking
-                  ? 'border-online/60 shadow-[0_0_0_2px_rgba(52,211,153,0.2),0_4px_24px_rgba(0,0,0,0.5)]'
-                  : 'border-white/[0.12]'"
-                (contextmenu)="onParticipantContextMenu($event, p)">
-
-                <!-- Speaking glow ring -->
-                @if (p.isSpeaking) {
-                  <div class="absolute inset-0 rounded-2xl ring-2 ring-online/40 pointer-events-none"></div>
-                }
-
-                <!-- LIVE badge -->
-                @if (p.isScreenSharing) {
-                  <div class="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded tracking-wider">
-                    LIVE
-                  </div>
-                }
-
-                <!-- Camera or avatar -->
-                @if (p.isCameraOn) {
-                  @if (p.isLocal) {
-                    <video [streamSrc]="voiceSvc.localVideoStream()" autoplay playsinline muted
-                           class="w-20 h-20 rounded-full object-cover border-2 border-brand/30"></video>
-                  } @else if (videoStreamFor(p.userId); as stream) {
-                    <video [streamSrc]="stream" autoplay playsinline
-                           class="w-20 h-20 rounded-full object-cover border-2 border-brand/30"></video>
-                  } @else {
-                    <div class="w-20 h-20 rounded-full bg-gradient-to-br from-brand/20 to-brand-dark/20 border-2 border-brand/30 flex items-center justify-center">
-                      <i class="pi pi-camera text-2xl text-brand/60"></i>
-                    </div>
-                  }
-                } @else {
-                  <app-avatar [userId]="p.userId" [label]="p.avatarLabel" size="xlarge" />
-                }
-
-                <!-- Name + muted icon -->
-                <div class="flex items-center justify-center gap-1.5 max-w-full">
-                  @if (p.isMuted) {
-                    <i class="pi pi-microphone-slash text-xs text-rose-400/80 shrink-0"></i>
-                  }
-                  <span class="text-sm font-medium text-white/85 truncate">{{ p.displayName }}</span>
-                </div>
-
-                <!-- No-audio badge -->
-                @if (!p.isLocal && !voiceSvc.participantsWithAudio().has(p.userId)) {
-                  <div class="absolute bottom-3 right-3 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold"
-                       style="background: rgba(251,191,36,0.18); border: 1px solid rgba(251,191,36,0.35); color: #fbbf24;"
-                       title="No audio received from this participant">
-                    <svg viewBox="0 0 24 24" fill="currentColor" width="8" height="8">
-                      <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-                    </svg>
-                    No audio
-                  </div>
-                }
-              </div>
-
+              <app-voice-channel-participant-tile
+                [participant]="p"
+                [hasAudio]="voiceSvc.participantsWithAudio().has(p.userId)"
+                [videoStream]="p.isLocal ? voiceSvc.localVideoStream() : videoStreamFor(p.userId)"
+                (contextMenu)="onParticipantContextMenu($event, p)"
+              />
             }
           </div>
         </div>
@@ -375,232 +318,15 @@
 
 </div>
 
-<!-- ── Participant context menu ──────────────────────────────────────────── -->
+<!-- Context menu -->
 @if (participantMenu(); as menu) {
-  <div class="vc-ctx-menu" [style.left.px]="menu.x" [style.top.px]="menu.y"
-    (click)="$event.stopPropagation()">
-
-    <!-- Header -->
-    <div class="vc-ctx-header">
-      <div class="vc-ctx-avatar">{{ menu.participant.avatarLabel }}</div>
-      <div class="vc-ctx-name">{{ menu.participant.displayName }}</div>
-      @if (menu.participant.isServerDeafened) {
-        <span class="vc-ctx-badge">Server deafened</span>
-      }
-    </div>
-
-    <!-- Volume -->
-    <div class="vc-ctx-section">
-      <div class="vc-ctx-label">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11">
-          <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
-        </svg>
-        Volume
-        <span class="vc-ctx-vol-value">{{ menu.volume }}%</span>
-      </div>
-      <input type="range" class="vc-ctx-slider" min="0" max="100" [value]="menu.volume"
-        (input)="onVolumeInput($event)" />
-    </div>
-
-    <!-- Admin actions (superadmin only) -->
-    @if (isSuperadmin()) {
-      <div class="vc-ctx-divider"></div>
-
-      <button class="vc-ctx-action vc-ctx-action--warn" (click)="toggleServerDeafen()">
-        @if (menu.participant.isServerDeafened) {
-          <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
-            <path d="M12 3a9 9 0 0 0-9 9v3a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H5v-1a7 7 0 0 1 14 0v1h-2a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-3a9 9 0 0 0-9-9z"/>
-          </svg>
-          Remove server deafen
-        } @else {
-          <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
-            <path d="M12 3a9 9 0 0 0-9 9v3a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H5v-1a7 7 0 0 1 14 0v1h-2a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-3a9 9 0 0 0-9-9z" opacity=".5"/>
-            <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-          </svg>
-          Server deafen
-        }
-      </button>
-
-      <button class="vc-ctx-action vc-ctx-action--danger" (click)="kickParticipant()">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
-          <path d="M13 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-          <path d="M19.5 8.5l-1.5 1.5 1.5 1.5L22 9z" opacity=".6"/>
-          <path d="M17 7l-1.5 1.5 3 3L20 10z" opacity=".6"/>
-        </svg>
-        Kick
-      </button>
-
-      <button class="vc-ctx-action vc-ctx-action--danger" (click)="banParticipant()">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 0 1 4 12zm8 8a7.9 7.9 0 0 1-4.9-1.69l11.21-11.21A7.9 7.9 0 0 1 20 12c0 4.42-3.58 8-8 8z"/>
-        </svg>
-        Ban
-      </button>
-    }
-
-  </div>
+  <app-voice-channel-context-menu
+    [menu]="menu"
+    [isSuperadmin]="isSuperadmin()"
+    (close)="participantMenu.set(null)"
+    (volumeChange)="onVolumeChange($event)"
+    (kick)="kickParticipant()"
+    (ban)="banParticipant()"
+    (serverDeafen)="toggleServerDeafen()"
+  />
 }
-
-<style>
-/* ── Participant context menu ─────────────────────────────────────────────── */
-
-.vc-ctx-menu {
-  position: fixed;
-  z-index: 1000;
-  background: var(--color-card);
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: 8px;
-  min-width: 220px;
-  box-shadow: 0 8px 28px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3);
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.vc-ctx-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px 10px;
-  border-bottom: 1px solid var(--color-border-subtle);
-  margin-bottom: 4px;
-}
-
-.vc-ctx-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-brand-dim) 0%, var(--color-brand-dark) 100%);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  color: #fff;
-  flex-shrink: 0;
-}
-
-.vc-ctx-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.vc-ctx-badge {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 2px 5px;
-  border-radius: 4px;
-  background: rgba(244, 63, 94, 0.15);
-  color: #fb7185;
-  flex-shrink: 0;
-}
-
-.vc-ctx-section {
-  padding: 4px 8px 6px;
-}
-
-.vc-ctx-label {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin-bottom: 8px;
-}
-
-.vc-ctx-vol-value {
-  margin-left: auto;
-  font-family: ui-monospace, monospace;
-  font-weight: 400;
-  text-transform: none;
-  letter-spacing: 0;
-  color: var(--color-text-secondary);
-}
-
-.vc-ctx-slider {
-  width: 100%;
-  -webkit-appearance: none;
-  appearance: none;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--color-border);
-  outline: none;
-  cursor: pointer;
-}
-
-.vc-ctx-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--color-brand);
-  cursor: pointer;
-  transition: background 0.12s, transform 0.1s;
-}
-
-.vc-ctx-slider::-webkit-slider-thumb:hover {
-  background: var(--color-brand-hover);
-  transform: scale(1.2);
-}
-
-.vc-ctx-slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: none;
-  background: var(--color-brand);
-  cursor: pointer;
-}
-
-.vc-ctx-divider {
-  height: 1px;
-  background: var(--color-border-subtle);
-  margin: 4px 0;
-}
-
-.vc-ctx-action {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 7px 10px;
-  border-radius: 6px;
-  border: none;
-  background: transparent;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.1s, color 0.1s;
-  color: var(--color-text-secondary);
-}
-
-.vc-ctx-action:hover {
-  background: rgba(255,255,255,0.06);
-  color: var(--color-text-primary);
-}
-
-.vc-ctx-action--warn { color: #fbbf24; }
-.vc-ctx-action--warn:hover { background: rgba(251,191,36,0.10); color: #fbbf24; }
-
-.vc-ctx-action--danger { color: #fb7185; }
-.vc-ctx-action--danger:hover { background: rgba(244,63,94,0.12); color: #fb7185; }
-
-@keyframes vc-rtc-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.3; }
-}
-</style>

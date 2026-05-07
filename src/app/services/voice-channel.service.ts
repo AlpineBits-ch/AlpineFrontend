@@ -21,6 +21,7 @@ import { AudioSettingsService } from './audio-settings.service';
 import { SoundSettingsService } from './sound-settings.service';
 import { RustMediaService } from './rust-media.service';
 import { ScreenPickerService } from './screen-picker.service';
+import {authConfig} from "../app.config";
 
 export interface VoiceChannelParticipant {
   userId: string;
@@ -784,6 +785,10 @@ export class VoiceChannelService {
   }
 
   private onUserLeftVoice(e: WsUserLeftVoice): void {
+
+    if(e.userId == inject(ProfileService).ownProfile()?.userId) {
+      return;
+    }
     if (e.channelId === this.joinedChannelId()) this.soundSettings.playVoiceLeave();
 
     this.channelParticipantsSignal.update(map => {
