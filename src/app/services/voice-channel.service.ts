@@ -64,6 +64,10 @@ export class VoiceChannelService {
   readonly localState        = signal<VoiceLocalState>({ isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false });
   readonly isInVoice         = computed(() => this.joinedChannelId() !== null);
 
+  // ── Connection state ──────────────────────────────────────────────────────
+  readonly rtcState = signal<RTCPeerConnectionState>('new');
+  readonly participantsWithAudio = signal<Set<string>>(new Set());
+
   // Exposed streams for <video> bindings in the component
   readonly localVideoStream    = signal<MediaStream | null>(null);
   readonly localScreenStream   = signal<MediaStream | null>(null);

@@ -95,6 +95,10 @@ export class CallWebRtcService {
   private prevBytes = { inAudio: 0, inVideo: 0, outAudio: 0, outVideo: 0 };
   private prevStatsTs = 0;
 
+  // ── Connection state ──────────────────────────────────────────────────────
+  readonly rtcState = signal<RTCPeerConnectionState>('new');
+  readonly participantsWithAudio = signal<Set<string>>(new Set());
+
   constructor() {
     // Apply bitrate changes on the fly whenever settings change.
     effect(() => {
@@ -166,6 +170,9 @@ export class CallWebRtcService {
     this.pc = new RTCPeerConnection({ bundlePolicy: 'max-bundle' });
     (window as any).__pc = this.pc;  // ← add this line
     this.pc.ontrack = (e) => this.handleRemoteTrack(e);
+    this.pc.onconnectionstatechange = () => {
+      if (this.pc) this.rtcState.set(this.pc.connectionState);
+    };
 
     // TODO(backend): Implement POST /api/v1/messaging/voice/calls/{callId}/session.
     // Steps on the server:
@@ -235,6 +242,8 @@ export class CallWebRtcService {
     this.audioSender = null;
     this.wsSubs.forEach(s => s.unsubscribe());
 
+    this.rtcState.set('new');
+    this.participantsWithAudio.set(new Set());
     this.pc = null;
     this.cfSessionId = null;
     this.callId = null;
@@ -500,10 +509,12 @@ export class CallWebRtcService {
       void element.play().catch(() => {});
 
       this.remoteAudio.set(info.userId, element);
+      this.participantsWithAudio.update(s => { const n = new Set(s); n.add(info.userId); return n; });
 
       event.track.onended = () => {
         const el = this.remoteAudio.get(info.userId);
         if (el) { el.pause(); el.srcObject = null; this.remoteAudio.delete(info.userId); }
+        this.participantsWithAudio.update(s => { const n = new Set(s); n.delete(info.userId); return n; });
       };
     } else if (info.kind === 'video') {
       this.callSession.onCameraChanged(info.userId, true, stream);
@@ -642,6 +653,7 @@ export class CallWebRtcService {
       // Someone left → remove from UI (tracks will auto-end via onended)
       this.voiceWs.participantLeftObservable.subscribe(e => {
         this.callSession.onParticipantLeft(e.userId);
+        this.participantsWithAudio.update(s => { const n = new Set(s); n.delete(e.userId); return n; });
       }),
 
       // New video / screen track published → subscribe to it
