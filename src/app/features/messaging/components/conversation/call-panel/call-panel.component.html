@@ -148,6 +148,9 @@
             </div>
             <div class="share-footer">
               <span class="share-label">{{ share.displayName }}'s screen</span>
+              @if (share.isLocal) {
+                <span class="share-fps">↓{{ rustMedia.inboundFps() }} · →{{ rustMedia.renderedFps() }} fps</span>
+              }
             </div>
           </div>
         }
@@ -207,6 +210,15 @@
           <path d="M12 6l-4 4h3v4h2v-4h3z"/>
         </svg>
       </button>
+
+      @if (s.local.isSharing) {
+        <div class="fps-selector">
+          @for (fps of fpsList; track fps) {
+            <button class="fps-btn" [class.fps-btn--active]="rustMedia.captureFps() === fps"
+              (click)="setCaptureFps(fps)" [title]="fps + ' fps'">{{ fps }}</button>
+          }
+        </div>
+      }
 
       <div class="ctrl-divider"></div>
 

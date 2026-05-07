@@ -90,6 +90,9 @@ export class VoiceChannelService {
   private localScreenAudioTrack: MediaStreamTrack | null = null;
   private screenShareId: string | null = null;
 
+  private cfAudioTrackName: string | null = null;
+  private cfVideoTrackName: string | null = null;
+
   // Serialises all SDP offer/answer cycles — concurrent calls to subscribeAudio/subscribeVideo
   // or onnegotiationneeded would race on setLocalDescription otherwise.
   private negotiationChain: Promise<void> = Promise.resolve();
@@ -248,8 +251,8 @@ export class VoiceChannelService {
     this.soundSettings.playVoiceLeave();
     if (this.cfSessionId) {
       const trackNames: string[] = [];
-      if (this.localAudioTrack)  trackNames.push('audio');
-      if (this.localVideoTrack)  trackNames.push('video');
+      if (this.cfAudioTrackName) trackNames.push(this.cfAudioTrackName);
+      if (this.cfVideoTrackName) trackNames.push(this.cfVideoTrackName);
       if (this.localScreenTrack && this.screenShareId) {
         trackNames.push(`screen-${this.screenShareId}`);
         if (this.localScreenAudioTrack) trackNames.push(`screen-audio-${this.screenShareId}`);
@@ -336,6 +339,7 @@ export class VoiceChannelService {
         tracks: [{ location: 'local', mid: audioMid, trackName: 'audio' }],
       }));
 
+      this.cfAudioTrackName = publishResp.tracks[0]?.trackName ?? 'audio';
       await this.pc.setRemoteDescription(publishResp.sessionDescription);
       if (publishResp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
       await this.applyBitrate(sender, this.audioSettings.settings().audioBitrate);
@@ -500,6 +504,8 @@ export class VoiceChannelService {
     this.pc?.close();
     this.pc = null;
     this.cfSessionId = null;
+    this.cfAudioTrackName = null;
+    this.cfVideoTrackName = null;
     this.setupDone = false;
     this.midMeta.clear();
     this.negotiationChain = Promise.resolve();
@@ -540,7 +546,7 @@ export class VoiceChannelService {
       this.localVideoTrack.stop();
       const sender = this.pc.getSenders().find(s => s.track === this.localVideoTrack);
       if (sender) this.pc.removeTrack(sender);
-      await firstValueFrom(this.guildVoiceSvc.closeTracks(guildId, channelId, this.cfSessionId, ['video'])).catch(() => {});
+      await firstValueFrom(this.guildVoiceSvc.closeTracks(guildId, channelId, this.cfSessionId, [this.cfVideoTrackName ?? 'video'])).catch(() => {});
       this.localVideoTrack = null;
       this.localVideoStream.set(null);
       this.localSenders.delete('video');
@@ -563,6 +569,7 @@ export class VoiceChannelService {
             sessionDescription: this.pc.localDescription!,
             tracks: [{ location: 'local', mid, trackName: 'video' }],
           }));
+          this.cfVideoTrackName = resp.tracks[0]?.trackName ?? 'video';
           await this.pc.setRemoteDescription(resp.sessionDescription);
           if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
           await this.applyBitrate(sender, this.audioSettings.settings().videoBitrate);

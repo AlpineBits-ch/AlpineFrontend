@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, signal } from '@angular/core';
 import { Channel, invoke, isTauri } from '@tauri-apps/api/core';
 
 export interface ScreenSource {
@@ -50,6 +50,20 @@ export class RustMediaService {
   private latestFrame: ScreenFrame | null = null;
   private decodingFrame = false;
 
+  private readonly _captureFps  = signal(15);
+  private readonly _inboundFps  = signal(0);
+  private readonly _renderedFps = signal(0);
+  private inboundFrameCount  = 0;
+  private renderedFrameCount = 0;
+  private fpsInterval?: ReturnType<typeof setInterval>;
+
+  /** Currently requested capture rate (set via startScreenCapture / setCaptureFps). */
+  readonly captureFps  = this._captureFps.asReadonly();
+  /** Frames received from Rust per second. */
+  readonly inboundFps  = this._inboundFps.asReadonly();
+  /** Frames drawn to the canvas per second (after decode). */
+  readonly renderedFps = this._renderedFps.asReadonly();
+
   // ── Screen sources ────────────────────────────────────────────────────────
 
   async getScreenSources(): Promise<ScreenSource[]> {
@@ -71,6 +85,16 @@ export class RustMediaService {
   async startScreenCapture(sourceId: string, fps = 15): Promise<MediaStreamTrack> {
     await this.stopScreenCapture();
 
+    this._captureFps.set(fps);
+    this.inboundFrameCount  = 0;
+    this.renderedFrameCount = 0;
+    this.fpsInterval = setInterval(() => {
+      this._inboundFps.set(this.inboundFrameCount);
+      this._renderedFps.set(this.renderedFrameCount);
+      this.inboundFrameCount  = 0;
+      this.renderedFrameCount = 0;
+    }, 1000);
+
     // Create an off-screen canvas to receive frames
     const canvas = document.createElement('canvas');
     canvas.width  = 1920;
@@ -88,6 +112,7 @@ export class RustMediaService {
     this.screenChannel = channel;
 
     channel.onmessage = (frame) => {
+      this.inboundFrameCount++;
       this.queueFrame(frame);
     };
 
@@ -103,11 +128,17 @@ export class RustMediaService {
 
   /** Change capture FPS mid-stream without stopping/restarting. Takes effect within one frame. */
   async setCaptureFps(fps: number): Promise<void> {
+    this._captureFps.set(fps);
     if (!isTauri()) return;
     await invoke('set_screen_capture_fps', { fps: Math.round(fps) }).catch(() => {});
   }
 
   async stopScreenCapture(): Promise<void> {
+    clearInterval(this.fpsInterval);
+    this.fpsInterval = undefined;
+    this._inboundFps.set(0);
+    this._renderedFps.set(0);
+
     if (this.screenChannel) {
       this.screenChannel.onmessage = () => {};
       this.screenChannel = null;
@@ -149,6 +180,7 @@ export class RustMediaService {
         (this.screenCtx as CanvasRenderingContext2D).drawImage(bitmap, 0, 0);
         // Signal a new frame to the video track (captureStream(0) only captures on demand).
         (this.screenStream?.getVideoTracks()[0] as any)?.requestFrame?.();
+        this.renderedFrameCount++;
         bitmap.close();
         this.decodingFrame = false;
         if (this.latestFrame) this.decodeNextFrame();

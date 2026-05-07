@@ -5,6 +5,7 @@ import { VoiceChannelService } from '../../../../services/voice-channel.service'
 import { NavigationService } from '../../../main-page/navigation.service';
 import { AppAvatarComponent } from '../../../../components/avatar/avatar.component';
 import { StreamSrcDirective } from '../../../../directives/stream-src.directive';
+import { RustMediaService } from '../../../../services/rust-media.service';
 
 @Component({
   selector: 'app-voice-channel',
@@ -16,6 +17,9 @@ export class VoiceChannelComponent {
 
   protected voiceSvc   = inject(VoiceChannelService);
   protected navService = inject(NavigationService);
+  protected rustMedia  = inject(RustMediaService);
+
+  readonly fpsList = [5, 10, 15, 30] as const;
 
   protected participants = computed(() =>
     this.voiceSvc.channelParticipants().get(this.channel().id) ?? [],
@@ -51,6 +55,7 @@ export class VoiceChannelComponent {
   protected toggleDeafen():      void { this.voiceSvc.toggleDeafen(); }
   protected toggleCamera():      void { void this.voiceSvc.toggleCamera(); }
   protected toggleScreenShare(): void { void this.voiceSvc.toggleScreenShare(); }
+  protected setCaptureFps(fps: number): void { void this.rustMedia.setCaptureFps(fps); }
 
   protected videoStreamFor(userId: string):  MediaStream | null { return this.voiceSvc.getVideoStream(userId); }
   protected screenStreamFor(userId: string): MediaStream | null { return this.voiceSvc.getScreenStream(userId); }
