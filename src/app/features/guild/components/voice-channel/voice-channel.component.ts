@@ -57,4 +57,5 @@ export class VoiceChannelComponent {
 
   protected isScreenAudioMuted(userId: string): boolean { return this.voiceSvc.isScreenAudioMuted(userId); }
   protected toggleScreenAudioMute(userId: string): void  { this.voiceSvc.toggleScreenAudioMute(userId); }
+  protected toggleLocalScreenAudio(): void { this.voiceSvc.toggleLocalScreenAudio(); }
 }

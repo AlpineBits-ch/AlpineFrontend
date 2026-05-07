@@ -65,7 +65,10 @@ export class VoiceChannelService {
   readonly isInVoice         = computed(() => this.joinedChannelId() !== null);
 
   // Exposed streams for <video> bindings in the component
-  readonly localVideoStream  = signal<MediaStream | null>(null);
+  readonly localVideoStream    = signal<MediaStream | null>(null);
+  readonly localScreenStream   = signal<MediaStream | null>(null);
+  readonly localScreenHasAudio = signal<boolean>(false);
+  readonly localScreenAudioMuted = signal<boolean>(false);
   private videoStreamsSignal  = signal<Map<string, MediaStream>>(new Map());
   private screenStreamsSignal = signal<Map<string, MediaStream>>(new Map());
   readonly videoStreams       = this.videoStreamsSignal.asReadonly();
@@ -116,6 +119,13 @@ export class VoiceChannelService {
       willMute ? n.add(userId) : n.delete(userId);
       return n;
     });
+  }
+
+  toggleLocalScreenAudio(): void {
+    if (!this.localScreenAudioTrack) return;
+    const muted = !this.localScreenAudioMuted();
+    this.localScreenAudioTrack.enabled = !muted;
+    this.localScreenAudioMuted.set(muted);
   }
 
   // VAD interval handles keyed by userId (or 'local')
@@ -260,6 +270,9 @@ export class VoiceChannelService {
     this.videoStreamsSignal.set(new Map());
     this.screenStreamsSignal.set(new Map());
     this.localVideoStream.set(null);
+    this.localScreenStream.set(null);
+    this.localScreenHasAudio.set(false);
+    this.localScreenAudioMuted.set(false);
     this.screenAudioMutedSignal.set(new Set());
   }
 
@@ -583,6 +596,9 @@ export class VoiceChannelService {
       this.screenShareId    = null;
       this.localSenders.delete('screenVideo');
       this.localSenders.delete('screenAudio');
+      this.localScreenStream.set(null);
+      this.localScreenHasAudio.set(false);
+      this.localScreenAudioMuted.set(false);
       this.localState.update(s => ({ ...s, isScreenSharing: false }));
     } else {
       try {
@@ -593,6 +609,7 @@ export class VoiceChannelService {
         const fps = Math.round((this.audioSettings.settings().screenVideoBitrate >= 8000) ? 30 : 15);
         const videoTrack = await this.rustMedia.startScreenCapture(sourceId, fps);
         this.localScreenTrack = videoTrack;
+        this.localScreenStream.set(new MediaStream([videoTrack]));
 
         // Capture system audio via WASAPI loopback
         let audioTrack: MediaStreamTrack | null = null;
@@ -602,6 +619,8 @@ export class VoiceChannelService {
           console.warn('[ScreenShare] Loopback audio unavailable');
         }
         this.localScreenAudioTrack = audioTrack;
+        this.localScreenHasAudio.set(audioTrack !== null);
+        this.localScreenAudioMuted.set(false);
 
         const stream = new MediaStream(audioTrack ? [videoTrack, audioTrack] : [videoTrack]);
 

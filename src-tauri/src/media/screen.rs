@@ -94,22 +94,20 @@ pub async fn enumerate_screen_sources() -> Result<Vec<ScreenSource>, String> {
         }));
     }
 
+    // Windows: skip thumbnail capture entirely — live 1fps preview in the picker handles it.
+    // Avoids spiking the GPU with dozens of simultaneous WGC sessions.
+    let mut sources = Vec::new();
     for (idx, title, w, h) in window_meta {
-        handles.push(tokio::task::spawn_blocking(move || {
-            let windows = Window::all().ok()?;
-            let window = windows.into_iter().nth(idx)?;
-            Some(ScreenSource {
-                id: format!("window:{idx}"),
-                name: title,
-                is_monitor: false,
-                thumbnail: capture_window_thumbnail(&window),
-                width: w,
-                height: h,
-            })
-        }));
+        sources.push(ScreenSource {
+            id: format!("window:{idx}"),
+            name: title,
+            is_monitor: false,
+            thumbnail: String::new(),
+            width: w,
+            height: h,
+        });
     }
 
-    let mut sources = Vec::new();
     for handle in handles {
         if let Ok(Some(src)) = handle.await {
             sources.push(src);
