@@ -9,7 +9,7 @@ import {
 } from '../dtos/response/guild.dto';
 import {environment} from '../../environments/environment';
 import {catchError, Observable, of, Subject, throwError} from 'rxjs';
-import {GuildMemberDto} from '../dtos/response/member.dto';
+import {GuildMemberDto, RoleMemberDto} from '../dtos/response/member.dto';
 import {InviteDto, InviteType} from "../dtos/response/invite.dto";
 import {CreateInviteDto} from "../dtos/request/create-invite.dto";
 import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
@@ -145,23 +145,33 @@ export class GuildService {
 
   // ── Roles ────────────────────────────────────────────────────────────────
   createRole(dto: CreateRoleDto): Observable<RoleDto> {
-    return this.http.post<RoleDto>(`${this.base}/guild/${dto.guildId}/role`, dto);
+    return this.http.post<RoleDto>(`${this.base}/guilds/${dto.guildId}/roles`, dto);
   }
 
   updateRole(id: string, dto: UpdateRoleDto): Observable<RoleDto> {
-    return this.http.patch<RoleDto>(`${this.base}/role/${id}`, dto);
+    return this.http.patch<RoleDto>(`${this.base}/roles/${id}`, dto);
   }
 
   deleteRole(id: string): Observable<void> {
-    return this.http.delete<void>(`${this.base}/role/${id}`);
+    return this.http.delete<void>(`${this.base}/roles/${id}`);
   }
 
   assignRoleToMember(roleId: string, memberId: string): Observable<void> {
-    return this.http.post<void>(`${this.base}/role/${roleId}/member`, {memberId});
+    return this.http.put<void>(`${this.base}/roles/${roleId}/members/${memberId}`, {});
+  }
+
+  getRoleMembers(roleId: string, skip: number, take: number): Observable<RoleMemberDto[]> {
+    return this.http.get<RoleMemberDto[]>(`${this.base}/roles/${roleId}/members?skip=${skip}&take=${take}`);
+  }
+
+  searchRoleMembers(roleId: string, search: string): Observable<RoleMemberDto[]> {
+    return this.http.get<RoleMemberDto[]>(
+      `${this.base}/roles/${roleId}/members/search?search=${encodeURIComponent(search)}`
+    );
   }
 
   removeRoleFromMember(roleId: string, memberId: string): Observable<void> {
-    return this.http.delete<void>(`${this.base}/role/${roleId}/member/${memberId}`);
+    return this.http.delete<void>(`${this.base}/roles/${roleId}/members/${memberId}`);
   }
 
   // ── Channels ─────────────────────────────────────────────────────────────
