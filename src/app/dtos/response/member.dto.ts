@@ -23,10 +23,16 @@ export interface RoleMemberDto {
     id: string;
     createdAt: Date;
     updatedAt: Date;
-    role: RoleDto
     roleId: string;
     memberId: string;
     userId: string;
+    member: {
+        id: string;
+        guildId: string;
+        userId: string;
+        createdAt: Date;
+        updatedAt: Date;
+    }
 }
 
 export interface ReadStateDto {

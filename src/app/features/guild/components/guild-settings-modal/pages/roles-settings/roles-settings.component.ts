@@ -1,4 +1,4 @@
-import {Component, inject, input, OnInit, output, signal} from '@angular/core';
+import {Component, computed, inject, input, OnInit, output, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
@@ -15,9 +15,10 @@ import {ProfileService} from '../../../../../../services/profile.service';
 import {parsePermissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
 import {PermissionToggleComponent} from '../../../../shared/permission-toggle/permission-toggle.component';
 
-interface RoleMemberRow {
+interface RoleMemberDisplay {
   roleMember: RoleMemberDto;
-  profile: ProfileDto | null;
+  profile: ProfileDto | undefined;
+  userId: string;
 }
 
 @Component({
@@ -56,12 +57,12 @@ export class RolesSettingsComponent implements OnInit {
   showDeleteDialog = signal(false);
   deleting = signal(false);
 
-  // Members tab
+  // Members tab — raw list; profiles resolved from store
   private readonly TAKE = 30;
   private memberNextSkip = 0;
   private memberSearchTimer?: ReturnType<typeof setTimeout>;
 
-  roleMembers = signal<RoleMemberRow[]>([]);
+  roleMembers = signal<RoleMemberDto[]>([]);
   roleMembersLoading = signal(false);
   roleMembersLoadingMore = signal(false);
   roleMembersHasMore = signal(true);
@@ -69,6 +70,17 @@ export class RolesSettingsComponent implements OnInit {
   roleMembersIsSearch = signal(false);
   roleMembersLoaded = signal(false);
   removing = signal<string | null>(null);
+
+  roleMembersDisplay = computed<RoleMemberDisplay[]>(() =>
+    this.roleMembers().map(rm => {
+      const userId = rm.member?.userId ?? rm.userId ?? '';
+      return {
+        roleMember: rm,
+        profile: userId ? this.profileService.getCachedByUserId(userId) : undefined,
+        userId,
+      };
+    })
+  );
 
   // Add member dialog
   showAddDialog = signal(false);
@@ -205,19 +217,20 @@ export class RolesSettingsComponent implements OnInit {
     const skip = this.memberNextSkip;
     this.guildService.getRoleMembers(roleId, skip, this.TAKE).subscribe({
       next: incoming => {
-        const rows: RoleMemberRow[] = incoming.map(rm => ({roleMember: rm, profile: null}));
-        const baseIdx = skip === 0 ? 0 : this.roleMembers().length;
+        incoming.forEach(rm => {
+          const uid = rm.member?.userId ?? rm.userId;
+          if (uid) this.profileService.resolveByUserId(uid);
+        });
         if (skip === 0) {
-          this.roleMembers.set(rows);
+          this.roleMembers.set(incoming);
           this.roleMembersLoading.set(false);
           this.roleMembersLoaded.set(true);
         } else {
-          this.roleMembers.update(list => [...list, ...rows]);
+          this.roleMembers.update(list => [...list, ...incoming]);
           this.roleMembersLoadingMore.set(false);
         }
         this.memberNextSkip = skip + incoming.length;
         if (incoming.length < this.TAKE) this.roleMembersHasMore.set(false);
-        this.fetchProfilesFor(rows, baseIdx);
       },
       error: () => {
         this.roleMembersLoading.set(false);
@@ -261,49 +274,32 @@ export class RolesSettingsComponent implements OnInit {
     this.roleMembersLoading.set(true);
     this.guildService.searchRoleMembers(role.id, query).subscribe({
       next: results => {
-        const rows: RoleMemberRow[] = results.map(rm => ({roleMember: rm, profile: null}));
-        this.roleMembers.set(rows);
+        results.forEach(rm => {
+          const uid = rm.member?.userId ?? rm.userId;
+          if (uid) this.profileService.resolveByUserId(uid);
+        });
+        this.roleMembers.set(results);
         this.roleMembersLoading.set(false);
-        this.fetchProfilesFor(rows, 0);
       },
       error: () => this.roleMembersLoading.set(false),
     });
   }
 
-  private fetchProfilesFor(rows: RoleMemberRow[], baseIdx: number): void {
-    rows.forEach((row, i) => {
-      this.profileService.fetchByUserId(row.roleMember.userId).subscribe({
-        next: profile => {
-          this.roleMembers.update(list => {
-            const next = [...list];
-            const idx = baseIdx + i;
-            if (next[idx]) next[idx] = {...next[idx], profile};
-            return next;
-          });
-        },
-      });
-    });
-  }
-
-  removeMember(row: RoleMemberRow): void {
+  removeMember(rm: RoleMemberDto): void {
     const role = this.selectedRole();
     if (!role || this.removing()) return;
-    this.removing.set(row.roleMember.memberId);
-    this.guildService.removeRoleFromMember(role.id, row.roleMember.memberId).subscribe({
+    this.removing.set(rm.memberId);
+    this.guildService.removeRoleFromMember(role.id, rm.memberId).subscribe({
       next: () => {
-        this.roleMembers.update(list => list.filter(r => r.roleMember.memberId !== row.roleMember.memberId));
+        this.roleMembers.update(list => list.filter(r => r.memberId !== rm.memberId));
         this.removing.set(null);
       },
       error: () => this.removing.set(null),
     });
   }
 
-  roleMemberName(row: RoleMemberRow): string {
-    return row.profile?.userName ?? row.roleMember.userId.slice(0, 8) + '…';
-  }
-
-  roleMemberAvatar(row: RoleMemberRow): string | undefined {
-    return row.profile?.avatarUrl;
+  displayName(profile: ProfileDto | undefined, userId: string): string {
+    return profile?.userName ?? (userId ? userId.slice(0, 8) + '…' : '?');
   }
 
   // ── Add member dialog ──────────────────────────────────────────────────────
@@ -328,7 +324,7 @@ export class RolesSettingsComponent implements OnInit {
       : this.guildService.getMembers(this.guild().id, 0, 30);
     obs.subscribe({
       next: members => {
-        const existingIds = new Set(this.roleMembers().map(r => r.roleMember.memberId));
+        const existingIds = new Set(this.roleMembers().map(r => r.memberId));
         this.addCandidates.set(members.filter(m => !existingIds.has(m.id)));
         this.addLoading.set(false);
       },
