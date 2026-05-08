@@ -1,6 +1,7 @@
 import { Component, effect, HostListener, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { CallSessionService } from '../../../../../services/call-session.service';
 import { CallWebRtcService } from '../../../../../services/call-webrtc.service';
+import { RustMediaService } from '../../../../../services/rust-media.service';
 import { CallParticipantUi, ScreenShareUi } from '../../../../../services/call-session.types';
 import { SrcObjectDirective } from './src-object.directive';
 
@@ -33,9 +34,14 @@ const FOCUSED_MIN_HEIGHT = 500;
 export class CallPanelComponent implements OnInit, OnDestroy {
   private callSession = inject(CallSessionService);
   private callWebRtc = inject(CallWebRtcService);
+  protected rustMedia = inject(RustMediaService);
+
+  readonly fpsList = [5, 10, 15, 30] as const;
 
   protected session = this.callSession.session;
   protected stats = this.callWebRtc.stats;
+  protected rtcState = this.callWebRtc.rtcState;
+  protected participantsWithAudio = this.callWebRtc.participantsWithAudio;
   protected focusedStream = signal<FocusedStream | null>(null);
   protected showStats = signal(false);
   protected volumeMenu = signal<VolumeMenu | null>(null);
@@ -118,6 +124,7 @@ export class CallPanelComponent implements OnInit, OnDestroy {
   protected toggleDeafen():      void { this.callSession.toggleDeafen(); }
   protected toggleCamera():      void { void this.callSession.toggleCamera(); }
   protected toggleScreenShare(): void { void this.callSession.toggleScreenShare(); }
+  protected setCaptureFps(fps: number): void { void this.rustMedia.setCaptureFps(fps); }
   protected joinScreenShare(id: string): void { this.callSession.joinScreenShare(id); }
   protected endCall():           void { this.callSession.end(); }
   protected toggleStats():       void { this.showStats.update(v => !v); }

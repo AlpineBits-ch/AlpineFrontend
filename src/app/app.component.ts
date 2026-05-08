@@ -7,10 +7,11 @@ import {CallWebRtcService} from "./services/call-webrtc.service";
 import {UpdateDialogComponent} from "./features/update-dialog/update-dialog.component";
 import {UpdateService} from "./services/update.service";
 import {Toast} from "primeng/toast";
+import { ScreenPickerComponent } from './features/screen-picker/screen-picker.component';
 
 @Component({
   selector: "app-root",
-  imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, UpdateDialogComponent, Toast],
+  imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, UpdateDialogComponent, Toast, ScreenPickerComponent],
   templateUrl: "./app.component.html",
   styleUrl: "./app.component.css",
 })

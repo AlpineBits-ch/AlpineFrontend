@@ -39,7 +39,30 @@
       "WebFetch(domain:v2.tauri.app)",
       "WebFetch(domain:docs.rs)",
       "Bash(curl -s https://raw.githubusercontent.com/tauri-apps/tauri/dev/crates/tauri-bundler/src/bundle/linux/rpm.rs)",
-      "Bash(grep -E \"\\\\.\\(ts|html|css\\)$\")"
+      "Bash(grep -E \"\\\\.\\(ts|html|css\\)$\")",
+      "Bash(grep -v \"^$\")",
+      "Bash(node -e \"const p = require\\('C:/Users/Domin/WebstormProjects/Alpine/node_modules/primeng/package.json'\\); const keys = Object.keys\\(p.exports || {}\\).filter\\(k => k.includes\\('slider'\\)\\); console.log\\(keys\\);\")",
+      "Bash(cargo build *)",
+      "Bash(powershell.exe -Command \"cd 'C:\\\\Users\\\\Domin\\\\WebstormProjects\\\\Alpine\\\\src-tauri'; cargo build 2>&1 | Select-Object -Last 60\")",
+      "Read(//c/Users/Domin/.cargo/bin/**)",
+      "Bash(/c/Users/Domin/.cargo/bin/cargo build *)",
+      "Bash(/c/Users/Domin/.cargo/bin/cargo run *)",
+      "Bash(node_modules/.bin/ng build *)",
+      "Bash(node_modules/.bin/ng serve *)",
+      "Bash(kill %1)",
+      "Bash(wait)",
+      "Bash(echo \"Exit code: $?\")",
+      "Bash(RUST_BACKTRACE=1 target/debug/alpine.exe)",
+      "Bash(echo \"Exit: $?\")",
+      "Read(//tmp/**)",
+      "Bash(tasklist.exe)",
+      "Bash(RUST_BACKTRACE=full target/debug/alpine.exe)",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(~/.cargo/bin/cargo check *)",
+      "Bash(/c/Users/Domin/.cargo/bin/cargo.exe check *)",
+      "Bash(/c/Users/Domin/.cargo/bin/cargo.exe metadata *)",
+      "Bash(/c/Users/Domin/.cargo/bin/cargo check *)",
+      "Bash(grep -E '\\\\.\\(ts|html\\)$')"
     ]
   }
 }

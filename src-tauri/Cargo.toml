@@ -1,10 +1,11 @@
 [package]
 name = "alpine"
-version = "3.0.50"
+version = "3.0.54"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
 license = "MIT"
+default-run = "alpine"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -14,6 +15,10 @@ license = "MIT"
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "alpine_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "bench-screen"
+path = "src/bin/bench_screen.rs"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
@@ -29,8 +34,32 @@ tauri-plugin-notification = "2.3.3"
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-process = "2.3.1"
 tauri-plugin-single-instance = "2"
+
+
+# Android
+[target.aarch64-linux-android.dependencies]
 tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
 
+[target.armv7-linux-androideabi.dependencies]
+tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+
+[target.i686-linux-android.dependencies]
+tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+
+[target.x86_64-linux-android.dependencies]
+tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+
+# iOS (device)
+[target.aarch64-apple-ios.dependencies]
+tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+
+# iOS Simulator (Apple Silicon Mac)
+[target.aarch64-apple-ios-sim.dependencies]
+tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+
+# iOS Simulator (Intel Mac)
+[target.x86_64-apple-ios.dependencies]
+tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
 
 [profile.release.package.wry]
 debug = true
@@ -40,3 +69,23 @@ debug-assertions = true
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-window-state = "2"
+cpal = "0.15"
+xcap = "0.9"
+nnnoiseless = "0.3"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+jpeg-encoder = "0.6"
+base64 = "0.22"
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.58", features = [
+    "implement",
+    "Win32_Foundation",
+    "Win32_Media_Audio",
+    "Win32_Security",
+    "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
+    "Win32_System_Threading",
+    "Win32_System_Variant",
+] }
+windows-core = "0.58"

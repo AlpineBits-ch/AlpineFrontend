@@ -4,9 +4,19 @@
   <div class="panel" [class.panel--resizing]="isResizing()" [style.height.px]="panelHeight()">
 
     <!-- ── Status bar ──────────────────────────────────────────────────────── -->
+    @let rtc = rtcState();
+    @let rtcFailed = rtc === 'failed' || rtc === 'disconnected';
+    @let rtcConnecting = rtc === 'new' || rtc === 'connecting';
     <div class="status-bar">
-      <span class="live-dot"></span>
-      <span class="status-label">Voice Call · {{ duration }}</span>
+      <span class="live-dot"
+        [class.live-dot--connecting]="rtcConnecting"
+        [class.live-dot--failed]="rtcFailed"></span>
+      <span class="status-label"
+        [class.status-label--connecting]="rtcConnecting"
+        [class.status-label--failed]="rtcFailed">
+        {{ rtcFailed ? (rtc === 'failed' ? 'Connection Failed' : 'Connection Lost') : rtcConnecting ? 'Connecting...' : 'Voice Call' }}
+        @if (!rtcFailed && !rtcConnecting) { · {{ duration }} }
+      </span>
       <button class="stats-toggle" [class.stats-toggle--active]="showStats()"
         (click)="toggleStats()" title="Connection stats">
         <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
@@ -16,6 +26,27 @@
         </svg>
       </button>
     </div>
+
+    <!-- ── Connection problem banner ─────────────────────────────────────── -->
+    @if (rtcFailed) {
+      <div class="conn-banner conn-banner--error">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13" class="shrink-0">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+        </svg>
+        <span>{{ rtc === 'failed' ? 'WebRTC connection failed — you may not be able to hear others' : 'Connection lost — attempting to reconnect' }}</span>
+      </div>
+    }
+
+    <!-- ── No-audio warning ───────────────────────────────────────────────── -->
+    @let pwa = participantsWithAudio();
+    @if (s.participants.some(p => !p.isLocal && !pwa.has(p.userId))) {
+      <div class="conn-banner conn-banner--warn">
+        <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13" class="shrink-0">
+          <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+        </svg>
+        <span>No audio received from some participants — they may need to rejoin</span>
+      </div>
+    }
 
     <!-- ── Stats bar ───────────────────────────────────────────────────────── -->
     @if (showStats() && stats(); as st) {
@@ -88,6 +119,16 @@
               }
             </div>
 
+            <!-- No-audio warning badge -->
+            @if (!p.isLocal && !participantsWithAudio().has(p.userId)) {
+              <div class="no-audio-badge" title="No audio received from this participant">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="8" height="8">
+                  <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                </svg>
+                No audio
+              </div>
+            }
+
             <div class="tile-footer">
               <span class="tile-name">{{ p.isLocal ? 'You' : p.displayName }}</span>
               <div class="tile-icons">
@@ -148,6 +189,9 @@
             </div>
             <div class="share-footer">
               <span class="share-label">{{ share.displayName }}'s screen</span>
+              @if (share.isLocal) {
+                <span class="share-fps">↓{{ rustMedia.inboundFps() }} · →{{ rustMedia.renderedFps() }} fps</span>
+              }
             </div>
           </div>
         }
@@ -207,6 +251,15 @@
           <path d="M12 6l-4 4h3v4h2v-4h3z"/>
         </svg>
       </button>
+
+      @if (s.local.isSharing) {
+        <div class="fps-selector">
+          @for (fps of fpsList; track fps) {
+            <button class="fps-btn" [class.fps-btn--active]="rustMedia.captureFps() === fps"
+              (click)="setCaptureFps(fps)" [title]="fps + ' fps'">{{ fps }}</button>
+          }
+        </div>
+      }
 
       <div class="ctrl-divider"></div>
 

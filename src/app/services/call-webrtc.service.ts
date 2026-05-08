@@ -4,6 +4,8 @@ import { CallSessionService } from './call-session.service';
 import { VoiceService, CfTrackNew, CfTrackResult } from './voice.service';
 import { VoiceWebsocketService } from './voice-websocket.service';
 import { AudioSettingsService } from './audio-settings.service';
+import { RustMediaService } from './rust-media.service';
+import { ScreenPickerService } from './screen-picker.service';
 
 export interface CallStats {
   inboundKbps: number;
@@ -34,10 +36,12 @@ export interface CallStats {
  */
 @Injectable({ providedIn: 'root' })
 export class CallWebRtcService {
-  private callSession = inject(CallSessionService);
-  private voiceService = inject(VoiceService);
-  private voiceWs = inject(VoiceWebsocketService);
+  private callSession   = inject(CallSessionService);
+  private voiceService  = inject(VoiceService);
+  private voiceWs       = inject(VoiceWebsocketService);
   private audioSettings = inject(AudioSettingsService);
+  private rustMedia     = inject(RustMediaService);
+  private screenPicker  = inject(ScreenPickerService);
 
   // ── WebRTC state ─────────────────────────────────────────────────────────
   private pc: RTCPeerConnection | null = null;
@@ -53,8 +57,11 @@ export class CallWebRtcService {
   // MID → { userId, kind, shareId } — used to route ontrack events
   private readonly midMap = new Map<string, { userId: string; kind: 'audio' | 'video' | 'screen'; shareId?: string }>();
 
-  // Audio elements for remote participants — browser won't auto-play WebRTC audio in Tauri/WebView2
+  // Audio elements for remote participants — WebView2/Tauri requires explicit <audio> elements
   private readonly remoteAudio = new Map<string, HTMLAudioElement>();
+
+  // Local senders stored for on-the-fly bitrate updates
+  private audioSender: RTCRtpSender | null = null;
 
   // Per-user volume overrides (0–1.0), persisted for the call duration
   private readonly userVolumes = new Map<string, number>();
@@ -88,7 +95,19 @@ export class CallWebRtcService {
   private prevBytes = { inAudio: 0, inVideo: 0, outAudio: 0, outVideo: 0 };
   private prevStatsTs = 0;
 
+  // ── Connection state ──────────────────────────────────────────────────────
+  readonly rtcState = signal<RTCPeerConnectionState>('new');
+  readonly participantsWithAudio = signal<Set<string>>(new Set());
+
   constructor() {
+    // Apply bitrate changes on the fly whenever settings change.
+    effect(() => {
+      const s = this.audioSettings.settings();
+      void this.applyBitrate(this.audioSender,   s.audioBitrate);
+      void this.applyBitrate(this.videoSender,   s.videoBitrate);
+      void this.applyBitrate(this.screenSender,  s.screenVideoBitrate);
+    });
+
     // Connect when a session starts; disconnect when it ends.
     effect(() => {
       const s = this.callSession.session();
@@ -151,6 +170,9 @@ export class CallWebRtcService {
     this.pc = new RTCPeerConnection({ bundlePolicy: 'max-bundle' });
     (window as any).__pc = this.pc;  // ← add this line
     this.pc.ontrack = (e) => this.handleRemoteTrack(e);
+    this.pc.onconnectionstatechange = () => {
+      if (this.pc) this.rtcState.set(this.pc.connectionState);
+    };
 
     // TODO(backend): Implement POST /api/v1/messaging/voice/calls/{callId}/session.
     // Steps on the server:
@@ -170,20 +192,31 @@ export class CallWebRtcService {
     // ParticipantJoined back to us for any already-connected participants.
     this.setupWsListeners();
 
-    // Acquire microphone (video is handled separately by CallSessionService.toggleCamera)
-    let micStream: MediaStream;
+    // Acquire microphone — use Rust pipeline when enhanced NS is on
+    let audioTrack: MediaStreamTrack;
     try {
-      micStream = await navigator.mediaDevices.getUserMedia({
-        audio: this.audioSettings.buildAudioConstraint(),
-        video: false,
-      });
+      const s = this.audioSettings.settings();
+      if (s.enhancedNoiseSuppression) {
+        audioTrack = await this.rustMedia.startMicCapture({
+          deviceId: s.micId === 'default' ? null : s.micId,
+          noiseSuppression: s.noiseSuppression,
+          autoGainControl: s.autoGainControl,
+          vadThreshold: s.vadStrength,
+        });
+      } else {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: this.audioSettings.buildAudioConstraint(),
+          video: false,
+        });
+        audioTrack = stream.getAudioTracks()[0];
+      }
     } catch {
       console.warn('[WebRTC] Microphone access denied — joining without audio');
       return;
     }
-    if (!this.callId) { micStream.getTracks().forEach(t => t.stop()); return; }
+    if (!this.callId) { audioTrack.stop(); return; }
 
-    this.audioTrack = micStream.getAudioTracks()[0];
+    this.audioTrack = audioTrack;
     // Apply current mute state immediately (user may have muted before connecting)
     const isMuted = this.callSession.session()?.local.isMuted ?? false;
     this.audioTrack.enabled = !isMuted;
@@ -192,7 +225,7 @@ export class CallWebRtcService {
     await this.publishAudioTrack(this.audioTrack);
     if (!this.callId) return;
 
-    this.startSpeakingDetection(micStream);
+    this.startSpeakingDetection(new MediaStream([this.audioTrack]));
     this.startStatsPolling();
   }
 
@@ -201,11 +234,16 @@ export class CallWebRtcService {
     this.stopStatsPolling();
     this.audioCtx?.close().catch(() => void 0);
     this.audioTrack?.stop();
+    void this.rustMedia.stopMicCapture();
+    void this.rustMedia.stopScreenCapture();
     this.pc?.close();
     this.remoteAudio.forEach(a => { a.pause(); a.srcObject = null; });
     this.remoteAudio.clear();
+    this.audioSender = null;
     this.wsSubs.forEach(s => s.unsubscribe());
 
+    this.rtcState.set('new');
+    this.participantsWithAudio.set(new Set());
     this.pc = null;
     this.cfSessionId = null;
     this.callId = null;
@@ -296,6 +334,8 @@ export class CallWebRtcService {
       mid: transceiver.mid ?? '0',
       trackName: 'audio',
     }]);
+    await this.applyBitrate(transceiver.sender, this.audioSettings.settings().audioBitrate);
+    this.audioSender = transceiver.sender;
   }
 
   private async publishVideoTrack(stream: MediaStream): Promise<void> {
@@ -310,6 +350,7 @@ export class CallWebRtcService {
     }]);
     this.videoSender = transceiver.sender;
     this.videoTrackName = results[0]?.trackName ?? 'video';
+    await this.applyBitrate(transceiver.sender, this.audioSettings.settings().videoBitrate);
     if (this.callId) this.voiceWs.invokeCameraChanged(this.callId, true);
   }
 
@@ -340,6 +381,17 @@ export class CallWebRtcService {
     const track = stream.getVideoTracks()[0];
     if (!track) return;
     const transceiver = this.pc.addTransceiver(track, { direction: 'sendonly' });
+
+    // Prefer VP9 for screen sharing — better quality-per-bit means higher effective fps
+    // at the same bitrate compared to VP8.
+    const caps = RTCRtpSender.getCapabilities('video')?.codecs ?? [];
+    const ordered = [
+      ...caps.filter(c => c.mimeType === 'video/VP9'),
+      ...caps.filter(c => c.mimeType === 'video/H264'),
+      ...caps.filter(c => c.mimeType !== 'video/VP9' && c.mimeType !== 'video/H264'),
+    ];
+    if (ordered.length) try { transceiver.setCodecPreferences(ordered); } catch {}
+
     const cfTrackName = `screen-${shareId}`;
     const results = await this.offerAnswerCycle(() => [{
       location: 'local',
@@ -349,6 +401,8 @@ export class CallWebRtcService {
     this.screenSender = transceiver.sender;
     this.screenTrackName = results[0]?.trackName ?? cfTrackName;
     this.screenShareId = shareId;
+    const fps = this.audioSettings.settings().screenVideoBitrate >= 8000 ? 30 : 15;
+    await this.applyBitrate(transceiver.sender, this.audioSettings.settings().screenVideoBitrate, 1.0, fps);
     if (this.callId) this.voiceWs.invokeScreenShareStarted(this.callId, shareId, this.screenTrackName);
   }
 
@@ -384,6 +438,17 @@ export class CallWebRtcService {
     console.log('[WebRTC] subscribeToTrack', { userId, remoteCfSessionId, trackName, kind });
     const mediaKind = kind === 'audio' ? 'audio' : 'video';
     const transceiver = this.pc.addTransceiver(mediaKind, { direction: 'recvonly' });
+
+    // For video/screen tracks, prefer VP9 on the receive side for the same efficiency gains.
+    if (mediaKind === 'video') {
+      const caps = RTCRtpReceiver.getCapabilities('video')?.codecs ?? [];
+      const ordered = [
+        ...caps.filter(c => c.mimeType === 'video/VP9'),
+        ...caps.filter(c => c.mimeType === 'video/H264'),
+        ...caps.filter(c => c.mimeType !== 'video/VP9' && c.mimeType !== 'video/H264'),
+      ];
+      if (ordered.length) try { transceiver.setCodecPreferences(ordered); } catch {}
+    }
 
     const results = await this.offerAnswerCycle(() => [{
       location: 'remote',
@@ -430,21 +495,26 @@ export class CallWebRtcService {
     const stream = event.streams[0] ?? new MediaStream([event.track]);
 
     if (info.kind === 'audio') {
-      // WebView2/Tauri does not auto-render WebRTC audio — requires explicit <audio> element.
-      const audio = new Audio();
-      audio.srcObject = stream;
-      audio.autoplay = true;
-      audio.volume = this.userVolumes.get(info.userId) ?? 1;
+      const existing = this.remoteAudio.get(info.userId);
+      if (existing) { existing.pause(); existing.srcObject = null; }
+
+      const element = new Audio();
+      element.srcObject = stream;
+      element.autoplay  = true;
+      element.volume    = this.userVolumes.get(info.userId) ?? 1;
       const speakerId = this.audioSettings.settings().speakerId;
-      if (speakerId && speakerId !== 'default' && typeof (audio as any).setSinkId === 'function') {
-        (audio as any).setSinkId(speakerId).catch(() => void 0);
+      if (speakerId && speakerId !== 'default' && typeof (element as any).setSinkId === 'function') {
+        (element as any).setSinkId(speakerId).catch(() => void 0);
       }
-      audio.play().catch(() => void 0);
-      this.remoteAudio.get(info.userId)?.pause();
-      this.remoteAudio.set(info.userId, audio);
+      void element.play().catch(() => {});
+
+      this.remoteAudio.set(info.userId, element);
+      this.participantsWithAudio.update(s => { const n = new Set(s); n.add(info.userId); return n; });
+
       event.track.onended = () => {
-        this.remoteAudio.get(info.userId)?.pause();
-        this.remoteAudio.delete(info.userId);
+        const el = this.remoteAudio.get(info.userId);
+        if (el) { el.pause(); el.srcObject = null; this.remoteAudio.delete(info.userId); }
+        this.participantsWithAudio.update(s => { const n = new Set(s); n.delete(info.userId); return n; });
       };
     } else if (info.kind === 'video') {
       this.callSession.onCameraChanged(info.userId, true, stream);
@@ -526,6 +596,20 @@ export class CallWebRtcService {
     this.prevStatsTs = now;
   }
 
+  // ── Bitrate control ───────────────────────────────────────────────────────
+
+  private async applyBitrate(sender: RTCRtpSender | null, kbps: number, scaleResolutionDownBy?: number, maxFps?: number): Promise<void> {
+    if (!sender) return;
+    try {
+      const params = sender.getParameters();
+      if (!params.encodings?.length) params.encodings = [{}];
+      params.encodings[0].maxBitrate = kbps * 1000;
+      if (scaleResolutionDownBy !== undefined) params.encodings[0].scaleResolutionDownBy = scaleResolutionDownBy;
+      if (maxFps !== undefined) params.encodings[0].maxFramerate = maxFps;
+      await sender.setParameters(params);
+    } catch { /* setParameters not supported or call already ended */ }
+  }
+
   // ── Speaking detection (local) ────────────────────────────────────────────
 
   private startSpeakingDetection(stream: MediaStream): void {
@@ -569,6 +653,7 @@ export class CallWebRtcService {
       // Someone left → remove from UI (tracks will auto-end via onended)
       this.voiceWs.participantLeftObservable.subscribe(e => {
         this.callSession.onParticipantLeft(e.userId);
+        this.participantsWithAudio.update(s => { const n = new Set(s); n.delete(e.userId); return n; });
       }),
 
       // New video / screen track published → subscribe to it

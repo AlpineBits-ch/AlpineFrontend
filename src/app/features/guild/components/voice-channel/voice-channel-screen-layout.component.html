@@ -1,0 +1,116 @@
+<div class="flex-1 min-h-0 flex flex-col gap-3 p-4 overflow-hidden">
+
+  <!-- Stream tiles -->
+  <div class="flex-1 min-h-0 grid gap-3"
+       [ngClass]="screenSharers().length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
+    @for (sharer of screenSharers(); track sharer.userId) {
+      <div class="relative bg-black/80 rounded-xl overflow-hidden border border-white/[0.12] flex items-center justify-center min-h-0">
+
+        @if (sharer.isLocal && voiceSvc.localState().isScreenSharing) {
+          @if (voiceSvc.localScreenStream(); as stream) {
+            <video [streamSrc]="stream" autoplay playsinline muted
+                   class="absolute inset-0 w-full h-full object-contain"></video>
+          } @else {
+            <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
+              <i class="pi pi-desktop text-5xl"></i>
+              <span>Your screen</span>
+            </div>
+          }
+        } @else if (voiceSvc.getScreenStream(sharer.userId); as stream) {
+          <video [streamSrc]="stream" autoplay playsinline muted
+                 class="absolute inset-0 w-full h-full object-contain"></video>
+        } @else {
+          <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
+            <i class="pi pi-desktop text-5xl"></i>
+            <span>{{ sharer.displayName }}'s screen</span>
+          </div>
+        }
+
+        <!-- LIVE badge -->
+        <div class="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded tracking-wider z-10">
+          LIVE
+        </div>
+
+        <!-- Audio toggle — local stream -->
+        @if (sharer.isLocal && voiceSvc.localScreenHasAudio()) {
+          <button
+            (click)="voiceSvc.toggleLocalScreenAudio()"
+            class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0 z-10"
+            [title]="voiceSvc.localScreenAudioMuted() ? 'Unmute stream audio' : 'Mute stream audio'">
+            <i class="pi text-sm"
+               [ngClass]="voiceSvc.localScreenAudioMuted() ? 'pi-volume-off text-rose-400' : 'pi-volume-up text-white/70'"></i>
+          </button>
+        }
+
+        <!-- Audio toggle — remote stream -->
+        @if (!sharer.isLocal) {
+          <button
+            (click)="voiceSvc.toggleScreenAudioMute(sharer.userId)"
+            class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0 z-10"
+            [title]="voiceSvc.isScreenAudioMuted(sharer.userId) ? 'Unmute screen audio' : 'Mute screen audio'">
+            <i class="pi text-sm"
+               [ngClass]="voiceSvc.isScreenAudioMuted(sharer.userId) ? 'pi-volume-off text-rose-400' : 'pi-volume-up text-white/70'"></i>
+          </button>
+        }
+
+        <!-- Sharer name pill -->
+        <div class="absolute bottom-3 left-3 flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-lg px-2.5 py-1.5 z-10">
+          <div class="w-5 h-5 rounded-full bg-sidebar flex items-center justify-center text-[9px] font-semibold text-white/70 shrink-0">
+            {{ sharer.avatarLabel }}
+          </div>
+          <span class="text-sm text-white/80">{{ sharer.displayName }}</span>
+        </div>
+
+        <!-- FPS overlay — local stream only -->
+        @if (sharer.isLocal) {
+          <div class="absolute bottom-3 right-3 flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded px-2 py-1 z-10 font-mono text-xs text-white/55 select-none">
+            <span class="text-white/35">↓</span>{{ rustMedia.inboundFps() }}
+            <span class="text-white/20 mx-0.5">·</span>
+            <span class="text-white/35">→</span>{{ rustMedia.renderedFps() }}
+            <span class="text-white/35 ml-0.5">fps</span>
+          </div>
+        }
+
+      </div>
+    }
+  </div>
+
+  <!-- Participants strip -->
+  <div class="flex items-center gap-2 overflow-x-auto shrink-0 pb-1"
+       style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+    @for (p of participants(); track p.userId) {
+      <div
+        class="shrink-0 flex flex-col items-center gap-2 px-3 py-2.5 rounded-xl bg-card border min-w-[84px]"
+        [ngClass]="p.isSpeaking ? 'border-online/60 shadow-[0_0_0_2px_rgba(52,211,153,0.25)]' : 'border-white/[0.12]'"
+        (contextmenu)="participantContextMenu.emit({ event: $event, participant: p })">
+        <div class="relative">
+          <app-avatar [userId]="p.userId" [label]="p.avatarLabel" />
+          @if (p.isMuted) {
+            <div class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-sidebar border border-white/10 flex items-center justify-center">
+              <i class="pi pi-microphone-slash text-[8px] text-rose-400"></i>
+            </div>
+          }
+        </div>
+        <span class="text-xs text-white/75 truncate max-w-[68px] text-center">{{ p.displayName }}</span>
+        @if (!p.isLocal && !voiceSvc.participantsWithAudio().has(p.userId)) {
+          <div class="flex items-center gap-0.5 text-[9px] font-semibold text-amber-400" title="No audio received">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="8" height="8">
+              <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+            </svg>
+            No audio
+          </div>
+        }
+        @if (!p.isLocal && p.isScreenSharing) {
+          <button
+            (click)="voiceSvc.toggleScreenAudioMute(p.userId)"
+            class="w-5 h-5 flex items-center justify-center rounded border-0 bg-transparent cursor-pointer transition-colors"
+            [title]="voiceSvc.isScreenAudioMuted(p.userId) ? 'Unmute screen audio' : 'Mute screen audio'">
+            <i class="pi text-[9px]"
+               [ngClass]="voiceSvc.isScreenAudioMuted(p.userId) ? 'pi-volume-off text-rose-400' : 'pi-volume-up text-white/40 hover:text-white/70'"></i>
+          </button>
+        }
+      </div>
+    }
+  </div>
+
+</div>
