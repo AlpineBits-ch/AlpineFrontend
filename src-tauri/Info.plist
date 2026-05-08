@@ -13,4 +13,8 @@
     <false/>
   </dict>
 </dict>
+<key>NSMicrophoneUsageDescription</key>
+<string>Required for voice calls</string>
+<key>NSCameraUsageDescription</key>
+<string>Required for video calls</string>
 </plist>
