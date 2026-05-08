@@ -72,7 +72,13 @@ export class GuildWebsocketService {
         .withUrl(environment.apiUrl + "/api/v1/guild/ws/hubs/guild", {
           accessTokenFactory: () => this.oAuthService.getAccessToken(),
         })
-        .withAutomaticReconnect()
+        .withAutomaticReconnect({
+          nextRetryDelayInMilliseconds: retryContext => {
+            // This function runs before every retry attempt
+            // Returning 5000 means it will wait 5 seconds every single time
+            return 5000;
+          }
+        })
         .build();
   }
 

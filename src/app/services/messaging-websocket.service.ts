@@ -70,7 +70,13 @@ export class MessagingWebsocketService {
         .withUrl(environment.apiUrl+ "/api/v1/messaging/ws/hubs/messaging", {
           accessTokenFactory: () => this.oAuthService.getAccessToken(),
         })
-        .withAutomaticReconnect()
+        .withAutomaticReconnect({
+          nextRetryDelayInMilliseconds: retryContext => {
+            // This function runs before every retry attempt
+            // Returning 5000 means it will wait 5 seconds every single time
+            return 5000;
+          }
+        })
         .build();
 
 

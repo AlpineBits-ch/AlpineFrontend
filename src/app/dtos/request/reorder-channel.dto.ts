@@ -11,4 +11,5 @@ export interface CategoryPositionDto {
 export interface ChannelPositionDto {
     channelId: string;
     position: number;
+    categoryId?: string | null;
 }

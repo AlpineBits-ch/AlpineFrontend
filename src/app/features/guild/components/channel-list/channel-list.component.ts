@@ -139,7 +139,12 @@ export class ChannelListComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((e: WsChannelCreated) => {
         if (e.guildId !== this.guild().id) return;
-        this.guildService.getGuild(e.guildId).subscribe(g => this.navService.updateCurrentGuild(g));
+        this.guildService.getGuild(e.guildId).subscribe(g => {
+          const ch = g.channels.find(c => c.id === e.channelId);
+          if (ch && !this.localChannels().some(c => c.id === e.channelId)) {
+            this.localChannels.update(chs => [...chs, ch]);
+          }
+        });
       });
 
     this.guildWsService.channelDeletedObservable
@@ -168,7 +173,12 @@ export class ChannelListComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((e: WsCategoryCreated) => {
         if (e.guildId !== this.guild().id) return;
-        this.guildService.getGuild(e.guildId).subscribe(g => this.navService.updateCurrentGuild(g));
+        this.guildService.getGuild(e.guildId).subscribe(g => {
+          const cat = g.categories.find(c => c.id === e.categoryId);
+          if (cat && !this.localCategories().some(c => c.id === e.categoryId)) {
+            this.localCategories.update(cats => [...cats, cat]);
+          }
+        });
       });
 
     this.guildWsService.categoryDeletedObservable
@@ -198,6 +208,12 @@ export class ChannelListComponent {
       .sort((a, b) => a.position - b.position)
   );
 
+  protected uncategorizedChannels = computed(() =>
+    this.localChannels()
+      .filter(c => !c.categoryId)
+      .sort((a, b) => a.position - b.position)
+  );
+
   protected sortedCategories = computed(() =>
     [...this.localCategories()].sort((a, b) => a.position - b.position)
   );
@@ -218,12 +234,10 @@ export class ChannelListComponent {
   }
 
   protected onChannelClick(channel: ChannelDto): void {
-    if (this.reorderMode()) return;
     this.navService.openChannel(channel);
   }
 
   protected onVoiceChannelClick(channel: ChannelDto): void {
-    if (this.reorderMode()) return;
     this.navService.openChannel(channel);
     if (this.voiceChannelSvc.joinedChannelId() !== channel.id) {
       this.voiceChannelSvc.joinChannel(channel, this.guild().name);
@@ -236,20 +250,11 @@ export class ChannelListComponent {
   }
 
   protected toggleCollapse(id: string): void {
-    if (this.reorderMode()) return;
     this.collapsedIds.update(set => {
       const next = new Set(set);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-  }
-
-  // ── Reorder mode ──────────────────────────────────────────────────────────
-  protected reorderMode = signal(false);
-
-  protected toggleReorderMode(): void {
-    this.reorderMode.update(v => !v);
-    this.clearDragState();
   }
 
   // ── Drag state ────────────────────────────────────────────────────────────
@@ -292,18 +297,13 @@ export class ChannelListComponent {
     const pos = this.dropPos();
     this.clearDragState();
 
-    const doReorder = () =>
-      this.reorderChannelsInSection(draggedId, targetCategoryId, targetChannel.id, pos);
-
-    if (sourceCategoryId !== targetCategoryId) {
-      // Optimistic: update categoryId locally
+    const categoryChanged = sourceCategoryId !== targetCategoryId;
+    if (categoryChanged) {
       this.localChannels.update(chs =>
         chs.map(c => c.id === draggedId ? { ...c, categoryId: targetCategoryId ?? undefined } : c)
       );
-      this.guildService.updateChannel(draggedId, { categoryId: targetCategoryId }).subscribe(() => doReorder());
-    } else {
-      doReorder();
     }
+    this.reorderChannelsInSection(draggedId, targetCategoryId, targetChannel.id, pos, categoryChanged ? targetCategoryId : undefined);
   }
 
   protected onDropOnCategory(event: DragEvent, targetCategory: CategoryDto): void {
@@ -322,9 +322,7 @@ export class ChannelListComponent {
         this.localChannels.update(chs =>
           chs.map(c => c.id === channelId ? { ...c, categoryId: targetCategory.id } : c)
         );
-        this.guildService.updateChannel(channelId, { categoryId: targetCategory.id }).subscribe(() => {
-          this.appendChannelToSection(channelId, targetCategory.id);
-        });
+        this.appendChannelToSection(channelId, targetCategory.id, targetCategory.id);
       }
     } else {
       this.clearDragState();
@@ -340,9 +338,7 @@ export class ChannelListComponent {
       this.localChannels.update(chs =>
         chs.map(c => c.id === channelId ? { ...c, categoryId: undefined } : c)
       );
-      this.guildService.updateChannel(channelId, { categoryId: null }).subscribe(() => {
-        this.appendChannelToSection(channelId, null);
-      });
+      this.appendChannelToSection(channelId, null, null);
     }
   }
 
@@ -351,6 +347,7 @@ export class ChannelListComponent {
     categoryId: string | null,
     targetId: string,
     pos: 'before' | 'after',
+    newCategoryId?: string | null,
   ): void {
     const sectionChannels = categoryId
       ? this.categoryChannels(categoryId)
@@ -373,11 +370,15 @@ export class ChannelListComponent {
 
     this.guildService.reorderChannels(this.guild().id, {
       categories: [],
-      channels: sorted.map((c, i) => ({ channelId: c.id, position: i })),
+      channels: sorted.map((c, i) => ({
+        channelId: c.id,
+        position: i,
+        ...(c.id === draggedId && newCategoryId !== undefined ? { categoryId: newCategoryId } : {}),
+      })),
     }).subscribe();
   }
 
-  private appendChannelToSection(channelId: string, categoryId: string | null): void {
+  private appendChannelToSection(channelId: string, categoryId: string | null, newCategoryId?: string | null): void {
     const sectionChannels = categoryId
       ? this.categoryChannels(categoryId)
       : [...this.uncategorizedText(), ...this.uncategorizedVoice()];
@@ -393,7 +394,11 @@ export class ChannelListComponent {
 
     this.guildService.reorderChannels(this.guild().id, {
       categories: [],
-      channels: sorted.map((c, i) => ({ channelId: c.id, position: i })),
+      channels: sorted.map((c, i) => ({
+        channelId: c.id,
+        position: i,
+        ...(c.id === channelId && newCategoryId !== undefined ? { categoryId: newCategoryId } : {}),
+      })),
     }).subscribe();
   }
 
@@ -541,7 +546,6 @@ export class ChannelListComponent {
   }
 
   protected onChannelContextMenu(event: MouseEvent, channel: ChannelDto): void {
-    if (this.reorderMode()) return;
     event.preventDefault();
     event.stopPropagation();
     this.contextChannel.set(channel);
@@ -550,7 +554,6 @@ export class ChannelListComponent {
   }
 
   protected onCategoryContextMenu(event: MouseEvent, category: CategoryDto): void {
-    if (this.reorderMode()) return;
     event.preventDefault();
     event.stopPropagation();
     this.contextCategory.set(category);
@@ -559,7 +562,6 @@ export class ChannelListComponent {
   }
 
   protected onListContextMenu(event: MouseEvent): void {
-    if (this.reorderMode()) return;
     this.listMenu.show(event);
   }
 
