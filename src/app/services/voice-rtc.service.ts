@@ -94,6 +94,9 @@ export class VoiceRTCService {
   async connect(guildId: string, channelId: string, ownUserId: string): Promise<boolean> {
     this.setupDone = false;
 
+
+   
+
     // Block the negotiation queue until the initial publish completes so that
     // GuildParticipantJoined WS events don't try to subscribe before the base
     // offer/answer is done.
@@ -106,6 +109,7 @@ export class VoiceRTCService {
       try {
         const s = this.audioSettings.settings();
         if (s.enhancedNoiseSuppression) {
+          console.log('rust ')
           audioTrack = await this.rustMedia.startMicCapture({
             deviceId: s.micId === 'default' ? null : s.micId,
             noiseSuppression: s.noiseSuppression,
@@ -113,13 +117,17 @@ export class VoiceRTCService {
             vadThreshold: s.vadStrength,
           });
         } else {
+          console.log('media ')
+
           const stream = await navigator.mediaDevices.getUserMedia({
             audio: this.audioSettings.buildAudioConstraint(),
             video: false,
           });
           audioTrack = stream.getAudioTracks()[0];
         }
-      } catch {
+      } catch (e){
+        console.log(e)
+        console.log('ERROR SETTING UP PC')
         this.setupDone = true;
         return false;
       }
@@ -127,6 +135,7 @@ export class VoiceRTCService {
       this.pc = new RTCPeerConnection({ iceServers: environment.iceServers, bundlePolicy: 'max-bundle' });
       this.pc.ontrack = e => this.handleRemoteTrack(e);
       this.pc.onconnectionstatechange = () => {
+        console.log('on change', this.pc);
         if (this.pc) this.rtcState.set(this.pc.connectionState);
       };
 
@@ -158,6 +167,10 @@ export class VoiceRTCService {
 
       this.setupDone = true;
       return true;
+      
+    }catch(e){
+      console.log(e)
+      throw e
     } finally {
       releaseQueue();
     }
@@ -555,6 +568,7 @@ export class VoiceRTCService {
   // ── Private helpers ────────────────────────────────────────────────────────
 
   private handleRemoteTrack(event: RTCTrackEvent): void {
+    console.log(event);
     const mid = event.transceiver.mid;
     if (!mid) return;
     const meta = this.midMeta.get(mid);

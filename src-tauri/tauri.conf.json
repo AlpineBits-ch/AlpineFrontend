@@ -32,7 +32,8 @@
     ],
     "targets": "all",
     "iOS": {
-      "developmentTeam": "S33LPKH83B"
+      "developmentTeam": "S33LPKH83B",
+      "infoPlist": "Info.plist"
     },
     "linux": {
       "rpm": {
