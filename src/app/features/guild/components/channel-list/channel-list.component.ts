@@ -1,4 +1,4 @@
-import {Component, computed, DestroyRef, effect, inject, input, signal, ViewChild} from '@angular/core';
+import {Component, computed, DestroyRef, effect, HostListener, inject, input, signal, ViewChild} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {firstValueFrom} from 'rxjs';
 import {NgClass} from '@angular/common';
@@ -31,6 +31,7 @@ import {hasPermission, parsePermissions, Permissions} from '../../../../enums/pe
 import {ReorderChannesDto} from '../../../../dtos/request/reorder-channel.dto';
 import {GuildWebsocketService, WsChannelCreated, WsChannelDeleted, WsCategoryCreated, WsCategoryDeleted} from '../../../../services/guild-websocket.service';
 import {GuildVoiceService} from '../../../../services/guild-voice.service';
+import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 @Component({
   selector: 'app-channel-list',
@@ -262,84 +263,102 @@ export class ChannelListComponent {
   protected dropTargetId = signal<string | null>(null);
   protected dropPos      = signal<'before' | 'after'>('after');
 
+  // WebView2 (Tauri/Windows) integrates with Windows OLE drag-and-drop and requires
+  // dropEffect = 'move' to be set on every dragover/dragenter event — calling only
+  // preventDefault() is not enough and results in an immediate red "no-drop" cursor.
+  // These document-level handlers cover all elements including gaps between items.
+  @HostListener('document:dragover', ['$event'])
+  protected onGlobalDragOver(event: DragEvent): void {
+    if (!this.dragging) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  }
+
+  @HostListener('document:dragenter', ['$event'])
+  protected onGlobalDragEnter(event: DragEvent): void {
+    if (!this.dragging) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  }
+
   protected onCategoryDragStart(event: DragEvent, category: CategoryDto): void {
     this.dragging = { type: 'category', id: category.id, sourceCategoryId: null };
-    event.dataTransfer!.effectAllowed = 'move';
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', category.id);
+    }
   }
 
   protected onChannelDragStart(event: DragEvent, channel: ChannelDto): void {
     this.dragging = { type: 'channel', id: channel.id, sourceCategoryId: channel.categoryId ?? null };
-    event.dataTransfer!.effectAllowed = 'move';
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', channel.id);
+    }
   }
 
-  protected onDragEnd(): void {
+  // Prevent browser default on drop (e.g. navigation). Actual logic runs in onDragEnd.
+  @HostListener('document:drop', ['$event'])
+  protected onGlobalDrop(event: DragEvent): void {
+    event.preventDefault();
+  }
+
+  // All drop logic lives here so it's driven by the indicator position (dropTargetId/dropPos),
+  // not by whichever physical DOM element the mouse happened to be over on release.
+  // This also handles WebView2 where the drop event may not fire at all.
+  protected onDragEnd(event: DragEvent): void {
+    const dragging = this.dragging;
+    const targetId  = this.dropTargetId();
+    const pos       = this.dropPos();
     this.clearDragState();
-  }
 
-  protected onItemDragOver(event: DragEvent, targetId: string): void {
-    if (!this.dragging || this.dragging.id === targetId) return;
-    event.preventDefault();
-    event.dataTransfer!.dropEffect = 'move';
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.dropTargetId.set(targetId);
-    this.dropPos.set(event.clientY < rect.top + rect.height / 2 ? 'before' : 'after');
-  }
+    if (!dragging || !targetId) return;
 
-  protected onDropOnChannel(event: DragEvent, targetChannel: ChannelDto): void {
-    event.preventDefault();
-    if (!this.dragging || this.dragging.type !== 'channel' || this.dragging.id === targetChannel.id) {
-      this.clearDragState();
+    const targetChannel = this.localChannels().find(c => c.id === targetId);
+    if (targetChannel) {
+      if (dragging.type !== 'channel' || dragging.id === targetChannel.id) return;
+      const targetCategoryId = targetChannel.categoryId ?? null;
+      const categoryChanged  = dragging.sourceCategoryId !== targetCategoryId;
+      if (categoryChanged) {
+        this.localChannels.update(chs =>
+          chs.map(c => c.id === dragging.id ? { ...c, categoryId: targetCategoryId ?? undefined } : c)
+        );
+      }
+      this.reorderChannelsInSection(dragging.id, targetCategoryId, targetChannel.id, pos, categoryChanged ? targetCategoryId : undefined);
       return;
     }
 
-    const { id: draggedId, sourceCategoryId } = this.dragging;
-    const targetCategoryId = targetChannel.categoryId ?? null;
-    const pos = this.dropPos();
-    this.clearDragState();
-
-    const categoryChanged = sourceCategoryId !== targetCategoryId;
-    if (categoryChanged) {
-      this.localChannels.update(chs =>
-        chs.map(c => c.id === draggedId ? { ...c, categoryId: targetCategoryId ?? undefined } : c)
-      );
-    }
-    this.reorderChannelsInSection(draggedId, targetCategoryId, targetChannel.id, pos, categoryChanged ? targetCategoryId : undefined);
-  }
-
-  protected onDropOnCategory(event: DragEvent, targetCategory: CategoryDto): void {
-    event.preventDefault();
-    if (!this.dragging) { this.clearDragState(); return; }
-
-    if (this.dragging.type === 'category' && this.dragging.id !== targetCategory.id) {
-      const draggedId = this.dragging.id;
-      const pos = this.dropPos();
-      this.clearDragState();
-      this.reorderCategoryAfterDrop(draggedId, targetCategory.id, pos);
-    } else if (this.dragging.type === 'channel') {
-      const { id: channelId, sourceCategoryId } = this.dragging;
-      this.clearDragState();
-      if (sourceCategoryId !== targetCategory.id) {
-        this.localChannels.update(chs =>
-          chs.map(c => c.id === channelId ? { ...c, categoryId: targetCategory.id } : c)
-        );
-        this.appendChannelToSection(channelId, targetCategory.id, targetCategory.id);
+    const targetCategory = this.localCategories().find(c => c.id === targetId);
+    if (targetCategory) {
+      if (dragging.type === 'category' && dragging.id !== targetCategory.id) {
+        this.reorderCategoryAfterDrop(dragging.id, targetCategory.id, pos);
+      } else if (dragging.type === 'channel') {
+        if (pos === 'before') {
+          // Blue line before a category header = move channel to uncategorized section
+          if (dragging.sourceCategoryId !== null) {
+            this.localChannels.update(chs =>
+              chs.map(c => c.id === dragging.id ? { ...c, categoryId: undefined } : c)
+            );
+            this.appendChannelToSection(dragging.id, null, null);
+          }
+        } else if (dragging.sourceCategoryId !== targetCategory.id) {
+          // Blue line after/on a category header = move channel into that category
+          this.localChannels.update(chs =>
+            chs.map(c => c.id === dragging.id ? { ...c, categoryId: targetCategory.id } : c)
+          );
+          this.appendChannelToSection(dragging.id, targetCategory.id, targetCategory.id);
+        }
       }
-    } else {
-      this.clearDragState();
     }
   }
 
-  protected onDropOnUncategorized(event: DragEvent): void {
+  protected onItemDragOver(event: DragEvent, targetId: string): void {
     event.preventDefault();
-    if (!this.dragging || this.dragging.type !== 'channel') { this.clearDragState(); return; }
-    const { id: channelId, sourceCategoryId } = this.dragging;
-    this.clearDragState();
-    if (sourceCategoryId !== null) {
-      this.localChannels.update(chs =>
-        chs.map(c => c.id === channelId ? { ...c, categoryId: undefined } : c)
-      );
-      this.appendChannelToSection(channelId, null, null);
-    }
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    if (!this.dragging || this.dragging.id === targetId) return;
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.dropTargetId.set(targetId);
+    this.dropPos.set(event.clientY < rect.top + rect.height / 2 ? 'before' : 'after');
   }
 
   private reorderChannelsInSection(

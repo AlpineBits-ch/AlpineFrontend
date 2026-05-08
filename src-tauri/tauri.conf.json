@@ -10,7 +10,8 @@
         "title": "alpine",
         "width": 800,
         "decorations": false,
-        "focus": false
+        "focus": false,
+        "dragDropEnabled": false
       }
     ]
   },
