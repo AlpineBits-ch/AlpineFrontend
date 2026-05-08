@@ -6,6 +6,7 @@ import {
 } from "@angular/core";
 import { provideRouter } from "@angular/router";
 import { provideAnimations } from "@angular/platform-browser/animations";
+import { provideIonicAngular } from '@ionic/angular/standalone';
 import {AuthConfig, OAuthStorage, provideOAuthClient} from 'angular-oauth2-oidc';
 import { routes } from "./app.routes";
 import {providePrimeNG} from "primeng/config";
@@ -50,5 +51,6 @@ export const appConfig: ApplicationConfig = {
         }
       }),
       MessageService,
+      provideIonicAngular(),
   ],
 };

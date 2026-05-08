@@ -1,6 +1,7 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, inject, input } from '@angular/core';
 import { NgClass } from '@angular/common';
 import { OnlineStatus } from '../../dtos/response/profile.dto';
+import { PlatformService } from '../../services/platform.service';
 
 const SIZE_CLASSES: Record<'sm' | 'md' | 'lg', string> = {
   sm: 'w-2.5 h-2.5',
@@ -17,9 +18,15 @@ const SIZE_CLASSES: Record<'sm' | 'md' | 'lg', string> = {
   imports: [NgClass],
   template: `
     @if (status() !== null) {
-      <div class="absolute -bottom-0.5 -right-0.5 rounded-full border-2"
-           [ngClass]="classes()">
-      </div>
+      @if (platformService.isMobile) {
+        <div class="absolute -bottom-0.5 -right-0.5 rounded-full border-2"
+             [ngClass]="classes()">
+        </div>
+      } @else {
+        <div class="absolute -bottom-0.5 -right-0.5 rounded-full border-2"
+             [ngClass]="classes()">
+        </div>
+      }
     }
   `,
 })
@@ -27,6 +34,8 @@ export class UserStatusDotComponent {
   status      = input.required<OnlineStatus | null>();
   size        = input<'sm' | 'md' | 'lg'>('sm');
   borderColor = input<string>('border-sidebar');
+
+  public platformService = inject(PlatformService);
 
   protected classes = computed(() => [
     SIZE_CLASSES[this.size()],

@@ -47,14 +47,14 @@ pub struct ScreenFrame {
 
 pub struct ScreenCaptureState {
     stop: Arc<Mutex<Option<std::sync::mpsc::SyncSender<()>>>>,
-    fps:  Arc<AtomicU32>,
+    fps: Arc<AtomicU32>,
 }
 
 impl Default for ScreenCaptureState {
     fn default() -> Self {
         Self {
             stop: Arc::new(Mutex::new(None)),
-            fps:  Arc::new(AtomicU32::new(15)),
+            fps: Arc::new(AtomicU32::new(15)),
         }
     }
 }
@@ -84,7 +84,11 @@ fn find_capture_source(source_id: &str) -> Option<CaptureHandle> {
 
     if let Some(idx_str) = source_id.strip_prefix("monitor:") {
         let idx: usize = idx_str.parse().ok()?;
-        Monitor::all().ok()?.into_iter().nth(idx).map(CaptureHandle::Monitor)
+        Monitor::all()
+            .ok()?
+            .into_iter()
+            .nth(idx)
+            .map(CaptureHandle::Monitor)
     } else if let Some(id_str) = source_id.strip_prefix("window:") {
         let hwnd_id: u32 = id_str.parse().ok()?;
         Window::all()
@@ -104,8 +108,8 @@ pub async fn enumerate_screen_sources() -> Result<Vec<ScreenSource>, String> {
     // and Window::all() cannot race with a concurrent find_capture_source call.
     type MonitorMeta = (usize, String, u32, u32);
     type WindowMeta = (u32, String, u32, u32);
-    let (monitor_meta, window_meta) = tokio::task::spawn_blocking(
-        || -> Result<(Vec<MonitorMeta>, Vec<WindowMeta>), String> {
+    let (monitor_meta, window_meta) =
+        tokio::task::spawn_blocking(|| -> Result<(Vec<MonitorMeta>, Vec<WindowMeta>), String> {
             let _guard = wgc_lock().lock().unwrap();
 
             let monitors: Vec<MonitorMeta> = Monitor::all()
@@ -139,10 +143,9 @@ pub async fn enumerate_screen_sources() -> Result<Vec<ScreenSource>, String> {
 
             Ok((monitors, windows))
             // _guard dropped here — lock released before Phase 2
-        },
-    )
-    .await
-    .map_err(|e| e.to_string())??;
+        })
+        .await
+        .map_err(|e| e.to_string())??;
 
     // Phase 2: capture monitor thumbnails sequentially on one blocking thread.
     //
@@ -233,8 +236,7 @@ pub async fn start_screen_capture(
             };
             let mut next_frame = std::time::Instant::now();
 
-            let (encode_tx, encode_rx) =
-                std::sync::mpsc::sync_channel::<(RgbaImage, u32, u32)>(1);
+            let (encode_tx, encode_rx) = std::sync::mpsc::sync_channel::<(RgbaImage, u32, u32)>(1);
 
             // Encode thread: resize + JPEG + base64 + IPC send, independent of capture.
             let _ = std::thread::Builder::new()
@@ -258,7 +260,12 @@ pub async fn start_screen_capture(
                             .unwrap_or_default()
                             .as_millis() as u64;
                         if on_frame
-                            .send(ScreenFrame { data, width: out_w, height: out_h, timestamp_ms: ts })
+                            .send(ScreenFrame {
+                                data,
+                                width: out_w,
+                                height: out_h,
+                                timestamp_ms: ts,
+                            })
                             .is_err()
                         {
                             break;
@@ -280,7 +287,9 @@ pub async fn start_screen_capture(
                 }
                 next_frame += interval;
 
-                let Some((rgba, w, h)) = source.capture() else { continue; };
+                let Some((rgba, w, h)) = source.capture() else {
+                    continue;
+                };
                 // Drop frame if encoder is still busy — freshness over buffering.
                 let _ = encode_tx.try_send((rgba, w, h));
             }
@@ -332,7 +341,7 @@ fn encode_jpeg(img: &DynamicImage, quality: u8) -> Vec<u8> {
     let enc = jpeg_encoder::Encoder::new(&mut buf, quality);
     let result = match img {
         DynamicImage::ImageRgba8(rgba) => enc.encode(rgba.as_raw(), w, h, ColorType::Rgba),
-        DynamicImage::ImageRgb8(rgb)   => enc.encode(rgb.as_raw(),  w, h, ColorType::Rgb),
+        DynamicImage::ImageRgb8(rgb) => enc.encode(rgb.as_raw(), w, h, ColorType::Rgb),
         _ => {
             let rgb = img.to_rgb8();
             enc.encode(rgb.as_raw(), w, h, ColorType::Rgb)

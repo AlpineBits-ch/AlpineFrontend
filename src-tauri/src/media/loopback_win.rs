@@ -18,12 +18,13 @@ use windows::{
     Win32::{
         Foundation::{CloseHandle, E_FAIL, E_OUTOFMEMORY},
         Media::Audio::{
-            ActivateAudioInterfaceAsync, IAudioCaptureClient, IAudioClient,
-            IActivateAudioInterfaceAsyncOperation, IActivateAudioInterfaceCompletionHandler,
-            IActivateAudioInterfaceCompletionHandler_Impl, AUDIOCLIENT_ACTIVATION_PARAMS,
-            AUDIOCLIENT_ACTIVATION_PARAMS_0, AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK,
-            AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS, AUDCLNT_SHAREMODE_SHARED,
-            AUDCLNT_STREAMFLAGS_EVENTCALLBACK, PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE,
+            ActivateAudioInterfaceAsync, IActivateAudioInterfaceAsyncOperation,
+            IActivateAudioInterfaceCompletionHandler,
+            IActivateAudioInterfaceCompletionHandler_Impl, IAudioCaptureClient, IAudioClient,
+            AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_EVENTCALLBACK,
+            AUDIOCLIENT_ACTIVATION_PARAMS, AUDIOCLIENT_ACTIVATION_PARAMS_0,
+            AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK, AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS,
+            PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE,
             VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
         },
         Security::SECURITY_ATTRIBUTES,
@@ -88,10 +89,7 @@ struct CompletionHandler {
 }
 
 impl IActivateAudioInterfaceCompletionHandler_Impl for CompletionHandler_Impl {
-    fn ActivateCompleted(
-        &self,
-        op: Option<&IActivateAudioInterfaceAsyncOperation>,
-    ) -> Result<()> {
+    fn ActivateCompleted(&self, op: Option<&IActivateAudioInterfaceAsyncOperation>) -> Result<()> {
         let send = self.tx.lock().unwrap().take();
         let result = (|| -> Result<AgileClient> {
             let op = op.ok_or_else(|| Error::from(E_FAIL))?;
@@ -100,8 +98,7 @@ impl IActivateAudioInterfaceCompletionHandler_Impl for CompletionHandler_Impl {
             // Safety: op is a valid IActivateAudioInterfaceAsyncOperation provided by the OS.
             unsafe { op.GetActivateResult(&mut hr, &mut punk)? };
             hr.ok()?;
-            let client: IAudioClient =
-                punk.ok_or_else(|| Error::from(E_FAIL))?.cast()?;
+            let client: IAudioClient = punk.ok_or_else(|| Error::from(E_FAIL))?.cast()?;
             // Wrap in AgileReference so it can cross apartment boundaries safely.
             let agile = AgileReference::new(&client)?;
             Ok(AgileClient(agile))
@@ -121,10 +118,7 @@ impl IActivateAudioInterfaceCompletionHandler_Impl for CompletionHandler_Impl {
 /// Returns `Err` if process-excluded activation is unsupported (pre-2004
 /// Windows) or if the mix format is not 32-bit float — the caller should
 /// fall back to the device-loopback path.
-pub fn capture_excluded(
-    on_chunk: Channel<AudioChunk>,
-    stop: Arc<AtomicBool>,
-) -> Result<()> {
+pub fn capture_excluded(on_chunk: Channel<AudioChunk>, stop: Arc<AtomicBool>) -> Result<()> {
     // Pin the MTA before touching any COM/WASAPI/WGC API.
     ensure_mta_alive()?;
 
@@ -182,8 +176,10 @@ pub fn capture_excluded(
 
     // ── Activate process-excluded loopback asynchronously ────────────────────
     let (tx, rx) = std::sync::mpsc::sync_channel::<Result<AgileClient>>(1);
-    let handler: IActivateAudioInterfaceCompletionHandler =
-        CompletionHandler { tx: Mutex::new(Some(tx)) }.into();
+    let handler: IActivateAudioInterfaceCompletionHandler = CompletionHandler {
+        tx: Mutex::new(Some(tx)),
+    }
+    .into();
 
     // Safety: handler is alive until rx.recv() returns, which blocks until
     // ActivateCompleted fires on the COM callback thread.
@@ -211,7 +207,7 @@ pub fn capture_excluded(
         let channels = fmt.nChannels as usize;
         let sample_rate = fmt.nSamplesPerSec;
         let is_float32 = (fmt.wFormatTag == 3 /* WAVE_FORMAT_IEEE_FLOAT */
-            || fmt.wFormatTag == 0xFFFE /* WAVE_FORMAT_EXTENSIBLE */)
+            || fmt.wFormatTag == 0xFFFE/* WAVE_FORMAT_EXTENSIBLE */)
             && fmt.wBitsPerSample == 32;
         (channels, sample_rate, is_float32, fmt)
     };
@@ -230,12 +226,7 @@ pub fn capture_excluded(
             &fmt,
             None,
         )?;
-        let ready_event = CreateEventW(
-            None::<*const SECURITY_ATTRIBUTES>,
-            false,
-            false,
-            None,
-        )?;
+        let ready_event = CreateEventW(None::<*const SECURITY_ATTRIBUTES>, false, false, None)?;
         client.SetEventHandle(ready_event)?;
         let capture: IAudioCaptureClient = client.GetService()?;
         client.Start()?;
@@ -251,7 +242,9 @@ pub fn capture_excluded(
         }
 
         // Safety: ready_event is a valid kernel event HANDLE.
-        unsafe { WaitForSingleObject(ready_event, 10); } // 10 ms — lets us check stop flag
+        unsafe {
+            WaitForSingleObject(ready_event, 10);
+        } // 10 ms — lets us check stop flag
 
         if stop.load(Ordering::Relaxed) {
             break;
@@ -259,9 +252,7 @@ pub fn capture_excluded(
 
         // Drain all ready packets.
         loop {
-            let has_data = unsafe {
-                matches!(capture.GetNextPacketSize(), Ok(n) if n > 0)
-            };
+            let has_data = unsafe { matches!(capture.GetNextPacketSize(), Ok(n) if n > 0) };
             if !has_data {
                 break;
             }
@@ -277,7 +268,9 @@ pub fn capture_excluded(
             };
             if !ok || buf_ptr.is_null() || num_frames == 0 {
                 // Safety: ReleaseBuffer(0) is a documented no-op on error.
-                unsafe { let _ = capture.ReleaseBuffer(0); }
+                unsafe {
+                    let _ = capture.ReleaseBuffer(0);
+                }
                 break;
             }
 
@@ -296,7 +289,9 @@ pub fn capture_excluded(
                 }
             }
             // Safety: must be called after GetBuffer; num_frames matches GetBuffer.
-            unsafe { let _ = capture.ReleaseBuffer(num_frames); }
+            unsafe {
+                let _ = capture.ReleaseBuffer(num_frames);
+            }
         }
 
         // Resample to 48 kHz if the mix format differs.

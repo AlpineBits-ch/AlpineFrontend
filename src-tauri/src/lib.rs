@@ -31,7 +31,11 @@ mod win32 {
     /// Safety: hwnd must be a valid Win32 window handle for the lifetime of the call.
     pub unsafe fn set_noactivate_exstyle(hwnd: *mut core::ffi::c_void) {
         let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex | WS_EX_NOACTIVATE as isize | WS_EX_TOOLWINDOW as isize);
+        SetWindowLongPtrW(
+            hwnd,
+            GWL_EXSTYLE,
+            ex | WS_EX_NOACTIVATE as isize | WS_EX_TOOLWINDOW as isize,
+        );
     }
 }
 
@@ -78,7 +82,9 @@ fn setup_toast_window(label: String, app: tauri::AppHandle) -> Result<(), String
     {
         let hwnd = _win.hwnd().map_err(|e| e.to_string())?.0;
         // Safety: hwnd comes from a live Tauri window handle.
-        unsafe { win32::set_noactivate_exstyle(hwnd); }
+        unsafe {
+            win32::set_noactivate_exstyle(hwnd);
+        }
     }
 
     Ok(())
@@ -103,7 +109,9 @@ fn prepare_notification(label: String, app: tauri::AppHandle) -> Result<(), Stri
     {
         let hwnd = _win.hwnd().map_err(|e| e.to_string())?.0;
         // Safety: hwnd comes from a live Tauri window handle.
-        unsafe { win32::set_noactivate_exstyle(hwnd); }
+        unsafe {
+            win32::set_noactivate_exstyle(hwnd);
+        }
     }
 
     Ok(())
@@ -112,6 +120,7 @@ fn prepare_notification(label: String, app: tauri::AppHandle) -> Result<(), Stri
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init());
@@ -126,8 +135,7 @@ pub fn run() {
 
     // Mobile-only plugins
     #[cfg(mobile)]
-    let builder = builder
-        .plugin(tauri_plugin_notifications::init());
+    let builder = builder.plugin(tauri_plugin_notifications::init());
 
     build_and_run(builder);
 }

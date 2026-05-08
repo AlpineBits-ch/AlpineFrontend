@@ -1,6 +1,13 @@
 import { animate, query, stagger, style, transition, trigger } from '@angular/animations';
 import { Component, computed, effect, inject, output, signal } from '@angular/core';
 import { DatePipe, NgClass } from '@angular/common';
+import {
+  IonList, IonItem, IonItemSliding, IonItemOptions, IonItemOption,
+  IonLabel, IonBadge, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent,
+} from '@ionic/angular/standalone';
+import { InfiniteScrollCustomEvent } from '@ionic/angular';
+import { addIcons } from 'ionicons';
+import { trashOutline } from 'ionicons/icons';
 
 import { ConversationDto } from '../../../../dtos/response/conversation.dto';
 import { MessageDto } from '../../../../dtos/response/message.dto';
@@ -22,10 +29,15 @@ import { ToastService } from '../../../../services/toast.service';
 import { NavigationService } from '../../../main-page/navigation.service';
 
 const PREVIEW_SIZE = 30;
+import {PlatformService} from "../../../../services/platform.service";
 
 @Component({
   selector: 'app-conversation-list',
-  imports: [AppAvatarComponent, DatePipe, NgClass, UserStatusDotComponent, TypingDotsComponent],
+  imports: [
+    AppAvatarComponent, DatePipe, NgClass, UserStatusDotComponent, TypingDotsComponent,
+    IonList, IonItem, IonItemSliding, IonItemOptions, IonItemOption,
+    IonLabel, IonBadge, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent,
+  ],
   templateUrl: './conversation-list.component.html',
   styleUrl: './conversation-list.component.css',
   animations: [
@@ -61,6 +73,8 @@ export class ConversationListComponent {
   private messageStore        = inject(MessageStore);
   private toast               = inject(ToastService);
   private messagingWs         = inject(MessagingWebsocketService);
+
+  public platformService = inject(PlatformService)
 
   readonly selectedId = computed(() => {
     const view = this.navService.mainView();
@@ -110,6 +124,7 @@ export class ConversationListComponent {
   });
 
   constructor() {
+    addIcons({ trashOutline });
     this.conversationStore.loadInitial();
 
     // Prepend new messages to the preview window (keeps newest-first order).
@@ -165,8 +180,13 @@ export class ConversationListComponent {
     return this.unreadCounts().get(convId) ?? 0;
   }
 
-  public deleteConversation(conv: ConversationDto, event: MouseEvent): void {
-    event.stopPropagation();
+  public onIonInfinite(event: InfiniteScrollCustomEvent): void {
+    this.conversationStore.loadMore();
+    setTimeout(() => event.target.complete(), 400);
+  }
+
+  public deleteConversation(conv: ConversationDto, event?: MouseEvent): void {
+    event?.stopPropagation();
     const name = this.convUtils.getChatTitle(conv);
     this.conversationService.deleteConversation(conv.id).subscribe({
       next: () => {

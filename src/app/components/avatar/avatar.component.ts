@@ -1,21 +1,39 @@
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { Avatar } from 'primeng/avatar';
+import { IonAvatar } from '@ionic/angular/standalone';
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 import { ProfileService } from '../../services/profile.service';
+import { PlatformService } from '../../services/platform.service';
 
 @Component({
   selector: 'app-avatar',
-  imports: [Avatar],
+  imports: [Avatar, IonAvatar],
   template: `
-    <p-avatar
-      [image]="imageUrl()"
-      [label]="displayLabel()"
-      [icon]="displayIcon()"
-      shape="circle"
-      [size]="size()"
-      [styleClass]="styleClass()"
-      (onImageError)="onError()"
-    />
+    @if (platformService.isMobile) {
+      <ion-avatar [style]="ionSizeStyle()">
+        @if (imageUrl()) {
+          <img [src]="imageUrl()" [alt]="displayLabel() ?? ''" (error)="onError()" />
+        } @else if (displayLabel()) {
+          <div class="w-full h-full flex items-center justify-center bg-indigo-500 text-white font-semibold text-sm rounded-full">
+            {{ displayLabel() }}
+          </div>
+        } @else {
+          <div class="w-full h-full flex items-center justify-center bg-white/10 rounded-full">
+            <i class="pi pi-user text-white/40 text-xs"></i>
+          </div>
+        }
+      </ion-avatar>
+    } @else {
+      <p-avatar
+        [image]="imageUrl()"
+        [label]="displayLabel()"
+        [icon]="displayIcon()"
+        shape="circle"
+        [size]="size()"
+        [styleClass]="styleClass()"
+        (onImageError)="onError()"
+      />
+    }
   `,
 })
 export class AppAvatarComponent {
@@ -25,7 +43,14 @@ export class AppAvatarComponent {
   styleClass = input<string | undefined>(undefined);
 
   private profileService = inject(ProfileService);
+  public  platformService = inject(PlatformService);
   private imageError = signal(false);
+
+  protected ionSizeStyle = computed(() => {
+    const s = this.size();
+    const dim = s === 'large' ? '3rem' : s === 'xlarge' ? '4rem' : '2rem';
+    return { width: dim, height: dim };
+  });
 
   private profile = computed(() =>
     this.userId() ? this.profileService.getCachedByUserId(this.userId()!) : undefined
