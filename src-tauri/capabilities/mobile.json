@@ -8,8 +8,7 @@
   ],
   "permissions": [
     "notifications:default",
-    "os:default",
-    "core:webview:allow-media-devices"
+    "os:default"
   ],
   "windows": [
     "main"

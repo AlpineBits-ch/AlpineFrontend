@@ -50,5 +50,9 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<false/>
 	</dict>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Required for voice calls</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Required for video calls</string>
 </dict>
 </plist>
