@@ -181,7 +181,10 @@ pub async fn start_audio_capture(
             while let Ok(chunk) = rx.try_recv() {
                 // Down-mix to mono if stereo
                 let mono: Vec<f32> = if channels > 1 {
-                    chunk.chunks(channels).map(|ch| ch.iter().sum::<f32>() / channels as f32).collect()
+                    chunk
+                        .chunks(channels)
+                        .map(|ch| ch.iter().sum::<f32>() / channels as f32)
+                        .collect()
                 } else {
                     chunk
                 };
@@ -231,7 +234,9 @@ pub async fn start_audio_capture(
 
                     // 80/20 blend: preserves more natural warmth and prevents
                     // RNNoise from completely suppressing quiet/atypical voices.
-                    let mut blended: Vec<f32> = denoised.iter().zip(frame.iter())
+                    let mut blended: Vec<f32> = denoised
+                        .iter()
+                        .zip(frame.iter())
                         .map(|(&d, &o)| d * 0.8 + o * 0.2)
                         .collect();
 
@@ -324,9 +329,7 @@ fn pick_config(device: &cpal::Device) -> Result<cpal::StreamConfig, String> {
     if device
         .supported_input_configs()
         .map(|mut c| {
-            c.any(|sc| {
-                sc.min_sample_rate().0 <= 48_000 && sc.max_sample_rate().0 >= 48_000
-            })
+            c.any(|sc| sc.min_sample_rate().0 <= 48_000 && sc.max_sample_rate().0 >= 48_000)
         })
         .unwrap_or(false)
     {
@@ -374,9 +377,9 @@ pub(super) fn resample_linear(input: &[f32], from_rate: u32, to_rate: u32) -> Ve
 /// Levelling AGC — targets −16 dBFS RMS with fast gain reduction and slow
 /// gain increase to prevent pumping and overgain bursts.
 fn apply_agc(mut samples: Vec<f32>, gain: &mut f32) -> Vec<f32> {
-    const TARGET_RMS: f32 = 0.15;   // −16 dBFS
-    const MAX_GAIN: f32 = 4.0;      // +12 dB max boost
-    // Fast attack: reduces gain quickly when signal is loud (~4 frames = 40 ms).
+    const TARGET_RMS: f32 = 0.15; // −16 dBFS
+    const MAX_GAIN: f32 = 4.0; // +12 dB max boost
+                               // Fast attack: reduces gain quickly when signal is loud (~4 frames = 40 ms).
     const ATTACK: f32 = 0.25;
     // Slow release: increases gain gradually when signal drops (~300 frames = 3 s).
     const RELEASE: f32 = 0.003;
@@ -397,7 +400,9 @@ fn apply_agc(mut samples: Vec<f32>, gain: &mut f32) -> Vec<f32> {
         *gain = 1.0 + (*gain - 1.0) * 0.99;
     }
 
-    samples.iter_mut().for_each(|s| *s = (*s * *gain).clamp(-1.0, 1.0));
+    samples
+        .iter_mut()
+        .for_each(|s| *s = (*s * *gain).clamp(-1.0, 1.0));
     samples
 }
 
@@ -455,19 +460,22 @@ pub async fn start_loopback_capture(
 }
 
 /// Device-loopback capture via cpal (fallback / non-Windows path).
-fn loopback_cpal(
-    on_chunk: Channel<AudioChunk>,
-    stop: Arc<std::sync::atomic::AtomicBool>,
-) {
+fn loopback_cpal(on_chunk: Channel<AudioChunk>, stop: Arc<std::sync::atomic::AtomicBool>) {
     let host = cpal::default_host();
     let device = match host.default_output_device() {
         Some(d) => d,
-        None => { eprintln!("[loopback] No output device"); return; }
+        None => {
+            eprintln!("[loopback] No output device");
+            return;
+        }
     };
 
     let out_cfg = match device.default_output_config() {
         Ok(c) => c,
-        Err(e) => { eprintln!("[loopback] Config error: {e}"); return; }
+        Err(e) => {
+            eprintln!("[loopback] Config error: {e}");
+            return;
+        }
     };
     let sample_rate = out_cfg.sample_rate().0;
     let channels = out_cfg.channels() as usize;
@@ -478,26 +486,41 @@ fn loopback_cpal(
 
     let stream = match device.build_input_stream(
         &config,
-        move |data: &[f32], _| { let _ = tx.send(data.to_vec()); },
-        move |err| { eprintln!("[loopback] cpal error: {err}"); drop(tx_err.clone()); },
+        move |data: &[f32], _| {
+            let _ = tx.send(data.to_vec());
+        },
+        move |err| {
+            eprintln!("[loopback] cpal error: {err}");
+            drop(tx_err.clone());
+        },
         None,
     ) {
         Ok(s) => s,
-        Err(e) => { eprintln!("[loopback] Stream error: {e}"); return; }
+        Err(e) => {
+            eprintln!("[loopback] Stream error: {e}");
+            return;
+        }
     };
-    if stream.play().is_err() { return; }
+    if stream.play().is_err() {
+        return;
+    }
     let _stream = SendStream(stream);
 
     let mut input_buf: Vec<f32> = Vec::with_capacity(BATCH_SAMPLES * 2);
     let mut output_batch: Vec<f32> = Vec::with_capacity(BATCH_SAMPLES);
 
     loop {
-        if stop.load(std::sync::atomic::Ordering::Relaxed) { break; }
+        if stop.load(std::sync::atomic::Ordering::Relaxed) {
+            break;
+        }
 
         let mut got_data = false;
         while let Ok(chunk) = rx.try_recv() {
             let mono: Vec<f32> = if channels > 1 {
-                chunk.chunks(channels).map(|ch| ch.iter().sum::<f32>() / channels as f32).collect()
+                chunk
+                    .chunks(channels)
+                    .map(|ch| ch.iter().sum::<f32>() / channels as f32)
+                    .collect()
             } else {
                 chunk
             };
@@ -514,7 +537,14 @@ fn loopback_cpal(
             let samples: Vec<f32> = input_buf.drain(..BATCH_SAMPLES).collect();
             let raw: Vec<u8> = samples.iter().flat_map(|&f| f.to_le_bytes()).collect();
             let encoded = base64_encode(&raw);
-            if on_chunk.send(AudioChunk { data: encoded, sample_rate: 48_000, channels: 1 }).is_err() {
+            if on_chunk
+                .send(AudioChunk {
+                    data: encoded,
+                    sample_rate: 48_000,
+                    channels: 1,
+                })
+                .is_err()
+            {
                 return;
             }
             output_batch.clear();

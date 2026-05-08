@@ -4,7 +4,10 @@
   "identifier": "toast-popup",
   "permissions": [
     "core:window:allow-set-focus",
-    "core:window:allow-unminimize"
+    "core:window:allow-unminimize",
+    "os:default"
   ],
-  "windows": ["toast-*"]
+  "windows": [
+    "toast-*"
+  ]
 }

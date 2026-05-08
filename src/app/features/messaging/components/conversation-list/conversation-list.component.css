@@ -1,0 +1,21 @@
+ion-list {
+  background: transparent;
+}
+
+ion-item {
+  --background: transparent;
+  --background-hover: rgba(255, 255, 255, 0.05);
+  --background-activated: rgba(255, 255, 255, 0.08);
+  --border-color: transparent;
+  --padding-start: 8px;
+  --padding-end: 8px;
+  --inner-padding-end: 0;
+  --border-radius: 12px;
+  --color: inherit;
+  --min-height: 0;
+  border-radius: 12px;
+}
+
+ion-item.conv-selected {
+  --background: rgba(255, 255, 255, 0.08);
+}
