@@ -9,7 +9,7 @@ import {
 } from '../dtos/response/guild.dto';
 import {environment} from '../../environments/environment';
 import {catchError, Observable, of, Subject, throwError} from 'rxjs';
-import {GuildMemberDto, RoleMemberDto} from '../dtos/response/member.dto';
+import {GuildMemberDto, RoleMemberDto, SelfGuildMemberDto} from '../dtos/response/member.dto';
 import {InviteDto, InviteType} from "../dtos/response/invite.dto";
 import {CreateInviteDto} from "../dtos/request/create-invite.dto";
 import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
@@ -249,7 +249,7 @@ export class GuildService {
     );
   }
 
-  getOwnMember(guildId: string): Observable<GuildMemberDto> {
-    return this.http.get<GuildMemberDto>(`${this.base}/guilds/${guildId}/me`);
+  getOwnMember(guildId: string): Observable<SelfGuildMemberDto> {
+    return this.http.get<SelfGuildMemberDto>(`${this.base}/guilds/${guildId}/me`);
   }
 }

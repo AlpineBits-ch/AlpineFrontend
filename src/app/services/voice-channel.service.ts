@@ -78,6 +78,7 @@ export class VoiceChannelService {
   // ── Join guard ─────────────────────────────────────────────────────────────
 
   private pendingJoinId: string | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     // Update participant speaking state from VAD events in VoiceRTCService
@@ -179,6 +180,7 @@ export class VoiceChannelService {
         });
         this.soundSettings.playVoiceJoin();
         await this.rtc.connect(channel.guildId, channel.id, ownId);
+        this.heartbeatTimer = setInterval(() => this.guildWsSvc.invokeVoiceHeartbeat(), 30_000);
       } catch (err) {
         console.error('VoiceChannelService: join failed', err);
       }
@@ -200,6 +202,10 @@ export class VoiceChannelService {
   }
 
   private async doLeave(guildId: string, channelId: string, silent: boolean): Promise<void> {
+    if (this.heartbeatTimer !== null) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
     this.soundSettings.playVoiceLeave();
     await this.rtc.closeAllTracks(guildId, channelId);
     this.rtc.teardown();

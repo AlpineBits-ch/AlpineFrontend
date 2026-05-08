@@ -12,6 +12,10 @@ export interface GuildMemberDto {
     readState: ReadStateDto[]
 }
 
+export interface SelfGuildMemberDto extends GuildMemberDto {
+    roleMembers: {role: RoleDto}[]
+}
+
 export enum MemberType {
     Default = 'Default',
     Moderator = 'Moderator',

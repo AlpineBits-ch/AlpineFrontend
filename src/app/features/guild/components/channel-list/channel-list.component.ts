@@ -26,7 +26,7 @@ import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-setting
 import {ChannelSettingsModalComponent} from '../channel-settings-modal/channel-settings-modal.component';
 import {CategorySettingsModalComponent} from '../category-settings-modal/category-settings-modal.component';
 import {InviteType} from '../../../../dtos/response/invite.dto';
-import {GuildMemberDto} from '../../../../dtos/response/member.dto';
+import {GuildMemberDto, SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
 import {ReorderChannesDto} from '../../../../dtos/request/reorder-channel.dto';
 import {GuildWebsocketService, WsChannelCreated, WsChannelDeleted, WsCategoryCreated, WsCategoryDeleted} from '../../../../services/guild-websocket.service';
@@ -74,14 +74,38 @@ export class ChannelListComponent {
   }
 
   // ── Permission checking ───────────────────────────────────────────────────
-  private ownMember = signal<GuildMemberDto | null>(null);
+  private ownMember = signal<SelfGuildMemberDto | null>(null);
+
+  protected getSelfPermissions = computed(() => {
+    const member = this.ownMember();
+
+    let basePermissions = member?.permissions ?? '';
+
+
+    const permissionString = member?.roleMembers.reduce((curr, m) => {
+      if(!m.role.permissions) return curr;
+
+      if(curr === '') return m.role.permissions;
+
+      return `${curr},${m.role.permissions}`;
+    }, basePermissions);
+
+
+    console.log('accumulated perm string', permissionString)
+    return parsePermissions(permissionString);
+
+  });
 
   protected canReorder = computed(() => {
+    const perms = this.getSelfPermissions();
+
     const ownUserId = this.profileService.ownProfile()?.userId;
     if (ownUserId && ownUserId === this.guild().ownerId) return true;
     const member = this.ownMember();
     if (!member) return false;
-    const perms = parsePermissions(member.permissions);
+
+
+
     return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.ManageChannel);
   });
 

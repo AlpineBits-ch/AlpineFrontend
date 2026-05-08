@@ -220,4 +220,9 @@ export class GuildWebsocketService {
     if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
     this.hubConnection.invoke('VoiceScreenShareStopped', { channelId, shareId }).catch(() => void 0);
   }
+
+  invokeVoiceHeartbeat(): void {
+    if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
+    this.hubConnection.invoke('VoiceHeartbeat').catch(() => void 0);
+  }
 }
