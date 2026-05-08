@@ -6,6 +6,7 @@ import {ChannelDto, GuildDto} from '../../../../dtos/response/guild.dto';
 import {ChannelOverviewComponent} from './pages/channel-overview/channel-overview.component';
 import {ChannelPermissionsComponent} from './pages/channel-permissions/channel-permissions.component';
 import {GuildService} from '../../../../services/guild.service';
+import {PrimeTemplate} from "primeng/api";
 
 interface NavItem {
   id: string;
@@ -15,7 +16,7 @@ interface NavItem {
 
 @Component({
   selector: 'app-channel-settings-modal',
-  imports: [NgClass, Dialog, Button, ChannelOverviewComponent, ChannelPermissionsComponent],
+    imports: [NgClass, Dialog, Button, ChannelOverviewComponent, ChannelPermissionsComponent, PrimeTemplate],
   templateUrl: './channel-settings-modal.component.html',
 })
 export class ChannelSettingsModalComponent {

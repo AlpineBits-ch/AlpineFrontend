@@ -42,6 +42,7 @@ export interface CreateChannelDto {
   categoryId?: string;
   isPrivate?: boolean;
   isAgeRestricted?: boolean;
+  position: number
 }
 
 export interface UpdateChannelDto {
@@ -56,6 +57,7 @@ export interface CreateCategoryDto {
   guildId: string;
   name: string;
   description?: string;
+  position: number;
 }
 
 export interface UpdateCategoryDto {
@@ -164,7 +166,7 @@ export class GuildService {
 
   // ── Channels ─────────────────────────────────────────────────────────────
   createChannel(dto: CreateChannelDto): Observable<ChannelDto> {
-    return this.http.post<ChannelDto>(`${this.base}/guild/${dto.guildId}/channel`, dto);
+    return this.http.post<ChannelDto>(`${this.base}/guilds/${dto.guildId}/channels`, dto);
   }
 
   updateChannel(id: string, dto: UpdateChannelDto): Observable<ChannelDto> {
@@ -172,7 +174,7 @@ export class GuildService {
   }
 
   deleteChannel(id: string): Observable<void> {
-    return this.http.delete<void>(`${this.base}/channel/${id}`);
+    return this.http.delete<void>(`${this.base}/channels/${id}`);
   }
 
   upsertChannelPermission(channelId: string, dto: UpsertPermissionOverrideDto): Observable<ChannelPermission> {
@@ -185,7 +187,7 @@ export class GuildService {
 
   // ── Categories ───────────────────────────────────────────────────────────
   createCategory(dto: CreateCategoryDto): Observable<CategoryDto> {
-    return this.http.post<CategoryDto>(`${this.base}/guild/${dto.guildId}/category`, dto);
+    return this.http.post<CategoryDto>(`${this.base}/guilds/${dto.guildId}/categories`, dto);
   }
 
   updateCategory(id: string, dto: UpdateCategoryDto): Observable<CategoryDto> {
@@ -193,7 +195,7 @@ export class GuildService {
   }
 
   deleteCategory(id: string): Observable<void> {
-    return this.http.delete<void>(`${this.base}/category/${id}`);
+    return this.http.delete<void>(`${this.base}/categories/${id}`);
   }
 
   upsertCategoryPermission(categoryId: string, dto: UpsertPermissionOverrideDto): Observable<ChannelPermission> {

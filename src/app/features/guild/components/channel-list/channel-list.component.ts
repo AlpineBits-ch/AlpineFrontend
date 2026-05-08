@@ -1,8 +1,10 @@
 import {Component, computed, DestroyRef, effect, inject, input, signal, ViewChild} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {firstValueFrom} from 'rxjs';
 import {NgClass} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Menu} from 'primeng/menu';
+import {ContextMenu} from 'primeng/contextmenu';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
 import {InputText} from 'primeng/inputtext';
@@ -15,7 +17,8 @@ import {
 } from '../../../../dtos/response/guild.dto';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {GuildService} from '../../../../services/guild.service';
-import {VoiceChannelService} from '../../../../services/voice-channel.service';
+import {VoiceChannelParticipant, VoiceChannelService} from '../../../../services/voice-channel.service';
+import {VoiceChannelContextMenuComponent, ParticipantMenuData} from '../voice-channel/voice-channel-context-menu.component';
 import {ProfileService} from '../../../../services/profile.service';
 import {GuildReadStateService} from '../../../../services/guild-read-state.service';
 import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
@@ -26,7 +29,8 @@ import {InviteType} from '../../../../dtos/response/invite.dto';
 import {GuildMemberDto} from '../../../../dtos/response/member.dto';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
 import {ReorderChannesDto} from '../../../../dtos/request/reorder-channel.dto';
-import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
+import {GuildWebsocketService, WsChannelCreated, WsChannelDeleted, WsCategoryCreated, WsCategoryDeleted} from '../../../../services/guild-websocket.service';
+import {GuildVoiceService} from '../../../../services/guild-voice.service';
 
 @Component({
   selector: 'app-channel-list',
@@ -34,6 +38,7 @@ import {GuildWebsocketService} from '../../../../services/guild-websocket.servic
     NgClass,
     FormsModule,
     Menu,
+    ContextMenu,
     Button,
     Dialog,
     InputText,
@@ -42,6 +47,7 @@ import {GuildWebsocketService} from '../../../../services/guild-websocket.servic
     ChannelSettingsModalComponent,
     CategorySettingsModalComponent,
     PrimeTemplate,
+    VoiceChannelContextMenuComponent,
   ],
   templateUrl: './channel-list.component.html',
 })
@@ -52,6 +58,7 @@ export class ChannelListComponent {
   protected navService       = inject(NavigationService);
   protected voiceChannelSvc  = inject(VoiceChannelService);
   private   guildService     = inject(GuildService);
+  private   guildVoiceSvc    = inject(GuildVoiceService);
   protected profileService   = inject(ProfileService);
   protected readStateService = inject(GuildReadStateService);
   private   guildWsService   = inject(GuildWebsocketService);
@@ -75,6 +82,14 @@ export class ChannelListComponent {
     if (!member) return false;
     const perms = parsePermissions(member.permissions);
     return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.ManageChannel);
+  });
+
+  protected isSuperadmin = computed(() => {
+    const ownUserId = this.profileService.ownProfile()?.userId;
+    if (ownUserId && ownUserId === this.guild().ownerId) return true;
+    const m = this.ownMember();
+    if (!m) return false;
+    return hasPermission(parsePermissions(m.permissions), Permissions.Superadmin);
   });
 
   // ── Local mutable copies for optimistic updates ───────────────────────────
@@ -118,6 +133,52 @@ export class ChannelListComponent {
             cats.map(c => catMap.has(c.id) ? { ...c, position: catMap.get(c.id)! } : c)
           );
         }
+      });
+
+    this.guildWsService.channelCreatedObservable
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((e: WsChannelCreated) => {
+        if (e.guildId !== this.guild().id) return;
+        this.guildService.getGuild(e.guildId).subscribe(g => this.navService.updateCurrentGuild(g));
+      });
+
+    this.guildWsService.channelDeletedObservable
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((e: WsChannelDeleted) => {
+        if (e.guildId !== this.guild().id) return;
+
+        if (this.voiceChannelSvc.joinedChannelId() === e.channelId) {
+          void this.voiceChannelSvc.leaveChannel();
+        }
+
+        this.localChannels.update(chs => chs.filter(c => c.id !== e.channelId));
+
+        const view = this.navService.mainView();
+        if (view.type === 'channel' && view.channel.id === e.channelId) {
+          const firstText = this.localChannels().find(c => c.type === ChannelType.Text);
+          if (firstText) {
+            this.navService.openChannel(firstText);
+          } else {
+            this.navService.showHome();
+          }
+        }
+      });
+
+    this.guildWsService.categoryCreatedObservable
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((e: WsCategoryCreated) => {
+        if (e.guildId !== this.guild().id) return;
+        this.guildService.getGuild(e.guildId).subscribe(g => this.navService.updateCurrentGuild(g));
+      });
+
+    this.guildWsService.categoryDeletedObservable
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((e: WsCategoryDeleted) => {
+        if (e.guildId !== this.guild().id) return;
+        this.localCategories.update(cats => cats.filter(c => c.id !== e.categoryId));
+        this.localChannels.update(chs =>
+          chs.map(c => c.categoryId === e.categoryId ? { ...c, categoryId: undefined } : c)
+        );
       });
   }
 
@@ -391,6 +452,7 @@ export class ChannelListComponent {
   @ViewChild('guildMenu')    guildMenu!: Menu;
   @ViewChild('channelMenu')  channelMenu!: Menu;
   @ViewChild('categoryMenu') categoryMenu!: Menu;
+  @ViewChild('listMenu')     listMenu!: ContextMenu;
 
   protected contextChannel  = signal<ChannelDto | null>(null);
   protected contextCategory = signal<CategoryDto | null>(null);
@@ -481,6 +543,7 @@ export class ChannelListComponent {
   protected onChannelContextMenu(event: MouseEvent, channel: ChannelDto): void {
     if (this.reorderMode()) return;
     event.preventDefault();
+    event.stopPropagation();
     this.contextChannel.set(channel);
     this.channelMenu.model = this.buildChannelMenuItems(channel);
     this.channelMenu.show(event);
@@ -489,9 +552,15 @@ export class ChannelListComponent {
   protected onCategoryContextMenu(event: MouseEvent, category: CategoryDto): void {
     if (this.reorderMode()) return;
     event.preventDefault();
+    event.stopPropagation();
     this.contextCategory.set(category);
     this.categoryMenu.model = this.buildCategoryMenuItems(category);
     this.categoryMenu.show(event);
+  }
+
+  protected onListContextMenu(event: MouseEvent): void {
+    if (this.reorderMode()) return;
+    this.listMenu.show(event);
   }
 
   // ── Quick invite ──────────────────────────────────────────────────────────
@@ -516,6 +585,61 @@ export class ChannelListComponent {
     });
   }
 
+  // ── Voice participant context menu ────────────────────────────────────────
+  protected participantMenu      = signal<ParticipantMenuData | null>(null);
+  private   participantChannelId = signal<string | null>(null);
+
+  protected onParticipantContextMenu(event: MouseEvent, p: VoiceChannelParticipant, channelId: string): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (p.isLocal) return;
+    const volume = Math.round(this.voiceChannelSvc.getUserVolume(p.userId) * 100);
+    const x = Math.min(event.clientX, window.innerWidth  - 236);
+    const y = Math.min(event.clientY, window.innerHeight - 200);
+    this.participantChannelId.set(channelId);
+    this.participantMenu.set({ x: Math.max(0, x), y: Math.max(0, y), participant: p, volume });
+  }
+
+  protected onParticipantVolumeChange(value: number): void {
+    const menu = this.participantMenu();
+    if (!menu) return;
+    this.participantMenu.set({ ...menu, volume: value });
+    this.voiceChannelSvc.setUserVolume(menu.participant.userId, value / 100);
+  }
+
+  protected async kickParticipant(): Promise<void> {
+    const menu = this.participantMenu();
+    if (!menu) return;
+    this.participantMenu.set(null);
+    await firstValueFrom(
+      this.guildService.kickMemberByUserId(this.guild().id, menu.participant.userId)
+    ).catch(() => {});
+  }
+
+  protected async banParticipant(): Promise<void> {
+    const menu = this.participantMenu();
+    if (!menu) return;
+    this.participantMenu.set(null);
+    await firstValueFrom(
+      this.guildService.banMemberByUserId(this.guild().id, menu.participant.userId)
+    ).catch(() => {});
+  }
+
+  protected async toggleParticipantServerDeafen(): Promise<void> {
+    const menu = this.participantMenu();
+    const channelId = this.participantChannelId();
+    if (!menu || !channelId) return;
+    const { userId, isServerDeafened } = menu.participant;
+    const newState = !isServerDeafened;
+    this.participantMenu.set({ ...menu, participant: { ...menu.participant, isServerDeafened: newState } });
+    this.voiceChannelSvc.setServerDeafened(userId, newState);
+    await firstValueFrom(
+      this.guildVoiceSvc.serverDeafen(this.guild().id, channelId, userId, newState)
+    ).catch(() => {
+      this.voiceChannelSvc.setServerDeafened(userId, isServerDeafened);
+    });
+  }
+
   // ── Create channel ────────────────────────────────────────────────────────
   protected openCreateChannel(categoryId: string | undefined): void {
     this.createChannelName.set('');
@@ -527,11 +651,16 @@ export class ChannelListComponent {
   protected submitCreateChannel(): void {
     if (this.createChannelCreating() || !this.createChannelName().trim()) return;
     this.createChannelCreating.set(true);
+    const categoryId = this.createChannelCategory();
+    const position = categoryId
+      ? this.categoryChannels(categoryId).length
+      : this.localChannels().filter(c => !c.categoryId).length;
     this.guildService.createChannel({
       guildId: this.guild().id,
       name: this.createChannelName().trim(),
       type: this.createChannelType(),
-      categoryId: this.createChannelCategory(),
+      categoryId,
+      position,
     }).subscribe({
       next: () => {
         this.showCreateChannel.set(false);
@@ -553,6 +682,7 @@ export class ChannelListComponent {
     this.guildService.createCategory({
       guildId: this.guild().id,
       name: this.createCategoryName().trim(),
+      position: this.localCategories().length,
     }).subscribe({
       next: () => {
         this.showCreateCategory.set(false);

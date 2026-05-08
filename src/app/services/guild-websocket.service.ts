@@ -29,6 +29,11 @@ export interface WsVoiceScreenShareStarted { userId: string; shareId: string; tr
 export interface WsVoiceScreenShareStopped { shareId: string; channelId: string; }
 export interface WsMovedToChannel        { channelId: string; guildId: string; movedBy: string; }
 
+export interface WsChannelCreated  { channelId: string; guildId: string; }
+export interface WsChannelDeleted  { channelId: string; guildId: string; }
+export interface WsCategoryCreated { categoryId: string; guildId: string; }
+export interface WsCategoryDeleted { categoryId: string; guildId: string; }
+
 @Injectable({
   providedIn: 'root',
 })
@@ -55,6 +60,12 @@ export class GuildWebsocketService {
   public voiceScreenShareStartedObservable = new Subject<WsVoiceScreenShareStarted>();
   public voiceScreenShareStoppedObservable = new Subject<WsVoiceScreenShareStopped>();
   public movedToChannelObservable          = new Subject<WsMovedToChannel>();
+
+  // ── Channel/category lifecycle ──────────────────────────────────────────────
+  public channelCreatedObservable  = new Subject<WsChannelCreated>();
+  public channelDeletedObservable  = new Subject<WsChannelDeleted>();
+  public categoryCreatedObservable = new Subject<WsCategoryCreated>();
+  public categoryDeletedObservable = new Subject<WsCategoryDeleted>();
 
   constructor() {
     this.hubConnection = new signalR.HubConnectionBuilder()
@@ -118,6 +129,10 @@ export class GuildWebsocketService {
     this.hubConnection.on('ScreenShareStarted', (d: WsVoiceScreenShareStarted)  => this.voiceScreenShareStartedObservable.next(d));
     this.hubConnection.on('ScreenShareStopped', (d: WsVoiceScreenShareStopped)  => this.voiceScreenShareStoppedObservable.next(d));
     this.hubConnection.on('MovedToChannel',     (d: WsMovedToChannel)           => this.movedToChannelObservable.next(d));
+    this.hubConnection.on('ChannelCreated',     (d: WsChannelCreated)           => this.channelCreatedObservable.next(d));
+    this.hubConnection.on('ChannelDeleted',     (d: WsChannelDeleted)           => this.channelDeletedObservable.next(d));
+    this.hubConnection.on('CategoryCreated',    (d: WsCategoryCreated)          => this.categoryCreatedObservable.next(d));
+    this.hubConnection.on('CategoryDeleted',    (d: WsCategoryDeleted)          => this.categoryDeletedObservable.next(d));
 
     this.hubConnection.on('MessageCreated', async (data: {
       messageId: string;

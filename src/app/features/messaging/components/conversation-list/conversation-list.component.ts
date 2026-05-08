@@ -1,10 +1,12 @@
 import { animate, query, stagger, style, transition, trigger } from '@angular/animations';
-import { Component, computed, effect, inject, output, signal } from '@angular/core';
+import { Component, computed, effect, inject, output, signal, ViewChild } from '@angular/core';
 import { DatePipe, NgClass } from '@angular/common';
 import {
   IonList, IonItem, IonItemSliding, IonItemOptions, IonItemOption,
   IonLabel, IonBadge, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent,
 } from '@ionic/angular/standalone';
+import { ContextMenu } from 'primeng/contextmenu';
+import { MenuItem } from 'primeng/api';
 import { InfiniteScrollCustomEvent } from '@ionic/angular';
 import { addIcons } from 'ionicons';
 import { trashOutline } from 'ionicons/icons';
@@ -37,6 +39,7 @@ import {PlatformService} from "../../../../services/platform.service";
     AppAvatarComponent, DatePipe, NgClass, UserStatusDotComponent, TypingDotsComponent,
     IonList, IonItem, IonItemSliding, IonItemOptions, IonItemOption,
     IonLabel, IonBadge, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent,
+    ContextMenu,
   ],
   templateUrl: './conversation-list.component.html',
   styleUrl: './conversation-list.component.css',
@@ -183,6 +186,44 @@ export class ConversationListComponent {
   public onIonInfinite(event: InfiniteScrollCustomEvent): void {
     this.conversationStore.loadMore();
     setTimeout(() => event.target.complete(), 400);
+  }
+
+  // ── Conversation context menu ─────────────────────────────────────────────
+  @ViewChild('convMenu') convMenu!: ContextMenu;
+  protected contextConv = signal<ConversationDto | null>(null);
+
+  protected onConvContextMenu(event: MouseEvent, conv: ConversationDto): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.contextConv.set(conv);
+    this.convMenu.model = this.buildConvMenuItems(conv);
+    this.convMenu.show(event);
+  }
+
+  private buildConvMenuItems(conv: ConversationDto): MenuItem[] {
+    return [
+      {
+        label: 'Open',
+        icon: 'pi pi-comment',
+        command: () => this.conversationSelected.emit(conv),
+      },
+      { separator: true },
+      {
+        label: 'Mark as Read',
+        icon: 'pi pi-check',
+      },
+      {
+        label: 'Mute Notifications',
+        icon: 'pi pi-bell-slash',
+      },
+      { separator: true },
+      {
+        label: 'Delete Conversation',
+        icon: 'pi pi-trash',
+        styleClass: '!text-rose-400',
+        command: () => this.deleteConversation(conv),
+      },
+    ];
   }
 
   public deleteConversation(conv: ConversationDto, event?: MouseEvent): void {

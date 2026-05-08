@@ -1,4 +1,4 @@
-<div class="flex flex-col flex-1 min-h-0" [class.select-none]="reorderMode()">
+<div class="flex flex-col flex-1 min-h-0" [class.select-none]="reorderMode()" (contextmenu)="onListContextMenu($event)">
 
   <!-- Guild name header -->
   <div class="px-4 py-3 border-b border-white/[0.10] flex items-center justify-between shrink-0">
@@ -145,7 +145,8 @@
             @if (!reorderMode()) {
               @let participants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
               @for (p of participants; track p.userId) {
-                <div class="flex items-center gap-2 pl-6 pr-2 py-0.5">
+                <div class="flex items-center gap-2 pl-6 pr-2 py-0.5 rounded-md hover:bg-white/[0.04] cursor-default transition-colors"
+                     (contextmenu)="onParticipantContextMenu($event, p, channel.id)">
                   <app-avatar [userId]="p.userId" [label]="p.avatarLabel" styleClass="!w-5 !h-5 !text-[9px]" class="flex shrink-0" />
                   <span class="text-xs flex-1 truncate"
                         [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/60'">
@@ -246,7 +247,8 @@
                 @if (!reorderMode()) {
                   @let catParticipants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
                   @for (p of catParticipants; track p.userId) {
-                    <div class="flex items-center gap-2 pl-6 pr-2 py-0.5">
+                    <div class="flex items-center gap-2 pl-6 pr-2 py-0.5 rounded-md hover:bg-white/[0.04] cursor-default transition-colors"
+                         (contextmenu)="onParticipantContextMenu($event, p, channel.id)">
                       <app-avatar [userId]="p.userId" [label]="p.avatarLabel" styleClass="!w-5 !h-5 !text-[9px]" class="flex shrink-0" />
                       <span class="text-xs flex-1 truncate"
                             [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/60'">
@@ -315,6 +317,20 @@
 <p-menu #guildMenu [model]="guildMenuItems" [popup]="true" appendTo="body" />
 <p-menu #channelMenu [model]="[]" [popup]="true" appendTo="body" />
 <p-menu #categoryMenu [model]="[]" [popup]="true" appendTo="body" />
+<p-contextMenu #listMenu [model]="guildMenuItems" appendTo="body" />
+
+<!-- ── Voice participant context menu ─────────────────────────────────────── -->
+@if (participantMenu(); as menu) {
+  <app-voice-channel-context-menu
+    [menu]="menu"
+    [isSuperadmin]="isSuperadmin()"
+    (close)="participantMenu.set(null)"
+    (volumeChange)="onParticipantVolumeChange($event)"
+    (kick)="kickParticipant()"
+    (ban)="banParticipant()"
+    (serverDeafen)="toggleParticipantServerDeafen()"
+  />
+}
 
 <!-- ── Guild settings modal ───────────────────────────────────────────────── -->
 <app-guild-settings-modal
@@ -406,7 +422,7 @@
           [ngModel]="createChannelName()"
           (ngModelChange)="createChannelName.set($event)"
           placeholder="new-channel"
-          class="w-full pl-7" />
+          class="w-full !pl-8" />
       </div>
     </div>
 
@@ -415,7 +431,7 @@
     }
   </div>
   <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.06]">
-    <p-button label="Cancel" severity="secondary" size="small" [text]="true"
+    <p-button label="Cancel" severity="secondary" size="small"
       (onClick)="showCreateChannel.set(false)" />
     <p-button label="Create Channel" severity="primary" size="small"
       [loading]="createChannelCreating()"
@@ -444,7 +460,7 @@
     </div>
   </div>
   <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.06]">
-    <p-button label="Cancel" severity="secondary" size="small" [text]="true"
+    <p-button label="Cancel" severity="secondary" size="small"
       (onClick)="showCreateCategory.set(false)" />
     <p-button label="Create Category" severity="primary" size="small"
       [loading]="createCategoryCreating()"

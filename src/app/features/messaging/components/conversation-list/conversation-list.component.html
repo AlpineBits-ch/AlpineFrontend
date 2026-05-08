@@ -72,7 +72,7 @@
             @let preview = getPreview(conv);
             @let unread = getUnreadCount(conv.id);
 
-            <div class="relative group/conv">
+            <div class="relative group/conv" (contextmenu)="onConvContextMenu($event, conv)">
                 <button
                         (click)="conversationSelected.emit(conv)"
                         [ngClass]="selectedId() === conv.id ? 'bg-white/[0.08]' : 'bg-transparent hover:bg-white/[0.05]'"
@@ -143,3 +143,5 @@
     </div>
 
 }
+
+<p-contextMenu #convMenu [model]="[]" appendTo="body" />
