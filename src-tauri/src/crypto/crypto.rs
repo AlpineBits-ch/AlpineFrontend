@@ -1,6 +1,11 @@
 use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
 use argon2::{Algorithm, Argon2, Params, Version};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
+use rand::rngs::OsRng;
+use rsa::{
+    pkcs8::{EncodePrivateKey, EncodePublicKey},
+    RsaPrivateKey,
+};
 use serde::Serialize;
 
 const ARGON2_MEM: u32 = 65536; // 64 MiB
@@ -18,6 +23,40 @@ pub struct EncryptedMasterKey {
     argon2_memory: u32,
     argon2_parallelism: u32,
     version: u32,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KeyPairEntry {
+    key_id: String,
+    public_key: String,  // Base64-encoded SPKI DER
+    private_key: String, // Base64-encoded PKCS8 DER
+}
+
+#[tauri::command]
+pub fn generate_key_pairs(count: u32) -> Result<Vec<KeyPairEntry>, String> {
+    let mut rng = OsRng;
+    let mut pairs = Vec::with_capacity(count as usize);
+
+    for _ in 0..count {
+        let priv_key = RsaPrivateKey::new(&mut rng, 2048).map_err(|e| e.to_string())?;
+        let pub_key = priv_key.to_public_key();
+
+        let pub_der = pub_key.to_public_key_der().map_err(|e| e.to_string())?;
+        let priv_der = priv_key.to_pkcs8_der().map_err(|e| e.to_string())?;
+
+        let mut id = [0u8; 16];
+        getrandom::getrandom(&mut id).map_err(|e| e.to_string())?;
+        let key_id = id.iter().map(|b| format!("{:02x}", b)).collect();
+
+        pairs.push(KeyPairEntry {
+            key_id,
+            public_key: B64.encode(pub_der.as_bytes()),
+            private_key: B64.encode(priv_der.as_bytes()),
+        });
+    }
+
+    Ok(pairs)
 }
 
 #[tauri::command]

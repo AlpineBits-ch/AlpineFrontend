@@ -148,6 +148,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
         .manage(media::audio::AudioCaptureState::default())
         .manage(media::audio::LoopbackCaptureState::default())
         .manage(media::screen::ScreenCaptureState::default())
+        .manage(crypto::mls::MlsStateHandle::default())
         .invoke_handler(tauri::generate_handler![
             greet,
             get_memory_usage,
@@ -155,7 +156,17 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             setup_toast_window,
             prepare_notification,
             crypto::crypto::generate_key,
+            crypto::crypto::generate_key_pairs,
             crypto::crypto::setup_master_key,
+            crypto::mls::generate_mls_key_packages,
+            crypto::mls::mls_create_group,
+            crypto::mls::mls_add_members,
+            crypto::mls::mls_join_group,
+            crypto::mls::mls_send_message,
+            crypto::mls::mls_process_message,
+            crypto::mls::mls_remove_members,
+            crypto::mls::mls_get_members,
+            crypto::mls::mls_get_group_info,
             media::audio::enumerate_audio_devices,
             media::audio::start_audio_capture,
             media::audio::stop_audio_capture,
@@ -173,6 +184,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
 #[cfg(any(target_os = "android", target_os = "ios"))]
 fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
     builder
+        .manage(crypto::mls::MlsStateHandle::default())
         .invoke_handler(tauri::generate_handler![
             greet,
             get_memory_usage,
@@ -180,7 +192,17 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             setup_toast_window,
             prepare_notification,
             crypto::crypto::generate_key,
+            crypto::crypto::generate_key_pairs,
             crypto::crypto::setup_master_key,
+            crypto::mls::generate_mls_key_packages,
+            crypto::mls::mls_create_group,
+            crypto::mls::mls_add_members,
+            crypto::mls::mls_join_group,
+            crypto::mls::mls_send_message,
+            crypto::mls::mls_process_message,
+            crypto::mls::mls_remove_members,
+            crypto::mls::mls_get_members,
+            crypto::mls::mls_get_group_info,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
