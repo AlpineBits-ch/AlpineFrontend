@@ -69,7 +69,11 @@
       "Bash(cargo search *)",
       "WebFetch(domain:crates.io)",
       "Bash(grep -v \"//!\")",
-      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('scripts',{}\\), indent=2\\)\\)\")"
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('scripts',{}\\), indent=2\\)\\)\")",
+      "Bash(cmd.exe /c \"cd /d C:\\\\Users\\\\Domin\\\\WebstormProjects\\\\Alpine\\\\src-tauri && cargo build 2>&1\")",
+      "Bash(export PATH=\"$PATH:/c/Users/Domin/.cargo/bin:/c/Users/Domin/AppData/Roaming/Microsoft/Windows/Start Menu/Programs\")",
+      "Bash(export PATH=\"$PATH:/c/Users/Domin/.cargo/bin\")",
+      "Bash(powershell -Command \"cd 'C:\\\\Users\\\\Domin\\\\WebstormProjects\\\\Alpine\\\\src-tauri'; cargo build 2>&1\")"
     ]
   }
 }

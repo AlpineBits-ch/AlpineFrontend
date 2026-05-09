@@ -31,6 +31,8 @@ import { UserTokenService } from '../../services/user-token.service';
 import { GuildWebsocketService } from '../../services/guild-websocket.service';
 import { UserService } from '../../services/user.service';
 import { KeySetupDialogComponent } from '../key-setup/key-setup-dialog/key-setup-dialog.component';
+import {CryptoService} from "../../services/crypto.service";
+import {MlsService} from "../../services/mls.service";
 
 @Component({
   selector: 'app-main-page',
@@ -73,6 +75,8 @@ export class MainPageComponent implements OnDestroy {
 
   private actionSub: Subscription;
 
+  private cryptoService = inject(MlsService);
+
   public logout(): void {
     this.authService.logout();
     this.router.navigate(['/authentication']);
@@ -83,6 +87,10 @@ export class MainPageComponent implements OnDestroy {
     void this.voiceWebsocketService.start();
     void this.guildWebsocketService.start();
 
+
+    this.cryptoService.generateKeyPackages("urmom", 10).subscribe(d => {
+      console.log('generated keys', d)
+    });
     this.userTokenService.ensureTokenRegistered().then();
 
     this.userService.getSelf().subscribe({

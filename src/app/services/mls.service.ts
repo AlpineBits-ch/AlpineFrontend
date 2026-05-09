@@ -1,6 +1,39 @@
 import { Injectable } from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
-import { from, Observable } from 'rxjs';
+import { from, Observable, of } from 'rxjs';
+import { map, switchMap } from 'rxjs/operators';
+import { LazyStore } from '@tauri-apps/plugin-store';
+
+// ---------------------------------------------------------------------------
+// Typed error system
+// ---------------------------------------------------------------------------
+
+export type MlsErrorKind =
+  | 'WrongEpoch'
+  | 'UnknownSender'
+  | 'ValidationError'
+  | 'GroupNotFound'
+  | 'KeyNotFound'
+  | 'MlsError';
+
+export interface MlsTypedError {
+  kind: MlsErrorKind;
+  message: string;
+}
+
+const ERROR_KINDS: MlsErrorKind[] = [
+  'WrongEpoch', 'UnknownSender', 'ValidationError', 'GroupNotFound', 'KeyNotFound',
+];
+
+export function parseMlsError(raw: unknown): MlsTypedError {
+  const msg = typeof raw === 'string' ? raw : String(raw);
+  for (const kind of ERROR_KINDS) {
+    if (msg.startsWith(kind + ': ') || msg.startsWith(kind + ':')) {
+      return { kind, message: msg.slice(kind.length + 1).trimStart() };
+    }
+  }
+  return { kind: 'MlsError', message: msg };
+}
 
 // ---------------------------------------------------------------------------
 // Shared types
@@ -16,9 +49,18 @@ export interface KeyPackageResult {
 export interface MlsKeyPackageBatch {
   /** Ed25519 public key (base64) */
   signingPublicKey: string;
-  /** Ed25519 private key (base64) — store encrypted under the master key */
+  /**
+   * Ed25519 private key (base64) — store encrypted under the master key.
+   * On each session unlock pass this to `loadSigningKey` to get a `keyHandle`,
+   * then discard from JS memory. Never pass to group operations directly.
+   */
   signingPrivateKey: string;
   keyPackages: KeyPackageResult[];
+  /**
+   * Opaque session handle — use this for all group operations this session
+   * without re-loading the private key bytes over IPC.
+   */
+  keyHandle: string;
 }
 
 export interface MlsMemberInfo {
@@ -36,15 +78,28 @@ export interface MlsGroupInfo {
 }
 
 /**
- * Result of `addMembers` / `removeMembers`.
+ * Result of `addMembers` / `removeMembers` / `leaveGroup`.
  * `commit` must be broadcast to every existing group member.
  * `welcome` (if present) must be sent to the newly added members.
+ * `epoch` is the group epoch after this commit was applied.
  */
 export interface MlsCommitOut {
   /** Base64 TLS-serialized MlsMessage (commit) */
   commit: string;
   /** Base64 TLS-serialized MlsMessage (welcome), present when members were added */
   welcome: string | null;
+  /** Group epoch after this commit was applied */
+  epoch: number;
+}
+
+/**
+ * Result of `rejoinGroup`.
+ * The `externalCommit` must be broadcast to all existing group members.
+ */
+export interface MlsRejoinOut {
+  groupInfo: MlsGroupInfo;
+  /** Base64 TLS-serialized external commit — broadcast to all group members */
+  externalCommit: string;
 }
 
 /**
@@ -53,7 +108,7 @@ export interface MlsCommitOut {
  * Check `kind` first:
  * - `"application"` — `plaintext` contains the decrypted bytes (base64).
  * - `"commit"` — the group state has been advanced; inspect `removedLeafIndices`
- *   and `addedMembers` for membership changes.
+ *   and `addedMembers` for membership changes. `epoch` reflects the new epoch.
  * - `"proposal"` — a pending proposal has been queued; a commit is needed next.
  */
 export interface MlsProcessedMessage {
@@ -78,35 +133,85 @@ export interface MlsProcessedMessage {
 export class MlsService {
 
   /**
+   * Per-group serialization queue. MLS state is a strict sequential ratchet —
+   * concurrent mutations on the same group corrupt the epoch. Each group gets
+   * its own promise chain so operations are processed one at a time.
+   */
+  private readonly _groupQueues = new Map<string, Promise<unknown>>();
+
+  /**
+   * Serializes `op` behind any in-flight operation for `groupId`.
+   * The queue continues even when a prior operation rejects.
+   */
+  private serialized<T>(groupId: string, op: () => Promise<T>): Observable<T> {
+    const prev = this._groupQueues.get(groupId) ?? Promise.resolve();
+    const task = prev.then(() => op(), () => op());
+    this._groupQueues.set(groupId, task.then(() => undefined, () => undefined));
+    return from(task);
+  }
+
+  // -------------------------------------------------------------------------
+  // Key handle management
+  // -------------------------------------------------------------------------
+
+  /**
+   * Load a signing key into the Rust session store and return an opaque handle.
+   *
+   * Call this once per session unlock. All subsequent group operations should
+   * use the returned handle — the private key bytes never cross IPC again.
+   */
+  loadSigningKey(
+    signingPublicKeyB64: string,
+    signingPrivateKeyB64: string,
+    identity: string,
+  ): Observable<string> {
+    return from(invoke<string>('mls_load_signing_key', {
+      signingPublicKeyB64,
+      signingPrivateKeyB64,
+      identity,
+    }));
+  }
+
+  /**
+   * Remove a signing key from the Rust session store.
+   * Call this on session lock / logout to clear key material from memory.
+   */
+  unloadSigningKey(keyHandle: string): Observable<void> {
+    return from(invoke<void>('mls_unload_signing_key', { keyHandle }));
+  }
+
+  // -------------------------------------------------------------------------
+  // Key package generation
+  // -------------------------------------------------------------------------
+
+  /**
    * Generate a batch of fresh key packages for this identity.
    * Call this once per device registration. Store `signingPrivateKey` and each
    * `initPrivateKey` encrypted under the master key; upload each `keyPackage`
    * and `signingPublicKey` to the server.
+   * The returned `keyHandle` is immediately usable this session.
    */
   generateKeyPackages(identity: string, count: number): Observable<MlsKeyPackageBatch> {
     return from(invoke<MlsKeyPackageBatch>('generate_mls_key_packages', { identity, count }));
   }
 
+  // -------------------------------------------------------------------------
+  // Group lifecycle
+  // -------------------------------------------------------------------------
+
   /**
    * Create a new MLS group with a specific group ID.
    *
-   * @param groupIdB64   Arbitrary group ID bytes (base64).
-   * @param identity     Human-readable identity string for the creator.
-   * @param signingPublicKeyB64   Creator's Ed25519 public key (base64).
-   * @param signingPrivateKeyB64  Creator's Ed25519 private key (base64).
+   * @param groupIdB64  Arbitrary group ID bytes (base64).
+   * @param keyHandle   Handle returned by `loadSigningKey` or `generateKeyPackages`.
    */
   createGroup(
     groupIdB64: string,
-    identity: string,
-    signingPublicKeyB64: string,
-    signingPrivateKeyB64: string,
+    keyHandle: string,
   ): Observable<MlsGroupInfo> {
-    return from(invoke<MlsGroupInfo>('mls_create_group', {
-      groupIdB64,
-      identity,
-      signingPublicKeyB64,
-      signingPrivateKeyB64,
-    }));
+    return this.serialized(groupIdB64, () =>
+      invoke<MlsGroupInfo>('mls_create_group', { groupIdB64, keyHandle })
+    );
   }
 
   /**
@@ -119,34 +224,76 @@ export class MlsService {
    */
   addMembers(
     groupIdB64: string,
-    signingPublicKeyB64: string,
-    signingPrivateKeyB64: string,
+    keyHandle: string,
     keyPackagesB64: string[],
   ): Observable<MlsCommitOut> {
-    return from(invoke<MlsCommitOut>('mls_add_members', {
-      groupIdB64,
-      signingPublicKeyB64,
-      signingPrivateKeyB64,
-      keyPackagesB64,
-    }));
+    return this.serialized(groupIdB64, () =>
+      invoke<MlsCommitOut>('mls_add_members', { groupIdB64, keyHandle, keyPackagesB64 })
+    );
   }
 
   /**
    * Join a group from a Welcome message received from an existing member.
    *
    * @param welcomeB64  Base64 TLS-serialized Welcome (from `addMembers().welcome`).
+   * @param keyHandle   Handle for the signing key whose KeyPackage was in the Welcome.
    */
   joinGroup(
     welcomeB64: string,
-    signingPublicKeyB64: string,
-    signingPrivateKeyB64: string,
+    keyHandle: string,
   ): Observable<MlsGroupInfo> {
-    return from(invoke<MlsGroupInfo>('mls_join_group', {
-      welcomeB64,
-      signingPublicKeyB64,
-      signingPrivateKeyB64,
-    }));
+    return from(invoke<MlsGroupInfo>('mls_join_group', { welcomeB64, keyHandle }));
   }
+
+  /**
+   * Leave the group by proposing and committing self-removal.
+   * The returned `commit` must be broadcast to remaining members.
+   * The local group state is automatically cleaned up.
+   */
+  leaveGroup(
+    groupIdB64: string,
+    keyHandle: string,
+  ): Observable<MlsCommitOut> {
+    return this.serialized(groupIdB64, () =>
+      invoke<MlsCommitOut>('mls_leave_group', { groupIdB64, keyHandle })
+    );
+  }
+
+  /**
+   * Export a TLS-serialized GroupInfo blob for external commit / offline recovery.
+   * Publish this via the server so members who missed commits can re-sync.
+   */
+  exportGroupInfo(
+    groupIdB64: string,
+    keyHandle: string,
+  ): Observable<string> {
+    return from(invoke<string>('mls_export_group_info', { groupIdB64, keyHandle }));
+  }
+
+  /**
+   * Re-join a group via external commit after missing commits while offline.
+   *
+   * @param groupInfoB64  TLS-serialized GroupInfo from `exportGroupInfo`.
+   * @param keyHandle     Handle for the re-joining member's signing key.
+   */
+  rejoinGroup(
+    groupInfoB64: string,
+    keyHandle: string,
+  ): Observable<MlsRejoinOut> {
+    return from(invoke<MlsRejoinOut>('mls_rejoin_group', { groupInfoB64, keyHandle }));
+  }
+
+  /**
+   * Permanently delete a group from the local store.
+   * Call this after being removed, after `leaveGroup`, or for GDPR erasure.
+   */
+  deleteGroup(groupIdB64: string): Observable<void> {
+    return from(invoke<void>('mls_delete_group', { groupIdB64 }));
+  }
+
+  // -------------------------------------------------------------------------
+  // Messaging
+  // -------------------------------------------------------------------------
 
   /**
    * Encrypt and send an application message to the group.
@@ -156,16 +303,12 @@ export class MlsService {
    */
   sendMessage(
     groupIdB64: string,
-    signingPublicKeyB64: string,
-    signingPrivateKeyB64: string,
+    keyHandle: string,
     plaintextB64: string,
   ): Observable<string> {
-    return from(invoke<string>('mls_send_message', {
-      groupIdB64,
-      signingPublicKeyB64,
-      signingPrivateKeyB64,
-      plaintextB64,
-    }));
+    return this.serialized(groupIdB64, () =>
+      invoke<string>('mls_send_message', { groupIdB64, keyHandle, plaintextB64 })
+    );
   }
 
   /**
@@ -173,6 +316,8 @@ export class MlsService {
    *
    * Commits are merged immediately and the group state advances.
    * Proposals are queued; a subsequent commit (from any member) applies them.
+   * Returns a `WrongEpoch` error when the message is from a future epoch —
+   * buffer it and retry after receiving the missing commit.
    *
    * @param messageB64  Base64 TLS-serialized MlsMessage from the server.
    */
@@ -180,10 +325,55 @@ export class MlsService {
     groupIdB64: string,
     messageB64: string,
   ): Observable<MlsProcessedMessage> {
-    return from(invoke<MlsProcessedMessage>('mls_process_message', {
-      groupIdB64,
-      messageB64,
-    }));
+    return this.serialized(groupIdB64, () =>
+      invoke<MlsProcessedMessage>('mls_process_message', { groupIdB64, messageB64 })
+    );
+  }
+
+  /**
+   * Verify that `senderIdentity` is present in the current group roster.
+   *
+   * Call this after `processMessage` for application messages to guard against
+   * a compromised server replaying a valid ciphertext with a spoofed credential.
+   * Returns `true` if the sender is known, `false` otherwise.
+   */
+  verifySenderInRoster(
+    senderIdentity: string,
+    groupIdB64: string,
+  ): Observable<boolean> {
+    return this.getMembers(groupIdB64).pipe(
+      map(members => members.some(m => m.identity === senderIdentity))
+    );
+  }
+
+  /**
+   * Process a message and immediately verify the sender against the roster.
+   * Throws an `MlsTypedError` with `kind === 'UnknownSender'` if the sender
+   * cannot be found in the group member list after processing.
+   */
+  processAndVerifyMessage(
+    groupIdB64: string,
+    messageB64: string,
+  ): Observable<MlsProcessedMessage> {
+    return this.processMessage(groupIdB64, messageB64).pipe(
+      switchMap(msg => {
+        if (msg.kind === 'application' && msg.senderIdentity) {
+          return this.verifySenderInRoster(msg.senderIdentity, groupIdB64).pipe(
+            map(known => {
+              if (!known) {
+                const err: MlsTypedError = {
+                  kind: 'UnknownSender',
+                  message: `${msg.senderIdentity} is not in the group roster`,
+                };
+                throw err;
+              }
+              return msg;
+            })
+          );
+        }
+        return of(msg);
+      })
+    );
   }
 
   /**
@@ -194,17 +384,17 @@ export class MlsService {
    */
   removeMembers(
     groupIdB64: string,
-    signingPublicKeyB64: string,
-    signingPrivateKeyB64: string,
+    keyHandle: string,
     leafIndices: number[],
   ): Observable<MlsCommitOut> {
-    return from(invoke<MlsCommitOut>('mls_remove_members', {
-      groupIdB64,
-      signingPublicKeyB64,
-      signingPrivateKeyB64,
-      leafIndices,
-    }));
+    return this.serialized(groupIdB64, () =>
+      invoke<MlsCommitOut>('mls_remove_members', { groupIdB64, keyHandle, leafIndices })
+    );
   }
+
+  // -------------------------------------------------------------------------
+  // Group queries
+  // -------------------------------------------------------------------------
 
   /** Return the current member list for a group. */
   getMembers(groupIdB64: string): Observable<MlsMemberInfo[]> {
@@ -214,5 +404,24 @@ export class MlsService {
   /** Return current group metadata (epoch, own leaf index, members). */
   getGroupInfo(groupIdB64: string): Observable<MlsGroupInfo> {
     return from(invoke<MlsGroupInfo>('mls_get_group_info', { groupIdB64 }));
+  }
+
+  // -------------------------------------------------------------------------
+  // Device identity
+  // -------------------------------------------------------------------------
+
+  async getOrCreateDeviceIdentifier(): Promise<string> {
+    const store = new LazyStore('settings.json');
+    const KEY = 'mls_device_id';
+
+    let deviceId = await store.get<{ value: string }>(KEY);
+
+    if (!deviceId) {
+      deviceId = { value: crypto.randomUUID() };
+      await store.set(KEY, deviceId);
+      await store.save();
+    }
+
+    return deviceId.value;
   }
 }

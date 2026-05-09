@@ -24,19 +24,23 @@ import {
   MlsKeyPackageBatch,
   MlsMemberInfo,
   MlsProcessedMessage,
+  MlsRejoinOut,
   MlsService,
+  MlsTypedError,
+  parseMlsError,
 } from './mls.service';
 
 // ---------------------------------------------------------------------------
 // Module mock — must be a top-level call so Vitest hoists it before imports
 // ---------------------------------------------------------------------------
 
-
 const invokeStub = vi.mocked(invoke);
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
 // ---------------------------------------------------------------------------
+
+const KEY_HANDLE = 'test-handle-uuid-1234';
 
 const MEMBER_ALICE: MlsMemberInfo = {
   leafIndex: 0,
@@ -68,16 +72,19 @@ const KEY_PKG_BATCH: MlsKeyPackageBatch = {
   signingPublicKey: 'cHVia2V5',
   signingPrivateKey: 'cHJpdmtleQ==',
   keyPackages: [KEY_PKG_RESULT],
+  keyHandle: KEY_HANDLE,
 };
 
 const COMMIT_WITH_WELCOME: MlsCommitOut = {
   commit: 'Y29tbWl0',
   welcome: 'd2VsY29tZQ==',
+  epoch: 1,
 };
 
 const COMMIT_NO_WELCOME: MlsCommitOut = {
   commit: 'Y29tbWl0',
   welcome: null,
+  epoch: 2,
 };
 
 const APP_MESSAGE: MlsProcessedMessage = {
@@ -130,6 +137,11 @@ const PROPOSAL_MESSAGE: MlsProcessedMessage = {
   epoch: null,
 };
 
+const REJOIN_OUT: MlsRejoinOut = {
+  groupInfo: { ...GROUP_INFO, ownLeafIndex: 2 },
+  externalCommit: 'ZXh0Q29tbWl0',
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -177,6 +189,139 @@ describe('MlsService', () => {
     it('should be provided in root (singleton)', () => {
       const service2 = TestBed.inject(MlsService);
       expect(service).toBe(service2);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // parseMlsError utility
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('parseMlsError', () => {
+    it('parses WrongEpoch prefix', () => {
+      const err = parseMlsError('WrongEpoch: epoch is 3 but expected 2');
+      expect(err.kind).toBe('WrongEpoch');
+      expect(err.message).toContain('epoch');
+    });
+
+    it('parses UnknownSender prefix', () => {
+      const err = parseMlsError('UnknownSender: alice not in roster');
+      expect(err.kind).toBe('UnknownSender');
+    });
+
+    it('parses ValidationError prefix', () => {
+      const err = parseMlsError('ValidationError: bad signature');
+      expect(err.kind).toBe('ValidationError');
+    });
+
+    it('parses GroupNotFound prefix', () => {
+      const err = parseMlsError('GroupNotFound: group not found');
+      expect(err.kind).toBe('GroupNotFound');
+    });
+
+    it('parses KeyNotFound prefix', () => {
+      const err = parseMlsError('KeyNotFound: no signing key loaded');
+      expect(err.kind).toBe('KeyNotFound');
+    });
+
+    it('falls back to MlsError for unknown strings', () => {
+      const err = parseMlsError('some unexpected error');
+      expect(err.kind).toBe('MlsError');
+      expect(err.message).toBe('some unexpected error');
+    });
+
+    it('handles non-string input', () => {
+      const err = parseMlsError({ code: 42 });
+      expect(err.kind).toBe('MlsError');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // loadSigningKey
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('loadSigningKey', () => {
+    const PUB = 'cHVia2V5';
+    const PRIV = 'cHJpdmtleQ==';
+
+    it('returns an Observable', () => {
+      mockInvoke(KEY_HANDLE);
+      const result = service.loadSigningKey(PUB, PRIV, 'alice');
+      expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+    });
+
+    it('calls invoke with command "mls_load_signing_key"', async () => {
+      mockInvoke(KEY_HANDLE);
+      await firstValueFrom(service.loadSigningKey(PUB, PRIV, 'alice'));
+      expect(callCmd()).toBe('mls_load_signing_key');
+    });
+
+    it('passes signingPublicKeyB64', async () => {
+      mockInvoke(KEY_HANDLE);
+      await firstValueFrom(service.loadSigningKey(PUB, PRIV, 'alice'));
+      expect(callArgs()['signingPublicKeyB64']).toBe(PUB);
+    });
+
+    it('passes signingPrivateKeyB64', async () => {
+      mockInvoke(KEY_HANDLE);
+      await firstValueFrom(service.loadSigningKey(PUB, PRIV, 'alice'));
+      expect(callArgs()['signingPrivateKeyB64']).toBe(PRIV);
+    });
+
+    it('passes identity', async () => {
+      mockInvoke(KEY_HANDLE);
+      await firstValueFrom(service.loadSigningKey(PUB, PRIV, 'alice'));
+      expect(callArgs()['identity']).toBe('alice');
+    });
+
+    it('passes exactly 3 keys to invoke', async () => {
+      mockInvoke(KEY_HANDLE);
+      await firstValueFrom(service.loadSigningKey(PUB, PRIV, 'alice'));
+      expect(Object.keys(callArgs()).sort()).toEqual(
+        ['identity', 'signingPrivateKeyB64', 'signingPublicKeyB64'].sort(),
+      );
+    });
+
+    it('resolves with the opaque handle string', async () => {
+      mockInvoke(KEY_HANDLE);
+      const handle = await firstValueFrom(service.loadSigningKey(PUB, PRIV, 'alice'));
+      expect(handle).toBe(KEY_HANDLE);
+    });
+
+    it('propagates invoke rejection', async () => {
+      mockInvokeReject('bad key bytes');
+      await expect(
+        firstValueFrom(service.loadSigningKey(PUB, PRIV, 'alice')),
+      ).rejects.toBe('bad key bytes');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // unloadSigningKey
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('unloadSigningKey', () => {
+    it('returns an Observable', () => {
+      mockInvoke(undefined);
+      const result = service.unloadSigningKey(KEY_HANDLE);
+      expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+    });
+
+    it('calls invoke with command "mls_unload_signing_key"', async () => {
+      mockInvoke(undefined);
+      await firstValueFrom(service.unloadSigningKey(KEY_HANDLE));
+      expect(callCmd()).toBe('mls_unload_signing_key');
+    });
+
+    it('passes keyHandle', async () => {
+      mockInvoke(undefined);
+      await firstValueFrom(service.unloadSigningKey(KEY_HANDLE));
+      expect(callArgs()['keyHandle']).toBe(KEY_HANDLE);
+    });
+
+    it('passes exactly 1 key to invoke', async () => {
+      mockInvoke(undefined);
+      await firstValueFrom(service.unloadSigningKey(KEY_HANDLE));
+      expect(Object.keys(callArgs())).toEqual(['keyHandle']);
     });
   });
 
@@ -237,6 +382,12 @@ describe('MlsService', () => {
       expect(batch.signingPrivateKey).toBe(KEY_PKG_BATCH.signingPrivateKey);
     });
 
+    it('exposes keyHandle on the batch', async () => {
+      mockInvoke(KEY_PKG_BATCH);
+      const batch = await firstValueFrom(service.generateKeyPackages('alice', 1));
+      expect(batch.keyHandle).toBe(KEY_HANDLE);
+    });
+
     it('exposes keyPackages array on the batch', async () => {
       mockInvoke(KEY_PKG_BATCH);
       const batch = await firstValueFrom(service.generateKeyPackages('alice', 1));
@@ -291,82 +442,66 @@ describe('MlsService', () => {
 
   describe('createGroup', () => {
     const GID = 'Z3JvdXAxMjM=';
-    const PUB = 'cHVia2V5';
-    const PRIV = 'cHJpdmtleQ==';
 
     it('returns an Observable', () => {
       mockInvoke(GROUP_INFO);
-      const result = service.createGroup(GID, 'alice', PUB, PRIV);
+      const result = service.createGroup(GID, KEY_HANDLE);
       expect(typeof (result as unknown as { subscribe: unknown }).subscribe)
         .toBe('function');
     });
 
     it('calls invoke with command "mls_create_group"', async () => {
       mockInvoke(GROUP_INFO);
-      await firstValueFrom(service.createGroup(GID, 'alice', PUB, PRIV));
+      await firstValueFrom(service.createGroup(GID, KEY_HANDLE));
       expect(callCmd()).toBe('mls_create_group');
     });
 
     it('passes groupIdB64 as "groupIdB64"', async () => {
       mockInvoke(GROUP_INFO);
-      await firstValueFrom(service.createGroup(GID, 'alice', PUB, PRIV));
+      await firstValueFrom(service.createGroup(GID, KEY_HANDLE));
       expect(callArgs()['groupIdB64']).toBe(GID);
     });
 
-    it('passes identity as "identity"', async () => {
+    it('passes keyHandle as "keyHandle"', async () => {
       mockInvoke(GROUP_INFO);
-      await firstValueFrom(service.createGroup(GID, 'alice', PUB, PRIV));
-      expect(callArgs()['identity']).toBe('alice');
+      await firstValueFrom(service.createGroup(GID, KEY_HANDLE));
+      expect(callArgs()['keyHandle']).toBe(KEY_HANDLE);
     });
 
-    it('passes signingPublicKeyB64 as "signingPublicKeyB64"', async () => {
+    it('passes exactly 2 keys to invoke (no raw key material)', async () => {
       mockInvoke(GROUP_INFO);
-      await firstValueFrom(service.createGroup(GID, 'alice', PUB, PRIV));
-      expect(callArgs()['signingPublicKeyB64']).toBe(PUB);
-    });
-
-    it('passes signingPrivateKeyB64 as "signingPrivateKeyB64"', async () => {
-      mockInvoke(GROUP_INFO);
-      await firstValueFrom(service.createGroup(GID, 'alice', PUB, PRIV));
-      expect(callArgs()['signingPrivateKeyB64']).toBe(PRIV);
-    });
-
-    it('passes exactly 4 keys to invoke (no extras, no missing)', async () => {
-      mockInvoke(GROUP_INFO);
-      await firstValueFrom(service.createGroup(GID, 'alice', PUB, PRIV));
-      expect(Object.keys(callArgs()).sort()).toEqual(
-        ['groupIdB64', 'identity', 'signingPrivateKeyB64', 'signingPublicKeyB64'].sort(),
-      );
+      await firstValueFrom(service.createGroup(GID, KEY_HANDLE));
+      expect(Object.keys(callArgs()).sort()).toEqual(['groupIdB64', 'keyHandle'].sort());
     });
 
     it('resolves with MlsGroupInfo from invoke', async () => {
       mockInvoke(GROUP_INFO);
-      const info = await firstValueFrom(service.createGroup(GID, 'alice', PUB, PRIV));
+      const info = await firstValueFrom(service.createGroup(GID, KEY_HANDLE));
       expect(info).toEqual(GROUP_INFO);
     });
 
     it('groupInfo.epoch starts at 0 for a new group', async () => {
       mockInvoke({ ...GROUP_INFO, epoch: 0 });
-      const info = await firstValueFrom(service.createGroup(GID, 'alice', PUB, PRIV));
+      const info = await firstValueFrom(service.createGroup(GID, KEY_HANDLE));
       expect(info.epoch).toBe(0);
     });
 
     it('groupInfo.ownLeafIndex is 0 for the creator', async () => {
       mockInvoke({ ...GROUP_INFO, ownLeafIndex: 0 });
-      const info = await firstValueFrom(service.createGroup(GID, 'alice', PUB, PRIV));
+      const info = await firstValueFrom(service.createGroup(GID, KEY_HANDLE));
       expect(info.ownLeafIndex).toBe(0);
     });
 
     it('groupInfo.members contains at least the creator', async () => {
       mockInvoke({ ...GROUP_INFO, members: [MEMBER_ALICE] });
-      const info = await firstValueFrom(service.createGroup(GID, 'alice', PUB, PRIV));
+      const info = await firstValueFrom(service.createGroup(GID, KEY_HANDLE));
       expect(info.members.length).toBeGreaterThanOrEqual(1);
     });
 
     it('propagates invoke rejection', async () => {
       mockInvokeReject('group already exists');
       await expect(
-        firstValueFrom(service.createGroup(GID, 'alice', PUB, PRIV)),
+        firstValueFrom(service.createGroup(GID, KEY_HANDLE)),
       ).rejects.toBe('group already exists');
     });
   });
@@ -377,96 +512,94 @@ describe('MlsService', () => {
 
   describe('addMembers', () => {
     const GID = 'Z3JvdXAxMjM=';
-    const PUB = 'cHVia2V5';
-    const PRIV = 'cHJpdmtleQ==';
     const KPS = ['a2V5cGtnMQ==', 'a2V5cGtnMg=='];
 
     it('returns an Observable', () => {
       mockInvoke(COMMIT_WITH_WELCOME);
-      const result = service.addMembers(GID, PUB, PRIV, KPS);
+      const result = service.addMembers(GID, KEY_HANDLE, KPS);
       expect(typeof (result as unknown as { subscribe: unknown }).subscribe)
         .toBe('function');
     });
 
     it('calls invoke with command "mls_add_members"', async () => {
       mockInvoke(COMMIT_WITH_WELCOME);
-      await firstValueFrom(service.addMembers(GID, PUB, PRIV, KPS));
+      await firstValueFrom(service.addMembers(GID, KEY_HANDLE, KPS));
       expect(callCmd()).toBe('mls_add_members');
     });
 
     it('passes groupIdB64 as "groupIdB64"', async () => {
       mockInvoke(COMMIT_WITH_WELCOME);
-      await firstValueFrom(service.addMembers(GID, PUB, PRIV, KPS));
+      await firstValueFrom(service.addMembers(GID, KEY_HANDLE, KPS));
       expect(callArgs()['groupIdB64']).toBe(GID);
     });
 
-    it('passes signingPublicKeyB64 as "signingPublicKeyB64"', async () => {
+    it('passes keyHandle as "keyHandle"', async () => {
       mockInvoke(COMMIT_WITH_WELCOME);
-      await firstValueFrom(service.addMembers(GID, PUB, PRIV, KPS));
-      expect(callArgs()['signingPublicKeyB64']).toBe(PUB);
-    });
-
-    it('passes signingPrivateKeyB64 as "signingPrivateKeyB64"', async () => {
-      mockInvoke(COMMIT_WITH_WELCOME);
-      await firstValueFrom(service.addMembers(GID, PUB, PRIV, KPS));
-      expect(callArgs()['signingPrivateKeyB64']).toBe(PRIV);
+      await firstValueFrom(service.addMembers(GID, KEY_HANDLE, KPS));
+      expect(callArgs()['keyHandle']).toBe(KEY_HANDLE);
     });
 
     it('passes keyPackagesB64 array as "keyPackagesB64"', async () => {
       mockInvoke(COMMIT_WITH_WELCOME);
-      await firstValueFrom(service.addMembers(GID, PUB, PRIV, KPS));
+      await firstValueFrom(service.addMembers(GID, KEY_HANDLE, KPS));
       expect(callArgs()['keyPackagesB64']).toEqual(KPS);
     });
 
-    it('passes exactly 4 keys to invoke', async () => {
+    it('passes exactly 3 keys to invoke (no raw key material)', async () => {
       mockInvoke(COMMIT_WITH_WELCOME);
-      await firstValueFrom(service.addMembers(GID, PUB, PRIV, KPS));
+      await firstValueFrom(service.addMembers(GID, KEY_HANDLE, KPS));
       expect(Object.keys(callArgs()).sort()).toEqual(
-        ['groupIdB64', 'keyPackagesB64', 'signingPrivateKeyB64', 'signingPublicKeyB64'].sort(),
+        ['groupIdB64', 'keyHandle', 'keyPackagesB64'].sort(),
       );
     });
 
     it('resolves with MlsCommitOut from invoke', async () => {
       mockInvoke(COMMIT_WITH_WELCOME);
-      const result = await firstValueFrom(service.addMembers(GID, PUB, PRIV, KPS));
+      const result = await firstValueFrom(service.addMembers(GID, KEY_HANDLE, KPS));
       expect(result).toEqual(COMMIT_WITH_WELCOME);
     });
 
     it('commit field is always a non-empty string', async () => {
       mockInvoke(COMMIT_WITH_WELCOME);
-      const result = await firstValueFrom(service.addMembers(GID, PUB, PRIV, KPS));
+      const result = await firstValueFrom(service.addMembers(GID, KEY_HANDLE, KPS));
       expect(result.commit.length).toBeGreaterThan(0);
     });
 
     it('welcome field is non-null when members were added', async () => {
       mockInvoke(COMMIT_WITH_WELCOME);
-      const result = await firstValueFrom(service.addMembers(GID, PUB, PRIV, KPS));
+      const result = await firstValueFrom(service.addMembers(GID, KEY_HANDLE, KPS));
       expect(result.welcome).not.toBeNull();
     });
 
     it('welcome field can be null (e.g. no new members scenario)', async () => {
       mockInvoke(COMMIT_NO_WELCOME);
-      const result = await firstValueFrom(service.addMembers(GID, PUB, PRIV, []));
+      const result = await firstValueFrom(service.addMembers(GID, KEY_HANDLE, []));
       expect(result.welcome).toBeNull();
+    });
+
+    it('epoch is present and is a number', async () => {
+      mockInvoke(COMMIT_WITH_WELCOME);
+      const result = await firstValueFrom(service.addMembers(GID, KEY_HANDLE, KPS));
+      expect(typeof result.epoch).toBe('number');
     });
 
     it('handles an empty keyPackagesB64 array', async () => {
       mockInvoke(COMMIT_NO_WELCOME);
-      await firstValueFrom(service.addMembers(GID, PUB, PRIV, []));
+      await firstValueFrom(service.addMembers(GID, KEY_HANDLE, []));
       expect(callArgs()['keyPackagesB64']).toEqual([]);
     });
 
     it('preserves all key packages in the array', async () => {
       const threeKps = ['a==', 'b==', 'c=='];
       mockInvoke(COMMIT_WITH_WELCOME);
-      await firstValueFrom(service.addMembers(GID, PUB, PRIV, threeKps));
+      await firstValueFrom(service.addMembers(GID, KEY_HANDLE, threeKps));
       expect(callArgs()['keyPackagesB64']).toEqual(threeKps);
     });
 
     it('propagates invoke rejection', async () => {
       mockInvokeReject('group not found');
       await expect(
-        firstValueFrom(service.addMembers(GID, PUB, PRIV, KPS)),
+        firstValueFrom(service.addMembers(GID, KEY_HANDLE, KPS)),
       ).rejects.toBe('group not found');
     });
   });
@@ -477,8 +610,6 @@ describe('MlsService', () => {
 
   describe('joinGroup', () => {
     const WELCOME = 'd2VsY29tZQ==';
-    const PUB = 'cHVia2V5';
-    const PRIV = 'cHJpdmtleQ==';
 
     const JOINED_GROUP: MlsGroupInfo = {
       groupId: 'Z3JvdXAxMjM=',
@@ -489,66 +620,269 @@ describe('MlsService', () => {
 
     it('returns an Observable', () => {
       mockInvoke(JOINED_GROUP);
-      const result = service.joinGroup(WELCOME, PUB, PRIV);
+      const result = service.joinGroup(WELCOME, KEY_HANDLE);
       expect(typeof (result as unknown as { subscribe: unknown }).subscribe)
         .toBe('function');
     });
 
     it('calls invoke with command "mls_join_group"', async () => {
       mockInvoke(JOINED_GROUP);
-      await firstValueFrom(service.joinGroup(WELCOME, PUB, PRIV));
+      await firstValueFrom(service.joinGroup(WELCOME, KEY_HANDLE));
       expect(callCmd()).toBe('mls_join_group');
     });
 
     it('passes welcomeB64 as "welcomeB64"', async () => {
       mockInvoke(JOINED_GROUP);
-      await firstValueFrom(service.joinGroup(WELCOME, PUB, PRIV));
+      await firstValueFrom(service.joinGroup(WELCOME, KEY_HANDLE));
       expect(callArgs()['welcomeB64']).toBe(WELCOME);
     });
 
-    it('passes signingPublicKeyB64 as "signingPublicKeyB64"', async () => {
+    it('passes keyHandle as "keyHandle"', async () => {
       mockInvoke(JOINED_GROUP);
-      await firstValueFrom(service.joinGroup(WELCOME, PUB, PRIV));
-      expect(callArgs()['signingPublicKeyB64']).toBe(PUB);
+      await firstValueFrom(service.joinGroup(WELCOME, KEY_HANDLE));
+      expect(callArgs()['keyHandle']).toBe(KEY_HANDLE);
     });
 
-    it('passes signingPrivateKeyB64 as "signingPrivateKeyB64"', async () => {
+    it('passes exactly 2 keys to invoke (no raw key material)', async () => {
       mockInvoke(JOINED_GROUP);
-      await firstValueFrom(service.joinGroup(WELCOME, PUB, PRIV));
-      expect(callArgs()['signingPrivateKeyB64']).toBe(PRIV);
-    });
-
-    it('passes exactly 3 keys to invoke', async () => {
-      mockInvoke(JOINED_GROUP);
-      await firstValueFrom(service.joinGroup(WELCOME, PUB, PRIV));
-      expect(Object.keys(callArgs()).sort()).toEqual(
-        ['signingPrivateKeyB64', 'signingPublicKeyB64', 'welcomeB64'].sort(),
-      );
+      await firstValueFrom(service.joinGroup(WELCOME, KEY_HANDLE));
+      expect(Object.keys(callArgs()).sort()).toEqual(['keyHandle', 'welcomeB64'].sort());
     });
 
     it('resolves with MlsGroupInfo from invoke', async () => {
       mockInvoke(JOINED_GROUP);
-      const info = await firstValueFrom(service.joinGroup(WELCOME, PUB, PRIV));
+      const info = await firstValueFrom(service.joinGroup(WELCOME, KEY_HANDLE));
       expect(info).toEqual(JOINED_GROUP);
     });
 
     it('joiner leaf index is non-zero (creator holds 0)', async () => {
       mockInvoke(JOINED_GROUP);
-      const info = await firstValueFrom(service.joinGroup(WELCOME, PUB, PRIV));
+      const info = await firstValueFrom(service.joinGroup(WELCOME, KEY_HANDLE));
       expect(info.ownLeafIndex).toBe(JOINED_GROUP.ownLeafIndex);
     });
 
     it('members list reflects the full group after joining', async () => {
       mockInvoke(JOINED_GROUP);
-      const info = await firstValueFrom(service.joinGroup(WELCOME, PUB, PRIV));
+      const info = await firstValueFrom(service.joinGroup(WELCOME, KEY_HANDLE));
       expect(info.members.length).toBe(2);
     });
 
     it('propagates invoke rejection', async () => {
       mockInvokeReject('message is not a Welcome');
       await expect(
-        firstValueFrom(service.joinGroup(WELCOME, PUB, PRIV)),
+        firstValueFrom(service.joinGroup(WELCOME, KEY_HANDLE)),
       ).rejects.toBe('message is not a Welcome');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // leaveGroup
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('leaveGroup', () => {
+    const GID = 'Z3JvdXAxMjM=';
+    const LEAVE_COMMIT: MlsCommitOut = { commit: 'bGVhdmU=', welcome: null, epoch: 5 };
+
+    it('returns an Observable', () => {
+      mockInvoke(LEAVE_COMMIT);
+      const result = service.leaveGroup(GID, KEY_HANDLE);
+      expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+    });
+
+    it('calls invoke with command "mls_leave_group"', async () => {
+      mockInvoke(LEAVE_COMMIT);
+      await firstValueFrom(service.leaveGroup(GID, KEY_HANDLE));
+      expect(callCmd()).toBe('mls_leave_group');
+    });
+
+    it('passes groupIdB64 as "groupIdB64"', async () => {
+      mockInvoke(LEAVE_COMMIT);
+      await firstValueFrom(service.leaveGroup(GID, KEY_HANDLE));
+      expect(callArgs()['groupIdB64']).toBe(GID);
+    });
+
+    it('passes keyHandle as "keyHandle"', async () => {
+      mockInvoke(LEAVE_COMMIT);
+      await firstValueFrom(service.leaveGroup(GID, KEY_HANDLE));
+      expect(callArgs()['keyHandle']).toBe(KEY_HANDLE);
+    });
+
+    it('passes exactly 2 keys to invoke', async () => {
+      mockInvoke(LEAVE_COMMIT);
+      await firstValueFrom(service.leaveGroup(GID, KEY_HANDLE));
+      expect(Object.keys(callArgs()).sort()).toEqual(['groupIdB64', 'keyHandle'].sort());
+    });
+
+    it('resolves with MlsCommitOut', async () => {
+      mockInvoke(LEAVE_COMMIT);
+      const result = await firstValueFrom(service.leaveGroup(GID, KEY_HANDLE));
+      expect(result).toEqual(LEAVE_COMMIT);
+    });
+
+    it('welcome is null for a leave commit', async () => {
+      mockInvoke(LEAVE_COMMIT);
+      const result = await firstValueFrom(service.leaveGroup(GID, KEY_HANDLE));
+      expect(result.welcome).toBeNull();
+    });
+
+    it('epoch is returned', async () => {
+      mockInvoke(LEAVE_COMMIT);
+      const result = await firstValueFrom(service.leaveGroup(GID, KEY_HANDLE));
+      expect(result.epoch).toBe(5);
+    });
+
+    it('propagates invoke rejection', async () => {
+      mockInvokeReject('group not found');
+      await expect(firstValueFrom(service.leaveGroup(GID, KEY_HANDLE))).rejects.toBe('group not found');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // exportGroupInfo
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('exportGroupInfo', () => {
+    const GID = 'Z3JvdXAxMjM=';
+    const GROUP_INFO_B64 = 'Z3JvdXBJbmZv';
+
+    it('returns an Observable', () => {
+      mockInvoke(GROUP_INFO_B64);
+      const result = service.exportGroupInfo(GID, KEY_HANDLE);
+      expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+    });
+
+    it('calls invoke with command "mls_export_group_info"', async () => {
+      mockInvoke(GROUP_INFO_B64);
+      await firstValueFrom(service.exportGroupInfo(GID, KEY_HANDLE));
+      expect(callCmd()).toBe('mls_export_group_info');
+    });
+
+    it('passes groupIdB64 as "groupIdB64"', async () => {
+      mockInvoke(GROUP_INFO_B64);
+      await firstValueFrom(service.exportGroupInfo(GID, KEY_HANDLE));
+      expect(callArgs()['groupIdB64']).toBe(GID);
+    });
+
+    it('passes keyHandle as "keyHandle"', async () => {
+      mockInvoke(GROUP_INFO_B64);
+      await firstValueFrom(service.exportGroupInfo(GID, KEY_HANDLE));
+      expect(callArgs()['keyHandle']).toBe(KEY_HANDLE);
+    });
+
+    it('passes exactly 2 keys to invoke', async () => {
+      mockInvoke(GROUP_INFO_B64);
+      await firstValueFrom(service.exportGroupInfo(GID, KEY_HANDLE));
+      expect(Object.keys(callArgs()).sort()).toEqual(['groupIdB64', 'keyHandle'].sort());
+    });
+
+    it('resolves with the base64 GroupInfo string', async () => {
+      mockInvoke(GROUP_INFO_B64);
+      const result = await firstValueFrom(service.exportGroupInfo(GID, KEY_HANDLE));
+      expect(result).toBe(GROUP_INFO_B64);
+    });
+
+    it('propagates invoke rejection', async () => {
+      mockInvokeReject('group not found');
+      await expect(firstValueFrom(service.exportGroupInfo(GID, KEY_HANDLE))).rejects.toBe('group not found');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // rejoinGroup
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('rejoinGroup', () => {
+    const GI_B64 = 'Z3JvdXBJbmZv';
+
+    it('returns an Observable', () => {
+      mockInvoke(REJOIN_OUT);
+      const result = service.rejoinGroup(GI_B64, KEY_HANDLE);
+      expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+    });
+
+    it('calls invoke with command "mls_rejoin_group"', async () => {
+      mockInvoke(REJOIN_OUT);
+      await firstValueFrom(service.rejoinGroup(GI_B64, KEY_HANDLE));
+      expect(callCmd()).toBe('mls_rejoin_group');
+    });
+
+    it('passes groupInfoB64 as "groupInfoB64"', async () => {
+      mockInvoke(REJOIN_OUT);
+      await firstValueFrom(service.rejoinGroup(GI_B64, KEY_HANDLE));
+      expect(callArgs()['groupInfoB64']).toBe(GI_B64);
+    });
+
+    it('passes keyHandle as "keyHandle"', async () => {
+      mockInvoke(REJOIN_OUT);
+      await firstValueFrom(service.rejoinGroup(GI_B64, KEY_HANDLE));
+      expect(callArgs()['keyHandle']).toBe(KEY_HANDLE);
+    });
+
+    it('passes exactly 2 keys to invoke', async () => {
+      mockInvoke(REJOIN_OUT);
+      await firstValueFrom(service.rejoinGroup(GI_B64, KEY_HANDLE));
+      expect(Object.keys(callArgs()).sort()).toEqual(['groupInfoB64', 'keyHandle'].sort());
+    });
+
+    it('resolves with MlsRejoinOut', async () => {
+      mockInvoke(REJOIN_OUT);
+      const result = await firstValueFrom(service.rejoinGroup(GI_B64, KEY_HANDLE));
+      expect(result).toEqual(REJOIN_OUT);
+    });
+
+    it('externalCommit is present', async () => {
+      mockInvoke(REJOIN_OUT);
+      const result = await firstValueFrom(service.rejoinGroup(GI_B64, KEY_HANDLE));
+      expect(typeof result.externalCommit).toBe('string');
+      expect(result.externalCommit.length).toBeGreaterThan(0);
+    });
+
+    it('groupInfo is present', async () => {
+      mockInvoke(REJOIN_OUT);
+      const result = await firstValueFrom(service.rejoinGroup(GI_B64, KEY_HANDLE));
+      expect(result.groupInfo).toBeDefined();
+    });
+
+    it('propagates invoke rejection', async () => {
+      mockInvokeReject('not a GroupInfo');
+      await expect(firstValueFrom(service.rejoinGroup(GI_B64, KEY_HANDLE))).rejects.toBe('not a GroupInfo');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // deleteGroup
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('deleteGroup', () => {
+    const GID = 'Z3JvdXAxMjM=';
+
+    it('returns an Observable', () => {
+      mockInvoke(undefined);
+      const result = service.deleteGroup(GID);
+      expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+    });
+
+    it('calls invoke with command "mls_delete_group"', async () => {
+      mockInvoke(undefined);
+      await firstValueFrom(service.deleteGroup(GID));
+      expect(callCmd()).toBe('mls_delete_group');
+    });
+
+    it('passes groupIdB64 as "groupIdB64"', async () => {
+      mockInvoke(undefined);
+      await firstValueFrom(service.deleteGroup(GID));
+      expect(callArgs()['groupIdB64']).toBe(GID);
+    });
+
+    it('passes exactly 1 key to invoke', async () => {
+      mockInvoke(undefined);
+      await firstValueFrom(service.deleteGroup(GID));
+      expect(Object.keys(callArgs())).toEqual(['groupIdB64']);
+    });
+
+    it('propagates invoke rejection', async () => {
+      mockInvokeReject('GroupNotFound: group not found');
+      await expect(firstValueFrom(service.deleteGroup(GID))).rejects.toBe('GroupNotFound: group not found');
     });
   });
 
@@ -558,79 +892,71 @@ describe('MlsService', () => {
 
   describe('sendMessage', () => {
     const GID = 'Z3JvdXAxMjM=';
-    const PUB = 'cHVia2V5';
-    const PRIV = 'cHJpdmtleQ==';
     const PT = 'aGVsbG8gd29ybGQ=';
     const CIPHERTEXT = 'Y2lwaGVydGV4dA==';
 
     it('returns an Observable', () => {
       mockInvoke(CIPHERTEXT);
-      const result = service.sendMessage(GID, PUB, PRIV, PT);
+      const result = service.sendMessage(GID, KEY_HANDLE, PT);
       expect(typeof (result as unknown as { subscribe: unknown }).subscribe)
         .toBe('function');
     });
 
     it('calls invoke with command "mls_send_message"', async () => {
       mockInvoke(CIPHERTEXT);
-      await firstValueFrom(service.sendMessage(GID, PUB, PRIV, PT));
+      await firstValueFrom(service.sendMessage(GID, KEY_HANDLE, PT));
       expect(callCmd()).toBe('mls_send_message');
     });
 
     it('passes groupIdB64 as "groupIdB64"', async () => {
       mockInvoke(CIPHERTEXT);
-      await firstValueFrom(service.sendMessage(GID, PUB, PRIV, PT));
+      await firstValueFrom(service.sendMessage(GID, KEY_HANDLE, PT));
       expect(callArgs()['groupIdB64']).toBe(GID);
     });
 
-    it('passes signingPublicKeyB64 as "signingPublicKeyB64"', async () => {
+    it('passes keyHandle as "keyHandle"', async () => {
       mockInvoke(CIPHERTEXT);
-      await firstValueFrom(service.sendMessage(GID, PUB, PRIV, PT));
-      expect(callArgs()['signingPublicKeyB64']).toBe(PUB);
-    });
-
-    it('passes signingPrivateKeyB64 as "signingPrivateKeyB64"', async () => {
-      mockInvoke(CIPHERTEXT);
-      await firstValueFrom(service.sendMessage(GID, PUB, PRIV, PT));
-      expect(callArgs()['signingPrivateKeyB64']).toBe(PRIV);
+      await firstValueFrom(service.sendMessage(GID, KEY_HANDLE, PT));
+      expect(callArgs()['keyHandle']).toBe(KEY_HANDLE);
     });
 
     it('passes plaintextB64 as "plaintextB64"', async () => {
       mockInvoke(CIPHERTEXT);
-      await firstValueFrom(service.sendMessage(GID, PUB, PRIV, PT));
+      await firstValueFrom(service.sendMessage(GID, KEY_HANDLE, PT));
       expect(callArgs()['plaintextB64']).toBe(PT);
     });
 
-    it('passes exactly 4 keys to invoke', async () => {
+    it('passes exactly 3 keys to invoke (no raw key material)', async () => {
       mockInvoke(CIPHERTEXT);
-      await firstValueFrom(service.sendMessage(GID, PUB, PRIV, PT));
+      await firstValueFrom(service.sendMessage(GID, KEY_HANDLE, PT));
       expect(Object.keys(callArgs()).sort()).toEqual(
-        ['groupIdB64', 'plaintextB64', 'signingPrivateKeyB64', 'signingPublicKeyB64'].sort(),
+        ['groupIdB64', 'keyHandle', 'plaintextB64'].sort(),
       );
     });
 
     it('resolves with the ciphertext string from invoke', async () => {
       mockInvoke(CIPHERTEXT);
-      const ct = await firstValueFrom(service.sendMessage(GID, PUB, PRIV, PT));
+      const ct = await firstValueFrom(service.sendMessage(GID, KEY_HANDLE, PT));
       expect(ct).toBe(CIPHERTEXT);
     });
 
     it('passes empty plaintextB64 verbatim', async () => {
       mockInvoke(CIPHERTEXT);
-      await firstValueFrom(service.sendMessage(GID, PUB, PRIV, ''));
+      await firstValueFrom(service.sendMessage(GID, KEY_HANDLE, ''));
       expect(callArgs()['plaintextB64']).toBe('');
     });
 
     it('passes large plaintext base64 verbatim', async () => {
       const big = 'A'.repeat(10_000);
       mockInvoke(CIPHERTEXT);
-      await firstValueFrom(service.sendMessage(GID, PUB, PRIV, big));
+      await firstValueFrom(service.sendMessage(GID, KEY_HANDLE, big));
       expect(callArgs()['plaintextB64']).toBe(big);
     });
 
     it('propagates invoke rejection', async () => {
       mockInvokeReject('group not found');
       await expect(
-        firstValueFrom(service.sendMessage(GID, PUB, PRIV, PT)),
+        firstValueFrom(service.sendMessage(GID, KEY_HANDLE, PT)),
       ).rejects.toBe('group not found');
     });
   });
@@ -839,6 +1165,87 @@ describe('MlsService', () => {
         firstValueFrom(service.processMessage(GID, MSG)),
       ).rejects.toBe('bad message');
     });
+
+    describe('WrongEpoch error', () => {
+      it('surfaces a WrongEpoch error from Rust', async () => {
+        mockInvokeReject('WrongEpoch: epoch is 3 but message is for epoch 4');
+        await expect(
+          firstValueFrom(service.processMessage(GID, MSG)),
+        ).rejects.toBe('WrongEpoch: epoch is 3 but message is for epoch 4');
+      });
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // verifySenderInRoster
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('verifySenderInRoster', () => {
+    const GID = 'Z3JvdXAxMjM=';
+
+    it('returns true when sender is in the roster', async () => {
+      mockInvoke([MEMBER_ALICE, MEMBER_BOB]);
+      const result = await firstValueFrom(service.verifySenderInRoster('alice', GID));
+      expect(result).toBe(true);
+    });
+
+    it('returns false when sender is not in the roster', async () => {
+      mockInvoke([MEMBER_ALICE]);
+      const result = await firstValueFrom(service.verifySenderInRoster('eve', GID));
+      expect(result).toBe(false);
+    });
+
+    it('calls getMembers to check the roster', async () => {
+      mockInvoke([MEMBER_ALICE]);
+      await firstValueFrom(service.verifySenderInRoster('alice', GID));
+      expect(callCmd()).toBe('mls_get_members');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // processAndVerifyMessage
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('processAndVerifyMessage', () => {
+    const GID = 'Z3JvdXAxMjM=';
+    const MSG = 'bWxzTWVzc2FnZQ==';
+
+    it('resolves normally when sender is in roster', async () => {
+      // First call: processMessage, second call: getMembers
+      invokeStub
+        .mockResolvedValueOnce(APP_MESSAGE as never)
+        .mockResolvedValueOnce([MEMBER_ALICE] as never);
+
+      const result = await firstValueFrom(service.processAndVerifyMessage(GID, MSG));
+      expect(result.kind).toBe('application');
+    });
+
+    it('throws MlsTypedError when sender is not in roster', async () => {
+      const msgWithUnknown = { ...APP_MESSAGE, senderIdentity: 'eve' };
+      invokeStub
+        .mockResolvedValueOnce(msgWithUnknown as never)
+        .mockResolvedValueOnce([MEMBER_ALICE] as never);
+
+      await expect(
+        firstValueFrom(service.processAndVerifyMessage(GID, MSG)),
+      ).rejects.toMatchObject({ kind: 'UnknownSender' });
+    });
+
+    it('skips roster check for commit messages', async () => {
+      mockInvoke(COMMIT_MESSAGE);
+      const result = await firstValueFrom(service.processAndVerifyMessage(GID, MSG));
+      // Only 1 invoke call — no getMembers for commits
+      expect(invokeStub).toHaveBeenCalledTimes(1);
+      expect(result.kind).toBe('commit');
+    });
+
+    it('skips roster check when senderIdentity is null', async () => {
+      const noSender = { ...APP_MESSAGE, senderIdentity: null };
+      mockInvoke(noSender);
+      const result = await firstValueFrom(service.processAndVerifyMessage(GID, MSG));
+      expect(invokeStub).toHaveBeenCalledTimes(1);
+      expect(result.kind).toBe('application');
+    });
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -847,77 +1254,75 @@ describe('MlsService', () => {
 
   describe('removeMembers', () => {
     const GID = 'Z3JvdXAxMjM=';
-    const PUB = 'cHVia2V5';
-    const PRIV = 'cHJpdmtleQ==';
     const LEAVES = [2, 4];
 
     it('returns an Observable', () => {
       mockInvoke(COMMIT_NO_WELCOME);
-      const result = service.removeMembers(GID, PUB, PRIV, LEAVES);
+      const result = service.removeMembers(GID, KEY_HANDLE, LEAVES);
       expect(typeof (result as unknown as { subscribe: unknown }).subscribe)
         .toBe('function');
     });
 
     it('calls invoke with command "mls_remove_members"', async () => {
       mockInvoke(COMMIT_NO_WELCOME);
-      await firstValueFrom(service.removeMembers(GID, PUB, PRIV, LEAVES));
+      await firstValueFrom(service.removeMembers(GID, KEY_HANDLE, LEAVES));
       expect(callCmd()).toBe('mls_remove_members');
     });
 
     it('passes groupIdB64 as "groupIdB64"', async () => {
       mockInvoke(COMMIT_NO_WELCOME);
-      await firstValueFrom(service.removeMembers(GID, PUB, PRIV, LEAVES));
+      await firstValueFrom(service.removeMembers(GID, KEY_HANDLE, LEAVES));
       expect(callArgs()['groupIdB64']).toBe(GID);
     });
 
-    it('passes signingPublicKeyB64 as "signingPublicKeyB64"', async () => {
+    it('passes keyHandle as "keyHandle"', async () => {
       mockInvoke(COMMIT_NO_WELCOME);
-      await firstValueFrom(service.removeMembers(GID, PUB, PRIV, LEAVES));
-      expect(callArgs()['signingPublicKeyB64']).toBe(PUB);
-    });
-
-    it('passes signingPrivateKeyB64 as "signingPrivateKeyB64"', async () => {
-      mockInvoke(COMMIT_NO_WELCOME);
-      await firstValueFrom(service.removeMembers(GID, PUB, PRIV, LEAVES));
-      expect(callArgs()['signingPrivateKeyB64']).toBe(PRIV);
+      await firstValueFrom(service.removeMembers(GID, KEY_HANDLE, LEAVES));
+      expect(callArgs()['keyHandle']).toBe(KEY_HANDLE);
     });
 
     it('passes leafIndices as "leafIndices"', async () => {
       mockInvoke(COMMIT_NO_WELCOME);
-      await firstValueFrom(service.removeMembers(GID, PUB, PRIV, LEAVES));
+      await firstValueFrom(service.removeMembers(GID, KEY_HANDLE, LEAVES));
       expect(callArgs()['leafIndices']).toEqual(LEAVES);
     });
 
-    it('passes exactly 4 keys to invoke', async () => {
+    it('passes exactly 3 keys to invoke (no raw key material)', async () => {
       mockInvoke(COMMIT_NO_WELCOME);
-      await firstValueFrom(service.removeMembers(GID, PUB, PRIV, LEAVES));
+      await firstValueFrom(service.removeMembers(GID, KEY_HANDLE, LEAVES));
       expect(Object.keys(callArgs()).sort()).toEqual(
-        ['groupIdB64', 'leafIndices', 'signingPrivateKeyB64', 'signingPublicKeyB64'].sort(),
+        ['groupIdB64', 'keyHandle', 'leafIndices'].sort(),
       );
     });
 
     it('resolves with MlsCommitOut from invoke', async () => {
       mockInvoke(COMMIT_NO_WELCOME);
-      const result = await firstValueFrom(service.removeMembers(GID, PUB, PRIV, LEAVES));
+      const result = await firstValueFrom(service.removeMembers(GID, KEY_HANDLE, LEAVES));
       expect(result).toEqual(COMMIT_NO_WELCOME);
     });
 
     it('welcome is null for a removal commit', async () => {
       mockInvoke(COMMIT_NO_WELCOME);
-      const result = await firstValueFrom(service.removeMembers(GID, PUB, PRIV, LEAVES));
+      const result = await firstValueFrom(service.removeMembers(GID, KEY_HANDLE, LEAVES));
       expect(result.welcome).toBeNull();
+    });
+
+    it('epoch is present after removal', async () => {
+      mockInvoke(COMMIT_NO_WELCOME);
+      const result = await firstValueFrom(service.removeMembers(GID, KEY_HANDLE, LEAVES));
+      expect(typeof result.epoch).toBe('number');
     });
 
     it('handles single-element leafIndices array', async () => {
       mockInvoke(COMMIT_NO_WELCOME);
-      await firstValueFrom(service.removeMembers(GID, PUB, PRIV, [3]));
+      await firstValueFrom(service.removeMembers(GID, KEY_HANDLE, [3]));
       expect(callArgs()['leafIndices']).toEqual([3]);
     });
 
     it('propagates invoke rejection', async () => {
       mockInvokeReject('group not found');
       await expect(
-        firstValueFrom(service.removeMembers(GID, PUB, PRIV, LEAVES)),
+        firstValueFrom(service.removeMembers(GID, KEY_HANDLE, LEAVES)),
       ).rejects.toBe('group not found');
     });
   });
@@ -1051,18 +1456,24 @@ describe('MlsService', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────────────
-  // IPC contract — all 9 command names verified
+  // IPC contract — all command names verified
   // ─────────────────────────────────────────────────────────────────────────
 
   describe('IPC contract: command names are snake_case', () => {
     const COMMANDS = [
       'generate_mls_key_packages',
+      'mls_load_signing_key',
+      'mls_unload_signing_key',
       'mls_create_group',
       'mls_add_members',
       'mls_join_group',
       'mls_send_message',
       'mls_process_message',
       'mls_remove_members',
+      'mls_leave_group',
+      'mls_export_group_info',
+      'mls_rejoin_group',
+      'mls_delete_group',
       'mls_get_members',
       'mls_get_group_info',
     ];
@@ -1079,27 +1490,39 @@ describe('MlsService', () => {
       expect(callCmd()).toBe('generate_mls_key_packages');
     });
 
+    it('loadSigningKey uses "mls_load_signing_key"', async () => {
+      mockInvoke(KEY_HANDLE);
+      await firstValueFrom(service.loadSigningKey('p==', 'q==', 'alice'));
+      expect(callCmd()).toBe('mls_load_signing_key');
+    });
+
+    it('unloadSigningKey uses "mls_unload_signing_key"', async () => {
+      mockInvoke(undefined);
+      await firstValueFrom(service.unloadSigningKey(KEY_HANDLE));
+      expect(callCmd()).toBe('mls_unload_signing_key');
+    });
+
     it('createGroup uses "mls_create_group"', async () => {
       mockInvoke(GROUP_INFO);
-      await firstValueFrom(service.createGroup('a==', 'a', 'p==', 'q=='));
+      await firstValueFrom(service.createGroup('a==', KEY_HANDLE));
       expect(callCmd()).toBe('mls_create_group');
     });
 
     it('addMembers uses "mls_add_members"', async () => {
       mockInvoke(COMMIT_WITH_WELCOME);
-      await firstValueFrom(service.addMembers('a==', 'p==', 'q==', []));
+      await firstValueFrom(service.addMembers('a==', KEY_HANDLE, []));
       expect(callCmd()).toBe('mls_add_members');
     });
 
     it('joinGroup uses "mls_join_group"', async () => {
       mockInvoke(GROUP_INFO);
-      await firstValueFrom(service.joinGroup('w==', 'p==', 'q=='));
+      await firstValueFrom(service.joinGroup('w==', KEY_HANDLE));
       expect(callCmd()).toBe('mls_join_group');
     });
 
     it('sendMessage uses "mls_send_message"', async () => {
       mockInvoke('ct==');
-      await firstValueFrom(service.sendMessage('g==', 'p==', 'q==', 'pt=='));
+      await firstValueFrom(service.sendMessage('g==', KEY_HANDLE, 'pt=='));
       expect(callCmd()).toBe('mls_send_message');
     });
 
@@ -1111,8 +1534,32 @@ describe('MlsService', () => {
 
     it('removeMembers uses "mls_remove_members"', async () => {
       mockInvoke(COMMIT_NO_WELCOME);
-      await firstValueFrom(service.removeMembers('g==', 'p==', 'q==', [1]));
+      await firstValueFrom(service.removeMembers('g==', KEY_HANDLE, [1]));
       expect(callCmd()).toBe('mls_remove_members');
+    });
+
+    it('leaveGroup uses "mls_leave_group"', async () => {
+      mockInvoke(COMMIT_NO_WELCOME);
+      await firstValueFrom(service.leaveGroup('g==', KEY_HANDLE));
+      expect(callCmd()).toBe('mls_leave_group');
+    });
+
+    it('exportGroupInfo uses "mls_export_group_info"', async () => {
+      mockInvoke('gi==');
+      await firstValueFrom(service.exportGroupInfo('g==', KEY_HANDLE));
+      expect(callCmd()).toBe('mls_export_group_info');
+    });
+
+    it('rejoinGroup uses "mls_rejoin_group"', async () => {
+      mockInvoke(REJOIN_OUT);
+      await firstValueFrom(service.rejoinGroup('gi==', KEY_HANDLE));
+      expect(callCmd()).toBe('mls_rejoin_group');
+    });
+
+    it('deleteGroup uses "mls_delete_group"', async () => {
+      mockInvoke(undefined);
+      await firstValueFrom(service.deleteGroup('g=='));
+      expect(callCmd()).toBe('mls_delete_group');
     });
 
     it('getMembers uses "mls_get_members"', async () => {
@@ -1125,6 +1572,32 @@ describe('MlsService', () => {
       mockInvoke(GROUP_INFO);
       await firstValueFrom(service.getGroupInfo('g=='));
       expect(callCmd()).toBe('mls_get_group_info');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // MlsCommitOut epoch field
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('MlsCommitOut epoch field', () => {
+    const GID = 'Z3JvdXAxMjM=';
+
+    it('addMembers result includes epoch', async () => {
+      mockInvoke({ ...COMMIT_WITH_WELCOME, epoch: 3 });
+      const result = await firstValueFrom(service.addMembers(GID, KEY_HANDLE, []));
+      expect(result.epoch).toBe(3);
+    });
+
+    it('removeMembers result includes epoch', async () => {
+      mockInvoke({ ...COMMIT_NO_WELCOME, epoch: 4 });
+      const result = await firstValueFrom(service.removeMembers(GID, KEY_HANDLE, [1]));
+      expect(result.epoch).toBe(4);
+    });
+
+    it('leaveGroup result includes epoch', async () => {
+      mockInvoke({ commit: 'abc', welcome: null, epoch: 7 });
+      const result = await firstValueFrom(service.leaveGroup(GID, KEY_HANDLE));
+      expect(result.epoch).toBe(7);
     });
   });
 
@@ -1150,10 +1623,38 @@ describe('MlsService', () => {
 
     it('different methods return independent Observables', async () => {
       mockInvoke(GROUP_INFO);
-      const o1 = service.createGroup('a==', 'alice', 'p==', 'q==');
+      const o1 = service.createGroup('a==', KEY_HANDLE);
       const o2 = service.getGroupInfo('a==');
       await firstValueFrom(o1);
       await firstValueFrom(o2);
+      expect(invokeStub).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Per-group serialization queue
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('per-group serialization queue', () => {
+    const GID = 'Z3JvdXAxMjM=';
+
+    it('sequential calls on the same group complete in order', async () => {
+      const results: number[] = [];
+      invokeStub
+        .mockImplementationOnce(async () => { results.push(1); return GROUP_INFO; })
+        .mockImplementationOnce(async () => { results.push(2); return GROUP_INFO; });
+
+      const a = firstValueFrom(service.createGroup(GID, KEY_HANDLE));
+      const b = firstValueFrom(service.createGroup(GID, KEY_HANDLE));
+      await Promise.all([a, b]);
+      expect(results).toEqual([1, 2]);
+    });
+
+    it('different groups use independent queues', async () => {
+      mockInvoke(GROUP_INFO);
+      const a = firstValueFrom(service.createGroup('Z3JvdXAxMjM=', KEY_HANDLE));
+      const b = firstValueFrom(service.createGroup('Z3JvdXAyMjM=', KEY_HANDLE));
+      await Promise.all([a, b]);
       expect(invokeStub).toHaveBeenCalledTimes(2);
     });
   });
