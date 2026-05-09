@@ -63,6 +63,13 @@
             "tsConfig": "tsconfig.app.json"
           }
         },
+        "test": {
+          "builder": "@angular/build:unit-test",
+          "options": {
+            "buildTarget": "alpine:build:development",
+            "tsConfig": "tsconfig.spec.json"
+          }
+        },
         "serve": {
           "builder": "@angular/build:dev-server",
           "configurations": {

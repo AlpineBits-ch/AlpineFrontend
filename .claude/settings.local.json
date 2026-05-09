@@ -68,7 +68,8 @@
       "Bash(cargo tree *)",
       "Bash(cargo search *)",
       "WebFetch(domain:crates.io)",
-      "Bash(grep -v \"//!\")"
+      "Bash(grep -v \"//!\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\(json.dumps\\(d.get\\('scripts',{}\\), indent=2\\)\\)\")"
     ]
   }
 }

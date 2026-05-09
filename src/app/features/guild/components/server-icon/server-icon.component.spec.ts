@@ -13,6 +13,11 @@ describe('ServerIconComponent', () => {
     .compileComponents();
 
     fixture = TestBed.createComponent(ServerIconComponent);
+    fixture.componentRef.setInput('serverData', {
+      id: 'test',
+      name: 'Test Server',
+      isHome: false,
+    });
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
