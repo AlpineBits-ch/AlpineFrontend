@@ -16,7 +16,7 @@ use tauri::ipc::Channel;
 use windows::{
     core::{implement, AgileReference, Error, Interface, Result, HRESULT, PROPVARIANT},
     Win32::{
-        Foundation::{CloseHandle, E_FAIL, E_OUTOFMEMORY},
+        Foundation::{CloseHandle, E_FAIL},
         Media::Audio::{
             ActivateAudioInterfaceAsync, IActivateAudioInterfaceAsyncOperation,
             IActivateAudioInterfaceCompletionHandler,
@@ -29,7 +29,7 @@ use windows::{
         },
         Security::SECURITY_ATTRIBUTES,
         System::{
-            Com::{CoIncrementMTAUsage, CoTaskMemAlloc, CoTaskMemFree},
+            Com::{CoIncrementMTAUsage, CoTaskMemFree},
             Threading::{CreateEventW, WaitForSingleObject},
             Variant::VT_BLOB,
         },
