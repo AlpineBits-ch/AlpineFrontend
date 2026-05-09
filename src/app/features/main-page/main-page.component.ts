@@ -1,4 +1,4 @@
-import { Component, inject, OnDestroy } from '@angular/core';
+import { Component, inject, OnDestroy, signal } from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { Router } from '@angular/router';
 import { HomeComponent } from './pages/home/home.component';
@@ -27,8 +27,11 @@ import {
   restoreStateCurrent,
   StateFlags,
 } from '@tauri-apps/plugin-window-state';
-import {UserTokenService} from "../../services/user-token.service";
-import {GuildWebsocketService} from "../../services/guild-websocket.service";
+import { UserTokenService } from '../../services/user-token.service';
+import { GuildWebsocketService } from '../../services/guild-websocket.service';
+import { UserService } from '../../services/user.service';
+import { KeySetupDialogComponent } from '../key-setup/key-setup-dialog/key-setup-dialog.component';
+
 @Component({
   selector: 'app-main-page',
   imports: [
@@ -45,6 +48,7 @@ import {GuildWebsocketService} from "../../services/guild-websocket.service";
     QuickSettingsComponent,
     VoiceStatusBarComponent,
     GuildMemberListComponent,
+    KeySetupDialogComponent,
   ],
   templateUrl: './main-page.component.html',
   styleUrl: './main-page.component.css',
@@ -61,10 +65,11 @@ export class MainPageComponent implements OnDestroy {
   private guildWebsocketService = inject(GuildWebsocketService);
   private notificationService = inject(NotificationService);
   private conversationStore = inject(ConversationStore);
-
   private userTokenService = inject(UserTokenService);
+  private userService = inject(UserService);
 
   protected router = inject(Router);
+  protected showKeySetup = signal(false);
 
   private actionSub: Subscription;
 
@@ -78,8 +83,14 @@ export class MainPageComponent implements OnDestroy {
     void this.voiceWebsocketService.start();
     void this.guildWebsocketService.start();
 
-
     this.userTokenService.ensureTokenRegistered().then();
+
+    this.userService.getSelf().subscribe({
+      next: user => {
+        if (!user.encryptedMasterKey) this.showKeySetup.set(true);
+      },
+      error: err => console.error('Failed to fetch user:', err),
+    });
 
 
     this.oAuthService.setupAutomaticSilentRefresh();

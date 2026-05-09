@@ -1,0 +1,38 @@
+<div class="entropy-wrap">
+
+  <div class="entropy-header">
+    <div class="entropy-icon-ring">
+      <i class="pi pi-shield text-2xl" style="color: var(--color-brand-dim)"></i>
+    </div>
+    <h3 class="text-base font-semibold" style="color: var(--color-text-primary)">Generating Entropy</h3>
+    <p class="text-sm" style="color: var(--color-text-secondary)">
+      Move your mouse freely to generate randomness for your encryption keys
+    </p>
+  </div>
+
+  <div class="canvas-container">
+    <canvas #entropyCanvas class="entropy-canvas"></canvas>
+    <div class="canvas-overlay-corner">
+      <span class="timer-badge" [class.timer-urgent]="timeRemaining() <= 3">
+        {{ timeRemaining() }}s
+      </span>
+    </div>
+  </div>
+
+  <div class="entropy-footer">
+    <div class="progress-row">
+      <span class="text-xs" style="color: var(--color-text-muted)">Coverage</span>
+      <span class="text-xs font-medium" style="color: var(--color-text-secondary)">{{ coveragePercent() }}%</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-fill" [style.width.%]="coveragePercent()"></div>
+    </div>
+    <div class="footer-actions">
+      <span class="text-xs" style="color: var(--color-text-muted)">
+        Auto-completing in {{ timeRemaining() }}s
+      </span>
+      <p-button label="Skip" [text]="true" severity="secondary" size="small" (onClick)="skip()" />
+    </div>
+  </div>
+
+</div>

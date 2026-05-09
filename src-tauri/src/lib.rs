@@ -155,6 +155,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             setup_toast_window,
             prepare_notification,
             crypto::crypto::generate_key,
+            crypto::crypto::setup_master_key,
             media::audio::enumerate_audio_devices,
             media::audio::start_audio_capture,
             media::audio::stop_audio_capture,
@@ -179,6 +180,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             setup_toast_window,
             prepare_notification,
             crypto::crypto::generate_key,
+            crypto::crypto::setup_master_key,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

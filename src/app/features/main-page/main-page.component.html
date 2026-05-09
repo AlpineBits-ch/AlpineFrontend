@@ -69,4 +69,8 @@
   <app-profile-dialog
     [userId]="profileDialogSvc.selectedUserId()"
     (visibleChange)="profileDialogSvc.close()" />
+
+  <app-key-setup-dialog
+    [visible]="showKeySetup()"
+    (setupComplete)="showKeySetup.set(false)" />
 </div>
