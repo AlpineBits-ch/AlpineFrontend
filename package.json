@@ -35,6 +35,8 @@
     "primeng": "^21.1.6",
     "rxjs": "~7.8.2",
     "tailwindcss": "^4.2.4",
+    "tauri-plugin-keyring-api": "^0.1.1",
+    "tauri-plugin-secure-storage-api": "^1.5.0",
     "tslib": "^2.8.1",
     "zone.js": "~0.15.1"
   },

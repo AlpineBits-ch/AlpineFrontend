@@ -70,6 +70,10 @@
     [userId]="profileDialogSvc.selectedUserId()"
     (visibleChange)="profileDialogSvc.close()" />
 
+  <app-device-registration-modal
+    [visible]="showDeviceRegistration()"
+    (registered)="onDeviceRegistered($event)" />
+
   <app-key-setup-dialog
     [visible]="showKeySetup()"
     (setupComplete)="showKeySetup.set(false)" />

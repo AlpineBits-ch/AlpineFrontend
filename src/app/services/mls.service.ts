@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { from, Observable, of } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import { LazyStore } from '@tauri-apps/plugin-store';
+import { secureStorage } from 'tauri-plugin-secure-storage-api';
 
 // ---------------------------------------------------------------------------
 // Typed error system
@@ -404,6 +405,70 @@ export class MlsService {
   /** Return current group metadata (epoch, own leaf index, members). */
   getGroupInfo(groupIdB64: string): Observable<MlsGroupInfo> {
     return from(invoke<MlsGroupInfo>('mls_get_group_info', { groupIdB64 }));
+  }
+
+  // -------------------------------------------------------------------------
+  // Secure key storage (OS keychain / Credential Manager)
+  // -------------------------------------------------------------------------
+
+  private secureKey(deviceId: string, field: 'pub' | 'priv' | 'identity'): string {
+    return `alpine_mls_${deviceId}_${field}`;
+  }
+
+  /**
+   * Store the signing key from a freshly generated batch in the OS keychain.
+   * Call once after `generateKeyPackages` on first device registration.
+   * On subsequent launches use `autoUnlock` instead of asking the user.
+   */
+  persistSigningKey(
+    deviceId: string,
+    batch: MlsKeyPackageBatch,
+    identity: string,
+  ): Observable<void> {
+    return from(
+      Promise.all([
+        secureStorage.setItem(this.secureKey(deviceId, 'pub'), batch.signingPublicKey),
+        secureStorage.setItem(this.secureKey(deviceId, 'priv'), batch.signingPrivateKey),
+        secureStorage.setItem(this.secureKey(deviceId, 'identity'), identity),
+      ]).then(() => undefined),
+    );
+  }
+
+  /**
+   * Load the signing key from the OS keychain and return a ready-to-use handle.
+   * Call this on every app launch instead of prompting the user for credentials.
+   * Throws `MlsTypedError { kind: 'KeyNotFound' }` if no key has been stored yet.
+   */
+  autoUnlock(deviceId: string): Observable<string> {
+    return from(
+      Promise.all([
+        secureStorage.getItem(this.secureKey(deviceId, 'pub')),
+        secureStorage.getItem(this.secureKey(deviceId, 'priv')),
+        secureStorage.getItem(this.secureKey(deviceId, 'identity')),
+      ]),
+    ).pipe(
+      switchMap(([pub, priv, identity]) => {
+        if (!pub || !priv || !identity) {
+          const err: MlsTypedError = { kind: 'KeyNotFound', message: 'No signing key in secure storage — device not registered' };
+          throw err;
+        }
+        return this.loadSigningKey(pub, priv, identity);
+      }),
+    );
+  }
+
+  /**
+   * Remove the stored signing key from the OS keychain.
+   * Call on logout, account deletion, or device de-registration.
+   */
+  clearStoredSigningKey(deviceId: string): Observable<void> {
+    return from(
+      Promise.all([
+        secureStorage.removeItem(this.secureKey(deviceId, 'pub')),
+        secureStorage.removeItem(this.secureKey(deviceId, 'priv')),
+        secureStorage.removeItem(this.secureKey(deviceId, 'identity')),
+      ]).then(() => undefined),
+    );
   }
 
   // -------------------------------------------------------------------------

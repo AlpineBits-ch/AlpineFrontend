@@ -40,6 +40,8 @@
         "primeng": "^21.1.6",
         "rxjs": "~7.8.2",
         "tailwindcss": "^4.2.4",
+        "tauri-plugin-keyring-api": "^0.1.1",
+        "tauri-plugin-secure-storage-api": "^1.5.0",
         "tslib": "^2.8.1",
         "zone.js": "~0.15.1",
       },
@@ -1203,6 +1205,10 @@
     "tapable": ["tapable@2.3.2", "", {}, "sha512-1MOpMXuhGzGL5TTCZFItxCc0AARf1EZFQkGqMm7ERKj8+Hgr5oLvJOVFcC+lRmR8hCe2S3jC4T5D7Vg/d7/fhA=="],
 
     "tar": ["tar@7.5.13", "", { "dependencies": { "@isaacs/fs-minipass": "^4.0.0", "chownr": "^3.0.0", "minipass": "^7.1.2", "minizlib": "^3.1.0", "yallist": "^5.0.0" } }, "sha512-tOG/7GyXpFevhXVh8jOPJrmtRpOTsYqUIkVdVooZYJS/z8WhfQUX8RJILmeuJNinGAMSu1veBr4asSHFt5/hng=="],
+
+    "tauri-plugin-keyring-api": ["tauri-plugin-keyring-api@0.1.1", "", { "dependencies": { "@tauri-apps/api": ">=2.1.1" } }, "sha512-vs1ztf6REJPfvUDBY3VgNHiW+xBHvBtMf3ZQIJKB8UCWdb2bLFoDS+BjUHe58deCPGTInCh+SEtd69pZvV/b4w=="],
+
+    "tauri-plugin-secure-storage-api": ["tauri-plugin-secure-storage-api@1.5.0", "", { "dependencies": { "@tauri-apps/api": "^2.11.0", "@tauri-apps/plugin-os": "^2.3.2" } }, "sha512-6eVes279DuX6En4v9Qg1lg/Vqk9T7YlepxdGSYm6+z4LNpNMAp3n/zyKPttv/oBdjIdcBHezwvaSgC87vHXnVw=="],
 
     "tinybench": ["tinybench@2.9.0", "", {}, "sha512-0+DUvqWMValLmha6lr4kD8iAMK1HzV0/aKnCtWb9v9641TnP/MFb7Pc2bxoxQjTXAErryXVgUOfv2YqNllqGeg=="],
 
