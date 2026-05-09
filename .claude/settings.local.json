@@ -62,7 +62,13 @@
       "Bash(/c/Users/Domin/.cargo/bin/cargo.exe check *)",
       "Bash(/c/Users/Domin/.cargo/bin/cargo.exe metadata *)",
       "Bash(/c/Users/Domin/.cargo/bin/cargo check *)",
-      "Bash(grep -E '\\\\.\\(ts|html\\)$')"
+      "Bash(grep -E '\\\\.\\(ts|html\\)$')",
+      "Bash(cargo metadata *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(p['name'], p['version']\\) for pkg in d['packages'] for p in [pkg] if 'openmls' in p['name'].lower\\(\\) or 'tls_codec' in p['name'].lower\\(\\)]\")",
+      "Bash(cargo tree *)",
+      "Bash(cargo search *)",
+      "WebFetch(domain:crates.io)",
+      "Bash(grep -v \"//!\")"
     ]
   }
 }

@@ -12,7 +12,6 @@ export class UserService {
     return this.httpClient.get<UserDto>(`${environment.apiUrl}/api/v1/identity/users/self`);
   }
 
-  // MOCKED: replace with real credential check when backend is ready
   verifyPassword(password: string): Observable<boolean> {
     return this.httpClient.post<unknown>(
       `${environment.apiUrl}/api/v1/identity/authentication/verify`,

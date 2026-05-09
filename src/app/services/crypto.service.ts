@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { invoke } from '@tauri-apps/api/core';
 
 export interface KeyPairEntry {
   keyId: string;
@@ -6,36 +7,25 @@ export interface KeyPairEntry {
   privateKey: string; // Base64-encoded PKCS8
 }
 
+const RSA_OAEP_PARAMS = { name: 'RSA-OAEP', hash: 'SHA-256' } as const;
+
 @Injectable({ providedIn: 'root' })
 export class CryptoService {
   private readonly keyStore = new Map<string, CryptoKeyPair>();
 
   async generateKeyPairs(count: number): Promise<KeyPairEntry[]> {
-    const results: KeyPairEntry[] = [];
+    const entries = await invoke<KeyPairEntry[]>('generate_key_pairs', { count });
 
-    for (let i = 0; i < count; i++) {
-      const pair = await crypto.subtle.generateKey(
-        { name: 'RSA-OAEP', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
-        true,
-        ['encrypt', 'decrypt']
-      );
-
-      const keyId = crypto.randomUUID();
-      this.keyStore.set(keyId, pair);
-
-      const [pubRaw, privRaw] = await Promise.all([
-        crypto.subtle.exportKey('spki', pair.publicKey),
-        crypto.subtle.exportKey('pkcs8', pair.privateKey),
+    // Import each key into Web Crypto so decrypt() can use them
+    await Promise.all(entries.map(async entry => {
+      const [publicKey, privateKey] = await Promise.all([
+        crypto.subtle.importKey('spki',  this.fromBase64(entry.publicKey),  RSA_OAEP_PARAMS, false, ['encrypt']),
+        crypto.subtle.importKey('pkcs8', this.fromBase64(entry.privateKey), RSA_OAEP_PARAMS, false, ['decrypt']),
       ]);
+      this.keyStore.set(entry.keyId, { publicKey, privateKey });
+    }));
 
-      results.push({
-        keyId,
-        publicKey: this.toBase64(pubRaw),
-        privateKey: this.toBase64(privRaw),
-      });
-    }
-
-    return results;
+    return entries;
   }
 
   async encrypt(plaintext: string, publicKeyBase64: string): Promise<string> {
