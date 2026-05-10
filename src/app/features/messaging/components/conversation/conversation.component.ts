@@ -384,13 +384,14 @@ export class ConversationComponent implements AfterViewInit {
     const { content, attachments, inReplyTo, mentions } = event;
     const tempId = crypto.randomUUID();
     const now    = new Date();
-    const plaintextB64 = btoa(encodeURIComponent(content).replace(/%([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16))));
+    const b64Content = btoa(content);
 
+    console.log('Creating encrypted message with content:', content);
     this.replyingTo.set(null);
 
     const optimistic: MessageDto = {
       id:              tempId,
-      content:         plaintextB64,
+      content:         b64Content,
       conversationId:  this.conversation().id,
       channelId:       undefined,
       authorId:        this.profileService.ownProfile()?.userId ?? '',
@@ -401,7 +402,7 @@ export class ConversationComponent implements AfterViewInit {
       attachments:     [],
       inReplyTo,
       mentions,
-      encryptionState: MessageEncryptionState.MlsEncrypted,
+      encryptionState: MessageEncryptionState.Encrypted,
       mlsEpoch:        undefined,
       mlsSequenceNumber: undefined,
       senderDeviceId:  undefined,
@@ -421,19 +422,19 @@ export class ConversationComponent implements AfterViewInit {
     from(this.mlsService.getGroupIdForConversation(conversationId)).pipe(
       switchMap(groupId => {
         if (!groupId) throw new Error(`No MLS group found for conversation ${conversationId}`);
-        return this.mlsService.sendMessage(groupId, keyHandle, plaintextB64);
+        return this.mlsService.sendMessage(groupId, keyHandle, b64Content);
       }),
       switchMap(({ ciphertext, epoch }) =>
         from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(
           switchMap(deviceId =>
             this.messagingService.createMessage({
-              content:         ciphertext,
+              content:         atob(ciphertext),
               channelId:       undefined,
               conversationId,
               attachments,
               inReplyTo,
               mentions,
-              encryptionState: MessageEncryptionState.MlsEncrypted,
+              encryptionState: MessageEncryptionState.Encrypted,
               mlsEpoch:        epoch,
               senderDeviceId:  deviceId,
             })
@@ -443,7 +444,9 @@ export class ConversationComponent implements AfterViewInit {
       tap(confirmed => {
         // Keep the plaintext content for display — the server stores ciphertext,
         // but we already have the plaintext and don't need to re-decrypt our own message.
-        this.messageStore.confirmMessage(tempId, { ...confirmed, content: plaintextB64 });
+        // Cache it so it survives app restarts (MLS forward secrecy makes re-decryption impossible).
+        void this.mlsService.cacheMessage(confirmed.id, b64Content);
+        this.messageStore.confirmMessage(tempId, { ...confirmed, content: b64Content });
         this.messagingService.messageSentObservable.next(confirmed);
       }),
       catchError(err => {

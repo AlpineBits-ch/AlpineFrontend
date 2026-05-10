@@ -1,4 +1,5 @@
-import { MessageEncryptionState } from '../../enums/message-encryption-state.enum';
+import {MessageEncryptionState} from "../../enums/message-encryption-state.enum";
+
 import { MessageType } from '../../enums/message-type.enum';
 
 export interface MessageAttachment {

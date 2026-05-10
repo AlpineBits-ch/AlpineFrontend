@@ -126,7 +126,13 @@ export class MainPageComponent implements OnDestroy {
    */
   private async initLaunchSequence(): Promise<void> {
     const deviceId = await this.mlsService.getOrCreateDeviceIdentifier();
-    await firstValueFrom(this.mlsService.initStorage());
+    try {
+      await firstValueFrom(this.mlsService.initStorage());
+    } catch (storageErr) {
+      console.error('MLS state corrupted — wiping and starting fresh:', storageErr);
+      await firstValueFrom(this.mlsService.clearStorage());
+      await this.mlsService.clearGroupRegistry();
+    }
     try {
       const handle = await firstValueFrom(this.mlsService.autoUnlock(deviceId));
       await firstValueFrom(this.userService.replenishKeyCount());

@@ -139,11 +139,11 @@ impl MlsState {
         PersistedMlsState { version: 1, group_ids, storage }
     }
 
-    fn save_to_disk(&self) {
-        let Some(path) = &self.state_path else { return };
-        if let Ok(json) = serde_json::to_vec(&self.to_persisted()) {
-            let _ = std::fs::write(path, json);
-        }
+    fn save_to_disk(&self) -> Result<(), String> {
+        let Some(path) = &self.state_path else { return Ok(()) };
+        let json = serde_json::to_vec(&self.to_persisted()).map_err(|e| e.to_string())?;
+        std::fs::write(path, json).map_err(|e| e.to_string())?;
+        Ok(())
     }
 }
 
@@ -321,7 +321,7 @@ fn generate_key_packages_impl(
         key_packages,
         key_handle: handle,
     };
-    mls.save_to_disk();
+    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(batch)
 }
 
@@ -356,7 +356,7 @@ fn generate_key_packages_with_handle_impl(
             });
         }
     }
-    mls.save_to_disk();
+    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(key_packages)
 }
 
@@ -383,7 +383,7 @@ fn create_group_impl(
     };
     let info = build_group_info(&group);
     mls.groups.insert(group_id_bytes, group);
-    mls.save_to_disk();
+    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(info)
 }
 
@@ -428,7 +428,7 @@ fn add_members_impl(
             epoch,
         }
     };
-    mls.save_to_disk();
+    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(commit_out)
 }
 
@@ -454,7 +454,7 @@ fn join_group_impl(
     let info = build_group_info(&group);
     let group_id_bytes = group.group_id().as_slice().to_vec();
     mls.groups.insert(group_id_bytes, group);
-    mls.save_to_disk();
+    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(info)
 }
 
@@ -492,7 +492,7 @@ fn leave_group_impl(
             epoch: 0,
         }
     };
-    mls.save_to_disk();
+    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(proposal_out)
 }
 
@@ -526,7 +526,7 @@ fn commit_pending_proposals_impl(
             epoch,
         }
     };
-    mls.save_to_disk();
+    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(commit_out)
 }
 
@@ -596,7 +596,7 @@ fn rejoin_group_impl(
             external_commit: B64.encode(&external_commit_bytes),
         }
     };
-    mls.save_to_disk();
+    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(rejoin_out)
 }
 
@@ -606,7 +606,7 @@ fn delete_group_impl(mls: &mut MlsState, group_id_b64: String) -> Result<(), Str
         return Err("GroupNotFound: group not found".to_string());
     }
     mls.pending_messages.remove(&group_id_bytes);
-    mls.save_to_disk();
+    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(())
 }
 
@@ -634,7 +634,7 @@ fn send_message_impl(
         let msg_bytes = msg_out.tls_serialize_detached().map_err(|e| e.to_string())?;
         MlsSendOut { ciphertext: B64.encode(&msg_bytes), epoch }
     };
-    mls.save_to_disk();
+    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(out)
 }
 
@@ -742,7 +742,7 @@ fn process_message_impl(
             }
         }
     };
-    mls.save_to_disk();
+    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(processed_msg)
 }
 
@@ -777,7 +777,7 @@ fn remove_members_impl(
             epoch,
         }
     };
-    mls.save_to_disk();
+    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(commit_out)
 }
 
@@ -845,7 +845,7 @@ fn import_state_impl(
             mls.groups.insert(group_id_bytes, group);
         }
     }
-    mls.save_to_disk();
+    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(())
 }
 
@@ -1059,12 +1059,43 @@ pub fn mls_init_storage(
     for group_id_b64 in &persisted.group_ids {
         let group_id_bytes = B64.decode(group_id_b64).map_err(|e| e.to_string())?;
         let group_id = GroupId::from_slice(&group_id_bytes);
-        if let Ok(Some(group)) = MlsGroup::load(mls.provider.storage(), &group_id) {
-            mls.groups.insert(group_id_bytes, group);
+        match MlsGroup::load(mls.provider.storage(), &group_id) {
+            Ok(Some(group)) => {
+                mls.groups.insert(group_id_bytes, group);
+            }
+            Ok(None) => {
+                return Err(format!(
+                    "MlsError: group {} is listed in state but its data is missing from storage — state may be corrupted",
+                    group_id_b64
+                ));
+            }
+            Err(e) => {
+                return Err(format!(
+                    "MlsError: failed to load group {} from storage: {}",
+                    group_id_b64, e
+                ));
+            }
         }
     }
 
     Ok(true)
+}
+
+#[tauri::command]
+pub fn mls_clear_storage(
+    state: tauri::State<MlsStateHandle>,
+) -> Result<(), String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    if let Some(path) = &mls.state_path {
+        if path.exists() {
+            std::fs::remove_file(path)
+                .map_err(|e| format!("MlsError: failed to remove state file: {}", e))?;
+        }
+    }
+    mls.groups.clear();
+    mls.pending_messages.clear();
+    mls.provider.storage().values.write().unwrap().clear();
+    Ok(())
 }
 
 #[tauri::command]

@@ -12,6 +12,7 @@ import {OnlineStatus} from '../dtos/response/profile.dto';
 import {CallDto} from "../dtos/response/call.dto";
 import {ProfileService} from "./profile.service";
 import { MlsService } from './mls.service';
+import { ConversationService } from './conversation.service';
 
 export enum ConnectionState {
   Connected,
@@ -56,6 +57,7 @@ export class MessagingWebsocketService {
   private notificationService = inject(NotificationService);
   private profileService = inject(ProfileService);
   private mlsService = inject(MlsService);
+  private conversationService = inject(ConversationService);
 
   public messageObservable = new Subject<MessageDto>()
   public messageUpdatedObservable = new Subject<MessageUpdatedEvent>()
@@ -165,21 +167,47 @@ export class MessagingWebsocketService {
 
       let content = data.content;
 
-      if (encryptionState === MessageEncryptionState.MlsEncrypted && data.conversationId) {
+      if (encryptionState === MessageEncryptionState.Encrypted && data.conversationId) {
         const ownDeviceId = await this.mlsService.getOrCreateDeviceIdentifier();
         if (data.senderDeviceId === ownDeviceId) {
           // Our own message — plaintext already in store from send flow, skip WS upsert.
           return;
         }
-        const groupId = await this.mlsService.getGroupIdForConversation(data.conversationId);
-        if (groupId) {
-          try {
-            const processed = await firstValueFrom(this.mlsService.processMessage(groupId, data.content));
-            if (processed.kind === 'application' && processed.plaintext) {
-              content = processed.plaintext;
+        let groupId = await this.mlsService.getGroupIdForConversation(data.conversationId);
+
+        // Group not registered yet — may be a new encrypted conversation created while we were
+        // online. Fetch pending welcomes and try to join before decrypting.
+        if (!groupId) {
+          const keyHandle = this.mlsService.keyHandle();
+          if (keyHandle) {
+            try {
+              const welcomes = await firstValueFrom(this.conversationService.getPendingWelcomes());
+              const match = welcomes.find(w => w.conversationId === data.conversationId);
+              if (match) {
+                const info = await firstValueFrom(this.mlsService.joinGroup(match.welcome, keyHandle));
+                await this.mlsService.registerGroupForConversation(match.conversationId, info.groupId);
+                groupId = info.groupId;
+              }
+            } catch (err) {
+              console.error('Failed to join MLS group on welcome fetch', err);
             }
-          } catch (err) {
-            console.error('Failed to decrypt incoming MLS message', err);
+          }
+        }
+
+        if (groupId) {
+          const cached = await this.mlsService.getCachedMessage(data.messageId);
+          if (cached) {
+            content = cached;
+          } else {
+            try {
+              const processed = await firstValueFrom(this.mlsService.processMessage(groupId, data.content));
+              if (processed.kind === 'application' && processed.plaintext) {
+                content = processed.plaintext;
+                void this.mlsService.cacheMessage(data.messageId, processed.plaintext);
+              }
+            } catch (err) {
+              console.error('Failed to decrypt incoming MLS message', err);
+            }
           }
         }
       }

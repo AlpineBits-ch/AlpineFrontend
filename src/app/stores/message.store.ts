@@ -2,12 +2,15 @@ import { inject } from '@angular/core';
 import { patchState, signalStore, withHooks, withMethods, withState } from '@ngrx/signals';
 import { addEntities, removeEntities, removeEntity, updateEntity, upsertEntity, withEntities } from '@ngrx/signals/entities';
 import { MessageDto } from '../dtos/response/message.dto';
+import { MessageEncryptionState } from '../enums/message-encryption-state.enum';
+import { MessageType } from '../enums/message-type.enum';
 import { MessagingService } from '../services/messaging.service';
+import { MlsService } from '../services/mls.service';
 import { MessagingWebsocketService, MessageUpdatedEvent, MessageDeletedEvent } from '../services/messaging-websocket.service';
 import { GuildWebsocketService } from '../services/guild-websocket.service';
 import { ProfileService } from '../services/profile.service';
 import { HttpErrorResponse } from '@angular/common/http';
-import { catchError, Observable, of, tap } from 'rxjs';
+import { catchError, firstValueFrom, from, Observable, of, switchMap, tap } from 'rxjs';
 
 const PAGE_SIZE = 30;
 
@@ -45,12 +48,55 @@ function messageMatchesQuery(msg: MessageDto, q: string): boolean {
   return msg.attachments.some(a => a.fileName.toLowerCase().includes(q));
 }
 
+async function decryptMessages(messages: MessageDto[], mlsService: MlsService): Promise<MessageDto[]> {
+  const result: MessageDto[] = [];
+  for (const msg of messages) {
+    if (msg.encryptionState !== MessageEncryptionState.Encrypted || !msg.conversationId || msg.type === MessageType.System) {
+      result.push(msg);
+      console.log('skipping message', msg)
+      continue;
+    }
+
+    console.log('decrypting message', msg)
+
+    // Check local plaintext cache first — MLS keys are ephemeral and deleted
+    // after use, so re-decryption from server ciphertext isn't possible.
+    const cached = await mlsService.getCachedMessage(msg.id);
+    if (cached) {
+      result.push({ ...msg, content: cached });
+      console.log('using cached plaintext for message', msg)
+      continue;
+    }
+
+    const groupId = await mlsService.getGroupIdForConversation(msg.conversationId);
+    if (!groupId) {
+      console.log('group not found for message', msg.id, 'in conversation', msg.conversationId, 'with content', msg.content, 'and attachments', msg.attachments);
+      result.push(msg);
+      continue;
+    }
+    try {
+      const processed = await firstValueFrom(mlsService.processMessage(groupId, msg.content));
+      if (processed.kind === 'application' && processed.plaintext) {
+        void mlsService.cacheMessage(msg.id, processed.plaintext);
+        result.push({ ...msg, content: processed.plaintext });
+        console.log('decrypt success')
+        continue;
+      }
+    } catch (e){
+      console.error(e, groupId, msg.content)
+      // leave content as-is if decryption fails
+    }
+    result.push(msg);
+  }
+  return result;
+}
+
 export const MessageStore = signalStore(
   { providedIn: 'root' },
   withEntities<MessageDto>(),
   withState<MessageState>({ conversationMeta: {}, searchEntries: {}, channelMeta: {}, channelSearchEntries: {} }),
 
-  withMethods((store, messagingService = inject(MessagingService)) => ({
+  withMethods((store, messagingService = inject(MessagingService), mlsService = inject(MlsService)) => ({
     loadForConversation(conversationId: string): void {
       // Already fetched — no-op
       if (store.conversationMeta()[conversationId]) return;
@@ -65,6 +111,7 @@ export const MessageStore = signalStore(
 
       messagingService
         .getMessagesForConversation(conversationId, 0, PAGE_SIZE)
+        .pipe(switchMap(messages => from(decryptMessages(messages, mlsService))))
         .subscribe({
           next: messages => {
             patchState(store, addEntities(messages), {
@@ -102,6 +149,7 @@ export const MessageStore = signalStore(
 
       messagingService
         .getMessagesForConversation(conversationId, meta.offset, PAGE_SIZE)
+        .pipe(switchMap(messages => from(decryptMessages(messages, mlsService))))
         .subscribe({
           next: messages => {
             patchState(store, addEntities(messages), {

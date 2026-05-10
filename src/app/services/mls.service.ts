@@ -137,6 +137,7 @@ export class MlsService {
 
   private readonly _groupQueues = new Map<string, Promise<unknown>>();
   private readonly _groupRegistry = new LazyStore('mls-group-registry.json');
+  private readonly _messageCache  = new LazyStore('mls-message-cache.json');
 
   // -------------------------------------------------------------------------
   // Group registry — maps conversationId → MLS groupId (persisted)
@@ -149,6 +150,25 @@ export class MlsService {
 
   async getGroupIdForConversation(conversationId: string): Promise<string | null> {
     return (await this._groupRegistry.get<string>(conversationId)) ?? null;
+  }
+
+  async clearGroupRegistry(): Promise<void> {
+    await this._groupRegistry.clear();
+    await this._groupRegistry.save();
+  }
+
+  // -------------------------------------------------------------------------
+  // Plaintext message cache — MLS keys are ephemeral; cache decrypted content
+  // so history can be displayed after restart without re-decryption.
+  // -------------------------------------------------------------------------
+
+  async cacheMessage(messageId: string, plaintextB64: string): Promise<void> {
+    await this._messageCache.set(messageId, plaintextB64);
+    await this._messageCache.save();
+  }
+
+  async getCachedMessage(messageId: string): Promise<string | null> {
+    return (await this._messageCache.get<string>(messageId)) ?? null;
   }
 
   /**
@@ -451,6 +471,18 @@ export class MlsService {
    */
   initStorage(): Observable<boolean> {
     return from(invoke<boolean>('mls_init_storage'));
+  }
+
+  /**
+   * Delete the persisted MLS state file and reset all in-memory group state.
+   *
+   * Use this to recover from a corrupted `mls_state.json` (e.g. when
+   * `initStorage` throws because a group is listed but its data is missing).
+   * Signing key handles are preserved; the group registry in LazyStore must be
+   * cleared separately if needed.
+   */
+  clearStorage(): Observable<void> {
+    return from(invoke<void>('mls_clear_storage'));
   }
 
   /**

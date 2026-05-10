@@ -168,7 +168,7 @@ export class ConversationListComponent {
       ? 'You'
       : (conv.members.find(m => m.userId === msg.authorId)?.cachedUserName ?? 'Unknown');
 
-    if (msg.encryptionState === MessageEncryptionState.MlsEncrypted) {
+    if (msg.encryptionState === MessageEncryptionState.Encrypted) {
       return { sender, text: '🔒 Encrypted message' };
     }
 

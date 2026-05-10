@@ -179,6 +179,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             crypto::mls::mls_get_members,
             crypto::mls::mls_get_group_info,
             crypto::mls::mls_init_storage,
+            crypto::mls::mls_clear_storage,
             crypto::mls::mls_export_state,
             crypto::mls::mls_import_state,
             media::audio::enumerate_audio_devices,
@@ -227,6 +228,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             crypto::mls::mls_get_members,
             crypto::mls::mls_get_group_info,
             crypto::mls::mls_init_storage,
+            crypto::mls::mls_clear_storage,
             crypto::mls::mls_export_state,
             crypto::mls::mls_import_state,
         ])
