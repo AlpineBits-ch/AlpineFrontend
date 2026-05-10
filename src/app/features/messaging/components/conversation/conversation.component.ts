@@ -423,7 +423,7 @@ export class ConversationComponent implements AfterViewInit {
         if (!groupId) throw new Error(`No MLS group found for conversation ${conversationId}`);
         return this.mlsService.sendMessage(groupId, keyHandle, plaintextB64);
       }),
-      switchMap(ciphertext =>
+      switchMap(({ ciphertext, epoch }) =>
         from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(
           switchMap(deviceId =>
             this.messagingService.createMessage({
@@ -434,6 +434,7 @@ export class ConversationComponent implements AfterViewInit {
               inReplyTo,
               mentions,
               encryptionState: MessageEncryptionState.MlsEncrypted,
+              mlsEpoch:        epoch,
               senderDeviceId:  deviceId,
             })
           )

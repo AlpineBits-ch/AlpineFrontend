@@ -82,6 +82,13 @@ pub struct MlsProcessedMessage {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct MlsSendOut {
+    pub ciphertext: String,
+    pub epoch: u64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct MlsRejoinOut {
     pub group_info: MlsGroupInfo,
     pub external_commit: String,
@@ -608,14 +615,14 @@ fn send_message_impl(
     group_id_b64: String,
     key_handle: String,
     plaintext_b64: String,
-) -> Result<String, String> {
+) -> Result<MlsSendOut, String> {
     let group_id_bytes = B64.decode(&group_id_b64).map_err(|e| e.to_string())?;
     let plaintext = B64.decode(&plaintext_b64).map_err(|e| e.to_string())?;
     let signer = {
         let entry = get_signer_entry(mls, &key_handle)?;
         build_signer_from_entry(entry)
     };
-    let encoded = {
+    let out = {
         let MlsState { provider, groups, .. } = &mut *mls;
         let group = groups
             .get_mut(&group_id_bytes)
@@ -623,11 +630,12 @@ fn send_message_impl(
         let msg_out = group
             .create_message(provider, &signer, &plaintext)
             .map_err(|e| map_mls_error(e))?;
+        let epoch = group.epoch().as_u64();
         let msg_bytes = msg_out.tls_serialize_detached().map_err(|e| e.to_string())?;
-        B64.encode(&msg_bytes)
+        MlsSendOut { ciphertext: B64.encode(&msg_bytes), epoch }
     };
     mls.save_to_disk();
-    Ok(encoded)
+    Ok(out)
 }
 
 fn process_message_impl(
@@ -974,7 +982,7 @@ pub fn mls_send_message(
     group_id_b64: String,
     key_handle: String,
     plaintext_b64: String,
-) -> Result<String, String> {
+) -> Result<MlsSendOut, String> {
     let mut mls = state.lock().map_err(|e| e.to_string())?;
     send_message_impl(&mut mls, group_id_b64, key_handle, plaintext_b64)
 }

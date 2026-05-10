@@ -336,9 +336,9 @@ export class MlsService {
     groupIdB64: string,
     keyHandle: string,
     plaintextB64: string,
-  ): Observable<string> {
+  ): Observable<{ ciphertext: string; epoch: number }> {
     return this.serialized(groupIdB64, () =>
-      invoke<string>('mls_send_message', { groupIdB64, keyHandle, plaintextB64 })
+      invoke<{ ciphertext: string; epoch: number }>('mls_send_message', { groupIdB64, keyHandle, plaintextB64 })
     );
   }
 

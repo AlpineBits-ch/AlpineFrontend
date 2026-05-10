@@ -1,4 +1,4 @@
 export enum MessageEncryptionState {
     Plain = 'Plain',
-    MlsEncrypted = 'MlsEncrypted',
+    MlsEncrypted = 'Encrypted',
 }

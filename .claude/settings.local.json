@@ -78,7 +78,8 @@
       "Bash(cargo test *)",
       "Bash(where cargo *)",
       "Bash(\"/c/Users/Domin/WebstormProjects/Alpine/src-tauri/target/debug/deps/alpine_lib-99850b2e7bb2278b.exe\" --list)",
-      "Bash(export PATH=\"$PATH:/c/Windows/System32:/c/Windows/SysWOW64:/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Redist/MSVC/14.40.33807/x64/Microsoft.VC143.CRT\")"
+      "Bash(export PATH=\"$PATH:/c/Windows/System32:/c/Windows/SysWOW64:/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Redist/MSVC/14.40.33807/x64/Microsoft.VC143.CRT\")",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|html|vue\\)$\")"
     ]
   }
 }

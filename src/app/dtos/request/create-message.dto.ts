@@ -8,5 +8,6 @@ export interface CreateMessageDto {
     inReplyTo: string | undefined;
     mentions: string[];
     encryptionState?: MessageEncryptionState;
+    mlsEpoch?: number;
     senderDeviceId?: string;
 }

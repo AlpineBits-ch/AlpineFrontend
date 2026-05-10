@@ -13,6 +13,7 @@ import { trashOutline } from 'ionicons/icons';
 
 import { ConversationDto } from '../../../../dtos/response/conversation.dto';
 import { MessageDto } from '../../../../dtos/response/message.dto';
+import { MessageEncryptionState } from '../../../../enums/message-encryption-state.enum';
 
 import { AppAvatarComponent } from '../../../../components/avatar/avatar.component';
 import { UserStatusDotComponent } from '../../../../components/user-status-dot/user-status-dot.component';
@@ -166,6 +167,10 @@ export class ConversationListComponent {
     const sender = msg.authorId === ownId
       ? 'You'
       : (conv.members.find(m => m.userId === msg.authorId)?.cachedUserName ?? 'Unknown');
+
+    if (msg.encryptionState === MessageEncryptionState.MlsEncrypted) {
+      return { sender, text: '🔒 Encrypted message' };
+    }
 
     let text: string;
     try {
