@@ -13,9 +13,10 @@ import {
   ViewChild,
 } from '@angular/core';
 import { DatePipe, NgClass } from '@angular/common';
-import { catchError, EMPTY, tap } from 'rxjs';
+import { catchError, EMPTY, from, switchMap, tap } from 'rxjs';
 
 import { ConversationDto } from '../../../../dtos/response/conversation.dto';
+import { ConversationEncryption } from '../../../../enums/conversation-encryption.enum';
 import { MessageDto } from '../../../../dtos/response/message.dto';
 import { MessageEncryptionState } from '../../../../enums/message-encryption-state.enum';
 import { MessageType } from '../../../../enums/message-type.enum';
@@ -25,6 +26,7 @@ import { Avatar } from 'primeng/avatar';
 import { Button } from 'primeng/button';
 
 import { MessagingService } from '../../../../services/messaging.service';
+import { MlsService } from '../../../../services/mls.service';
 import { MessageStore } from '../../../../stores/message.store';
 import { ConversationStore } from '../../../../stores/conversation.store';
 import { ProfileService } from '../../../../services/profile.service';
@@ -63,6 +65,7 @@ export class ConversationComponent implements AfterViewInit {
   private messageStore       = inject(MessageStore);
   private conversationStore  = inject(ConversationStore);
   private messagingService   = inject(MessagingService);
+  private mlsService         = inject(MlsService);
   private profileService   = inject(ProfileService);
   private callStateService   = inject(CallStateService);
   private callSessionService  = inject(CallSessionService);
@@ -73,6 +76,7 @@ export class ConversationComponent implements AfterViewInit {
   protected scroll = inject(ConversationScrollService);
 
   protected readonly OnlineStatus = OnlineStatus;
+  protected readonly ConversationEncryption = ConversationEncryption;
 
   // ── View refs ─────────────────────────────────────────────────────────────
 
@@ -321,6 +325,14 @@ export class ConversationComponent implements AfterViewInit {
   // ── Message creation ─────────────────────────────────────────────────────
 
   public createMessage(event: { content: string; attachments: string[]; inReplyTo?: string; mentions: string[] }): void {
+    if (this.conversation().encryptionState === ConversationEncryption.Encrypted) {
+      this.createEncryptedMessage(event);
+    } else {
+      this.createPlainMessage(event);
+    }
+  }
+
+  private createPlainMessage(event: { content: string; attachments: string[]; inReplyTo?: string; mentions: string[] }): void {
     const { content, attachments, inReplyTo, mentions } = event;
     const tempId = crypto.randomUUID();
     const now    = new Date();
@@ -362,6 +374,79 @@ export class ConversationComponent implements AfterViewInit {
         this.messagingService.messageSentObservable.next(confirmed);
       }),
       catchError(() => {
+        this.messageStore.failMessage(tempId);
+        return EMPTY;
+      }),
+    ).subscribe();
+  }
+
+  private createEncryptedMessage(event: { content: string; attachments: string[]; inReplyTo?: string; mentions: string[] }): void {
+    const { content, attachments, inReplyTo, mentions } = event;
+    const tempId = crypto.randomUUID();
+    const now    = new Date();
+    const plaintextB64 = btoa(encodeURIComponent(content).replace(/%([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16))));
+
+    this.replyingTo.set(null);
+
+    const optimistic: MessageDto = {
+      id:              tempId,
+      content:         plaintextB64,
+      conversationId:  this.conversation().id,
+      channelId:       undefined,
+      authorId:        this.profileService.ownProfile()?.userId ?? '',
+      createdAt:       now,
+      updatedAt:       now,
+      isPending:       true,
+      isFailed:        false,
+      attachments:     [],
+      inReplyTo,
+      mentions,
+      encryptionState: MessageEncryptionState.MlsEncrypted,
+      mlsEpoch:        undefined,
+      mlsSequenceNumber: undefined,
+      senderDeviceId:  undefined,
+      type:            MessageType.Message,
+    };
+
+    this.messageStore.addMessage(optimistic);
+
+    const keyHandle = this.mlsService.keyHandle();
+    if (!keyHandle) {
+      this.messageStore.failMessage(tempId);
+      return;
+    }
+
+    const conversationId = this.conversation().id;
+
+    from(this.mlsService.getGroupIdForConversation(conversationId)).pipe(
+      switchMap(groupId => {
+        if (!groupId) throw new Error(`No MLS group found for conversation ${conversationId}`);
+        return this.mlsService.sendMessage(groupId, keyHandle, plaintextB64);
+      }),
+      switchMap(ciphertext =>
+        from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(
+          switchMap(deviceId =>
+            this.messagingService.createMessage({
+              content:         ciphertext,
+              channelId:       undefined,
+              conversationId,
+              attachments,
+              inReplyTo,
+              mentions,
+              encryptionState: MessageEncryptionState.MlsEncrypted,
+              senderDeviceId:  deviceId,
+            })
+          )
+        )
+      ),
+      tap(confirmed => {
+        // Keep the plaintext content for display — the server stores ciphertext,
+        // but we already have the plaintext and don't need to re-decrypt our own message.
+        this.messageStore.confirmMessage(tempId, { ...confirmed, content: plaintextB64 });
+        this.messagingService.messageSentObservable.next(confirmed);
+      }),
+      catchError(err => {
+        console.error('Failed to send encrypted message', err);
         this.messageStore.failMessage(tempId);
         return EMPTY;
       }),

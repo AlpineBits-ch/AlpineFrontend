@@ -159,10 +159,11 @@ export class NewConversationDialogComponent {
           mlsGroupId: groupIdB64,
           mlsEpoch: epoch,
           mlsGroupInfo,
-        })
+        }).pipe(map(conv => ({ conv, groupIdB64 })))
       )
     ).subscribe({
-      next: conv => {
+      next: ({ conv, groupIdB64 }) => {
+        void this.mlsService.registerGroupForConversation(conv.id, groupIdB64);
         this.conversationStore.addConversation(conv);
         this.navService.openConversation(conv);
         this.close();
@@ -170,6 +171,7 @@ export class NewConversationDialogComponent {
       error: () => this.creating.set(false),
     });
   }
+
 
   close(): void {
     this.visible.set(false);

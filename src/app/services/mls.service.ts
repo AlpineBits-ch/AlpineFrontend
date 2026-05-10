@@ -133,15 +133,23 @@ export interface MlsProcessedMessage {
 @Injectable({ providedIn: 'root' })
 export class MlsService {
 
-
   public keyHandle = signal<string | undefined>(undefined)
 
-  /**
-   * Per-group serialization queue. MLS state is a strict sequential ratchet —
-   * concurrent mutations on the same group corrupt the epoch. Each group gets
-   * its own promise chain so operations are processed one at a time.
-   */
   private readonly _groupQueues = new Map<string, Promise<unknown>>();
+  private readonly _groupRegistry = new LazyStore('mls-group-registry.json');
+
+  // -------------------------------------------------------------------------
+  // Group registry — maps conversationId → MLS groupId (persisted)
+  // -------------------------------------------------------------------------
+
+  async registerGroupForConversation(conversationId: string, mlsGroupId: string): Promise<void> {
+    await this._groupRegistry.set(conversationId, mlsGroupId);
+    await this._groupRegistry.save();
+  }
+
+  async getGroupIdForConversation(conversationId: string): Promise<string | null> {
+    return (await this._groupRegistry.get<string>(conversationId)) ?? null;
+  }
 
   /**
    * Serializes `op` behind any in-flight operation for `groupId`.

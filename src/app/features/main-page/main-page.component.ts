@@ -133,9 +133,11 @@ export class MainPageComponent implements OnDestroy {
       this.keyHandle.set(handle);
       this.checkMasterKey();
       this.conversationService.getPendingWelcomes().subscribe(w => {
-        console.log('Pending welcomes:', w);
         for (const welcome of w) {
-          this.mlsService.joinGroup(welcome.welcome, handle)
+          this.mlsService.joinGroup(welcome.welcome, handle).subscribe({
+            next: info => this.mlsService.registerGroupForConversation(welcome.conversationId, info.groupId),
+            error: err => console.error('Failed to join MLS group for conversation', welcome.conversationId, err),
+          });
         }
       })
 

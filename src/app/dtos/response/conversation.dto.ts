@@ -17,5 +17,5 @@ export interface ConversationDto {
     updatedAt: Date;
     name: string | undefined;
     members: ConversationMemberDto[];
-    encryption: ConversationEncryption;
+    encryptionState: ConversationEncryption;
 }

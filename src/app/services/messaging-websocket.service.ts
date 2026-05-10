@@ -11,6 +11,7 @@ import {AttachmentDto} from "./file.service";
 import {OnlineStatus} from '../dtos/response/profile.dto';
 import {CallDto} from "../dtos/response/call.dto";
 import {ProfileService} from "./profile.service";
+import { MlsService } from './mls.service';
 
 export enum ConnectionState {
   Connected,
@@ -54,6 +55,7 @@ export class MessagingWebsocketService {
   private oAuthService = inject(OAuthService);
   private notificationService = inject(NotificationService);
   private profileService = inject(ProfileService);
+  private mlsService = inject(MlsService);
 
   public messageObservable = new Subject<MessageDto>()
   public messageUpdatedObservable = new Subject<MessageUpdatedEvent>()
@@ -145,15 +147,49 @@ export class MessagingWebsocketService {
     })
 
 
-    this.hubConnection.on('MessageCreated', async (data: {messageId: string, content: string, authorId: string, conversationId: string, channelId: string | undefined, attachments: AttachmentDto[], inReplyTo: string | undefined, mentions: string[] | undefined}) => {
-      console.log('Message created:', data);
+    this.hubConnection.on('MessageCreated', async (data: {
+      messageId: string;
+      content: string;
+      authorId: string;
+      conversationId: string;
+      channelId: string | undefined;
+      attachments: AttachmentDto[];
+      inReplyTo: string | undefined;
+      mentions: string[] | undefined;
+      encryptionState: MessageEncryptionState | undefined;
+      mlsEpoch: number | undefined;
+      mlsSequenceNumber: number | undefined;
+      senderDeviceId: string | undefined;
+    }) => {
+      const encryptionState = data.encryptionState ?? MessageEncryptionState.Plain;
+
+      let content = data.content;
+
+      if (encryptionState === MessageEncryptionState.MlsEncrypted && data.conversationId) {
+        const ownDeviceId = await this.mlsService.getOrCreateDeviceIdentifier();
+        if (data.senderDeviceId === ownDeviceId) {
+          // Our own message — plaintext already in store from send flow, skip WS upsert.
+          return;
+        }
+        const groupId = await this.mlsService.getGroupIdForConversation(data.conversationId);
+        if (groupId) {
+          try {
+            const processed = await firstValueFrom(this.mlsService.processMessage(groupId, data.content));
+            if (processed.kind === 'application' && processed.plaintext) {
+              content = processed.plaintext;
+            }
+          } catch (err) {
+            console.error('Failed to decrypt incoming MLS message', err);
+          }
+        }
+      }
 
       let body: string;
       try {
-        const bytes = Uint8Array.from(atob(data.content), c => c.charCodeAt(0));
+        const bytes = Uint8Array.from(atob(content), c => c.charCodeAt(0));
         body = new TextDecoder().decode(bytes);
       } catch {
-        body = data.content;
+        body = content;
       }
 
       const extra: Record<string, string> = {};
@@ -163,7 +199,7 @@ export class MessagingWebsocketService {
       // Emit the message first so the UI updates immediately, regardless of notification delays.
       this.messageObservable.next({
         id: data.messageId,
-        content: data.content,
+        content,
         authorId: data.authorId,
         conversationId: data.conversationId,
         channelId: data.channelId,
@@ -174,11 +210,11 @@ export class MessagingWebsocketService {
         attachments: data.attachments,
         inReplyTo: data.inReplyTo,
         mentions: data.mentions ?? [],
-        encryptionState: MessageEncryptionState.Plain,
-        mlsEpoch:        undefined,
-        mlsSequenceNumber: undefined,
-        senderDeviceId:  undefined,
-        type:            MessageType.Message,
+        encryptionState,
+        mlsEpoch:          data.mlsEpoch,
+        mlsSequenceNumber: data.mlsSequenceNumber,
+        senderDeviceId:    data.senderDeviceId,
+        type:              MessageType.Message,
       });
 
       const sender = await firstValueFrom(
