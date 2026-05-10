@@ -128,11 +128,9 @@ export class MainPageComponent implements OnDestroy {
     const deviceId = await this.mlsService.getOrCreateDeviceIdentifier();
     try {
       const handle = await firstValueFrom(this.mlsService.autoUnlock(deviceId));
-      this.userService.replenishKeyCount().subscribe();
-
+      await firstValueFrom(this.userService.replenishKeyCount());
       this.keyHandle.set(handle);
       this.checkMasterKey();
-
       this.conversationService.getPendingWelcomes().subscribe(w => {
         console.log('Pending welcomes:', w);
         for (const welcome of w) {
@@ -144,6 +142,8 @@ export class MainPageComponent implements OnDestroy {
       if (err?.kind === 'KeyNotFound') {
         this.showDeviceRegistration.set(true);
       } else {
+        this.showDeviceRegistration.set(true);
+
         console.error('Failed to unlock device keys:', err);
       }
     }
