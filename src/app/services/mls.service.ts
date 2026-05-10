@@ -196,6 +196,20 @@ export class MlsService {
     return from(invoke<MlsKeyPackageBatch>('generate_mls_key_packages', { identity, count }));
   }
 
+  /**
+   * Generate additional key packages using an existing signing key handle.
+   *
+   * Unlike `generateKeyPackages`, this does not create a new Ed25519 keypair —
+   * it reuses the key already loaded under `keyHandle`. Use this to replenish
+   * the server's key package supply without rotating the signing key.
+   *
+   * @param keyHandle  Handle returned by `loadSigningKey` or `generateKeyPackages`.
+   * @param count      Number of key packages to generate.
+   */
+  generateAdditionalKeyPackages(keyHandle: string, count: number): Observable<KeyPackageResult[]> {
+    return from(invoke<KeyPackageResult[]>('mls_generate_key_packages_with_handle', { keyHandle, count }));
+  }
+
   // -------------------------------------------------------------------------
   // Group lifecycle
   // -------------------------------------------------------------------------
@@ -289,7 +303,12 @@ export class MlsService {
    * Call this after being removed, after `leaveGroup`, or for GDPR erasure.
    */
   deleteGroup(groupIdB64: string): Observable<void> {
-    return from(invoke<void>('mls_delete_group', { groupIdB64 }));
+    return from(
+      invoke<void>('mls_delete_group', { groupIdB64 }).then(v => {
+        this._groupQueues.delete(groupIdB64);
+        return v;
+      })
+    );
   }
 
   // -------------------------------------------------------------------------

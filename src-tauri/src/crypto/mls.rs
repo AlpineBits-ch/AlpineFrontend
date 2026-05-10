@@ -324,6 +324,53 @@ pub fn generate_mls_key_packages(
     })
 }
 
+/// Generate additional key packages using an existing session signing key.
+///
+/// Unlike `generate_mls_key_packages`, this reuses the key already loaded
+/// under `key_handle` — no new keypair is created, so the signing key is not
+/// rotated. Use this to replenish the server's key package supply.
+#[tauri::command]
+pub fn mls_generate_key_packages_with_handle(
+    state: tauri::State<MlsStateHandle>,
+    key_handle: String,
+    count: u32,
+) -> Result<Vec<KeyPackageResult>, String> {
+    let mls = state.lock().map_err(|e| e.to_string())?;
+
+    let (signer, identity) = {
+        let entry = get_signer_entry(&mls, &key_handle)?;
+        (build_signer_from_entry(entry), entry.identity.clone())
+    };
+
+    let credential = BasicCredential::new(identity.into_bytes());
+    let credential_with_key = CredentialWithKey {
+        credential: credential.into(),
+        signature_key: signer.public().into(),
+    };
+
+    let mut key_packages = Vec::with_capacity(count as usize);
+    {
+        let provider = &mls.provider;
+        for _ in 0..count {
+            let bundle = KeyPackage::builder()
+                .build(CIPHERSUITE, provider, &signer, credential_with_key.clone())
+                .map_err(|e| e.to_string())?;
+
+            let kp_bytes = bundle
+                .key_package()
+                .tls_serialize_detached()
+                .map_err(|e| e.to_string())?;
+
+            key_packages.push(KeyPackageResult {
+                key_package: B64.encode(&kp_bytes),
+                init_private_key: B64.encode(&**bundle.init_private_key()),
+            });
+        }
+    }
+
+    Ok(key_packages)
+}
+
 // ---------------------------------------------------------------------------
 // Tauri commands — group lifecycle
 // ---------------------------------------------------------------------------

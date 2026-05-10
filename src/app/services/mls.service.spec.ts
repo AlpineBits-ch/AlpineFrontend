@@ -233,6 +233,23 @@ describe('MlsService', () => {
       const err = parseMlsError({ code: 42 });
       expect(err.kind).toBe('MlsError');
     });
+
+    it('parses kind:message with no space after colon', () => {
+      const err = parseMlsError('WrongEpoch:no space here');
+      expect(err.kind).toBe('WrongEpoch');
+      expect(err.message).toBe('no space here');
+    });
+
+    it('does not match when kind appears mid-string', () => {
+      const err = parseMlsError('wrapped WrongEpoch: in sentence');
+      expect(err.kind).toBe('MlsError');
+    });
+
+    it('falls back to MlsError for empty string', () => {
+      const err = parseMlsError('');
+      expect(err.kind).toBe('MlsError');
+      expect(err.message).toBe('');
+    });
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -432,6 +449,86 @@ describe('MlsService', () => {
       mockInvoke(KEY_PKG_BATCH);
       await firstValueFrom(service.generateKeyPackages('alice', 1));
       await firstValueFrom(service.generateKeyPackages('alice', 1));
+      expect(invokeStub).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // generateAdditionalKeyPackages
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('generateAdditionalKeyPackages', () => {
+    it('returns an Observable', () => {
+      mockInvoke([KEY_PKG_RESULT]);
+      const result = service.generateAdditionalKeyPackages(KEY_HANDLE, 1);
+      expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+    });
+
+    it('calls invoke with command "mls_generate_key_packages_with_handle"', async () => {
+      mockInvoke([KEY_PKG_RESULT]);
+      await firstValueFrom(service.generateAdditionalKeyPackages(KEY_HANDLE, 3));
+      expect(callCmd()).toBe('mls_generate_key_packages_with_handle');
+    });
+
+    it('passes keyHandle as "keyHandle"', async () => {
+      mockInvoke([KEY_PKG_RESULT]);
+      await firstValueFrom(service.generateAdditionalKeyPackages(KEY_HANDLE, 1));
+      expect(callArgs()['keyHandle']).toBe(KEY_HANDLE);
+    });
+
+    it('passes count as "count"', async () => {
+      mockInvoke([KEY_PKG_RESULT]);
+      await firstValueFrom(service.generateAdditionalKeyPackages(KEY_HANDLE, 5));
+      expect(callArgs()['count']).toBe(5);
+    });
+
+    it('passes exactly 2 keys to invoke (keyHandle and count)', async () => {
+      mockInvoke([KEY_PKG_RESULT]);
+      await firstValueFrom(service.generateAdditionalKeyPackages(KEY_HANDLE, 1));
+      expect(Object.keys(callArgs()).sort()).toEqual(['count', 'keyHandle'].sort());
+    });
+
+    it('resolves with the KeyPackageResult array from invoke', async () => {
+      mockInvoke([KEY_PKG_RESULT]);
+      const result = await firstValueFrom(service.generateAdditionalKeyPackages(KEY_HANDLE, 1));
+      expect(result).toEqual([KEY_PKG_RESULT]);
+    });
+
+    it('each KeyPackageResult has keyPackage and initPrivateKey fields', async () => {
+      const multi = [
+        { keyPackage: 'a2V5MA==', initPrivateKey: 'aW5pdDA=' },
+        { keyPackage: 'a2V5MQ==', initPrivateKey: 'aW5pdDE=' },
+      ];
+      mockInvoke(multi);
+      const result = await firstValueFrom(service.generateAdditionalKeyPackages(KEY_HANDLE, 2));
+      expect(result.length).toBe(2);
+      expect(result[0].keyPackage).toBe('a2V5MA==');
+      expect(result[1].initPrivateKey).toBe('aW5pdDE=');
+    });
+
+    it('passes count = 0 through unmodified', async () => {
+      mockInvoke([]);
+      await firstValueFrom(service.generateAdditionalKeyPackages(KEY_HANDLE, 0));
+      expect(callArgs()['count']).toBe(0);
+    });
+
+    it('result array does not include signingPrivateKey (no key rotation)', async () => {
+      mockInvoke([KEY_PKG_RESULT]);
+      const result = await firstValueFrom(service.generateAdditionalKeyPackages(KEY_HANDLE, 1));
+      expect(result.every(r => !('signingPrivateKey' in r))).toBe(true);
+    });
+
+    it('propagates invoke rejection', async () => {
+      mockInvokeReject('KeyNotFound: no signing key loaded for handle');
+      await expect(
+        firstValueFrom(service.generateAdditionalKeyPackages(KEY_HANDLE, 1)),
+      ).rejects.toBe('KeyNotFound: no signing key loaded for handle');
+    });
+
+    it('each call triggers a fresh invoke', async () => {
+      mockInvoke([KEY_PKG_RESULT]);
+      await firstValueFrom(service.generateAdditionalKeyPackages(KEY_HANDLE, 1));
+      await firstValueFrom(service.generateAdditionalKeyPackages(KEY_HANDLE, 1));
       expect(invokeStub).toHaveBeenCalledTimes(2);
     });
   });
@@ -884,6 +981,33 @@ describe('MlsService', () => {
       mockInvokeReject('GroupNotFound: group not found');
       await expect(firstValueFrom(service.deleteGroup(GID))).rejects.toBe('GroupNotFound: group not found');
     });
+
+    it('removes the group queue entry from _groupQueues on success', async () => {
+      mockInvoke(undefined);
+      const queues = (service as unknown as { _groupQueues: Map<string, Promise<unknown>> })
+        ._groupQueues;
+      queues.set(GID, Promise.resolve());
+      await firstValueFrom(service.deleteGroup(GID));
+      expect(queues.has(GID)).toBe(false);
+    });
+
+    it('does not clear the queue entry when invoke rejects', async () => {
+      const queues = (service as unknown as { _groupQueues: Map<string, Promise<unknown>> })
+        ._groupQueues;
+      queues.set(GID, Promise.resolve());
+      mockInvokeReject('GroupNotFound: group not found');
+      await expect(firstValueFrom(service.deleteGroup(GID))).rejects.toBeTruthy();
+      expect(queues.has(GID)).toBe(true);
+    });
+
+    it('queue deletion is safe when the group was never queued', async () => {
+      mockInvoke(undefined);
+      const queues = (service as unknown as { _groupQueues: Map<string, Promise<unknown>> })
+        ._groupQueues;
+      expect(queues.has(GID)).toBe(false);
+      await firstValueFrom(service.deleteGroup(GID));
+      expect(queues.has(GID)).toBe(false);
+    });
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1200,6 +1324,18 @@ describe('MlsService', () => {
       await firstValueFrom(service.verifySenderInRoster('alice', GID));
       expect(callCmd()).toBe('mls_get_members');
     });
+
+    it('passes the correct groupIdB64 to getMembers', async () => {
+      mockInvoke([MEMBER_ALICE]);
+      await firstValueFrom(service.verifySenderInRoster('alice', GID));
+      expect(callArgs()['groupIdB64']).toBe(GID);
+    });
+
+    it('returns false for an empty roster', async () => {
+      mockInvoke([]);
+      const result = await firstValueFrom(service.verifySenderInRoster('alice', GID));
+      expect(result).toBe(false);
+    });
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1245,6 +1381,21 @@ describe('MlsService', () => {
       const result = await firstValueFrom(service.processAndVerifyMessage(GID, MSG));
       expect(invokeStub).toHaveBeenCalledTimes(1);
       expect(result.kind).toBe('application');
+    });
+
+    it('skips roster check for proposal messages', async () => {
+      mockInvoke(PROPOSAL_MESSAGE);
+      const result = await firstValueFrom(service.processAndVerifyMessage(GID, MSG));
+      expect(invokeStub).toHaveBeenCalledTimes(1);
+      expect(result.kind).toBe('proposal');
+    });
+
+    it('propagates processMessage rejection without calling getMembers', async () => {
+      mockInvokeReject('WrongEpoch: epoch mismatch');
+      await expect(
+        firstValueFrom(service.processAndVerifyMessage(GID, MSG)),
+      ).rejects.toBe('WrongEpoch: epoch mismatch');
+      expect(invokeStub).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1389,6 +1540,12 @@ describe('MlsService', () => {
         firstValueFrom(service.getMembers(GID)),
       ).rejects.toBe('group not found');
     });
+
+    it('resolves with an empty array when the group has no members', async () => {
+      mockInvoke([]);
+      const result = await firstValueFrom(service.getMembers(GID));
+      expect(result).toEqual([]);
+    });
   });
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1462,6 +1619,7 @@ describe('MlsService', () => {
   describe('IPC contract: command names are snake_case', () => {
     const COMMANDS = [
       'generate_mls_key_packages',
+      'mls_generate_key_packages_with_handle',
       'mls_load_signing_key',
       'mls_unload_signing_key',
       'mls_create_group',
@@ -1488,6 +1646,12 @@ describe('MlsService', () => {
       mockInvoke(KEY_PKG_BATCH);
       await firstValueFrom(service.generateKeyPackages('alice', 1));
       expect(callCmd()).toBe('generate_mls_key_packages');
+    });
+
+    it('generateAdditionalKeyPackages uses "mls_generate_key_packages_with_handle"', async () => {
+      mockInvoke([KEY_PKG_RESULT]);
+      await firstValueFrom(service.generateAdditionalKeyPackages(KEY_HANDLE, 1));
+      expect(callCmd()).toBe('mls_generate_key_packages_with_handle');
     });
 
     it('loadSigningKey uses "mls_load_signing_key"', async () => {
@@ -1656,6 +1820,232 @@ describe('MlsService', () => {
       const b = firstValueFrom(service.createGroup('Z3JvdXAyMjM=', KEY_HANDLE));
       await Promise.all([a, b]);
       expect(invokeStub).toHaveBeenCalledTimes(2);
+    });
+
+    it('queue continues after a prior operation fails', async () => {
+      const results: number[] = [];
+      invokeStub
+        .mockRejectedValueOnce('network error')
+        .mockImplementationOnce(async () => { results.push(2); return GROUP_INFO; });
+
+      const a = firstValueFrom(service.createGroup(GID, KEY_HANDLE)).catch(() => {});
+      const b = firstValueFrom(service.createGroup(GID, KEY_HANDLE));
+      await b;
+      expect(results).toEqual([2]);
+    });
+
+    it('sendMessage serializes operations on the same group', async () => {
+      const results: number[] = [];
+      invokeStub
+        .mockImplementationOnce(async () => { results.push(1); return 'Y3Qx'; })
+        .mockImplementationOnce(async () => { results.push(2); return 'Y3Qy'; });
+
+      const a = firstValueFrom(service.sendMessage(GID, KEY_HANDLE, 'cHQx'));
+      const b = firstValueFrom(service.sendMessage(GID, KEY_HANDLE, 'cHQy'));
+      await Promise.all([a, b]);
+      expect(results).toEqual([1, 2]);
+    });
+
+    it('processMessage serializes operations on the same group', async () => {
+      const results: number[] = [];
+      invokeStub
+        .mockImplementationOnce(async () => { results.push(1); return APP_MESSAGE; })
+        .mockImplementationOnce(async () => { results.push(2); return APP_MESSAGE; });
+
+      const a = firstValueFrom(service.processMessage(GID, 'bXNnMQ=='));
+      const b = firstValueFrom(service.processMessage(GID, 'bXNnMg=='));
+      await Promise.all([a, b]);
+      expect(results).toEqual([1, 2]);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Full group lifecycle
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('full MLS group lifecycle', () => {
+    const ALICE_ID = 'alice@example.com';
+    const BOB_ID = 'bob@example.com';
+    const GID = 'Z3JvdXAxMjM=';
+    const ALICE_HANDLE = 'alice-handle-uuid';
+    const BOB_HANDLE = 'bob-handle-uuid';
+
+    const ALICE_BATCH: MlsKeyPackageBatch = {
+      signingPublicKey: 'YWxpY2VwdWI=',
+      signingPrivateKey: 'YWxpY2Vwcml2',
+      keyPackages: [{ keyPackage: 'YWxpY2Vrcw==', initPrivateKey: 'YWxpY2Vpbml0' }],
+      keyHandle: ALICE_HANDLE,
+    };
+
+    const BOB_BATCH: MlsKeyPackageBatch = {
+      signingPublicKey: 'Ym9icHVi',
+      signingPrivateKey: 'Ym9icHJpdg==',
+      keyPackages: [{ keyPackage: 'Ym9ia3A=', initPrivateKey: 'Ym9paW5pdA==' }],
+      keyHandle: BOB_HANDLE,
+    };
+
+    const ALICE_EXTRA_PKGS: KeyPackageResult[] = [
+      { keyPackage: 'ZXh0cmExMA==', initPrivateKey: 'ZXh0cmFpbml0' },
+    ];
+
+    const CREATED_GROUP: MlsGroupInfo = {
+      groupId: GID,
+      epoch: 0,
+      ownLeafIndex: 0,
+      members: [MEMBER_ALICE],
+    };
+
+    const ADD_COMMIT: MlsCommitOut = {
+      commit: 'YWRkQ29tbWl0',
+      welcome: 'd2VsY29tZQ==',
+      epoch: 1,
+    };
+
+    const JOINED_GROUP: MlsGroupInfo = {
+      groupId: GID,
+      epoch: 1,
+      ownLeafIndex: 2,
+      members: [MEMBER_ALICE, MEMBER_BOB],
+    };
+
+    const PLAINTEXT_B64 = 'aGVsbG8gYm9i';
+    const CIPHERTEXT = 'Y2lwaGVydGV4dA==';
+
+    const APP_MSG_FROM_ALICE: MlsProcessedMessage = {
+      kind: 'application',
+      plaintext: PLAINTEXT_B64,
+      selfRemoved: false,
+      addedMembers: [],
+      removedLeafIndices: [],
+      senderIdentity: 'alice',
+      epoch: null,
+    };
+
+    const ADD_COMMIT_PROCESSED: MlsProcessedMessage = {
+      kind: 'commit',
+      plaintext: null,
+      selfRemoved: false,
+      addedMembers: [MEMBER_BOB],
+      removedLeafIndices: [],
+      senderIdentity: 'alice',
+      epoch: 1,
+    };
+
+    const REMOVE_COMMIT: MlsCommitOut = {
+      commit: 'cmVtb3ZlQ29tbWl0',
+      welcome: null,
+      epoch: 2,
+    };
+
+    const LEAVE_COMMIT: MlsCommitOut = {
+      commit: 'bGVhdmVDb21taXQ=',
+      welcome: null,
+      epoch: 3,
+    };
+
+    it('generate → replenish → create → add → join → send → receive → remove → leave → delete', async () => {
+      // Step 1: Alice generates her initial key packages (new keypair + handle)
+      invokeStub.mockResolvedValueOnce(ALICE_BATCH as never);
+      const aliceBatch = await firstValueFrom(service.generateKeyPackages(ALICE_ID, 1));
+      expect(callCmd(0)).toBe('generate_mls_key_packages');
+      expect(callArgs(0)['identity']).toBe(ALICE_ID);
+      expect(aliceBatch.keyHandle).toBe(ALICE_HANDLE);
+
+      // Step 2: Alice replenishes key packages without rotating her signing key
+      invokeStub.mockResolvedValueOnce(ALICE_EXTRA_PKGS as never);
+      const extraPkgs = await firstValueFrom(
+        service.generateAdditionalKeyPackages(ALICE_HANDLE, 1),
+      );
+      expect(callCmd(1)).toBe('mls_generate_key_packages_with_handle');
+      expect(callArgs(1)['keyHandle']).toBe(ALICE_HANDLE);
+      expect(callArgs(1)['count']).toBe(1);
+      expect(extraPkgs).toEqual(ALICE_EXTRA_PKGS);
+
+      // Step 3: Bob generates his key packages independently
+      invokeStub.mockResolvedValueOnce(BOB_BATCH as never);
+      const bobBatch = await firstValueFrom(service.generateKeyPackages(BOB_ID, 1));
+      expect(callCmd(2)).toBe('generate_mls_key_packages');
+      expect(bobBatch.keyHandle).toBe(BOB_HANDLE);
+
+      // Step 4: Alice creates the group (epoch 0, only member)
+      invokeStub.mockResolvedValueOnce(CREATED_GROUP as never);
+      const createdGroup = await firstValueFrom(service.createGroup(GID, ALICE_HANDLE));
+      expect(callCmd(3)).toBe('mls_create_group');
+      expect(createdGroup.epoch).toBe(0);
+      expect(createdGroup.ownLeafIndex).toBe(0);
+      expect(createdGroup.members.length).toBe(1);
+
+      // Step 5: Alice adds Bob — produces a commit and a welcome
+      invokeStub.mockResolvedValueOnce(ADD_COMMIT as never);
+      const addOut = await firstValueFrom(
+        service.addMembers(GID, ALICE_HANDLE, [bobBatch.keyPackages[0].keyPackage]),
+      );
+      expect(callCmd(4)).toBe('mls_add_members');
+      expect(callArgs(4)['keyPackagesB64']).toEqual([BOB_BATCH.keyPackages[0].keyPackage]);
+      expect(addOut.welcome).not.toBeNull();
+      expect(addOut.epoch).toBe(1);
+
+      // Step 6: Bob joins via the welcome — sees both members in the roster
+      invokeStub.mockResolvedValueOnce(JOINED_GROUP as never);
+      const joinedGroup = await firstValueFrom(service.joinGroup(addOut.welcome!, BOB_HANDLE));
+      expect(callCmd(5)).toBe('mls_join_group');
+      expect(callArgs(5)['welcomeB64']).toBe(ADD_COMMIT.welcome);
+      expect(joinedGroup.members.length).toBe(2);
+      expect(joinedGroup.ownLeafIndex).toBe(2);
+
+      // Step 7: Alice encrypts a message to the group
+      invokeStub.mockResolvedValueOnce(CIPHERTEXT as never);
+      const ct = await firstValueFrom(service.sendMessage(GID, ALICE_HANDLE, PLAINTEXT_B64));
+      expect(callCmd(6)).toBe('mls_send_message');
+      expect(callArgs(6)['plaintextB64']).toBe(PLAINTEXT_B64);
+      expect(ct).toBe(CIPHERTEXT);
+
+      // Step 8: Bob receives the message and verifies Alice is in the roster
+      invokeStub
+        .mockResolvedValueOnce(APP_MSG_FROM_ALICE as never)     // processMessage
+        .mockResolvedValueOnce([MEMBER_ALICE, MEMBER_BOB] as never); // getMembers (verify)
+      const received = await firstValueFrom(service.processAndVerifyMessage(GID, CIPHERTEXT));
+      expect(callCmd(7)).toBe('mls_process_message');
+      expect(callCmd(8)).toBe('mls_get_members');
+      expect(received.kind).toBe('application');
+      expect(received.plaintext).toBe(PLAINTEXT_B64);
+      expect(received.senderIdentity).toBe('alice');
+
+      // Step 9: Alice processes the add-commit she received from the server broadcast
+      invokeStub.mockResolvedValueOnce(ADD_COMMIT_PROCESSED as never);
+      const commitResult = await firstValueFrom(service.processMessage(GID, addOut.commit));
+      expect(callCmd(9)).toBe('mls_process_message');
+      expect(commitResult.kind).toBe('commit');
+      expect(commitResult.addedMembers[0].identity).toBe('bob');
+      expect(commitResult.epoch).toBe(1);
+
+      // Step 10: Alice removes Bob from the group
+      invokeStub.mockResolvedValueOnce(REMOVE_COMMIT as never);
+      const removeOut = await firstValueFrom(
+        service.removeMembers(GID, ALICE_HANDLE, [MEMBER_BOB.leafIndex]),
+      );
+      expect(callCmd(10)).toBe('mls_remove_members');
+      expect(callArgs(10)['leafIndices']).toEqual([MEMBER_BOB.leafIndex]);
+      expect(removeOut.welcome).toBeNull();
+      expect(removeOut.epoch).toBe(2);
+
+      // Step 11: Alice leaves the group (self-removal commit)
+      invokeStub.mockResolvedValueOnce(LEAVE_COMMIT as never);
+      const leaveOut = await firstValueFrom(service.leaveGroup(GID, ALICE_HANDLE));
+      expect(callCmd(11)).toBe('mls_leave_group');
+      expect(leaveOut.welcome).toBeNull();
+      expect(leaveOut.epoch).toBe(3);
+
+      // Step 12: Alice deletes the local group state — queue entry is cleaned up
+      invokeStub.mockResolvedValueOnce(undefined as never);
+      const queues = (service as unknown as { _groupQueues: Map<string, Promise<unknown>> })
+        ._groupQueues;
+      await firstValueFrom(service.deleteGroup(GID));
+      expect(callCmd(12)).toBe('mls_delete_group');
+      expect(queues.has(GID)).toBe(false);
+
+      // Verify every lifecycle step produced exactly one invoke call
+      expect(invokeStub).toHaveBeenCalledTimes(13);
     });
   });
 });
