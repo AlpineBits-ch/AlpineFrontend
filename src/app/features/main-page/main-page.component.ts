@@ -126,6 +126,7 @@ export class MainPageComponent implements OnDestroy {
    */
   private async initLaunchSequence(): Promise<void> {
     const deviceId = await this.mlsService.getOrCreateDeviceIdentifier();
+    await firstValueFrom(this.mlsService.initStorage());
     try {
       const handle = await firstValueFrom(this.mlsService.autoUnlock(deviceId));
       await firstValueFrom(this.userService.replenishKeyCount());
