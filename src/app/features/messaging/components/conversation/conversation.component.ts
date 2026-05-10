@@ -17,6 +17,8 @@ import { catchError, EMPTY, tap } from 'rxjs';
 
 import { ConversationDto } from '../../../../dtos/response/conversation.dto';
 import { MessageDto } from '../../../../dtos/response/message.dto';
+import { MessageEncryptionState } from '../../../../enums/message-encryption-state.enum';
+import { MessageType } from '../../../../enums/message-type.enum';
 import { OnlineStatus } from '../../../../dtos/response/profile.dto';
 
 import { Avatar } from 'primeng/avatar';
@@ -338,6 +340,11 @@ export class ConversationComponent implements AfterViewInit {
       attachments:    [],
       inReplyTo,
       mentions,
+      encryptionState: MessageEncryptionState.Plain,
+      mlsEpoch:        undefined,
+      mlsSequenceNumber: undefined,
+      senderDeviceId:  undefined,
+      type:            MessageType.Message,
     };
 
     this.messageStore.addMessage(optimistic);

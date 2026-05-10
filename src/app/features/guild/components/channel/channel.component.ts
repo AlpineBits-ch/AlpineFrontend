@@ -18,6 +18,8 @@ import { catchError, debounceTime, EMPTY, Subject, tap } from 'rxjs';
 
 import { ChannelDto } from '../../../../dtos/response/guild.dto';
 import { MessageAttachment, MessageDto } from '../../../../dtos/response/message.dto';
+import { MessageEncryptionState } from '../../../../enums/message-encryption-state.enum';
+import { MessageType } from '../../../../enums/message-type.enum';
 
 import { Button } from 'primeng/button';
 
@@ -346,6 +348,11 @@ export class ChannelComponent implements AfterViewInit {
       attachments:    [],
       inReplyTo,
       mentions,
+      encryptionState: MessageEncryptionState.Plain,
+      mlsEpoch:        undefined,
+      mlsSequenceNumber: undefined,
+      senderDeviceId:  undefined,
+      type:            MessageType.Message,
     };
 
     this.messageStore.addMessage(optimistic);

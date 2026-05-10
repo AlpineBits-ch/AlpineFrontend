@@ -99,7 +99,8 @@ export class HomeComponent {
         userId: id
       }],
       name: undefined,
-      encryption: ConversationEncryption.Plain
+      encryption: ConversationEncryption.Plain,
+      deviceWelcomes: [],
     }).subscribe(() => this.load());
   }
 

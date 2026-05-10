@@ -5,6 +5,8 @@ import {OAuthService} from "angular-oauth2-oidc";
 import {environment} from "../../environments/environment";
 import {BehaviorSubject, catchError, firstValueFrom, of, Subject, timeout} from "rxjs";
 import {MessageDto} from "../dtos/response/message.dto";
+import { MessageEncryptionState } from '../enums/message-encryption-state.enum';
+import { MessageType } from '../enums/message-type.enum';
 import {AttachmentDto} from "./file.service";
 import {OnlineStatus} from '../dtos/response/profile.dto';
 import {CallDto} from "../dtos/response/call.dto";
@@ -172,6 +174,11 @@ export class MessagingWebsocketService {
         attachments: data.attachments,
         inReplyTo: data.inReplyTo,
         mentions: data.mentions ?? [],
+        encryptionState: MessageEncryptionState.Plain,
+        mlsEpoch:        undefined,
+        mlsSequenceNumber: undefined,
+        senderDeviceId:  undefined,
+        type:            MessageType.Message,
       });
 
       const sender = await firstValueFrom(

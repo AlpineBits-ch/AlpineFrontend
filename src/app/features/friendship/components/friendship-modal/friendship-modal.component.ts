@@ -105,6 +105,7 @@ export class FriendshipModalComponent {
       members: [{ userId: targetUserId }],
       encryption: ConversationEncryption.Plain,
       name: undefined,
+      deviceWelcomes: [],
     }).subscribe(conv => {
       this.conversationStore.addConversation(conv);
       this.navService.openConversation(conv);

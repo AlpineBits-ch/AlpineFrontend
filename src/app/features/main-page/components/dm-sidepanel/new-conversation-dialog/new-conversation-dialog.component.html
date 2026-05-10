@@ -76,6 +76,18 @@
     </div>
   }
 
+  <!-- Encryption toggle -->
+  <div class="flex items-center justify-between pt-3 px-1 border-t border-white/[0.06] mt-3">
+    <div class="flex items-center gap-2">
+      <i class="pi pi-lock text-sm" [ngClass]="encrypted() ? 'text-brand-dim' : 'text-white/30'"></i>
+      <div>
+        <p class="text-sm font-medium" [ngClass]="encrypted() ? 'text-white/85' : 'text-white/55'">End-to-end encryption</p>
+        <p class="text-[11px] text-white/30 leading-tight">Requires MLS device registration</p>
+      </div>
+    </div>
+    <p-toggleswitch [ngModel]="encrypted()" (ngModelChange)="encrypted.set($event)" />
+  </div>
+
   <ng-template pTemplate="footer">
     <div class="flex items-center justify-end gap-2 pt-1">
       <p-button label="Cancel" severity="secondary" [text]="true" size="small" (onClick)="close()" />

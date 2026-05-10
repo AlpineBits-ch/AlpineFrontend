@@ -1,4 +1,5 @@
-﻿
+import { ConversationEncryption } from '../../enums/conversation-encryption.enum';
+
 export interface ConversationMemberDto {
     id: string;
     createdAt: Date;
@@ -9,10 +10,12 @@ export interface ConversationMemberDto {
     lastReadMessageId: string | undefined;
     mentionCount: number;
 }
+
 export interface ConversationDto {
     id: string;
     createdAt: Date;
     updatedAt: Date;
     name: string | undefined;
     members: ConversationMemberDto[];
+    encryption: ConversationEncryption;
 }

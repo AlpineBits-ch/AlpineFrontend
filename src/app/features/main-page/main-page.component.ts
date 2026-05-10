@@ -34,6 +34,7 @@ import { UserService } from '../../services/user.service';
 import { KeySetupDialogComponent } from '../key-setup/key-setup-dialog/key-setup-dialog.component';
 import { MlsService } from '../../services/mls.service';
 import { DeviceRegistrationModalComponent } from '../device-registration/device-registration-modal/device-registration-modal.component';
+import {ConversationService} from "../../services/conversation.service";
 
 @Component({
   selector: 'app-main-page',
@@ -72,6 +73,7 @@ export class MainPageComponent implements OnDestroy {
   private userTokenService = inject(UserTokenService);
   private userService = inject(UserService);
   private mlsService = inject(MlsService);
+  private conversationService = inject(ConversationService);
 
   protected router = inject(Router);
   protected showDeviceRegistration = signal(false);
@@ -93,6 +95,10 @@ export class MainPageComponent implements OnDestroy {
 
     this.userTokenService.ensureTokenRegistered().then();
     void this.initLaunchSequence();
+
+    this.conversationService.getMlsTokensForUserIds(['user_3CtBCfZ94J4djLAaUnEj4bxQcGL']).subscribe(t => {
+      console.log('MLS tokens:', t);
+    })
 
     this.oAuthService.setupAutomaticSilentRefresh();
     this.oAuthService.events.subscribe(e => {
@@ -126,6 +132,14 @@ export class MainPageComponent implements OnDestroy {
 
       this.keyHandle.set(handle);
       this.checkMasterKey();
+
+      this.conversationService.getPendingWelcomes().subscribe(w => {
+        console.log('Pending welcomes:', w);
+        for (const welcome of w) {
+          this.mlsService.joinGroup(welcome.welcome, handle)
+        }
+      })
+
     } catch (err: any) {
       if (err?.kind === 'KeyNotFound') {
         this.showDeviceRegistration.set(true);
@@ -140,7 +154,6 @@ export class MainPageComponent implements OnDestroy {
     this.showDeviceRegistration.set(false);
     this.checkMasterKey();
     this.userService.replenishKeyCount().subscribe();
-
   }
 
   private checkMasterKey(): void {
