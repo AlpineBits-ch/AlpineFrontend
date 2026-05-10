@@ -72,6 +72,8 @@ tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"
 [target.x86_64-apple-ios.dependencies]
 tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
 
+[dev-dependencies]
+
 [profile.release.package.wry]
 debug = true
 debug-assertions = true
