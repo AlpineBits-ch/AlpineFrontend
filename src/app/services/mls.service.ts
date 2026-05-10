@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import {Injectable, signal} from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
 import { from, Observable, of } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
@@ -132,6 +132,9 @@ export interface MlsProcessedMessage {
 
 @Injectable({ providedIn: 'root' })
 export class MlsService {
+
+
+  public keyHandle = signal<string | undefined>(undefined)
 
   /**
    * Per-group serialization queue. MLS state is a strict sequential ratchet —
@@ -509,7 +512,10 @@ export class MlsService {
           const err: MlsTypedError = { kind: 'KeyNotFound', message: 'No signing key in secure storage — device not registered' };
           throw err;
         }
-        return this.loadSigningKey(pub, priv, identity);
+        return this.loadSigningKey(pub, priv, identity).pipe(map(keyHandle => {
+          this.keyHandle.set(keyHandle);
+          return keyHandle;
+        }));
       }),
     );
   }

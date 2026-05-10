@@ -122,9 +122,8 @@ export class MainPageComponent implements OnDestroy {
     const deviceId = await this.mlsService.getOrCreateDeviceIdentifier();
     try {
       const handle = await firstValueFrom(this.mlsService.autoUnlock(deviceId));
-      const packages = this.mlsService.generateAdditionalKeyPackages(handle, 100).subscribe((packages) => {
-        console.log('Generated additional key packages:', packages);
-      });
+      this.userService.replenishKeyCount().subscribe();
+
       this.keyHandle.set(handle);
       this.checkMasterKey();
     } catch (err: any) {
@@ -140,6 +139,8 @@ export class MainPageComponent implements OnDestroy {
     this.keyHandle.set(keyHandle);
     this.showDeviceRegistration.set(false);
     this.checkMasterKey();
+    this.userService.replenishKeyCount().subscribe();
+
   }
 
   private checkMasterKey(): void {

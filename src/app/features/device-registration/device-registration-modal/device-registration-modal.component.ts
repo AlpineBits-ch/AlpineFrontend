@@ -73,6 +73,7 @@ export class DeviceRegistrationModalComponent {
       ),
       tap(keyHandle => {
         this.step.set('done');
+        this.mlsService.keyHandle.set(keyHandle);
         setTimeout(() => this.registered.emit(keyHandle), 1600);
       }),
       catchError(() => {
