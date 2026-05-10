@@ -427,6 +427,44 @@ export class MlsService {
   }
 
   // -------------------------------------------------------------------------
+  // Persistence
+  // -------------------------------------------------------------------------
+
+  /**
+   * Initialize the MLS storage layer and restore any previously persisted state.
+   *
+   * Call this once on app startup before any group operations. The Rust layer
+   * will locate the app data directory automatically.
+   *
+   * @returns `true` when state was restored from disk, `false` when starting fresh.
+   */
+  initStorage(): Observable<boolean> {
+    return from(invoke<boolean>('mls_init_storage'));
+  }
+
+  /**
+   * Export the full MLS state as an AES-256-GCM–encrypted blob for cloud backup.
+   *
+   * `encryptionKeyB64` must be a base64-encoded 32-byte key (e.g. derived from
+   * the user's master key). Store the returned blob in the cloud; use
+   * `importState` on a new device to restore.
+   */
+  exportState(encryptionKeyB64: string): Observable<string> {
+    return from(invoke<string>('mls_export_state', { encryptionKeyB64 }));
+  }
+
+  /**
+   * Restore MLS state from an encrypted export blob produced by `exportState`.
+   *
+   * Clears all current in-memory group state, decrypts and restores the stored
+   * groups, and writes the restored state to disk. Call `loadSigningKey` /
+   * `autoUnlock` separately to re-establish the signing key session handle.
+   */
+  importState(encryptedB64: string, encryptionKeyB64: string): Observable<void> {
+    return from(invoke<void>('mls_import_state', { encryptedB64, encryptionKeyB64 }));
+  }
+
+  // -------------------------------------------------------------------------
   // Secure key storage (OS keychain / Credential Manager)
   // -------------------------------------------------------------------------
 

@@ -7,4 +7,9 @@ export class MasterKeyService {
   async setupMasterKey(password: string, userEntropy: number[] = []): Promise<EncryptedMasterKey> {
     return invoke<EncryptedMasterKey>('setup_master_key', { password, userEntropy });
   }
+
+  async decryptMasterKey(encrypted: EncryptedMasterKey, password: string): Promise<Uint8Array> {
+    const bytes = await invoke<number[]>('decrypt_master_key', { encrypted, password });
+    return new Uint8Array(bytes);
+  }
 }

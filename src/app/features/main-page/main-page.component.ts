@@ -122,6 +122,9 @@ export class MainPageComponent implements OnDestroy {
     const deviceId = await this.mlsService.getOrCreateDeviceIdentifier();
     try {
       const handle = await firstValueFrom(this.mlsService.autoUnlock(deviceId));
+      const packages = this.mlsService.generateAdditionalKeyPackages(handle, 100).subscribe((packages) => {
+        console.log('Generated additional key packages:', packages);
+      });
       this.keyHandle.set(handle);
       this.checkMasterKey();
     } catch (err: any) {

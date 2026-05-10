@@ -1634,6 +1634,9 @@ describe('MlsService', () => {
       'mls_delete_group',
       'mls_get_members',
       'mls_get_group_info',
+      'mls_init_storage',
+      'mls_export_state',
+      'mls_import_state',
     ];
 
     it('all expected Rust command names are pure lowercase_underscore strings', () => {
@@ -1736,6 +1739,24 @@ describe('MlsService', () => {
       mockInvoke(GROUP_INFO);
       await firstValueFrom(service.getGroupInfo('g=='));
       expect(callCmd()).toBe('mls_get_group_info');
+    });
+
+    it('initStorage uses "mls_init_storage"', async () => {
+      mockInvoke(true);
+      await firstValueFrom(service.initStorage());
+      expect(callCmd()).toBe('mls_init_storage');
+    });
+
+    it('exportState uses "mls_export_state"', async () => {
+      mockInvoke('ZW5jcnlwdGVk');
+      await firstValueFrom(service.exportState('a2V5'));
+      expect(callCmd()).toBe('mls_export_state');
+    });
+
+    it('importState uses "mls_import_state"', async () => {
+      mockInvoke(undefined);
+      await firstValueFrom(service.importState('YmxvYg==', 'a2V5'));
+      expect(callCmd()).toBe('mls_import_state');
     });
   });
 
@@ -1856,6 +1877,153 @@ describe('MlsService', () => {
       const b = firstValueFrom(service.processMessage(GID, 'bXNnMg=='));
       await Promise.all([a, b]);
       expect(results).toEqual([1, 2]);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // initStorage
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('initStorage', () => {
+    it('returns an Observable', () => {
+      mockInvoke(false);
+      const result = service.initStorage();
+      expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+    });
+
+    it('calls invoke with command "mls_init_storage"', async () => {
+      mockInvoke(false);
+      await firstValueFrom(service.initStorage());
+      expect(callCmd()).toBe('mls_init_storage');
+    });
+
+    it('passes no args to invoke (AppHandle resolved by Rust)', async () => {
+      mockInvoke(true);
+      await firstValueFrom(service.initStorage());
+      expect(callArgs()).toBeUndefined();
+    });
+
+    it('resolves with true when state was restored from disk', async () => {
+      mockInvoke(true);
+      const restored = await firstValueFrom(service.initStorage());
+      expect(restored).toBe(true);
+    });
+
+    it('resolves with false when starting fresh (no prior state)', async () => {
+      mockInvoke(false);
+      const restored = await firstValueFrom(service.initStorage());
+      expect(restored).toBe(false);
+    });
+
+    it('propagates invoke rejection', async () => {
+      mockInvokeReject('failed to create app data dir');
+      await expect(firstValueFrom(service.initStorage())).rejects.toBe('failed to create app data dir');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // exportState
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('exportState', () => {
+    const ENC_KEY = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='; // 32-byte key b64
+    const BLOB = 'bm9uY2VjaXBoZXJ0ZXh0'; // fake encrypted blob
+
+    it('returns an Observable', () => {
+      mockInvoke(BLOB);
+      const result = service.exportState(ENC_KEY);
+      expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+    });
+
+    it('calls invoke with command "mls_export_state"', async () => {
+      mockInvoke(BLOB);
+      await firstValueFrom(service.exportState(ENC_KEY));
+      expect(callCmd()).toBe('mls_export_state');
+    });
+
+    it('passes encryptionKeyB64 as "encryptionKeyB64"', async () => {
+      mockInvoke(BLOB);
+      await firstValueFrom(service.exportState(ENC_KEY));
+      expect(callArgs()['encryptionKeyB64']).toBe(ENC_KEY);
+    });
+
+    it('passes exactly 1 key to invoke', async () => {
+      mockInvoke(BLOB);
+      await firstValueFrom(service.exportState(ENC_KEY));
+      expect(Object.keys(callArgs())).toEqual(['encryptionKeyB64']);
+    });
+
+    it('resolves with the encrypted blob string', async () => {
+      mockInvoke(BLOB);
+      const result = await firstValueFrom(service.exportState(ENC_KEY));
+      expect(result).toBe(BLOB);
+    });
+
+    it('propagates invoke rejection', async () => {
+      mockInvokeReject('MlsError: encryption failed');
+      await expect(firstValueFrom(service.exportState(ENC_KEY))).rejects.toBe('MlsError: encryption failed');
+    });
+
+    it('each call triggers a fresh invoke', async () => {
+      mockInvoke(BLOB);
+      await firstValueFrom(service.exportState(ENC_KEY));
+      await firstValueFrom(service.exportState(ENC_KEY));
+      expect(invokeStub).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // importState
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('importState', () => {
+    const ENC_KEY = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+    const BLOB = 'bm9uY2VjaXBoZXJ0ZXh0';
+
+    it('returns an Observable', () => {
+      mockInvoke(undefined);
+      const result = service.importState(BLOB, ENC_KEY);
+      expect(typeof (result as unknown as { subscribe: unknown }).subscribe).toBe('function');
+    });
+
+    it('calls invoke with command "mls_import_state"', async () => {
+      mockInvoke(undefined);
+      await firstValueFrom(service.importState(BLOB, ENC_KEY));
+      expect(callCmd()).toBe('mls_import_state');
+    });
+
+    it('passes encryptedB64 as "encryptedB64"', async () => {
+      mockInvoke(undefined);
+      await firstValueFrom(service.importState(BLOB, ENC_KEY));
+      expect(callArgs()['encryptedB64']).toBe(BLOB);
+    });
+
+    it('passes encryptionKeyB64 as "encryptionKeyB64"', async () => {
+      mockInvoke(undefined);
+      await firstValueFrom(service.importState(BLOB, ENC_KEY));
+      expect(callArgs()['encryptionKeyB64']).toBe(ENC_KEY);
+    });
+
+    it('passes exactly 2 keys to invoke', async () => {
+      mockInvoke(undefined);
+      await firstValueFrom(service.importState(BLOB, ENC_KEY));
+      expect(Object.keys(callArgs()).sort()).toEqual(['encryptedB64', 'encryptionKeyB64'].sort());
+    });
+
+    it('resolves with void on success', async () => {
+      mockInvoke(undefined);
+      const result = await firstValueFrom(service.importState(BLOB, ENC_KEY));
+      expect(result).toBeUndefined();
+    });
+
+    it('propagates invoke rejection (wrong key)', async () => {
+      mockInvokeReject('MlsError: aead::Error');
+      await expect(firstValueFrom(service.importState(BLOB, ENC_KEY))).rejects.toBe('MlsError: aead::Error');
+    });
+
+    it('propagates invoke rejection (truncated blob)', async () => {
+      mockInvokeReject('MlsError: encrypted blob too short');
+      await expect(firstValueFrom(service.importState('dG9vc2hvcnQ=', ENC_KEY))).rejects.toBe('MlsError: encrypted blob too short');
     });
   });
 

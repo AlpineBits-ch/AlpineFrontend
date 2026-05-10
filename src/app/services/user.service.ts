@@ -22,7 +22,6 @@ export class UserService {
     );
   }
 
-  // MOCKED: replace with HTTP PUT/POST when backend is ready
   uploadEncryptedMasterKey(_payload: EncryptedMasterKey): Observable<void> {
 
     return this.httpClient.post<void>(

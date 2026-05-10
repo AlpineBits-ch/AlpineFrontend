@@ -73,7 +73,12 @@
       "Bash(cmd.exe /c \"cd /d C:\\\\Users\\\\Domin\\\\WebstormProjects\\\\Alpine\\\\src-tauri && cargo build 2>&1\")",
       "Bash(export PATH=\"$PATH:/c/Users/Domin/.cargo/bin:/c/Users/Domin/AppData/Roaming/Microsoft/Windows/Start Menu/Programs\")",
       "Bash(export PATH=\"$PATH:/c/Users/Domin/.cargo/bin\")",
-      "Bash(powershell -Command \"cd 'C:\\\\Users\\\\Domin\\\\WebstormProjects\\\\Alpine\\\\src-tauri'; cargo build 2>&1\")"
+      "Bash(powershell -Command \"cd 'C:\\\\Users\\\\Domin\\\\WebstormProjects\\\\Alpine\\\\src-tauri'; cargo build 2>&1\")",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); [print\\(p['name'], p['version']\\) for pkg in d['packages'] for p in [pkg] if p['name'] in ['openmls','openmls_rust_crypto','openmls_traits','openmls_memory_storage','openmls_basic_credential']]\")",
+      "Bash(cargo test *)",
+      "Bash(where cargo *)",
+      "Bash(\"/c/Users/Domin/WebstormProjects/Alpine/src-tauri/target/debug/deps/alpine_lib-99850b2e7bb2278b.exe\" --list)",
+      "Bash(export PATH=\"$PATH:/c/Windows/System32:/c/Windows/SysWOW64:/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Redist/MSVC/14.40.33807/x64/Microsoft.VC143.CRT\")"
     ]
   }
 }

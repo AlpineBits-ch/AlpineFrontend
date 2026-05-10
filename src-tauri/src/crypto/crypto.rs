@@ -6,14 +6,14 @@ use rsa::{
     pkcs8::{EncodePrivateKey, EncodePublicKey},
     RsaPrivateKey,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 const ARGON2_MEM: u32 = 65536; // 64 MiB
 const ARGON2_ITERS: u32 = 3;
 const ARGON2_LANES: u32 = 1;
 const SCHEMA_VERSION: u32 = 1;
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct EncryptedMasterKey {
     cipher_text: String,
@@ -111,4 +111,35 @@ pub fn setup_master_key(
         argon2_parallelism: ARGON2_LANES,
         version: SCHEMA_VERSION,
     })
+}
+
+#[tauri::command]
+pub fn decrypt_master_key(
+    encrypted: EncryptedMasterKey,
+    password: String,
+) -> Result<Vec<u8>, String> {
+    let ciphertext = B64.decode(&encrypted.cipher_text).map_err(|e| e.to_string())?;
+    let salt = B64.decode(&encrypted.salt).map_err(|e| e.to_string())?;
+    let iv_bytes = B64.decode(&encrypted.iv).map_err(|e| e.to_string())?;
+
+    let params = Params::new(
+        encrypted.argon2_memory,
+        encrypted.argon2_iterations,
+        encrypted.argon2_parallelism,
+        Some(32),
+    )
+    .map_err(|e| e.to_string())?;
+    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
+    let mut wrap_key = [0u8; 32];
+    argon2
+        .hash_password_into(password.as_bytes(), &salt, &mut wrap_key)
+        .map_err(|e| e.to_string())?;
+
+    let cipher = Aes256Gcm::new_from_slice(&wrap_key).map_err(|e| e.to_string())?;
+    let nonce = Nonce::from_slice(&iv_bytes);
+    let master_key = cipher
+        .decrypt(nonce, ciphertext.as_ref())
+        .map_err(|_| "Decryption failed: invalid password or corrupted data".to_string())?;
+
+    Ok(master_key)
 }
