@@ -157,10 +157,11 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
   constructor() {
     effect(() => {
       const page = this.page();
+      const defaults = this.wikiState.editorDefaults();
       this.editorTitle.set(page?.title ?? '');
       const html = contentToHtml(page?.content ?? '');
       this.editorContent.set(html);
-      this.editorCategoryId.set(page?.categoryId);
+      this.editorCategoryId.set(page?.categoryId ?? defaults?.categoryId);
       this.editorParentPageId.set(page?.parentPageId);
       this.editorTags.set(page ? [...page.tags] : []);
       this.editorIsPinned.set(page?.isPinned ?? false);
@@ -379,10 +380,21 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
   }
 
   // ── Computed ───────────────────────────────────────────────────────────────
-  protected categoryOptions = computed(() => [
-    {label: 'No Category', value: undefined},
-    ...(this.wiki()?.categories ?? []).map(c => ({label: c.name, value: c.id})),
-  ]);
+  protected categoryOptions = computed(() => {
+    const cats = this.wiki()?.categories ?? [];
+    const result: {label: string; value: string | undefined}[] = [{label: 'No Category', value: undefined}];
+    const buildOptions = (parentId: string | undefined, depth: number) => {
+      const children = cats
+        .filter(c => (parentId === undefined ? !c.parentCategoryId : c.parentCategoryId === parentId))
+        .sort((a, b) => a.position - b.position);
+      for (const child of children) {
+        result.push({label: '    '.repeat(depth) + child.name, value: child.id});
+        buildOptions(child.id, depth + 1);
+      }
+    };
+    buildOptions(undefined, 0);
+    return result;
+  });
 
   protected parentPageOptions = computed(() => {
     const editingId = this.page()?.id;

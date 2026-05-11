@@ -23,9 +23,11 @@ export interface UpdateWikiPageDto {
 export interface CreateWikiCategoryDto {
   name: string;
   position?: number;
+  parentCategoryId?: string;
 }
 
 export interface UpdateWikiCategoryDto {
   name?: string;
   position?: number;
+  parentCategoryId?: string | null;
 }

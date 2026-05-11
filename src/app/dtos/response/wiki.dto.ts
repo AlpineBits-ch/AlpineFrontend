@@ -26,6 +26,7 @@ export interface WikiCategoryDto {
   guildId: string;
   name: string;
   position: number;
+  parentCategoryId?: string;
 }
 
 export interface WikiDto {

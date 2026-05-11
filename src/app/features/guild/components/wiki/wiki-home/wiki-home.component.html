@@ -35,27 +35,28 @@
     }
 
     <!-- Categories overview -->
-    @if (sortedCategories().length > 0) {
+    @if (categoryTreeNodes().length > 0) {
       <section class="mb-8">
         <h2 class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">Categories</h2>
         <div class="space-y-2">
-          @for (category of sortedCategories(); track category.id) {
-            <div class="p-4 rounded-xl bg-card border border-white/[0.06]">
+          @for (node of categoryTreeNodes(); track node.category.id) {
+            <div class="p-4 rounded-xl bg-card border border-white/[0.06]"
+                 [style.marginLeft]="(node.depth * 20) + 'px'">
               <div class="flex items-center gap-2 mb-2">
-                <i class="pi pi-folder text-brand-dim/70 text-sm"></i>
-                <span class="text-sm font-semibold text-white/80">{{ category.name }}</span>
-                <span class="text-xs text-white/30 ml-auto">{{ rootPages(category.id).length }} pages</span>
+                <i [class]="node.depth === 0 ? 'pi pi-folder text-brand-dim/70 text-sm' : 'pi pi-folder text-white/30 text-xs'"></i>
+                <span [class]="node.depth === 0 ? 'text-sm font-semibold text-white/80' : 'text-xs font-semibold text-white/60'">{{ node.category.name }}</span>
+                <span class="text-xs text-white/30 ml-auto">{{ rootPages(node.category.id).length }} pages</span>
               </div>
-              @if (rootPages(category.id).length > 0) {
+              @if (rootPages(node.category.id).length > 0) {
                 <div class="flex flex-wrap gap-2">
-                  @for (page of rootPages(category.id).slice(0, 5); track page.id) {
+                  @for (page of rootPages(node.category.id).slice(0, 5); track page.id) {
                     <button (click)="openPage.emit(page)"
                       class="text-xs text-white/55 hover:text-brand-dim bg-white/[0.04] hover:bg-brand/10 px-2 py-1 rounded-md transition-all border-0 cursor-pointer">
                       {{ page.title }}
                     </button>
                   }
-                  @if (rootPages(category.id).length > 5) {
-                    <span class="text-xs text-white/30 px-2 py-1">+{{ rootPages(category.id).length - 5 }} more</span>
+                  @if (rootPages(node.category.id).length > 5) {
+                    <span class="text-xs text-white/30 px-2 py-1">+{{ rootPages(node.category.id).length - 5 }} more</span>
                   }
                 </div>
               }
