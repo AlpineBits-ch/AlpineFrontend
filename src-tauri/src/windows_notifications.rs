@@ -89,6 +89,9 @@ pub async fn send_toast(
     let args = serde_json::to_string(&extra).map_err(|e| e.to_string())?;
     let args_esc = escape_xml(&args);
 
+    // <audio silent="true"/> suppresses the Windows default notification sound.
+    // Unpackaged Win32 apps cannot use custom file:// audio in toast XML, so we
+    // play the sound from the Web Audio API on the frontend instead.
     let xml = format!(
         r#"<toast activationType="foreground" launch="{args}">
   <visual>
@@ -98,6 +101,7 @@ pub async fn send_toast(
       {icon}
     </binding>
   </visual>
+  <audio silent="true"/>
 </toast>"#,
         args = args_esc,
         title = escape_xml(title),
