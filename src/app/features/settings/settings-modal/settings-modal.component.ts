@@ -1,16 +1,13 @@
-import {Component, effect, inject, model, signal} from '@angular/core';
+import {Component, effect, model, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Dialog} from "primeng/dialog";
 import {Button} from "primeng/button";
-import {ConfirmDialog} from "primeng/confirmdialog";
-import {ConfirmationService} from "primeng/api";
 import {ProfileSettingsComponent} from "./pages/profile-settings/profile-settings.component";
 import {PrivacySettingsComponent} from "./pages/privacy-settings/privacy-settings.component";
 import {OtherSettingsComponent} from "./pages/other-settings/other-settings.component";
 import {NotificationSettingsComponent} from "./pages/notification-settings/notification-settings.component";
 import {VoiceVideoSettingsComponent} from "./pages/voice-video-settings/voice-video-settings.component";
-import {AuthService} from "../../../services/auth.service";
-import {Router} from "@angular/router";
+import {LogoutDialogComponent} from "../logout-dialog/logout-dialog.component";
 
 export interface SettingsNavItem {
   id: string;
@@ -29,14 +26,13 @@ export interface SettingsNavGroup {
     NgClass,
     Dialog,
     Button,
-    ConfirmDialog,
     ProfileSettingsComponent,
     PrivacySettingsComponent,
     OtherSettingsComponent,
     NotificationSettingsComponent,
     VoiceVideoSettingsComponent,
+    LogoutDialogComponent,
   ],
-  providers: [ConfirmationService],
   templateUrl: './settings-modal.component.html',
   styleUrl: './settings-modal.component.css',
 })
@@ -44,10 +40,7 @@ export class SettingsModalComponent {
   public isVisible = model.required<boolean>();
   public activePage = signal('profile');
   public mobileView = signal<'nav' | 'content'>('nav');
-
-  private authService = inject(AuthService);
-  private router = inject(Router);
-  private confirmationService = inject(ConfirmationService);
+  public showLogoutDialog = signal(false);
 
   constructor() {
     effect(() => {
@@ -61,20 +54,7 @@ export class SettingsModalComponent {
   }
 
   confirmLogout(): void {
-    this.confirmationService.confirm({
-      message: 'Are you sure you want to log out?',
-      header: 'Log Out',
-      icon: 'pi pi-sign-out',
-      acceptLabel: 'Log Out',
-      rejectLabel: 'Cancel',
-      acceptButtonProps: { severity: 'danger', outlined: true },
-      rejectButtonProps: { severity: 'secondary', text: true },
-      accept: () => {
-        this.isVisible.set(false);
-        this.authService.logout();
-        this.router.navigate(['/authentication']);
-      },
-    });
+    this.showLogoutDialog.set(true);
   }
 
   /** Add a new page: create its component, add an entry here, add a @case below. */

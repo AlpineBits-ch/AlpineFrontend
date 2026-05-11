@@ -120,4 +120,6 @@
 
 </p-dialog>
 
-<p-confirmdialog />
+<app-logout-dialog
+  [visible]="showLogoutDialog()"
+  (visibleChange)="showLogoutDialog.set($event)" />
