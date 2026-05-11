@@ -115,6 +115,23 @@ export class MainPageComponent implements OnDestroy {
         if (conv) this.navService.openConversation(conv);
       }
     });
+
+    this.actionSub.add(this.websocketService.welcomeObservable.subscribe(async (conversationId) => {
+      const keyHandle = this.mlsService.keyHandle();
+      if (!keyHandle) return;
+      try {
+        const welcomes = await firstValueFrom(this.conversationService.getPendingWelcomes());
+        const match = welcomes.find(w => w.conversationId === conversationId);
+        if (match) {
+          this.mlsService.joinGroup(match.welcome, keyHandle).subscribe({
+            next: info => this.mlsService.registerGroupForConversation(match.conversationId, info.groupId),
+            error: err => console.error('Failed to join MLS group from Welcome event', conversationId, err),
+          });
+        }
+      } catch (err) {
+        console.error('Failed to process Welcome event', conversationId, err);
+      }
+    }));
   }
 
   /**

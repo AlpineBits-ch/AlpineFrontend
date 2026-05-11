@@ -25,6 +25,10 @@ export class ConversationService {
     return this.httpClient.get<ConversationDto[]>(environment.apiUrl + `/api/v1/messaging/conversations?offset=${offset}&limit=${limit}`);
   }
 
+  public getConversationById(id: string): Observable<ConversationDto>{
+    return this.httpClient.get<ConversationDto>(environment.apiUrl + `/api/v1/messaging/conversations/${id}`);
+  }
+
   public deleteConversation(id: string): Observable<void>{
     return this.httpClient.delete<void>(environment.apiUrl + `/api/v1/messaging/conversations/${id}`);
   }

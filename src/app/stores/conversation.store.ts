@@ -76,6 +76,14 @@ export const ConversationStore = signalStore(
     onInit(store) {
       const wsService = inject(MessagingWebsocketService);
       const profileService = inject(ProfileService);
+      const conversationService = inject(ConversationService);
+
+      wsService.conversationCreatedObservable.subscribe(conversationId => {
+        if (store.entityMap()[conversationId]) return;
+        conversationService.getConversationById(conversationId).subscribe(conv => {
+          patchState(store, addEntities([conv]));
+        });
+      });
 
       wsService.messageObservable.subscribe(msg => {
         if (msg.conversationId) {

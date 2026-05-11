@@ -70,6 +70,9 @@ export class MessagingWebsocketService {
   public userOnlineObservable = new Subject<string>()
   public userOfflineObservable = new Subject<string>()
 
+  public conversationCreatedObservable = new Subject<string>()
+  public welcomeObservable = new Subject<string>()
+
 
   public connectionState = signal(ConnectionState.Disconnected)
   constructor() {
@@ -265,6 +268,16 @@ export class MessagingWebsocketService {
         extra,
       });
     })
+
+    this.hubConnection.on('ConversationCreated', (conversationId: string) => {
+      console.log('ConversationCreated:', conversationId);
+      this.conversationCreatedObservable.next(conversationId);
+    });
+
+    this.hubConnection.on('Welcome', (conversationId: string) => {
+      console.log('Welcome for conversation:', conversationId);
+      this.welcomeObservable.next(conversationId);
+    });
 
     this.hubConnection.onreconnecting(() => {
       this.notificationService.createNotification({
