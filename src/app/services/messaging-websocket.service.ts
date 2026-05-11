@@ -13,6 +13,7 @@ import {CallDto} from "../dtos/response/call.dto";
 import {ProfileService} from "./profile.service";
 import { MlsService } from './mls.service';
 import { ConversationService } from './conversation.service';
+import {fromBase64} from "../helpers/base64.helper";
 
 export enum ConnectionState {
   Connected,
@@ -165,6 +166,7 @@ export class MessagingWebsocketService {
     }) => {
       const encryptionState = data.encryptionState ?? MessageEncryptionState.Plain;
 
+      console.log('incomming msg', data)
       let content = data.content;
 
       if (encryptionState === MessageEncryptionState.Encrypted && data.conversationId) {
@@ -178,6 +180,7 @@ export class MessagingWebsocketService {
         // Group not registered yet — may be a new encrypted conversation created while we were
         // online. Fetch pending welcomes and try to join before decrypting.
         if (!groupId) {
+          console.log('group id not found')
           const keyHandle = this.mlsService.keyHandle();
           if (keyHandle) {
             try {
@@ -195,14 +198,16 @@ export class MessagingWebsocketService {
         }
 
         if (groupId) {
+          console.log('group id found')
           const cached = await this.mlsService.getCachedMessage(data.messageId);
           if (cached) {
             content = cached;
           } else {
             try {
-              const processed = await firstValueFrom(this.mlsService.processMessage(groupId, data.content));
+              const processed = await firstValueFrom(this.mlsService.processMessage(groupId, fromBase64(data.content)));
               if (processed.kind === 'application' && processed.plaintext) {
                 content = processed.plaintext;
+                console.log('received: ' + processed.plaintext)
                 void this.mlsService.cacheMessage(data.messageId, processed.plaintext);
               }
             } catch (err) {
