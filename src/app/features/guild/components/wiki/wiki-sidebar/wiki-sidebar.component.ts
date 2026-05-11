@@ -7,7 +7,7 @@ import {InputText} from 'primeng/inputtext';
 import {Select} from 'primeng/select';
 import {ContextMenu} from 'primeng/contextmenu';
 import {MenuItem, PrimeTemplate} from 'primeng/api';
-import {WikiCategoryDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
+import {WikiCategoryDto, WikiPageDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
 import {WikiStateService} from '../wiki-state.service';
 import {NavigationService} from '../../../../main-page/navigation.service';
@@ -91,6 +91,36 @@ export class WikiSidebarComponent {
       },
     ];
     this.catCtxMenu?.show(event);
+  }
+
+  protected onPageContextMenu(event: MouseEvent, page: WikiPageSummaryDto): void {
+    event.preventDefault();
+    const activePage = this.activePageForParenting();
+    if (!activePage || activePage.id === page.id) return;
+    const truncated = activePage.title.length > 24 ? activePage.title.slice(0, 24) + '…' : activePage.title;
+    this.ctxMenuItems = [
+      {
+        label: `Set as parent of "${truncated}"`,
+        icon: 'pi pi-sitemap',
+        command: () => this.setAsParent(page, activePage),
+      },
+    ];
+    this.catCtxMenu?.show(event);
+  }
+
+  private activePageForParenting(): WikiPageDto | null {
+    const view = this.state.wikiView();
+    if (view === 'page') return this.state.selectedPage();
+    if (view === 'editor') return this.state.editingPage();
+    return null;
+  }
+
+  private setAsParent(parentPage: WikiPageSummaryDto, childPage: WikiPageDto): void {
+    const guildId = this.state.guildId();
+    if (!guildId) return;
+    this.wikiService.updatePage(guildId, childPage.id, {parentPageId: parentPage.id}).subscribe({
+      next: () => this.state.reload(),
+    });
   }
 
   // ── Category dialog ────────────────────────────────────────────────────────

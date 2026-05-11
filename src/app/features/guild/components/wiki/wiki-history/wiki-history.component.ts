@@ -1,12 +1,14 @@
 import {Component, effect, inject, input, output, signal} from '@angular/core';
+import {DomSanitizer, SafeHtml} from '@angular/platform-browser';
 import {Button} from 'primeng/button';
+import {Tooltip} from 'primeng/tooltip';
 import {WikiPageDto, WikiRevisionDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
-import {formatWikiDate} from '../wiki.utils';
+import {formatWikiDate, renderWikiMarkdown} from '../wiki.utils';
 
 @Component({
   selector: 'app-wiki-history',
-  imports: [Button],
+  imports: [Button, Tooltip],
   templateUrl: './wiki-history.component.html',
 })
 export class WikiHistoryComponent {
@@ -17,10 +19,12 @@ export class WikiHistoryComponent {
   readonly restored = output<WikiPageDto>();
 
   private readonly wikiService = inject(WikiService);
+  private readonly sanitizer = inject(DomSanitizer);
 
   protected revisions = signal<WikiRevisionDto[]>([]);
   protected loading = signal(false);
   protected restoringId = signal<string | null>(null);
+  protected expandedRevId = signal<string | null>(null);
 
   protected readonly formatDate = formatWikiDate;
 
@@ -37,6 +41,14 @@ export class WikiHistoryComponent {
         error: () => this.loading.set(false),
       });
     });
+  }
+
+  protected togglePreview(revId: string): void {
+    this.expandedRevId.update(id => id === revId ? null : revId);
+  }
+
+  protected renderContent(content: string): SafeHtml {
+    return renderWikiMarkdown(content, this.sanitizer);
   }
 
   protected restoreRevision(revision: WikiRevisionDto): void {
