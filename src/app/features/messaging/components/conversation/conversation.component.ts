@@ -46,6 +46,7 @@ import { HighlightPipe } from '../../../../pipes/highlight.pipe';
 import { ConversationSearchService } from './conversation-search.service';
 import { ConversationScrollService } from './conversation-scroll.service';
 import { decodeContent, fileIcon } from './message-utils';
+import {toBase64} from "../../../../helpers/base64.helper";
 
 @Component({
   selector: 'app-conversation',
@@ -384,7 +385,7 @@ export class ConversationComponent implements AfterViewInit {
     const { content, attachments, inReplyTo, mentions } = event;
     const tempId = crypto.randomUUID();
     const now    = new Date();
-    const b64Content = btoa(content);
+    const b64Content = toBase64(content);
 
     console.log('Creating encrypted message with content:', content);
     this.replyingTo.set(null);
@@ -428,7 +429,7 @@ export class ConversationComponent implements AfterViewInit {
         from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(
           switchMap(deviceId =>
             this.messagingService.createMessage({
-              content:         atob(ciphertext),
+              content:         ciphertext,
               channelId:       undefined,
               conversationId,
               attachments,
