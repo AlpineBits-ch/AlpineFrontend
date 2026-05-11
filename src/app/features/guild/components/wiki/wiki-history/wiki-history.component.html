@@ -1,0 +1,57 @@
+<div class="flex flex-col h-full">
+
+  <!-- Header -->
+  <header class="flex items-center gap-3 px-6 py-4 border-b border-white/[0.08] shrink-0">
+    <p-button icon="pi pi-arrow-left" [text]="true" severity="secondary" size="small"
+      (onClick)="back.emit()" />
+    <div>
+      <p class="text-sm font-semibold text-white/80">Revision History</p>
+      <p class="text-xs text-white/35">{{ page().title }}</p>
+    </div>
+  </header>
+
+  <!-- Revisions -->
+  <div class="flex-1 min-h-0 overflow-y-auto"
+       style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+    <div class="max-w-2xl mx-auto px-6 py-6">
+
+      @if (loading()) {
+        <div class="flex items-center justify-center py-16">
+          <i class="pi pi-spin pi-spinner text-white/25 text-xl"></i>
+        </div>
+      } @else if (revisions().length === 0) {
+        <div class="text-center py-16">
+          <i class="pi pi-clock text-3xl text-white/10 mb-3 block"></i>
+          <p class="text-white/30 text-sm">No revision history yet.</p>
+        </div>
+      } @else {
+        <div class="space-y-2">
+          @for (rev of revisions(); track rev.id; let first = $first) {
+            <div class="flex items-center gap-4 p-4 rounded-xl bg-card border border-white/[0.06]">
+              <div class="w-9 h-9 rounded-full bg-brand/10 flex items-center justify-center shrink-0">
+                <span class="text-xs font-bold text-brand-dim">v{{ rev.revisionNumber }}</span>
+              </div>
+              <div class="flex-1 min-w-0">
+                @if (rev.summary) {
+                  <p class="text-sm text-white/80 mb-0.5">{{ rev.summary }}</p>
+                } @else {
+                  <p class="text-sm text-white/45 italic mb-0.5">No summary</p>
+                }
+                <p class="text-xs text-white/30">{{ formatDate(rev.createdAt) }}</p>
+              </div>
+              @if (!first) {
+                <p-button label="Restore" severity="secondary" size="small"
+                  [loading]="restoringId() === rev.id"
+                  (onClick)="restoreRevision(rev)" />
+              } @else {
+                <span class="text-[11px] text-white/30 bg-white/[0.04] px-2 py-1 rounded-md">Current</span>
+              }
+            </div>
+          }
+        </div>
+      }
+
+    </div>
+  </div>
+
+</div>

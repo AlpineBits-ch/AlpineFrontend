@@ -1,0 +1,79 @@
+<div class="flex flex-col h-full">
+
+  <!-- Header -->
+  <header class="flex items-center gap-3 px-8 py-4 border-b border-white/[0.08] shrink-0">
+    <div class="flex-1 min-w-0">
+      <h1 class="text-xl font-bold text-white/90 truncate">{{ page().title }}</h1>
+      <div class="flex items-center gap-3 mt-1 text-xs text-white/35 flex-wrap">
+        <span>Updated {{ formatDate(page().updatedAt) }}</span>
+        @if (page().revisionCount > 0) {
+          <span>&middot; {{ page().revisionCount }} revisions</span>
+        }
+        @if (page().tags.length > 0) {
+          <span class="flex items-center gap-1 flex-wrap">
+            @for (tag of page().tags; track tag) {
+              <span class="bg-brand/10 text-brand-dim px-2 py-0.5 rounded-full text-[10px] font-medium">{{ tag }}</span>
+            }
+          </span>
+        }
+      </div>
+    </div>
+    <div class="flex items-center gap-1 shrink-0">
+      <p-button icon="pi pi-clock" [text]="true" severity="secondary" size="small"
+        pTooltip="History" tooltipPosition="bottom"
+        (onClick)="history.emit()" />
+      <p-button icon="pi pi-pencil" [text]="true" severity="secondary" size="small"
+        pTooltip="Edit" tooltipPosition="bottom"
+        (onClick)="edit.emit(page())" />
+      <p-button icon="pi pi-trash" [text]="true" severity="danger" size="small"
+        pTooltip="Delete" tooltipPosition="bottom"
+        (onClick)="showDeleteDialog.set(true)" />
+    </div>
+  </header>
+
+  <!-- Content -->
+  <div class="flex-1 min-h-0 overflow-y-auto"
+       style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+    <div class="max-w-3xl mx-auto px-8 py-8">
+      @if (page().content) {
+        <div class="wiki-content" [innerHTML]="renderedContent()"></div>
+      } @else {
+        <div class="text-center py-16">
+          <i class="pi pi-file-edit text-3xl text-white/10 mb-3 block"></i>
+          <p class="text-white/30 text-sm">This page has no content yet.</p>
+          <p-button label="Start Editing" icon="pi pi-pencil" severity="secondary" size="small"
+            styleClass="mt-4"
+            (onClick)="edit.emit(page())" />
+        </div>
+      }
+    </div>
+  </div>
+
+</div>
+
+<!-- Delete Confirmation -->
+<p-dialog
+  [(visible)]="showDeleteDialog"
+  [modal]="true" [closable]="true" [draggable]="false" [resizable]="false"
+  appendTo="body" [dismissableMask]="true"
+  [style]="{width: '380px'}">
+  <ng-template pTemplate="header">
+    <div class="flex items-center gap-2">
+      <i class="pi pi-trash text-rose-400"></i>
+      <span class="text-sm font-semibold text-white/85">Delete Page</span>
+    </div>
+  </ng-template>
+  <div class="py-2">
+    <p class="text-sm text-white/60">
+      Are you sure you want to delete <strong class="text-white/80">{{ page().title }}</strong>?
+      This cannot be undone.
+    </p>
+  </div>
+  <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.06]">
+    <p-button label="Cancel" severity="secondary" size="small"
+      (onClick)="showDeleteDialog.set(false)" />
+    <p-button label="Delete" severity="danger" size="small"
+      [loading]="deletingPage()"
+      (onClick)="doDeletePage()" />
+  </div>
+</p-dialog>

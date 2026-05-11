@@ -25,6 +25,11 @@
 
   @let view = navService.mainView();
 
+  <!-- Wiki panel (second sidebar, slides in to the right of channels) -->
+  @if (navService.wikiPanelGuildId()) {
+    <app-wiki-panel />
+  }
+
   <!-- Main content -->
   <div class="flex-1 min-w-0 overflow-hidden">
     @switch (view.type) {
@@ -44,6 +49,9 @@
         } @else {
           <app-channel [channel]="view.channel" (back)="navService.showHome()" />
         }
+      }
+      @case ('wiki') {
+        <app-wiki [guildId]="view.guildId" />
       }
     }
   </div>

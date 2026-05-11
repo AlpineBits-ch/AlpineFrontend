@@ -36,6 +36,8 @@ import { MlsService } from '../../services/mls.service';
 import { DeviceRegistrationModalComponent } from '../device-registration/device-registration-modal/device-registration-modal.component';
 import {ConversationService} from "../../services/conversation.service";
 import {RichPresenceService} from "../../services/rich-presence.service";
+import {WikiComponent} from '../guild/components/wiki/wiki.component';
+import {WikiPanelComponent} from '../guild/components/wiki/wiki-panel/wiki-panel.component';
 
 @Component({
   selector: 'app-main-page',
@@ -55,6 +57,8 @@ import {RichPresenceService} from "../../services/rich-presence.service";
     GuildMemberListComponent,
     DeviceRegistrationModalComponent,
     KeySetupDialogComponent,
+    WikiComponent,
+    WikiPanelComponent,
   ],
   templateUrl: './main-page.component.html',
   styleUrl: './main-page.component.css',

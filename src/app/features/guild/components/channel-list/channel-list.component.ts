@@ -254,6 +254,12 @@ export class ChannelListComponent {
     return view.type === 'channel' && view.channel.id === channel.id;
   }
 
+  protected isWikiActive = computed(() => this.navService.wikiPanelGuildId() !== null);
+
+  protected openWiki(): void {
+    this.navService.openWiki(this.guild().id);
+  }
+
   protected isJoinedVoice(channel: ChannelDto): boolean {
     return this.voiceChannelSvc.joinedChannelId() === channel.id;
   }

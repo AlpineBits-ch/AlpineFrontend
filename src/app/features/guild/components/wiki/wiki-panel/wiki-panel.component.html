@@ -1,0 +1,20 @@
+<div class="hidden lg:flex flex-col w-56 shrink-0 h-full bg-sidebar border-r border-white/[0.10]">
+
+  <!-- Header -->
+  <div class="px-3 py-3 border-b border-white/[0.10] flex items-center gap-1.5 shrink-0">
+    <p-button icon="pi pi-times" [text]="true" severity="secondary" size="small"
+      pTooltip="Close wiki" tooltipPosition="bottom"
+      (onClick)="navService.closeWikiPanel()" />
+    <div class="flex items-center gap-1.5 flex-1 min-w-0">
+      <i class="pi pi-book text-brand-dim text-sm shrink-0"></i>
+      <span class="text-sm font-semibold text-white/90 truncate">Wiki</span>
+    </div>
+    <p-button icon="pi pi-plus" [text]="true" severity="secondary" size="small"
+      pTooltip="New page" tooltipPosition="bottom"
+      (onClick)="openNewPage()" />
+  </div>
+
+  <!-- Navigation tree -->
+  <app-wiki-sidebar class="flex flex-col flex-1 min-h-0" />
+
+</div>
