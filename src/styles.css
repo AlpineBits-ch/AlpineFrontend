@@ -280,3 +280,15 @@ button, a, [role="button"], input, select, textarea, label {
 
 /* Underline (not included in wiki-content defaults) */
 .wiki-wysiwyg u { text-decoration: underline; text-underline-offset: 2px; }
+
+/* Image uploading placeholder — blob: src = still uploading */
+.wiki-wysiwyg img[src^="blob:"] {
+  opacity: 0.4;
+  outline: 2px solid rgba(129, 140, 248, 0.5);
+  outline-offset: 2px;
+  animation: wiki-img-uploading 1.3s ease-in-out infinite;
+}
+@keyframes wiki-img-uploading {
+  0%, 100% { opacity: 0.35; }
+  50%       { opacity: 0.75; }
+}

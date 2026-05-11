@@ -314,14 +314,18 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
 
   private uploadFiles(files: File[]): void {
     for (const file of files) {
-      this.uploadingFile.set(true);
-      this.fileService.uploadFile(file).subscribe({
-        next: (attachment) => {
-          this.uploadingFile.set(false);
-          const isImage = attachment.contentType.startsWith('image/');
-          if (isImage) {
-            this.tiptapEditor?.chain().focus().setImage({src: attachment.url, alt: attachment.fileName}).run();
-          } else {
+      if (file.type.startsWith('image/')) {
+        const blobUrl = URL.createObjectURL(file);
+        this.tiptapEditor?.chain().focus().setImage({src: blobUrl, alt: file.name}).run();
+        this.fileService.uploadFile(file).subscribe({
+          next: attachment => this.replaceImageSrc(blobUrl, attachment.url, attachment.fileName),
+          error: () => this.removeImageNode(blobUrl),
+        });
+      } else {
+        this.uploadingFile.set(true);
+        this.fileService.uploadFile(file).subscribe({
+          next: attachment => {
+            this.uploadingFile.set(false);
             const view = this.tiptapEditor?.view;
             if (!view) return;
             const {state, dispatch} = view;
@@ -330,11 +334,51 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
               schema.marks['link'].create({href: attachment.url}),
             ]);
             dispatch(state.tr.replaceSelectionWith(node, false));
-          }
-        },
-        error: () => this.uploadingFile.set(false),
-      });
+          },
+          error: () => this.uploadingFile.set(false),
+        });
+      }
     }
+  }
+
+  private replaceImageSrc(blobUrl: string, newSrc: string, alt: string): void {
+    const editor = this.tiptapEditor;
+    if (!editor) return;
+    const {state} = editor;
+    const tr = state.tr;
+    let changed = false;
+    state.doc.descendants((node, pos) => {
+      if (node.type.name === 'image' && node.attrs['src'] === blobUrl) {
+        tr.setNodeMarkup(pos, undefined, {...node.attrs, src: newSrc, alt});
+        changed = true;
+        return false;
+      }
+      return true;
+    });
+    if (changed) editor.view.dispatch(tr);
+    URL.revokeObjectURL(blobUrl);
+  }
+
+  private removeImageNode(blobUrl: string): void {
+    const editor = this.tiptapEditor;
+    if (!editor) return;
+    const {state} = editor;
+    const tr = state.tr;
+    let nodePos: number | null = null;
+    let nodeSize: number | null = null;
+    state.doc.descendants((node, pos) => {
+      if (node.type.name === 'image' && node.attrs['src'] === blobUrl) {
+        nodePos = pos;
+        nodeSize = node.nodeSize;
+        return false;
+      }
+      return true;
+    });
+    if (nodePos !== null && nodeSize !== null) {
+      tr.delete(nodePos, nodePos + nodeSize);
+      editor.view.dispatch(tr);
+    }
+    URL.revokeObjectURL(blobUrl);
   }
 
   // ── Tags ───────────────────────────────────────────────────────────────────
