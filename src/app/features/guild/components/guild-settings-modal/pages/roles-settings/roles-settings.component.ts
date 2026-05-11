@@ -12,6 +12,7 @@ import {GuildMemberDto, RoleMemberDto} from '../../../../../../dtos/response/mem
 import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
 import {GuildService, CreateRoleDto, UpdateRoleDto} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
+import {ToastService} from '../../../../../../services/toast.service';
 import {parsePermissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
 import {PermissionToggleComponent} from '../../../../shared/permission-toggle/permission-toggle.component';
 
@@ -32,6 +33,7 @@ export class RolesSettingsComponent implements OnInit {
 
   private guildService = inject(GuildService);
   private profileService = inject(ProfileService);
+  private toastService = inject(ToastService);
 
   roles = signal<RoleDto[]>([]);
   selectedRole = signal<RoleDto | null>(null);
@@ -152,14 +154,18 @@ export class RolesSettingsComponent implements OnInit {
       permissions: stringifyPermissions(this.editPermMask()),
     };
     this.guildService.updateRole(role.id, dto).subscribe({
-      next: updated => {
-        this.roles.update(list => list.map(r => r.id === updated.id ? updated : r));
+      next: () => {
+        const updated: RoleDto = { ...role, ...dto };
+        this.roles.update(list => list.map(r => r.id === role.id ? updated : r));
         this.selectedRole.set(updated);
         this.editDirty.set(false);
         this.editSaving.set(false);
         this.rolesChanged.emit(this.roles());
       },
-      error: () => this.editSaving.set(false),
+      error: err => {
+        this.editSaving.set(false);
+        this.toastService.httpError('Failed to save role', err);
+      },
     });
   }
 

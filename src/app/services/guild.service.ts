@@ -148,8 +148,8 @@ export class GuildService {
     return this.http.post<RoleDto>(`${this.base}/guilds/${dto.guildId}/roles`, dto);
   }
 
-  updateRole(id: string, dto: UpdateRoleDto): Observable<RoleDto> {
-    return this.http.patch<RoleDto>(`${this.base}/roles/${id}`, dto);
+  updateRole(id: string, dto: UpdateRoleDto): Observable<void> {
+    return this.http.patch<void>(`${this.base}/roles/${id}`, dto);
   }
 
   deleteRole(id: string): Observable<void> {
