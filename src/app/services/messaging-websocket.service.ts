@@ -3,7 +3,7 @@ import * as signalR from '@microsoft/signalr';
 import { NotificationService, NotificationSound } from "./notification.service";
 import {OAuthService} from "angular-oauth2-oidc";
 import {environment} from "../../environments/environment";
-import {BehaviorSubject, catchError, firstValueFrom, of, Subject, timeout} from "rxjs";
+import {BehaviorSubject, catchError, concatMap, firstValueFrom, from, of, Subject, timeout} from "rxjs";
 import {MessageDto} from "../dtos/response/message.dto";
 import { MessageEncryptionState } from '../enums/message-encryption-state.enum';
 import { MessageType } from '../enums/message-type.enum';
@@ -49,6 +49,21 @@ export interface UserTypingEvent {
   conversationId: string;
   userId: string;
 }
+interface MessageCreatedPayload {
+  messageId: string;
+  content: string;
+  authorId: string;
+  conversationId: string;
+  channelId: string | undefined;
+  attachments: AttachmentDto[];
+  inReplyTo: string | undefined;
+  mentions: string[] | undefined;
+  encryptionState: MessageEncryptionState | undefined;
+  mlsEpoch: number | undefined;
+  mlsSequenceNumber: number | undefined;
+  senderDeviceId: string | undefined;
+}
+
 @Injectable({
   providedIn: 'root',
 })
@@ -59,6 +74,8 @@ export class MessagingWebsocketService {
   private profileService = inject(ProfileService);
   private mlsService = inject(MlsService);
   private conversationService = inject(ConversationService);
+
+  private readonly _rawMessageCreated$ = new Subject<MessageCreatedPayload>();
 
   public messageObservable = new Subject<MessageDto>()
   public messageUpdatedObservable = new Subject<MessageUpdatedEvent>()
@@ -76,6 +93,10 @@ export class MessagingWebsocketService {
 
   public connectionState = signal(ConnectionState.Disconnected)
   constructor() {
+    this._rawMessageCreated$.pipe(
+      concatMap(data => from(this.handleMessageCreated(data))),
+    ).subscribe();
+
     this.hubConnection = new signalR.HubConnectionBuilder()
         .withUrl(environment.apiUrl+ "/api/v1/messaging/ws/hubs/messaging", {
           accessTokenFactory: () => this.oAuthService.getAccessToken(),
@@ -153,20 +174,35 @@ export class MessagingWebsocketService {
     })
 
 
-    this.hubConnection.on('MessageCreated', async (data: {
-      messageId: string;
-      content: string;
-      authorId: string;
-      conversationId: string;
-      channelId: string | undefined;
-      attachments: AttachmentDto[];
-      inReplyTo: string | undefined;
-      mentions: string[] | undefined;
-      encryptionState: MessageEncryptionState | undefined;
-      mlsEpoch: number | undefined;
-      mlsSequenceNumber: number | undefined;
-      senderDeviceId: string | undefined;
-    }) => {
+    this.hubConnection.on('MessageCreated', (data: MessageCreatedPayload) => {
+      this._rawMessageCreated$.next(data);
+    });
+
+    this.hubConnection.on('ConversationCreated', (conversationId: string) => {
+      console.log('ConversationCreated:', conversationId);
+      this.conversationCreatedObservable.next(conversationId);
+    });
+
+    this.hubConnection.on('Welcome', (conversationId: string) => {
+      console.log('Welcome for conversation:', conversationId);
+      this.welcomeObservable.next(conversationId);
+    });
+
+    this.hubConnection.onreconnecting(() => {
+      this.notificationService.createNotification({
+        title: 'Reconnecting',
+        message: 'Attempting to reconnect...',
+        sound: NotificationSound.NewMessage,
+      })
+      this.connectionState.set(ConnectionState.Connecting);
+    })
+
+    this.hubConnection.onreconnected(() => {
+      this.connectionState.set(ConnectionState.Connected);
+    })
+  }
+
+  private async handleMessageCreated(data: MessageCreatedPayload): Promise<void> {
       const encryptionState = data.encryptionState ?? MessageEncryptionState.Plain;
 
       console.log('incomming msg', data)
@@ -267,31 +303,6 @@ export class MessagingWebsocketService {
         actionTypeId: 'message',
         extra,
       });
-    })
-
-    this.hubConnection.on('ConversationCreated', (conversationId: string) => {
-      console.log('ConversationCreated:', conversationId);
-      this.conversationCreatedObservable.next(conversationId);
-    });
-
-    this.hubConnection.on('Welcome', (conversationId: string) => {
-      console.log('Welcome for conversation:', conversationId);
-      this.welcomeObservable.next(conversationId);
-    });
-
-    this.hubConnection.onreconnecting(() => {
-      this.notificationService.createNotification({
-        title: 'Reconnecting',
-        message: 'Attempting to reconnect...',
-        sound: NotificationSound.NewMessage,
-      })
-      this.connectionState.set(ConnectionState.Connecting);
-    })
-
-    this.hubConnection.onreconnected(() => {
-      this.connectionState.set(ConnectionState.Connected);
-    })
-
   }
 
   invokeStartTyping(conversationId: string): void {

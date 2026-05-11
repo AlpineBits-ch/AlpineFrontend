@@ -10,6 +10,8 @@ export interface NotificationSettings {
   dm: boolean;
   mentions: boolean;
   sounds: boolean;
+  cooldownEnabled: boolean;
+  cooldownSeconds: number;
 }
 
 interface SettingsPayload {
@@ -18,7 +20,7 @@ interface SettingsPayload {
 }
 
 const DEFAULTS: SettingsPayload = {
-  notifications: { enabled: true, dm: true, mentions: true, sounds: true },
+  notifications: { enabled: true, dm: true, mentions: true, sounds: true, cooldownEnabled: true, cooldownSeconds: 10 },
   autostart: false,
 };
 
@@ -101,6 +103,8 @@ export class UserSettingsService {
         dm: n?.dm ?? DEFAULTS.notifications.dm,
         mentions: n?.mentions ?? DEFAULTS.notifications.mentions,
         sounds: n?.sounds ?? DEFAULTS.notifications.sounds,
+        cooldownEnabled: n?.cooldownEnabled ?? DEFAULTS.notifications.cooldownEnabled,
+        cooldownSeconds: n?.cooldownSeconds ?? DEFAULTS.notifications.cooldownSeconds,
       },
       autostart: obj['autostart'] ?? DEFAULTS.autostart,
     };

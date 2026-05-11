@@ -65,6 +65,11 @@ export class NotificationSettingsComponent {
     reader.readAsDataURL(file);
   }
 
+  protected onCooldownSecondsChange(value: string): void {
+    const seconds = Math.max(1, Math.min(300, Number(value)));
+    if (!isNaN(seconds)) this.userSettings.updateNotifications({ cooldownSeconds: seconds });
+  }
+
   protected clearCustom(key: SoundKey): void {
     this.soundSettings.update(key, { customUrl: undefined, customName: undefined });
   }

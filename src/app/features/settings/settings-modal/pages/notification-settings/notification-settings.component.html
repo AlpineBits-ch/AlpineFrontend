@@ -13,6 +13,30 @@
         [ngModel]="userSettings.notificationSettings().enabled"
         (ngModelChange)="userSettings.updateNotifications({ enabled: $event })" />
     </div>
+
+    <div class="flex flex-col gap-3 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3 transition-opacity duration-200"
+         [class.opacity-40]="!userSettings.notificationSettings().enabled"
+         [class.pointer-events-none]="!userSettings.notificationSettings().enabled">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-white/75">Notification Cooldown</p>
+          <p class="text-xs text-white/35 mt-0.5">Send one notification, then ignore the rest until the cooldown expires.</p>
+        </div>
+        <p-toggleswitch
+          [ngModel]="userSettings.notificationSettings().cooldownEnabled"
+          (ngModelChange)="userSettings.updateNotifications({ cooldownEnabled: $event })" />
+      </div>
+      @if (userSettings.notificationSettings().cooldownEnabled) {
+        <div class="flex items-center gap-3 pt-2 border-t border-white/[0.06]">
+          <span class="text-xs text-white/35 shrink-0">Cooldown duration</span>
+          <input type="number" min="1" max="300"
+                 [value]="userSettings.notificationSettings().cooldownSeconds"
+                 (change)="onCooldownSecondsChange($any($event.target).value)"
+                 class="w-16 bg-white/[0.05] border border-white/[0.10] rounded-lg px-2 py-1 text-xs text-white/75 text-center outline-none focus:border-brand/40" />
+          <span class="text-xs text-white/35">seconds</span>
+        </div>
+      }
+    </div>
   </section>
 
   <!-- Messages -->

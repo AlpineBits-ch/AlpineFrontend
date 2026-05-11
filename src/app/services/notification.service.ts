@@ -36,6 +36,7 @@ export class NotificationService {
 
   private platformName: string | null = null;
   private readonly initPromise: Promise<void>;
+  private lastNotificationTime = 0;
 
   constructor() {
     this.initPromise = this.init();
@@ -95,8 +96,7 @@ export class NotificationService {
     actionTypeId?: string;
     extra?: Record<string, string>;
   }): Promise<void> {
-    await this.initPromise;
-
+    // All filtering runs synchronously before any await so there are no yield-point race conditions.
     const ns = this.userSettings.notificationSettings();
     if (!ns.enabled) return;
 
@@ -104,10 +104,22 @@ export class NotificationService {
     if (category === 'dm' && !ns.dm) return;
     if (category === 'mention' && !ns.mentions) return;
 
+    // Sound plays on every notification that passes the category filter, even during cooldown.
+    if (ns.sounds && params.sound === NotificationSound.NewMessage) {
+      this.soundSettings.playMessage();
+    }
+
+    // Cooldown only suppresses the OS notification popup, not the sound.
+    if (ns.cooldownEnabled) {
+      const now = Date.now();
+      if (now - this.lastNotificationTime < ns.cooldownSeconds * 1000) return;
+      this.lastNotificationTime = now;
+    }
+
+    await this.initPromise;
+
     const actionTypeId = params.actionTypeId ?? 'message';
     const extra = params.extra ?? {};
-    const playSound = ns.sounds && params.sound === NotificationSound.NewMessage;
-    if (playSound) this.soundSettings.playMessage();
 
     if (this.platformName === 'windows') {
       await invoke('send_windows_toast', {
