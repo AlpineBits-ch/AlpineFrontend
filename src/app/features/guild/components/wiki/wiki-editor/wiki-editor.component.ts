@@ -162,7 +162,7 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
       const html = contentToHtml(page?.content ?? '');
       this.editorContent.set(html);
       this.editorCategoryId.set(page?.categoryId ?? defaults?.categoryId);
-      this.editorParentPageId.set(page?.parentPageId);
+      this.editorParentPageId.set(page?.parentPageId ?? defaults?.parentPageId);
       this.editorTags.set(page ? [...page.tags] : []);
       this.editorIsPinned.set(page?.isPinned ?? false);
       this.editorTagInput.set('');

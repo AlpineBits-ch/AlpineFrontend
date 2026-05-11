@@ -95,16 +95,26 @@ export class WikiSidebarComponent {
 
   protected onPageContextMenu(event: MouseEvent, page: WikiPageSummaryDto): void {
     event.preventDefault();
-    const activePage = this.activePageForParenting();
-    if (!activePage || activePage.id === page.id) return;
-    const truncated = activePage.title.length > 24 ? activePage.title.slice(0, 24) + '…' : activePage.title;
-    this.ctxMenuItems = [
+    const items: MenuItem[] = [
       {
+        label: 'Add Article Here',
+        icon: 'pi pi-file-plus',
+        command: () => {
+          this.state.openEditor(undefined, {categoryId: page.categoryId, parentPageId: page.id});
+          this.navService.showWikiContent(this.state.guildId());
+        },
+      },
+    ];
+    const activePage = this.activePageForParenting();
+    if (activePage && activePage.id !== page.id) {
+      const truncated = activePage.title.length > 24 ? activePage.title.slice(0, 24) + '…' : activePage.title;
+      items.push({
         label: `Set as parent of "${truncated}"`,
         icon: 'pi pi-sitemap',
         command: () => this.setAsParent(page, activePage),
-      },
-    ];
+      });
+    }
+    this.ctxMenuItems = items;
     this.catCtxMenu?.show(event);
   }
 

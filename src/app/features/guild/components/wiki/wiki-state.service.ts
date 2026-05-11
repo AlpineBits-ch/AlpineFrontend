@@ -13,7 +13,7 @@ export class WikiStateService {
   readonly wikiView = signal<WikiView>('home');
   readonly selectedPage = signal<WikiPageDto | null>(null);
   readonly editingPage = signal<WikiPageDto | null>(null);
-  readonly editorDefaults = signal<{categoryId?: string} | null>(null);
+  readonly editorDefaults = signal<{categoryId?: string; parentPageId?: string} | null>(null);
   readonly guildId = signal<string>('');
   readonly pageLoading = signal(false);
   readonly pendingRemoteUpdate = signal<WikiPageDto | null>(null);
@@ -111,7 +111,7 @@ export class WikiStateService {
     });
   }
 
-  openEditor(page?: WikiPageDto, defaults?: {categoryId?: string}): void {
+  openEditor(page?: WikiPageDto, defaults?: {categoryId?: string; parentPageId?: string}): void {
     this.editingPage.set(page ?? null);
     this.editorDefaults.set(page ? null : (defaults ?? null));
     this.pendingRemoteUpdate.set(null);
