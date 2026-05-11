@@ -4,6 +4,9 @@ mod crypto;
 mod media;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod rich_presence;
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod desktop_notifications;
 
 #[cfg(target_os = "windows")]
@@ -226,6 +229,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             media::screen::start_screen_capture,
             media::screen::stop_screen_capture,
             media::screen::set_screen_capture_fps,
+            rich_presence::scan_game_process,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -19,7 +19,7 @@ use openmls_rust_crypto::OpenMlsRustCrypto;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-
+use openmls::prelude::*; // This usually brings in SenderRatchetConfiguration
 const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
 // ---------------------------------------------------------------------------
@@ -235,13 +235,23 @@ fn build_group_info(group: &MlsGroup) -> MlsGroupInfo {
 }
 
 fn create_config() -> MlsGroupCreateConfig {
+    let ratchet_config = SenderRatchetConfiguration::new(
+            500, // max_forward_distance: increase this from the default (usually 100)
+            10,  // out_of_order_tolerance: how many "old" keys to keep in the cache
+        );
     MlsGroupCreateConfig::builder()
+    .sender_ratchet_configuration(ratchet_config)
         .use_ratchet_tree_extension(true)
         .build()
 }
 
 fn join_config() -> MlsGroupJoinConfig {
-    MlsGroupJoinConfig::builder()
+let ratchet_config = SenderRatchetConfiguration::new(
+        500, // max_forward_distance: increase this from the default (usually 100)
+        10,  // out_of_order_tolerance: how many "old" keys to keep in the cache
+    );
+        MlsGroupJoinConfig::builder()
+        .sender_ratchet_configuration(ratchet_config)
         .use_ratchet_tree_extension(true)
         .build()
 }

@@ -1,4 +1,4 @@
-import { Component, inject, OnDestroy, signal } from '@angular/core';
+import {Component, effect, inject, OnDestroy, signal} from '@angular/core';
 import { AuthService } from '../../services/auth.service';
 import { Router } from '@angular/router';
 import { HomeComponent } from './pages/home/home.component';
@@ -35,6 +35,7 @@ import { KeySetupDialogComponent } from '../key-setup/key-setup-dialog/key-setup
 import { MlsService } from '../../services/mls.service';
 import { DeviceRegistrationModalComponent } from '../device-registration/device-registration-modal/device-registration-modal.component';
 import {ConversationService} from "../../services/conversation.service";
+import {RichPresenceService} from "../../services/rich-presence.service";
 
 @Component({
   selector: 'app-main-page',
@@ -75,6 +76,7 @@ export class MainPageComponent implements OnDestroy {
   private mlsService = inject(MlsService);
   private conversationService = inject(ConversationService);
 
+  private richPresenceService = inject(RichPresenceService);
   protected router = inject(Router);
   protected showDeviceRegistration = signal(false);
   protected showKeySetup = signal(false);
@@ -106,6 +108,12 @@ export class MainPageComponent implements OnDestroy {
         console.log('Token expiring, performing refresh token flow...');
         this.oAuthService.refreshToken().then(r => console.log('Token refreshed successfully!'));
       }
+    });
+
+    this.richPresenceService.start();
+
+    effect(() => {
+      console.log('current game: ',this.richPresenceService.currentGame())
     });
 
     this.actionSub = this.notificationService.action$.subscribe(event => {

@@ -1,0 +1,67 @@
+# process_name,game_title
+# Process names are matched case-insensitively; .exe suffix is ignored on Windows.
+# Add one entry per line. Lines starting with # are comments.
+
+# Shooters
+cs2,Counter-Strike 2
+r5apex,Apex Legends
+valorant-win64-shipping,VALORANT
+fortniteclient-win64-shipping,Fortnite
+overwatch,Overwatch 2
+destiny2,Destiny 2
+rainbow6,Rainbow Six Siege
+battlefront2,Star Wars Battlefront II
+insurgency,Insurgency: Sandstorm
+
+# MOBAs
+dota2,Dota 2
+league of legends,League of Legends
+heroesofthestorm,Heroes of the Storm
+
+# MMORPGs / Online
+worldofwarcraft,World of Warcraft
+ffxiv,Final Fantasy XIV
+gw2,Guild Wars 2
+newworld,New World,
+RSI Launcher, Star Citizen
+
+# Battle Royale / Survival
+rust,Rust
+enshrouded,Enshrouded
+palworld,Palworld
+7daystodie,7 Days to Die
+dayz,DayZ
+
+# RPGs
+eldenring,Elden Ring
+bg3,Baldur's Gate 3
+cyberpunk2077,Cyberpunk 2077
+witcher3,The Witcher 3
+diablo iv,Diablo IV
+starfield,Starfield
+skyrim,The Elder Scrolls V: Skyrim
+baldursgate3,Baldur's Gate 3
+
+# Cards / Strategy
+hearthstone,Hearthstone
+starcraft2,StarCraft II
+civilization6,Sid Meier's Civilization VI
+ageofempires4,Age of Empires IV
+
+# Sandbox / Creative
+minecraft,Minecraft
+terraria,Terraria
+stardewvalley,Stardew Valley
+
+# Sports / Racing
+rocketleague,Rocket League
+gta5,Grand Theft Auto V
+forza_horizon5,Forza Horizon 5
+
+# Indie
+celeste,Celeste
+hollowknight,Hollow Knight
+hades2,Hades II
+deathsdoor,Death's Door
+cuphead,Cuphead
+pathofexile2,Path of Exile 2
