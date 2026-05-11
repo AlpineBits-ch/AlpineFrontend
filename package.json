@@ -71,5 +71,5 @@
     "tauri": "tauri",
     "watch": "ng build --watch --configuration development"
   },
-  "version": "3.0.67"
+  "version": "3.0.68"
 }
