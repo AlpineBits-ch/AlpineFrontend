@@ -28,6 +28,8 @@ import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
 import Image from '@tiptap/extension-image';
 import {marked} from 'marked';
+import TurndownService from 'turndown';
+import { gfm } from 'turndown-plugin-gfm';
 import {WikiDto, WikiPageDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
 import {FileService} from '../../../../../services/file.service';
@@ -88,6 +90,10 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
   protected isCodeBlock = signal(false);
   protected isInTable = signal(false);
 
+  // ── Markdown mode ──────────────────────────────────────────────────────────
+  protected markdownMode = signal(false);
+  protected rawMarkdown = signal('');
+
   // ── Link input ─────────────────────────────────────────────────────────────
   protected linkInputVisible = signal(false);
   protected linkUrl = signal('');
@@ -138,6 +144,15 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
   private contextMenuHandler?: (e: MouseEvent) => void;
   private dropHandler?: (e: DragEvent) => void;
   private dragoverHandler?: (e: DragEvent) => void;
+  private readonly turndown = (() => {
+    const td = new TurndownService({
+      headingStyle: 'atx',
+      bulletListMarker: '-',
+      codeBlockStyle: 'fenced',
+    });
+    td.use(gfm);
+    return td;
+  })();
 
   constructor() {
     effect(() => {
@@ -265,6 +280,25 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
     this.linkInputVisible.set(false);
   }
 
+  // ── Markdown mode toggle ───────────────────────────────────────────────────
+  protected toggleMarkdownMode(): void {
+    if (this.markdownMode()) {
+      // markdown → WYSIWYG: parse markdown back to HTML and reload Tiptap
+      const html = contentToHtml(this.rawMarkdown());
+      this.editorContent.set(html);
+      if (this.tiptapEditor) {
+        this.tiptapEditor.commands.setContent(html || '');
+      }
+      this.markdownMode.set(false);
+    } else {
+      // WYSIWYG → markdown: convert current HTML to markdown
+      const md = this.turndown.turndown(this.editorContent() || '');
+      this.rawMarkdown.set(md);
+      this.markdownMode.set(true);
+      this.linkInputVisible.set(false);
+    }
+  }
+
   // ── File upload ────────────────────────────────────────────────────────────
   protected triggerFileUpload(): void {
     this.fileInputEl?.nativeElement.click();
@@ -364,9 +398,12 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
   protected savePage(): void {
     if (this.saving() || !this.editorTitle().trim()) return;
     this.saving.set(true);
+    const content = this.markdownMode()
+      ? contentToHtml(this.rawMarkdown())
+      : this.editorContent();
     const base = {
       title: this.editorTitle().trim(),
-      content: this.editorContent(),
+      content,
       tags: this.editorTags(),
       isPinned: this.editorIsPinned(),
     };

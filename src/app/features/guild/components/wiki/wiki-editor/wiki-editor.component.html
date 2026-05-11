@@ -90,46 +90,55 @@
 
     <!-- Toolbar -->
     <div class="flex items-center gap-0.5 px-3 py-1.5 border-b border-white/[0.05] shrink-0 flex-wrap">
-      <button (click)="undo()" class="tbtn" title="Undo"><i class="pi pi-undo text-[12px]"></i></button>
-      <button (click)="redo()" class="tbtn" title="Redo"><i class="pi pi-redo text-[12px]"></i></button>
+      @if (!markdownMode()) {
+        <button (click)="undo()" class="tbtn" title="Undo"><i class="pi pi-undo text-[12px]"></i></button>
+        <button (click)="redo()" class="tbtn" title="Redo"><i class="pi pi-redo text-[12px]"></i></button>
 
-      <div class="w-px h-4 bg-white/10 mx-1 shrink-0"></div>
+        <div class="w-px h-4 bg-white/10 mx-1 shrink-0"></div>
 
-      <button (click)="toggleBold()" [class.active]="isBold()" class="tbtn font-bold text-[13px]" title="Bold">B</button>
-      <button (click)="toggleItalic()" [class.active]="isItalic()" class="tbtn italic text-[13px]" title="Italic">I</button>
-      <button (click)="toggleUnderline()" [class.active]="isUnderline()" class="tbtn underline text-[13px]" title="Underline">U</button>
+        <button (click)="toggleBold()" [class.active]="isBold()" class="tbtn font-bold text-[13px]" title="Bold">B</button>
+        <button (click)="toggleItalic()" [class.active]="isItalic()" class="tbtn italic text-[13px]" title="Italic">I</button>
+        <button (click)="toggleUnderline()" [class.active]="isUnderline()" class="tbtn underline text-[13px]" title="Underline">U</button>
 
-      <div class="w-px h-4 bg-white/10 mx-1 shrink-0"></div>
+        <div class="w-px h-4 bg-white/10 mx-1 shrink-0"></div>
 
-      <button (click)="toggleH1()" [class.active]="isH1()" class="tbtn font-bold text-[11px] tracking-tight" title="Heading 1">H1</button>
-      <button (click)="toggleH2()" [class.active]="isH2()" class="tbtn font-bold text-[11px] tracking-tight" title="Heading 2">H2</button>
-      <button (click)="toggleH3()" [class.active]="isH3()" class="tbtn font-bold text-[11px] tracking-tight" title="Heading 3">H3</button>
+        <button (click)="toggleH1()" [class.active]="isH1()" class="tbtn font-bold text-[11px] tracking-tight" title="Heading 1">H1</button>
+        <button (click)="toggleH2()" [class.active]="isH2()" class="tbtn font-bold text-[11px] tracking-tight" title="Heading 2">H2</button>
+        <button (click)="toggleH3()" [class.active]="isH3()" class="tbtn font-bold text-[11px] tracking-tight" title="Heading 3">H3</button>
 
-      <div class="w-px h-4 bg-white/10 mx-1 shrink-0"></div>
+        <div class="w-px h-4 bg-white/10 mx-1 shrink-0"></div>
 
-      <button (click)="toggleBulletList()" [class.active]="isBulletList()" class="tbtn" title="Bullet List"><i class="pi pi-list text-[12px]"></i></button>
-      <button (click)="toggleOrderedList()" [class.active]="isOrderedList()" class="tbtn" title="Numbered List"><i class="pi pi-sort-numeric-up-alt text-[12px]"></i></button>
+        <button (click)="toggleBulletList()" [class.active]="isBulletList()" class="tbtn" title="Bullet List"><i class="pi pi-list text-[12px]"></i></button>
+        <button (click)="toggleOrderedList()" [class.active]="isOrderedList()" class="tbtn" title="Numbered List"><i class="pi pi-sort-numeric-up-alt text-[12px]"></i></button>
 
-      <div class="w-px h-4 bg-white/10 mx-1 shrink-0"></div>
+        <div class="w-px h-4 bg-white/10 mx-1 shrink-0"></div>
 
-      <button (click)="toggleBlockquote()" [class.active]="isBlockquote()" class="tbtn" title="Quote"><i class="pi pi-comments text-[12px]"></i></button>
-      <button (click)="toggleCode()" [class.active]="isCode()" class="tbtn" title="Inline Code"><i class="pi pi-code text-[12px]"></i></button>
-      <button (click)="toggleCodeBlock()" [class.active]="isCodeBlock()" class="tbtn font-mono text-[10px]" title="Code Block">&#123;&#125;</button>
+        <button (click)="toggleBlockquote()" [class.active]="isBlockquote()" class="tbtn" title="Quote"><i class="pi pi-comments text-[12px]"></i></button>
+        <button (click)="toggleCode()" [class.active]="isCode()" class="tbtn" title="Inline Code"><i class="pi pi-code text-[12px]"></i></button>
+        <button (click)="toggleCodeBlock()" [class.active]="isCodeBlock()" class="tbtn font-mono text-[10px]" title="Code Block">&#123;&#125;</button>
 
-      <div class="w-px h-4 bg-white/10 mx-1 shrink-0"></div>
+        <div class="w-px h-4 bg-white/10 mx-1 shrink-0"></div>
 
-      <button (click)="openLinkInput()" class="tbtn" title="Link"><i class="pi pi-link text-[12px]"></i></button>
-      <button (click)="insertHR()" class="tbtn" title="Divider"><i class="pi pi-minus text-[12px]"></i></button>
-      <button (click)="insertTable()" class="tbtn" title="Table"><i class="pi pi-table text-[12px]"></i></button>
+        <button (click)="openLinkInput()" class="tbtn" title="Link"><i class="pi pi-link text-[12px]"></i></button>
+        <button (click)="insertHR()" class="tbtn" title="Divider"><i class="pi pi-minus text-[12px]"></i></button>
+        <button (click)="insertTable()" class="tbtn" title="Table"><i class="pi pi-table text-[12px]"></i></button>
 
-      <div class="w-px h-4 bg-white/10 mx-1 shrink-0"></div>
+        <div class="w-px h-4 bg-white/10 mx-1 shrink-0"></div>
 
-      <button (click)="triggerFileUpload()" [class.uploading]="uploadingFile()" class="tbtn" title="Insert image or file">
-        @if (uploadingFile()) {
-          <i class="pi pi-spinner pi-spin text-[12px]"></i>
-        } @else {
-          <i class="pi pi-image text-[12px]"></i>
-        }
+        <button (click)="triggerFileUpload()" [class.uploading]="uploadingFile()" class="tbtn" title="Insert image or file">
+          @if (uploadingFile()) {
+            <i class="pi pi-spinner pi-spin text-[12px]"></i>
+          } @else {
+            <i class="pi pi-image text-[12px]"></i>
+          }
+        </button>
+
+        <div class="w-px h-4 bg-white/10 mx-1 shrink-0"></div>
+      }
+
+      <button (click)="toggleMarkdownMode()" [class.active]="markdownMode()"
+        class="tbtn font-mono text-[10px] tracking-tight px-1.5" title="Toggle markdown source">
+        MD
       </button>
     </div>
 
@@ -178,8 +187,25 @@
       multiple
       (change)="onFilesSelected($event)" />
 
+    <!-- Markdown source editor -->
+    @if (markdownMode()) {
+      <div class="flex-1 min-h-0 overflow-y-auto"
+           style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+        <div class="max-w-3xl mx-auto px-8 py-4 h-full">
+          <textarea
+            class="w-full h-full min-h-[400px] bg-transparent border-0 outline-none resize-none font-mono text-sm text-white/80 placeholder-white/20 leading-relaxed"
+            placeholder="Write markdown here…"
+            [ngModel]="rawMarkdown()"
+            (ngModelChange)="rawMarkdown.set($event)"
+            style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+          </textarea>
+        </div>
+      </div>
+    }
+
     <!-- WYSIWYG editor -->
     <div class="flex-1 min-h-0 overflow-y-auto"
+         [hidden]="markdownMode()"
          style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
       <div class="max-w-3xl mx-auto px-8 py-4">
         <div #editorEl class="wiki-content wiki-wysiwyg"></div>
