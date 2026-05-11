@@ -1,51 +1,81 @@
 <div class="flex flex-col w-56 h-full bg-sidebar border-l border-white/[0.10] shrink-0">
 
-  <!-- Header -->
+  <!-- Online section header -->
   <div class="px-4 pt-4 pb-2 shrink-0">
-    <h2 class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest">Activity Feed</h2>
+    <h2 class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest">
+      Online — {{ onlineFriends().length }}
+    </h2>
   </div>
 
-  <!-- Feed items -->
-  <div class="flex-1 min-h-0 overflow-y-auto px-3 flex flex-col gap-2 pb-3" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+  <!-- Friends list -->
+  <div class="flex-1 min-h-0 overflow-y-auto px-2 flex flex-col pb-3"
+       style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
 
-    <!-- Friend request -->
-    <div class="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3 flex flex-col gap-2.5">
-      <div class="flex items-start gap-2.5">
-        <p-avatar icon="pi pi-user" shape="circle" size="normal"></p-avatar>
-        <div class="flex-1 min-w-0">
-          <p class="text-xs text-white/65 leading-relaxed">
-            <span class="font-semibold text-white/85">rubyxxz_</span> sent you a friend request
-          </p>
-          <p class="text-[10px] text-white/25 mt-0.5">Just now</p>
+    @if (friends().length === 0) {
+      <!-- Empty state: no friends yet -->
+      <div class="flex flex-col items-center justify-center py-10 gap-2 text-center px-3">
+        <div class="w-8 h-8 rounded-full bg-white/[0.04] flex items-center justify-center">
+          <i class="pi pi-users text-white/20 text-sm"></i>
         </div>
+        <p class="text-[11px] text-white/25 leading-snug">No friends yet</p>
       </div>
-      <div class="flex gap-1.5">
-        <p-button label="Accept" [text]="true" severity="primary" size="small" styleClass="flex-1 justify-center" />
-        <p-button label="Ignore" [text]="true" severity="secondary" size="small" styleClass="flex-1 justify-center" />
-      </div>
-    </div>
+    }
 
-    <!-- Channel created -->
-    <div class="bg-white/[0.03] border border-white/[0.06] rounded-xl p-3">
-      <div class="flex items-start gap-2.5">
-        <div class="w-7 h-7 rounded-lg bg-indigo-500/15 flex items-center justify-center shrink-0 mt-0.5">
-          <i class="pi pi-hashtag text-indigo-400 text-xs"></i>
+    @if (friends().length > 0 && onlineFriends().length === 0) {
+      <!-- Empty state: friends exist but none online -->
+      <div class="flex flex-col items-center justify-center py-6 gap-1.5 text-center px-3">
+        <p class="text-[11px] text-white/20 leading-snug">Nobody's online right now</p>
+      </div>
+    }
+
+    <!-- Online friends -->
+    @for (friend of onlineFriends(); track friend.id) {
+      <div class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer">
+        <div class="relative shrink-0">
+          <p-avatar icon="pi pi-user" shape="circle" size="normal" />
+          <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-online border-2 border-sidebar"></span>
         </div>
         <div class="flex-1 min-w-0">
-          <p class="text-xs text-white/65 leading-relaxed">
-            New channel <span class="font-semibold text-white/85">#design-critique</span> created in <span class="text-indigo-400">UX Design</span> server
-          </p>
-          <p class="text-[10px] text-white/25 mt-0.5">2 hours ago</p>
+          <p class="text-xs font-medium text-white/80 truncate">{{ friendProfile(friend).userName }}<span class="text-white/30 font-normal">#{{ friendProfile(friend).hash }}</span></p>
+          @if (activityFor(friend); as status) {
+            <p class="text-[10px] text-white/40 truncate">
+              {{ status.label }}@if (status.since) { · {{ formatSince(status.since) }} }
+            </p>
+          } @else {
+            <p class="text-[10px] text-white/30 truncate">Online</p>
+          }
         </div>
       </div>
-    </div>
+    }
+
+    <!-- Offline section -->
+    @if (offlineFriends().length > 0) {
+      <div class="px-2 pt-3 pb-1 mt-1">
+        <p class="text-[10px] font-semibold text-white/20 uppercase tracking-wider">
+          Offline — {{ offlineFriends().length }}
+        </p>
+      </div>
+
+      @for (friend of offlineFriends(); track friend.id) {
+        <div class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer opacity-40">
+          <div class="relative shrink-0">
+            <p-avatar icon="pi pi-user" shape="circle" size="normal" />
+            <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-white/20 border-2 border-sidebar"></span>
+          </div>
+          <div class="flex-1 min-w-0">
+            <p class="text-xs font-medium text-white/80 truncate">{{ friendProfile(friend).userName }}<span class="text-white/30 font-normal">#{{ friendProfile(friend).hash }}</span></p>
+            <p class="text-[10px] text-white/40 truncate">Offline</p>
+          </div>
+        </div>
+      }
+    }
 
   </div>
 
   <!-- Bottom user card -->
   <div class="p-3 shrink-0">
     <div class="bg-gradient-to-br from-indigo-500/15 to-violet-500/10 border border-white/[0.07] rounded-2xl p-3 flex flex-col items-center gap-2">
-      <p-avatar icon="pi pi-user" shape="circle" size="large"></p-avatar>
+      <p-avatar icon="pi pi-user" shape="circle" size="large" />
       <div class="text-center">
         <p class="text-sm font-semibold text-white/85">{{ profileService.ownProfile()?.userName ?? '…' }}</p>
         <p class="text-[11px] text-white/30">#{{ profileService.ownProfile()?.hash }}</p>
