@@ -99,7 +99,9 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
   protected linkUrl = signal('');
 
   // ── Context menu items ─────────────────────────────────────────────────────
-  protected tableContextItems: MenuItem[] = [
+  protected contextMenuItems = signal<MenuItem[]>([]);
+
+  private readonly tableContextItems: MenuItem[] = [
     {
       label: 'Add Row Above',
       icon: 'pi pi-arrow-up',
@@ -137,6 +139,20 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
       icon: 'pi pi-trash',
       command: () => this.tiptapEditor?.chain().focus().deleteTable().run(),
     },
+    {separator: true},
+    {
+      label: 'Insert Image',
+      icon: 'pi pi-image',
+      command: () => this.triggerFileUpload(),
+    },
+  ];
+
+  private readonly generalContextItems: MenuItem[] = [
+    {
+      label: 'Insert Image',
+      icon: 'pi pi-image',
+      command: () => this.triggerFileUpload(),
+    },
   ];
 
   private tiptapEditor?: Editor;
@@ -144,6 +160,7 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
   private contextMenuHandler?: (e: MouseEvent) => void;
   private dropHandler?: (e: DragEvent) => void;
   private dragoverHandler?: (e: DragEvent) => void;
+  private pasteHandler?: (e: ClipboardEvent) => void;
   private readonly turndown = (() => {
     const td = new TurndownService({
       headingStyle: 'atx',
@@ -201,8 +218,10 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
     // Right-click context menu for tables
     const el = this.editorEl.nativeElement;
     this.contextMenuHandler = (e: MouseEvent) => {
-      if (!this.tiptapEditor?.isActive('table')) return;
       e.preventDefault();
+      this.contextMenuItems.set(
+        this.tiptapEditor?.isActive('table') ? this.tableContextItems : this.generalContextItems
+      );
       this.ctxMenu?.show(e);
     };
     el.addEventListener('contextmenu', this.contextMenuHandler);
@@ -219,6 +238,18 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
     };
     el.addEventListener('dragover', this.dragoverHandler);
     el.addEventListener('drop', this.dropHandler);
+
+    // Paste image from clipboard
+    this.pasteHandler = (e: ClipboardEvent) => {
+      const images = Array.from(e.clipboardData?.items ?? [])
+        .filter(item => item.kind === 'file' && item.type.startsWith('image/'))
+        .map(item => item.getAsFile())
+        .filter((f): f is File => f !== null);
+      if (!images.length) return;
+      e.preventDefault();
+      this.uploadFiles(images);
+    };
+    el.addEventListener('paste', this.pasteHandler);
   }
 
   ngOnDestroy(): void {
@@ -226,6 +257,7 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
     if (el && this.contextMenuHandler) el.removeEventListener('contextmenu', this.contextMenuHandler);
     if (el && this.dragoverHandler) el.removeEventListener('dragover', this.dragoverHandler);
     if (el && this.dropHandler) el.removeEventListener('drop', this.dropHandler);
+    if (el && this.pasteHandler) el.removeEventListener('paste', this.pasteHandler);
     this.tiptapEditor?.destroy();
   }
 
