@@ -36,6 +36,13 @@ export interface WsChannelDeleted  { channelId: string; guildId: string; }
 export interface WsCategoryCreated { categoryId: string; guildId: string; }
 export interface WsCategoryDeleted { categoryId: string; guildId: string; }
 
+export interface WsWikiPageCreated     { pageId: string; guildId: string; }
+export interface WsWikiPageUpdated     { pageId: string; guildId: string; }
+export interface WsWikiPageDeleted     { pageId: string; guildId: string; }
+export interface WsWikiCategoryCreated { categoryId: string; guildId: string; }
+export interface WsWikiCategoryUpdated { categoryId: string; guildId: string; }
+export interface WsWikiCategoryDeleted { categoryId: string; guildId: string; }
+
 @Injectable({
   providedIn: 'root',
 })
@@ -68,6 +75,14 @@ export class GuildWebsocketService {
   public channelDeletedObservable  = new Subject<WsChannelDeleted>();
   public categoryCreatedObservable = new Subject<WsCategoryCreated>();
   public categoryDeletedObservable = new Subject<WsCategoryDeleted>();
+
+  // ── Wiki lifecycle ──────────────────────────────────────────────────────────
+  public wikiPageCreatedObservable     = new Subject<WsWikiPageCreated>();
+  public wikiPageUpdatedObservable     = new Subject<WsWikiPageUpdated>();
+  public wikiPageDeletedObservable     = new Subject<WsWikiPageDeleted>();
+  public wikiCategoryCreatedObservable = new Subject<WsWikiCategoryCreated>();
+  public wikiCategoryUpdatedObservable = new Subject<WsWikiCategoryUpdated>();
+  public wikiCategoryDeletedObservable = new Subject<WsWikiCategoryDeleted>();
 
   constructor() {
     this.hubConnection = new signalR.HubConnectionBuilder()
@@ -137,10 +152,16 @@ export class GuildWebsocketService {
     this.hubConnection.on('ScreenShareStarted', (d: WsVoiceScreenShareStarted)  => this.voiceScreenShareStartedObservable.next(d));
     this.hubConnection.on('ScreenShareStopped', (d: WsVoiceScreenShareStopped)  => this.voiceScreenShareStoppedObservable.next(d));
     this.hubConnection.on('MovedToChannel',     (d: WsMovedToChannel)           => this.movedToChannelObservable.next(d));
-    this.hubConnection.on('ChannelCreated',     (d: WsChannelCreated)           => this.channelCreatedObservable.next(d));
-    this.hubConnection.on('ChannelDeleted',     (d: WsChannelDeleted)           => this.channelDeletedObservable.next(d));
-    this.hubConnection.on('CategoryCreated',    (d: WsCategoryCreated)          => this.categoryCreatedObservable.next(d));
-    this.hubConnection.on('CategoryDeleted',    (d: WsCategoryDeleted)          => this.categoryDeletedObservable.next(d));
+    this.hubConnection.on('ChannelCreated',        (d: WsChannelCreated)           => this.channelCreatedObservable.next(d));
+    this.hubConnection.on('ChannelDeleted',        (d: WsChannelDeleted)           => this.channelDeletedObservable.next(d));
+    this.hubConnection.on('CategoryCreated',       (d: WsCategoryCreated)          => this.categoryCreatedObservable.next(d));
+    this.hubConnection.on('CategoryDeleted',       (d: WsCategoryDeleted)          => this.categoryDeletedObservable.next(d));
+    this.hubConnection.on('WikiPageCreated',       (d: WsWikiPageCreated)          => this.wikiPageCreatedObservable.next(d));
+    this.hubConnection.on('WikiPageUpdated',       (d: WsWikiPageUpdated)          => this.wikiPageUpdatedObservable.next(d));
+    this.hubConnection.on('WikiPageDeleted',       (d: WsWikiPageDeleted)          => this.wikiPageDeletedObservable.next(d));
+    this.hubConnection.on('WikiCategoryCreated',   (d: WsWikiCategoryCreated)      => this.wikiCategoryCreatedObservable.next(d));
+    this.hubConnection.on('WikiCategoryUpdated',   (d: WsWikiCategoryUpdated)      => this.wikiCategoryUpdatedObservable.next(d));
+    this.hubConnection.on('WikiCategoryDeleted',   (d: WsWikiCategoryDeleted)      => this.wikiCategoryDeletedObservable.next(d));
 
     this.hubConnection.on('MessageCreated', async (data: {
       messageId: string;

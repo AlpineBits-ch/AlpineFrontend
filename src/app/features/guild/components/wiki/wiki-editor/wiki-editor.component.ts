@@ -31,6 +31,7 @@ import {marked} from 'marked';
 import {WikiDto, WikiPageDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
 import {FileService} from '../../../../../services/file.service';
+import {WikiStateService} from '../wiki-state.service';
 
 function contentToHtml(content: string): string {
   if (!content) return '';
@@ -60,6 +61,7 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
 
   private readonly wikiService = inject(WikiService);
   private readonly fileService = inject(FileService);
+  protected readonly wikiState = inject(WikiStateService);
 
   // ── Form state ─────────────────────────────────────────────────────────────
   protected editorTitle = signal('');
@@ -322,6 +324,24 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
 
   protected removeTag(tag: string): void {
     this.editorTags.update(tags => tags.filter(t => t !== tag));
+  }
+
+  // ── Remote conflict ────────────────────────────────────────────────────────
+  protected remoteUpdatePending = computed(() => {
+    const pending = this.wikiState.pendingRemoteUpdate();
+    const editingId = this.page()?.id;
+    return pending && editingId && pending.id === editingId ? pending : null;
+  });
+
+  protected fetchLatest(): void {
+    const latest = this.remoteUpdatePending();
+    if (!latest) return;
+    this.wikiState.openEditor(latest);
+    this.wikiState.clearPendingRemoteUpdate();
+  }
+
+  protected dismissRemoteUpdate(): void {
+    this.wikiState.clearPendingRemoteUpdate();
   }
 
   // ── Computed ───────────────────────────────────────────────────────────────

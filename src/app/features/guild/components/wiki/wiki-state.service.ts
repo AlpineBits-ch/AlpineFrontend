@@ -2,10 +2,12 @@ import {inject, Injectable, signal} from '@angular/core';
 import {WikiDto, WikiPageDto, WikiPageSummaryDto} from '../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../services/wiki.service';
 import {WikiView} from './wiki.types';
+import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 
 @Injectable({providedIn: 'root'})
 export class WikiStateService {
   private readonly wikiService = inject(WikiService);
+  private readonly ws = inject(GuildWebsocketService);
 
   readonly wiki = signal<WikiDto | null>(null);
   readonly wikiView = signal<WikiView>('home');
@@ -13,6 +15,66 @@ export class WikiStateService {
   readonly editingPage = signal<WikiPageDto | null>(null);
   readonly guildId = signal<string>('');
   readonly pageLoading = signal(false);
+  readonly pendingRemoteUpdate = signal<WikiPageDto | null>(null);
+
+  constructor() {
+    this.ws.wikiPageCreatedObservable.subscribe(e => {
+      if (e.guildId !== this.guildId()) return;
+      this.loadWiki(this.guildId());
+    });
+
+    this.ws.wikiPageUpdatedObservable.subscribe(e => {
+      if (e.guildId !== this.guildId()) return;
+      this.loadWiki(this.guildId());
+
+      if (this.wikiView() === 'page' && this.selectedPage()?.id === e.pageId) {
+        this.pageLoading.set(true);
+        this.wikiService.getPage(this.guildId(), e.pageId).subscribe({
+          next: page => {
+            this.selectedPage.set(page);
+            this.pageLoading.set(false);
+          },
+          error: () => this.pageLoading.set(false),
+        });
+      }
+
+      if (this.wikiView() === 'editor' && this.editingPage()?.id === e.pageId) {
+        this.wikiService.getPage(this.guildId(), e.pageId).subscribe({
+          next: page => this.pendingRemoteUpdate.set(page),
+          error: () => {},
+        });
+      }
+    });
+
+    this.ws.wikiPageDeletedObservable.subscribe(e => {
+      if (e.guildId !== this.guildId()) return;
+      const affectsSelected = this.selectedPage()?.id === e.pageId;
+      const affectsEditing  = this.editingPage()?.id === e.pageId;
+      if (affectsSelected || affectsEditing) {
+        this.selectedPage.set(null);
+        this.editingPage.set(null);
+        this.pendingRemoteUpdate.set(null);
+        this.wikiView.set('home');
+        this.pageLoading.set(false);
+      }
+      this.loadWiki(this.guildId());
+    });
+
+    this.ws.wikiCategoryCreatedObservable.subscribe(e => {
+      if (e.guildId !== this.guildId()) return;
+      this.loadWiki(this.guildId());
+    });
+
+    this.ws.wikiCategoryUpdatedObservable.subscribe(e => {
+      if (e.guildId !== this.guildId()) return;
+      this.loadWiki(this.guildId());
+    });
+
+    this.ws.wikiCategoryDeletedObservable.subscribe(e => {
+      if (e.guildId !== this.guildId()) return;
+      this.loadWiki(this.guildId());
+    });
+  }
 
   initialize(guildId: string): void {
     if (this.guildId() !== guildId) {
@@ -20,6 +82,7 @@ export class WikiStateService {
       this.wikiView.set('home');
       this.selectedPage.set(null);
       this.editingPage.set(null);
+      this.pendingRemoteUpdate.set(null);
       this.pageLoading.set(false);
     }
     this.loadWiki(guildId);
@@ -49,6 +112,7 @@ export class WikiStateService {
 
   openEditor(page?: WikiPageDto): void {
     this.editingPage.set(page ?? null);
+    this.pendingRemoteUpdate.set(null);
     this.wikiView.set('editor');
   }
 
@@ -57,9 +121,9 @@ export class WikiStateService {
   }
 
   cancelEditor(): void {
+    this.pendingRemoteUpdate.set(null);
     const page = this.editingPage();
     if (page) {
-      // We already have the full page — no need to re-fetch
       this.selectedPage.set(page);
       this.wikiView.set('page');
       this.pageLoading.set(false);
@@ -69,6 +133,7 @@ export class WikiStateService {
   }
 
   afterSaved(page: WikiPageDto): void {
+    this.pendingRemoteUpdate.set(null);
     this.loadWiki(this.guildId(), page);
   }
 
@@ -81,6 +146,10 @@ export class WikiStateService {
 
   afterRestored(page: WikiPageDto): void {
     this.loadWiki(this.guildId(), page);
+  }
+
+  clearPendingRemoteUpdate(): void {
+    this.pendingRemoteUpdate.set(null);
   }
 
   reload(): void {
@@ -97,7 +166,6 @@ export class WikiStateService {
       } else {
         const current = this.selectedPage();
         if (current) {
-          // Merge refreshed summary metadata into the fetched full page, preserving content
           const summary = wiki.pages.find(p => p.id === current.id);
           if (summary) this.selectedPage.update(p => p ? { ...p, ...summary } : p);
         }
