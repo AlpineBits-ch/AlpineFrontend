@@ -11,6 +11,7 @@ import { GuildWebsocketService } from '../services/guild-websocket.service';
 import { ProfileService } from '../services/profile.service';
 import { HttpErrorResponse } from '@angular/common/http';
 import { catchError, firstValueFrom, from, Observable, of, switchMap, tap } from 'rxjs';
+import {fromBase64} from "../helpers/base64.helper";
 
 const PAGE_SIZE = 30;
 
@@ -61,13 +62,14 @@ async function decryptMessages(messages: MessageDto[], mlsService: MlsService): 
 
     // Check local plaintext cache first — MLS keys are ephemeral and deleted
     // after use, so re-decryption from server ciphertext isn't possible.
+    /*
     const cached = await mlsService.getCachedMessage(msg.id);
     if (cached) {
       result.push({ ...msg, content: cached });
       console.log('using cached plaintext for message', msg)
       continue;
     }
-
+*/
     const groupId = await mlsService.getGroupIdForConversation(msg.conversationId);
     if (!groupId) {
       console.log('group not found for message', msg.id, 'in conversation', msg.conversationId, 'with content', msg.content, 'and attachments', msg.attachments);
@@ -75,7 +77,7 @@ async function decryptMessages(messages: MessageDto[], mlsService: MlsService): 
       continue;
     }
     try {
-      const processed = await firstValueFrom(mlsService.processMessage(groupId, msg.content));
+      const processed = await firstValueFrom(mlsService.processMessage(groupId, fromBase64(msg.content)));
       if (processed.kind === 'application' && processed.plaintext) {
         void mlsService.cacheMessage(msg.id, processed.plaintext);
         result.push({ ...msg, content: processed.plaintext });
