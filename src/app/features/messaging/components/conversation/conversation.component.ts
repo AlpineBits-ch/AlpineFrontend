@@ -448,7 +448,7 @@ export class ConversationComponent implements AfterViewInit {
         // Cache it so it survives app restarts (MLS forward secrecy makes re-decryption impossible).
         void this.mlsService.cacheMessage(confirmed.id, b64Content);
         this.messageStore.confirmMessage(tempId, { ...confirmed, content: b64Content });
-        this.messagingService.messageSentObservable.next(confirmed);
+        this.messagingService.messageSentObservable.next({ ...confirmed, content: b64Content });
       }),
       catchError(err => {
         console.error('Failed to send encrypted message', err);

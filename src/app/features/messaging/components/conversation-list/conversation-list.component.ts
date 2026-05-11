@@ -24,6 +24,7 @@ import { MessagingService } from '../../../../services/messaging.service';
 import { ConversationService } from '../../../../services/conversation.service';
 import { MessagingWebsocketService } from '../../../../services/messaging-websocket.service';
 import { ConversationUtilsService } from '../../../../services/conversation-utils.service';
+import { MlsService } from '../../../../services/mls.service';
 
 import { ConversationStore } from '../../../../stores/conversation.store';
 import { MessageStore } from '../../../../stores/message.store';
@@ -77,6 +78,7 @@ export class ConversationListComponent {
   private messageStore        = inject(MessageStore);
   private toast               = inject(ToastService);
   private messagingWs         = inject(MessagingWebsocketService);
+  private mlsService          = inject(MlsService);
 
   public platformService = inject(PlatformService)
 
@@ -98,6 +100,9 @@ export class ConversationListComponent {
   // Intentionally separate from MessageStore to avoid the list recomputing
   // whenever the open conversation loads its full message history.
   previewMessages = signal<Map<string, MessageDto[]>>(new Map());
+  // Decrypted plaintext per message id — populated async from MLS cache for HTTP-loaded
+  // messages and via direct decode for WS-received messages (already decrypted in content).
+  decryptedPreviews = signal<Map<string, string>>(new Map());
 
   // Unread count per conversation.
   // Only depends on previewMessages + conversationStore (for lastReadMessageId).
@@ -150,10 +155,25 @@ export class ConversationListComponent {
       convs
         .filter(c => !loaded.has(c.id))
         .forEach(c => {
-          this.messagingService.getMessagesForConversation(c.id, 0, PREVIEW_SIZE).subscribe(msgs => {
+          this.messagingService.getMessagesForConversation(c.id, 0, PREVIEW_SIZE).subscribe(async msgs => {
             // API returns messages ascending (oldest-first); reverse so index 0 is always the newest,
             // consistent with the websocket prepend behaviour.
-            this.previewMessages.update(map => new Map(map).set(c.id, [...msgs].reverse()));
+            const reversed = [...msgs].reverse();
+            this.previewMessages.update(map => new Map(map).set(c.id, reversed));
+            // Populate decrypted preview text from MLS cache for encrypted messages.
+            for (const msg of reversed) {
+              if (msg.encryptionState === MessageEncryptionState.Encrypted) {
+                const cached = await this.mlsService.getCachedMessage(msg.id);
+                if (cached) {
+                  try {
+                    const bytes = Uint8Array.from(atob(cached), c => c.charCodeAt(0));
+                    const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+                      .replace(/@([\w\-.]+)#\w+/g, '@$1');
+                    this.decryptedPreviews.update(m => new Map(m).set(msg.id, text));
+                  } catch {}
+                }
+              }
+            }
           });
         });
     });
@@ -169,7 +189,19 @@ export class ConversationListComponent {
       : (conv.members.find(m => m.userId === msg.authorId)?.cachedUserName ?? 'Unknown');
 
     if (msg.encryptionState === MessageEncryptionState.Encrypted) {
-      return { sender, text: '🔒 Encrypted message' };
+      // HTTP-loaded messages resolved from MLS cache (async populated).
+      const cached = this.decryptedPreviews().get(msg.id);
+      if (cached) return { sender, text: cached };
+      // WS-received messages already have decrypted content — ciphertext is binary
+      // and won't survive a strict UTF-8 decode, so use that as the gate.
+      try {
+        const bytes = Uint8Array.from(atob(msg.content), c => c.charCodeAt(0));
+        const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+          .replace(/@([\w\-.]+)#\w+/g, '@$1');
+        return { sender, text };
+      } catch {
+        return { sender, text: '🔒 Encrypted message' };
+      }
     }
 
     let text: string;
