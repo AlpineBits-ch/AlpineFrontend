@@ -30,7 +30,6 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 getrandom = "0.2"
 sysinfo = "0.38.4"
-tauri-plugin-notification = "2.3.3"
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-process = "2.3.1"
 tauri-plugin-single-instance = "2"
@@ -49,28 +48,28 @@ tauri-plugin-secure-storage = "1.5.0"
 
 # Android
 [target.aarch64-linux-android.dependencies]
-tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
 
 [target.armv7-linux-androideabi.dependencies]
-tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
 
 [target.i686-linux-android.dependencies]
-tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
 
 [target.x86_64-linux-android.dependencies]
-tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
 
 # iOS (device)
 [target.aarch64-apple-ios.dependencies]
-tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
 
 # iOS Simulator (Apple Silicon Mac)
 [target.aarch64-apple-ios-sim.dependencies]
-tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
 
 # iOS Simulator (Intel Mac)
 [target.x86_64-apple-ios.dependencies]
-tauri-plugin-notifications = { version = "0.4", features = ["push-notifications"] }
+tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
 
 [dev-dependencies]
 
@@ -79,6 +78,7 @@ debug = true
 debug-assertions = true
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-notifications = "0.4.6"
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-window-state = "2"
@@ -91,14 +91,20 @@ base64 = "0.22"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
+reqwest = { version = "0.12", default-features = false, features = ["native-tls"] }
 windows = { version = "0.58", features = [
     "implement",
+    "Foundation",
+    "Data_Xml_Dom",
+    "UI_Notifications",
     "Win32_Foundation",
     "Win32_Media_Audio",
     "Win32_Security",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
+    "Win32_System_Registry",
     "Win32_System_Threading",
     "Win32_System_Variant",
+    "Win32_UI_Shell",
 ] }
 windows-core = "0.58"

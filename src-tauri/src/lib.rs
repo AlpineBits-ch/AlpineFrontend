@@ -3,6 +3,9 @@ mod crypto;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod media;
 
+#[cfg(target_os = "windows")]
+mod windows_notifications;
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -117,9 +120,28 @@ fn prepare_notification(label: String, app: tauri::AppHandle) -> Result<(), Stri
     Ok(())
 }
 
+#[tauri::command]
+async fn send_windows_toast(
+    title: String,
+    body: String,
+    icon_url: Option<String>,
+    extra: std::collections::HashMap<String, String>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    return windows_notifications::send_toast(app, &title, &body, icon_url.as_deref(), extra).await;
+    #[cfg(not(target_os = "windows"))]
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
+        .setup(|_app| {
+            #[cfg(target_os = "windows")]
+            windows_notifications::setup("Alpine");
+            Ok(())
+        })
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -133,7 +155,7 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_autostart::Builder::new().build())
-        .plugin(tauri_plugin_notification::init());
+        .plugin(tauri_plugin_notifications::init());
 
     // Mobile-only plugins
     #[cfg(mobile)]
@@ -157,6 +179,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             show_noactivate,
             setup_toast_window,
             prepare_notification,
+            send_windows_toast,
             crypto::crypto::generate_key,
             crypto::crypto::generate_key_pairs,
             crypto::crypto::setup_master_key,
