@@ -6,7 +6,7 @@ import { EntropyModalComponent } from '../entropy-modal/entropy-modal.component'
 import { UserService } from '../../../services/user.service';
 import { MasterKeyService } from '../../../services/master-key.service';
 import { PlatformService } from '../../../services/platform.service';
-import { catchError, EMPTY, filter, from, switchMap, tap } from 'rxjs';
+import { catchError, EMPTY, filter, from, switchMap, take, tap } from 'rxjs';
 
 type Step = 'password' | 'entropy' | 'processing' | 'done';
 
@@ -43,11 +43,21 @@ export class KeySetupDialogComponent {
       return;
     }
     this.errorMsg.set('');
-    if (this.showEntropy) {
-      this.step.set('entropy');
-    } else {
-      this.execute([]);
-    }
+    this.userService.verifyPassword(this.password()).pipe(
+      take(1),
+      filter(valid => {
+        if (!valid) {
+          this.errorMsg.set('Incorrect password. Please try again.');
+        }
+        return valid;
+      }),
+    ).subscribe(() => {
+      if (this.showEntropy) {
+        this.step.set('entropy');
+      } else {
+        this.execute([]);
+      }
+    });
   }
 
   protected onEntropyDone(entropy: number[]): void {
@@ -57,15 +67,7 @@ export class KeySetupDialogComponent {
   private execute(entropy: number[]): void {
     this.step.set('processing');
 
-    this.userService.verifyPassword(this.password()).pipe(
-      filter(valid => {
-        if (!valid) {
-          this.errorMsg.set('Incorrect password. Please try again.');
-          this.step.set('password');
-        }
-        return valid;
-      }),
-      switchMap(() => from(this.masterKeyService.setupMasterKey(this.password(), entropy))),
+    from(this.masterKeyService.setupMasterKey(this.password(), entropy)).pipe(
       switchMap(payload => this.userService.uploadEncryptedMasterKey(payload)),
       tap(() => {
         this.step.set('done');
