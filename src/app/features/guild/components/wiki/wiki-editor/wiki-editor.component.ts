@@ -15,6 +15,8 @@ import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {Select} from 'primeng/select';
 import {Checkbox} from 'primeng/checkbox';
+import {ContextMenu} from 'primeng/contextmenu';
+import {MenuItem} from 'primeng/api';
 import {Editor} from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
@@ -24,9 +26,11 @@ import {Table} from '@tiptap/extension-table';
 import TableRow from '@tiptap/extension-table-row';
 import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
+import Image from '@tiptap/extension-image';
 import {marked} from 'marked';
 import {WikiDto, WikiPageDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
+import {FileService} from '../../../../../services/file.service';
 
 function contentToHtml(content: string): string {
   if (!content) return '';
@@ -36,7 +40,7 @@ function contentToHtml(content: string): string {
 
 @Component({
   selector: 'app-wiki-editor',
-  imports: [FormsModule, Button, Select, Checkbox],
+  imports: [FormsModule, Button, Select, Checkbox, ContextMenu],
   templateUrl: './wiki-editor.component.html',
   styleUrl: './wiki-editor.component.css',
   host: {class: 'flex flex-col flex-1 min-h-0 overflow-hidden'},
@@ -51,8 +55,11 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
 
   @ViewChild('editorEl') editorEl?: ElementRef<HTMLDivElement>;
   @ViewChild('linkInputEl') linkInputEl?: ElementRef<HTMLInputElement>;
+  @ViewChild('fileInputEl') fileInputEl?: ElementRef<HTMLInputElement>;
+  @ViewChild('ctxMenu') ctxMenu?: ContextMenu;
 
   private readonly wikiService = inject(WikiService);
+  private readonly fileService = inject(FileService);
 
   // ── Form state ─────────────────────────────────────────────────────────────
   protected editorTitle = signal('');
@@ -63,6 +70,7 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
   protected editorIsPinned = signal(false);
   protected editorTagInput = signal('');
   protected saving = signal(false);
+  protected uploadingFile = signal(false);
 
   // ── Toolbar active state ───────────────────────────────────────────────────
   protected isBold = signal(false);
@@ -76,13 +84,58 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
   protected isBlockquote = signal(false);
   protected isCode = signal(false);
   protected isCodeBlock = signal(false);
+  protected isInTable = signal(false);
 
   // ── Link input ─────────────────────────────────────────────────────────────
   protected linkInputVisible = signal(false);
   protected linkUrl = signal('');
 
+  // ── Context menu items ─────────────────────────────────────────────────────
+  protected tableContextItems: MenuItem[] = [
+    {
+      label: 'Add Row Above',
+      icon: 'pi pi-arrow-up',
+      command: () => this.tiptapEditor?.chain().focus().addRowBefore().run(),
+    },
+    {
+      label: 'Add Row Below',
+      icon: 'pi pi-arrow-down',
+      command: () => this.tiptapEditor?.chain().focus().addRowAfter().run(),
+    },
+    {
+      label: 'Add Column Before',
+      icon: 'pi pi-arrow-left',
+      command: () => this.tiptapEditor?.chain().focus().addColumnBefore().run(),
+    },
+    {
+      label: 'Add Column After',
+      icon: 'pi pi-arrow-right',
+      command: () => this.tiptapEditor?.chain().focus().addColumnAfter().run(),
+    },
+    {separator: true},
+    {
+      label: 'Delete Row',
+      icon: 'pi pi-times',
+      command: () => this.tiptapEditor?.chain().focus().deleteRow().run(),
+    },
+    {
+      label: 'Delete Column',
+      icon: 'pi pi-times',
+      command: () => this.tiptapEditor?.chain().focus().deleteColumn().run(),
+    },
+    {separator: true},
+    {
+      label: 'Delete Table',
+      icon: 'pi pi-trash',
+      command: () => this.tiptapEditor?.chain().focus().deleteTable().run(),
+    },
+  ];
+
   private tiptapEditor?: Editor;
   private editorReady = false;
+  private contextMenuHandler?: (e: MouseEvent) => void;
+  private dropHandler?: (e: DragEvent) => void;
+  private dragoverHandler?: (e: DragEvent) => void;
 
   constructor() {
     effect(() => {
@@ -116,6 +169,7 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
         TableRow,
         TableHeader,
         TableCell,
+        Image.configure({inline: false, allowBase64: false}),
       ],
       content: this.editorContent() || '',
       onUpdate: ({editor}) => {
@@ -125,9 +179,35 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
       onSelectionUpdate: () => this.syncToolbar(),
     });
     this.editorReady = true;
+
+    // Right-click context menu for tables
+    const el = this.editorEl.nativeElement;
+    this.contextMenuHandler = (e: MouseEvent) => {
+      if (!this.tiptapEditor?.isActive('table')) return;
+      e.preventDefault();
+      this.ctxMenu?.show(e);
+    };
+    el.addEventListener('contextmenu', this.contextMenuHandler);
+
+    // Drag-and-drop file upload
+    this.dragoverHandler = (e: DragEvent) => {
+      if (e.dataTransfer?.types.includes('Files')) e.preventDefault();
+    };
+    this.dropHandler = (e: DragEvent) => {
+      const files = e.dataTransfer?.files;
+      if (!files?.length) return;
+      e.preventDefault();
+      this.uploadFiles(Array.from(files));
+    };
+    el.addEventListener('dragover', this.dragoverHandler);
+    el.addEventListener('drop', this.dropHandler);
   }
 
   ngOnDestroy(): void {
+    const el = this.editorEl?.nativeElement;
+    if (el && this.contextMenuHandler) el.removeEventListener('contextmenu', this.contextMenuHandler);
+    if (el && this.dragoverHandler) el.removeEventListener('dragover', this.dragoverHandler);
+    if (el && this.dropHandler) el.removeEventListener('drop', this.dropHandler);
     this.tiptapEditor?.destroy();
   }
 
@@ -144,6 +224,7 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
     this.isBlockquote.set(this.tiptapEditor.isActive('blockquote'));
     this.isCode.set(this.tiptapEditor.isActive('code'));
     this.isCodeBlock.set(this.tiptapEditor.isActive('codeBlock'));
+    this.isInTable.set(this.tiptapEditor.isActive('table'));
   }
 
   // ── Toolbar actions ────────────────────────────────────────────────────────
@@ -180,6 +261,43 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
       this.tiptapEditor?.chain().focus().unsetLink().run();
     }
     this.linkInputVisible.set(false);
+  }
+
+  // ── File upload ────────────────────────────────────────────────────────────
+  protected triggerFileUpload(): void {
+    this.fileInputEl?.nativeElement.click();
+  }
+
+  protected onFilesSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const files = input.files ? Array.from(input.files) : [];
+    input.value = '';
+    this.uploadFiles(files);
+  }
+
+  private uploadFiles(files: File[]): void {
+    for (const file of files) {
+      this.uploadingFile.set(true);
+      this.fileService.uploadFile(file).subscribe({
+        next: (attachment) => {
+          this.uploadingFile.set(false);
+          const isImage = attachment.contentType.startsWith('image/');
+          if (isImage) {
+            this.tiptapEditor?.chain().focus().setImage({src: attachment.url, alt: attachment.fileName}).run();
+          } else {
+            const view = this.tiptapEditor?.view;
+            if (!view) return;
+            const {state, dispatch} = view;
+            const {schema, selection} = state;
+            const node = schema.text(attachment.fileName, [
+              schema.marks['link'].create({href: attachment.url}),
+            ]);
+            dispatch(state.tr.replaceSelectionWith(node, false));
+          }
+        },
+        error: () => this.uploadingFile.set(false),
+      });
+    }
   }
 
   // ── Tags ───────────────────────────────────────────────────────────────────

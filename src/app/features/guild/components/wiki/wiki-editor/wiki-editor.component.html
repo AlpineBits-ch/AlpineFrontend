@@ -1,5 +1,8 @@
 <div class="flex flex-col h-full">
 
+  <!-- Table context menu -->
+  <p-contextMenu #ctxMenu [model]="tableContextItems" />
+
   <!-- Header -->
   <header class="flex items-center gap-3 px-6 py-3 border-b border-white/[0.08] shrink-0">
     <span class="text-sm font-semibold text-white/70">
@@ -118,6 +121,16 @@
       <button (click)="openLinkInput()" class="tbtn" title="Link"><i class="pi pi-link text-[12px]"></i></button>
       <button (click)="insertHR()" class="tbtn" title="Divider"><i class="pi pi-minus text-[12px]"></i></button>
       <button (click)="insertTable()" class="tbtn" title="Table"><i class="pi pi-table text-[12px]"></i></button>
+
+      <div class="w-px h-4 bg-white/10 mx-1 shrink-0"></div>
+
+      <button (click)="triggerFileUpload()" [class.uploading]="uploadingFile()" class="tbtn" title="Insert image or file">
+        @if (uploadingFile()) {
+          <i class="pi pi-spinner pi-spin text-[12px]"></i>
+        } @else {
+          <i class="pi pi-image text-[12px]"></i>
+        }
+      </button>
     </div>
 
     <!-- Link input bar -->
@@ -141,6 +154,12 @@
         </button>
       </div>
     }
+
+    <!-- Hidden file input -->
+    <input #fileInputEl type="file" class="hidden"
+      accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar"
+      multiple
+      (change)="onFilesSelected($event)" />
 
     <!-- WYSIWYG editor -->
     <div class="flex-1 min-h-0 overflow-y-auto"
