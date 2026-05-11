@@ -38,9 +38,19 @@ export const Permissions = {
     ManageChannel: 1n << 20n,
     ManagePermissions: 1n << 21n,
 
-    // ── Stuff I forgot ────────────────────────────────────────────────────────────
-
+    // ── Invite permissions ────────────────────────────────────────────────────
     CreateInvite: 1n << 22n,
+
+    // ── Wiki permissions ──────────────────────────────────────────────────────
+    ViewWiki: 1n << 23n,
+    CreateWikiPages: 1n << 24n,
+    EditOwnWikiPages: 1n << 25n,
+    EditAnyWikiPage: 1n << 26n,
+    DeleteWikiPages: 1n << 27n,
+    ManageWikiRevisions: 1n << 28n,
+    ManageWikiStructure: 1n << 29n,
+    ModerateWikiComments: 1n << 30n,
+    PublishWikiPublicly: 1n << 31n,
 
     // ── Catch-all ────────────────────────────────────────────────────────────
     Superadmin: 1n << 63n,

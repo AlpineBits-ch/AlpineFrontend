@@ -39,6 +39,7 @@ function contentToHtml(content: string): string {
   imports: [FormsModule, Button, Select, Checkbox],
   templateUrl: './wiki-editor.component.html',
   styleUrl: './wiki-editor.component.css',
+  host: {class: 'flex flex-col flex-1 min-h-0 overflow-hidden'},
 })
 export class WikiEditorComponent implements AfterViewInit, OnDestroy {
   readonly page = input<WikiPageDto | null>(null);

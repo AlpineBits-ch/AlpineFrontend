@@ -13,7 +13,7 @@ import {
 @Injectable({providedIn: 'root'})
 export class WikiService {
   private readonly http = inject(HttpClient);
-  private readonly base = environment.apiUrl;
+  private readonly base = environment.apiUrl + '/api/v1/guild';
 
   getWiki(guildId: string): Observable<WikiDto> {
     return this.http.get<WikiDto>(`${this.base}/guilds/${guildId}/wiki`).pipe(

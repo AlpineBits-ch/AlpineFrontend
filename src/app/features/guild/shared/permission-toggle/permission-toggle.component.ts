@@ -34,6 +34,10 @@ const PERM_GROUPS: PermGroup[] = [
     perms: ['ManageChannel', 'ManagePermissions'],
   },
   {
+    label: 'Wiki',
+    perms: ['ViewWiki', 'CreateWikiPages', 'EditOwnWikiPages', 'EditAnyWikiPage', 'DeleteWikiPages', 'ManageWikiRevisions', 'ManageWikiStructure', 'ModerateWikiComments', 'PublishWikiPublicly'],
+  },
+  {
     label: 'Admin',
     perms: ['Superadmin'],
   },
