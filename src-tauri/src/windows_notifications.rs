@@ -1,6 +1,4 @@
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
-use std::collections::hash_map::DefaultHasher;
 use tauri::{AppHandle, Emitter, Manager};
 use windows::{
     core::{IInspectable, HSTRING, PCWSTR},
@@ -65,23 +63,6 @@ fn set_process_aumid() -> windows::core::Result<()> {
     unsafe { SetCurrentProcessExplicitAppUserModelID(&HSTRING::from(AUMID)) }
 }
 
-async fn fetch_icon(url: &str) -> Option<std::path::PathBuf> {
-    let mut hasher = DefaultHasher::new();
-    url.hash(&mut hasher);
-    let hash = hasher.finish();
-
-    let mut path = std::env::temp_dir();
-    path.push(format!("alpine_avatar_{hash:016x}.png"));
-
-    if path.exists() {
-        return Some(path);
-    }
-
-    let bytes = reqwest::get(url).await.ok()?.bytes().await.ok()?;
-    std::fs::write(&path, bytes).ok()?;
-    Some(path)
-}
-
 pub async fn send_toast(
     app: AppHandle,
     title: &str,
@@ -90,19 +71,17 @@ pub async fn send_toast(
     extra: HashMap<String, String>,
 ) -> Result<(), String> {
     let local_icon = if let Some(url) = icon_url {
-        fetch_icon(url).await
+        crate::desktop_notifications::fetch_icon(url).await
     } else {
         None
     };
 
     let icon_xml = local_icon
-        .as_ref()
-        .and_then(|p| p.to_str())
-        .map(|p| {
-            let url = format!("file:///{}", p.replace('\\', "/"));
+        .as_deref()
+        .map(|u| {
             format!(
                 r#"<image placement="appLogoOverride" hint-crop="circle" src="{}"/>"#,
-                escape_xml(&url)
+                escape_xml(u)
             )
         })
         .unwrap_or_default();

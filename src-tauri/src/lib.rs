@@ -3,6 +3,9 @@ mod crypto;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod media;
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod desktop_notifications;
+
 #[cfg(target_os = "windows")]
 mod windows_notifications;
 
@@ -121,6 +124,14 @@ fn prepare_notification(label: String, app: tauri::AppHandle) -> Result<(), Stri
 }
 
 #[tauri::command]
+async fn prepare_notification_icon(url: String) -> Result<Option<String>, String> {
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
+    return Ok(desktop_notifications::fetch_icon(&url).await);
+    #[cfg(any(target_os = "android", target_os = "ios"))]
+    Ok(None)
+}
+
+#[tauri::command]
 async fn send_windows_toast(
     title: String,
     body: String,
@@ -180,6 +191,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             setup_toast_window,
             prepare_notification,
             send_windows_toast,
+            prepare_notification_icon,
             crypto::crypto::generate_key,
             crypto::crypto::generate_key_pairs,
             crypto::crypto::setup_master_key,

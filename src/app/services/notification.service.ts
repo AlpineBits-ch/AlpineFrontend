@@ -50,6 +50,7 @@ export class NotificationService {
     this.platformName = await platform();
 
     if (this.platformName === 'windows') {
+      // Windows: native WinRT toasts handle activation in Rust, emit this event on click
       await listen<Record<string, string>>('notification-action', event => {
         this.action$.next({
           actionTypeId: event.payload['actionTypeId'] ?? 'message',
@@ -57,6 +58,8 @@ export class NotificationService {
         });
       });
     } else {
+      // macOS (native UNUserNotificationCenter) and mobile: action types are fully supported
+      // Linux (notify-rust): registerActionTypes fails silently, onAction may not fire
       await this.setupActions();
     }
   }
@@ -67,7 +70,7 @@ export class NotificationService {
         { id: 'message', actions: [{ id: 'open', title: 'Open' }] },
       ]);
     } catch {
-      // notify-rust backend doesn't support action types
+      // notify-rust (Linux) doesn't support action types
     }
     await onAction(notification => {
       this.action$.next({
@@ -116,10 +119,17 @@ export class NotificationService {
     } else {
       if (!await this.ensurePermission()) return;
 
+      // macOS native backend requires a local file:// URI — download avatar to temp first
+      let icon: string | undefined = params.profile?.avatarUrl;
+      if (this.platformName === 'macos' && icon) {
+        const local = await invoke<string | null>('prepare_notification_icon', { url: icon }).catch(() => null);
+        icon = local ?? icon;
+      }
+
       sendNotification({
         title: params.title,
         body: params.message,
-        icon: params.profile?.avatarUrl,
+        icon,
         silent: true,
         actionTypeId,
         extra,
