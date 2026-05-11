@@ -18,6 +18,8 @@ import { MessageStore } from '../../../../../stores/message.store';
 import { ProfileDialogService } from '../../../../../services/profile-dialog.service';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { InviteCardComponent } from './invite-card/invite-card.component';
+import { Dialog } from 'primeng/dialog';
+import { Button } from 'primeng/button';
 
 @Component({
   selector: 'app-message',
@@ -28,6 +30,8 @@ import { InviteCardComponent } from './invite-card/invite-card.component';
     NgClass,
     MarkdownPipe,
     InviteCardComponent,
+    Dialog,
+    Button,
   ],
   templateUrl: './message.component.html',
   styleUrl: './message.component.css',
