@@ -1,5 +1,6 @@
 import { Injectable, signal } from '@angular/core';
 import { Channel, invoke, isTauri } from '@tauri-apps/api/core';
+import { platform } from '@tauri-apps/plugin-os';
 
 export interface ScreenSource {
   id: string;
@@ -49,6 +50,24 @@ export class RustMediaService {
   private screenChannel: Channel<ScreenFrame> | null = null;
   private latestFrame: ScreenFrame | null = null;
   private decodingFrame = false;
+
+  private _isLinux: boolean | null = null;
+
+  /**
+   * Returns true on Linux, where WebKitGTK getUserMedia() is permission-denied
+   * and the Rust cpal pipeline must be used instead.
+   */
+  async shouldUseRustAudio(): Promise<boolean> {
+    if (!isTauri()) return false;
+    if (this._isLinux === null) {
+      try {
+        this._isLinux = (await platform()) === 'linux';
+      } catch {
+        this._isLinux = false;
+      }
+    }
+    return this._isLinux;
+  }
 
   private readonly _captureFps  = signal(15);
   private readonly _inboundFps  = signal(0);

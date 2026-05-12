@@ -196,7 +196,7 @@ export class CallWebRtcService {
     let audioTrack: MediaStreamTrack;
     try {
       const s = this.audioSettings.settings();
-      if (s.enhancedNoiseSuppression) {
+      if (s.enhancedNoiseSuppression || await this.rustMedia.shouldUseRustAudio()) {
         audioTrack = await this.rustMedia.startMicCapture({
           deviceId: s.micId === 'default' ? null : s.micId,
           noiseSuppression: s.noiseSuppression,

@@ -108,8 +108,7 @@ export class VoiceRTCService {
       let audioTrack: MediaStreamTrack;
       try {
         const s = this.audioSettings.settings();
-        if (s.enhancedNoiseSuppression) {
-          console.log('rust ')
+        if (s.enhancedNoiseSuppression || await this.rustMedia.shouldUseRustAudio()) {
           audioTrack = await this.rustMedia.startMicCapture({
             deviceId: s.micId === 'default' ? null : s.micId,
             noiseSuppression: s.noiseSuppression,
@@ -117,8 +116,6 @@ export class VoiceRTCService {
             vadThreshold: s.vadStrength,
           });
         } else {
-          console.log('media ')
-
           const stream = await navigator.mediaDevices.getUserMedia({
             audio: this.audioSettings.buildAudioConstraint(),
             video: false,
