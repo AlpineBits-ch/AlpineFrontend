@@ -1,5 +1,4 @@
 import {MessageEncryptionState} from "../../enums/message-encryption-state.enum";
-
 import { MessageType } from '../../enums/message-type.enum';
 
 export interface MessageAttachment {
@@ -8,6 +7,16 @@ export interface MessageAttachment {
   contentType: string;
   url: string;
   thumbnailUrl?: string;
+}
+
+export interface MessageReaction {
+  contextId: string;
+  messageId: string;
+  emoji: string;
+  userId: string;
+  createdAt: string;
+  conversationId: string | null;
+  channelId: string | null;
 }
 
 export interface MessageDto {
@@ -28,4 +37,5 @@ export interface MessageDto {
     mlsSequenceNumber: number | undefined;
     senderDeviceId: string | undefined;
     type: MessageType;
+    reactions?: MessageReaction[];
 }

@@ -4,6 +4,8 @@ import {Observable, Subject} from "rxjs";
 import {environment} from "../../environments/environment";
 import {CreateMessageDto} from "../dtos/request/create-message.dto";
 import {MessageDto} from "../dtos/response/message.dto";
+import {CreateReactionDto} from "../dtos/request/create-reaction.dto";
+import {RemoveReactionDto} from "../dtos/request/remove-reaction.dto";
 
 @Injectable({
   providedIn: 'root',
@@ -52,5 +54,13 @@ export class MessagingService {
     return this.httpClient.get<MessageDto>(
       `${environment.apiUrl}/api/v1/messaging/messaging/channels/${channelId}/messages/${messageId}`
     );
+  }
+
+  public addReaction(messageId: string, dto: CreateReactionDto): Observable<void> {
+    return this.httpClient.post<void>(`${environment.apiUrl}/api/v1/messaging/messages/${messageId}/reactions`, dto);
+  }
+
+  public removeReaction(messageId: string, dto: RemoveReactionDto): Observable<void> {
+    return this.httpClient.delete<void>(`${environment.apiUrl}/api/v1/messaging/messages/${messageId}/reactions`, { body: dto });
   }
 }

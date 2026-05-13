@@ -25,11 +25,13 @@ export class EmojiPickerButtonComponent implements OnDestroy {
     if (!this.pickerInstance) {
       const [{ Picker }, data] = await Promise.all([
         import('emoji-mart'),
-        import('@emoji-mart/data'),
+        import('@emoji-mart/data/sets/15/twitter.json'),
       ]);
 
       this.pickerInstance = new Picker({
         data: data.default ?? data,
+        set: 'twitter',
+        getSpritesheetURL: () => '/emoji-sheets/twitter/64.png',
         theme: 'dark',
         previewPosition: 'none',
         skinTonePosition: 'none',

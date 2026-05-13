@@ -7,6 +7,7 @@ import {ConnectionState, MessagingWebsocketService} from "../../../../services/m
 import {ConnectionStatusComponent} from "../connection-status/connection-status.component";
 import {SettingsModalComponent} from "../../../../features/settings/settings-modal/settings-modal.component";
 import {VoiceChannelService} from "../../../../services/voice-channel.service";
+import {ProfileDialogService} from "../../../../services/profile-dialog.service";
 
 @Component({
   selector: 'app-quick-settings',
@@ -24,6 +25,7 @@ export class QuickSettingsComponent {
   protected profileService    = inject(ProfileService);
   protected websocketService  = inject(MessagingWebsocketService);
   protected voiceSvc          = inject(VoiceChannelService);
+  protected profileDialogSvc  = inject(ProfileDialogService);
   protected readonly ConnectionState = ConnectionState;
 
   public isSettingsOpen = signal(false);

@@ -18,8 +18,13 @@ import { MessageStore } from '../../../../../stores/message.store';
 import { ProfileDialogService } from '../../../../../services/profile-dialog.service';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { InviteCardComponent } from './invite-card/invite-card.component';
+import { MessageHoverToolbarComponent } from './hover-toolbar/message-hover-toolbar.component';
+import { MessageReactionBarComponent } from './reaction-bar/message-reaction-bar.component';
+import { TwemojiComponent } from '../../../../../components/twemoji/twemoji.component';
 import { Dialog } from 'primeng/dialog';
 import { Button } from 'primeng/button';
+import { CreateReactionDto } from '../../../../../dtos/request/create-reaction.dto';
+import { RemoveReactionDto } from '../../../../../dtos/request/remove-reaction.dto';
 
 @Component({
   selector: 'app-message',
@@ -30,6 +35,9 @@ import { Button } from 'primeng/button';
     NgClass,
     MarkdownPipe,
     InviteCardComponent,
+    MessageHoverToolbarComponent,
+    MessageReactionBarComponent,
+    TwemojiComponent,
     Dialog,
     Button,
   ],
@@ -210,7 +218,7 @@ export class MessageComponent {
                 emojiSegments.push({ type: 'text', value: currentText });
                 currentText = '';
               }
-              emojiSegments.push({ type: 'flag', value: code });
+              emojiSegments.push({ type: 'flag', value: char + next });
               i++;
               continue;
             }
@@ -380,5 +388,40 @@ export class MessageComponent {
 
   public getProfile(): Observable<ProfileDto>{
     return this.profileService.getByUserId(this.message().authorId);
+  }
+
+  readonly quickReactions = ['👍', '❤️', '😂'];
+
+  hasOwnReaction(emoji: string): boolean {
+    const own = this.profileService.ownProfile()?.userId;
+    if (!own) return false;
+    return this.message().reactions?.some(r => r.emoji === emoji && r.userId === own) ?? false;
+  }
+
+  toggleReaction(emoji: string): void {
+    const msg = this.message();
+    const own = this.profileService.ownProfile()?.userId;
+    if (!own || msg.isPending || msg.isFailed) return;
+
+    const hasReacted = this.hasOwnReaction(emoji);
+
+    if (hasReacted) {
+      const contextId = msg.conversationId ?? msg.channelId ?? '';
+      const dto: RemoveReactionDto = { reaction: emoji, contextId };
+      this.messageStore.applyReactionRemoved({ messageId: msg.id, emoji, userId: own });
+      this.messagingService.removeReaction(msg.id, dto).subscribe({
+        error: () => this.messageStore.applyReactionAdded({ messageId: msg.id, emoji, userId: own }),
+      });
+    } else {
+      const dto: CreateReactionDto = {
+        conversationId: msg.conversationId ?? '',
+        reaction: emoji,
+        channelId: msg.channelId,
+      };
+      this.messageStore.applyReactionAdded({ messageId: msg.id, emoji, userId: own });
+      this.messagingService.addReaction(msg.id, dto).subscribe({
+        error: () => this.messageStore.applyReactionRemoved({ messageId: msg.id, emoji, userId: own }),
+      });
+    }
   }
 }

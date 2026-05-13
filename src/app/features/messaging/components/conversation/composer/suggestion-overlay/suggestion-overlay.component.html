@@ -49,11 +49,7 @@
           (mousedown)="emojiSelected.emit(e)"
           class="flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors"
           [ngClass]="selectedIndex() === i ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]'">
-          @if (flagCode(e.native); as code) {
-            <span [class]="'fi fi-' + code + ' text-xl leading-none w-6 text-center block'"></span>
-          } @else {
-            <span class="text-xl leading-none w-6 text-center">{{ e.native }}</span>
-          }
+          <span class="w-6 text-center leading-none"><app-twemoji [emoji]="e.native" size="1.25em" /></span>
           <span class="text-sm text-white/60">:{{ e.id }}:</span>
           <span class="text-xs text-white/25 ml-auto">{{ e.name }}</span>
         </div>

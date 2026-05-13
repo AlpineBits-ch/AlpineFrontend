@@ -80,7 +80,16 @@
       "Bash(\"/c/Users/Domin/WebstormProjects/Alpine/src-tauri/target/debug/deps/alpine_lib-99850b2e7bb2278b.exe\" --list)",
       "Bash(export PATH=\"$PATH:/c/Windows/System32:/c/Windows/SysWOW64:/c/Program Files/Microsoft Visual Studio/2022/Community/VC/Redist/MSVC/14.40.33807/x64/Microsoft.VC143.CRT\")",
       "Bash(grep -E \"\\\\.\\(ts|tsx|html|vue\\)$\")",
-      "Bash(npx ngc *)"
+      "Bash(npx ngc *)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); exports=d.get\\('exports',{}\\); print\\('\\\\n'.join\\(k for k in exports if 'popover' in k.lower\\(\\) or 'overlay' in k.lower\\(\\) or 'tooltip' in k.lower\\(\\)\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./node_modules/primeng/package.json'\\); const e=p.exports||{}; Object.keys\\(e\\).filter\\(k=>/popover|overlay|tooltip/i.test\\(k\\)\\).forEach\\(k=>console.log\\(k\\)\\)\")",
+      "Bash(command -v bun)",
+      "Bash(/c/Users/Domin/.bun/bin/bun remove *)",
+      "Bash(grep -n \"EmojiImage\\\\|native.*span\\\\|span.*native\\\\|\\\\$254755\" C:/Users/Domin/WebstormProjects/Alpine/node_modules/emoji-mart/dist/module.js)",
+      "Bash(~/.bun/bin/bun add *)",
+      "Bash(~/.bun/bin/bun run *)",
+      "Bash(node -e \" // Check max x,y in sets/15 to understand if @16 sprite could work const d = require\\('./node_modules/@emoji-mart/data/sets/15/twitter.json'\\); const emojis = Object.values\\(d.emojis\\); let maxX = 0, maxY = 0; for \\(const e of emojis\\) { for \\(const s of e.skins || []\\) { if \\(s.x > maxX\\) maxX = s.x; if \\(s.y > maxY\\) maxY = s.y; } } console.log\\('max x:', maxX, 'max y:', maxY, 'sheet:', d.sheet\\); \" echo \"---\")",
+      "Bash(node -e \"const p = require\\('./node_modules/@emoji-mart/data/package.json'\\); console.log\\('exports:', JSON.stringify\\(Object.keys\\(p.exports||{}\\)\\).substring\\(0,500\\)\\)\" grep -n \"resolveJsonModule\" C:/Users/Domin/WebstormProjects/Alpine/tsconfig.json cat C:/Users/Domin/WebstormProjects/Alpine/tsconfig.json)"
     ]
   }
 }

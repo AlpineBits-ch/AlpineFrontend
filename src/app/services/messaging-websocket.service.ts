@@ -49,6 +49,15 @@ export interface UserTypingEvent {
   conversationId: string;
   userId: string;
 }
+
+export interface ReactionEvent {
+  messageId: string;
+  emoji: string;
+  userId: string;
+  channelId?: string;
+  conversationId?: string;
+}
+
 interface MessageCreatedPayload {
   messageId: string;
   content: string;
@@ -89,6 +98,9 @@ export class MessagingWebsocketService {
 
   public conversationCreatedObservable = new Subject<string>()
   public welcomeObservable = new Subject<string>()
+
+  public reactionAddedObservable = new Subject<ReactionEvent>()
+  public reactionRemovedObservable = new Subject<ReactionEvent>()
 
 
   public connectionState = signal(ConnectionState.Disconnected)
@@ -186,6 +198,14 @@ export class MessagingWebsocketService {
     this.hubConnection.on('Welcome', (conversationId: string) => {
       console.log('Welcome for conversation:', conversationId);
       this.welcomeObservable.next(conversationId);
+    });
+
+    this.hubConnection.on('ReactionCreated', (data: ReactionEvent) => {
+      this.reactionAddedObservable.next(data);
+    });
+
+    this.hubConnection.on('ReactionRemoved', (data: ReactionEvent) => {
+      this.reactionRemovedObservable.next(data);
     });
 
     this.hubConnection.onreconnecting(() => {

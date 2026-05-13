@@ -46,9 +46,9 @@
                 "output": "assets"
               },
               {
-                "glob": "**/*",
-                "input": "node_modules/flag-icons",
-                "output": "flag-icons"
+                "glob": "64.png",
+                "input": "node_modules/emoji-datasource-twitter/img/twitter/sheets-256",
+                "output": "emoji-sheets/twitter"
               }
             ],
             "browser": "src/main.ts",

@@ -18,6 +18,7 @@ export class ProfileSettingsComponent {
   protected ownProfile = this.profileService.ownProfile;
   protected uploading = signal(false);
   protected avatarExpanded = signal(false);
+  protected avatarError = signal(false);
 
   protected cropVisible = signal(false);
   protected cropSrc = signal('');
@@ -48,9 +49,13 @@ export class ProfileSettingsComponent {
     this.cropVisible.set(false);
     this.uploading.set(true);
     this.profileService.uploadAvatar(file).subscribe({
-      next: () => this.uploading.set(false),
+      next: () => { this.uploading.set(false); this.avatarError.set(false); },
       error: () => this.uploading.set(false),
     });
+  }
+
+  protected onAvatarError(): void {
+    this.avatarError.set(true);
   }
 
   protected removeAvatar(): void {

@@ -7,9 +7,10 @@
 
       <!-- Avatar display -->
       <div class="relative w-20 h-20 shrink-0 cursor-pointer group" (click)="avatarExpanded.set(true)">
-        @if (ownProfile()?.avatarUrl) {
+        @if (ownProfile()?.avatarUrl && !avatarError()) {
           <img [src]="ownProfile()!.avatarUrl" alt="Avatar"
-            class="w-20 h-20 rounded-full object-cover border-2 border-white/10 transition-opacity group-hover:opacity-80" />
+            class="w-20 h-20 rounded-full object-cover border-2 border-white/10 transition-opacity group-hover:opacity-80"
+            (error)="onAvatarError()" />
         } @else {
           <div class="w-20 h-20 rounded-full bg-indigo-500/20 border-2 border-white/10
                       flex items-center justify-center text-3xl font-semibold text-indigo-300
@@ -130,7 +131,7 @@
   styleClass="avatar-lightbox"
   [style]="{background: 'transparent', boxShadow: 'none', border: 'none'}">
   <div class="flex items-center justify-center p-2">
-    @if (ownProfile()?.avatarUrl) {
+    @if (ownProfile()?.avatarUrl && !avatarError()) {
       <img [src]="ownProfile()!.avatarUrl" alt="Avatar"
         class="w-64 h-64 rounded-full object-cover border-4 border-white/10 shadow-2xl" />
     } @else {

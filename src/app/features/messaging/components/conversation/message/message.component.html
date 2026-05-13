@@ -58,30 +58,12 @@
 
     <!-- Hover action toolbar — desktop only (mobile uses long-press menu) -->
     @if (!message().isPending && !message().isFailed && !isEditing()) {
-      <div class="absolute top-1 right-3 hidden sm:flex items-center gap-0.5
-                  opacity-0 group-hover:opacity-100 transition-opacity duration-100
-                  bg-card border border-white/[0.08] rounded-md px-0.5 py-0.5 z-20 shadow-sm">
-        <button (click)="reply.emit(message())"
-          class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-white/75
-                 hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-colors"
-          title="Reply">
-          <i class="pi pi-reply text-[10px]"></i>
-        </button>
-        @if (isOwn()) {
-          <button (click)="startEdit()"
-            class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-white/75
-                   hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-colors"
-            title="Edit">
-            <i class="pi pi-pencil text-[10px]"></i>
-          </button>
-          <button (click)="confirmDelete()"
-            class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-rose-400
-                   hover:bg-rose-500/10 cursor-pointer border-0 bg-transparent transition-colors"
-            title="Delete">
-            <i class="pi pi-trash text-[10px]"></i>
-          </button>
-        }
-      </div>
+      <app-message-hover-toolbar
+        [isOwn]="isOwn()"
+        (reply)="reply.emit(message())"
+        (edit)="startEdit()"
+        (delete)="confirmDelete()"
+        (emojiToggled)="toggleReaction($event)" />
     }
 
     <!-- Edit mode -->
@@ -124,8 +106,8 @@
          (click)="onLinkClick($event)"
          [ngClass]="message().isFailed ? 'text-rose-300' : message().isPending ? 'text-white/40' : 'text-white/70'">
         @if (isOnlyEmoji()){
-            <div class="flex items-center justify-start p-2 text-4xl text-white/70 leading-none">
-                {{ content() }}
+            <div class="flex items-center justify-start p-2 leading-none">
+                <app-twemoji [emoji]="content()" size="2.5em" />
             </div>
         }@else {
         @for (seg of contentSegments(); track $index) {
@@ -134,9 +116,9 @@
             } @else if (seg.type === 'mention') {
             <span class="mention-chip">{{ seg.value }}</span>
             } @else if (seg.type === 'flag') {
-              <span [class]="'fi fi-' + seg.value" style="font-size:1.2em;vertical-align:middle"></span>
+              <app-twemoji [emoji]="seg.value" size="1.25em" />
             } @else if (seg.type === 'emoji') {
-             <span class="text-xl m-1">{{ seg.value }}</span>
+              <app-twemoji [emoji]="seg.value" size="1.25em" />
             } @else if (seg.type === 'invite') {
               <app-invite-card [inviteId]="seg.value" class="block" />
             } @else {
@@ -227,6 +209,14 @@
         </div>
       }
     </p-dialog>
+
+    <!-- Reaction bar -->
+    @if (!message().isPending && !message().isFailed && message().reactions?.length) {
+      <app-message-reaction-bar
+        [reactions]="message().reactions!"
+        [ownUserId]="profileService.ownProfile()?.userId"
+        (emojiToggled)="toggleReaction($event)" />
+    }
 
     <!-- Edited label -->
     @if (!message().isPending && !message().isFailed && message().updatedAt > message().createdAt) {

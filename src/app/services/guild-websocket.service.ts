@@ -1,7 +1,7 @@
 import {inject, Injectable, signal} from '@angular/core';
 import * as signalR from "@microsoft/signalr";
 import {environment} from "../../environments/environment";
-import {ConnectionState} from "./messaging-websocket.service";
+import {ConnectionState, ReactionEvent} from "./messaging-websocket.service";
 import {OAuthService} from "angular-oauth2-oidc";
 import {NotificationService, NotificationSound} from "./notification.service";
 import {catchError, firstValueFrom, of, Subject, timeout} from "rxjs";
@@ -84,6 +84,10 @@ export class GuildWebsocketService {
   public wikiCategoryUpdatedObservable = new Subject<WsWikiCategoryUpdated>();
   public wikiCategoryDeletedObservable = new Subject<WsWikiCategoryDeleted>();
 
+  // ── Reactions ───────────────────────────────────────────────────────────────
+  public reactionAddedObservable  = new Subject<ReactionEvent>();
+  public reactionRemovedObservable = new Subject<ReactionEvent>();
+
   constructor() {
     this.hubConnection = new signalR.HubConnectionBuilder()
         .withUrl(environment.apiUrl + "/api/v1/guild/ws/hubs/guild", {
@@ -162,6 +166,9 @@ export class GuildWebsocketService {
     this.hubConnection.on('WikiCategoryCreated',   (d: WsWikiCategoryCreated)      => this.wikiCategoryCreatedObservable.next(d));
     this.hubConnection.on('WikiCategoryUpdated',   (d: WsWikiCategoryUpdated)      => this.wikiCategoryUpdatedObservable.next(d));
     this.hubConnection.on('WikiCategoryDeleted',   (d: WsWikiCategoryDeleted)      => this.wikiCategoryDeletedObservable.next(d));
+
+    this.hubConnection.on('ReactionCreated', (d: ReactionEvent) => this.reactionAddedObservable.next(d));
+    this.hubConnection.on('ReactionRemoved', (d: ReactionEvent) => this.reactionRemovedObservable.next(d));
 
     this.hubConnection.on('MessageCreated', async (data: {
       messageId: string;

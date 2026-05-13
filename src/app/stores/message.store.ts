@@ -1,12 +1,12 @@
 import { inject } from '@angular/core';
 import { patchState, signalStore, withHooks, withMethods, withState } from '@ngrx/signals';
 import { addEntities, removeEntities, removeEntity, updateEntity, upsertEntity, withEntities } from '@ngrx/signals/entities';
-import { MessageDto } from '../dtos/response/message.dto';
+import { MessageDto, MessageReaction } from '../dtos/response/message.dto';
 import { MessageEncryptionState } from '../enums/message-encryption-state.enum';
 import { MessageType } from '../enums/message-type.enum';
 import { MessagingService } from '../services/messaging.service';
 import { MlsService } from '../services/mls.service';
-import { MessagingWebsocketService, MessageUpdatedEvent, MessageDeletedEvent } from '../services/messaging-websocket.service';
+import { MessagingWebsocketService, MessageUpdatedEvent, MessageDeletedEvent, ReactionEvent } from '../services/messaging-websocket.service';
 import { GuildWebsocketService } from '../services/guild-websocket.service';
 import { ProfileService } from '../services/profile.service';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -196,6 +196,32 @@ export const MessageStore = signalStore(
 
     removeMessage(id: string): void {
       patchState(store, removeEntity(id));
+    },
+
+    applyReactionAdded(event: ReactionEvent): void {
+      const msg = store.entityMap()[event.messageId];
+      if (!msg) return;
+      const reactions = msg.reactions ?? [];
+      if (reactions.some(r => r.emoji === event.emoji && r.userId === event.userId)) return;
+      const entry: MessageReaction = {
+        contextId: event.conversationId ?? event.channelId ?? '',
+        messageId: event.messageId,
+        emoji: event.emoji,
+        userId: event.userId,
+        createdAt: new Date().toISOString(),
+        conversationId: event.conversationId ?? null,
+        channelId: event.channelId ?? null,
+      };
+      patchState(store, updateEntity({ id: event.messageId, changes: { reactions: [...reactions, entry] } }));
+    },
+
+    applyReactionRemoved(event: ReactionEvent): void {
+      const msg = store.entityMap()[event.messageId];
+      if (!msg) return;
+      const reactions = (msg.reactions ?? []).filter(
+        r => !(r.emoji === event.emoji && r.userId === event.userId)
+      );
+      patchState(store, updateEntity({ id: event.messageId, changes: { reactions } }));
     },
 
     applyMessageUpdate(dto: MessageDto): void {
@@ -457,6 +483,11 @@ export const MessageStore = signalStore(
         delete meta[event.conversationId];
         patchState(store, removeEntities(ids), { conversationMeta: meta });
       });
+
+      wsService.reactionAddedObservable.subscribe(event => store.applyReactionAdded(event));
+      wsService.reactionRemovedObservable.subscribe(event => store.applyReactionRemoved(event));
+      guildWsService.reactionAddedObservable.subscribe(event => store.applyReactionAdded(event));
+      guildWsService.reactionRemovedObservable.subscribe(event => store.applyReactionRemoved(event));
     },
   })
 );
