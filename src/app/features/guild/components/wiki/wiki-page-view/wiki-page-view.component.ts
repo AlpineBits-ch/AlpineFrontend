@@ -8,10 +8,11 @@ import {formatWikiDate, renderWikiMarkdown, toggleNthCheckbox} from '../wiki.uti
 import {WikiStateService} from '../wiki-state.service';
 import { TranslateModule } from '@ngx-translate/core';
 import {Tooltip} from "primeng/tooltip";
+import {PrimeTemplate} from "primeng/api";
 
 @Component({
   selector: 'app-wiki-page-view',
-    imports: [Button, Dialog, TranslateModule, Tooltip],
+  imports: [Button, Dialog, TranslateModule, Tooltip, PrimeTemplate],
   templateUrl: './wiki-page-view.component.html',
   host: {class: 'flex flex-col flex-1 min-h-0'},
 })
