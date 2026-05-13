@@ -27,6 +27,10 @@ jobs:
           draft: false
           prerelease: false
           make_latest: true
+      - name: Force HTTPS for Submodules
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github-alpine:"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
       - name: Update Submodules
         run: |
           git submodule update --init --recursive
