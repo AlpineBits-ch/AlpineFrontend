@@ -1,4 +1,6 @@
 import { effect, Injectable, signal, computed } from '@angular/core';
+import { save } from '@tauri-apps/plugin-dialog';
+import { writeTextFile } from '@tauri-apps/plugin-fs';
 import { AppTheme, BUILT_IN_THEME_ID, DEFAULT_THEME, ThemeColors } from '../models/theme.model';
 
 const THEMES_KEY  = 'alpine-themes';
@@ -70,17 +72,15 @@ export class ThemeService {
     this.saveThemes();
   }
 
-  exportTheme(id: string): void {
+  async exportTheme(id: string): Promise<void> {
     const theme = this.themes().find(t => t.id === id);
     if (!theme) return;
     const json = JSON.stringify(theme, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `${theme.name.toLowerCase().replace(/\s+/g, '-')}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const path = await save({
+      filters: [{ name: 'Alpine Theme', extensions: ['json'] }],
+      defaultPath: `${theme.name.toLowerCase().replace(/\s+/g, '-')}.json`,
+    });
+    if (path) await writeTextFile(path, json);
   }
 
   importTheme(json: string): void {

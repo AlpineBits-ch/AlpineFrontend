@@ -45,6 +45,8 @@ rand = "0.8"
 uuid = { version = "1.0", features = ["v4"] }
 tauri-plugin-store = "2.0.0"
 tauri-plugin-secure-storage = "1.5.0"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
 
 # Android
 [target.aarch64-linux-android.dependencies]

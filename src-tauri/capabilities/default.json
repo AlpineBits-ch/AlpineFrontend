@@ -29,7 +29,11 @@
     "os:default",
     "store:allow-load",
     "store:default",
-    "secure-storage:default"
+    "secure-storage:default",
+    "dialog:allow-save",
+    "dialog:allow-open",
+    "fs:allow-write-text-file",
+    "fs:allow-read-text-file"
   ],
   "windows": [
     "main"
