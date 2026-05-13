@@ -169,6 +169,10 @@ export class WikiStateService {
     this.loadWiki(this.guildId());
   }
 
+  updateWikiOptimistic(fn: (wiki: WikiDto) => WikiDto): void {
+    this.wiki.update(w => (w ? fn(w) : w));
+  }
+
   private loadWiki(guildId: string, navigateTo?: WikiPageDto): void {
     this.wikiService.getWiki(guildId).subscribe(wiki => {
       this.wiki.set(wiki);

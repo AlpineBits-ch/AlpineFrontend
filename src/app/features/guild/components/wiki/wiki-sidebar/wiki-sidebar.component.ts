@@ -1,4 +1,4 @@
-import {Component, computed, inject, signal, ViewChild} from '@angular/core';
+import {Component, computed, HostListener, inject, signal, ViewChild} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
@@ -66,28 +66,30 @@ export class WikiSidebarComponent {
   );
 
   protected uncategorizedPageTree = computed((): PageTreeNode[] => {
-    const allPages = this.state.wiki()?.pages ?? [];
-    const result: PageTreeNode[] = [];
-    const build = (parentId: string | null | undefined, depth: number) => {
-      for (const p of allPages.filter(x => !x.categoryId && (x.parentPageId ?? null) === (parentId ?? null))) {
-        result.push({ page: p, depth });
-        build(p.id, depth + 1);
-      }
-    };
-    build(null, 0);
-    return result;
+    const group = (this.state.wiki()?.pages ?? []).filter(x => !x.categoryId);
+    return this.buildPageTree(group);
   });
 
   protected pageTreeForCategory(categoryId: string): PageTreeNode[] {
-    const allPages = this.state.wiki()?.pages ?? [];
+    const group = (this.state.wiki()?.pages ?? []).filter(x => x.categoryId === categoryId);
+    return this.buildPageTree(group);
+  }
+
+  private buildPageTree(group: WikiPageSummaryDto[]): PageTreeNode[] {
+    const groupIds = new Set(group.map(p => p.id));
     const result: PageTreeNode[] = [];
-    const build = (parentId: string | null | undefined, depth: number) => {
-      for (const p of allPages.filter(x => x.categoryId === categoryId && (x.parentPageId ?? null) === (parentId ?? null))) {
+    // A page is a root if it has no parent, its parent doesn't exist in the group, or it references itself.
+    const roots = group.filter(x => !x.parentPageId || !groupIds.has(x.parentPageId) || x.parentPageId === x.id);
+    const build = (parentId: string, depth: number) => {
+      for (const p of group.filter(x => x.parentPageId === parentId && x.id !== parentId)) {
         result.push({ page: p, depth });
         build(p.id, depth + 1);
       }
     };
-    build(null, 0);
+    for (const root of roots) {
+      result.push({ page: root, depth: 0 });
+      build(root.id, 1);
+    }
     return result;
   }
 
@@ -179,6 +181,161 @@ export class WikiSidebarComponent {
         },
         error: () => this.creatingCategory.set(false),
       });
+  }
+
+  // ── Drag state ────────────────────────────────────────────────────────────
+  private dragging: { type: 'category' | 'page'; id: string } | null = null;
+  protected dropTargetId = signal<string | null>(null);
+  protected dropPos = signal<'before' | 'after'>('after');
+
+  // WebView2 requires dropEffect = 'move' set on every dragover/dragenter.
+  @HostListener('document:dragover', ['$event'])
+  protected onGlobalDragOver(event: DragEvent): void {
+    if (!this.dragging) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  }
+
+  @HostListener('document:dragenter', ['$event'])
+  protected onGlobalDragEnter(event: DragEvent): void {
+    if (!this.dragging) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+  }
+
+  @HostListener('document:drop', ['$event'])
+  protected onGlobalDrop(event: DragEvent): void {
+    event.preventDefault();
+  }
+
+  protected onCategoryDragStart(event: DragEvent, category: WikiCategoryDto): void {
+    this.dragging = { type: 'category', id: category.id };
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', category.id);
+    }
+  }
+
+  protected onPageDragStart(event: DragEvent, page: WikiPageSummaryDto): void {
+    this.dragging = { type: 'page', id: page.id };
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', page.id);
+    }
+  }
+
+  protected onItemDragOver(event: DragEvent, targetId: string): void {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+    if (!this.dragging || this.dragging.id === targetId) return;
+    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+    this.dropTargetId.set(targetId);
+    this.dropPos.set(event.clientY < rect.top + rect.height / 2 ? 'before' : 'after');
+  }
+
+  protected onDragEnd(event: DragEvent): void {
+    const dragging = this.dragging;
+    const targetId = this.dropTargetId();
+    const pos = this.dropPos();
+    this.clearDragState();
+
+    if (!dragging || !targetId) return;
+    const wiki = this.state.wiki();
+    if (!wiki) return;
+    const guildId = this.state.guildId();
+
+    const targetCategory = wiki.categories.find(c => c.id === targetId);
+
+    if (dragging.type === 'category' && targetCategory) {
+      this.reorderCategories(dragging.id, targetId, pos, wiki.categories, guildId);
+      return;
+    }
+
+    if (dragging.type === 'page') {
+      const draggedPage = wiki.pages.find(p => p.id === dragging.id);
+      if (!draggedPage) return;
+
+      if (targetCategory) {
+        // Drop before first category → make uncategorized root; drop on/after category → move into it
+        const newCategoryId = pos === 'before' ? null : targetCategory.id;
+        this.movePageToGroup(draggedPage, { categoryId: newCategoryId ?? undefined, parentPageId: null }, guildId);
+        return;
+      }
+
+      const targetPage = wiki.pages.find(p => p.id === targetId);
+      if (targetPage) {
+        // Become a sibling of the target page (same category + same parentPageId)
+        this.movePageToGroup(draggedPage, {
+          categoryId: targetPage.categoryId,
+          parentPageId: targetPage.parentPageId ?? null,
+        }, guildId);
+      }
+    }
+  }
+
+  private reorderCategories(
+    draggedId: string,
+    targetId: string,
+    pos: 'before' | 'after',
+    categories: WikiCategoryDto[],
+    guildId: string,
+  ): void {
+    const dragged = categories.find(c => c.id === draggedId);
+    const target = categories.find(c => c.id === targetId);
+    if (!dragged || !target) return;
+    // Only reorder within the same parent group
+    if ((dragged.parentCategoryId ?? null) !== (target.parentCategoryId ?? null)) return;
+
+    const siblings = categories
+      .filter(c => (c.parentCategoryId ?? null) === (dragged.parentCategoryId ?? null))
+      .sort((a, b) => a.position - b.position);
+
+    const fromIdx = siblings.findIndex(c => c.id === draggedId);
+    if (fromIdx === -1) return;
+    const [item] = siblings.splice(fromIdx, 1);
+    const toIdx = siblings.findIndex(c => c.id === targetId);
+    if (toIdx === -1) return;
+    siblings.splice(pos === 'before' ? toIdx : toIdx + 1, 0, item);
+
+    const newPositions = new Map(siblings.map((c, i) => [c.id, i]));
+    this.state.updateWikiOptimistic(w => ({
+      ...w,
+      categories: w.categories.map(c => newPositions.has(c.id) ? { ...c, position: newPositions.get(c.id)! } : c),
+    }));
+
+    siblings.forEach((c, i) => {
+      if (categories.find(orig => orig.id === c.id)?.position !== i) {
+        this.wikiService.updateCategory(guildId, c.id, { position: i }).subscribe();
+      }
+    });
+  }
+
+  private movePageToGroup(
+    page: WikiPageSummaryDto,
+    changes: { categoryId: string | undefined; parentPageId: string | null | undefined },
+    guildId: string,
+  ): void {
+    const sameCategory = (page.categoryId ?? null) === (changes.categoryId ?? null);
+    const sameParent = (page.parentPageId ?? null) === (changes.parentPageId ?? null);
+    if (sameCategory && sameParent) return;
+
+    this.state.updateWikiOptimistic(w => ({
+      ...w,
+      pages: w.pages.map(p => p.id === page.id
+        ? { ...p, categoryId: changes.categoryId, parentPageId: changes.parentPageId ?? undefined }
+        : p),
+    }));
+
+    this.wikiService.updatePage(guildId, page.id, {
+      categoryId: changes.categoryId ?? null,
+      parentPageId: changes.parentPageId ?? null,
+    }).subscribe();
+  }
+
+  private clearDragState(): void {
+    this.dragging = null;
+    this.dropTargetId.set(null);
+    this.dropPos.set('after');
   }
 
   protected categoryToDelete = signal<WikiCategoryDto | null>(null);
