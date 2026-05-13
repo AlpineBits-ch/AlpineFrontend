@@ -41,49 +41,38 @@
             <i class="pi pi-trash text-[9px]"></i>
           </button>
         </div>
-        @for (page of rootPages(node.category.id); track page.id) {
-          <button (click)="goPage(page)" (contextmenu)="onPageContextMenu($event, page)"
-            [ngClass]="isPageActive(page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-            class="w-full flex items-center gap-2.5 px-2 py-[6px] rounded-lg text-left transition-all border-0 cursor-pointer">
-            <i class="pi pi-file text-[12px] shrink-0"></i>
-            <span class="text-[14px] truncate flex-1">{{ page.title }}</span>
+        @let catPages = pageTreeForCategory(node.category.id);
+        @for (pn of catPages; track pn.page.id) {
+          <button (click)="goPage(pn.page)" (contextmenu)="onPageContextMenu($event, pn.page)"
+            [ngClass]="isPageActive(pn.page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
+            [style.paddingLeft]="(8 + pn.depth * 14) + 'px'"
+            class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg text-left transition-all border-0 cursor-pointer">
+            <i [ngClass]="pn.depth > 0 ? 'pi-file-minus text-white/30' : 'pi-file'"
+               class="pi text-[12px] shrink-0"></i>
+            <span class="text-[14px] truncate flex-1">{{ pn.page.title }}</span>
           </button>
-          @for (child of childPages(page.id); track child.id) {
-            <button (click)="state.openPage(child)" (contextmenu)="onPageContextMenu($event, child)"
-              [ngClass]="isPageActive(child) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-              class="w-full flex items-center gap-2.5 pl-6 pr-2 py-[5px] rounded-lg text-left transition-all border-0 cursor-pointer">
-              <i class="pi pi-file-minus text-[11px] shrink-0 text-white/30"></i>
-              <span class="text-[13px] truncate flex-1">{{ child.title }}</span>
-            </button>
-          }
         }
-        @if (rootPages(node.category.id).length === 0) {
+        @if (catPages.length === 0) {
           <p class="text-[12px] text-white/20 px-2 py-1 italic">No pages yet</p>
         }
       </div>
     }
 
     <!-- Uncategorized pages -->
-    @if (uncategorizedRootPages().length > 0) {
+    @if (uncategorizedPageTree().length > 0) {
       <div class="mt-3">
         @if (categoryTreeNodes().length > 0) {
           <p class="text-[10px] font-semibold text-white/30 uppercase tracking-widest px-2 mb-1">Pages</p>
         }
-        @for (page of uncategorizedRootPages(); track page.id) {
-          <button (click)="goPage(page)" (contextmenu)="onPageContextMenu($event, page)"
-            [ngClass]="isPageActive(page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-            class="w-full flex items-center gap-2.5 px-2 py-[6px] rounded-lg text-left transition-all border-0 cursor-pointer">
-            <i class="pi pi-file text-[12px] shrink-0"></i>
-            <span class="text-[14px] truncate flex-1">{{ page.title }}</span>
+        @for (node of uncategorizedPageTree(); track node.page.id) {
+          <button (click)="goPage(node.page)" (contextmenu)="onPageContextMenu($event, node.page)"
+            [ngClass]="isPageActive(node.page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
+            [style.paddingLeft]="(8 + node.depth * 14) + 'px'"
+            class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg text-left transition-all border-0 cursor-pointer">
+            <i [ngClass]="node.depth > 0 ? 'pi-file-minus text-white/30' : 'pi-file'"
+               class="pi text-[12px] shrink-0"></i>
+            <span class="text-[14px] truncate flex-1">{{ node.page.title }}</span>
           </button>
-          @for (child of childPages(page.id); track child.id) {
-            <button (click)="state.openPage(child)" (contextmenu)="onPageContextMenu($event, child)"
-              [ngClass]="isPageActive(child) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-              class="w-full flex items-center gap-2.5 pl-6 pr-2 py-[5px] rounded-lg text-left transition-all border-0 cursor-pointer">
-              <i class="pi pi-file-minus text-[11px] shrink-0 text-white/30"></i>
-              <span class="text-[13px] truncate flex-1">{{ child.title }}</span>
-            </button>
-          }
         }
       </div>
     }
@@ -106,6 +95,29 @@
 
 <!-- Category context menu -->
 <p-context-menu #catCtxMenu [model]="ctxMenuItems" appendTo="body" />
+
+<!-- Delete category confirm -->
+<p-dialog
+  [visible]="!!categoryToDelete()"
+  (visibleChange)="$event ? null : categoryToDelete.set(null)"
+  [modal]="true" [closable]="true" [draggable]="false" [resizable]="false"
+  appendTo="body" [dismissableMask]="true"
+  [style]="{width: '360px'}">
+  <ng-template pTemplate="header">
+    <span class="text-sm font-semibold text-white/85">Delete Category</span>
+  </ng-template>
+  <p class="text-sm text-white/65 py-2">
+    Are you sure you want to delete <strong class="text-white/85">{{ categoryToDelete()?.name }}</strong>?
+    Pages inside will become uncategorized.
+  </p>
+  <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.06]">
+    <p-button label="Cancel" severity="secondary" size="small" [outlined]="true"
+      (onClick)="categoryToDelete.set(null)" />
+    <p-button label="Delete" severity="danger" size="small"
+      [loading]="deletingCategory()"
+      (onClick)="confirmDeleteCategory()" />
+  </div>
+</p-dialog>
 
 <!-- Create Category Dialog -->
 <p-dialog

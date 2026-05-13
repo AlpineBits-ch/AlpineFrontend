@@ -17,6 +17,11 @@ export interface CategoryTreeNode {
   depth: number;
 }
 
+export interface PageTreeNode {
+  page: WikiPageSummaryDto;
+  depth: number;
+}
+
 @Component({
   selector: 'app-wiki-sidebar',
   imports: [NgClass, FormsModule, Button, Dialog, InputText, Select, ContextMenu, PrimeTemplate],
@@ -60,18 +65,30 @@ export class WikiSidebarComponent {
     (this.state.wiki()?.pages ?? []).filter(p => p.isPinned),
   );
 
-  protected uncategorizedRootPages = computed(() =>
-    (this.state.wiki()?.pages ?? []).filter(p => !p.categoryId && !p.parentPageId),
-  );
+  protected uncategorizedPageTree = computed((): PageTreeNode[] => {
+    const allPages = this.state.wiki()?.pages ?? [];
+    const result: PageTreeNode[] = [];
+    const build = (parentId: string | null | undefined, depth: number) => {
+      for (const p of allPages.filter(x => !x.categoryId && (x.parentPageId ?? null) === (parentId ?? null))) {
+        result.push({ page: p, depth });
+        build(p.id, depth + 1);
+      }
+    };
+    build(null, 0);
+    return result;
+  });
 
-  protected rootPages(categoryId: string): WikiPageSummaryDto[] {
-    return (this.state.wiki()?.pages ?? []).filter(
-      p => p.categoryId === categoryId && !p.parentPageId,
-    );
-  }
-
-  protected childPages(parentPageId: string): WikiPageSummaryDto[] {
-    return (this.state.wiki()?.pages ?? []).filter(p => p.parentPageId === parentPageId);
+  protected pageTreeForCategory(categoryId: string): PageTreeNode[] {
+    const allPages = this.state.wiki()?.pages ?? [];
+    const result: PageTreeNode[] = [];
+    const build = (parentId: string | null | undefined, depth: number) => {
+      for (const p of allPages.filter(x => x.categoryId === categoryId && (x.parentPageId ?? null) === (parentId ?? null))) {
+        result.push({ page: p, depth });
+        build(p.id, depth + 1);
+      }
+    };
+    build(null, 0);
+    return result;
   }
 
   protected isPageActive(page: WikiPageSummaryDto): boolean {
@@ -106,14 +123,7 @@ export class WikiSidebarComponent {
       },
     ];
     const activePage = this.activePageForParenting();
-    if (activePage && activePage.id !== page.id) {
-      const truncated = activePage.title.length > 24 ? activePage.title.slice(0, 24) + '…' : activePage.title;
-      items.push({
-        label: `Set as parent of "${truncated}"`,
-        icon: 'pi pi-sitemap',
-        command: () => this.setAsParent(page, activePage),
-      });
-    }
+
     this.ctxMenuItems = items;
     this.catCtxMenu?.show(event);
   }
@@ -172,11 +182,25 @@ export class WikiSidebarComponent {
       });
   }
 
+  protected categoryToDelete = signal<WikiCategoryDto | null>(null);
+  protected deletingCategory = signal(false);
+
   protected deleteCategory(category: WikiCategoryDto): void {
+    this.categoryToDelete.set(category);
+  }
+
+  protected confirmDeleteCategory(): void {
     const guildId = this.state.guildId();
-    if (!guildId) return;
+    const category = this.categoryToDelete();
+    if (!guildId || !category) return;
+    this.deletingCategory.set(true);
     this.wikiService.deleteCategory(guildId, category.id).subscribe({
-      next: () => this.state.reload(),
+      next: () => {
+        this.deletingCategory.set(false);
+        this.categoryToDelete.set(null);
+        this.state.reload();
+      },
+      error: () => this.deletingCategory.set(false),
     });
   }
 }
