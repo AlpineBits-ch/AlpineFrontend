@@ -8,7 +8,8 @@ import {
   IonLabel, IonBadge, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent,
 } from '@ionic/angular/standalone';
 import { ContextMenu } from 'primeng/contextmenu';
-import { MenuItem } from 'primeng/api';
+import { ConfirmDialog } from 'primeng/confirmdialog';
+import { ConfirmationService, MenuItem } from 'primeng/api';
 import { InfiniteScrollCustomEvent } from '@ionic/angular';
 import { addIcons } from 'ionicons';
 import { trashOutline } from 'ionicons/icons';
@@ -43,8 +44,9 @@ import {PlatformService} from "../../../../services/platform.service";
     AppAvatarComponent, DatePipe, NgClass, UserStatusDotComponent, TypingDotsComponent,
     IonList, IonItem, IonItemSliding, IonItemOptions, IonItemOption,
     IonLabel, IonBadge, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent,
-    ContextMenu,
+    ContextMenu, ConfirmDialog,
   ],
+  providers: [ConfirmationService],
   templateUrl: './conversation-list.component.html',
   styleUrl: './conversation-list.component.css',
   animations: [
@@ -81,6 +83,7 @@ export class ConversationListComponent {
   private toast               = inject(ToastService);
   private messagingWs         = inject(MessagingWebsocketService);
   private mlsService          = inject(MlsService);
+  private confirmationService = inject(ConfirmationService);
 
   public platformService = inject(PlatformService)
 
@@ -275,16 +278,27 @@ export class ConversationListComponent {
   public deleteConversation(conv: ConversationDto, event?: MouseEvent): void {
     event?.stopPropagation();
     const name = this.convUtils.getChatTitle(conv);
-    this.conversationService.deleteConversation(conv.id).subscribe({
-      next: () => {
-        this.conversationStore.removeConversation(conv.id);
-        this.messageStore.removeMessagesForConversation(conv.id);
-        if (this.selectedId() === conv.id) {
-          this.navService.showHome();
-        }
-        this.toast.success('Conversation deleted', { detail: name });
+    this.confirmationService.confirm({
+      message: `Are you sure you want to delete the conversation with <strong>${name}</strong>? This cannot be undone.`,
+      header: 'Delete Conversation',
+      icon: 'pi pi-trash',
+      acceptLabel: 'Delete',
+      rejectLabel: 'Cancel',
+      acceptButtonProps: { severity: 'danger', size: 'small' },
+      rejectButtonProps: { severity: 'secondary', outlined: true, size: 'small' },
+      accept: () => {
+        this.conversationService.deleteConversation(conv.id).subscribe({
+          next: () => {
+            this.conversationStore.removeConversation(conv.id);
+            this.messageStore.removeMessagesForConversation(conv.id);
+            if (this.selectedId() === conv.id) {
+              this.navService.showHome();
+            }
+            this.toast.success('Conversation deleted', { detail: name });
+          },
+          error: (err) => this.toast.httpError('Failed to delete conversation', err),
+        });
       },
-      error: (err) => this.toast.httpError('Failed to delete conversation', err),
     });
   }
 }

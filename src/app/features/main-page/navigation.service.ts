@@ -138,6 +138,11 @@ export class NavigationService {
 
   openWiki(guildId: string): void {
     this.wikiPanelGuildId.set(guildId);
+    const current = this.mainView();
+    if (current.type !== 'wiki' || current.guildId !== guildId) {
+      this.mainView.set({ type: 'wiki', guildId });
+      this.saveNav();
+    }
     this.mobileNavOpen.set(false);
   }
 
