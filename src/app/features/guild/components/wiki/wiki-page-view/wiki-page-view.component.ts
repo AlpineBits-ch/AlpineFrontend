@@ -4,7 +4,8 @@ import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
 import {WikiPageDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
-import {formatWikiDate, renderWikiMarkdown} from '../wiki.utils';
+import {formatWikiDate, renderWikiMarkdown, toggleNthCheckbox} from '../wiki.utils';
+import {WikiStateService} from '../wiki-state.service';
 
 @Component({
   selector: 'app-wiki-page-view',
@@ -21,15 +22,48 @@ export class WikiPageViewComponent {
 
   private readonly wikiService = inject(WikiService);
   private readonly sanitizer = inject(DomSanitizer);
+  private readonly state = inject(WikiStateService);
 
   protected showDeleteDialog = signal(false);
   protected deletingPage = signal(false);
+  protected savingCheckbox = signal(false);
 
   protected renderedContent = computed<SafeHtml>(() =>
     renderWikiMarkdown(this.page().content, this.sanitizer),
   );
 
   protected readonly formatDate = formatWikiDate;
+
+  protected onContentClick(event: MouseEvent): void {
+    const target = event.target as HTMLInputElement;
+    if (target.tagName !== 'INPUT' || target.type !== 'checkbox') return;
+    if (this.savingCheckbox()) return;
+
+    const contentEl = event.currentTarget as HTMLElement;
+    const checkboxes = Array.from(contentEl.querySelectorAll<HTMLInputElement>('input[type="checkbox"]'));
+    const index = checkboxes.indexOf(target);
+    if (index === -1) return;
+
+    const newChecked = target.checked;
+    const currentPage = this.page();
+    const updatedContent = toggleNthCheckbox(currentPage.content, index, newChecked);
+    if (updatedContent === currentPage.content) return;
+
+    // Optimistic: update immediately so the checkbox feels instant
+    this.state.selectedPage.set({...currentPage, content: updatedContent});
+    this.state.suppressPageRefreshOnce(); // prevent WS event from showing page loader
+    this.savingCheckbox.set(true);
+    this.wikiService.updatePage(this.guildId(), currentPage.id, {content: updatedContent}).subscribe({
+      next: page => {
+        this.state.selectedPage.set(page);
+        this.savingCheckbox.set(false);
+      },
+      error: () => {
+        this.state.selectedPage.set(currentPage);
+        this.savingCheckbox.set(false);
+      },
+    });
+  }
 
   protected doDeletePage(): void {
     this.deletingPage.set(true);

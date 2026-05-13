@@ -33,6 +33,8 @@
     "@tiptap/extension-table-cell": "^3.23.1",
     "@tiptap/extension-table-header": "^3.23.1",
     "@tiptap/extension-table-row": "^3.23.1",
+    "@tiptap/extension-task-item": "^3.23.2",
+    "@tiptap/extension-task-list": "^3.23.2",
     "@tiptap/extension-underline": "^3.23.1",
     "@tiptap/starter-kit": "^3.23.1",
     "@types/turndown": "^5.0.6",

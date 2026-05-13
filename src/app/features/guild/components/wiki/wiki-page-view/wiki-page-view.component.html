@@ -36,7 +36,7 @@
        style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
     <div class="max-w-3xl mx-auto px-8 py-8">
       @if (page().content) {
-        <div class="wiki-content" [innerHTML]="renderedContent()"></div>
+        <div class="wiki-content" [class.wiki-content--saving]="savingCheckbox()" [innerHTML]="renderedContent()" (click)="onContentClick($event)"></div>
       } @else {
         <div class="text-center py-16">
           <i class="pi pi-file-edit text-3xl text-white/10 mb-3 block"></i>

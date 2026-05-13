@@ -27,6 +27,8 @@ import TableRow from '@tiptap/extension-table-row';
 import TableHeader from '@tiptap/extension-table-header';
 import TableCell from '@tiptap/extension-table-cell';
 import Image from '@tiptap/extension-image';
+import TaskList from '@tiptap/extension-task-list';
+import TaskItem from '@tiptap/extension-task-item';
 import {marked} from 'marked';
 import TurndownService from 'turndown';
 import { gfm } from 'turndown-plugin-gfm';
@@ -35,10 +37,58 @@ import {WikiService} from '../../../../../services/wiki.service';
 import {FileService} from '../../../../../services/file.service';
 import {WikiStateService} from '../wiki-state.service';
 
+function preprocessTaskListsForTiptap(html: string): string {
+  const div = document.createElement('div');
+  div.innerHTML = html;
+
+  div.querySelectorAll('ul').forEach(ul => {
+    const items = Array.from(ul.children) as HTMLElement[];
+    const hasAnyTask = items.some(li => li.querySelector(':scope > input[type="checkbox"]'));
+    if (!hasAnyTask) return;
+
+    // Split into consecutive groups of task / non-task items
+    const parent = ul.parentNode!;
+    const anchor = ul.nextSibling;
+    const fragment = document.createDocumentFragment();
+    let bucket: HTMLUListElement | null = null;
+    let bucketIsTask = false;
+
+    for (const li of items) {
+      const input = li.querySelector<HTMLInputElement>(':scope > input[type="checkbox"]');
+      const isTask = input !== null;
+
+      if (!bucket || bucketIsTask !== isTask) {
+        bucket = document.createElement('ul');
+        if (isTask) bucket.setAttribute('data-type', 'taskList');
+        fragment.appendChild(bucket);
+        bucketIsTask = isTask;
+      }
+
+      if (isTask) {
+        const checked = input!.checked || input!.hasAttribute('checked');
+        li.setAttribute('data-type', 'taskItem');
+        li.setAttribute('data-checked', String(checked));
+        input!.remove();
+        // Wrap remaining text/nodes in <p> — TaskItem content model is paragraph+
+        const p = document.createElement('p');
+        while (li.firstChild) p.appendChild(li.firstChild);
+        li.appendChild(p);
+      }
+
+      bucket.appendChild(li);
+    }
+
+    parent.insertBefore(fragment, anchor);
+    ul.remove();
+  });
+
+  return div.innerHTML;
+}
+
 function contentToHtml(content: string): string {
   if (!content) return '';
   if (content.trimStart().startsWith('<')) return content;
-  return marked.parse(content) as string;
+  return preprocessTaskListsForTiptap(marked.parse(content) as string);
 }
 
 @Component({
@@ -85,6 +135,7 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
   protected isH3 = signal(false);
   protected isBulletList = signal(false);
   protected isOrderedList = signal(false);
+  protected isTaskList = signal(false);
   protected isBlockquote = signal(false);
   protected isCode = signal(false);
   protected isCodeBlock = signal(false);
@@ -167,6 +218,16 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
       bulletListMarker: '-',
       codeBlockStyle: 'fenced',
     });
+    // Must be before gfm so this rule takes priority for TipTap task items
+    td.addRule('tiptapTaskItem', {
+      filter: (node: any) =>
+        node.nodeName === 'LI' && node.getAttribute('data-type') === 'taskItem',
+      replacement: (_content: string, node: any) => {
+        const checked = node.getAttribute('data-checked') === 'true';
+        const text = _content.replace(/^\n+|\n+$/g, '').trim();
+        return `- [${checked ? 'x' : ' '}] ${text}\n`;
+      },
+    });
     td.use(gfm);
     return td;
   })();
@@ -205,6 +266,8 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
         TableHeader,
         TableCell,
         Image.configure({inline: false, allowBase64: false}),
+        TaskList,
+        TaskItem.configure({nested: false}),
       ],
       content: this.editorContent() || '',
       onUpdate: ({editor}) => {
@@ -271,6 +334,7 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
     this.isH3.set(this.tiptapEditor.isActive('heading', {level: 3}));
     this.isBulletList.set(this.tiptapEditor.isActive('bulletList'));
     this.isOrderedList.set(this.tiptapEditor.isActive('orderedList'));
+    this.isTaskList.set(this.tiptapEditor.isActive('taskList'));
     this.isBlockquote.set(this.tiptapEditor.isActive('blockquote'));
     this.isCode.set(this.tiptapEditor.isActive('code'));
     this.isCodeBlock.set(this.tiptapEditor.isActive('codeBlock'));
@@ -286,6 +350,7 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
   protected toggleH3(): void { this.tiptapEditor?.chain().focus().toggleHeading({level: 3}).run(); }
   protected toggleBulletList(): void { this.tiptapEditor?.chain().focus().toggleBulletList().run(); }
   protected toggleOrderedList(): void { this.tiptapEditor?.chain().focus().toggleOrderedList().run(); }
+  protected toggleTaskList(): void { this.tiptapEditor?.chain().focus().toggleTaskList().run(); }
   protected toggleBlockquote(): void { this.tiptapEditor?.chain().focus().toggleBlockquote().run(); }
   protected toggleCode(): void { this.tiptapEditor?.chain().focus().toggleCode().run(); }
   protected toggleCodeBlock(): void { this.tiptapEditor?.chain().focus().toggleCodeBlock().run(); }

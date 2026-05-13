@@ -17,6 +17,7 @@ export class WikiStateService {
   readonly guildId = signal<string>('');
   readonly pageLoading = signal(false);
   readonly pendingRemoteUpdate = signal<WikiPageDto | null>(null);
+  private suppressNextPageRefresh = false;
 
   constructor() {
     this.ws.wikiPageCreatedObservable.subscribe(e => {
@@ -29,6 +30,10 @@ export class WikiStateService {
       this.loadWiki(this.guildId());
 
       if (this.wikiView() === 'page' && this.selectedPage()?.id === e.pageId) {
+        if (this.suppressNextPageRefresh) {
+          this.suppressNextPageRefresh = false;
+          return;
+        }
         this.pageLoading.set(true);
         this.wikiService.getPage(this.guildId(), e.pageId).subscribe({
           next: page => {
@@ -150,6 +155,10 @@ export class WikiStateService {
 
   afterRestored(page: WikiPageDto): void {
     this.loadWiki(this.guildId(), page);
+  }
+
+  suppressPageRefreshOnce(): void {
+    this.suppressNextPageRefresh = true;
   }
 
   clearPendingRemoteUpdate(): void {
