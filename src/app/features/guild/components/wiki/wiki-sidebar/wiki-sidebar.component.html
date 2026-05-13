@@ -59,7 +59,7 @@
             (dragend)="onDragEnd($event)"
             (dragover)="onItemDragOver($event, pn.page.id)"
             [ngClass]="nestTargetId() === pn.page.id
-              ? 'ring-1 ring-brand/50 bg-brand/[0.10] text-white/90 scale-[1.01]'
+              ? 'nest-blink text-white/90 scale-[1.01]'
               : isPageActive(pn.page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
             [style.paddingLeft]="(8 + pn.depth * 14) + 'px'"
             class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg text-left transition-all duration-200 border-0 cursor-grab">
@@ -99,7 +99,7 @@
             (dragend)="onDragEnd($event)"
             (dragover)="onItemDragOver($event, node.page.id)"
             [ngClass]="nestTargetId() === node.page.id
-              ? 'ring-1 ring-brand/50 bg-brand/[0.10] text-white/90 scale-[1.01]'
+              ? 'nest-blink text-white/90 scale-[1.01]'
               : isPageActive(node.page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
             [style.paddingLeft]="(8 + node.depth * 14) + 'px'"
             class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg text-left transition-all duration-200 border-0 cursor-grab">

@@ -129,20 +129,6 @@ export class WikiSidebarComponent {
     this.catCtxMenu?.show(event);
   }
 
-  private activePageForParenting(): WikiPageDto | null {
-    const view = this.state.wikiView();
-    if (view === 'page') return this.state.selectedPage();
-    if (view === 'editor') return this.state.editingPage();
-    return null;
-  }
-
-  private setAsParent(parentPage: WikiPageSummaryDto, childPage: WikiPageDto): void {
-    const guildId = this.state.guildId();
-    if (!guildId) return;
-    this.wikiService.updatePage(guildId, childPage.id, {parentPageId: parentPage.id}).subscribe({
-      next: () => this.state.reload(),
-    });
-  }
 
   // ── Category dialog ────────────────────────────────────────────────────────
   protected showCategoryDialog = signal(false);
@@ -242,7 +228,7 @@ export class WikiSidebarComponent {
           this.nestTargetId.set(targetId);
           this.dropTargetId.set(null);
           this.nestTimer = null;
-        }, 1500);
+        }, 850);
       }
     }
 

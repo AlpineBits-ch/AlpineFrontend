@@ -10,6 +10,8 @@ export function getMessage(editor: HTMLElement): string {
       } else if (node instanceof HTMLElement) {
         if (node.classList.contains('mention-chip')) {
           text += node.dataset['display'] ?? node.textContent ?? '';
+        } else if (node.tagName === 'IMG' && node.dataset['emoji']) {
+          text += node.dataset['emoji'];
         } else if (node.tagName === 'BR') {
           text += '\n';
         } else if (node.tagName === 'DIV') {

@@ -1,0 +1,3 @@
+[submodule "src/assets/i18n/locales"]
+	path = src/assets/i18n/locales
+	url = git@github.com:AlpineBits-ch/venta-i18n.git

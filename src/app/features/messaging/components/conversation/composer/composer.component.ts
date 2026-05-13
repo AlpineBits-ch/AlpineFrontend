@@ -1,4 +1,5 @@
 import { Component, computed, ElementRef, inject, input, output, signal, viewChild } from '@angular/core';
+import twemoji from 'twemoji';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, debounceTime, map, of, switchMap } from 'rxjs';
 import { Button } from 'primeng/button';
@@ -15,6 +16,8 @@ import { ComposerAttachmentsService } from './composer-attachments.service';
 import { AttachmentPreviewsComponent } from './attachment-previews/attachment-previews.component';
 import { GuildService } from '../../../../../services/guild.service';
 import {ProfileService} from "../../../../../services/profile.service";
+
+const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/';
 
 @Component({
   selector: 'app-composer',
@@ -171,7 +174,11 @@ export class ComposerComponent {
   onInput(): void {
     const editor = this.editorRef().nativeElement;
     this.savedEmojiOffset = getTextCursorOffset(editor);
-    this.isEmpty.set((editor.textContent ?? '').trim() === '' && !editor.querySelector('.mention-chip'));
+    this.isEmpty.set(
+      (editor.textContent ?? '').trim() === '' &&
+      !editor.querySelector('.mention-chip') &&
+      !editor.querySelector('img[data-emoji]')
+    );
 
     // Auto-replace :shortcode: on closing colon
     const sel = window.getSelection();
@@ -189,10 +196,10 @@ export class ComposerComponent {
             r.setStart(node as Text, colonPos);
             r.setEnd(node as Text, range.startOffset);
             r.deleteContents();
-            const textNode = document.createTextNode(native);
-            r.insertNode(textNode);
+            const img = this.createEmojiImg(native);
+            r.insertNode(img);
             const newRange = document.createRange();
-            newRange.setStartAfter(textNode);
+            newRange.setStartAfter(img);
             newRange.collapse(true);
             sel.removeAllRanges();
             sel.addRange(newRange);
@@ -388,19 +395,20 @@ export class ComposerComponent {
     if (!this.triggerRange) return;
 
     this.triggerRange.deleteContents();
-    const textNode = document.createTextNode(emoji.native);
-    this.triggerRange.insertNode(textNode);
+    const img = this.createEmojiImg(emoji.native);
+    this.triggerRange.insertNode(img);
 
     const sel = window.getSelection();
     if (sel) {
       const r = document.createRange();
-      r.setStartAfter(textNode);
+      r.setStartAfter(img);
       r.collapse(true);
       sel.removeAllRanges();
       sel.addRange(r);
     }
 
     this.closeOverlay();
+    this.isEmpty.set(false);
     this.editorRef().nativeElement.focus();
   }
 
@@ -421,13 +429,14 @@ export class ComposerComponent {
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
     range.deleteContents();
-    const node = document.createTextNode(emoji);
-    range.insertNode(node);
-    range.setStartAfter(node);
+    const img = this.createEmojiImg(emoji);
+    range.insertNode(img);
+    range.setStartAfter(img);
     range.collapse(true);
     sel.removeAllRanges();
     sel.addRange(range);
-    this.savedEmojiOffset += [...emoji].length;
+    this.savedEmojiOffset += 1;
+    this.isEmpty.set(false);
   }
 
   // ── Send ─────────────────────────────────────────────────────────────────
@@ -487,6 +496,24 @@ export class ComposerComponent {
       return;
     }
     this.commandAction.emit(action);
+  }
+
+  private createEmojiImg(native: string): HTMLImageElement {
+    const tmp = document.createElement('span');
+    tmp.innerHTML = twemoji.parse(native, {
+      folder: 'svg',
+      ext: '.svg',
+      base: TWEMOJI_BASE,
+      attributes: () => ({
+        style: 'height:1.25em;width:1.25em;vertical-align:-0.25em;display:inline-block',
+        draggable: 'false',
+      }),
+    });
+    const img = (tmp.querySelector('img') ?? document.createElement('img')) as HTMLImageElement;
+    img.dataset['emoji'] = native;
+    img.contentEditable = 'false';
+    img.alt = native;
+    return img;
   }
 
   private closeOverlay(): void {

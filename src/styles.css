@@ -378,3 +378,15 @@ button, a, [role="button"], input, select, textarea, label {
   0%, 100% { opacity: 0.35; }
   50%       { opacity: 0.75; }
 }
+
+@keyframes nest-blink {
+  0%  { background-color: color-mix(in srgb, var(--color-brand) 28%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 60%, transparent); }
+  18% { background-color: transparent; box-shadow: 0 0 0 1px transparent; }
+  36% { background-color: color-mix(in srgb, var(--color-brand) 28%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 60%, transparent); }
+  54% { background-color: transparent; box-shadow: 0 0 0 1px transparent; }
+  100% { background-color: color-mix(in srgb, var(--color-brand) 10%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-brand) 50%, transparent); }
+}
+
+.nest-blink {
+  animation: nest-blink 600ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}

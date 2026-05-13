@@ -1,7 +1,7 @@
 import hljs from 'highlight.js';
 
 /** A raw text run or an atomic mention chip from the contenteditable. */
-export type EditorSegment = { type: 'text'; text: string } | { type: 'chip'; el: HTMLElement };
+export type EditorSegment = { type: 'text'; text: string } | { type: 'chip'; el: HTMLElement } | { type: 'emoji'; el: HTMLImageElement };
 
 /**
  * Walk the editor DOM and extract alternating text runs and mention-chip elements.
@@ -16,6 +16,11 @@ export function getEditorSegments(editor: HTMLElement): EditorSegment[] {
     if (node instanceof HTMLElement && node.classList.contains('mention-chip')) {
       if (textAcc) { segments.push({ type: 'text', text: textAcc }); textAcc = ''; }
       segments.push({ type: 'chip', el: node.cloneNode(true) as HTMLElement });
+      return;
+    }
+    if (node instanceof HTMLImageElement && node.dataset['emoji']) {
+      if (textAcc) { segments.push({ type: 'text', text: textAcc }); textAcc = ''; }
+      segments.push({ type: 'emoji', el: node.cloneNode(true) as HTMLImageElement });
       return;
     }
     for (const child of Array.from(node.childNodes)) {
@@ -38,7 +43,7 @@ export function getEditorSegments(editor: HTMLElement): EditorSegment[] {
 export function buildHighlightedFragment(segments: EditorSegment[]): DocumentFragment {
   const frag = document.createDocumentFragment();
   for (const seg of segments) {
-    if (seg.type === 'chip') {
+    if (seg.type === 'chip' || seg.type === 'emoji') {
       frag.appendChild(seg.el);
     } else {
       const tmp = document.createElement('span');
@@ -147,6 +152,7 @@ export function getTextCursorOffset(editor: HTMLElement): number {
     if (node instanceof HTMLElement) {
       if (node.tagName === 'BR') { count += 1; return; }
       if (node.classList.contains('mention-chip')) { count += node.textContent?.length ?? 0; return; }
+      if (node.tagName === 'IMG' && node.dataset['emoji']) { count += 1; return; }
       for (const child of Array.from(node.childNodes)) countAll(child);
     }
   }
@@ -161,6 +167,11 @@ export function getTextCursorOffset(editor: HTMLElement): number {
       if (node.tagName === 'BR') { count += 1; return false; }
       if (node.classList.contains('mention-chip')) {
         count += node.textContent?.length ?? 0;
+        return false;
+      }
+      if (node.tagName === 'IMG' && node.dataset['emoji']) {
+        if (node === startContainer) { return true; }
+        count += 1;
         return false;
       }
       if (node === startContainer) {
@@ -216,6 +227,18 @@ export function restoreCursorOffset(editor: HTMLElement, target: number): void {
       }
       if (node.classList.contains('mention-chip')) {
         remaining -= node.textContent?.length ?? 0;
+        return false;
+      }
+      if (node.tagName === 'IMG' && node.dataset['emoji']) {
+        if (remaining <= 0) {
+          const r = document.createRange();
+          r.setStartBefore(node);
+          r.collapse(true);
+          window.getSelection()?.removeAllRanges();
+          window.getSelection()?.addRange(r);
+          return true;
+        }
+        remaining -= 1;
         return false;
       }
     }
