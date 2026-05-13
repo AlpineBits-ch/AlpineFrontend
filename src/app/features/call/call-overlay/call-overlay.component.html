@@ -7,7 +7,7 @@
   <!-- Card -->
   <div class="fixed inset-0 flex items-center justify-center pointer-events-none" style="z-index:2000">
     <div class="pointer-events-auto call-card-enter w-80 rounded-2xl overflow-hidden
-                border border-white/[0.10] shadow-2xl" style="background:#111520">
+                border border-white/[0.10] shadow-2xl" style="background: var(--color-sidebar)">
 
       <!-- Emerald header band -->
       <div class="px-5 py-3 flex items-center gap-2.5 border-b border-emerald-500/20"
@@ -16,7 +16,7 @@
           <span class="animate-ping absolute inset-0 rounded-full bg-emerald-400 opacity-75"></span>
           <span class="relative rounded-full h-2 w-2 bg-emerald-400"></span>
         </span>
-        <span class="text-[11px] font-semibold text-emerald-400 uppercase tracking-widest">
+        <span class="text-[0.6875rem] font-semibold text-emerald-400 uppercase tracking-widest">
           Incoming Voice Call
         </span>
       </div>
@@ -47,7 +47,7 @@
               <i class="pi pi-phone text-rose-400 text-xl rotate-[135deg]
                         group-hover:scale-110 transition-transform duration-150"></i>
             </button>
-            <span class="text-[11px] text-white/35">Decline</span>
+            <span class="text-[0.6875rem] text-white/35">Decline</span>
           </div>
 
           <div class="flex flex-col items-center gap-2">
@@ -58,7 +58,7 @@
               <i class="pi pi-phone text-emerald-400 text-xl
                         group-hover:scale-110 transition-transform duration-150"></i>
             </button>
-            <span class="text-[11px] text-white/35">Accept</span>
+            <span class="text-[0.6875rem] text-white/35">Accept</span>
           </div>
         </div>
 
@@ -70,7 +70,7 @@
 <!-- ── Outgoing call ────────────────────────────────────────────────────── -->
 @if (callState.outgoingCall(); as out) {
   <div class="fixed bottom-6 right-6 w-72 rounded-2xl overflow-hidden call-card-enter
-              border border-white/[0.08] shadow-2xl" style="z-index:1800; background:#111520">
+              border border-white/[0.08] shadow-2xl" style="z-index:1800; background: var(--color-sidebar)">
 
     <!-- Indigo accent line -->
     <div class="h-[2px] bg-gradient-to-r from-indigo-500/70 via-indigo-400/30 to-transparent"></div>
@@ -85,7 +85,7 @@
 
       <!-- Info -->
       <div class="flex-1 min-w-0">
-        <div class="flex items-center gap-0.5 text-[11px] text-white/40 mb-0.5">
+        <div class="flex items-center gap-0.5 text-[0.6875rem] text-white/40 mb-0.5">
           <span>Calling</span>
           <span class="dot" style="animation-delay:0ms">.</span>
           <span class="dot" style="animation-delay:250ms">.</span>

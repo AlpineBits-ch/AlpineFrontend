@@ -1,8 +1,10 @@
 import {
   ApplicationConfig,
   ErrorHandler,
+  inject,
   provideBrowserGlobalErrorListeners,
   provideZoneChangeDetection,
+  APP_INITIALIZER,
 } from "@angular/core";
 import { provideRouter } from "@angular/router";
 import { provideAnimations } from "@angular/platform-browser/animations";
@@ -17,6 +19,7 @@ import {environment} from "../environments/environment";
 import {tokenInterceptor} from "./interceptors/token-interceptor";
 import {timeoutInterceptor} from "./interceptors/timeout.interceptor";
 import {GlobalErrorHandler} from "./core/global-error-handler";
+import { ThemeService } from './services/theme.service';
 
 export const authConfig: AuthConfig = {
   issuer: 'http://identity:8080/', // Your OpenIddict server
@@ -51,6 +54,8 @@ export const appConfig: ApplicationConfig = {
         }
       }),
       MessageService,
-      provideIonicAngular(),
+    provideIonicAngular(),
+    // Eagerly instantiate ThemeService so it applies the saved theme before first paint
+    { provide: APP_INITIALIZER, useFactory: () => () => inject(ThemeService), multi: true },
   ],
 };

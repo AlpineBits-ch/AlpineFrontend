@@ -18,7 +18,8 @@
     @for (server of serverIcons(); track server.id) {
       <app-server-icon
         [serverData]="server"
-        (click)="navService.selectServer(guilds()[$index])">
+        (click)="navService.selectServer(guilds()[$index])"
+        (contextmenu)="onServerContextMenu($event, guilds()[$index])">
       </app-server-icon>
     }
   </div>
@@ -32,6 +33,15 @@
 
 </div>
 
+<p-contextMenu #guildContextMenu appendTo="body" />
+
 <app-create-guild-modal
   [(visible)]="showCreateModal"
   (guildCreated)="onGuildCreated($event)" />
+
+@if (contextGuild()) {
+  <app-guild-settings-modal
+    [(isVisible)]="showGuildSettings"
+    [guild]="contextGuild()!"
+    (guildUpdated)="onGuildSettingsUpdated($event)" />
+}

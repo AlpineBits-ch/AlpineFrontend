@@ -89,7 +89,9 @@
       "Bash(~/.bun/bin/bun add *)",
       "Bash(~/.bun/bin/bun run *)",
       "Bash(node -e \" // Check max x,y in sets/15 to understand if @16 sprite could work const d = require\\('./node_modules/@emoji-mart/data/sets/15/twitter.json'\\); const emojis = Object.values\\(d.emojis\\); let maxX = 0, maxY = 0; for \\(const e of emojis\\) { for \\(const s of e.skins || []\\) { if \\(s.x > maxX\\) maxX = s.x; if \\(s.y > maxY\\) maxY = s.y; } } console.log\\('max x:', maxX, 'max y:', maxY, 'sheet:', d.sheet\\); \" echo \"---\")",
-      "Bash(node -e \"const p = require\\('./node_modules/@emoji-mart/data/package.json'\\); console.log\\('exports:', JSON.stringify\\(Object.keys\\(p.exports||{}\\)\\).substring\\(0,500\\)\\)\" grep -n \"resolveJsonModule\" C:/Users/Domin/WebstormProjects/Alpine/tsconfig.json cat C:/Users/Domin/WebstormProjects/Alpine/tsconfig.json)"
+      "Bash(node -e \"const p = require\\('./node_modules/@emoji-mart/data/package.json'\\); console.log\\('exports:', JSON.stringify\\(Object.keys\\(p.exports||{}\\)\\).substring\\(0,500\\)\\)\" grep -n \"resolveJsonModule\" C:/Users/Domin/WebstormProjects/Alpine/tsconfig.json cat C:/Users/Domin/WebstormProjects/Alpine/tsconfig.json)",
+      "Bash(grep -E \"\\\\.\\(ts|tsx|vue|html\\)$\")",
+      "Bash(xargs basename *)"
     ]
   }
 }

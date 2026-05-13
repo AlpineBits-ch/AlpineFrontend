@@ -102,7 +102,7 @@
       </div>
     } @else {
       <!-- Normal message content -->
-      <div class="text-sm leading-relaxed m-0 break-words"
+      <div class="text-[15px] leading-relaxed m-0 break-words"
          (click)="onLinkClick($event)"
          [ngClass]="message().isFailed ? 'text-rose-300' : message().isPending ? 'text-white/40' : 'text-white/70'">
         @if (isOnlyEmoji()){

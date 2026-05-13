@@ -31,6 +31,7 @@ import {hasPermission, parsePermissions, Permissions} from '../../../../enums/pe
 import {ReorderChannesDto} from '../../../../dtos/request/reorder-channel.dto';
 import {GuildWebsocketService, WsChannelCreated, WsChannelDeleted, WsCategoryCreated, WsCategoryDeleted} from '../../../../services/guild-websocket.service';
 import {GuildVoiceService} from '../../../../services/guild-voice.service';
+import {GuildUiActionsService} from '../../../../services/guild-ui-actions.service';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 
 @Component({
@@ -60,6 +61,7 @@ export class ChannelListComponent {
   protected voiceChannelSvc  = inject(VoiceChannelService);
   private   guildService     = inject(GuildService);
   private   guildVoiceSvc    = inject(GuildVoiceService);
+  private   guildUiActions   = inject(GuildUiActionsService);
   protected profileService   = inject(ProfileService);
   protected readStateService = inject(GuildReadStateService);
   private   guildWsService   = inject(GuildWebsocketService);
@@ -215,6 +217,14 @@ export class ChannelListComponent {
           chs.map(c => c.categoryId === e.categoryId ? { ...c, categoryId: undefined } : c)
         );
       });
+
+    this.guildUiActions.openCreateChannel$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.openCreateChannel(undefined));
+
+    this.guildUiActions.openCreateCategory$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.openCreateCategory());
   }
 
   // ── Collapse state ────────────────────────────────────────────────────────

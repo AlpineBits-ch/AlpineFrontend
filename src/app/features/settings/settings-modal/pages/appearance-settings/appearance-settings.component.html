@@ -1,0 +1,182 @@
+<div class="flex flex-col gap-8 max-w-2xl">
+
+  <!-- ── Themes ──────────────────────────────────────────────────────────── -->
+  <section class="flex flex-col gap-4">
+    <div class="flex items-center justify-between border-b border-white/[0.10] pb-3">
+      <h2 class="text-[0.625rem] font-semibold text-white/30 uppercase tracking-widest">Themes</h2>
+      <div class="flex items-center gap-2">
+        <label class="flex items-center gap-1.5 text-[0.6875rem] text-white/40 hover:text-white/70
+                      border border-white/[0.08] hover:border-white/20 px-2.5 py-1.5 rounded-lg
+                      transition-colors cursor-pointer">
+          <i class="pi pi-upload" style="font-size: 0.6875rem;"></i>
+          Import
+          <input #importInput type="file" accept=".json" class="hidden" (change)="onImportFile($event)" />
+        </label>
+        <button (click)="themeService.exportTheme(themeService.activeThemeId())"
+                class="flex items-center gap-1.5 text-[0.6875rem] text-white/40 hover:text-white/70
+                       border border-white/[0.08] hover:border-white/20 px-2.5 py-1.5 rounded-lg
+                       transition-colors cursor-pointer">
+          <i class="pi pi-download" style="font-size: 0.6875rem;"></i>
+          Export
+        </button>
+      </div>
+    </div>
+
+    @if (importError()) {
+      <p class="text-xs text-rose-400">{{ importError() }}</p>
+    }
+
+    <!-- Theme cards grid -->
+    <div class="flex flex-wrap gap-3">
+      @for (theme of themeService.themes(); track theme.id) {
+        <div class="relative flex flex-col gap-2 p-3 rounded-xl border cursor-pointer transition-all select-none"
+             [ngClass]="themeService.activeThemeId() === theme.id
+               ? 'border-brand/50 bg-brand/[0.08]'
+               : 'border-white/[0.08] bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.04]'"
+             (click)="themeService.setActive(theme.id)">
+
+          <!-- Color preview strip -->
+          <div class="flex gap-1 h-6 rounded-lg overflow-hidden w-40">
+            <div class="flex-1" [style.background]="theme.colors.appBg"></div>
+            <div class="flex-1" [style.background]="theme.colors.sidebar"></div>
+            <div class="flex-1" [style.background]="theme.colors.brand"></div>
+            <div class="flex-1" [style.background]="theme.colors.brandDim"></div>
+            <div class="flex-1" [style.background]="theme.colors.online"></div>
+          </div>
+
+          <div class="flex items-center gap-1.5">
+            @if (themeService.activeThemeId() === theme.id) {
+              <i class="pi pi-check-circle text-brand-dim" style="font-size: 0.625rem;"></i>
+            }
+            <span class="text-xs font-medium"
+                  [ngClass]="themeService.activeThemeId() === theme.id ? 'text-brand-dim' : 'text-white/60'">
+              {{ theme.name }}
+            </span>
+          </div>
+
+          <!-- Delete button (non-built-in only) -->
+          @if (theme.id !== 'alpine-dark') {
+            <button (click)="$event.stopPropagation(); requestDelete(theme.id)"
+                    class="absolute top-2 right-2 w-5 h-5 flex items-center justify-center rounded
+                           text-white/20 hover:text-rose-400 transition-colors">
+              <i class="pi pi-trash" style="font-size: 0.625rem;"></i>
+            </button>
+          }
+        </div>
+      }
+
+      <!-- New Theme button -->
+      @if (!showNewForm()) {
+        <button (click)="showNewForm.set(true)"
+                class="flex flex-col items-center justify-center gap-2 w-40 h-[4.5rem] rounded-xl
+                       border border-dashed border-white/[0.12] hover:border-brand/40
+                       text-white/25 hover:text-brand-dim transition-colors cursor-pointer">
+          <i class="pi pi-plus text-sm"></i>
+          <span class="text-xs">New Theme</span>
+        </button>
+      } @else {
+        <div class="flex flex-col gap-2 p-3 rounded-xl border border-brand/40 bg-brand/[0.05] w-48">
+          <input type="text" placeholder="Theme name…" autofocus
+                 [ngModel]="newThemeName()" (ngModelChange)="newThemeName.set($event)"
+                 (keydown.enter)="createTheme()" (keydown.escape)="cancelNew()"
+                 class="text-xs bg-white/[0.04] border border-white/[0.09] rounded-lg px-2.5 py-1.5
+                        text-white/80 placeholder:text-white/25 outline-none focus:border-brand/40" />
+          <div class="flex gap-2">
+            <p-button label="Create" severity="primary" size="small" styleClass="flex-1 !justify-center text-xs"
+                      (onClick)="createTheme()" />
+            <p-button label="Cancel" severity="secondary" size="small" styleClass="flex-1 !justify-center text-xs"
+                      (onClick)="cancelNew()" />
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Delete confirm inline prompt -->
+    @if (confirmDeleteId()) {
+      <div class="flex items-center gap-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-xl px-4 py-3">
+        <i class="pi pi-exclamation-triangle text-rose-400 shrink-0"></i>
+        <p class="text-xs text-white/70 flex-1">Delete this theme? This cannot be undone.</p>
+        <p-button label="Delete" severity="danger" size="small" (onClick)="confirmDelete()" />
+        <p-button label="Cancel" severity="secondary" size="small" (onClick)="cancelDelete()" />
+      </div>
+    }
+  </section>
+
+  <!-- ── Typography ──────────────────────────────────────────────────────── -->
+  <section class="flex flex-col gap-4">
+    <h2 class="text-[0.625rem] font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+      Typography
+    </h2>
+
+    <div class="flex flex-col gap-3 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm text-white/75">Base Font Size</p>
+          <p class="text-xs text-white/35 mt-0.5">All text sizes scale proportionally. 16 px is the default.</p>
+        </div>
+        <span class="text-sm font-medium text-brand-dim tabular-nums w-12 text-right shrink-0">
+          {{ fontSizeValue }} px
+        </span>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <span class="text-xs text-white/30 shrink-0">12</span>
+        <input type="range" min="12" max="20" step="1"
+               [value]="fontSizeValue"
+               (input)="onFontSizeChange($any($event.target).value)"
+               class="font-slider flex-1" />
+        <span class="text-xs text-white/30 shrink-0">20</span>
+      </div>
+
+      <!-- Live preview -->
+      <div class="pt-3 border-t border-white/[0.06]">
+        <p class="text-xs text-white/30 mb-2 uppercase tracking-wide">Preview</p>
+        <div class="flex flex-col gap-1">
+          <p class="text-base font-semibold text-white/85">Channel Header</p>
+          <p class="text-sm text-white/75">Message content text — this is your base reference size.</p>
+          <p class="text-xs text-white/40">Timestamp · Label · Secondary text</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── Colors ──────────────────────────────────────────────────────────── -->
+  @if (!isBuiltIn()) {
+    @for (group of colorGroups; track group.title) {
+      <section class="flex flex-col gap-4">
+        <h2 class="text-[0.625rem] font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+          {{ group.title }}
+        </h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          @for (key of group.keys; track key) {
+            <div class="flex items-center gap-3 bg-white/[0.03] border border-white/[0.08] rounded-xl px-3 py-2.5">
+              <!-- Color swatch + native picker -->
+              <div class="color-swatch-wrap">
+                <div class="color-swatch-bg" [style.background]="themeService.activeTheme().colors[key]"></div>
+                <input type="color"
+                       [value]="themeService.activeTheme().colors[key]"
+                       (input)="onColorChange(key, $any($event.target).value)"
+                       (change)="onColorChange(key, $any($event.target).value)" />
+              </div>
+              <div class="flex-1 min-w-0">
+                <p class="text-xs font-medium text-white/65">{{ colorLabels[key] }}</p>
+                <p class="text-[0.625rem] text-white/30 font-mono mt-0.5">{{ themeService.activeTheme().colors[key] }}</p>
+              </div>
+            </div>
+          }
+        </div>
+      </section>
+    }
+  } @else {
+    <div class="flex items-start gap-3 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3">
+      <i class="pi pi-info-circle text-white/30 shrink-0 mt-0.5"></i>
+      <div>
+        <p class="text-sm text-white/60">Built-in theme</p>
+        <p class="text-xs text-white/35 mt-0.5">
+          Alpine Dark cannot be edited. Create a new theme (copying its colors) to customize.
+        </p>
+      </div>
+    </div>
+  }
+
+</div>

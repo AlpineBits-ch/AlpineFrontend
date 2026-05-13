@@ -13,12 +13,11 @@
   <div class="flex h-full flex-col sm:flex-row">
 
     <!-- ── Desktop sidebar (sm+ only) ──────────────────────────────────── -->
-    <nav class="hidden sm:flex sm:w-52 shrink-0 bg-sidebar border-r border-white/[0.10] flex-col py-4 overflow-y-auto"
-         style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+    <nav class="hidden sm:flex sm:w-52 shrink-0 bg-sidebar border-r border-white/[0.10] flex-col py-4 overflow-y-auto thin-scrollbar">
       <div class="flex flex-col flex-1">
         @for (group of navGroups; track group.title) {
           <div class="px-3 mb-4">
-            <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest px-3 mb-1">
+            <p class="text-[0.625rem] font-semibold text-white/25 uppercase tracking-widest px-3 mb-1">
               {{ group.title }}
             </p>
             @for (item of group.items; track item.id) {
@@ -51,10 +50,9 @@
         </div>
 
         <!-- Nav items -->
-        <div class="flex-1 overflow-y-auto px-4 py-4"
-             style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+        <div class="flex-1 overflow-y-auto px-4 py-4 thin-scrollbar">
           @for (group of navGroups; track group.title) {
-            <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest px-1 mb-2"
+            <p class="text-[0.625rem] font-semibold text-white/25 uppercase tracking-widest px-1 mb-2"
                [class.mt-5]="!$first">
               {{ group.title }}
             </p>
@@ -92,7 +90,7 @@
            style="padding-top: calc(env(safe-area-inset-top) + 1rem); padding-bottom: 1rem">
         <p-button icon="pi pi-arrow-left" [text]="true" severity="secondary" size="small"
           class="sm:hidden" (onClick)="mobileView.set('nav')" />
-        <h1 class="text-sm font-semibold text-white/85 flex-1">
+        <h1 class="text-base font-semibold text-white/85 flex-1">
           @for (group of navGroups; track group.title) {
             @for (item of group.items; track item.id) {
               @if (item.id === activePage()) { {{ item.label }} }
@@ -104,14 +102,14 @@
       </div>
 
       <!-- Page content -->
-      <div class="flex-1 overflow-y-auto px-4 sm:px-8 py-6"
-           style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+      <div class="flex-1 overflow-y-auto px-4 sm:px-8 py-6 thin-scrollbar">
         @switch (activePage()) {
           @case ('profile')       { <app-profile-settings /> }
           @case ('privacy')       { <app-privacy-settings /> }
           @case ('other')         { <app-other-settings /> }
           @case ('notifications') { <app-notification-settings /> }
           @case ('voice-video')   { <app-voice-video-settings /> }
+          @case ('appearance')    { <app-appearance-settings /> }
         }
       </div>
 

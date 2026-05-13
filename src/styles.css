@@ -10,6 +10,12 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Base font size is controlled by the ThemeService at runtime via --base-font-size.
+   All Tailwind rem utilities (text-sm, text-xs, etc.) scale with this. */
+html {
+  font-size: var(--base-font-size, 16px);
+}
+
 /* Prevent rubber-band scroll and font inflation.
    background-color fills iOS safe-area bars (status bar + home indicator). */
 html, body {
@@ -19,6 +25,12 @@ html, body {
   background-color: #06090f;
   height: 100%;
   overflow: hidden;
+}
+
+/* Reusable thin scrollbar — replace repeated inline scrollbar style= attributes */
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
 }
 
 /* iOS keyboard fix: when a text input is focused, iOS scrolls the visual viewport

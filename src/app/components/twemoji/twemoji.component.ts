@@ -7,7 +7,7 @@ const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/
 @Component({
   selector: 'app-twemoji',
   template: `<span [innerHTML]="html()"></span>`,
-  host: { style: 'display:inline' },
+  host: { style: 'display:inline-flex;align-items:center;line-height:0' },
 })
 export class TwemojiComponent {
   private sanitizer = inject(DomSanitizer);

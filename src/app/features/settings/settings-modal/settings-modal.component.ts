@@ -7,6 +7,7 @@ import {PrivacySettingsComponent} from "./pages/privacy-settings/privacy-setting
 import {OtherSettingsComponent} from "./pages/other-settings/other-settings.component";
 import {NotificationSettingsComponent} from "./pages/notification-settings/notification-settings.component";
 import {VoiceVideoSettingsComponent} from "./pages/voice-video-settings/voice-video-settings.component";
+import {AppearanceSettingsComponent} from "./pages/appearance-settings/appearance-settings.component";
 import {LogoutDialogComponent} from "../logout-dialog/logout-dialog.component";
 
 export interface SettingsNavItem {
@@ -31,6 +32,7 @@ export interface SettingsNavGroup {
     OtherSettingsComponent,
     NotificationSettingsComponent,
     VoiceVideoSettingsComponent,
+    AppearanceSettingsComponent,
     LogoutDialogComponent,
   ],
   templateUrl: './settings-modal.component.html',
@@ -79,8 +81,9 @@ export class SettingsModalComponent {
     {
       title: 'App Settings',
       items: [
-        { id: 'voice-video', label: 'Voice & Video', icon: 'pi pi-microphone' },
-        { id: 'other',       label: 'Other',         icon: 'pi pi-cog'        },
+        { id: 'voice-video',  label: 'Voice & Video', icon: 'pi pi-microphone' },
+        { id: 'appearance',   label: 'Appearance',    icon: 'pi pi-palette'    },
+        { id: 'other',        label: 'Other',         icon: 'pi pi-cog'        },
       ],
     },
   ];
