@@ -67,6 +67,7 @@ export const appConfig: ApplicationConfig = {
       }),
       MessageService,
     provideIonicAngular(),
+    provideAnimations(),
     provideAppInitializer(() => { inject(ThemeService); })
 
   ],

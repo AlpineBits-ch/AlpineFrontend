@@ -21,7 +21,7 @@
 
         <!-- Guild name header -->
         <div class="px-4 mb-4">
-          <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest mb-1">Server</p>
+          <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest mb-1">{{ 'GUILD_SETTINGS.SERVER' | translate }}</p>
           <div class="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white/[0.04]">
             @if (!headerIconFailed()) {
               <img [src]="guildIconUrl()" [alt]="guild().name"
@@ -39,14 +39,14 @@
         @for (group of navGroups; track group.title) {
           <div class="px-3 mb-4">
             <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest px-3 mb-1">
-              {{ group.title }}
+              {{ group.title | translate }}
             </p>
             @for (item of group.items; track item.id) {
               <button (click)="activePage.set(item.id)"
                 class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left"
                 [ngClass]="navItemClasses(item.id)">
                 <i class="text-sm shrink-0" [class]="item.icon"></i>
-                {{ item.label }}
+                {{ item.label | translate }}
               </button>
             }
           </div>
@@ -61,7 +61,7 @@
               class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all cursor-pointer border-0 shrink-0"
               [ngClass]="navItemClasses(item.id)">
               <i class="text-xs" [class]="item.icon"></i>
-              {{ item.label }}
+              {{ item.label | translate }}
             </button>
           }
         }
@@ -73,7 +73,7 @@
 
       <!-- Header -->
       <div class="flex items-center justify-between px-6 sm:px-8 py-4 border-b border-white/[0.10] shrink-0">
-        <h1 class="text-sm font-semibold text-white/85">{{ currentLabel() }}</h1>
+        <h1 class="text-sm font-semibold text-white/85">{{ currentLabel() | translate }}</h1>
         <p-button icon="pi pi-times" [text]="true" severity="secondary" size="small"
           (onClick)="isVisible.set(false)" />
       </div>

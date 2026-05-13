@@ -17,7 +17,7 @@
       class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer mb-1">
       <i class="pi pi-book text-[13px] shrink-0"
          [ngClass]="isWikiActive() ? 'text-brand-dim' : 'text-white/35'"></i>
-      <span class="text-[15px] font-medium">Wiki</span>
+      <span class="text-[15px] font-medium">{{ 'GUILD.WIKI' | translate }}</span>
     </button>
   </div>
 
@@ -231,7 +231,7 @@
     }
 
     @if (localChannels().length === 0 && localCategories().length === 0) {
-      <p class="text-[13px] text-white/25 text-center mt-6">No channels yet</p>
+      <p class="text-[13px] text-white/25 text-center mt-6">{{ 'GUILD.NO_CHANNELS' | translate }}</p>
     }
 
   </div>
@@ -280,11 +280,11 @@
   <ng-template pTemplate="header">
     <div class="flex items-center gap-2">
       <i class="pi pi-link text-brand-dim"></i>
-      <span class="text-sm font-semibold text-white/85">Invite People</span>
+      <span class="text-sm font-semibold text-white/85">{{ 'GUILD.INVITE_PEOPLE' | translate }}</span>
     </div>
   </ng-template>
   <div class="py-2 space-y-4">
-    <p class="text-xs text-white/40">Share this link to invite someone to <strong class="text-white/65">{{ guild().name }}</strong>.</p>
+    <p class="text-xs text-white/40">{{ 'GUILD.INVITE_SHARE' | translate }} <strong class="text-white/65">{{ guild().name }}</strong>.</p>
     @if (inviteLoading()) {
       <div class="flex items-center justify-center py-4">
         <i class="pi pi-spin pi-spinner text-white/30 text-xl"></i>
@@ -294,7 +294,7 @@
         <input pInputText [value]="inviteLink()" readonly class="flex-1 text-sm font-mono text-white/60" />
         <p-button
           [icon]="inviteCopied() ? 'pi pi-check' : 'pi pi-copy'"
-          [label]="inviteCopied() ? 'Copied!' : 'Copy'"
+          [label]="inviteCopied() ? ('GUILD.COPIED' | translate) : ('GUILD.COPY' | translate)"
           severity="primary" size="small"
           (onClick)="copyInviteLink()" />
       </div>
@@ -309,36 +309,36 @@
   appendTo="body" [dismissableMask]="true"
   [style]="{width: '420px'}">
   <ng-template pTemplate="header">
-    <span class="text-sm font-semibold text-white/85">Create Channel</span>
+    <span class="text-sm font-semibold text-white/85">{{ 'GUILD.CREATE_CHANNEL' | translate }}</span>
   </ng-template>
   <div class="py-2 space-y-5">
 
     <!-- Type selector -->
     <div>
-      <p class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Channel Type</p>
+      <p class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD.CHANNEL_TYPE' | translate }}</p>
       <div class="grid grid-cols-2 gap-2">
         <button
           (click)="createChannelType.set(ChannelType.Text)"
           class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer"
           [ngClass]="createChannelType() === ChannelType.Text ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'">
           <span class="text-base font-bold text-white/50">#</span>
-          <span class="text-sm font-medium text-white/80">Text</span>
-          <span class="text-[11px] text-white/35">Send messages</span>
+          <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_TEXT' | translate }}</span>
+          <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_TEXT_DESC' | translate }}</span>
         </button>
         <button
           (click)="createChannelType.set(ChannelType.Voice)"
           class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer"
           [ngClass]="createChannelType() === ChannelType.Voice ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'">
           <i class="pi pi-volume-up text-white/50"></i>
-          <span class="text-sm font-medium text-white/80">Voice</span>
-          <span class="text-[11px] text-white/35">Talk in real time</span>
+          <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_VOICE' | translate }}</span>
+          <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_VOICE_DESC' | translate }}</span>
         </button>
       </div>
     </div>
 
     <!-- Name -->
     <div>
-      <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Channel Name</label>
+      <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD.CHANNEL_NAME' | translate }}</label>
       <div class="relative">
         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 font-bold text-sm pointer-events-none">
           @if (createChannelType() === ChannelType.Text) { # } @else { <i class="pi pi-volume-up text-xs"></i> }
@@ -346,19 +346,19 @@
         <input pInputText
           [ngModel]="createChannelName()"
           (ngModelChange)="createChannelName.set($event)"
-          placeholder="new-channel"
+          [placeholder]="'GUILD.CHANNEL_NAME_PLACEHOLDER' | translate"
           class="w-full !pl-8" />
       </div>
     </div>
 
     @if (createChannelCategory()) {
-      <p class="text-xs text-white/30">Will be created inside a category</p>
+      <p class="text-xs text-white/30">{{ 'GUILD.CHANNEL_IN_CATEGORY' | translate }}</p>
     }
   </div>
   <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.06]">
-    <p-button label="Cancel" severity="secondary" size="small"
+    <p-button [label]="'GUILD.CANCEL' | translate" severity="secondary" size="small"
       (onClick)="showCreateChannel.set(false)" />
-    <p-button label="Create Channel" severity="primary" size="small"
+    <p-button [label]="'GUILD.CREATE_CHANNEL_SUBMIT' | translate" severity="primary" size="small"
       [loading]="createChannelCreating()"
       [disabled]="!createChannelName().trim()"
       (onClick)="submitCreateChannel()" />
@@ -372,22 +372,22 @@
   appendTo="body" [dismissableMask]="true"
   [style]="{width: '360px'}">
   <ng-template pTemplate="header">
-    <span class="text-sm font-semibold text-white/85">Create Category</span>
+    <span class="text-sm font-semibold text-white/85">{{ 'GUILD.CREATE_CATEGORY' | translate }}</span>
   </ng-template>
   <div class="py-2 space-y-4">
     <div>
-      <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">Category Name</label>
+      <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD.CATEGORY_NAME' | translate }}</label>
       <input pInputText
         [ngModel]="createCategoryName()"
         (ngModelChange)="createCategoryName.set($event)"
-        placeholder="e.g. GENERAL"
+        [placeholder]="'GUILD.CATEGORY_NAME_PLACEHOLDER' | translate"
         class="w-full" />
     </div>
   </div>
   <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.06]">
-    <p-button label="Cancel" severity="secondary" size="small"
+    <p-button [label]="'GUILD.CANCEL' | translate" severity="secondary" size="small"
       (onClick)="showCreateCategory.set(false)" />
-    <p-button label="Create Category" severity="primary" size="small"
+    <p-button [label]="'GUILD.CREATE_CATEGORY_SUBMIT' | translate" severity="primary" size="small"
       [loading]="createCategoryCreating()"
       [disabled]="!createCategoryName().trim()"
       (onClick)="submitCreateCategory()" />

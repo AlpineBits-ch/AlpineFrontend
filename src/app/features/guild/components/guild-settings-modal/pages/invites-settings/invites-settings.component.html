@@ -2,14 +2,14 @@
 
   <!-- Actions -->
   <div class="flex items-center gap-2">
-    <p-button icon="pi pi-plus" label="Permanent Invite" severity="secondary" size="small"
+    <p-button icon="pi pi-plus" [label]="'GUILD_SETTINGS.INVITES.PERMANENT' | translate" severity="secondary" size="small"
       [loading]="creating()" (onClick)="createPermanentInvite()" />
-    <p-button icon="pi pi-plus" label="One-time Invite" severity="secondary" size="small"
+    <p-button icon="pi pi-plus" [label]="'GUILD_SETTINGS.INVITES.ONE_TIME' | translate" severity="secondary" size="small"
       [loading]="creating()" (onClick)="createOneTimeInvite()" />
   </div>
 
   <p class="text-xs text-white/30">
-    Permanent invites never expire. One-time invites can only be used once.
+    {{ 'GUILD_SETTINGS.INVITES.HINT' | translate }}
   </p>
 
   @if (loading()) {
@@ -19,8 +19,8 @@
   } @else if (invites().length === 0) {
     <div class="flex flex-col items-center justify-center py-12 gap-3 text-center">
       <i class="pi pi-link text-3xl text-white/15"></i>
-      <p class="text-sm text-white/30">No invites yet</p>
-      <p class="text-xs text-white/20">Create one above to share with others</p>
+      <p class="text-sm text-white/30">{{ 'GUILD_SETTINGS.INVITES.EMPTY_TITLE' | translate }}</p>
+      <p class="text-xs text-white/20">{{ 'GUILD_SETTINGS.INVITES.EMPTY_HINT' | translate }}</p>
     </div>
   } @else {
     <div class="space-y-2">
@@ -33,19 +33,21 @@
               <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
                 [ngClass]="invite.type === InviteType.Permanent ? 'bg-indigo-500/15 text-indigo-400' : 'bg-amber-500/15 text-amber-400'">
                 @if (invite.type === InviteType.Permanent) {
-                  <i class="pi pi-infinity text-[9px]"></i> Permanent
+                  <i class="pi pi-infinity text-[9px]"></i> {{ 'GUILD_SETTINGS.INVITES.TYPE_PERMANENT' | translate }}
                 } @else {
-                  <i class="pi pi-ticket text-[9px]"></i> One-time
+                  <i class="pi pi-ticket text-[9px]"></i> {{ 'GUILD_SETTINGS.INVITES.TYPE_ONE_TIME' | translate }}
                 }
               </span>
               @if (invite.state === InviteState.Expired) {
                 <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-rose-500/15 text-rose-400">
-                  Expired
+                  {{ 'GUILD_SETTINGS.INVITES.EXPIRED' | translate }}
                 </span>
               }
             </div>
             <p class="text-xs font-mono text-white/35 truncate">{{ inviteLink(invite) }}</p>
-            <p class="text-[11px] text-white/25 mt-0.5">Created {{ formatDate(invite.createdAt) }}</p>
+            <p class="text-[11px] text-white/25 mt-0.5">{{ 'GUILD_SETTINGS.INVITES.CREATED' | translate: {
+                date: formatDate(invite.createdAt)
+            } }} </p>
           </div>
 
           <!-- Actions -->
@@ -53,11 +55,11 @@
             <p-button
               [icon]="copiedId() === invite.id ? 'pi pi-check' : 'pi pi-copy'"
               [text]="true" severity="secondary" size="small"
-              [pTooltip]="copiedId() === invite.id ? 'Copied!' : 'Copy link'"
+              [pTooltip]="copiedId() === invite.id ? ('GUILD.COPIED' | translate) : ('GUILD_SETTINGS.INVITES.COPY_LINK' | translate)"
               tooltipPosition="top"
               (onClick)="copyInvite(invite)" />
             <p-button icon="pi pi-trash" [text]="true" severity="danger" size="small"
-              pTooltip="Revoke" tooltipPosition="top"
+              [pTooltip]="'GUILD_SETTINGS.INVITES.REVOKE' | translate" tooltipPosition="top"
               [loading]="deletingId() === invite.id"
               (onClick)="revokeInvite(invite)" />
           </div>
