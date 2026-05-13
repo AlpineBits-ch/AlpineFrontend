@@ -122,7 +122,6 @@ export class WikiSidebarComponent {
         },
       },
     ];
-    const activePage = this.activePageForParenting();
 
     this.ctxMenuItems = items;
     this.catCtxMenu?.show(event);
