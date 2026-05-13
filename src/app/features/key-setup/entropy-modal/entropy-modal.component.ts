@@ -9,6 +9,7 @@ import {
   ViewChild,
 } from '@angular/core';
 import { Button } from 'primeng/button';
+import { TranslateModule } from '@ngx-translate/core';
 
 interface GridCell {
   brightness: number;
@@ -18,7 +19,7 @@ interface GridCell {
 @Component({
   selector: 'app-entropy-modal',
   standalone: true,
-  imports: [Button],
+  imports: [Button, TranslateModule],
   templateUrl: './entropy-modal.component.html',
   styleUrl: './entropy-modal.component.css',
 })

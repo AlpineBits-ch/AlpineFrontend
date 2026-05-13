@@ -98,7 +98,8 @@
       "Bash(node -e \"const {marked} = require\\('./node_modules/marked'\\); console.log\\(marked.parse\\('- [ ] task one\\\\n- [x] task two'\\)\\)\")",
       "Bash(node -e \"const {marked} = require\\('./node_modules/marked'\\); const r = marked.parse\\('hello'\\); console.log\\(typeof r, r instanceof Promise\\)\")",
       "WebFetch(domain:tiptap.dev)",
-      "WebFetch(domain:www.npmjs.com)"
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(export PATH=\"$PATH:/c/Users/Domin/.bun/bin\")"
     ]
   }
 }

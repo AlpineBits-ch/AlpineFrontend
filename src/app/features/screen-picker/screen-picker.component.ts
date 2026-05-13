@@ -10,9 +10,11 @@ import {
 } from '@angular/core';
 import { ScreenPickerService } from '../../services/screen-picker.service';
 import { RustMediaService, ScreenSource } from '../../services/rust-media.service';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-screen-picker',
+  imports: [TranslateModule],
   templateUrl: './screen-picker.component.html',
   styleUrl: './screen-picker.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

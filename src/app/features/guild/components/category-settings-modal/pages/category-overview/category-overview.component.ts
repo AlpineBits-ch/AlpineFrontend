@@ -5,10 +5,11 @@ import {InputText} from 'primeng/inputtext';
 import {Textarea} from 'primeng/textarea';
 import {CategoryDto} from '../../../../../../dtos/response/guild.dto';
 import {GuildService, UpdateCategoryDto} from '../../../../../../services/guild.service';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-category-overview',
-  imports: [FormsModule, Button, InputText, Textarea],
+  imports: [FormsModule, Button, InputText, Textarea, TranslateModule],
   templateUrl: './category-overview.component.html',
 })
 export class CategoryOverviewComponent implements OnInit {

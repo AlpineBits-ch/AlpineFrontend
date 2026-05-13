@@ -3,10 +3,11 @@ import { Button } from 'primeng/button';
 import { Dialog } from 'primeng/dialog';
 import { ProfileService } from '../../../../../services/profile.service';
 import { ImageCropperComponent } from '../../../../../components/image-cropper/image-cropper.component';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-profile-settings',
-  imports: [Button, Dialog, ImageCropperComponent],
+  imports: [Button, Dialog, ImageCropperComponent, TranslateModule],
   templateUrl: './profile-settings.component.html',
   styleUrl: './profile-settings.component.css',
 })

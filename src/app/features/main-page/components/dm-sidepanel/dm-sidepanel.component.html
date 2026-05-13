@@ -4,9 +4,9 @@
   <div class="p-2 pt-3 flex flex-col gap-0.5">
     <button (click)="navService.showFriends()" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium bg-indigo-500/15 text-indigo-400 w-full text-left cursor-pointer border-0">
       <i class="pi pi-users text-sm"></i>
-      <span>Friends</span>
+      <span>{{ 'SIDEBAR.FRIENDS' | translate }}</span>
       @if (onlineFriendsCount() > 0) {
-        <span class="ml-auto text-[11px] bg-indigo-500/25 text-indigo-300 px-1.5 py-0.5 rounded-full font-semibold">{{ onlineFriendsCount() }} Online</span>
+        <span class="ml-auto text-[11px] bg-indigo-500/25 text-indigo-300 px-1.5 py-0.5 rounded-full font-semibold">{{ 'SIDEBAR.FRIENDS_COUNT' | translate:{ count: onlineFriendsCount() } }}</span>
       }
     </button>
 
@@ -14,7 +14,7 @@
 
   <!-- DMs header -->
   <div class="flex items-center justify-between px-4 pt-4 pb-2">
-    <span class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest">Direct Messages</span>
+    <span class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest">{{ 'SIDEBAR.DIRECT_MESSAGES' | translate }}</span>
     <p-button icon="pi pi-plus" [text]="true" severity="secondary" size="small" styleClass="!p-1" (onClick)="showNewConversation.set(true)" />
   </div>
 

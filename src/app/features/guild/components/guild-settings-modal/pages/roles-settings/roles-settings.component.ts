@@ -15,6 +15,7 @@ import {ProfileService} from '../../../../../../services/profile.service';
 import {ToastService} from '../../../../../../services/toast.service';
 import {parsePermissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
 import {PermissionToggleComponent} from '../../../../shared/permission-toggle/permission-toggle.component';
+import { TranslateModule } from '@ngx-translate/core';
 
 interface RoleMemberDisplay {
   roleMember: RoleMemberDto;
@@ -24,7 +25,7 @@ interface RoleMemberDisplay {
 
 @Component({
   selector: 'app-roles-settings',
-  imports: [NgClass, FormsModule, Button, InputText, Textarea, Dialog, Tooltip, PermissionToggleComponent, PrimeTemplate],
+  imports: [NgClass, FormsModule, Button, InputText, Textarea, Dialog, Tooltip, PermissionToggleComponent, PrimeTemplate, TranslateModule],
   templateUrl: './roles-settings.component.html',
 })
 export class RolesSettingsComponent implements OnInit {

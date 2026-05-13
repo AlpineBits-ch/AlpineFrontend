@@ -9,6 +9,7 @@ import {NotificationSettingsComponent} from "./pages/notification-settings/notif
 import {VoiceVideoSettingsComponent} from "./pages/voice-video-settings/voice-video-settings.component";
 import {AppearanceSettingsComponent} from "./pages/appearance-settings/appearance-settings.component";
 import {LogoutDialogComponent} from "../logout-dialog/logout-dialog.component";
+import { TranslateModule } from '@ngx-translate/core';
 
 export interface SettingsNavItem {
   id: string;
@@ -34,6 +35,7 @@ export interface SettingsNavGroup {
     VoiceVideoSettingsComponent,
     AppearanceSettingsComponent,
     LogoutDialogComponent,
+    TranslateModule,
   ],
   templateUrl: './settings-modal.component.html',
   styleUrl: './settings-modal.component.css',

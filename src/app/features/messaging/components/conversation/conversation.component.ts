@@ -47,6 +47,7 @@ import { ConversationSearchService } from './conversation-search.service';
 import { ConversationScrollService } from './conversation-scroll.service';
 import { decodeContent, fileIcon } from './message-utils';
 import {toBase64} from "../../../../helpers/base64.helper";
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-conversation',
@@ -55,6 +56,7 @@ import {toBase64} from "../../../../helpers/base64.helper";
     ComposerComponent, MessageComponent, Avatar, Button,
     CallPanelComponent, NgClass, DatePipe,
     UserStatusDotComponent, TypingDotsComponent, HighlightPipe,
+    TranslateModule,
   ],
   templateUrl: './conversation.component.html',
   styleUrl: './conversation.component.css',

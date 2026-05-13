@@ -16,6 +16,7 @@ import {ConversationStore} from "../../../../stores/conversation.store";
 import {NavigationService} from "../../../main-page/navigation.service";
 import {ProfileService} from "../../../../services/profile.service";
 import {MessagingWebsocketService} from "../../../../services/messaging-websocket.service";
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-friendship-modal',
@@ -27,7 +28,8 @@ import {MessagingWebsocketService} from "../../../../services/messaging-websocke
     PrimeTemplate,
     InputText,
     Tooltip,
-    FormsModule
+    FormsModule,
+    TranslateModule
   ],
   templateUrl: './friendship-modal.component.html',
   styleUrl: './friendship-modal.component.css',

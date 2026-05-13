@@ -17,6 +17,7 @@ import {
   PermissionOverrideEditorComponent,
 } from '../../../../shared/permission-override-editor/permission-override-editor.component';
 import {parsePermissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
+import { TranslateModule } from '@ngx-translate/core';
 
 interface RoleOverride {
   role: RoleDto;
@@ -37,7 +38,7 @@ interface MemberOverride {
 
 @Component({
   selector: 'app-channel-permissions',
-  imports: [NgClass, Button, Tooltip, PermissionOverrideEditorComponent],
+  imports: [NgClass, Button, Tooltip, PermissionOverrideEditorComponent, TranslateModule],
   templateUrl: './channel-permissions.component.html',
 })
 export class ChannelPermissionsComponent implements OnInit {

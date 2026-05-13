@@ -25,6 +25,7 @@ import { Dialog } from 'primeng/dialog';
 import { Button } from 'primeng/button';
 import { CreateReactionDto } from '../../../../../dtos/request/create-reaction.dto';
 import { RemoveReactionDto } from '../../../../../dtos/request/remove-reaction.dto';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-message',
@@ -40,6 +41,7 @@ import { RemoveReactionDto } from '../../../../../dtos/request/remove-reaction.d
     TwemojiComponent,
     Dialog,
     Button,
+    TranslateModule,
   ],
   templateUrl: './message.component.html',
   styleUrl: './message.component.css',

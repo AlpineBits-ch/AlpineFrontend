@@ -3,6 +3,7 @@ import { Dialog } from 'primeng/dialog';
 import { Button } from 'primeng/button';
 import { PasswordDirective } from 'primeng/password';
 import { from, of, switchMap, take } from 'rxjs';
+import { TranslateModule } from '@ngx-translate/core';
 import { Router } from '@angular/router';
 import { AuthService } from '../../../services/auth.service';
 import { UserService } from '../../../services/user.service';
@@ -14,7 +15,7 @@ type Step = 'export-prompt' | 'password' | 'no-export-warning' | 'processing';
 @Component({
   selector: 'app-logout-dialog',
   standalone: true,
-  imports: [Dialog, Button, PasswordDirective],
+  imports: [Dialog, Button, PasswordDirective, TranslateModule],
   templateUrl: './logout-dialog.component.html',
   styleUrl: './logout-dialog.component.css',
 })

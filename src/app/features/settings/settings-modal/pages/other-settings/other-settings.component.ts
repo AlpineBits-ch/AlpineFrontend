@@ -3,12 +3,13 @@ import { ToggleSwitch } from 'primeng/toggleswitch';
 import { Select } from 'primeng/select';
 import { FormsModule } from '@angular/forms';
 import { Button } from 'primeng/button';
+import { TranslateModule } from '@ngx-translate/core';
 import { UserSettingsService } from '../../../../../services/user-settings.service';
 import { UpdateService } from '../../../../../services/update.service';
 
 @Component({
   selector: 'app-other-settings',
-  imports: [ToggleSwitch, Select, FormsModule, Button],
+  imports: [ToggleSwitch, Select, FormsModule, Button, TranslateModule],
   templateUrl: './other-settings.component.html',
   styleUrl: './other-settings.component.css',
 })

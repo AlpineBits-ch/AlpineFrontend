@@ -8,6 +8,7 @@ import {OverviewSettingsComponent} from './pages/overview-settings/overview-sett
 import {MembersSettingsComponent} from './pages/members-settings/members-settings.component';
 import {RolesSettingsComponent} from './pages/roles-settings/roles-settings.component';
 import {InvitesSettingsComponent} from './pages/invites-settings/invites-settings.component';
+import { TranslateModule } from '@ngx-translate/core';
 
 interface NavItem {
   id: string;
@@ -30,6 +31,7 @@ interface NavGroup {
     MembersSettingsComponent,
     RolesSettingsComponent,
     InvitesSettingsComponent,
+    TranslateModule,
   ],
   templateUrl: './guild-settings-modal.component.html',
 })

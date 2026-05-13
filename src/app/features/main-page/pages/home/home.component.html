@@ -10,12 +10,12 @@
           class="lg:hidden" (onClick)="navService.mobileSection.set('conversations')" />
         <div class="flex items-center gap-2">
           <i class="pi pi-users text-white/50 text-sm"></i>
-          <h1 class="text-[15px] font-semibold text-white/85">Friends</h1>
+          <h1 class="text-[15px] font-semibold text-white/85">{{ 'HOME.TITLE' | translate }}</h1>
         </div>
       </div>
 
       <p-button
-        [label]="addFriendOpen() ? 'Cancel' : '+ Add Friend'"
+        [label]="(addFriendOpen() ? 'HOME.CANCEL' : 'HOME.ADD_FRIEND') | translate"
         [severity]="addFriendOpen() ? 'secondary' : 'primary'"
         size="small"
         (onClick)="addFriendOpen.set(!addFriendOpen())" />
@@ -26,17 +26,17 @@
       <button (click)="tab.set('online')"
         class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
         [ngClass]="tab() === 'online' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
-        Online
+        {{ 'HOME.TAB.ONLINE' | translate }}
       </button>
       <button (click)="tab.set('all')"
         class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
         [ngClass]="tab() === 'all' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
-        All
+        {{ 'HOME.TAB.ALL' | translate }}
       </button>
       <button (click)="tab.set('pending')"
         class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all flex items-center gap-1.5"
         [ngClass]="tab() === 'pending' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
-        Pending
+        {{ 'HOME.TAB.PENDING' | translate }}
         @if (pendingCount() > 0) {
           <span class="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
             [ngClass]="tab() === 'pending' ? 'bg-indigo-400/30 text-indigo-300' : 'bg-rose-500 text-white'">
@@ -47,7 +47,7 @@
       <button (click)="tab.set('blocked')"
         class="px-3 py-1 rounded-lg text-sm font-medium border-0 cursor-pointer transition-all"
         [ngClass]="tab() === 'blocked' ? 'bg-indigo-500/20 text-indigo-400' : 'text-white/50'">
-        Blocked
+        {{ 'HOME.TAB.BLOCKED' | translate }}
       </button>
     </div>
 
@@ -55,8 +55,8 @@
     @if (addFriendOpen()) {
       <div class="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-4 flex flex-col gap-3">
         <div>
-          <p class="text-sm font-semibold text-white/80 mb-1">Add a Friend</p>
-          <p class="text-xs text-white/35">Enter their username and tag, e.g. <span class="text-indigo-400/70">Sarah#1234</span></p>
+          <p class="text-sm font-semibold text-white/80 mb-1">{{ 'HOME.ADD_FRIEND_PANEL.TITLE' | translate }}</p>
+          <p class="text-xs text-white/35">{{ 'HOME.ADD_FRIEND_PANEL.HINT' | translate }} <span class="text-indigo-400/70">Sarah#1234</span></p>
         </div>
         <div class="flex gap-2">
           <div class="flex-1 flex items-center gap-2 bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 focus-within:border-indigo-500/40 transition-colors">
@@ -65,11 +65,11 @@
               type="text"
               [(ngModel)]="friendInput"
               (keydown.enter)="sendRequest()"
-              placeholder="Username#0000"
+              [placeholder]="'HOME.ADD_FRIEND_PANEL.PLACEHOLDER' | translate"
               class="flex-1 bg-transparent border-0 outline-0 text-sm text-white/80 placeholder:text-white/25 py-2.5" />
           </div>
           <p-button
-            label="Send Request"
+            [label]="'HOME.ADD_FRIEND_PANEL.SEND' | translate"
             severity="primary"
             size="small"
             [disabled]="!friendInput.includes('#')"
@@ -90,12 +90,12 @@
       @if (list.length === 0) {
         <div class="flex flex-col items-center justify-center h-40 gap-2 text-white/25">
           <i class="pi pi-users text-3xl"></i>
-          <p class="text-sm">No friends yet. Add someone!</p>
+          <p class="text-sm">{{ 'HOME.EMPTY_FRIENDS' | translate }}</p>
         </div>
       } @else {
         <div class="flex flex-col gap-1">
           <p class="text-[11px] font-semibold text-white/25 uppercase tracking-widest mb-2">
-            Friends — {{ list.length }}
+            {{ 'HOME.FRIENDS_COUNT' | translate:{ count: list.length } }}
           </p>
           @for (rel of list; track rel.id) {
             <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all group cursor-pointer"
@@ -108,7 +108,7 @@
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-semibold text-white/80">{{ rel.target.userName }}</p>
                 <p class="text-xs" [ngClass]="getOnlineStatus(rel.target.userId) === OnlineStatus.Online ? 'text-emerald-400/80' : 'text-white/35'">
-                  {{ getOnlineStatus(rel.target.userId) === OnlineStatus.Online ? 'Online' : 'Offline' }}
+                  {{ getOnlineStatus(rel.target.userId) === OnlineStatus.Online ? ('HOME.STATUS.ONLINE' | translate) : ('HOME.STATUS.OFFLINE' | translate) }}
                 </p>
               </div>
               <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -116,7 +116,7 @@
                 <button class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.06] border-0 bg-transparent cursor-pointer transition-all" (click)="createConversation(rel.target.userId)" title="Message">
                   <i class="pi pi-comment text-xs" style="color: rgba(255,255,255,0.55)"></i>
                 </button>
-                <button (click)="block(rel.id)" class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.06] border-0 bg-transparent cursor-pointer transition-all" title="Block">
+                <button (click)="block(rel.id)" class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.06] border-0 bg-transparent cursor-pointer transition-all" [title]="'HOME.BLOCK' | translate">
                   <i class="pi pi-ban text-xs" style="color: rgba(255,255,255,0.55)"></i>
                 </button>
               </div>
@@ -133,10 +133,10 @@
         <!-- Incoming -->
         <div class="flex flex-col gap-2">
           <p class="text-[11px] font-semibold text-white/25 uppercase tracking-widest">
-            Incoming — {{ incoming().length }}
+            {{ 'HOME.INCOMING_COUNT' | translate:{ count: incoming().length } }}
           </p>
           @if (incoming().length === 0) {
-            <p class="text-sm text-white/25 italic py-2">No incoming requests.</p>
+            <p class="text-sm text-white/25 italic py-2">{{ 'HOME.INCOMING_EMPTY' | translate }}</p>
           } @else {
             @for (rel of incoming(); track rel.id) {
               <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all group cursor-pointer"
@@ -144,11 +144,11 @@
                 <app-avatar [userId]="rel.target.userId" [label]="rel.target.userName[0].toUpperCase()" size="normal" />
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-semibold text-white/80">{{ rel.target.userName }}</p>
-                  <p class="text-xs text-white/35">Incoming friend request</p>
+                  <p class="text-xs text-white/35">{{ 'HOME.INCOMING_REQUEST' | translate }}</p>
                 </div>
                 <div class="flex items-center gap-1.5" (click)="$event.stopPropagation()">
-                  <p-button icon="pi pi-check" label="Accept" [text]="true" severity="success" size="small" (onClick)="accept(rel.id)" />
-                  <p-button icon="pi pi-times" label="Decline" [text]="true" severity="danger" size="small" (onClick)="decline(rel.id)" />
+                  <p-button icon="pi pi-check" [label]="'HOME.ACCEPT' | translate" [text]="true" severity="success" size="small" (onClick)="accept(rel.id)" />
+                  <p-button icon="pi pi-times" [label]="'HOME.DECLINE' | translate" [text]="true" severity="danger" size="small" (onClick)="decline(rel.id)" />
                 </div>
               </div>
             }
@@ -160,10 +160,10 @@
         <!-- Outgoing -->
         <div class="flex flex-col gap-2">
           <p class="text-[11px] font-semibold text-white/25 uppercase tracking-widest">
-            Outgoing — {{ outgoing().length }}
+            {{ 'HOME.OUTGOING_COUNT' | translate:{ count: outgoing().length } }}
           </p>
           @if (outgoing().length === 0) {
-            <p class="text-sm text-white/25 italic py-2">No sent requests.</p>
+            <p class="text-sm text-white/25 italic py-2">{{ 'HOME.OUTGOING_EMPTY' | translate }}</p>
           } @else {
             @for (rel of outgoing(); track rel.id) {
               <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all group cursor-pointer"
@@ -171,11 +171,11 @@
                 <app-avatar [userId]="rel.target.userId" [label]="rel.target.userName[0].toUpperCase()" size="normal" />
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-semibold text-white/80">{{ rel.target.userName }}</p>
-                  <p class="text-xs text-white/35">Friend request sent</p>
+                  <p class="text-xs text-white/35">{{ 'HOME.OUTGOING_SENT' | translate }}</p>
                 </div>
                 <div class="flex items-center gap-2" (click)="$event.stopPropagation()">
-                  <span class="text-[11px] font-medium text-amber-400/70 bg-amber-400/10 px-2.5 py-1 rounded-lg">Pending</span>
-                  <p-button icon="pi pi-times" label="Cancel" [text]="true" severity="danger" size="small" (onClick)="cancel(rel.id)" />
+                  <span class="text-[11px] font-medium text-amber-400/70 bg-amber-400/10 px-2.5 py-1 rounded-lg">{{ 'HOME.PENDING' | translate }}</span>
+                  <p-button icon="pi pi-times" [label]="'HOME.CANCEL_REQUEST' | translate" [text]="true" severity="danger" size="small" (onClick)="cancel(rel.id)" />
                 </div>
               </div>
             }
@@ -189,12 +189,12 @@
     @if (tab() === 'blocked') {
       <div class="flex flex-col gap-2">
         <p class="text-[11px] font-semibold text-white/25 uppercase tracking-widest mb-2">
-          Blocked — {{ blocked().length }}
+          {{ 'HOME.BLOCKED_COUNT' | translate:{ count: blocked().length } }}
         </p>
         @if (blocked().length === 0) {
           <div class="flex flex-col items-center justify-center h-40 gap-2 text-white/25">
             <i class="pi pi-shield text-3xl"></i>
-            <p class="text-sm">No blocked users.</p>
+            <p class="text-sm">{{ 'HOME.EMPTY_BLOCKED' | translate }}</p>
           </div>
         } @else {
           @for (rel of blocked(); track rel.id) {
@@ -203,10 +203,10 @@
               <app-avatar [userId]="rel.target.userId" [label]="rel.target.userName[0].toUpperCase()" size="normal" />
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-semibold text-white/50">{{ rel.target.userName }}</p>
-                <p class="text-xs text-white/25">Blocked</p>
+                <p class="text-xs text-white/25">{{ 'HOME.BLOCKED_STATUS' | translate }}</p>
               </div>
               <div (click)="$event.stopPropagation()">
-                <p-button label="Unblock" [text]="true" severity="secondary" size="small" (onClick)="unblock(rel.id)" />
+                <p-button [label]="'HOME.UNBLOCK' | translate" [text]="true" severity="secondary" size="small" (onClick)="unblock(rel.id)" />
               </div>
             </div>
           }

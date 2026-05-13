@@ -5,11 +5,12 @@ import { Button } from 'primeng/button';
 import { InputText } from 'primeng/inputtext';
 import { PrimeTemplate } from 'primeng/api';
 import { GuildService } from '../../../../services/guild.service';
+import { TranslateModule } from '@ngx-translate/core';
 import { GuildDto } from '../../../../dtos/response/guild.dto';
 
 @Component({
   selector: 'app-create-guild-modal',
-  imports: [Dialog, Button, InputText, FormsModule, PrimeTemplate],
+  imports: [Dialog, Button, InputText, FormsModule, PrimeTemplate, TranslateModule],
   templateUrl: './create-guild-modal.component.html',
 })
 export class CreateGuildModalComponent {

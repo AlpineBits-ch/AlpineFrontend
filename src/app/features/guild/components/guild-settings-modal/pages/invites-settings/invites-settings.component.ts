@@ -5,10 +5,11 @@ import {Tooltip} from 'primeng/tooltip';
 import {GuildDto} from '../../../../../../dtos/response/guild.dto';
 import {GuildService} from '../../../../../../services/guild.service';
 import {InviteDto, InviteState, InviteType} from "../../../../../../dtos/response/invite.dto";
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-invites-settings',
-  imports: [NgClass, Button, Tooltip],
+  imports: [NgClass, Button, Tooltip, TranslateModule],
   templateUrl: './invites-settings.component.html',
 })
 export class InvitesSettingsComponent implements OnInit {

@@ -4,6 +4,7 @@ import { ProfileService } from '../../../../services/profile.service';
 import { RelationshipService } from '../../../../services/relationship.service';
 import { RelationshipModel, RelationshipStatus } from '../../../friendship/components/friendship-modal/dto/relationship.model';
 import { OnlineStatus } from '../../../../dtos/response/profile.dto';
+import { TranslateModule } from '@ngx-translate/core';
 
 export interface ActivityStatus {
   type: 'playing' | 'listening' | 'watching' | 'streaming';
@@ -14,7 +15,7 @@ export interface ActivityStatus {
 
 @Component({
   selector: 'app-activity-feed',
-  imports: [Avatar],
+  imports: [Avatar, TranslateModule],
   templateUrl: './activity-feed.component.html',
   styleUrl: './activity-feed.component.css',
 })

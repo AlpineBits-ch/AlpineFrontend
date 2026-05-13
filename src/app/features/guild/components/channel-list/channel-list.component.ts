@@ -33,6 +33,7 @@ import {GuildWebsocketService, WsChannelCreated, WsChannelDeleted, WsCategoryCre
 import {GuildVoiceService} from '../../../../services/guild-voice.service';
 import {GuildUiActionsService} from '../../../../services/guild-ui-actions.service';
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-channel-list',
@@ -50,6 +51,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
     CategorySettingsModalComponent,
     PrimeTemplate,
     VoiceChannelContextMenuComponent,
+    TranslateModule,
   ],
   templateUrl: './channel-list.component.html',
 })

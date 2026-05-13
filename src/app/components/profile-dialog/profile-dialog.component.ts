@@ -4,11 +4,12 @@ import { Dialog } from 'primeng/dialog';
 import { ProfileDto } from '../../dtos/response/profile.dto';
 import { ProfileService } from '../../services/profile.service';
 import { UserStatusDotComponent } from '../user-status-dot/user-status-dot.component';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-profile-dialog',
   standalone: true,
-  imports: [Dialog, DatePipe, UserStatusDotComponent],
+  imports: [Dialog, DatePipe, UserStatusDotComponent, TranslateModule],
   templateUrl: './profile-dialog.component.html',
   styleUrl: './profile-dialog.component.css',
 })

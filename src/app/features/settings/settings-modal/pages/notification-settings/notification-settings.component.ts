@@ -1,12 +1,13 @@
 import { Component, ElementRef, inject, signal, viewChild } from '@angular/core';
 import { ToggleSwitch } from 'primeng/toggleswitch';
 import { FormsModule } from '@angular/forms';
+import { TranslateModule } from '@ngx-translate/core';
 import { UserSettingsService } from '../../../../../services/user-settings.service';
 import { SoundSettingsService, SoundKey } from '../../../../../services/sound-settings.service';
 
 @Component({
   selector: 'app-notification-settings',
-  imports: [ToggleSwitch, FormsModule],
+  imports: [ToggleSwitch, FormsModule, TranslateModule],
   templateUrl: './notification-settings.component.html',
   styleUrl: './notification-settings.component.css',
 })

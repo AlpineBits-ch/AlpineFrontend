@@ -13,12 +13,13 @@ import {OnlineStatus} from "../../../../dtos/response/profile.dto";
 import {ProfileDialogService} from "../../../../services/profile-dialog.service";
 import {NavigationService} from "../../navigation.service";
 import {MessagingWebsocketService} from "../../../../services/messaging-websocket.service";
+import { TranslateModule } from '@ngx-translate/core';
 
 type FriendsTab = 'online' | 'all' | 'pending' | 'blocked';
 
 @Component({
   selector: 'app-home',
-  imports: [AppAvatarComponent, Button, FormsModule, NgClass],
+  imports: [AppAvatarComponent, Button, FormsModule, NgClass, TranslateModule],
   templateUrl: './home.component.html',
   styleUrl: './home.component.css',
 })

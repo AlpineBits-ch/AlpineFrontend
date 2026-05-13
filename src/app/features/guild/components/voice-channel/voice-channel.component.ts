@@ -14,6 +14,7 @@ import { VoiceChannelParticipantTileComponent } from './voice-channel-participan
 import { VoiceChannelLobbyComponent } from './voice-channel-lobby.component';
 import { VoiceChannelControlsBarComponent } from './voice-channel-controls-bar.component';
 import { VoiceChannelScreenLayoutComponent } from './voice-channel-screen-layout.component';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-voice-channel',
@@ -24,6 +25,7 @@ import { VoiceChannelScreenLayoutComponent } from './voice-channel-screen-layout
     VoiceChannelLobbyComponent,
     VoiceChannelControlsBarComponent,
     VoiceChannelScreenLayoutComponent,
+    TranslateModule,
   ],
   templateUrl: './voice-channel.component.html',
 })

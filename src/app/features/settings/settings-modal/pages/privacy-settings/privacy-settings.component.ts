@@ -2,10 +2,11 @@ import { Component } from '@angular/core';
 import { ToggleSwitch } from 'primeng/toggleswitch';
 import { RadioButton } from 'primeng/radiobutton';
 import { FormsModule } from '@angular/forms';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-privacy-settings',
-  imports: [ToggleSwitch, RadioButton, FormsModule],
+  imports: [ToggleSwitch, RadioButton, FormsModule, TranslateModule],
   templateUrl: './privacy-settings.component.html',
   styleUrl: './privacy-settings.component.css',
 })

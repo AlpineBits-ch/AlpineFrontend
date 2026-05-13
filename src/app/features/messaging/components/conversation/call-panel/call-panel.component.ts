@@ -4,6 +4,7 @@ import { CallWebRtcService } from '../../../../../services/call-webrtc.service';
 import { RustMediaService } from '../../../../../services/rust-media.service';
 import { CallParticipantUi, ScreenShareUi } from '../../../../../services/call-session.types';
 import { SrcObjectDirective } from './src-object.directive';
+import { TranslateModule } from '@ngx-translate/core';
 
 interface FocusedStream {
   kind: 'camera' | 'share';
@@ -29,7 +30,7 @@ const FOCUSED_MIN_HEIGHT = 500;
   selector: 'app-call-panel',
   templateUrl: './call-panel.component.html',
   styleUrl: './call-panel.component.css',
-  imports: [SrcObjectDirective],
+  imports: [SrcObjectDirective, TranslateModule],
 })
 export class CallPanelComponent implements OnInit, OnDestroy {
   private callSession = inject(CallSessionService);

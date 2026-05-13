@@ -12,6 +12,7 @@ import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
 import {parsePermissions, Permissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
 import {PermissionToggleComponent} from '../../../../shared/permission-toggle/permission-toggle.component';
 import {PrimeTemplate} from "primeng/api";
+import { TranslateModule } from '@ngx-translate/core';
 
 interface MemberRow {
   member: GuildMemberDto;
@@ -21,7 +22,7 @@ interface MemberRow {
 
 @Component({
   selector: 'app-members-settings',
-    imports: [FormsModule, Button, InputText, Dialog, Tooltip, PermissionToggleComponent, PrimeTemplate],
+    imports: [FormsModule, Button, InputText, Dialog, Tooltip, PermissionToggleComponent, PrimeTemplate, TranslateModule],
   templateUrl: './members-settings.component.html',
 })
 export class MembersSettingsComponent implements OnInit {

@@ -21,10 +21,11 @@ import {
 } from '../../../../friendship/components/friendship-modal/dto/relationship.model';
 import { ConversationEncryption } from '../../../../../enums/conversation-encryption.enum';
 import { DeviceWelcomeDto } from '../../../../../dtos/request/create-conversation.dto';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-new-conversation-dialog',
-  imports: [Dialog, Button, InputText, Avatar, FormsModule, PrimeTemplate, NgClass, ToggleSwitch],
+  imports: [Dialog, Button, InputText, Avatar, FormsModule, PrimeTemplate, NgClass, ToggleSwitch, TranslateModule],
   templateUrl: './new-conversation-dialog.component.html',
 })
 export class NewConversationDialogComponent {

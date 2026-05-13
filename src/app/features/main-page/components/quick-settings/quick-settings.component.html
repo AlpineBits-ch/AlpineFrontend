@@ -34,7 +34,7 @@
         [ngClass]="voiceSvc.localState().isMuted
           ? 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25'
           : 'text-white/50 hover:bg-white/[0.07] hover:text-white/75'"
-        [title]="voiceSvc.localState().isMuted ? 'Unmute' : 'Mute'">
+        [title]="(voiceSvc.localState().isMuted ? 'QUICK_SETTINGS.UNMUTE' : 'QUICK_SETTINGS.MUTE') | translate">
         <i class="pi text-sm"
            [ngClass]="voiceSvc.localState().isMuted ? 'pi-microphone-slash' : 'pi-microphone'"></i>
       </button>
@@ -46,7 +46,7 @@
         [ngClass]="voiceSvc.localState().isDeafened
           ? 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25'
           : 'text-white/50 hover:bg-white/[0.07] hover:text-white/75'"
-        [title]="voiceSvc.localState().isDeafened ? 'Undeafen' : 'Deafen'">
+        [title]="(voiceSvc.localState().isDeafened ? 'QUICK_SETTINGS.UNDEAFEN' : 'QUICK_SETTINGS.DEAFEN') | translate">
         <i class="pi pi-volume-off text-sm"></i>
       </button>
     }

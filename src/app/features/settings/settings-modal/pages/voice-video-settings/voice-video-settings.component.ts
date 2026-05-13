@@ -4,6 +4,7 @@ import { NgClass } from '@angular/common';
 import { Select } from 'primeng/select';
 import { ToggleSwitch } from 'primeng/toggleswitch';
 import { Slider } from 'primeng/slider';
+import { TranslateModule } from '@ngx-translate/core';
 import { AudioSettingsService } from '../../../../../services/audio-settings.service';
 
 interface DeviceOption {
@@ -18,7 +19,7 @@ interface BitrateOption {
 
 @Component({
   selector: 'app-voice-video-settings',
-  imports: [FormsModule, NgClass, Select, ToggleSwitch, Slider],
+  imports: [FormsModule, NgClass, Select, ToggleSwitch, Slider, TranslateModule],
   templateUrl: './voice-video-settings.component.html',
   styleUrl: './voice-video-settings.component.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

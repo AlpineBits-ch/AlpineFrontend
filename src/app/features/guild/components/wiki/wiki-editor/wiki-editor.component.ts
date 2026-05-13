@@ -34,6 +34,7 @@ import {WikiDto, WikiPageDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
 import {FileService} from '../../../../../services/file.service';
 import {WikiStateService} from '../wiki-state.service';
+import { TranslateModule } from '@ngx-translate/core';
 
 function isHtmlContent(content: string): boolean {
   return content.trimStart().startsWith('<');
@@ -41,7 +42,7 @@ function isHtmlContent(content: string): boolean {
 
 @Component({
   selector: 'app-wiki-editor',
-  imports: [FormsModule, Button, Select, Checkbox, ContextMenu],
+  imports: [FormsModule, Button, Select, Checkbox, ContextMenu, TranslateModule],
   templateUrl: './wiki-editor.component.html',
   styleUrl: './wiki-editor.component.css',
   host: {class: 'flex flex-col flex-1 min-h-0 overflow-hidden'},

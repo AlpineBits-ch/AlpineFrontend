@@ -16,12 +16,13 @@ import { ComposerAttachmentsService } from './composer-attachments.service';
 import { AttachmentPreviewsComponent } from './attachment-previews/attachment-previews.component';
 import { GuildService } from '../../../../../services/guild.service';
 import {ProfileService} from "../../../../../services/profile.service";
+import { TranslateModule } from '@ngx-translate/core';
 
 const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/';
 
 @Component({
   selector: 'app-composer',
-  imports: [Button, SuggestionOverlayComponent, EmojiPickerButtonComponent, GifPickerButtonComponent, AttachmentPreviewsComponent],
+  imports: [Button, SuggestionOverlayComponent, EmojiPickerButtonComponent, GifPickerButtonComponent, AttachmentPreviewsComponent, TranslateModule],
   templateUrl: './composer.component.html',
   styleUrl: './composer.component.css',
   providers: [ComposerAttachmentsService],

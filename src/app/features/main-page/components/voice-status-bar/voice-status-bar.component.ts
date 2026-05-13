@@ -2,9 +2,11 @@ import { Component, inject } from '@angular/core';
 import { VoiceChannelService } from '../../../../services/voice-channel.service';
 import { NavigationService } from '../../navigation.service';
 import { ChannelType } from '../../../../dtos/response/guild.dto';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-voice-status-bar',
+  imports: [TranslateModule],
   templateUrl: './voice-status-bar.component.html',
 })
 export class VoiceStatusBarComponent {

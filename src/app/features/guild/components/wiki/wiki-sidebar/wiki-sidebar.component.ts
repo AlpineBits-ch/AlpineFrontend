@@ -11,6 +11,7 @@ import {WikiCategoryDto, WikiPageDto, WikiPageSummaryDto} from '../../../../../d
 import {WikiService} from '../../../../../services/wiki.service';
 import {WikiStateService} from '../wiki-state.service';
 import {NavigationService} from '../../../../main-page/navigation.service';
+import { TranslateModule } from '@ngx-translate/core';
 
 export interface CategoryTreeNode {
   category: WikiCategoryDto;
@@ -24,7 +25,7 @@ export interface PageTreeNode {
 
 @Component({
   selector: 'app-wiki-sidebar',
-  imports: [NgClass, FormsModule, Button, Dialog, InputText, Select, ContextMenu, PrimeTemplate],
+  imports: [NgClass, FormsModule, Button, Dialog, InputText, Select, ContextMenu, PrimeTemplate, TranslateModule],
   templateUrl: './wiki-sidebar.component.html',
 })
 export class WikiSidebarComponent {

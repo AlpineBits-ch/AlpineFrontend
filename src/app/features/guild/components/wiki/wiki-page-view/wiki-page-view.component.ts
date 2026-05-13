@@ -6,10 +6,11 @@ import {WikiPageDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
 import {formatWikiDate, renderWikiMarkdown, toggleNthCheckbox} from '../wiki.utils';
 import {WikiStateService} from '../wiki-state.service';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-wiki-page-view',
-  imports: [Button, Dialog],
+  imports: [Button, Dialog, TranslateModule],
   templateUrl: './wiki-page-view.component.html',
   host: {class: 'flex flex-col flex-1 min-h-0'},
 })

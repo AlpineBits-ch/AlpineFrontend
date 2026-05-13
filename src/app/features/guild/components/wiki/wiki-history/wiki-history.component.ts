@@ -5,10 +5,11 @@ import {Tooltip} from 'primeng/tooltip';
 import {WikiPageDto, WikiRevisionDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
 import {formatWikiDate, renderWikiMarkdown} from '../wiki.utils';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-wiki-history',
-  imports: [Button, Tooltip],
+  imports: [Button, Tooltip, TranslateModule],
   templateUrl: './wiki-history.component.html',
 })
 export class WikiHistoryComponent {

@@ -9,13 +9,14 @@ import { DeviceService } from '../../../services/device.service';
 import { MlsService } from '../../../services/mls.service';
 import { PlatformService } from '../../../services/platform.service';
 import { DeviceType } from '../../../dtos/response/user-device.dto';
+import { TranslateModule } from '@ngx-translate/core';
 
 type Step = 'input' | 'processing' | 'done';
 
 @Component({
   selector: 'app-device-registration-modal',
   standalone: true,
-  imports: [Dialog, Button, InputText],
+  imports: [Dialog, Button, InputText, TranslateModule],
   templateUrl: './device-registration-modal.component.html',
   styleUrl: './device-registration-modal.component.css',
 })

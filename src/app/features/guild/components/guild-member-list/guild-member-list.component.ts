@@ -4,9 +4,11 @@ import { GuildMemberDto } from '../../../../dtos/response/member.dto';
 import { OnlineStatus } from '../../../../dtos/response/profile.dto';
 import { GuildService } from '../../../../services/guild.service';
 import { environment } from '../../../../../environments/environment';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-guild-member-list',
+  imports: [TranslateModule],
   templateUrl: './guild-member-list.component.html',
 })
 export class GuildMemberListComponent implements OnChanges {

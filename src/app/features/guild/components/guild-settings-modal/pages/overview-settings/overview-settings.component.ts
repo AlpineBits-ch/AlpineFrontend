@@ -8,10 +8,11 @@ import { GuildDto } from '../../../../../../dtos/response/guild.dto';
 import { GuildService, UpdateGuildDto } from '../../../../../../services/guild.service';
 import { ImageCropperComponent } from '../../../../../../components/image-cropper/image-cropper.component';
 import { environment } from '../../../../../../../environments/environment';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-overview-settings',
-  imports: [FormsModule, Button, InputText, Textarea, Dialog, ImageCropperComponent],
+  imports: [FormsModule, Button, InputText, Textarea, Dialog, ImageCropperComponent, TranslateModule],
   templateUrl: './overview-settings.component.html',
 })
 export class OverviewSettingsComponent implements OnInit, OnDestroy {

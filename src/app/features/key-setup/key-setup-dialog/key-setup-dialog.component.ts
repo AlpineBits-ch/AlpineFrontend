@@ -7,13 +7,14 @@ import { UserService } from '../../../services/user.service';
 import { MasterKeyService } from '../../../services/master-key.service';
 import { PlatformService } from '../../../services/platform.service';
 import { catchError, EMPTY, filter, from, switchMap, take, tap } from 'rxjs';
+import { TranslateModule } from '@ngx-translate/core';
 
 type Step = 'password' | 'entropy' | 'processing' | 'done';
 
 @Component({
   selector: 'app-key-setup-dialog',
   standalone: true,
-  imports: [Dialog, Button, PasswordDirective, EntropyModalComponent],
+  imports: [Dialog, Button, PasswordDirective, EntropyModalComponent, TranslateModule],
   templateUrl: './key-setup-dialog.component.html',
   styleUrl: './key-setup-dialog.component.css',
 })

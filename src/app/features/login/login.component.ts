@@ -9,6 +9,7 @@ import {Router} from "@angular/router";
 import {NgClass} from "@angular/common";
 import {UserSettingsService} from "../../services/user-settings.service";
 import {ToastService} from "../../services/toast.service";
+import { TranslateModule } from '@ngx-translate/core';
 
 
 interface LoginModel {
@@ -30,7 +31,8 @@ interface RegisterModel {
         PasswordDirective,
         Button,
         FormField,
-        NgClass
+        NgClass,
+        TranslateModule
     ],
   templateUrl: './login.component.html',
   styleUrl: './login.component.css',

@@ -2,6 +2,7 @@ import {Component, computed, input, output} from '@angular/core';
 import {Button} from 'primeng/button';
 import {WikiCategoryDto, WikiDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {formatWikiDate} from '../wiki.utils';
+import { TranslateModule } from '@ngx-translate/core';
 
 export interface CategoryTreeNode {
   category: WikiCategoryDto;
@@ -10,7 +11,7 @@ export interface CategoryTreeNode {
 
 @Component({
   selector: 'app-wiki-home',
-  imports: [Button],
+  imports: [Button, TranslateModule],
   templateUrl: './wiki-home.component.html',
 })
 export class WikiHomeComponent {

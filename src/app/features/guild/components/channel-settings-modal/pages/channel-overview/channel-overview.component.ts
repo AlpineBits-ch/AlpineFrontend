@@ -6,10 +6,11 @@ import {InputText} from 'primeng/inputtext';
 import {Textarea} from 'primeng/textarea';
 import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto';
 import {GuildService, UpdateChannelDto} from '../../../../../../services/guild.service';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-channel-overview',
-  imports: [FormsModule, ToggleSwitch, Button, InputText, Textarea],
+  imports: [FormsModule, ToggleSwitch, Button, InputText, Textarea, TranslateModule],
   templateUrl: './channel-overview.component.html',
 })
 export class ChannelOverviewComponent implements OnInit {

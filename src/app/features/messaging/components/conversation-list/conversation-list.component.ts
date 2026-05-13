@@ -37,6 +37,7 @@ import { NavigationService } from '../../../main-page/navigation.service';
 
 const PREVIEW_SIZE = 30;
 import {PlatformService} from "../../../../services/platform.service";
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-conversation-list',
@@ -45,6 +46,7 @@ import {PlatformService} from "../../../../services/platform.service";
     IonList, IonItem, IonItemSliding, IonItemOptions, IonItemOption,
     IonLabel, IonBadge, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent,
     ContextMenu, ConfirmDialog,
+    TranslateModule,
   ],
   providers: [ConfirmationService],
   templateUrl: './conversation-list.component.html',

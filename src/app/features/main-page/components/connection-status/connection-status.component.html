@@ -18,9 +18,9 @@
       'text-rose-400/90':    state === ConnectionState.Disconnected
     }">
     @switch (state) {
-      @case (ConnectionState.Connected)    { Connected }
-      @case (ConnectionState.Connecting)   { Connecting… }
-      @case (ConnectionState.Disconnected) { Disconnected }
+      @case (ConnectionState.Connected)    { {{ 'CONNECTION.CONNECTED' | translate }} }
+      @case (ConnectionState.Connecting)   { {{ 'CONNECTION.CONNECTING' | translate }} }
+      @case (ConnectionState.Disconnected) { {{ 'CONNECTION.DISCONNECTED' | translate }} }
     }
   </span>
 </div>

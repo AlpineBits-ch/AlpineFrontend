@@ -8,10 +8,11 @@ import { RelationshipService } from '../../../../services/relationship.service';
 import { ProfileService } from '../../../../services/profile.service';
 import { RelationshipModel, RelationshipStatus } from '../../../friendship/components/friendship-modal/dto/relationship.model';
 import { OnlineStatus } from '../../../../dtos/response/profile.dto';
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-dm-sidepanel',
-  imports: [Button, ConversationListComponent, NewConversationDialogComponent],
+  imports: [Button, ConversationListComponent, NewConversationDialogComponent, TranslateModule],
   templateUrl: './dm-sidepanel.component.html',
 })
 export class DmSidepanelComponent {

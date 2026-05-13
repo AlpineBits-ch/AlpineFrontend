@@ -4,7 +4,7 @@ import {
   inject,
   provideBrowserGlobalErrorListeners,
   provideZoneChangeDetection,
-  APP_INITIALIZER,
+  APP_INITIALIZER, provideAppInitializer,
 } from "@angular/core";
 import { provideRouter } from "@angular/router";
 import { provideAnimations } from "@angular/platform-browser/animations";
@@ -20,6 +20,9 @@ import {tokenInterceptor} from "./interceptors/token-interceptor";
 import {timeoutInterceptor} from "./interceptors/timeout.interceptor";
 import {GlobalErrorHandler} from "./core/global-error-handler";
 import { ThemeService } from './services/theme.service';
+import { provideTranslateService, TranslateLoader } from '@ngx-translate/core';
+import {provideTranslateHttpLoader, TranslateHttpLoader} from '@ngx-translate/http-loader';
+import { HttpClient } from '@angular/common/http';
 
 export const authConfig: AuthConfig = {
   issuer: 'http://identity:8080/', // Your OpenIddict server
@@ -35,6 +38,8 @@ export const authConfig: AuthConfig = {
 export function storageFactory(): OAuthStorage {
   return localStorage;
 }
+
+
 export const appConfig: ApplicationConfig = {
   providers: [
       provideHttpClient(withInterceptors([tokenInterceptor, timeoutInterceptor])),
@@ -42,9 +47,16 @@ export const appConfig: ApplicationConfig = {
     {provide: OAuthStorage, useFactory: storageFactory},
     {provide: ErrorHandler, useClass: GlobalErrorHandler},
     provideBrowserGlobalErrorListeners(),
+    provideTranslateService({
+      defaultLanguage: 'en',
+      loader: provideTranslateHttpLoader({
+        prefix: './assets/i18n/locales/',
+        suffix: '.json',
+      }),
+      fallbackLang: 'en'
+    }),
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes),
-    provideAnimations(),
       providePrimeNG({
         theme: {
           preset: AlpinePreset,
@@ -55,7 +67,7 @@ export const appConfig: ApplicationConfig = {
       }),
       MessageService,
     provideIonicAngular(),
-    // Eagerly instantiate ThemeService so it applies the saved theme before first paint
-    { provide: APP_INITIALIZER, useFactory: () => () => inject(ThemeService), multi: true },
+    provideAppInitializer(() => { inject(ThemeService); })
+
   ],
 };

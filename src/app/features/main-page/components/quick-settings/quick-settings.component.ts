@@ -8,6 +8,7 @@ import {ConnectionStatusComponent} from "../connection-status/connection-status.
 import {SettingsModalComponent} from "../../../../features/settings/settings-modal/settings-modal.component";
 import {VoiceChannelService} from "../../../../services/voice-channel.service";
 import {ProfileDialogService} from "../../../../services/profile-dialog.service";
+import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-quick-settings',
@@ -17,6 +18,7 @@ import {ProfileDialogService} from "../../../../services/profile-dialog.service"
     ConnectionStatusComponent,
     SettingsModalComponent,
     NgClass,
+    TranslateModule,
   ],
   templateUrl: './quick-settings.component.html',
   styleUrl: './quick-settings.component.css',

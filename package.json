@@ -12,6 +12,8 @@
     "@ionic/angular": "^8.8.6",
     "@microsoft/signalr": "^10.0.0",
     "@ngrx/signals": "^21.1.0",
+    "@ngx-translate/core": "^17.0.0",
+    "@ngx-translate/http-loader": "^17.0.0",
     "@primeuix/themes": "^2.0.3",
     "@tailwindcss/postcss": "^4.2.4",
     "@tauri-apps/api": "^2.11.0",

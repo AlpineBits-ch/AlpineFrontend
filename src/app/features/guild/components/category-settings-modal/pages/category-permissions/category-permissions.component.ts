@@ -11,6 +11,7 @@ import {
   PermissionOverrideEditorComponent,
 } from '../../../../shared/permission-override-editor/permission-override-editor.component';
 import {parsePermissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
+import { TranslateModule } from '@ngx-translate/core';
 
 interface RoleOverride {
   role: RoleDto;
@@ -31,7 +32,7 @@ interface MemberOverride {
 
 @Component({
   selector: 'app-category-permissions',
-  imports: [NgClass, Button, PermissionOverrideEditorComponent],
+  imports: [NgClass, Button, PermissionOverrideEditorComponent, TranslateModule],
   templateUrl: './category-permissions.component.html',
 })
 export class CategoryPermissionsComponent implements OnInit {
