@@ -27,6 +27,9 @@ jobs:
           draft: false
           prerelease: false
           make_latest: true
+      - name: Update Submodules
+        run: |
+          git submodule update --init --recursive
 
   release-windows:
     needs: create-release
