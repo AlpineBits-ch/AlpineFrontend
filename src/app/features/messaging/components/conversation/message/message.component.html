@@ -35,7 +35,7 @@
       @let user = (getProfile() | async);
       <span class="text-sm font-semibold text-white/85 cursor-pointer hover:text-white transition-colors"
             (click)="profileDialogSvc.open(message().authorId)">
-        {{ user ? user.userName + '#' + user.hash : message().authorId }}
+        {{ user ? user.userName : message().authorId }}
       </span>
       <span class="text-[11px] text-white/25">{{ message().createdAt | date: 'shortTime' }}</span>
       @if (message().encryptionState === 'Encrypted') {

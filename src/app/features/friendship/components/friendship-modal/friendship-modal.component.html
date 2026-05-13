@@ -32,7 +32,7 @@
              style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
           @for (rel of incomingFriendRequest(); track rel.id) {
             <div class="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors">
-              <span class="text-sm text-white/75 truncate">{{ rel.target.userName }}<span class="text-white/30">#{{ rel.target.hash }}</span></span>
+              <span class="text-sm text-white/75 truncate">{{ rel.target.userName }}</span>
               <div class="flex gap-0.5 shrink-0">
                 <p-button icon="pi pi-check" [rounded]="true" severity="success" [text]="true" size="small"
                   pTooltip="Accept" tooltipPosition="top" (click)="acceptFriendRequest(rel.id)" />
@@ -53,7 +53,7 @@
              style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
           @for (rel of outgoingFriendRequest(); track rel.id) {
             <div class="flex items-center justify-between px-2 py-1.5 rounded-lg">
-              <span class="text-sm text-white/75 truncate">{{ rel.target.userName }}<span class="text-white/30">#{{ rel.target.hash }}</span></span>
+              <span class="text-sm text-white/75 truncate">{{ rel.target.userName }}</span>
               <p-tag value="Pending" severity="warn" />
             </div>
           } @empty {
@@ -75,7 +75,7 @@
             <div class="flex items-center gap-2.5 min-w-0">
               <p-avatar icon="pi pi-user" shape="circle" size="normal" />
               <span class="text-sm text-white/75 truncate">
-                {{ rel.target.userName }}<span class="text-white/30">#{{ rel.target.hash }}</span>
+                {{ rel.target.userName }}
               </span>
             </div>
             <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">

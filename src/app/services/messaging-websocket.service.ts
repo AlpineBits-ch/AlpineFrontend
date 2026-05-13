@@ -102,6 +102,8 @@ export class MessagingWebsocketService {
   public reactionAddedObservable = new Subject<ReactionEvent>()
   public reactionRemovedObservable = new Subject<ReactionEvent>()
 
+  public friendRequestReceivedObservable = new Subject<void>()
+  public friendRequestAcceptedObservable = new Subject<void>()
 
   public connectionState = signal(ConnectionState.Disconnected)
   constructor() {
@@ -145,9 +147,20 @@ export class MessagingWebsocketService {
   private async setupListeners(): Promise<void>{
     this.hubConnection.on('FriendRequestAccepted', async (data: {acceptantUserName: string}) => {
       console.log('Friend request accepted:', data);
+      this.friendRequestAcceptedObservable.next();
       await this.notificationService.createNotification({
         title: 'Friend request accepted',
         message: `${data.acceptantUserName} accepted your friend request`,
+        sound: NotificationSound.NewMessage,
+      });
+    })
+
+    this.hubConnection.on('FriendRequestReceived', async (data: {senderUserName: string}) => {
+      console.log('Friend request received:', data);
+      this.friendRequestReceivedObservable.next();
+      await this.notificationService.createNotification({
+        title: 'Friend request',
+        message: `${data.senderUserName} sent you a friend request`,
         sound: NotificationSound.NewMessage,
       });
     })

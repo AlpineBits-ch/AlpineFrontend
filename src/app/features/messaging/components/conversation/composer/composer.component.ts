@@ -273,6 +273,15 @@ export class ComposerComponent {
       if (event.key === 'Escape') { event.preventDefault(); this.closeOverlay(); return; }
     }
 
+    if (event.key === 'Escape' && this.activeCommand()) {
+      event.preventDefault();
+      this.activeCommand.set(null);
+      const editor = this.editorRef().nativeElement;
+      editor.innerHTML = '';
+      this.isEmpty.set(true);
+      return;
+    }
+
     if (event.key === 'Enter' && event.shiftKey) { event.preventDefault(); this.insertNewline(); return; }
     if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); this.send(); }
   }
@@ -472,11 +481,9 @@ export class ComposerComponent {
       this.gifPickerRef()?.open();
       return;
     }
-    if (action.name === 'send-gif-search') {
+    if (action.name === 'open-gif-picker-with-search') {
       const query = (action.payload as { query: string }).query;
-      this.gifService.search(query).subscribe(results => {
-        if (results.length > 0) this.message.emit({ content: results[0].url, attachments: [], mentions: [] });
-      });
+      this.gifPickerRef()?.openWithSearch(query);
       return;
     }
     this.commandAction.emit(action);

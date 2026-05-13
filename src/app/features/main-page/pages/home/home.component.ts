@@ -1,4 +1,5 @@
-import {Component, computed, inject, signal} from '@angular/core';
+import {Component, computed, DestroyRef, inject, signal} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {NgClass} from "@angular/common";
 import {AppAvatarComponent} from "../../../../components/avatar/avatar.component";
 import {Button} from "primeng/button";
@@ -11,6 +12,7 @@ import {ProfileService} from "../../../../services/profile.service";
 import {OnlineStatus} from "../../../../dtos/response/profile.dto";
 import {ProfileDialogService} from "../../../../services/profile-dialog.service";
 import {NavigationService} from "../../navigation.service";
+import {MessagingWebsocketService} from "../../../../services/messaging-websocket.service";
 
 type FriendsTab = 'online' | 'all' | 'pending' | 'blocked';
 
@@ -25,6 +27,8 @@ export class HomeComponent {
   private profileService = inject(ProfileService);
   protected profileDialogSvc = inject(ProfileDialogService);
   protected navService = inject(NavigationService);
+  private wsService = inject(MessagingWebsocketService);
+  private destroyRef = inject(DestroyRef);
 
   public tab = signal<FriendsTab>('online');
   public addFriendOpen = signal(false);
@@ -48,6 +52,8 @@ export class HomeComponent {
 
   constructor() {
     this.load();
+    this.wsService.friendRequestReceivedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load());
+    this.wsService.friendRequestAcceptedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load());
   }
 
   private load(): void {

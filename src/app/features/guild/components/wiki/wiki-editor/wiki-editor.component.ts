@@ -29,66 +29,14 @@ import TableCell from '@tiptap/extension-table-cell';
 import Image from '@tiptap/extension-image';
 import TaskList from '@tiptap/extension-task-list';
 import TaskItem from '@tiptap/extension-task-item';
-import {marked} from 'marked';
-import TurndownService from 'turndown';
-import { gfm } from 'turndown-plugin-gfm';
+import {Markdown} from '@tiptap/markdown';
 import {WikiDto, WikiPageDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
 import {FileService} from '../../../../../services/file.service';
 import {WikiStateService} from '../wiki-state.service';
 
-function preprocessTaskListsForTiptap(html: string): string {
-  const div = document.createElement('div');
-  div.innerHTML = html;
-
-  div.querySelectorAll('ul').forEach(ul => {
-    const items = Array.from(ul.children) as HTMLElement[];
-    const hasAnyTask = items.some(li => li.querySelector(':scope > input[type="checkbox"]'));
-    if (!hasAnyTask) return;
-
-    // Split into consecutive groups of task / non-task items
-    const parent = ul.parentNode!;
-    const anchor = ul.nextSibling;
-    const fragment = document.createDocumentFragment();
-    let bucket: HTMLUListElement | null = null;
-    let bucketIsTask = false;
-
-    for (const li of items) {
-      const input = li.querySelector<HTMLInputElement>(':scope > input[type="checkbox"]');
-      const isTask = input !== null;
-
-      if (!bucket || bucketIsTask !== isTask) {
-        bucket = document.createElement('ul');
-        if (isTask) bucket.setAttribute('data-type', 'taskList');
-        fragment.appendChild(bucket);
-        bucketIsTask = isTask;
-      }
-
-      if (isTask) {
-        const checked = input!.checked || input!.hasAttribute('checked');
-        li.setAttribute('data-type', 'taskItem');
-        li.setAttribute('data-checked', String(checked));
-        input!.remove();
-        // Wrap remaining text/nodes in <p> — TaskItem content model is paragraph+
-        const p = document.createElement('p');
-        while (li.firstChild) p.appendChild(li.firstChild);
-        li.appendChild(p);
-      }
-
-      bucket.appendChild(li);
-    }
-
-    parent.insertBefore(fragment, anchor);
-    ul.remove();
-  });
-
-  return div.innerHTML;
-}
-
-function contentToHtml(content: string): string {
-  if (!content) return '';
-  if (content.trimStart().startsWith('<')) return content;
-  return preprocessTaskListsForTiptap(marked.parse(content) as string);
+function isHtmlContent(content: string): boolean {
+  return content.trimStart().startsWith('<');
 }
 
 @Component({
@@ -212,33 +160,14 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
   private dropHandler?: (e: DragEvent) => void;
   private dragoverHandler?: (e: DragEvent) => void;
   private pasteHandler?: (e: ClipboardEvent) => void;
-  private readonly turndown = (() => {
-    const td = new TurndownService({
-      headingStyle: 'atx',
-      bulletListMarker: '-',
-      codeBlockStyle: 'fenced',
-    });
-    // Must be before gfm so this rule takes priority for TipTap task items
-    td.addRule('tiptapTaskItem', {
-      filter: (node: any) =>
-        node.nodeName === 'LI' && node.getAttribute('data-type') === 'taskItem',
-      replacement: (_content: string, node: any) => {
-        const checked = node.getAttribute('data-checked') === 'true';
-        const text = _content.replace(/^\n+|\n+$/g, '').trim();
-        return `- [${checked ? 'x' : ' '}] ${text}\n`;
-      },
-    });
-    td.use(gfm);
-    return td;
-  })();
 
   constructor() {
     effect(() => {
       const page = this.page();
       const defaults = this.wikiState.editorDefaults();
       this.editorTitle.set(page?.title ?? '');
-      const html = contentToHtml(page?.content ?? '');
-      this.editorContent.set(html);
+      const content = page?.content ?? '';
+      this.editorContent.set(content);
       this.editorCategoryId.set(page?.categoryId ?? defaults?.categoryId);
       this.editorParentPageId.set(page?.parentPageId ?? defaults?.parentPageId);
       this.editorTags.set(page ? [...page.tags] : []);
@@ -247,9 +176,21 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
       this.linkInputVisible.set(false);
 
       if (this.editorReady && this.tiptapEditor) {
-        this.tiptapEditor.commands.setContent(html || '');
+        this.setTiptapContent(content);
       }
     });
+  }
+
+  private setTiptapContent(content: string): void {
+    if (!content) {
+      this.tiptapEditor!.commands.setContent('');
+      return;
+    }
+    if (isHtmlContent(content)) {
+      this.tiptapEditor!.commands.setContent(content);
+    } else {
+      this.tiptapEditor!.commands.setContent(content, {contentType: 'markdown'} as any);
+    }
   }
 
   ngAfterViewInit(): void {
@@ -268,8 +209,9 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
         Image.configure({inline: false, allowBase64: false}),
         TaskList,
         TaskItem.configure({nested: false}),
+        Markdown,
       ],
-      content: this.editorContent() || '',
+      content: '',
       onUpdate: ({editor}) => {
         this.editorContent.set(editor.getHTML());
         this.syncToolbar();
@@ -277,6 +219,9 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
       onSelectionUpdate: () => this.syncToolbar(),
     });
     this.editorReady = true;
+    if (this.editorContent()) {
+      this.setTiptapContent(this.editorContent());
+    }
 
     // Right-click context menu for tables
     const el = this.editorEl.nativeElement;
@@ -381,16 +326,14 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
   // ── Markdown mode toggle ───────────────────────────────────────────────────
   protected toggleMarkdownMode(): void {
     if (this.markdownMode()) {
-      // markdown → WYSIWYG: parse markdown back to HTML and reload Tiptap
-      const html = contentToHtml(this.rawMarkdown());
-      this.editorContent.set(html);
+      // markdown → WYSIWYG: load markdown directly via TipTap's native markdown parser
       if (this.tiptapEditor) {
-        this.tiptapEditor.commands.setContent(html || '');
+        this.tiptapEditor.commands.setContent(this.rawMarkdown() || '', {contentType: 'markdown'} as any);
       }
       this.markdownMode.set(false);
     } else {
-      // WYSIWYG → markdown: convert current HTML to markdown
-      const md = this.turndown.turndown(this.editorContent() || '');
+      // WYSIWYG → markdown: use TipTap's native markdown serializer
+      const md = (this.tiptapEditor as any)?.getMarkdown() ?? '';
       this.rawMarkdown.set(md);
       this.markdownMode.set(true);
       this.linkInputVisible.set(false);
@@ -552,8 +495,8 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
     if (this.saving() || !this.editorTitle().trim()) return;
     this.saving.set(true);
     const content = this.markdownMode()
-      ? contentToHtml(this.rawMarkdown())
-      : this.editorContent();
+      ? this.rawMarkdown()
+      : (this.tiptapEditor as any)?.getMarkdown() ?? '';
     const base = {
       title: this.editorTitle().trim(),
       content,

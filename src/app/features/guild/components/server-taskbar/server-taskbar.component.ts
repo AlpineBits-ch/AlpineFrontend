@@ -40,7 +40,10 @@ export class ServerTaskbarComponent implements OnInit {
   protected isDMsActive = computed(() => this.navService.workspace().type === 'dms');
 
   ngOnInit(): void {
-    this.guildService.getGuilds().subscribe(guilds => this.guilds.set(guilds));
+    this.guildService.getGuilds().subscribe(guilds => {
+      this.guilds.set(guilds);
+      this.navService.tryRestoreGuildNav(guilds);
+    });
 
     this.guildService.guildJoined$.pipe(
       takeUntilDestroyed(this.destroyRef),

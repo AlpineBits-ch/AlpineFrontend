@@ -1,5 +1,7 @@
 import { animate, query, stagger, style, transition, trigger } from '@angular/animations';
 import { Component, computed, effect, inject, output, signal, ViewChild } from '@angular/core';
+import { toObservable } from '@angular/core/rxjs-interop';
+import { filter, take } from 'rxjs';
 import { DatePipe, NgClass } from '@angular/common';
 import {
   IonList, IonItem, IonItemSliding, IonItemOptions, IonItemOption,
@@ -135,6 +137,13 @@ export class ConversationListComponent {
   constructor() {
     addIcons({ trashOutline });
     this.conversationStore.loadInitial();
+
+    toObservable(this.conversationStore.loaded).pipe(
+      filter(loaded => loaded),
+      take(1),
+    ).subscribe(() => {
+      this.navService.tryRestoreConversationNav(this.conversationStore.entities());
+    });
 
     // Prepend new messages to the preview window (keeps newest-first order).
     const prependPreview = (msg: MessageDto) => {

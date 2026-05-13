@@ -30,7 +30,7 @@
     <div class="flex flex-wrap gap-1.5 px-1 pb-3">
       @for (friend of selectedFriends(); track friend.userId) {
         <span class="flex items-center gap-1.5 bg-brand/15 border border-brand/25 text-brand-dim rounded-lg px-2 py-1 text-xs font-medium">
-          {{ friend.userName }}#{{ friend.hash }}
+          {{ friend.userName }}
           <button (click)="toggleFriend(friend.userId)" class="text-brand-dim/60 hover:text-brand-dim cursor-pointer bg-transparent border-0 p-0 leading-none">
             <i class="pi pi-times text-[10px]"></i>
           </button>
@@ -55,7 +55,7 @@
           styleClass="shrink-0 !w-8 !h-8 !text-xs" />
         <span class="flex-1 text-sm font-medium"
               [ngClass]="isSelected(friend.userId) ? 'text-brand-dim' : 'text-white/75'">
-          {{ friend.userName }}<span class="opacity-40">#{{ friend.hash }}</span>
+          {{ friend.userName }}
         </span>
         @if (isSelected(friend.userId)) {
           <i class="pi pi-check text-brand-dim text-xs shrink-0"></i>

@@ -62,6 +62,25 @@ export class GifPickerButtonComponent implements OnDestroy {
     }
   }
 
+  openWithSearch(query: string): void {
+    this.showPicker.set(true);
+    this.loading.set(true);
+    this.searchQuery.set(query);
+    this.searchSubject.next(query);
+
+    setTimeout(() => {
+      this.searchInputRef()?.nativeElement.focus();
+      this.outsideClickListener = (e: MouseEvent) => {
+        const panel = document.querySelector('.gif-picker-panel');
+        const btn = document.querySelector('.gif-picker-btn');
+        if (panel && !panel.contains(e.target as Node) && btn && !btn.contains(e.target as Node)) {
+          this.close();
+        }
+      };
+      document.addEventListener('mousedown', this.outsideClickListener);
+    }, 0);
+  }
+
   open(): void {
     this.showPicker.set(true);
     this.loading.set(true);

@@ -364,6 +364,7 @@ button, a, [role="button"], input, select, textarea, label {
   transform: rotate(45deg);
 }
 .wiki-wysiwyg li[data-type="taskItem"] > div { flex: 1; min-width: 0; }
+.wiki-wysiwyg li[data-type="taskItem"] > div > p { margin: 0; }
 .wiki-wysiwyg li[data-type="taskItem"][data-checked="true"] > div { opacity: 0.55; text-decoration: line-through; text-decoration-color: rgba(255,255,255,0.25); }
 
 /* Image uploading placeholder — blob: src = still uploading */

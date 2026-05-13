@@ -1,4 +1,5 @@
-import {Component, computed, inject, input, model, signal} from '@angular/core';
+import {Component, computed, DestroyRef, inject, input, model, signal} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Dialog} from "primeng/dialog";
 import {RelationshipModel, RelationshipStatus} from "./dto/relationship.model";
 import {Button} from "primeng/button";
@@ -14,6 +15,7 @@ import {ConversationEncryption} from "../../../../enums/conversation-encryption.
 import {ConversationStore} from "../../../../stores/conversation.store";
 import {NavigationService} from "../../../main-page/navigation.service";
 import {ProfileService} from "../../../../services/profile.service";
+import {MessagingWebsocketService} from "../../../../services/messaging-websocket.service";
 
 @Component({
   selector: 'app-friendship-modal',
@@ -51,38 +53,35 @@ export class FriendshipModalComponent {
   private conversationStore = inject(ConversationStore);
   private navService = inject(NavigationService);
   private profileService = inject(ProfileService);
+  private wsService = inject(MessagingWebsocketService);
+  private destroyRef = inject(DestroyRef);
 
   public friendId: string = '';
   constructor() {
-    this.relationshipService.getRelationships().subscribe(d => {
-      this.relationships.set(d);
-    })
+    this.load();
+    this.wsService.friendRequestReceivedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load());
+    this.wsService.friendRequestAcceptedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load());
+  }
+
+  private load(): void {
+    this.relationshipService.getRelationships().subscribe(d => this.relationships.set(d));
   }
 
   public sendFriendrequest(){
-
     const id= Number.parseInt(this.friendId.split('#')[1]);
     const username = this.friendId.split('#')[0];
-
-    this.relationshipService.createFriendRequest(username, id).subscribe(d => {
-      console.log(d);
-    })
+    this.relationshipService.createFriendRequest(username, id).subscribe(() => {
+      this.friendId = '';
+      this.load();
+    });
   }
 
   public acceptFriendRequest(id: string){
-
-
-    this.relationshipService.acceptFriendRequest(id).subscribe(d => {
-      console.log(d);
-    })
+    this.relationshipService.acceptFriendRequest(id).subscribe(() => this.load());
   }
 
   public rejectFriendRequest(id: string){
-
-
-    this.relationshipService.rejectFriendRequest(id).subscribe(d => {
-      console.log(d);
-    })
+    this.relationshipService.rejectFriendRequest(id).subscribe(() => this.load());
   }
 
   public onMessageClick(relationship: RelationshipModel): void {

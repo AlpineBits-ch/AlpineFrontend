@@ -11,6 +11,7 @@ import {WikiStateService} from '../wiki-state.service';
   selector: 'app-wiki-page-view',
   imports: [Button, Dialog],
   templateUrl: './wiki-page-view.component.html',
+  host: {class: 'flex flex-col flex-1 min-h-0'},
 })
 export class WikiPageViewComponent {
   readonly page = input.required<WikiPageDto>();

@@ -28,9 +28,9 @@ export const COMMANDS: CommandDef[] = [
   },
   {
     name: 'gif',
-    description: 'Search for a GIF and send the first result',
+    description: 'Search for a GIF',
     scope: 'global',
     params: [{ label: 'search', required: true }],
-    execute: (query) => ({ action: { name: 'send-gif-search', payload: { query: query.trim() } } }),
+    execute: (query) => ({ action: { name: 'open-gif-picker-with-search', payload: { query: query.trim() } } }),
   },
 ];

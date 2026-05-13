@@ -36,7 +36,7 @@
           <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-online border-2 border-sidebar"></span>
         </div>
         <div class="flex-1 min-w-0">
-          <p class="text-xs font-medium text-white/80 truncate">{{ friendProfile(friend).userName }}<span class="text-white/30 font-normal">#{{ friendProfile(friend).hash }}</span></p>
+          <p class="text-xs font-medium text-white/80 truncate">{{ friendProfile(friend).userName }}</p>
           @if (activityFor(friend); as status) {
             <p class="text-[10px] text-white/40 truncate">
               {{ status.label }}@if (status.since) { · {{ formatSince(status.since) }} }
@@ -63,7 +63,7 @@
             <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-white/20 border-2 border-sidebar"></span>
           </div>
           <div class="flex-1 min-w-0">
-            <p class="text-xs font-medium text-white/80 truncate">{{ friendProfile(friend).userName }}<span class="text-white/30 font-normal">#{{ friendProfile(friend).hash }}</span></p>
+            <p class="text-xs font-medium text-white/80 truncate">{{ friendProfile(friend).userName }}</p>
             <p class="text-[10px] text-white/40 truncate">Offline</p>
           </div>
         </div>
