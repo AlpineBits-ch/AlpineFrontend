@@ -187,6 +187,9 @@ export class WikiSidebarComponent {
   private dragging: { type: 'category' | 'page'; id: string } | null = null;
   protected dropTargetId = signal<string | null>(null);
   protected dropPos = signal<'before' | 'after'>('after');
+  protected nestTargetId = signal<string | null>(null);
+  private nestTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastHoverTarget: string | null = null;
 
   // WebView2 requires dropEffect = 'move' set on every dragover/dragenter.
   @HostListener('document:dragover', ['$event'])
@@ -228,14 +231,32 @@ export class WikiSidebarComponent {
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
     if (!this.dragging || this.dragging.id === targetId) return;
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.dropTargetId.set(targetId);
-    this.dropPos.set(event.clientY < rect.top + rect.height / 2 ? 'before' : 'after');
+
+    if (this.lastHoverTarget !== targetId) {
+      this.lastHoverTarget = targetId;
+      this.clearNestTimer();
+      this.nestTargetId.set(null);
+
+      if (this.dragging.type === 'page' && this.state.wiki()?.pages.some(p => p.id === targetId)) {
+        this.nestTimer = setTimeout(() => {
+          this.nestTargetId.set(targetId);
+          this.dropTargetId.set(null);
+          this.nestTimer = null;
+        }, 1500);
+      }
+    }
+
+    if (this.nestTargetId() !== targetId) {
+      const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+      this.dropTargetId.set(targetId);
+      this.dropPos.set(event.clientY < rect.top + rect.height / 2 ? 'before' : 'after');
+    }
   }
 
   protected onDragEnd(event: DragEvent): void {
     const dragging = this.dragging;
-    const targetId = this.dropTargetId();
+    const nestTarget = this.nestTargetId();
+    const targetId = nestTarget ?? this.dropTargetId();
     const pos = this.dropPos();
     this.clearDragState();
 
@@ -243,6 +264,19 @@ export class WikiSidebarComponent {
     const wiki = this.state.wiki();
     if (!wiki) return;
     const guildId = this.state.guildId();
+
+    // Nest mode: make dragged page a child of the hovered page
+    if (nestTarget && dragging.type === 'page') {
+      const draggedPage = wiki.pages.find(p => p.id === dragging.id);
+      const targetPage = wiki.pages.find(p => p.id === nestTarget);
+      if (draggedPage && targetPage && !this.wouldCreateCycle(draggedPage.id, nestTarget, wiki.pages)) {
+        this.movePageToGroup(draggedPage, {
+          categoryId: targetPage.categoryId,
+          parentPageId: nestTarget,
+        }, guildId);
+      }
+      return;
+    }
 
     const targetCategory = wiki.categories.find(c => c.id === targetId);
 
@@ -256,7 +290,6 @@ export class WikiSidebarComponent {
       if (!draggedPage) return;
 
       if (targetCategory) {
-        // Drop before first category → make uncategorized root; drop on/after category → move into it
         const newCategoryId = pos === 'before' ? null : targetCategory.id;
         this.movePageToGroup(draggedPage, { categoryId: newCategoryId ?? undefined, parentPageId: null }, guildId);
         return;
@@ -266,7 +299,6 @@ export class WikiSidebarComponent {
       if (targetPage) {
         const newParentId = targetPage.parentPageId ?? null;
         if (newParentId && this.wouldCreateCycle(draggedPage.id, newParentId, wiki.pages)) return;
-        // Become a sibling of the target page (same category + same parentPageId)
         this.movePageToGroup(draggedPage, {
           categoryId: targetPage.categoryId,
           parentPageId: newParentId,
@@ -374,10 +406,20 @@ export class WikiSidebarComponent {
     return false;
   }
 
+  private clearNestTimer(): void {
+    if (this.nestTimer) {
+      clearTimeout(this.nestTimer);
+      this.nestTimer = null;
+    }
+  }
+
   private clearDragState(): void {
+    this.clearNestTimer();
+    this.nestTargetId.set(null);
     this.dragging = null;
     this.dropTargetId.set(null);
     this.dropPos.set('after');
+    this.lastHoverTarget = null;
   }
 
   protected categoryToDelete = signal<WikiCategoryDto | null>(null);

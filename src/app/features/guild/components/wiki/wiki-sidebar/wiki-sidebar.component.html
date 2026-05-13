@@ -50,7 +50,7 @@
         </div>
         @let catPages = pageTreeForCategory(node.category.id);
         @for (pn of catPages; track pn.page.id) {
-          @if (dropTargetId() === pn.page.id && dropPos() === 'before') {
+          @if (dropTargetId() === pn.page.id && dropPos() === 'before' && nestTargetId() !== pn.page.id) {
             <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
           }
           <button (click)="goPage(pn.page)" (contextmenu)="onPageContextMenu($event, pn.page)"
@@ -58,14 +58,19 @@
             (dragstart)="onPageDragStart($event, pn.page)"
             (dragend)="onDragEnd($event)"
             (dragover)="onItemDragOver($event, pn.page.id)"
-            [ngClass]="isPageActive(pn.page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
+            [ngClass]="nestTargetId() === pn.page.id
+              ? 'ring-1 ring-brand/50 bg-brand/[0.10] text-white/90 scale-[1.01]'
+              : isPageActive(pn.page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
             [style.paddingLeft]="(8 + pn.depth * 14) + 'px'"
-            class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg text-left transition-all border-0 cursor-grab">
+            class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg text-left transition-all duration-200 border-0 cursor-grab">
             <i [ngClass]="pn.depth > 0 ? 'pi-file-minus text-white/30' : 'pi-file'"
                class="pi text-[12px] shrink-0"></i>
             <span class="text-[14px] truncate flex-1">{{ pn.page.title }}</span>
+            <i class="pi pi-sitemap text-[10px] text-brand-dim shrink-0 transition-opacity duration-300"
+               [class.opacity-0]="nestTargetId() !== pn.page.id"
+               [class.opacity-100]="nestTargetId() === pn.page.id"></i>
           </button>
-          @if (dropTargetId() === pn.page.id && dropPos() === 'after') {
+          @if (dropTargetId() === pn.page.id && dropPos() === 'after' && nestTargetId() !== pn.page.id) {
             <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
           }
         }
@@ -85,7 +90,7 @@
           <p class="text-[10px] font-semibold text-white/30 uppercase tracking-widest px-2 mb-1">Pages</p>
         }
         @for (node of uncategorizedPageTree(); track node.page.id) {
-          @if (dropTargetId() === node.page.id && dropPos() === 'before') {
+          @if (dropTargetId() === node.page.id && dropPos() === 'before' && nestTargetId() !== node.page.id) {
             <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
           }
           <button (click)="goPage(node.page)" (contextmenu)="onPageContextMenu($event, node.page)"
@@ -93,14 +98,19 @@
             (dragstart)="onPageDragStart($event, node.page)"
             (dragend)="onDragEnd($event)"
             (dragover)="onItemDragOver($event, node.page.id)"
-            [ngClass]="isPageActive(node.page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
+            [ngClass]="nestTargetId() === node.page.id
+              ? 'ring-1 ring-brand/50 bg-brand/[0.10] text-white/90 scale-[1.01]'
+              : isPageActive(node.page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
             [style.paddingLeft]="(8 + node.depth * 14) + 'px'"
-            class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg text-left transition-all border-0 cursor-grab">
+            class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg text-left transition-all duration-200 border-0 cursor-grab">
             <i [ngClass]="node.depth > 0 ? 'pi-file-minus text-white/30' : 'pi-file'"
                class="pi text-[12px] shrink-0"></i>
             <span class="text-[14px] truncate flex-1">{{ node.page.title }}</span>
+            <i class="pi pi-sitemap text-[10px] text-brand-dim shrink-0 transition-opacity duration-300"
+               [class.opacity-0]="nestTargetId() !== node.page.id"
+               [class.opacity-100]="nestTargetId() === node.page.id"></i>
           </button>
-          @if (dropTargetId() === node.page.id && dropPos() === 'after') {
+          @if (dropTargetId() === node.page.id && dropPos() === 'after' && nestTargetId() !== node.page.id) {
             <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
           }
         }
