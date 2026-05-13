@@ -198,7 +198,9 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
     this.tiptapEditor = new Editor({
       element: this.editorEl.nativeElement,
       extensions: [
-        StarterKit,
+        StarterKit.configure({
+          trailingNode: { notAfter: ['taskList', 'bulletList', 'orderedList'] },
+        }),
         Underline,
         Link.configure({openOnClick: false}),
         Placeholder.configure({placeholder: 'Start writing…'}),
@@ -208,7 +210,7 @@ export class WikiEditorComponent implements AfterViewInit, OnDestroy {
         TableCell,
         Image.configure({inline: false, allowBase64: false}),
         TaskList,
-        TaskItem.configure({nested: false}),
+        TaskItem.configure({nested: false, HTMLAttributes: {'data-type': 'taskItem'}}),
         Markdown,
       ],
       content: '',

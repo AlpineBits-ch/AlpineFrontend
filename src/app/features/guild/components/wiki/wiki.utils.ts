@@ -28,6 +28,16 @@ function tagTaskItems(html: string): string {
     if (input.checked || input.hasAttribute('checked')) {
       li.classList.add('wiki-task-checked');
     }
+    // When marked parses `- [x] text`, the text is a raw text node (direct child of li),
+    // not a child element. Wrap it in a span so CSS `> :not(input)` can target it.
+    if (input.parentElement === li) {
+      const rest = Array.from(li.childNodes).filter(n => n !== input);
+      if (rest.length > 0) {
+        const span = document.createElement('span');
+        rest.forEach(n => span.appendChild(n));
+        li.appendChild(span);
+      }
+    }
   });
   return div.innerHTML;
 }
