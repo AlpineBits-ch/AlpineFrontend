@@ -264,10 +264,12 @@ export class WikiSidebarComponent {
 
       const targetPage = wiki.pages.find(p => p.id === targetId);
       if (targetPage) {
+        const newParentId = targetPage.parentPageId ?? null;
+        if (newParentId && this.wouldCreateCycle(draggedPage.id, newParentId, wiki.pages)) return;
         // Become a sibling of the target page (same category + same parentPageId)
         this.movePageToGroup(draggedPage, {
           categoryId: targetPage.categoryId,
-          parentPageId: targetPage.parentPageId ?? null,
+          parentPageId: newParentId,
         }, guildId);
       }
     }
@@ -319,17 +321,57 @@ export class WikiSidebarComponent {
     const sameParent = (page.parentPageId ?? null) === (changes.parentPageId ?? null);
     if (sameCategory && sameParent) return;
 
+    // When the category changes, all descendants must follow so they don't become orphans.
+    const descendants = sameCategory
+      ? []
+      : this.collectDescendants(page.id, this.state.wiki()?.pages ?? []);
+
     this.state.updateWikiOptimistic(w => ({
       ...w,
-      pages: w.pages.map(p => p.id === page.id
-        ? { ...p, categoryId: changes.categoryId, parentPageId: changes.parentPageId ?? undefined }
-        : p),
+      pages: w.pages.map(p => {
+        if (p.id === page.id) return { ...p, categoryId: changes.categoryId, parentPageId: changes.parentPageId ?? undefined };
+        if (descendants.some(d => d.id === p.id)) return { ...p, categoryId: changes.categoryId };
+        return p;
+      }),
     }));
 
     this.wikiService.updatePage(guildId, page.id, {
       categoryId: changes.categoryId ?? null,
       parentPageId: changes.parentPageId ?? null,
     }).subscribe();
+
+    for (const d of descendants) {
+      this.wikiService.updatePage(guildId, d.id, { categoryId: changes.categoryId ?? null }).subscribe();
+    }
+  }
+
+  private collectDescendants(pageId: string, allPages: WikiPageSummaryDto[]): WikiPageSummaryDto[] {
+    const result: WikiPageSummaryDto[] = [];
+    const collect = (parentId: string) => {
+      for (const p of allPages.filter(x => x.parentPageId === parentId && x.id !== parentId)) {
+        result.push(p);
+        collect(p.id);
+      }
+    };
+    collect(pageId);
+    return result;
+  }
+
+  // Returns true if making `draggedId`'s parent = `newParentId` would create a cycle.
+  private wouldCreateCycle(draggedId: string, newParentId: string, pages: WikiPageSummaryDto[]): boolean {
+    if (newParentId === draggedId) return true;
+    const parentMap = new Map(pages.map(p => [p.id, p.parentPageId]));
+    const visited = new Set<string>();
+    let current: string | undefined = newParentId;
+    while (current) {
+      if (visited.has(current)) break; // existing cycle in data — stop
+      visited.add(current);
+      const parent = parentMap.get(current);
+      if (!parent) break;
+      if (parent === draggedId) return true;
+      current = parent;
+    }
+    return false;
   }
 
   private clearDragState(): void {
