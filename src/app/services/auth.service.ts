@@ -35,14 +35,17 @@ export class AuthService {
   }
 
   public async isLoggedIn(): Promise<boolean> {
-    if(this.oauthService.hasValidAccessToken()){
+    if (this.oauthService.hasValidAccessToken()) {
       return true;
     }
 
-    await this.oauthService.refreshToken();
+    try {
+      await this.oauthService.refreshToken();
+    } catch {
+      return false;
+    }
 
     return this.oauthService.hasValidAccessToken();
-
   }
 
   public getJsonSettings(): Observable<unknown>{

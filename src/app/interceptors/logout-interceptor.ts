@@ -10,8 +10,8 @@ export function logoutInterceptor(
 ): Observable<HttpEvent<unknown>> {
   return next(req).pipe(
       tap((event) => {
-        if (event.type === HttpEventType.Response) {
-          if(event.status === 401) inject(OAuthService).logOut()
+        if (event.type === HttpEventType.Response && event.status === 401) {
+          inject(OAuthService).logOut();
           void inject(Router).navigate(['/authentication']);
         }
       }),

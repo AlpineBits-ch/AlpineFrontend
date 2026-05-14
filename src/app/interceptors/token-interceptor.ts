@@ -34,6 +34,14 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
         return throwError(() => err);
       }
 
+      // If the token is already valid (e.g. OAuthService refreshed it just before
+      // this 401 landed), skip the refresh and retry immediately.
+      if (!isRefreshing && oAuthService.hasValidAccessToken()) {
+        const currentToken = oAuthService.getAccessToken()!;
+        const retried = req.clone({ setHeaders: { Authorization: `Bearer ${currentToken}` } });
+        return next(retried);
+      }
+
       if (!isRefreshing) {
         isRefreshing = true;
         refreshPromise = oAuthService.refreshToken()
