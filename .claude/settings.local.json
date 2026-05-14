@@ -99,7 +99,9 @@
       "Bash(node -e \"const {marked} = require\\('./node_modules/marked'\\); const r = marked.parse\\('hello'\\); console.log\\(typeof r, r instanceof Promise\\)\")",
       "WebFetch(domain:tiptap.dev)",
       "WebFetch(domain:www.npmjs.com)",
-      "Bash(export PATH=\"$PATH:/c/Users/Domin/.bun/bin\")"
+      "Bash(export PATH=\"$PATH:/c/Users/Domin/.bun/bin\")",
+      "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\(p.get\\('exports', p.get\\('main', 'no main'\\)\\)\\)\")",
+      "Bash(grep -n \"_default\\\\$3\\\\|palette\" /c/Users/Domin/WebstormProjects/Alpine/node_modules/@primeuix/styled/dist/index.d.mts)"
     ]
   }
 }

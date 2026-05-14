@@ -1,6 +1,7 @@
 import { effect, Injectable, signal, computed } from '@angular/core';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
+import { palette, updatePreset } from '@primeuix/themes';
 import { AppTheme, BUILT_IN_THEME_ID, DEFAULT_THEME, ThemeColors } from '../models/theme.model';
 
 const THEMES_KEY  = 'alpine-themes';
@@ -114,6 +115,18 @@ export class ThemeService {
     set('--color-online',      c.online);
     set('--color-connecting',  c.connecting);
     set('--color-offline',     c.offline);
+
+    updatePreset({
+      primitive: {
+        accent: {
+          ...(palette(c.brand) as object),
+          400: c.brandDim,
+          500: c.brand,
+          600: c.brandHover,
+          700: c.brandDark,
+        },
+      },
+    });
   }
 
   private loadThemes(): AppTheme[] {

@@ -2,437 +2,426 @@ import { definePreset } from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
 
 /**
- * Alpine Design System — PrimeNG preset
+ * Alpine Design System — refined dark messenger preset
  *
- * Color palette reference:
- *   App bg:       #0d1117   (surface.900)
- *   Sidebar bg:   #111520   (surface.800)
- *   Card/input:   #161b27   (surface.700)
- *   Hover:        #1d2333   (surface.600)
- *   Border:       #252e42   (surface.500)
- *
- *   Brand:        #6366f1   indigo-500
- *   Brand dim:    #818cf8   indigo-400
- *   Brand hover:  #4f46e5   indigo-600
- *
- *   Online:       #34d399   emerald-400
- *   Connecting:   #fbbf24   amber-400
- *   Offline:      #f43f5e   rose-500
+ * Design goals:
+ * - Neutral-first UI
+ * - Indigo only as interaction accent
+ * - Reduced color noise
+ * - Better depth/elevation
+ * - More premium dark surfaces
+ * - Less "Tailwind dashboard"
  */
+
 export const AlpinePreset = definePreset(Aura, {
   primitive: {
-    // Custom indigo scale used as primary
-    indigo: {
-      50:  '#eef2ff',
-      100: '#e0e7ff',
-      200: '#c7d2fe',
-      300: '#a5b4fc',
-      400: '#818cf8',
-      500: '#6366f1',
-      600: '#4f46e5',
-      700: '#4338ca',
-      800: '#3730a3',
-      900: '#312e81',
-      950: '#1e1b4b',
+    /**
+     * Accent scale
+     * Slightly softer + less default-tailwind feeling
+     */
+    accent: {
+      50: '#f2f5ff',
+      100: '#e4eafc',
+      200: '#cdd8f6',
+      300: '#a9bbea',
+      400: '#7f99d9',
+      500: '#5f7fc7',
+      600: '#4d6db3',
+      700: '#405b95',
+      800: '#344977',
+      900: '#2b3c61',
+      950: '#1b263d',
     },
-    // Dark-blue surface scale used across all components in dark mode
-    slate: {
-      0:   '#ffffff',
-      50:  '#e4e8f0',
-      100: '#c9d0de',
-      200: '#9aa5be',
-      300: '#6b7a99',
-      400: '#3d4f6e',
-      500: '#252e42',
-      600: '#1d2333',
-      700: '#161b27',
-      800: '#111520',
-      900: '#0d1117',
-      950: '#080c11',
+
+    /**
+     * True neutral dark system
+     * Reduced purple contamination
+     */
+    zinc: {
+      0: '#ffffff',
+
+      50: '#f3f4f6',
+      100: '#e5e7eb',
+      200: '#cfd4dc',
+      300: '#9aa4b2',
+      400: '#6b7280',
+
+      500: '#3f4652',
+      600: '#2b3038',
+      700: '#1f2329',
+      800: '#171a1f',
+      900: '#111317',
+      950: '#0b0d10',
     },
+
+    /**
+     * Semantic colors
+     * Muted to fit neutral UI
+     */
+    success: '#46b98a',
+    warn: '#d9a441',
+    danger: '#e06c75',
+    info: '#56a8f5',
   },
 
   semantic: {
-    // Map primary to our indigo palette
     primary: {
-      50:  '{indigo.50}',
-      100: '{indigo.100}',
-      200: '{indigo.200}',
-      300: '{indigo.300}',
-      400: '{indigo.400}',
-      500: '{indigo.500}',
-      600: '{indigo.600}',
-      700: '{indigo.700}',
-      800: '{indigo.800}',
-      900: '{indigo.900}',
-      950: '{indigo.950}',
+      50: '{accent.50}',
+      100: '{accent.100}',
+      200: '{accent.200}',
+      300: '{accent.300}',
+      400: '{accent.400}',
+      500: '{accent.500}',
+      600: '{accent.600}',
+      700: '{accent.700}',
+      800: '{accent.800}',
+      900: '{accent.900}',
+      950: '{accent.950}',
     },
 
     colorScheme: {
       dark: {
-        formField: {
-          background: 'rgba(255,255,255,0.04)',
-          borderColor: 'rgba(255,255,255,0.09)',
-          color: '{slate.50}',
+        surface: {
+          0: '{zinc.0}',
+          50: '{zinc.50}',
+          100: '{zinc.100}',
+          200: '{zinc.200}',
+          300: '{zinc.300}',
+          400: '{zinc.400}',
+          500: '{zinc.500}',
+          600: '{zinc.600}',
+          700: '{zinc.700}',
+          800: '{zinc.800}',
+          900: '{zinc.900}',
+          950: '{zinc.950}',
         },
+
+        formField: {
+          background: '#121821',
+          borderColor: 'rgba(255,255,255,0.06)',
+          color: '{zinc.50}',
+        },
+
         overlay: {
           select: {
-            background: '{slate.800}',
-            borderColor: 'rgba(255,255,255,0.09)',
-            color: '{slate.100}',
-            shadow: '0 4px 24px rgba(0,0,0,0.40)',
-          },
-          popover: {
-            background: '{slate.800}',
-            borderColor: 'rgba(255,255,255,0.09)',
-            color: '{slate.100}',
-            shadow: '0 4px 24px rgba(0,0,0,0.40)',
-          },
-          navigation: {
-            background: '{slate.800}',
-            borderColor: 'rgba(255,255,255,0.09)',
-            color: '{slate.100}',
-            shadow: '0 4px 24px rgba(0,0,0,0.40)',
-          },
-          modal: {
-            background: '{slate.900}',
+            background: '{zinc.800}',
             borderColor: 'rgba(255,255,255,0.06)',
-            color: '{slate.100}',
-            shadow: '0 8px 40px rgba(0,0,0,0.60)',
+            color: '{zinc.100}',
+            shadow: `
+              0 0 0 1px rgba(255,255,255,0.03),
+              0 12px 40px rgba(0,0,0,0.45)
+            `,
           },
-        },
-        surface: {
-          0:   '{slate.0}',
-          50:  '{slate.50}',
-          100: '{slate.100}',
-          200: '{slate.200}',
-          300: '{slate.300}',
-          400: '{slate.400}',
-          500: '{slate.500}',
-          600: '{slate.600}',
-          700: '{slate.700}',
-          800: '{slate.800}',
-          900: '{slate.900}',
-          950: '{slate.950}',
+
+          popover: {
+            background: '{zinc.800}',
+            borderColor: 'rgba(255,255,255,0.06)',
+            color: '{zinc.100}',
+            shadow: `
+              0 0 0 1px rgba(255,255,255,0.03),
+              0 12px 40px rgba(0,0,0,0.45)
+            `,
+          },
+
+          navigation: {
+            background: '{zinc.800}',
+            borderColor: 'rgba(255,255,255,0.06)',
+            color: '{zinc.100}',
+            shadow: `
+              0 0 0 1px rgba(255,255,255,0.03),
+              0 12px 40px rgba(0,0,0,0.45)
+            `,
+          },
+
+          modal: {
+            background: '{zinc.900}',
+            borderColor: 'rgba(255,255,255,0.05)',
+            color: '{zinc.100}',
+            shadow: `
+              0 0 0 1px rgba(255,255,255,0.04),
+              0 20px 60px rgba(0,0,0,0.60)
+            `,
+          },
         },
       },
     },
   },
 
   components: {
-
-    // ── Avatar ────────────────────────────────────────────────────────────
     avatar: {
       colorScheme: {
         dark: {
           root: {
-            background: '{slate.700}',
-            color: '{slate.200}',
+            background: '{zinc.700}',
+            color: '{zinc.200}',
           },
         },
       },
     },
 
-    // ── Button ────────────────────────────────────────────────────────────
     button: {
       colorScheme: {
         dark: {
           root: {
+            borderRadius: '10px',
+
             primary: {
-              background: '{indigo.600}',
-              hoverBackground: '{indigo.500}',
-              activeBackground: '{indigo.700}',
-              borderColor: '{indigo.600}',
-              hoverBorderColor: '{indigo.500}',
-              activeBorderColor: '{indigo.700}',
+              background: '{accent.600}',
+              hoverBackground: '{accent.500}',
+              activeBackground: '{accent.700}',
+
+              borderColor: '{accent.600}',
+              hoverBorderColor: '{accent.500}',
+              activeBorderColor: '{accent.700}',
+
               color: '#ffffff',
             },
+
             secondary: {
-              background: 'rgba(255,255,255,0.06)',
-              hoverBackground: 'rgba(255,255,255,0.10)',
-              activeBackground: 'rgba(255,255,255,0.14)',
-              borderColor: 'rgba(255,255,255,0.10)',
-              hoverBorderColor: 'rgba(255,255,255,0.15)',
-              activeBorderColor: 'rgba(255,255,255,0.20)',
-              color: 'rgba(255,255,255,0.70)',
+              background: 'rgba(255,255,255,0.03)',
+              hoverBackground: 'rgba(255,255,255,0.06)',
+              activeBackground: 'rgba(255,255,255,0.09)',
+
+              borderColor: 'rgba(255,255,255,0.06)',
+              hoverBorderColor: 'rgba(255,255,255,0.10)',
+              activeBorderColor: 'rgba(255,255,255,0.14)',
+
+              color: '{zinc.200}',
             },
           },
         },
       },
     },
 
-    // ── Textarea ──────────────────────────────────────────────────────────
-    textarea: {
-      colorScheme: {
-        dark: {
-          root: {
-            background: 'rgba(255,255,255,0.04)',
-            borderColor: 'rgba(255,255,255,0.09)',
-            color: '{slate.50}',
-            placeholderColor: '{slate.400}',
-            focusBorderColor: '{indigo.400}',
-            focusRing: {
-              color: '{indigo.400}',
-              shadow: '0 0 0 3px rgba(129,140,248,0.20)',
-            },
-          },
-        },
-      },
-    },
-
-    // ── InputText ─────────────────────────────────────────────────────────
     inputtext: {
       colorScheme: {
         dark: {
           root: {
-            background: 'rgba(255,255,255,0.04)',
-            borderColor: 'rgba(255,255,255,0.09)',
-            color: '{slate.50}',
-            placeholderColor: '{slate.400}',
-            focusBorderColor: '{indigo.400}',
+            background: '#121821',
+
+            borderColor: 'rgba(255,255,255,0.06)',
+            hoverBorderColor: 'rgba(255,255,255,0.10)',
+
+            color: '{zinc.50}',
+            placeholderColor: '{zinc.400}',
+
+            shadow: 'inset 0 1px 0 rgba(255,255,255,0.02)',
+
+            focusBorderColor: '{accent.400}',
+
             focusRing: {
-              color: '{indigo.400}',
-              shadow: '0 0 0 3px rgba(129,140,248,0.20)',
+              color: '{accent.400}',
+              shadow: '0 0 0 2px rgba(124,114,255,0.16)',
             },
           },
         },
       },
     },
 
-    // ── Select (Dropdown) ─────────────────────────────────────────────────
-    select: {
+    textarea: {
       colorScheme: {
         dark: {
-          overlay: {
-            background: '{slate.800}',
-            borderColor: 'rgba(255,255,255,0.09)',
-            color: '{slate.100}',
-          },
-          option: {
-            focusBackground: 'rgba(255,255,255,0.05)',
-            selectedBackground: 'rgba(99,102,241,0.15)',
-            selectedFocusBackground: 'rgba(99,102,241,0.25)',
-            color: '{slate.100}',
-            selectedColor: '{indigo.400}',
-          },
-        },
-      },
-    },
+          root: {
+            background: '#121821',
 
-    // ── DatePicker ────────────────────────────────────────────────────────
-    datepicker: {
-      colorScheme: {
-        dark: {
-          panel: {
-            background: '{slate.800}',
-            borderColor: 'rgba(255,255,255,0.09)',
-            color: '{slate.100}',
-          },
-          header: {
-            background: 'transparent',
             borderColor: 'rgba(255,255,255,0.06)',
-            color: '{slate.100}',
-          },
-          date: {
-            selectedBackground: '{indigo.600}',
-            selectedColor: '#ffffff',
-            hoverBackground: 'rgba(255,255,255,0.05)',
-          },
-          today: {
-            background: 'rgba(99,102,241,0.15)',
-            color: '{indigo.400}',
+            hoverBorderColor: 'rgba(255,255,255,0.10)',
+
+            color: '{zinc.50}',
+            placeholderColor: '{zinc.400}',
+
+            shadow: 'inset 0 1px 0 rgba(255,255,255,0.02)',
+
+            focusBorderColor: '{accent.400}',
+
+            focusRing: {
+              color: '{accent.400}',
+              shadow: '0 0 0 2px rgba(124,114,255,0.16)',
+            },
           },
         },
       },
     },
 
-    // ── Dialog ────────────────────────────────────────────────────────────
     dialog: {
       colorScheme: {
         dark: {
           root: {
-            background: '{slate.900}',
-            borderColor: 'rgba(255,255,255,0.06)',
-            color: '{slate.100}',
+            background: '{zinc.900}',
+            borderColor: 'rgba(255,255,255,0.05)',
+            color: '{zinc.100}',
+
+            shadow: `
+              0 0 0 1px rgba(255,255,255,0.03),
+              0 24px 80px rgba(0,0,0,0.65)
+            `,
           },
         },
       },
     },
 
-    // ── Tooltip ───────────────────────────────────────────────────────────
+    menu: {
+      colorScheme: {
+        dark: {
+          root: {
+            background: '{zinc.800}',
+            borderColor: 'rgba(255,255,255,0.06)',
+            color: '{zinc.100}',
+
+            shadow: `
+              0 0 0 1px rgba(255,255,255,0.03),
+              0 12px 40px rgba(0,0,0,0.50)
+            `,
+          },
+
+          item: {
+            color: '{zinc.100}',
+            focusColor: '{zinc.50}',
+
+            focusBackground: 'rgba(255,255,255,0.04)',
+
+            icon: {
+              color: '{zinc.400}',
+              focusColor: '{zinc.200}',
+            },
+          },
+
+          separator: {
+            borderColor: 'rgba(255,255,255,0.06)',
+          },
+
+          submenuLabel: {
+            color: '{zinc.400}',
+          },
+        },
+      },
+    },
+
+    contextmenu: {
+      colorScheme: {
+        dark: {
+          root: {
+            background: '{zinc.800}',
+            borderColor: 'rgba(255,255,255,0.06)',
+            color: '{zinc.100}',
+
+            shadow: `
+              0 0 0 1px rgba(255,255,255,0.03),
+              0 12px 40px rgba(0,0,0,0.50)
+            `,
+          },
+
+          item: {
+            color: '{zinc.100}',
+            focusColor: '{zinc.50}',
+
+            focusBackground: 'rgba(255,255,255,0.04)',
+
+            icon: {
+              color: '{zinc.400}',
+              focusColor: '{zinc.200}',
+            },
+          },
+
+          separator: {
+            borderColor: 'rgba(255,255,255,0.06)',
+          },
+        },
+      },
+    },
+
     tooltip: {
       colorScheme: {
         dark: {
           root: {
-            background: '{slate.700}',
-            color: '{slate.100}',
+            background: '{zinc.700}',
+            color: '{zinc.100}',
           },
         },
       },
     },
 
-    // ── Badge ─────────────────────────────────────────────────────────────
+    chip: {
+      colorScheme: {
+        dark: {
+          root: {
+            background: 'rgba(255,255,255,0.04)',
+            color: '{zinc.200}',
+          },
+        },
+      },
+    },
+
     badge: {
       colorScheme: {
         dark: {
           primary: {
-            background: '{indigo.600}',
+            background: '{accent.600}',
             color: '#ffffff',
           },
         },
       },
     },
 
-    // ── Chip ──────────────────────────────────────────────────────────────
-    chip: {
-      colorScheme: {
-        dark: {
-          root: {
-            background: 'rgba(255,255,255,0.06)',
-            color: '{slate.200}',
-          },
-        },
-      },
-    },
-
-    // ── Tag ───────────────────────────────────────────────────────────────
     tag: {
       colorScheme: {
         dark: {
-          primary:   { background: 'rgba(99,102,241,0.20)',  color: '{indigo.300}' },
-          secondary: { background: 'rgba(255,255,255,0.07)', color: '{slate.200}'  },
-          success:   { background: 'rgba(52,211,153,0.15)',  color: '#34d399'      },
-          info:      { background: 'rgba(56,189,248,0.15)',  color: '#38bdf8'      },
-          warn:      { background: 'rgba(251,191,36,0.15)',  color: '#fbbf24'      },
-          danger:    { background: 'rgba(244,63,94,0.15)',   color: '#f43f5e'      },
-          contrast:  { background: '{slate.0}',              color: '{slate.950}'  },
-        },
-      },
-    },
+          primary: {
+            background: 'rgba(124,114,255,0.14)',
+            color: '{accent.300}',
+          },
 
-    // ── Fieldset ──────────────────────────────────────────────────────────
-    fieldset: {
-      colorScheme: {
-        dark: {
-          root: {
-            background: 'transparent',
-            borderColor: 'rgba(255,255,255,0.09)',
-            color: '{slate.100}',
+          secondary: {
+            background: 'rgba(255,255,255,0.05)',
+            color: '{zinc.200}',
           },
-          legend: {
-            background: 'transparent',
-            hoverBackground: 'rgba(255,255,255,0.05)',
-            borderColor: 'rgba(255,255,255,0.09)',
-            color: '{slate.200}',
-          },
-        },
-      },
-    },
 
-    // ── Listbox ───────────────────────────────────────────────────────────
-    listbox: {
-      colorScheme: {
-        dark: {
-          root: {
-            background: '{slate.800}',
-            borderColor: 'rgba(255,255,255,0.09)',
-            color: '{slate.100}',
+          success: {
+            background: 'rgba(70,185,138,0.14)',
+            color: '{success}',
           },
-          option: {
-            focusBackground: 'rgba(255,255,255,0.05)',
-            selectedBackground: 'rgba(99,102,241,0.15)',
-            selectedFocusBackground: 'rgba(99,102,241,0.22)',
-            color: '{slate.100}',
-            selectedColor: '{indigo.400}',
-            selectedFocusColor: '{indigo.300}',
+
+          info: {
+            background: 'rgba(86,168,245,0.14)',
+            color: '{info}',
+          },
+
+          warn: {
+            background: 'rgba(217,164,65,0.14)',
+            color: '{warn}',
+          },
+
+          danger: {
+            background: 'rgba(224,108,117,0.14)',
+            color: '{danger}',
+          },
+
+          contrast: {
+            background: '{zinc.0}',
+            color: '{zinc.950}',
           },
         },
       },
     },
 
-    // ── ToggleSwitch ──────────────────────────────────────────────────────
     toggleswitch: {
       colorScheme: {
         dark: {
           root: {
-            checkedBackground: '{indigo.600}',
-            checkedHoverBackground: '{indigo.500}',
             background: 'rgba(255,255,255,0.12)',
             hoverBackground: 'rgba(255,255,255,0.18)',
+
+            checkedBackground: '{accent.600}',
+            checkedHoverBackground: '{accent.500}',
+
             borderColor: 'transparent',
             checkedBorderColor: 'transparent',
           },
+
           handle: {
             background: '#ffffff',
             checkedBackground: '#ffffff',
             hoverBackground: '#ffffff',
-          },
-        },
-      },
-    },
-
-    // ── ConfirmDialog ─────────────────────────────────────────────────────
-    confirmdialog: {
-      colorScheme: {
-        dark: {
-          icon: {
-            color: '{indigo.400}',
-          },
-        },
-      },
-    },
-
-    // ── Menu (popup context menus) ────────────────────────────────────────
-    menu: {
-      colorScheme: {
-        dark: {
-          root: {
-            background: '{slate.800}',
-            borderColor: 'rgba(255,255,255,0.09)',
-            color: '{slate.100}',
-            shadow: '0 4px 24px rgba(0,0,0,0.40)',
-          },
-          item: {
-            focusBackground: 'rgba(255,255,255,0.05)',
-            color: '{slate.100}',
-            focusColor: '{slate.100}',
-            icon: {
-              color: '{slate.400}',
-              focusColor: '{slate.200}',
-            },
-          },
-          submenuLabel: {
-            background: 'transparent',
-            color: '{slate.400}',
-          },
-          separator: {
-            borderColor: 'rgba(255,255,255,0.08)',
-          },
-        },
-      },
-    },
-
-    // ── ContextMenu (right-click menus) ───────────────────────────────────
-    contextmenu: {
-      colorScheme: {
-        dark: {
-          root: {
-            background: '{slate.800}',
-            borderColor: 'rgba(255,255,255,0.09)',
-            color: '{slate.100}',
-            shadow: '0 4px 24px rgba(0,0,0,0.40)',
-          },
-          item: {
-            focusBackground: 'rgba(255,255,255,0.05)',
-            color: '{slate.100}',
-            focusColor: '{slate.100}',
-            icon: {
-              color: '{slate.400}',
-              focusColor: '{slate.200}',
-            },
-          },
-          separator: {
-            borderColor: 'rgba(255,255,255,0.08)',
           },
         },
       },
