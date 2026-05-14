@@ -4,7 +4,17 @@ import { OAuthService } from "angular-oauth2-oidc";
 import { Router } from "@angular/router";
 import { catchError, from, switchMap, throwError } from "rxjs";
 
+// Shared across all interceptor invocations. When a refresh is in-flight every
+// concurrent 401 waits on the same Promise instead of triggering its own
+// softLogout() — the previous source of the "app freeze" when tokens expired.
 let isRefreshing = false;
+let refreshPromise: Promise<string> | null = null;
+
+/** Reset module-level state between test runs. */
+export function _resetInterceptorState(): void {
+  isRefreshing = false;
+  refreshPromise = null;
+}
 
 export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
   if (req.url.includes('connect/token')) return next(req);
@@ -24,33 +34,36 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
         return throwError(() => err);
       }
 
-      // A refresh is already in flight — don't loop, just soft-logout
-      if (isRefreshing) {
-        softLogout(oAuthService, router);
-        return throwError(() => err);
+      if (!isRefreshing) {
+        isRefreshing = true;
+        refreshPromise = oAuthService.refreshToken()
+          .then(() => {
+            isRefreshing = false;
+            return oAuthService.getAccessToken() as string;
+          })
+          .catch((refreshErr: unknown) => {
+            isRefreshing = false;
+            refreshPromise = null;
+            softLogout(oAuthService, router);
+            throw refreshErr;
+          });
       }
 
-      isRefreshing = true;
-      return from(oAuthService.refreshToken()).pipe(
-        switchMap(() => {
-          isRefreshing = false;
-          const newToken = oAuthService.getAccessToken();
+      // All concurrent 401s — including the one that started the refresh —
+      // wait on the same Promise and retry with the new token once it resolves.
+      return from(refreshPromise!).pipe(
+        switchMap(newToken => {
           const retried = req.clone({ setHeaders: { Authorization: `Bearer ${newToken}` } });
           return next(retried).pipe(
             catchError((retryErr) => {
               if (retryErr instanceof HttpErrorResponse && retryErr.status === 401) {
-                // Still 401 after a fresh token — session is dead
                 softLogout(oAuthService, router);
               }
               return throwError(() => retryErr);
             }),
           );
         }),
-        catchError((refreshErr) => {
-          isRefreshing = false;
-          softLogout(oAuthService, router);
-          return throwError(() => refreshErr);
-        }),
+        catchError(() => throwError(() => err)),
       );
     }),
   );

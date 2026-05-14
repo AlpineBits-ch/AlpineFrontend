@@ -1,5 +1,5 @@
 import { inject, Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { environment } from '../../environments/environment';
 import {catchError, from, map, Observable, of} from 'rxjs';
 import { EncryptedMasterKey, UserDto } from '../dtos/response/UserDto';
@@ -43,6 +43,28 @@ export class UserService {
           )
         })
     )
+  }
+
+  changePassword(currentPassword: string, newPassword: string): Observable<{ code: number }> {
+    return this.httpClient.put(
+      `${environment.apiUrl}/api/v1/identity/users/self/password`,
+      { currentPassword, newPassword },
+      { observe: 'response' }
+    ).pipe(
+      map(res => ({ code: res.status })),
+      catchError((err: HttpErrorResponse) => of({ code: err.status ?? 500 }))
+    );
+  }
+
+  signOutAllOtherDevices(): Observable<void> {
+    return this.httpClient.post<void>(
+      `${environment.apiUrl}/api/v1/identity/sessions/revoke-others`,
+      { withinSeconds: 3600 }
+    );
+  }
+
+  deleteAccount(): Observable<void> {
+    return this.httpClient.delete<void>(`${environment.apiUrl}/api/v1/identity/users/self`);
   }
 
   public replenishKeyCount(): Observable<void> {

@@ -5,7 +5,7 @@ import { Dialog } from 'primeng/dialog';
 import { Button } from 'primeng/button';
 import { InputOtp } from 'primeng/inputotp';
 import { FormsModule } from '@angular/forms';
-import { EmailVerificationService } from '../../services/email-verification.service';
+import { EmailVerificationService, PendingCredentials } from '../../services/email-verification.service';
 import { ToastService } from '../../services/toast.service';
 import { AuthService } from '../../services/auth.service';
 import { UserSettingsService } from '../../services/user-settings.service';
@@ -51,8 +51,9 @@ export class EmailVerificationDialogComponent implements OnInit {
     this.verificationService.verifyCode(email, code).pipe(
       tap(() => {
         this.loading.set(false);
+        const credentials = this.verificationService.pendingCredentials();
         this.verificationService.dismiss();
-        this.onVerified(email);
+        this.onVerified(email, credentials);
       }),
       catchError((err) => {
         this.loading.set(false);
@@ -66,9 +67,7 @@ export class EmailVerificationDialogComponent implements OnInit {
     ).subscribe();
   }
 
-  private onVerified(email: string): void {
-    const credentials = this.verificationService.pendingCredentials();
-
+  private onVerified(email: string, credentials: PendingCredentials | null): void {
     if (credentials) {
       this.authService.login(credentials.email, credentials.password).pipe(
         tap(() => {

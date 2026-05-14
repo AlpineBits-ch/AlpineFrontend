@@ -89,7 +89,7 @@ export class MainPageComponent implements OnDestroy {
   /** Opaque handle for the session-loaded signing key — set after device unlock. */
   protected keyHandle = signal<string | null>(null);
 
-  private actionSub: Subscription;
+  private actionSub = new Subscription();
 
   public logout(): void {
     this.authService.logout();
@@ -105,26 +105,21 @@ export class MainPageComponent implements OnDestroy {
     void this.initLaunchSequence();
 
     this.oAuthService.setupAutomaticSilentRefresh();
-    this.oAuthService.events.subscribe(e => {
-      if (e.type === 'token_expires') {
-        console.log('Token expiring, performing refresh token flow...');
-        this.oAuthService.refreshToken()
-          .then(() => console.log('Token refreshed successfully!'))
-          .catch((err: unknown) => {
-            const status = (err as any)?.status ?? (err as any)?.reason?.status;
-            if (status === 403) {
-              this.emailVerification.show(this.resolveEmail(), 'navigate-login');
-            }
-          });
-      }
-      if (e.type === 'token_refresh_error' || e.type === 'silent_refresh_error') {
-        const reason = (e as any)?.reason;
-        const status = reason?.status ?? reason?.error?.status;
-        if (status === 403) {
-          this.emailVerification.show(this.resolveEmail(), 'navigate-login');
+    // Only handle error events — token_expires is already handled by
+    // setupAutomaticSilentRefresh(). Subscribing to token_expires here too
+    // would start a second concurrent refresh against the same single-use
+    // refresh token, racing with the interceptor's own refresh logic.
+    this.actionSub.add(
+      this.oAuthService.events.subscribe(e => {
+        if (e.type === 'token_refresh_error' || e.type === 'silent_refresh_error') {
+          const reason = (e as any)?.reason;
+          const status = reason?.status ?? reason?.error?.status;
+          if (status === 403) {
+            this.emailVerification.show(this.resolveEmail(), 'navigate-login');
+          }
         }
-      }
-    });
+      }),
+    );
 
     this.richPresenceService.start();
 
@@ -132,13 +127,13 @@ export class MainPageComponent implements OnDestroy {
       console.log('current game: ',this.richPresenceService.currentGame())
     });
 
-    this.actionSub = this.notificationService.action$.subscribe(event => {
+    this.actionSub.add(this.notificationService.action$.subscribe(event => {
       const { conversationId } = event.extra;
       if (conversationId) {
         const conv = this.conversationStore.entities().find(c => c.id === conversationId);
         if (conv) this.navService.openConversation(conv);
       }
-    });
+    }));
 
     this.actionSub.add(this.websocketService.welcomeObservable.subscribe(async (conversationId) => {
       const keyHandle = this.mlsService.keyHandle();
