@@ -101,7 +101,11 @@
       "WebFetch(domain:www.npmjs.com)",
       "Bash(export PATH=\"$PATH:/c/Users/Domin/.bun/bin\")",
       "Bash(python3 -c \"import json,sys; p=json.load\\(sys.stdin\\); print\\(p.get\\('exports', p.get\\('main', 'no main'\\)\\)\\)\")",
-      "Bash(grep -n \"_default\\\\$3\\\\|palette\" /c/Users/Domin/WebstormProjects/Alpine/node_modules/@primeuix/styled/dist/index.d.mts)"
+      "Bash(grep -n \"_default\\\\$3\\\\|palette\" /c/Users/Domin/WebstormProjects/Alpine/node_modules/@primeuix/styled/dist/index.d.mts)",
+      "Bash(python -c \"import json,sys; cfg=json.load\\(sys.stdin\\); test=cfg['projects']['Alpine']['architect'].get\\('test',{}\\); print\\(json.dumps\\(test, indent=2\\)\\)\")",
+      "Bash(node -e \"const c=require\\('./angular.json'\\); const t=c.projects.Alpine.architect.test; console.log\\(JSON.stringify\\(t,null,2\\)\\)\")",
+      "Bash(node -e \"const c=require\\('./angular.json'\\); console.log\\(Object.keys\\(c.projects\\)\\)\")",
+      "Bash(node -e \"const c=require\\('./angular.json'\\); const t=c.projects.alpine.architect.test; console.log\\(JSON.stringify\\(t,null,2\\)\\)\")"
     ]
   }
 }
