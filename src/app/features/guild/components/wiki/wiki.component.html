@@ -1,7 +1,7 @@
 <div class="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
   @switch (state.wikiView()) {
     @case ('home') {
-      <app-wiki-home
+      <app-wiki-home class="flex-1 min-h-0"
         [wiki]="state.wiki()"
         (openPage)="state.openPage($event)"
         (newPage)="state.openEditor()" />
@@ -13,7 +13,7 @@
           <span class="text-sm">Loading page…</span>
         </div>
       } @else if (state.selectedPage(); as page) {
-        <app-wiki-page-view
+        <app-wiki-page-view class="flex-1 min-h-0"
           [page]="page"
           [guildId]="guildId()"
           (edit)="state.openEditor($event)"
@@ -22,7 +22,7 @@
       }
     }
     @case ('editor') {
-      <app-wiki-editor
+      <app-wiki-editor class="flex-1 min-h-0"
         [page]="state.editingPage()"
         [wiki]="state.wiki()"
         [guildId]="guildId()"
@@ -31,7 +31,7 @@
     }
     @case ('history') {
       @if (state.selectedPage(); as page) {
-        <app-wiki-history
+        <app-wiki-history class="flex-1 min-h-0"
           [page]="page"
           [guildId]="guildId()"
           (back)="state.wikiView.set('page')"

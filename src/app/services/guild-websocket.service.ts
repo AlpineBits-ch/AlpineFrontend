@@ -53,6 +53,7 @@ export class GuildWebsocketService {
   private profileService = inject(ProfileService);
 
   public connectionState = signal(ConnectionState.Disconnected);
+  private listenersSetUp = false;
   public messageObservable = new Subject<MessageDto>();
   public channelReorderedObservable = new Subject<ReorderChannesDto>();
   public userTypingObservable = new Subject<ChannelTypingEvent>();
@@ -108,7 +109,10 @@ export class GuildWebsocketService {
     try {
       await this.hubConnection.start();
       this.connectionState.set(ConnectionState.Connected);
-      await this.setupListeners();
+      if (!this.listenersSetUp) {
+        this.listenersSetUp = true;
+        await this.setupListeners();
+      }
     } catch (err) {
       console.error('Error while starting connection: ', err);
     }

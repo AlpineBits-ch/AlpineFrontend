@@ -231,5 +231,6 @@ export class MainPageComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     this.actionSub.unsubscribe();
+    this.richPresenceService.stop();
   }
 }

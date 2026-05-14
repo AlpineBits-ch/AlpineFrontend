@@ -106,6 +106,7 @@ export class MessagingWebsocketService {
   public friendRequestAcceptedObservable = new Subject<void>()
 
   public connectionState = signal(ConnectionState.Disconnected)
+  private listenersSetUp = false;
   constructor() {
     this._rawMessageCreated$.pipe(
       concatMap(data => from(this.handleMessageCreated(data))),
@@ -132,7 +133,10 @@ export class MessagingWebsocketService {
     try{
       await this.hubConnection.start();
       this.connectionState.set(ConnectionState.Connected);
-      await this.setupListeners();
+      if (!this.listenersSetUp) {
+        this.listenersSetUp = true;
+        await this.setupListeners();
+      }
     }catch (err){
       console.error('Error while starting connection: ', err);
     }

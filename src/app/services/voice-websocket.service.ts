@@ -116,6 +116,7 @@ export class VoiceWebsocketService {
   public callEndedObservable          = new Subject<WsCallEnded>();
 
   public connectionState = signal(ConnectionState.Disconnected);
+  private listenersSetUp = false;
 
   constructor() {
     this.hubConnection = new signalR.HubConnectionBuilder()
@@ -137,7 +138,10 @@ export class VoiceWebsocketService {
     try {
       await this.hubConnection.start();
       this.connectionState.set(ConnectionState.Connected);
-      await this.setupListeners();
+      if (!this.listenersSetUp) {
+        this.listenersSetUp = true;
+        await this.setupListeners();
+      }
     } catch (err) {
       console.error('VoiceWS: connection error', err);
     }

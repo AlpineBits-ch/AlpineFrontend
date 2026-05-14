@@ -39,6 +39,7 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
         refreshPromise = oAuthService.refreshToken()
           .then(() => {
             isRefreshing = false;
+            refreshPromise = null;
             return oAuthService.getAccessToken() as string;
           })
           .catch((refreshErr: unknown) => {
