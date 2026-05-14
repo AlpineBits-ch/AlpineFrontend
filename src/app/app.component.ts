@@ -9,6 +9,7 @@ import {UpdateService} from "./services/update.service";
 import {Toast} from "primeng/toast";
 import { ScreenPickerComponent } from './features/screen-picker/screen-picker.component';
 import { EmailVerificationDialogComponent } from './features/email-verification/email-verification-dialog.component';
+import {environment} from "../environments/environment";
 
 @Component({
   selector: "app-root",
@@ -24,6 +25,13 @@ export class AppComponent implements OnInit, OnDestroy {
   protected readonly isPopup = window.location.pathname === '/toast-popup';
 
   private updateInterval: ReturnType<typeof setInterval> | null = null;
+
+  @HostListener('document:contextmenu', ['$event'])
+  onContextMenu(event: MouseEvent) {
+    if(environment.production){
+      event.preventDefault();
+    }
+  }
 
   // iOS: visual viewport scrolls when keyboard opens, making position:fixed elements
   // appear to shift. Track offsetTop/height and mirror them onto CSS variables so
