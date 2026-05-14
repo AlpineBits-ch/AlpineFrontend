@@ -38,14 +38,45 @@ export class AuthService {
     if (this.oauthService.hasValidAccessToken()) {
       return true;
     }
-
     try {
-      await this.oauthService.refreshToken();
+      await this.refresh();
     } catch {
       return false;
     }
-
     return this.oauthService.hasValidAccessToken();
+  }
+
+  private _activeRefresh: Promise<string> | null = null;
+
+  /**
+   * Force a token refresh. All callers share the same in-flight promise so
+   * concurrent calls (interceptor 401, WS reconnect, token_expires event)
+   * hit the token endpoint exactly once — no racing over a single-use refresh token.
+   */
+  public refresh(): Promise<string> {
+    if (!this._activeRefresh) {
+      this._activeRefresh = this.oauthService.refreshToken()
+          .then(() => {
+            this._activeRefresh = null;
+            return this.oauthService.getAccessToken() ?? '';
+          })
+          .catch(err => {
+            this._activeRefresh = null;
+            throw err;
+          });
+    }
+    return this._activeRefresh;
+  }
+
+  /**
+   * Returns the current access token, calling refresh() only if it has expired.
+   * Used by WS accessTokenFactories where the token may already be valid.
+   */
+  public async ensureValidToken(): Promise<string> {
+    if (this.oauthService.hasValidAccessToken()) {
+      return this.oauthService.getAccessToken()!;
+    }
+    return this.refresh();
   }
 
   public getJsonSettings(): Observable<unknown>{

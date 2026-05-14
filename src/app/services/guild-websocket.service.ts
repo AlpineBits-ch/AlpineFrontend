@@ -2,7 +2,7 @@ import {inject, Injectable, signal} from '@angular/core';
 import * as signalR from "@microsoft/signalr";
 import {environment} from "../../environments/environment";
 import {ConnectionState, ReactionEvent} from "./messaging-websocket.service";
-import {OAuthService} from "angular-oauth2-oidc";
+import {AuthService} from "./auth.service";
 import {NotificationService, NotificationSound} from "./notification.service";
 import {catchError, firstValueFrom, of, Subject, timeout} from "rxjs";
 import {MessageDto} from "../dtos/response/message.dto";
@@ -48,7 +48,7 @@ export interface WsWikiCategoryDeleted { categoryId: string; guildId: string; }
 })
 export class GuildWebsocketService {
   private hubConnection: signalR.HubConnection;
-  private oAuthService = inject(OAuthService);
+  private authService = inject(AuthService);
   private notificationService = inject(NotificationService);
   private profileService = inject(ProfileService);
 
@@ -92,14 +92,11 @@ export class GuildWebsocketService {
   constructor() {
     this.hubConnection = new signalR.HubConnectionBuilder()
         .withUrl(environment.apiUrl + "/api/v1/guild/ws/hubs/guild", {
-          accessTokenFactory: () => this.oAuthService.getAccessToken(),
+          accessTokenFactory: () => this.authService.ensureValidToken(),
         })
         .withAutomaticReconnect({
-          nextRetryDelayInMilliseconds: retryContext => {
-            // This function runs before every retry attempt
-            // Returning 5000 means it will wait 5 seconds every single time
-            return 5000;
-          }
+          nextRetryDelayInMilliseconds: retryContext =>
+            Math.min(1000 * Math.pow(2, retryContext.previousRetryCount), 60_000),
         })
         .build();
   }
@@ -230,6 +227,18 @@ export class GuildWebsocketService {
           extra: { channelId: data.channelId },
         });
       }
+    });
+
+    this.hubConnection.onreconnecting(() => {
+      this.connectionState.set(ConnectionState.Connecting);
+    });
+
+    this.hubConnection.onreconnected(() => {
+      this.connectionState.set(ConnectionState.Connected);
+    });
+
+    this.hubConnection.onclose(() => {
+      this.connectionState.set(ConnectionState.Disconnected);
     });
   }
 

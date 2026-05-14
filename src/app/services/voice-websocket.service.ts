@@ -1,10 +1,10 @@
 import { inject, Injectable, signal } from '@angular/core';
 import * as signalR from '@microsoft/signalr';
 import { NotificationService, NotificationSound } from './notification.service';
-import { OAuthService } from 'angular-oauth2-oidc';
 import { environment } from '../../environments/environment';
 import { Subject } from 'rxjs';
 import { CallDto } from '../dtos/response/call.dto';
+import { AuthService } from './auth.service';
 
 export enum ConnectionState {
   Connected,
@@ -99,7 +99,7 @@ export interface WsCallEnded {
 @Injectable({ providedIn: 'root' })
 export class VoiceWebsocketService {
   private hubConnection: signalR.HubConnection;
-  private oAuthService = inject(OAuthService);
+  private authService = inject(AuthService);
   private notificationService = inject(NotificationService);
 
   // ── Inbound observables ──────────────────────────────────────────────────
@@ -117,18 +117,16 @@ export class VoiceWebsocketService {
 
   public connectionState = signal(ConnectionState.Disconnected);
   private listenersSetUp = false;
+  private reconnectNotified = false;
 
   constructor() {
     this.hubConnection = new signalR.HubConnectionBuilder()
       .withUrl(environment.apiUrl + '/api/v1/messaging/ws/hubs/voice', {
-        accessTokenFactory: () => this.oAuthService.getAccessToken(),
+        accessTokenFactory: () => this.authService.ensureValidToken(),
       })
       .withAutomaticReconnect({
-        nextRetryDelayInMilliseconds: retryContext => {
-          // This function runs before every retry attempt
-          // Returning 5000 means it will wait 5 seconds every single time
-          return 5000;
-        }
+        nextRetryDelayInMilliseconds: retryContext =>
+          Math.min(1000 * Math.pow(2, retryContext.previousRetryCount), 60_000),
       })
       .build();
   }
@@ -198,16 +196,25 @@ export class VoiceWebsocketService {
 
     // ── Connection state ────────────────────────────────────────────────────
     this.hubConnection.onreconnecting(() => {
-      this.notificationService.createNotification({
-        title: 'Connection lost to voice server',
-        message: 'Attempting to reconnect...',
-        sound: NotificationSound.NewMessage,
-      });
+      if (!this.reconnectNotified) {
+        this.reconnectNotified = true;
+        this.notificationService.createNotification({
+          title: 'Connection lost to voice server',
+          message: 'Attempting to reconnect...',
+          sound: NotificationSound.NewMessage,
+        }).catch(() => {});
+      }
       this.connectionState.set(ConnectionState.Connecting);
     });
 
     this.hubConnection.onreconnected(() => {
+      this.reconnectNotified = false;
       this.connectionState.set(ConnectionState.Connected);
+    });
+
+    this.hubConnection.onclose(() => {
+      this.reconnectNotified = false;
+      this.connectionState.set(ConnectionState.Disconnected);
     });
   }
 

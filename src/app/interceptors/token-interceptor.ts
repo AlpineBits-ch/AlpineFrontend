@@ -3,6 +3,7 @@ import { inject } from "@angular/core";
 import { OAuthService } from "angular-oauth2-oidc";
 import { Router } from "@angular/router";
 import { catchError, from, switchMap, throwError } from "rxjs";
+import { AuthService } from '../services/auth.service';
 
 // Shared across all interceptor invocations. When a refresh is in-flight every
 // concurrent 401 waits on the same Promise instead of triggering its own
@@ -32,14 +33,6 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
     catchError((err) => {
       if (!(err instanceof HttpErrorResponse) || err.status !== 401) {
         return throwError(() => err);
-      }
-
-      // If the token is already valid (e.g. OAuthService refreshed it just before
-      // this 401 landed), skip the refresh and retry immediately.
-      if (!isRefreshing && oAuthService.hasValidAccessToken()) {
-        const currentToken = oAuthService.getAccessToken()!;
-        const retried = req.clone({ setHeaders: { Authorization: `Bearer ${currentToken}` } });
-        return next(retried);
       }
 
       if (!isRefreshing) {

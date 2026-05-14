@@ -24,6 +24,7 @@ mod win32 {
     pub const WS_EX_TOOLWINDOW: u32 = 0x0000_0080;
     pub const SW_SHOWNOACTIVATE: i32 = 4;
 
+
     #[link(name = "user32")]
     extern "system" {
         pub fn GetWindowLongPtrW(hwnd: *mut core::ffi::c_void, n_index: i32) -> isize;
@@ -184,6 +185,10 @@ pub fn run() {
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
+        std::env::set_var(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            "--remote-debugging-port=9222"
+        );
     builder
         .manage(media::audio::AudioCaptureState::default())
         .manage(media::audio::LoopbackCaptureState::default())

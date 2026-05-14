@@ -104,13 +104,15 @@ export class MainPageComponent implements OnDestroy {
     this.userTokenService.ensureTokenRegistered().then();
     void this.initLaunchSequence();
 
-    this.oAuthService.setupAutomaticSilentRefresh();
-    // Only handle error events — token_expires is already handled by
-    // setupAutomaticSilentRefresh(). Subscribing to token_expires here too
-    // would start a second concurrent refresh against the same single-use
-    // refresh token, racing with the interceptor's own refresh logic.
+    // Proactively refresh the token before expiry using the same deduplicated
+    // ensureValidToken() that the WS accessTokenFactories and interceptor use.
+    // This avoids the race where setupAutomaticSilentRefresh() calls refreshToken()
+    // independently from the interceptor, both using the same single-use refresh token.
     this.actionSub.add(
       this.oAuthService.events.subscribe(e => {
+        if (e.type === 'token_expires') {
+          void this.authService.ensureValidToken().catch(() => {});
+        }
         if (e.type === 'token_refresh_error' || e.type === 'silent_refresh_error') {
           const reason = (e as any)?.reason;
           const status = reason?.status ?? reason?.error?.status;

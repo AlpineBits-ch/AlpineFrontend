@@ -1,8 +1,8 @@
 import {inject, Injectable, signal} from '@angular/core';
 import * as signalR from '@microsoft/signalr';
 import { NotificationService, NotificationSound } from "./notification.service";
-import {OAuthService} from "angular-oauth2-oidc";
 import {environment} from "../../environments/environment";
+import {AuthService} from "./auth.service";
 import {BehaviorSubject, catchError, concatMap, firstValueFrom, from, of, Subject, timeout} from "rxjs";
 import {MessageDto} from "../dtos/response/message.dto";
 import { MessageEncryptionState } from '../enums/message-encryption-state.enum';
@@ -78,7 +78,7 @@ interface MessageCreatedPayload {
 })
 export class MessagingWebsocketService {
   private hubConnection: signalR.HubConnection;
-  private oAuthService = inject(OAuthService);
+  private authService = inject(AuthService);
   private notificationService = inject(NotificationService);
   private profileService = inject(ProfileService);
   private mlsService = inject(MlsService);
@@ -107,6 +107,8 @@ export class MessagingWebsocketService {
 
   public connectionState = signal(ConnectionState.Disconnected)
   private listenersSetUp = false;
+  private reconnectNotified = false;
+
   constructor() {
     this._rawMessageCreated$.pipe(
       concatMap(data => from(this.handleMessageCreated(data))),
@@ -114,14 +116,11 @@ export class MessagingWebsocketService {
 
     this.hubConnection = new signalR.HubConnectionBuilder()
         .withUrl(environment.apiUrl+ "/api/v1/messaging/ws/hubs/messaging", {
-          accessTokenFactory: () => this.oAuthService.getAccessToken(),
+          accessTokenFactory: () => this.authService.ensureValidToken(),
         })
         .withAutomaticReconnect({
-          nextRetryDelayInMilliseconds: retryContext => {
-            // This function runs before every retry attempt
-            // Returning 5000 means it will wait 5 seconds every single time
-            return 5000;
-          }
+          nextRetryDelayInMilliseconds: retryContext =>
+            Math.min(1000 * Math.pow(2, retryContext.previousRetryCount), 60_000),
         })
         .build();
 
@@ -226,17 +225,26 @@ export class MessagingWebsocketService {
     });
 
     this.hubConnection.onreconnecting(() => {
-      this.notificationService.createNotification({
-        title: 'Reconnecting',
-        message: 'Attempting to reconnect...',
-        sound: NotificationSound.NewMessage,
-      })
+      if (!this.reconnectNotified) {
+        this.reconnectNotified = true;
+        this.notificationService.createNotification({
+          title: 'Reconnecting',
+          message: 'Attempting to reconnect...',
+          sound: NotificationSound.NewMessage,
+        }).catch(() => {});
+      }
       this.connectionState.set(ConnectionState.Connecting);
-    })
+    });
 
     this.hubConnection.onreconnected(() => {
+      this.reconnectNotified = false;
       this.connectionState.set(ConnectionState.Connected);
-    })
+    });
+
+    this.hubConnection.onclose(() => {
+      this.reconnectNotified = false;
+      this.connectionState.set(ConnectionState.Disconnected);
+    });
   }
 
   private async handleMessageCreated(data: MessageCreatedPayload): Promise<void> {
