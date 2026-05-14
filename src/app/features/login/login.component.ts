@@ -10,6 +10,7 @@ import {NgClass} from "@angular/common";
 import {UserSettingsService} from "../../services/user-settings.service";
 import {ToastService} from "../../services/toast.service";
 import { TranslateModule } from '@ngx-translate/core';
+import { EmailVerificationService } from '../../services/email-verification.service';
 
 
 interface LoginModel {
@@ -43,6 +44,7 @@ export class Login {
   protected router = inject(Router);
   private userSettings = inject(UserSettingsService);
   private toast = inject(ToastService);
+  private emailVerification = inject(EmailVerificationService);
 
   protected loginModel = signal<LoginModel>({email: '', password: ''});
   protected registerModel = signal<RegisterModel>({username: '', email: '', password: '', confirmPassword: '', birthdate: ''});
@@ -73,6 +75,12 @@ export class Login {
           this.router.navigate(['/overview']);
         }),
         catchError((err) => {
+          const status = err?.status ?? err?.reason?.status;
+          if (status === 403) {
+            const { email, password } = this.loginModel();
+            this.emailVerification.show(email, 'none', { email, password });
+            return EMPTY;
+          }
           this.toast.httpError('Sign in failed', err, { detail: 'Invalid username or password.' });
           return EMPTY;
         })

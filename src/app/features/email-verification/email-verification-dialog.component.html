@@ -1,0 +1,70 @@
+<p-dialog
+  [visible]="verificationService.visible()"
+  (visibleChange)="$event === false && verificationService.dismiss()"
+  (onShow)="onShow()"
+  [modal]="true"
+  [closable]="true"
+  [dismissableMask]="false"
+  appendTo="body"
+  [style]="{ width: '440px' }"
+  [breakpoints]="{ '640px': '95vw' }"
+  [draggable]="false"
+  [resizable]="false">
+
+  <ng-template pTemplate="header">
+    <div class="flex items-center gap-3">
+      <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+           style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)">
+        <i class="pi pi-envelope text-sm" style="color: var(--color-brand-dim)"></i>
+      </div>
+      <span class="text-base font-semibold" style="color: var(--color-text-primary)">Verify Your Email</span>
+    </div>
+  </ng-template>
+
+  <div class="flex flex-col gap-5 pt-1">
+
+    <div class="flex flex-col gap-1.5">
+      <p class="text-sm m-0" style="color: var(--color-text-secondary)">
+        We sent a 6-digit verification code to:
+      </p>
+      <div class="px-3 py-2 rounded-lg border text-sm font-medium"
+           style="background: rgba(255,255,255,0.03); border-color: var(--color-border-default); color: var(--color-text-primary)">
+        {{ email() }}
+      </div>
+      <p class="text-xs m-0" style="color: var(--color-text-muted)">
+        Check your inbox and enter the code below. It expires in 5 minutes.
+      </p>
+    </div>
+
+    <div class="flex flex-col items-center gap-3">
+      <p-inputotp
+        [ngModel]="code()"
+        (ngModelChange)="code.set($event)"
+        [length]="6"
+        [integerOnly]="false"
+        styleClass="gap-2" />
+    </div>
+
+  </div>
+
+  <ng-template pTemplate="footer">
+    <div class="flex items-center justify-between gap-2 w-full">
+      <p-button
+        [label]="resendCooldown() > 0 ? 'Resend in ' + resendCooldown() + 's' : 'Resend Code'"
+        severity="secondary"
+        [text]="true"
+        size="small"
+        [loading]="resendLoading()"
+        [disabled]="resendCooldown() > 0 || resendLoading()"
+        (onClick)="resend()" />
+      <p-button
+        label="Verify"
+        severity="primary"
+        size="small"
+        [loading]="loading()"
+        [disabled]="code().length < 6 || loading()"
+        (onClick)="verify()" />
+    </div>
+  </ng-template>
+
+</p-dialog>

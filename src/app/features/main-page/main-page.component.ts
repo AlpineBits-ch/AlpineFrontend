@@ -38,6 +38,7 @@ import {ConversationService} from "../../services/conversation.service";
 import {RichPresenceService} from "../../services/rich-presence.service";
 import {WikiComponent} from '../guild/components/wiki/wiki.component';
 import {WikiPanelComponent} from '../guild/components/wiki/wiki-panel/wiki-panel.component';
+import { EmailVerificationService } from '../../services/email-verification.service';
 
 @Component({
   selector: 'app-main-page',
@@ -81,6 +82,7 @@ export class MainPageComponent implements OnDestroy {
   private conversationService = inject(ConversationService);
 
   private richPresenceService = inject(RichPresenceService);
+  private emailVerification = inject(EmailVerificationService);
   protected router = inject(Router);
   protected showDeviceRegistration = signal(false);
   protected showKeySetup = signal(false);
@@ -102,15 +104,25 @@ export class MainPageComponent implements OnDestroy {
     this.userTokenService.ensureTokenRegistered().then();
     void this.initLaunchSequence();
 
-    this.conversationService.getMlsTokensForUserIds(['user_3CtBCfZ94J4djLAaUnEj4bxQcGL']).subscribe(t => {
-      console.log('MLS tokens:', t);
-    })
-
     this.oAuthService.setupAutomaticSilentRefresh();
     this.oAuthService.events.subscribe(e => {
       if (e.type === 'token_expires') {
         console.log('Token expiring, performing refresh token flow...');
-        this.oAuthService.refreshToken().then(r => console.log('Token refreshed successfully!'));
+        this.oAuthService.refreshToken()
+          .then(() => console.log('Token refreshed successfully!'))
+          .catch((err: unknown) => {
+            const status = (err as any)?.status ?? (err as any)?.reason?.status;
+            if (status === 403) {
+              this.emailVerification.show(this.resolveEmail(), 'navigate-login');
+            }
+          });
+      }
+      if (e.type === 'token_refresh_error' || e.type === 'silent_refresh_error') {
+        const reason = (e as any)?.reason;
+        const status = reason?.status ?? reason?.error?.status;
+        if (status === 403) {
+          this.emailVerification.show(this.resolveEmail(), 'navigate-login');
+        }
       }
     });
 
@@ -197,10 +209,29 @@ export class MainPageComponent implements OnDestroy {
   private checkMasterKey(): void {
     this.userService.getSelf().subscribe({
       next: user => {
+        if (user.email) this.emailVerification.storeKnownEmail(user.email);
+        if (!user.emailVerifiedAt) {
+          this.emailVerification.show(user.email || this.resolveEmail());
+          return;
+        }
         if (!user.encryptedMasterKey) this.showKeySetup.set(true);
       },
-      error: err => console.error('Failed to fetch user:', err),
+      error: err => {
+        const status = (err as any)?.status;
+        if (status === 403) {
+          this.emailVerification.show(this.resolveEmail(), 'navigate-login');
+        } else {
+          console.error('Failed to fetch user:', err);
+        }
+      },
     });
+  }
+
+  private resolveEmail(): string {
+    const known = this.emailVerification.knownEmail();
+    if (known) return known;
+    const claims = this.oAuthService.getIdentityClaims() as Record<string, unknown> | null;
+    return (claims?.['email'] ?? claims?.['sub'] ?? '') as string;
   }
 
   ngOnDestroy(): void {

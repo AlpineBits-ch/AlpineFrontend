@@ -8,10 +8,11 @@ import {UpdateDialogComponent} from "./features/update-dialog/update-dialog.comp
 import {UpdateService} from "./services/update.service";
 import {Toast} from "primeng/toast";
 import { ScreenPickerComponent } from './features/screen-picker/screen-picker.component';
+import { EmailVerificationDialogComponent } from './features/email-verification/email-verification-dialog.component';
 
 @Component({
   selector: "app-root",
-  imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, UpdateDialogComponent, Toast, ScreenPickerComponent],
+  imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent],
   templateUrl: "./app.component.html",
   styleUrl: "./app.component.css",
 })
