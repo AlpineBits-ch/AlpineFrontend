@@ -6,7 +6,7 @@
     "linux"
   ],
   "windows": [
-    "echo"
+    "echo", "login"
   ],
   "permissions": [
     "autostart:default",
@@ -14,6 +14,8 @@
     "autostart:allow-disable",
     "autostart:allow-is-enabled",
     "window-state:default",
-    "os:default"
+    "os:default",
+    "notifications:default",
+    "secure-storage:default"
   ]
 }

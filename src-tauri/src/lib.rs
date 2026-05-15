@@ -36,6 +36,89 @@ mod win32 {
         pub fn ShowWindow(hwnd: *mut core::ffi::c_void, n_cmd_show: i32) -> i32;
     }
 
+    pub const WM_GETMINMAXINFO: u32 = 0x0024;
+    pub const MONITOR_DEFAULTTONEAREST: u32 = 0x00000002;
+
+    #[repr(C)]
+    pub struct POINT { pub x: i32, pub y: i32 }
+    #[repr(C)]
+    pub struct RECT { pub left: i32, pub top: i32, pub right: i32, pub bottom: i32 }
+    #[repr(C)]
+    pub struct MINMAXINFO {
+        pub pt_reserved: POINT,
+        pub pt_max_size: POINT,
+        pub pt_max_position: POINT,
+        pub pt_min_track_size: POINT,
+        pub pt_max_track_size: POINT,
+    }
+    #[repr(C)]
+    pub struct MONITORINFO {
+        pub cb_size: u32,
+        pub rc_monitor: RECT,
+        pub rc_work: RECT,
+        pub dw_flags: u32,
+    }
+
+    #[link(name = "user32")]
+    extern "system" {
+        pub fn MonitorFromWindow(hwnd: *mut core::ffi::c_void, dw_flags: u32) -> *mut core::ffi::c_void;
+        pub fn GetMonitorInfoW(h_monitor: *mut core::ffi::c_void, lp_mi: *mut MONITORINFO) -> i32;
+    }
+
+    #[link(name = "comctl32")]
+    extern "system" {
+        pub fn SetWindowSubclass(
+            hwnd: *mut core::ffi::c_void,
+            pfn_subclass: unsafe extern "system" fn(*mut core::ffi::c_void, u32, usize, isize, usize, usize) -> isize,
+            uid_subclass: usize,
+            dw_ref_data: usize,
+        ) -> i32;
+        pub fn DefSubclassProc(
+            hwnd: *mut core::ffi::c_void,
+            u_msg: u32,
+            w_param: usize,
+            l_param: isize,
+        ) -> isize;
+    }
+
+    /// Subclass proc that constrains maximized size to the monitor's work area,
+    /// preventing undecorated windows from covering the taskbar.
+    pub unsafe extern "system" fn maximize_subclass_proc(
+        hwnd: *mut core::ffi::c_void,
+        msg: u32,
+        wparam: usize,
+        lparam: isize,
+        _subclass_id: usize,
+        _ref_data: usize,
+    ) -> isize {
+        // Let the rest of the chain (winit's handler) run first so min-size
+        // constraints and other state are set correctly.
+        let result = DefSubclassProc(hwnd, msg, wparam, lparam);
+        if msg == WM_GETMINMAXINFO {
+            let mmi = lparam as *mut MINMAXINFO;
+            let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            if !monitor.is_null() {
+                let mut info = MONITORINFO {
+                    cb_size: core::mem::size_of::<MONITORINFO>() as u32,
+                    rc_monitor: RECT { left: 0, top: 0, right: 0, bottom: 0 },
+                    rc_work: RECT { left: 0, top: 0, right: 0, bottom: 0 },
+                    dw_flags: 0,
+                };
+                if GetMonitorInfoW(monitor, &mut info) != 0 {
+                    let w = info.rc_work;
+                    // Only constrain the maximized SIZE to the work area so the
+                    // window doesn't cover the taskbar.  ptMaxPosition is left
+                    // at the default — Windows places the window correctly on
+                    // any monitor, and overriding it breaks multi-monitor
+                    // maximize by sending the window to the wrong position.
+                    (*mmi).pt_max_size.x = w.right - w.left;
+                    (*mmi).pt_max_size.y = w.bottom - w.top;
+                }
+            }
+        }
+        result
+    }
+
     /// Adds WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW to a window's extended style.
     ///
     /// Safety: hwnd must be a valid Win32 window handle for the lifetime of the call.
@@ -97,6 +180,25 @@ fn setup_toast_window(label: String, app: tauri::AppHandle) -> Result<(), String
         }
     }
 
+    Ok(())
+}
+
+#[tauri::command]
+fn apply_maximize_fix(label: String, app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::Manager;
+    let win = app
+        .get_webview_window(&label)
+        .ok_or_else(|| format!("window '{}' not found", label))?;
+
+    #[cfg(target_os = "windows")]
+    {
+        use win32::*;
+        let hwnd = win.hwnd().map_err(|e| e.to_string())?.0;
+        // Safety: hwnd comes from a live Tauri window handle.
+        unsafe {
+            SetWindowSubclass(hwnd, maximize_subclass_proc, 1, 0);
+        }
+    }
     Ok(())
 }
 
@@ -199,6 +301,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             get_memory_usage,
             show_noactivate,
             setup_toast_window,
+            apply_maximize_fix,
             prepare_notification,
             send_windows_toast,
             prepare_notification_icon,
@@ -251,6 +354,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             get_memory_usage,
             show_noactivate,
             setup_toast_window,
+            apply_maximize_fix,
             prepare_notification,
             crypto::crypto::generate_key,
             crypto::crypto::generate_key_pairs,

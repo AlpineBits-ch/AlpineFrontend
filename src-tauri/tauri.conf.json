@@ -6,17 +6,21 @@
     },
     "windows": [
       {
-        "label": "login",
-        "height": 540,
-        "title": "alpine",
-        "width": 460,
+        "label": "echo",
+        "height": 800,
+        "title": "Echo",
+        "width": 1200,
+        "minWidth": 900,
+        "minHeight": 600,
         "decorations": false,
-        "focus": false,
+        "shadow": false,
         "dragDropEnabled": false,
         "visible": false,
-        "resizable": false,
-        "maximizable": false,
-        "center": true
+        "resizable": true,
+        "maximizable": true,
+        "minimizable": true,
+        "center": true,
+        "transparent": true
       }
     ]
   },
@@ -53,7 +57,7 @@
   },
   "identifier": "com.alpinebits.echo",
   "productName": "Echo",
-  "version": "3.0.83",
+  "version": "3.0.84",
   "plugins": {
     "updater": {
       "windows": {

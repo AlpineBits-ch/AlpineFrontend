@@ -16,12 +16,16 @@ bootstrapApplication(AppComponent, appConfig)
     try {
       const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
       const win = getCurrentWebviewWindow();
+      const { invoke } = await import('@tauri-apps/api/core');
+      try {
+        await invoke('apply_maximize_fix', { label: 'echo' });
+        const isMax = await win.isMaximized();
+        if (isMax) {
+          await win.unmaximize();
+          await win.maximize();
+        }
+      } catch {}
       await win.show();
-      // When the main app window finishes bootstrapping, signal the login window to close
-      if (win.label === 'echo') {
-        const { emit } = await import('@tauri-apps/api/event');
-        await emit('main-window-ready');
-      }
     } catch {
       // Running in a browser (non-Tauri) — no-op
     }

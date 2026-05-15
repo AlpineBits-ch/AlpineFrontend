@@ -94,44 +94,19 @@ export class MainPageComponent implements OnDestroy {
   private actionSub = new Subscription();
 
   public logout(): void {
-    void this.goToLogin();
+    this.goToLogin();
   }
 
   @HostListener('document:keydown', ['$event'])
   onKeydown(event: KeyboardEvent): void {
     if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === 'l') {
-      void this.goToLogin();
+      this.goToLogin();
     }
   }
 
-  private async goToLogin(): Promise<void> {
-    if (!('__TAURI_INTERNALS__' in window)) {
-      this.authService.logout();
-      this.router.navigate(['/authentication']);
-      return;
-    }
-    try {
-      const { getCurrentWebviewWindow, WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
-      const currentWin = getCurrentWebviewWindow();
-      this.authService.logout();
-      new WebviewWindow('login', {
-        title: 'Echo',
-        width: 460,
-        height: 540,
-        decorations: false,
-        visible: false,
-        center: true,
-        resizable: false,
-        maximizable: false,
-      });
-      // Give the login window time to bootstrap before closing this one
-      setTimeout(async () => {
-        try { await currentWin.close(); } catch {}
-      }, 1200);
-    } catch {
-      this.authService.logout();
-      this.router.navigate(['/authentication']);
-    }
+  private goToLogin(): void {
+    this.authService.logout();
+    void this.router.navigate(['/authentication']);
   }
 
   constructor() {
