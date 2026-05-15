@@ -39,7 +39,7 @@ export class GuildReadStateService {
 
     this.guildService.getOwnMember(guildId).subscribe({
       next: member => {
-        const filtered = member.readState.filter(rs => rs.memberId === member.id);
+        const filtered = (member.readState ?? []).filter(rs => rs.memberId === member.id);
         this._channelStates.update(states => {
           const next = {...states};
           for (const rs of filtered) {

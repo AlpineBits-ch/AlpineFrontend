@@ -1,4 +1,4 @@
-import { Component, computed, DestroyRef, inject, OnInit, signal, ViewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, inject, OnInit, signal, ViewChild } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { switchMap } from 'rxjs';
 import { ServerData, ServerIconComponent } from '../server-icon/server-icon.component';
@@ -21,6 +21,7 @@ import { ProfileService } from '../../../../services/profile.service';
   imports: [ServerIconComponent, CreateGuildModalComponent, NgClass, ContextMenu, GuildSettingsModalComponent],
   templateUrl: './server-taskbar.component.html',
   styleUrl: './server-taskbar.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class ServerTaskbarComponent implements OnInit {
   protected navService = inject(NavigationService);
@@ -36,6 +37,7 @@ export class ServerTaskbarComponent implements OnInit {
   protected showCreateModal = signal(false);
   protected contextGuild = signal<GuildDto | null>(null);
   protected showGuildSettings = signal(false);
+  protected hoveredServerId = signal<string | null>(null);
 
   protected isDMsActive = computed(() => this.navService.workspace().type === 'dms');
 
@@ -70,11 +72,26 @@ export class ServerTaskbarComponent implements OnInit {
         icon: `${environment.apiUrl}/api/v1/guild/guilds/${g.id}/icon/thumbnail`,
         isHome: false,
         isActive: workspace.type === 'server' && workspace.guild.id === g.id,
-        hasUnread: g.channels.some(c => readStates[c.id]?.isUnread ?? false),
+        hasUnread: g.channels.some(c => {
+          const s = readStates[c.id];
+          return (s?.isUnread ?? false) && (s?.mentionCount ?? 0) === 0;
+        }),
         badge: totalMentions > 0 ? totalMentions : undefined,
       };
     });
   });
+
+  protected getPillHeight(server: ServerData): string {
+    if (server.isActive) return '36px';
+    const hovered = this.hoveredServerId() === server.id;
+    if (hovered) return server.hasUnread ? '20px' : '16px';
+    if (server.hasUnread) return '8px';
+    return '0px';
+  }
+
+  protected isPillVisible(server: ServerData): boolean {
+    return !!(server.isActive || server.hasUnread || this.hoveredServerId() === server.id);
+  }
 
   protected onGuildCreated(guild: GuildDto): void {
     this.guilds.update(gs => [...gs, guild]);

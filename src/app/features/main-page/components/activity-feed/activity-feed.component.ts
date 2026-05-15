@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
-import { Avatar } from 'primeng/avatar';
+import { AppAvatarComponent } from '../../../../components/avatar/avatar.component';
 import { ProfileService } from '../../../../services/profile.service';
+import { ProfileDialogService } from '../../../../services/profile-dialog.service';
 import { RelationshipService } from '../../../../services/relationship.service';
 import { RelationshipModel, RelationshipStatus } from '../../../friendship/components/friendship-modal/dto/relationship.model';
 import { OnlineStatus } from '../../../../dtos/response/profile.dto';
@@ -15,12 +16,13 @@ export interface ActivityStatus {
 
 @Component({
   selector: 'app-activity-feed',
-  imports: [Avatar, TranslateModule],
+  imports: [AppAvatarComponent, TranslateModule],
   templateUrl: './activity-feed.component.html',
   styleUrl: './activity-feed.component.css',
 })
 export class ActivityFeedComponent {
   protected profileService = inject(ProfileService);
+  protected profileDialogSvc = inject(ProfileDialogService);
   private relationshipService = inject(RelationshipService);
 
   protected relationships = signal<RelationshipModel[]>([]);

@@ -42,9 +42,11 @@ import { CallPanelComponent } from './call-panel/call-panel.component';
 import { UserStatusDotComponent } from '../../../../components/user-status-dot/user-status-dot.component';
 import { TypingDotsComponent } from '../../../../components/typing-dots/typing-dots.component';
 import { HighlightPipe } from '../../../../pipes/highlight.pipe';
+import { AppAvatarComponent } from '../../../../components/avatar/avatar.component';
 
 import { ConversationSearchService } from './conversation-search.service';
 import { ConversationScrollService } from './conversation-scroll.service';
+import { ProfileDialogService } from '../../../../services/profile-dialog.service';
 import { decodeContent, fileIcon } from './message-utils';
 import {toBase64} from "../../../../helpers/base64.helper";
 import { TranslateModule } from '@ngx-translate/core';
@@ -56,7 +58,7 @@ import { TranslateModule } from '@ngx-translate/core';
     ComposerComponent, MessageComponent, Avatar, Button,
     CallPanelComponent, NgClass, DatePipe,
     UserStatusDotComponent, TypingDotsComponent, HighlightPipe,
-    TranslateModule,
+    TranslateModule, AppAvatarComponent,
   ],
   templateUrl: './conversation.component.html',
   styleUrl: './conversation.component.css',
@@ -77,6 +79,7 @@ export class ConversationComponent implements AfterViewInit {
 
   protected search = inject(ConversationSearchService);
   protected scroll = inject(ConversationScrollService);
+  protected profileDialogSvc = inject(ProfileDialogService);
 
   protected readonly OnlineStatus = OnlineStatus;
   protected readonly ConversationEncryption = ConversationEncryption;

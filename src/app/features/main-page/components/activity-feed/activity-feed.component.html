@@ -30,9 +30,10 @@
 
     <!-- Online friends -->
     @for (friend of onlineFriends(); track friend.id) {
-      <div class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer">
+      <div class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer"
+           (click)="profileDialogSvc.open(friendUserId(friend))">
         <div class="relative shrink-0">
-          <p-avatar icon="pi pi-user" shape="circle" size="normal" />
+          <app-avatar [userId]="friendUserId(friend)" size="normal" />
           <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-online border-2 border-sidebar"></span>
         </div>
         <div class="flex-1 min-w-0">
@@ -57,9 +58,10 @@
       </div>
 
       @for (friend of offlineFriends(); track friend.id) {
-        <div class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer opacity-40">
+        <div class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer opacity-40"
+             (click)="profileDialogSvc.open(friendUserId(friend))">
           <div class="relative shrink-0">
-            <p-avatar icon="pi pi-user" shape="circle" size="normal" />
+            <app-avatar [userId]="friendUserId(friend)" size="normal" />
             <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-white/20 border-2 border-sidebar"></span>
           </div>
           <div class="flex-1 min-w-0">
@@ -75,7 +77,7 @@
   <!-- Bottom user card -->
   <div class="p-3 shrink-0">
     <div class="bg-gradient-to-br from-indigo-500/15 to-violet-500/10 border border-white/[0.07] rounded-2xl p-3 flex flex-col items-center gap-2">
-      <p-avatar icon="pi pi-user" shape="circle" size="large" />
+      <app-avatar [userId]="profileService.ownProfile()?.userId" size="large" />
       <div class="text-center">
         <p class="text-sm font-semibold text-white/85">{{ profileService.ownProfile()?.userName ?? '…' }}</p>
         <p class="text-[11px] text-white/30">#{{ profileService.ownProfile()?.hash }}</p>

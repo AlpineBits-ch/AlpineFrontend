@@ -13,6 +13,7 @@ import {OnlineStatus} from "../../../../dtos/response/profile.dto";
 import {ProfileDialogService} from "../../../../services/profile-dialog.service";
 import {NavigationService} from "../../navigation.service";
 import {MessagingWebsocketService} from "../../../../services/messaging-websocket.service";
+import {ConversationStore} from "../../../../stores/conversation.store";
 import { TranslateModule } from '@ngx-translate/core';
 
 type FriendsTab = 'online' | 'all' | 'pending' | 'blocked';
@@ -36,6 +37,7 @@ export class HomeComponent {
   public friendInput = '';
 
   public conversationService = inject(ConversationService);
+  private conversationStore = inject(ConversationStore);
   public relationships = signal<RelationshipModel[]>([]);
 
   public incoming     = computed(() => this.relationships().filter(r => r.status === RelationshipStatus.PendingIncoming));
@@ -100,15 +102,26 @@ export class HomeComponent {
     console.log('Unblock user relationship:', id);
   }
 
-  public createConversation(id: string): void {
+  public openOrCreateDm(targetUserId: string): void {
+    const ownId = this.profileService.ownProfile()?.userId;
+    const existing = this.conversationStore.entities().find(c =>
+      c.members.length === 2 &&
+      c.members.some(m => m.userId === ownId) &&
+      c.members.some(m => m.userId === targetUserId)
+    );
+    if (existing) {
+      this.navService.openConversation(existing);
+      return;
+    }
     this.conversationService.createConversation({
-      members: [{
-        userId: id
-      }],
+      members: [{ userId: targetUserId }],
       name: undefined,
       encryption: ConversationEncryption.Plain,
       deviceWelcomes: [],
-    }).subscribe(() => this.load());
+    }).subscribe(conv => {
+      this.conversationStore.addConversation(conv);
+      this.navService.openConversation(conv);
+    });
   }
 
   protected readonly RelationshipStatus = RelationshipStatus;

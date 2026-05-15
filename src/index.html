@@ -2,13 +2,65 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Tauri + Angular</title>
+    <title>Echo</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#06090f" />
-
+    <style>
+      #app-loading {
+        position: fixed;
+        inset: 0;
+        background: #06090f;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 99999;
+        transition: opacity 0.45s ease;
+        pointer-events: none;
+      }
+      .ld-ring {
+        width: 44px;
+        height: 44px;
+        border-radius: 50%;
+        border: 2.5px solid rgba(124, 114, 255, 0.18);
+        border-top-color: #7c72ff;
+        border-right-color: rgba(124, 114, 255, 0.55);
+        animation: ld-spin 0.85s linear infinite;
+      }
+      @keyframes ld-spin {
+        to { transform: rotate(360deg); }
+      }
+      .ld-dots {
+        display: flex;
+        gap: 6px;
+        margin-top: 20px;
+      }
+      .ld-dot {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.22);
+        animation: ld-pulse 1.4s ease-in-out infinite;
+      }
+      .ld-dot:nth-child(2) { animation-delay: 0.2s; }
+      .ld-dot:nth-child(3) { animation-delay: 0.4s; }
+      @keyframes ld-pulse {
+        0%, 60%, 100% { opacity: 0.22; transform: scale(1); }
+        30% { opacity: 0.75; transform: scale(1.25); }
+      }
+    </style>
   </head>
   <body class="dark h-dvh">
+
+    <div id="app-loading">
+      <div class="ld-ring"></div>
+      <div class="ld-dots">
+        <div class="ld-dot"></div>
+        <div class="ld-dot"></div>
+        <div class="ld-dot"></div>
+      </div>
+    </div>
 
     <app-root></app-root>
   </body>

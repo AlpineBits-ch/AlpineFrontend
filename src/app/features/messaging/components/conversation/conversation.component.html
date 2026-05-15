@@ -6,9 +6,11 @@
     <p-button icon="pi pi-arrow-left" [text]="true" severity="secondary" size="small"
       class="lg:hidden" styleClass="mr-1" (onClick)="back.emit()" />
 
-    <div class="flex items-center gap-2 sm:gap-3">
+    <div class="flex items-center gap-2 sm:gap-3"
+         [class.cursor-pointer]="convUtils.getPartnerMember(conversation())"
+         (click)="convUtils.getPartnerMember(conversation())?.userId && profileDialogSvc.open(convUtils.getPartnerMember(conversation())!.userId)">
       <div class="relative">
-        <p-avatar [label]="chatAvatarLabel()" shape="circle" size="normal"></p-avatar>
+        <app-avatar [userId]="convUtils.getPartnerMember(conversation())?.userId" [label]="chatAvatarLabel()" size="normal" />
         <app-user-status-dot [status]="partnerStatus()" size="md" borderColor="border-app-bg" />
       </div>
       <div class="flex flex-col">
@@ -223,7 +225,7 @@
         } @else if (!hasMore()) {
           <!-- Conversation start — only show when all history is loaded -->
           <div class="py-8 flex flex-col items-start gap-2">
-            <p-avatar [label]="chatAvatarLabel()" shape="circle" styleClass="!w-16 !h-16 !text-2xl"></p-avatar>
+            <app-avatar [userId]="convUtils.getPartnerMember(conversation())?.userId" [label]="chatAvatarLabel()" styleClass="!w-16 !h-16 !text-2xl" />
             <h2 class="text-2xl font-bold text-white/90 mt-3">{{ chatTitle() }}</h2>
             <p class="text-sm text-white/40 max-w-md leading-relaxed">
               This is the beginning of your direct message history with <span class="text-white/65">{{ chatTitle() }}</span>.

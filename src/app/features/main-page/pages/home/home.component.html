@@ -99,7 +99,7 @@
           </p>
           @for (rel of list; track rel.id) {
             <div class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all group cursor-pointer"
-                 (click)="profileDialogSvc.open(rel.target.userId)">
+                 (click)="openOrCreateDm(rel.target.userId)">
               <div class="relative shrink-0">
                 <app-avatar [userId]="rel.target.userId" [label]="rel.target.userName[0].toUpperCase()" size="normal" />
                 <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-app-bg"
@@ -113,9 +113,6 @@
               </div>
               <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
                    (click)="$event.stopPropagation()">
-                <button class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.06] border-0 bg-transparent cursor-pointer transition-all" (click)="createConversation(rel.target.userId)" title="Message">
-                  <i class="pi pi-comment text-xs" style="color: rgba(255,255,255,0.55)"></i>
-                </button>
                 <button (click)="block(rel.id)" class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.06] border-0 bg-transparent cursor-pointer transition-all" [title]="'HOME.BLOCK' | translate">
                   <i class="pi pi-ban text-xs" style="color: rgba(255,255,255,0.55)"></i>
                 </button>

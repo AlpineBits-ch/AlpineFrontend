@@ -57,22 +57,32 @@ export class Login {
     this.authService.isLoggedIn().then(r => {
       if(r){
         this.router.navigate(['/overview']);
-
       }
-
     });
-
   }
 
+  protected switchToMode(loginMode: boolean): void {
+    this.isLoginMode.set(loginMode);
+    void this.resizeForMode(loginMode);
+  }
+
+  private async resizeForMode(isLogin: boolean): Promise<void> {
+    try {
+      if (!('__TAURI_INTERNALS__' in window)) return;
+      const { getCurrentWebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+      const { LogicalSize } = await import('@tauri-apps/api/dpi');
+      await getCurrentWebviewWindow().setSize(new LogicalSize(460, isLogin ? 540 : 700));
+    } catch {}
+  }
 
   protected login(): void {
     this.authService.login(
         this.loginModel().email,
         this.loginModel().password
     ).pipe(
-        tap(() => {
+        tap(async () => {
           this.userSettings.load();
-          this.router.navigate(['/overview']);
+          await this.openMainApp();
         }),
         catchError((err) => {
           const status = err?.status ?? err?.reason?.status;
@@ -85,6 +95,52 @@ export class Login {
           return EMPTY;
         })
     ).subscribe();
+  }
+
+  private async openMainApp(): Promise<void> {
+    if (!('__TAURI_INTERNALS__' in window)) {
+      this.router.navigate(['/overview']);
+      return;
+    }
+    try {
+      const { getCurrentWebviewWindow, WebviewWindow } = await import('@tauri-apps/api/webviewWindow');
+      const loginWin = getCurrentWebviewWindow();
+
+      // If we're somehow running in the main window already, just navigate
+      if (loginWin.label !== 'login') {
+        this.router.navigate(['/overview']);
+        return;
+      }
+
+      // Create the full-size main app window (main.ts will show it after Angular bootstraps)
+      new WebviewWindow('echo', {
+        title: 'Echo',
+        width: 1200,
+        height: 800,
+        minWidth: 900,
+        minHeight: 600,
+        decorations: false,
+        shadow: true,
+        visible: false,
+        center: true,
+        resizable: true,
+        maximizable: true,
+        minimizable: true,
+      });
+
+      // Close login window once the main window signals it's ready
+      const { once } = await import('@tauri-apps/api/event');
+      await once('main-window-ready', async () => {
+        try { await loginWin.close(); } catch {}
+      });
+
+      // Safety net: close after 10s regardless
+      setTimeout(async () => {
+        try { await loginWin.close(); } catch {}
+      }, 10000);
+    } catch {
+      this.router.navigate(['/overview']);
+    }
   }
 
   private parseBirthdate(dateStr: string): Date {
@@ -107,7 +163,7 @@ export class Login {
     ).pipe(
         tap(() => {
           this.toast.success('Account created!', { detail: 'Welcome to Alpine. You can now sign in.' });
-          this.isLoginMode.set(true);
+          this.switchToMode(true);
         }),
         catchError((err) => {
           this.toast.httpError('Registration failed', err, { detail: 'Please check your details and try again.' });

@@ -2,10 +2,10 @@
 
   <!-- Home / DMs button -->
   <button (click)="navService.selectDMs()"
-    class="w-11 h-11 flex items-center justify-center font-black text-base transition-all cursor-pointer border-0 shrink-0"
+    class="w-11 h-11 flex items-center justify-center font-black text-base transition-colors cursor-pointer border-0 shrink-0 rounded-2xl"
     [ngClass]="isDMsActive()
-      ? 'rounded-2xl bg-indigo-500/20 text-indigo-400'
-      : 'rounded-full bg-white/[0.07] text-white/60 hover:rounded-2xl hover:bg-indigo-500/20 hover:text-indigo-400'">
+      ? 'bg-indigo-500/20 text-indigo-400'
+      : 'bg-white/[0.07] text-white/60 hover:bg-indigo-500/20 hover:text-indigo-400'">
     A
   </button>
 
@@ -13,21 +13,31 @@
   <div class="w-8 h-px bg-white/10 shrink-0"></div>
 
   <!-- Scrollable server icons -->
-  <div class="flex-1 min-h-0 overflow-y-auto w-full flex flex-col items-center gap-2 py-1"
+  <div class="flex-1 min-h-0 overflow-y-auto w-full flex flex-col items-center py-1"
        style="scrollbar-width: none;">
     @for (server of serverIcons(); track server.id) {
-      <app-server-icon
-        [serverData]="server"
-        (click)="navService.selectServer(guilds()[$index])"
-        (contextmenu)="onServerContextMenu($event, guilds()[$index])">
-      </app-server-icon>
+      <div class="relative w-full flex justify-center items-center py-1"
+           (mouseenter)="hoveredServerId.set(server.id)"
+           (mouseleave)="hoveredServerId.set(null)">
+        <!-- Left pill indicator -->
+        <span
+          class="absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-white transition-[height,opacity] duration-200 ease-out pointer-events-none"
+          [style.height]="getPillHeight(server)"
+          [style.opacity]="isPillVisible(server) ? '1' : '0'">
+        </span>
+        <app-server-icon
+          [serverData]="server"
+          (click)="navService.selectServer(guilds()[$index])"
+          (contextmenu)="onServerContextMenu($event, guilds()[$index])">
+        </app-server-icon>
+      </div>
     }
   </div>
 
   <!-- Add server button -->
   <button
     (click)="showCreateModal.set(true)"
-    class="w-11 h-11 rounded-full hover:rounded-2xl border border-dashed border-white/20 text-white/30 hover:text-indigo-400 hover:border-indigo-400 hover:bg-indigo-500/10 flex items-center justify-center transition-all text-xl leading-none cursor-pointer bg-transparent shrink-0">
+    class="w-11 h-11 rounded-2xl border border-dashed border-white/20 text-white/30 hover:text-indigo-400 hover:border-indigo-400 hover:bg-indigo-500/10 flex items-center justify-center transition-colors text-xl leading-none cursor-pointer bg-transparent shrink-0">
     +
   </button>
 

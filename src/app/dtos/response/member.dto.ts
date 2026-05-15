@@ -16,12 +16,7 @@ export interface SelfGuildMemberDto extends GuildMemberDto {
     roleMembers: {role: RoleDto}[]
 }
 
-export enum MemberType {
-    Default = 'Default',
-    Moderator = 'Moderator',
-    Admin = 'Admin',
-    Owner = 'Owner',
-}
+
 
 export interface RoleMemberDto {
     id: string;
