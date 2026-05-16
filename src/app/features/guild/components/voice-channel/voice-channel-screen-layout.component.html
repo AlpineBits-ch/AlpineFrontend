@@ -1,43 +1,52 @@
 <div class="flex-1 min-h-0 flex flex-col gap-3 p-4 overflow-hidden">
 
   <!-- Stream tiles -->
-  <div class="flex-1 min-h-0 grid gap-3"
-       [ngClass]="screenSharers().length > 1 ? 'grid-cols-2' : 'grid-cols-1'">
-    @for (sharer of screenSharers(); track sharer.userId) {
+  <div class="flex-1 min-h-0 grid gap-3" [ngClass]="gridClass()">
+    @for (sharer of displayedSharers(); track sharer.userId) {
       <div class="relative bg-black/80 rounded-xl overflow-hidden border border-white/[0.12] flex items-center justify-center min-h-0">
 
-        @if (sharer.isLocal && voiceSvc.localState().isScreenSharing) {
-          @if (voiceSvc.localScreenStream(); as stream) {
+        <!-- Zoomable content wrapper -->
+        <div class="w-full h-full flex items-center justify-center"
+             [style.transform]="'scale(' + getZoom(sharer.userId) + ')'"
+             style="transition: transform 0.15s ease; transform-origin: center center">
+          @if (sharer.isLocal && voiceSvc.localState().isScreenSharing) {
+            @if (voiceSvc.localScreenStream(); as stream) {
+              <video [streamSrc]="stream" autoplay playsinline muted
+                     class="w-full h-full object-contain"></video>
+            } @else {
+              <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
+                <i class="pi pi-desktop text-5xl"></i>
+                <span>Your screen</span>
+              </div>
+            }
+          } @else if (voiceSvc.getScreenStream(sharer.userId); as stream) {
             <video [streamSrc]="stream" autoplay playsinline muted
                    class="w-full h-full object-contain"></video>
           } @else {
             <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
               <i class="pi pi-desktop text-5xl"></i>
-              <span>Your screen</span>
+              <span>{{ sharer.displayName }}'s screen</span>
             </div>
           }
-        } @else if (voiceSvc.getScreenStream(sharer.userId); as stream) {
-          <video [streamSrc]="stream" autoplay playsinline muted
-                 class="w-full h-full object-contain"></video>
-        } @else {
-          <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
-            <i class="pi pi-desktop text-5xl"></i>
-            <span>{{ sharer.displayName }}'s screen</span>
-          </div>
-        }
-
-        <!-- LIVE badge -->
-        <div class="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded tracking-wider z-10">
-          LIVE
         </div>
 
-        <!-- PiP button -->
-        <button
-          (click)="pipShare($event)"
-          class="absolute top-3 left-[3.5rem] w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0 z-10"
-          title="Picture in picture">
-          <i class="pi pi-external-link text-sm text-white/70"></i>
-        </button>
+        <!-- Top-left controls: LIVE + PiP + Maximize -->
+        <div class="absolute top-3 left-3 flex items-center gap-1.5 z-10">
+          <div class="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded tracking-wider">LIVE</div>
+          <button
+            (click)="pipShare($event)"
+            class="w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0"
+            title="Picture in picture">
+            <i class="pi pi-external-link text-sm text-white/70"></i>
+          </button>
+          <button
+            (click)="toggleMaximize(sharer.userId, $event)"
+            class="w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0"
+            [title]="maximizedId() === sharer.userId ? 'Restore' : 'Maximize'">
+            <i class="pi text-sm text-white/70"
+               [ngClass]="maximizedId() === sharer.userId ? 'pi-window-minimize' : 'pi-window-maximize'"></i>
+          </button>
+        </div>
 
         <!-- Audio toggle — local stream -->
         @if (sharer.isLocal && voiceSvc.localScreenHasAudio()) {
@@ -69,15 +78,36 @@
           <span class="text-sm text-white/80">{{ sharer.displayName }}</span>
         </div>
 
-        <!-- FPS overlay — local stream only -->
-        @if (sharer.isLocal) {
-          <div class="absolute bottom-3 right-3 flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded px-2 py-1 z-10 font-mono text-xs text-white/55 select-none">
-            <span class="text-white/35">↓</span>{{ rustMedia.inboundFps() }}
-            <span class="text-white/20 mx-0.5">·</span>
-            <span class="text-white/35">→</span>{{ rustMedia.renderedFps() }}
-            <span class="text-white/35 ml-0.5">fps</span>
+        <!-- Bottom-right: FPS (local only) + zoom controls -->
+        <div class="absolute bottom-3 right-3 flex items-center gap-1.5 z-10">
+          @if (sharer.isLocal) {
+            <div class="flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded px-2 py-1 font-mono text-xs text-white/55 select-none">
+              <span class="text-white/35">↓</span>{{ rustMedia.inboundFps() }}
+              <span class="text-white/20 mx-0.5">·</span>
+              <span class="text-white/35">→</span>{{ rustMedia.renderedFps() }}
+              <span class="text-white/35 ml-0.5">fps</span>
+            </div>
+          }
+          <div class="flex items-center gap-0.5 bg-black/50 backdrop-blur-sm rounded px-1.5 py-1">
+            <button
+              (click)="zoomOut(sharer.userId, $event)"
+              class="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 text-white/60 hover:text-white/80 transition-colors cursor-pointer border-0 bg-transparent disabled:opacity-30 disabled:cursor-default"
+              [disabled]="getZoom(sharer.userId) <= 1"
+              title="Zoom out">
+              <i class="pi pi-minus text-[9px]"></i>
+            </button>
+            <span class="font-mono text-[10px] text-white/50 min-w-[2.25rem] text-center select-none">
+              {{ (getZoom(sharer.userId) * 100).toFixed(0) }}%
+            </span>
+            <button
+              (click)="zoomIn(sharer.userId, $event)"
+              class="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 text-white/60 hover:text-white/80 transition-colors cursor-pointer border-0 bg-transparent disabled:opacity-30 disabled:cursor-default"
+              [disabled]="getZoom(sharer.userId) >= 3"
+              title="Zoom in">
+              <i class="pi pi-plus text-[9px]"></i>
+            </button>
           </div>
-        }
+        </div>
 
       </div>
     }
