@@ -183,22 +183,38 @@
   color: rgba(255,255,255,0.85);
 }
 
-.focused-close {
+.focused-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.focused-action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
   border: none;
-  background: rgba(0,0,0,0.5);
-  color: rgba(255,255,255,0.75);
+  background: rgba(0,0,0,0.45);
+  color: rgba(255,255,255,0.7);
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
 }
 
+.focused-action-btn:hover {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+}
+
+.focused-close {
+  background: rgba(244, 63, 94, 0.25);
+  color: #fb7185;
+}
+
 .focused-close:hover {
-  background: rgba(0,0,0,0.85);
+  background: rgba(244, 63, 94, 0.45);
   color: #fff;
 }
 
@@ -324,12 +340,23 @@
   color: #f43f5e;
 }
 
-/* ── Tile expand button ──────────────────────────────────────────────────── */
+/* ── Tile overlay actions (PiP + expand) ─────────────────────────────────── */
 
-.tile-expand {
+.tile-overlay-actions {
   position: absolute;
   top: 6px;
   right: 6px;
+  display: flex;
+  gap: 3px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 1;
+}
+
+.tile:hover .tile-overlay-actions { opacity: 1; }
+
+.tile-action-btn,
+.tile-expand {
   width: 26px;
   height: 26px;
   border-radius: 6px;
@@ -340,12 +367,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0;
-  transition: opacity 0.15s, background 0.12s;
-  z-index: 1;
+  transition: background 0.12s;
 }
 
-.tile:hover .tile-expand { opacity: 1; }
+.tile-action-btn:hover,
 .tile-expand:hover { background: rgba(0,0,0,0.85); color: #fff; }
 
 /* ── Screen shares ───────────────────────────────────────────────────────── */

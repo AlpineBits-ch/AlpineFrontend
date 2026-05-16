@@ -1,5 +1,5 @@
 <div
-  class="relative flex flex-col items-center justify-center gap-3 bg-card rounded-2xl p-6 aspect-square border transition-all shadow-[0_4px_24px_rgba(0,0,0,0.5)]"
+  class="group relative flex flex-col items-center justify-center gap-3 bg-card rounded-2xl p-6 aspect-square border transition-all shadow-[0_4px_24px_rgba(0,0,0,0.5)]"
   [ngClass]="participant().isSpeaking
     ? 'border-online/60 shadow-[0_0_0_2px_rgba(52,211,153,0.2),0_4px_24px_rgba(0,0,0,0.5)]'
     : 'border-white/[0.12]'"
@@ -15,6 +15,16 @@
     <div class="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded tracking-wider">
       LIVE
     </div>
+  }
+
+  <!-- PiP button (camera on + video stream available) -->
+  @if (participant().isCameraOn && videoStream()) {
+    <button
+      (click)="pipVideo($event)"
+      class="absolute top-3 left-3 w-7 h-7 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0 opacity-0 group-hover:opacity-100 z-10"
+      title="Picture in picture">
+      <i class="pi pi-external-link text-xs text-white/80"></i>
+    </button>
   }
 
   <!-- Camera or avatar -->

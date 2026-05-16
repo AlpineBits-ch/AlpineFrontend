@@ -9,7 +9,7 @@
         @if (sharer.isLocal && voiceSvc.localState().isScreenSharing) {
           @if (voiceSvc.localScreenStream(); as stream) {
             <video [streamSrc]="stream" autoplay playsinline muted
-                   class="absolute inset-0 w-full h-full object-contain"></video>
+                   class="w-full h-full object-contain"></video>
           } @else {
             <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
               <i class="pi pi-desktop text-5xl"></i>
@@ -18,7 +18,7 @@
           }
         } @else if (voiceSvc.getScreenStream(sharer.userId); as stream) {
           <video [streamSrc]="stream" autoplay playsinline muted
-                 class="absolute inset-0 w-full h-full object-contain"></video>
+                 class="w-full h-full object-contain"></video>
         } @else {
           <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
             <i class="pi pi-desktop text-5xl"></i>
@@ -30,6 +30,14 @@
         <div class="absolute top-3 left-3 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded tracking-wider z-10">
           LIVE
         </div>
+
+        <!-- PiP button -->
+        <button
+          (click)="pipShare($event)"
+          class="absolute top-3 left-[3.5rem] w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0 z-10"
+          title="Picture in picture">
+          <i class="pi pi-external-link text-sm text-white/70"></i>
+        </button>
 
         <!-- Audio toggle — local stream -->
         @if (sharer.isLocal && voiceSvc.localScreenHasAudio()) {

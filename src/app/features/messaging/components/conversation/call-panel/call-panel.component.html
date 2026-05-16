@@ -25,6 +25,18 @@
           <rect x="16" y="2" width="4" height="20" rx="1"/>
         </svg>
       </button>
+      <button class="stats-toggle" (click)="toggleMaximize()"
+        [title]="panelHeight() >= 900 ? 'Restore' : 'Maximize'">
+        @if (panelHeight() >= 900) {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+          </svg>
+        } @else {
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+          </svg>
+        }
+      </button>
     </div>
 
     <!-- ── Connection problem banner ─────────────────────────────────────── -->
@@ -81,6 +93,12 @@
         <div class="focused-header">
           <span class="focused-label">{{ focused.label }}</span>
           <div class="focused-actions">
+            <button class="focused-action-btn" (click)="requestPiP(focusedVideoEl)" title="Picture in picture">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                <rect x="2" y="3" width="20" height="14" rx="2"/>
+                <rect x="12" y="9" width="9" height="6" rx="1" fill="currentColor" stroke="none"/>
+              </svg>
+            </button>
             <button class="focused-action-btn" (click)="toggleFullscreen(focusedViewEl)" title="Fullscreen">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
                 <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
@@ -94,7 +112,7 @@
             </button>
           </div>
         </div>
-        <video class="focused-video" autoplay playsinline muted
+        <video #focusedVideoEl class="focused-video" autoplay playsinline muted
           [class.focused-video--mirror]="focused.mirror"
           [srcObject]="focused.stream"></video>
       </div>
@@ -152,11 +170,19 @@
             </div>
 
             @if (p.isCameraOn && p.videoStream) {
-              <button class="tile-expand" (click)="focusCamera(p)" title="Expand">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
-                  <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
-                </svg>
-              </button>
+              <div class="tile-overlay-actions">
+                <button class="tile-action-btn" (click)="pipFromTile($event)" title="Picture in picture">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                    <rect x="2" y="3" width="20" height="14" rx="2"/>
+                    <rect x="12" y="9" width="9" height="6" rx="1" fill="currentColor" stroke="none"/>
+                  </svg>
+                </button>
+                <button class="tile-expand" (click)="focusCamera(p)" title="Expand">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13">
+                    <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
+                  </svg>
+                </button>
+              </div>
             }
 
           </div>
@@ -257,6 +283,12 @@
           @for (fps of fpsList; track fps) {
             <button class="fps-btn" [class.fps-btn--active]="rustMedia.captureFps() === fps"
               (click)="setCaptureFps(fps)" [title]="fps + ' fps'">{{ fps }}</button>
+          }
+        </div>
+        <div class="fps-selector">
+          @for (res of resolutionList; track res) {
+            <button class="fps-btn" [class.fps-btn--active]="rustMedia.captureResolution() === res"
+              (click)="setScreenResolution(res)" [title]="res">{{ res }}</button>
           }
         </div>
       }

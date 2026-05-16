@@ -8,7 +8,7 @@ import { GuildService } from '../../../../services/guild.service';
 import { GuildVoiceService } from '../../../../services/guild-voice.service';
 import { GuildMemberDto } from '../../../../dtos/response/member.dto';
 import { hasPermission, parsePermissions, Permissions } from '../../../../enums/permissions.enum';
-import { RustMediaService } from '../../../../services/rust-media.service';
+import { RustMediaService, StreamResolution } from '../../../../services/rust-media.service';
 import { VoiceChannelContextMenuComponent, ParticipantMenuData } from './voice-channel-context-menu.component';
 import { VoiceChannelParticipantTileComponent } from './voice-channel-participant-tile.component';
 import { VoiceChannelLobbyComponent } from './voice-channel-lobby.component';
@@ -61,9 +61,16 @@ export class VoiceChannelComponent {
     this.voiceSvc.channelParticipants().get(this.channel().id) ?? [],
   );
 
-  protected screenSharers = computed(() =>
-    this.participants().filter(p => p.isScreenSharing),
-  );
+  protected screenSharers = computed(() => {
+    const all     = this.participants();
+    const sharers = all.filter(p => p.isScreenSharing);
+    // If local state says we're sharing but the participant entry hasn't synced yet, include it
+    if (this.voiceSvc.localState().isScreenSharing && !sharers.some(p => p.isLocal)) {
+      const local = all.find(p => p.isLocal);
+      if (local) return [...sharers, { ...local, isScreenSharing: true }];
+    }
+    return sharers;
+  });
 
   protected isJoined = computed(() =>
     this.voiceSvc.joinedChannelId() === this.channel().id,
@@ -144,4 +151,5 @@ export class VoiceChannelComponent {
   protected toggleCamera():       void { void this.voiceSvc.toggleCamera(); }
   protected toggleScreenShare():  void { void this.voiceSvc.toggleScreenShare(); }
   protected setCaptureFps(fps: number): void { void this.rustMedia.setCaptureFps(fps); }
+  protected setScreenResolution(res: StreamResolution): void { void this.rustMedia.setScreenResolution(res); }
 }

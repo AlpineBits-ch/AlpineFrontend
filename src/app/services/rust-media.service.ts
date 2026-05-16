@@ -11,6 +11,16 @@ export interface ScreenSource {
   height: number;
 }
 
+export type StreamResolution = 'native' | '1440p' | '1080p' | '720p' | '480p';
+
+const RESOLUTION_DIMS: Record<StreamResolution, [number, number]> = {
+  native: [3840, 2160],
+  '1440p': [2560, 1440],
+  '1080p': [1920, 1080],
+  '720p':  [1280,  720],
+  '480p':  [ 854,  480],
+};
+
 export interface RustAudioSettings {
   deviceId: string | null;
   noiseSuppression: boolean;
@@ -69,19 +79,22 @@ export class RustMediaService {
     return this._isLinux;
   }
 
-  private readonly _captureFps  = signal(15);
-  private readonly _inboundFps  = signal(0);
-  private readonly _renderedFps = signal(0);
+  private readonly _captureFps        = signal(15);
+  private readonly _captureResolution = signal<StreamResolution>('1080p');
+  private readonly _inboundFps        = signal(0);
+  private readonly _renderedFps       = signal(0);
   private inboundFrameCount  = 0;
   private renderedFrameCount = 0;
   private fpsInterval?: ReturnType<typeof setInterval>;
 
   /** Currently requested capture rate (set via startScreenCapture / setCaptureFps). */
-  readonly captureFps  = this._captureFps.asReadonly();
+  readonly captureFps        = this._captureFps.asReadonly();
+  /** Currently selected output resolution preset. */
+  readonly captureResolution = this._captureResolution.asReadonly();
   /** Frames received from Rust per second. */
-  readonly inboundFps  = this._inboundFps.asReadonly();
+  readonly inboundFps        = this._inboundFps.asReadonly();
   /** Frames drawn to the canvas per second (after decode). */
-  readonly renderedFps = this._renderedFps.asReadonly();
+  readonly renderedFps       = this._renderedFps.asReadonly();
 
   // ── Screen sources ────────────────────────────────────────────────────────
 
@@ -135,6 +148,8 @@ export class RustMediaService {
       this.queueFrame(frame);
     };
 
+    const [maxW, maxH] = RESOLUTION_DIMS[this._captureResolution()];
+    await invoke('set_screen_capture_resolution', { width: maxW, height: maxH }).catch(() => {});
     await invoke('start_screen_capture', { sourceId, fps, onFrame: channel });
 
     const track = stream.getVideoTracks()[0];
@@ -150,6 +165,14 @@ export class RustMediaService {
     this._captureFps.set(fps);
     if (!isTauri()) return;
     await invoke('set_screen_capture_fps', { fps: Math.round(fps) }).catch(() => {});
+  }
+
+  /** Change the output resolution cap. Takes effect within one frame. */
+  async setScreenResolution(res: StreamResolution): Promise<void> {
+    this._captureResolution.set(res);
+    if (!isTauri()) return;
+    const [w, h] = RESOLUTION_DIMS[res];
+    await invoke('set_screen_capture_resolution', { width: w, height: h }).catch(() => {});
   }
 
   async stopScreenCapture(): Promise<void> {

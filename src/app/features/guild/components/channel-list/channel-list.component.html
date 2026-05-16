@@ -63,7 +63,8 @@
               </button>
               @let participants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
               @for (p of participants; track p.userId) {
-                <div class="flex items-center gap-2 pl-7 pr-2 py-0.5 rounded-md hover:bg-white/[0.04] cursor-default transition-colors"
+                <div class="flex items-center gap-2 pl-7 pr-2 py-0.5 rounded-md hover:bg-white/[0.04] cursor-pointer transition-colors"
+                     (click)="onVoiceChannelClick(channel)"
                      (contextmenu)="onParticipantContextMenu($event, p, channel.id)">
                   <app-avatar [userId]="p.userId" [label]="p.avatarLabel" styleClass="!w-5 !h-5 !text-[9px]" class="flex shrink-0" />
                   <span class="text-[13px] flex-1 truncate"
@@ -178,7 +179,8 @@
                 </button>
                 @let catParticipants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
                 @for (p of catParticipants; track p.userId) {
-                  <div class="flex items-center gap-2 pl-7 pr-2 py-0.5 rounded-md hover:bg-white/[0.04] cursor-default transition-colors"
+                  <div class="flex items-center gap-2 pl-7 pr-2 py-0.5 rounded-md hover:bg-white/[0.04] cursor-pointer transition-colors"
+                       (click)="onVoiceChannelClick(channel)"
                        (contextmenu)="onParticipantContextMenu($event, p, channel.id)">
                     <app-avatar [userId]="p.userId" [label]="p.avatarLabel" styleClass="!w-5 !h-5 !text-[9px]" class="flex shrink-0" />
                     <span class="text-[13px] flex-1 truncate"

@@ -15,4 +15,16 @@ export class VoiceChannelParticipantTileComponent {
   videoStream = input<MediaStream | null>(null);
 
   contextMenu = output<MouseEvent>();
+
+  protected pipVideo(event: MouseEvent): void {
+    event.stopPropagation();
+    const tile = (event.currentTarget as HTMLElement).closest('.group') as HTMLElement | null;
+    const video = tile?.querySelector('video') as HTMLVideoElement | null;
+    if (!video || !document.pictureInPictureEnabled) return;
+    if (document.pictureInPictureElement === video) {
+      document.exitPictureInPicture().catch(() => {});
+    } else {
+      video.requestPictureInPicture().catch(() => {});
+    }
+  }
 }

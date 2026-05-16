@@ -339,6 +339,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             media::screen::start_screen_capture,
             media::screen::stop_screen_capture,
             media::screen::set_screen_capture_fps,
+            media::screen::set_screen_capture_resolution,
             rich_presence::scan_game_process,
         ])
         .run(tauri::generate_context!())

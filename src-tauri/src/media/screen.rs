@@ -46,15 +46,19 @@ pub struct ScreenFrame {
 }
 
 pub struct ScreenCaptureState {
-    stop: Arc<Mutex<Option<std::sync::mpsc::SyncSender<()>>>>,
-    fps: Arc<AtomicU32>,
+    stop:  Arc<Mutex<Option<std::sync::mpsc::SyncSender<()>>>>,
+    fps:   Arc<AtomicU32>,
+    max_w: Arc<AtomicU32>,
+    max_h: Arc<AtomicU32>,
 }
 
 impl Default for ScreenCaptureState {
     fn default() -> Self {
         Self {
-            stop: Arc::new(Mutex::new(None)),
-            fps: Arc::new(AtomicU32::new(15)),
+            stop:  Arc::new(Mutex::new(None)),
+            fps:   Arc::new(AtomicU32::new(15)),
+            max_w: Arc::new(AtomicU32::new(1920)),
+            max_h: Arc::new(AtomicU32::new(1080)),
         }
     }
 }
@@ -209,7 +213,9 @@ pub async fn start_screen_capture(
 
     let fps = fps.clamp(1, 60);
     state.fps.store(fps, Ordering::Relaxed);
-    let fps_arc = Arc::clone(&state.fps);
+    let fps_arc   = Arc::clone(&state.fps);
+    let max_w_arc = Arc::clone(&state.max_w);
+    let max_h_arc = Arc::clone(&state.max_h);
 
     let (stop_tx, stop_rx) = std::sync::mpsc::sync_channel::<()>(1);
     *state.stop.lock().unwrap() = Some(stop_tx);
@@ -244,16 +250,18 @@ pub async fn start_screen_capture(
                 .spawn(move || {
                     while let Ok((rgba, w, h)) = encode_rx.recv() {
                         let dyn_img = DynamicImage::ImageRgba8(rgba);
-                       const MAX_W: u32 = 2560;
-                       const MAX_H: u32 = 1440;
-                        let dyn_img = if w > MAX_W || h > MAX_H {
-                            dyn_img.resize(MAX_W, MAX_H, image::imageops::FilterType::Triangle)
+                        let max_w = max_w_arc.load(Ordering::Relaxed);
+                        let max_h = max_h_arc.load(Ordering::Relaxed);
+                        let dyn_img = if w > max_w || h > max_h {
+                            // CatmullRom (bicubic) preserves text edges better than Triangle
+                            // (bilinear) when downscaling high-DPI sources like 4K monitors.
+                            dyn_img.resize(max_w, max_h, image::imageops::FilterType::CatmullRom)
                         } else {
                             dyn_img
                         };
                         let out_w = dyn_img.width();
                         let out_h = dyn_img.height();
-                        let jpeg = encode_jpeg(&dyn_img, 85);
+                        let jpeg = encode_jpeg(&dyn_img, 90);
                         let data = base64_encode(&jpeg);
                         let ts = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
@@ -310,6 +318,18 @@ pub fn stop_screen_capture(state: tauri::State<'_, ScreenCaptureState>) {
 #[tauri::command]
 pub fn set_screen_capture_fps(fps: u32, state: tauri::State<'_, ScreenCaptureState>) {
     state.fps.store(fps.clamp(1, 60), Ordering::Relaxed);
+}
+
+/// Set the maximum output resolution for the encode thread.
+/// Takes effect within one frame interval — the encode thread reads these atomics each frame.
+#[tauri::command]
+pub fn set_screen_capture_resolution(
+    width: u32,
+    height: u32,
+    state: tauri::State<'_, ScreenCaptureState>,
+) {
+    state.max_w.store(width.clamp(480, 3840), Ordering::Relaxed);
+    state.max_h.store(height.clamp(270, 2160), Ordering::Relaxed);
 }
 
 fn stop_screen_capture_inner(state: &ScreenCaptureState) {

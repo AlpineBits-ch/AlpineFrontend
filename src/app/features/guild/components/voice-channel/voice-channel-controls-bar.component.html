@@ -45,7 +45,7 @@
     <i class="pi pi-desktop text-base"></i>
   </button>
 
-  <!-- FPS selector — visible only while sharing -->
+  <!-- FPS + Resolution selectors — visible only while sharing -->
   @if (voiceSvc.localState().isScreenSharing) {
     <div class="flex items-center gap-0.5 bg-white/[0.05] rounded-lg px-1 py-1 border border-white/[0.08]">
       @for (fps of fpsList; track fps) {
@@ -56,6 +56,17 @@
             ? 'bg-brand text-white'
             : 'bg-transparent text-white/45 hover:text-white/75 hover:bg-white/[0.07]'"
           [title]="fps + ' fps'">{{ fps }}</button>
+      }
+    </div>
+    <div class="flex items-center gap-0.5 bg-white/[0.05] rounded-lg px-1 py-1 border border-white/[0.08]">
+      @for (res of resolutionList; track res) {
+        <button
+          (click)="resolutionChange.emit(res)"
+          class="px-2 py-1 rounded text-xs font-mono transition-colors border-0 cursor-pointer leading-none"
+          [ngClass]="rustMedia.captureResolution() === res
+            ? 'bg-brand text-white'
+            : 'bg-transparent text-white/45 hover:text-white/75 hover:bg-white/[0.07]'"
+          [title]="res">{{ res }}</button>
       }
     </div>
   }

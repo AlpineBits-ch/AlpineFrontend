@@ -1,7 +1,7 @@
 import { Component, effect, HostListener, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { CallSessionService } from '../../../../../services/call-session.service';
 import { CallWebRtcService } from '../../../../../services/call-webrtc.service';
-import { RustMediaService } from '../../../../../services/rust-media.service';
+import { RustMediaService, StreamResolution } from '../../../../../services/rust-media.service';
 import { CallParticipantUi, ScreenShareUi } from '../../../../../services/call-session.types';
 import { SrcObjectDirective } from './src-object.directive';
 import { TranslateModule } from '@ngx-translate/core';
@@ -37,7 +37,8 @@ export class CallPanelComponent implements OnInit, OnDestroy {
   private callWebRtc = inject(CallWebRtcService);
   protected rustMedia = inject(RustMediaService);
 
-  readonly fpsList = [5, 10, 15, 30] as const;
+  readonly fpsList         = [5, 10, 15, 30] as const;
+  readonly resolutionList  = ['native', '1440p', '1080p', '720p', '480p'] as const;
 
   protected session = this.callSession.session;
   protected stats = this.callWebRtc.stats;
@@ -126,10 +127,15 @@ export class CallPanelComponent implements OnInit, OnDestroy {
   protected toggleCamera():      void { void this.callSession.toggleCamera(); }
   protected toggleScreenShare(): void { void this.callSession.toggleScreenShare(); }
   protected setCaptureFps(fps: number): void { void this.rustMedia.setCaptureFps(fps); }
+  protected setScreenResolution(res: StreamResolution): void { void this.rustMedia.setScreenResolution(res); }
   protected joinScreenShare(id: string): void { this.callSession.joinScreenShare(id); }
   protected endCall():           void { this.callSession.end(); }
   protected toggleStats():       void { this.showStats.update(v => !v); }
   protected unfocus():           void { this.focusedStream.set(null); }
+
+  protected toggleMaximize(): void {
+    this.panelHeight.update(h => h >= MAX_HEIGHT ? DEFAULT_HEIGHT : MAX_HEIGHT);
+  }
 
   protected toggleFullscreen(el: HTMLElement): void {
     if (document.fullscreenElement) {
@@ -137,6 +143,24 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     } else {
       el.requestFullscreen().catch(() => void 0);
     }
+  }
+
+  protected async requestPiP(videoEl: HTMLVideoElement): Promise<void> {
+    if (!document.pictureInPictureEnabled) return;
+    try {
+      if (document.pictureInPictureElement === videoEl) {
+        await document.exitPictureInPicture();
+      } else {
+        await videoEl.requestPictureInPicture();
+      }
+    } catch { /* denied or unavailable */ }
+  }
+
+  protected pipFromTile(event: MouseEvent): void {
+    event.stopPropagation();
+    const tile = (event.currentTarget as HTMLElement).closest('.tile') as HTMLElement | null;
+    const video = tile?.querySelector('video') as HTMLVideoElement | null;
+    if (video) void this.requestPiP(video);
   }
 
   protected focusCamera(p: CallParticipantUi): void {

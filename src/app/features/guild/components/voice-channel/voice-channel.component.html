@@ -70,6 +70,7 @@
       <!-- Screen share layout or participant grid -->
       @if (screenSharers().length > 0) {
         <app-voice-channel-screen-layout
+          class="flex-1 min-h-0"
           [screenSharers]="screenSharers()"
           [participants]="participants()"
           (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
@@ -97,6 +98,7 @@
         (cameraToggle)="toggleCamera()"
         (screenShareToggle)="toggleScreenShare()"
         (fpsChange)="setCaptureFps($event)"
+        (resolutionChange)="setScreenResolution($event)"
         (disconnect)="leaveChannel()"
       />
 
