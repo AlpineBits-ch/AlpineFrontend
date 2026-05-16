@@ -244,16 +244,16 @@ pub async fn start_screen_capture(
                 .spawn(move || {
                     while let Ok((rgba, w, h)) = encode_rx.recv() {
                         let dyn_img = DynamicImage::ImageRgba8(rgba);
-                        const MAX_W: u32 = 1920;
-                        const MAX_H: u32 = 1080;
+                       const MAX_W: u32 = 2560;
+                       const MAX_H: u32 = 1440;
                         let dyn_img = if w > MAX_W || h > MAX_H {
-                            dyn_img.resize(MAX_W, MAX_H, image::imageops::FilterType::Nearest)
+                            dyn_img.resize(MAX_W, MAX_H, image::imageops::FilterType::Triangle)
                         } else {
                             dyn_img
                         };
                         let out_w = dyn_img.width();
                         let out_h = dyn_img.height();
-                        let jpeg = encode_jpeg(&dyn_img, 75);
+                        let jpeg = encode_jpeg(&dyn_img, 85);
                         let data = base64_encode(&jpeg);
                         let ts = std::time::SystemTime::now()
                             .duration_since(std::time::UNIX_EPOCH)
