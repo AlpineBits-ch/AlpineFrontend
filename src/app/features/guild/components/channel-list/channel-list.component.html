@@ -31,15 +31,15 @@
       <div class="mb-1"
            (dragover)="$event.preventDefault()">
         @for (channel of uncategorizedChannels(); track channel.id) {
-          @if (dropTargetId() === channel.id && dropPos() === 'before') {
+          @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'before') {
             <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
           }
           @if (channel.type === ChannelType.Voice) {
             <div
               [attr.draggable]="canReorder() ? 'true' : null"
-              (dragstart)="onChannelDragStart($event, channel)"
-              (dragend)="onDragEnd($event)"
-              (dragover)="onItemDragOver($event, channel.id)">
+              (dragstart)="drag.onChannelDragStart($event, channel)"
+              (dragend)="drag.onDragEnd($event)"
+              (dragover)="drag.onItemDragOver($event, channel.id)">
               <button
                 (click)="onVoiceChannelClick(channel)"
                 (contextmenu)="onChannelContextMenu($event, channel)"
@@ -83,9 +83,9 @@
             @let rs = readStateService.getChannelState(channel.id);
             <div
               [attr.draggable]="canReorder() ? 'true' : null"
-              (dragstart)="onChannelDragStart($event, channel)"
-              (dragend)="onDragEnd($event)"
-              (dragover)="onItemDragOver($event, channel.id)">
+              (dragstart)="drag.onChannelDragStart($event, channel)"
+              (dragend)="drag.onDragEnd($event)"
+              (dragover)="drag.onItemDragOver($event, channel.id)">
               <button
                 (click)="onChannelClick(channel)"
                 (contextmenu)="onChannelContextMenu($event, channel)"
@@ -105,7 +105,7 @@
               </button>
             </div>
           }
-          @if (dropTargetId() === channel.id && dropPos() === 'after') {
+          @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'after') {
             <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
           }
         }
@@ -114,20 +114,20 @@
 
     <!-- Categories -->
     @for (category of sortedCategories(); track category.id) {
-      @if (dropTargetId() === category.id && dropPos() === 'before') {
+      @if (drag.dropTargetId() === category.id && drag.dropPos() === 'before') {
         <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
       }
       <div class="mb-1 mt-2">
         <!-- Category header -->
         <div
           [attr.draggable]="canReorder() ? 'true' : null"
-          (dragstart)="onCategoryDragStart($event, category)"
-          (dragend)="onDragEnd($event)"
-          (dragover)="onItemDragOver($event, category.id)">
+          (dragstart)="drag.onCategoryDragStart($event, category)"
+          (dragend)="drag.onDragEnd($event)"
+          (dragover)="drag.onItemDragOver($event, category.id)">
         <button
           (click)="toggleCollapse(category.id)"
           (contextmenu)="onCategoryContextMenu($event, category)"
-          [ngClass]="dropTargetId() === category.id ? 'bg-white/[0.04] rounded-lg' : ''"
+          [ngClass]="drag.dropTargetId() === category.id ? 'bg-white/[0.04] rounded-lg' : ''"
           class="flex items-center justify-between w-full px-2 py-1 mb-0.5 group border-0 bg-transparent cursor-pointer transition-colors"
           [class.cursor-grab]="canReorder()">
           <div class="flex items-center gap-1.5 min-w-0 flex-1 pointer-events-none">
@@ -147,15 +147,15 @@
 
         @if (!isCollapsed(category.id)) {
           @for (channel of categoryChannels(category.id); track channel.id) {
-            @if (dropTargetId() === channel.id && dropPos() === 'before') {
+            @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'before') {
               <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
             }
             @if (channel.type === ChannelType.Voice) {
               <div
                 [attr.draggable]="canReorder() ? 'true' : null"
-                (dragstart)="onChannelDragStart($event, channel)"
-                (dragend)="onDragEnd($event)"
-                (dragover)="onItemDragOver($event, channel.id)">
+                (dragstart)="drag.onChannelDragStart($event, channel)"
+                (dragend)="drag.onDragEnd($event)"
+                (dragover)="drag.onItemDragOver($event, channel.id)">
                 <button
                   (click)="onVoiceChannelClick(channel)"
                   (contextmenu)="onChannelContextMenu($event, channel)"
@@ -199,9 +199,9 @@
               @let catRs = readStateService.getChannelState(channel.id);
               <div
                 [attr.draggable]="canReorder() ? 'true' : null"
-                (dragstart)="onChannelDragStart($event, channel)"
-                (dragend)="onDragEnd($event)"
-                (dragover)="onItemDragOver($event, channel.id)">
+                (dragstart)="drag.onChannelDragStart($event, channel)"
+                (dragend)="drag.onDragEnd($event)"
+                (dragover)="drag.onItemDragOver($event, channel.id)">
                 <button
                   (click)="onChannelClick(channel)"
                   (contextmenu)="onChannelContextMenu($event, channel)"
@@ -221,13 +221,13 @@
                 </button>
               </div>
             }
-            @if (dropTargetId() === channel.id && dropPos() === 'after') {
+            @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'after') {
               <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
             }
           }
         }
       </div>
-      @if (dropTargetId() === category.id && dropPos() === 'after') {
+      @if (drag.dropTargetId() === category.id && drag.dropPos() === 'after') {
         <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
       }
     }
@@ -248,7 +248,7 @@
 
 <!-- ── Voice participant context menu ─────────────────────────────────────── -->
 @if (participantMenu(); as menu) {
-  <app-voice-channel-context-menu
+  <app-call-context-menu
     [menu]="menu"
     [isSuperadmin]="isSuperadmin()"
     (close)="participantMenu.set(null)"

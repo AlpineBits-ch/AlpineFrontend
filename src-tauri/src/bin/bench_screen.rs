@@ -39,11 +39,17 @@ fn base64_encode(data: &[u8]) -> String {
 }
 
 fn encode_jpeg(img: &DynamicImage, quality: u8) -> Vec<u8> {
+    let mut buf = Vec::new();
+    encode_jpeg_into(img, quality, &mut buf);
+    buf
+}
+
+fn encode_jpeg_into(img: &DynamicImage, quality: u8, buf: &mut Vec<u8>) {
+    buf.clear();
     let w = img.width() as u16;
     let h = img.height() as u16;
-    let mut buf = Vec::new();
-    let enc = jpeg_encoder::Encoder::new(&mut buf, quality);
-    let result = match img {
+    let enc = jpeg_encoder::Encoder::new(buf, quality);
+    let _ = match img {
         DynamicImage::ImageRgba8(rgba) => enc.encode(rgba.as_raw(), w, h, ColorType::Rgba),
         DynamicImage::ImageRgb8(rgb) => enc.encode(rgb.as_raw(), w, h, ColorType::Rgb),
         _ => {
@@ -51,8 +57,6 @@ fn encode_jpeg(img: &DynamicImage, quality: u8) -> Vec<u8> {
             enc.encode(rgb.as_raw(), w, h, ColorType::Rgb)
         }
     };
-    result.ok();
-    buf
 }
 
 // ── Per-frame measurements ────────────────────────────────────────────────────
@@ -89,6 +93,7 @@ fn run_benchmark(monitor: &Monitor, quality: u8, label: &str) -> Vec<FrameTiming
     }
 
     let mut timings = Vec::with_capacity(FRAMES);
+    let mut jpeg_buf = Vec::with_capacity(512 * 1024);
 
     for i in 0..FRAMES {
         // ── Stage 1: WGC capture ─────────────────────────────────────────────
@@ -107,21 +112,22 @@ fn run_benchmark(monitor: &Monitor, quality: u8, label: &str) -> Vec<FrameTiming
         let t = Instant::now();
         let dyn_img = DynamicImage::ImageRgba8(rgba);
         let dyn_img = if src_w > MAX_W || src_h > MAX_H {
-            dyn_img.resize(MAX_W, MAX_H, image::imageops::FilterType::Nearest)
+            dyn_img.resize(MAX_W, MAX_H, image::imageops::FilterType::Triangle)
         } else {
             dyn_img
         };
         let resize_us = t.elapsed().as_micros() as u64;
 
-        // ── Stage 3: JPEG encode (jpeg-encoder, RGBA direct) ─────────────────
+        // ── Stage 3: JPEG encode (jpeg-encoder, RGB conversion + buffer reuse) ──
         let t = Instant::now();
-        let jpeg = encode_jpeg(&dyn_img, quality);
+        let rgb_img = dyn_img.to_rgb8();
+        encode_jpeg_into(&DynamicImage::ImageRgb8(rgb_img), quality, &mut jpeg_buf);
         let encode_us = t.elapsed().as_micros() as u64;
-        let jpeg_bytes = jpeg.len();
+        let jpeg_bytes = jpeg_buf.len();
 
         // ── Stage 4: Base64 encode ───────────────────────────────────────────
         let t = Instant::now();
-        let _ = base64_encode(&jpeg);
+        let _ = base64_encode(&jpeg_buf);
         let base64_us = t.elapsed().as_micros() as u64;
 
         let timing = FrameTiming {
@@ -250,7 +256,7 @@ fn main() {
     println!("╔══════════════════════════════════════════════════════════════════════╗");
     println!("║         Alpine – screen capture pipeline benchmark                   ║");
     println!("╚══════════════════════════════════════════════════════════════════════╝");
-    println!("  Encoder:           jpeg-encoder (SIMD, RGBA direct)");
+    println!("  Encoder:           jpeg-encoder (SIMD, RGB conversion + buffer reuse)");
     println!("  Frames per quality level: {FRAMES}");
     println!("  Max output resolution:    {MAX_W}×{MAX_H}");
 

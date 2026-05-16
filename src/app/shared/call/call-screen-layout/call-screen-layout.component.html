@@ -2,30 +2,20 @@
 
   <!-- Stream tiles -->
   <div class="flex-1 min-h-0 grid gap-3" [ngClass]="gridClass()">
-    @for (sharer of displayedSharers(); track sharer.userId) {
+    @for (share of displayedShares(); track share.shareId) {
       <div class="relative bg-black/80 rounded-xl overflow-hidden border border-white/[0.12] flex items-center justify-center min-h-0">
 
         <!-- Zoomable content wrapper -->
         <div class="w-full h-full flex items-center justify-center"
-             [style.transform]="'scale(' + getZoom(sharer.userId) + ')'"
+             [style.transform]="'scale(' + getZoom(share.shareId) + ')'"
              style="transition: transform 0.15s ease; transform-origin: center center">
-          @if (sharer.isLocal && voiceSvc.localState().isScreenSharing) {
-            @if (voiceSvc.localScreenStream(); as stream) {
-              <video [streamSrc]="stream" autoplay playsinline muted
-                     class="w-full h-full object-contain"></video>
-            } @else {
-              <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
-                <i class="pi pi-desktop text-5xl"></i>
-                <span>Your screen</span>
-              </div>
-            }
-          } @else if (voiceSvc.getScreenStream(sharer.userId); as stream) {
+          @if (share.stream; as stream) {
             <video [streamSrc]="stream" autoplay playsinline muted
                    class="w-full h-full object-contain"></video>
           } @else {
             <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
               <i class="pi pi-desktop text-5xl"></i>
-              <span>{{ sharer.displayName }}'s screen</span>
+              <span>{{ share.isLocal ? 'Your screen' : share.displayName + "'s screen" }}</span>
             </div>
           }
         </div>
@@ -40,69 +30,69 @@
             <i class="pi pi-external-link text-sm text-white/70"></i>
           </button>
           <button
-            (click)="toggleMaximize(sharer.userId, $event)"
+            (click)="toggleMaximize(share.shareId, $event)"
             class="w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0"
-            [title]="maximizedId() === sharer.userId ? 'Restore' : 'Maximize'">
+            [title]="maximizedId() === share.shareId ? 'Restore' : 'Maximize'">
             <i class="pi text-sm text-white/70"
-               [ngClass]="maximizedId() === sharer.userId ? 'pi-window-minimize' : 'pi-window-maximize'"></i>
+               [ngClass]="maximizedId() === share.shareId ? 'pi-window-minimize' : 'pi-window-maximize'"></i>
           </button>
         </div>
 
         <!-- Audio toggle — local stream -->
-        @if (sharer.isLocal && voiceSvc.localScreenHasAudio()) {
+        @if (share.isLocal && share.hasAudio) {
           <button
-            (click)="voiceSvc.toggleLocalScreenAudio()"
+            (click)="localAudioToggle.emit()"
             class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0 z-10"
-            [title]="voiceSvc.localScreenAudioMuted() ? 'Unmute stream audio' : 'Mute stream audio'">
+            [title]="share.isAudioMuted ? 'Unmute stream audio' : 'Mute stream audio'">
             <i class="pi text-sm"
-               [ngClass]="voiceSvc.localScreenAudioMuted() ? 'pi-volume-off text-rose-400' : 'pi-volume-up text-white/70'"></i>
+               [ngClass]="share.isAudioMuted ? 'pi-volume-off text-rose-400' : 'pi-volume-up text-white/70'"></i>
           </button>
         }
 
         <!-- Audio toggle — remote stream -->
-        @if (!sharer.isLocal) {
+        @if (!share.isLocal) {
           <button
-            (click)="voiceSvc.toggleScreenAudioMute(sharer.userId)"
+            (click)="remoteAudioToggle.emit(share.userId)"
             class="absolute top-3 right-3 w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0 z-10"
-            [title]="voiceSvc.isScreenAudioMuted(sharer.userId) ? 'Unmute screen audio' : 'Mute screen audio'">
+            [title]="share.isAudioMuted ? 'Unmute screen audio' : 'Mute screen audio'">
             <i class="pi text-sm"
-               [ngClass]="voiceSvc.isScreenAudioMuted(sharer.userId) ? 'pi-volume-off text-rose-400' : 'pi-volume-up text-white/70'"></i>
+               [ngClass]="share.isAudioMuted ? 'pi-volume-off text-rose-400' : 'pi-volume-up text-white/70'"></i>
           </button>
         }
 
         <!-- Sharer name pill -->
         <div class="absolute bottom-3 left-3 flex items-center gap-2 bg-black/50 backdrop-blur-sm rounded-lg px-2.5 py-1.5 z-10">
           <div class="w-5 h-5 rounded-full bg-sidebar flex items-center justify-center text-[9px] font-semibold text-white/70 shrink-0">
-            {{ sharer.avatarLabel }}
+            {{ share.avatarLabel ?? share.displayName[0] }}
           </div>
-          <span class="text-sm text-white/80">{{ sharer.displayName }}</span>
+          <span class="text-sm text-white/80">{{ share.displayName }}</span>
         </div>
 
         <!-- Bottom-right: FPS (local only) + zoom controls -->
         <div class="absolute bottom-3 right-3 flex items-center gap-1.5 z-10">
-          @if (sharer.isLocal) {
+          @if (share.isLocal && share.renderedFps != null) {
             <div class="flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded px-2 py-1 font-mono text-xs text-white/55 select-none">
-              <span class="text-white/35">↓</span>{{ rustMedia.inboundFps() }}
+              <span class="text-white/35">↓</span>{{ share.inboundFps ?? 0 }}
               <span class="text-white/20 mx-0.5">·</span>
-              <span class="text-white/35">→</span>{{ rustMedia.renderedFps() }}
+              <span class="text-white/35">→</span>{{ share.renderedFps }}
               <span class="text-white/35 ml-0.5">fps</span>
             </div>
           }
           <div class="flex items-center gap-0.5 bg-black/50 backdrop-blur-sm rounded px-1.5 py-1">
             <button
-              (click)="zoomOut(sharer.userId, $event)"
+              (click)="zoomOut(share.shareId, $event)"
               class="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 text-white/60 hover:text-white/80 transition-colors cursor-pointer border-0 bg-transparent disabled:opacity-30 disabled:cursor-default"
-              [disabled]="getZoom(sharer.userId) <= 1"
+              [disabled]="getZoom(share.shareId) <= 1"
               title="Zoom out">
               <i class="pi pi-minus text-[9px]"></i>
             </button>
             <span class="font-mono text-[10px] text-white/50 min-w-[2.25rem] text-center select-none">
-              {{ (getZoom(sharer.userId) * 100).toFixed(0) }}%
+              {{ (getZoom(share.shareId) * 100).toFixed(0) }}%
             </span>
             <button
-              (click)="zoomIn(sharer.userId, $event)"
+              (click)="zoomIn(share.shareId, $event)"
               class="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10 text-white/60 hover:text-white/80 transition-colors cursor-pointer border-0 bg-transparent disabled:opacity-30 disabled:cursor-default"
-              [disabled]="getZoom(sharer.userId) >= 3"
+              [disabled]="getZoom(share.shareId) >= 3"
               title="Zoom in">
               <i class="pi pi-plus text-[9px]"></i>
             </button>
@@ -117,6 +107,7 @@
   <div class="flex items-center gap-2 overflow-x-auto shrink-0 pb-1"
        style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
     @for (p of participants(); track p.userId) {
+      @let share = getShareForUser(p.userId);
       <div
         class="shrink-0 flex flex-col items-center gap-2 px-3 py-2.5 rounded-xl bg-card border min-w-[84px]"
         [ngClass]="p.isSpeaking ? 'border-online/60 shadow-[0_0_0_2px_rgba(52,211,153,0.25)]' : 'border-white/[0.12]'"
@@ -130,7 +121,7 @@
           }
         </div>
         <span class="text-xs text-white/75 truncate max-w-[68px] text-center">{{ p.displayName }}</span>
-        @if (!p.isLocal && !voiceSvc.participantsWithAudio().has(p.userId)) {
+        @if (!p.isLocal && !participantsWithAudio().has(p.userId)) {
           <div class="flex items-center gap-0.5 text-[9px] font-semibold text-amber-400" title="No audio received">
             <svg viewBox="0 0 24 24" fill="currentColor" width="8" height="8">
               <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
@@ -138,13 +129,13 @@
             No audio
           </div>
         }
-        @if (!p.isLocal && p.isScreenSharing) {
+        @if (!p.isLocal && share) {
           <button
-            (click)="voiceSvc.toggleScreenAudioMute(p.userId)"
+            (click)="remoteAudioToggle.emit(p.userId)"
             class="w-5 h-5 flex items-center justify-center rounded border-0 bg-transparent cursor-pointer transition-colors"
-            [title]="voiceSvc.isScreenAudioMuted(p.userId) ? 'Unmute screen audio' : 'Mute screen audio'">
+            [title]="share.isAudioMuted ? 'Unmute screen audio' : 'Mute screen audio'">
             <i class="pi text-[9px]"
-               [ngClass]="voiceSvc.isScreenAudioMuted(p.userId) ? 'pi-volume-off text-rose-400' : 'pi-volume-up text-white/40 hover:text-white/70'"></i>
+               [ngClass]="share.isAudioMuted ? 'pi-volume-off text-rose-400' : 'pi-volume-up text-white/40 hover:text-white/70'"></i>
           </button>
         }
       </div>

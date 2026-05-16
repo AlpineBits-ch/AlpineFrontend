@@ -68,19 +68,22 @@
       }
 
       <!-- Screen share layout or participant grid -->
-      @if (screenSharers().length > 0) {
-        <app-voice-channel-screen-layout
+      @if (callScreenShares().length > 0) {
+        <app-call-screen-layout
           class="flex-1 min-h-0"
-          [screenSharers]="screenSharers()"
-          [participants]="participants()"
+          [screenShares]="callScreenShares()"
+          [participants]="callParticipants()"
+          [participantsWithAudio]="voiceSvc.participantsWithAudio()"
           (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
+          (localAudioToggle)="toggleLocalScreenAudio()"
+          (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
         />
       } @else {
         <div class="flex-1 min-h-0 overflow-y-auto p-6 flex items-start justify-center"
              style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
           <div class="grid gap-4 w-full" [ngClass]="participantGridClass()">
             @for (p of participants(); track p.userId) {
-              <app-voice-channel-participant-tile
+              <app-call-participant-tile
                 [participant]="p"
                 [hasAudio]="voiceSvc.participantsWithAudio().has(p.userId)"
                 [videoStream]="p.isLocal ? voiceSvc.localVideoStream() : voiceSvc.getVideoStream(p.userId)"
@@ -92,11 +95,20 @@
       }
 
       <!-- Controls bar -->
-      <app-voice-channel-controls-bar
+      <app-call-controls-bar
+        [isMuted]="voiceSvc.localState().isMuted"
+        [isDeafened]="voiceSvc.localState().isDeafened"
+        [isCameraOn]="voiceSvc.localState().isCameraOn"
+        [isScreenSharing]="voiceSvc.localState().isScreenSharing"
+        [screenHasAudio]="voiceSvc.localScreenHasAudio()"
+        [screenAudioMuted]="voiceSvc.localScreenAudioMuted()"
+        [captureFps]="rustMedia.captureFps()"
+        [captureResolution]="rustMedia.captureResolution()"
         (muteToggle)="toggleMute()"
         (deafenToggle)="toggleDeafen()"
         (cameraToggle)="toggleCamera()"
         (screenShareToggle)="toggleScreenShare()"
+        (screenAudioToggle)="toggleLocalScreenAudio()"
         (fpsChange)="setCaptureFps($event)"
         (resolutionChange)="setScreenResolution($event)"
         (disconnect)="leaveChannel()"
@@ -110,7 +122,7 @@
 
 <!-- Context menu -->
 @if (participantMenu(); as menu) {
-  <app-voice-channel-context-menu
+  <app-call-context-menu
     [menu]="menu"
     [isSuperadmin]="isSuperadmin()"
     (close)="participantMenu.set(null)"

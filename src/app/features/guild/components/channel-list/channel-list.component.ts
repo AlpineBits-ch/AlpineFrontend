@@ -1,42 +1,43 @@
-import {Component, computed, DestroyRef, effect, HostListener, inject, input, signal, ViewChild} from '@angular/core';
-import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {firstValueFrom} from 'rxjs';
-import {NgClass} from '@angular/common';
-import {FormsModule} from '@angular/forms';
-import {Menu} from 'primeng/menu';
-import {ContextMenu} from 'primeng/contextmenu';
-import {Button} from 'primeng/button';
-import {Dialog} from 'primeng/dialog';
-import {InputText} from 'primeng/inputtext';
-import {MenuItem, PrimeTemplate} from 'primeng/api';
+import { Component, computed, DestroyRef, effect, HostListener, inject, input, signal, ViewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { firstValueFrom } from 'rxjs';
+import { NgClass } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { Menu } from 'primeng/menu';
+import { ContextMenu } from 'primeng/contextmenu';
+import { Button } from 'primeng/button';
+import { Dialog } from 'primeng/dialog';
+import { InputText } from 'primeng/inputtext';
+import { MenuItem, PrimeTemplate } from 'primeng/api';
 import {
   CategoryDto,
   ChannelDto,
   ChannelType,
   GuildDto,
 } from '../../../../dtos/response/guild.dto';
-import {NavigationService} from '../../../main-page/navigation.service';
-import {GuildService} from '../../../../services/guild.service';
-import {VoiceChannelParticipant, VoiceChannelService} from '../../../../services/voice-channel.service';
-import {VoiceChannelContextMenuComponent, ParticipantMenuData} from '../voice-channel/voice-channel-context-menu.component';
-import {ProfileService} from '../../../../services/profile.service';
-import {GuildReadStateService} from '../../../../services/guild-read-state.service';
-import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
-import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-settings-modal.component';
-import {ChannelSettingsModalComponent} from '../channel-settings-modal/channel-settings-modal.component';
-import {CategorySettingsModalComponent} from '../category-settings-modal/category-settings-modal.component';
-import {InviteType} from '../../../../dtos/response/invite.dto';
-import {GuildMemberDto, SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
-import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
-import {ReorderChannesDto} from '../../../../dtos/request/reorder-channel.dto';
-import {GuildWebsocketService, WsChannelCreated, WsChannelDeleted, WsCategoryCreated, WsCategoryDeleted} from '../../../../services/guild-websocket.service';
-import {GuildVoiceService} from '../../../../services/guild-voice.service';
-import {GuildUiActionsService} from '../../../../services/guild-ui-actions.service';
-import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+import { NavigationService } from '../../../main-page/navigation.service';
+import { GuildService } from '../../../../services/guild.service';
+import { VoiceChannelParticipant, VoiceChannelService } from '../../../../services/voice-channel.service';
+import { CallContextMenuComponent } from '../../../../shared/call/call-context-menu/call-context-menu.component';
+import { CallParticipantMenuData } from '../../../../shared/call/call.types';
+import { ProfileService } from '../../../../services/profile.service';
+import { GuildReadStateService } from '../../../../services/guild-read-state.service';
+import { AppAvatarComponent } from '../../../../components/avatar/avatar.component';
+import { GuildSettingsModalComponent } from '../guild-settings-modal/guild-settings-modal.component';
+import { ChannelSettingsModalComponent } from '../channel-settings-modal/channel-settings-modal.component';
+import { CategorySettingsModalComponent } from '../category-settings-modal/category-settings-modal.component';
+import { InviteType } from '../../../../dtos/response/invite.dto';
+import { SelfGuildMemberDto } from '../../../../dtos/response/member.dto';
+import { hasPermission, parsePermissions, Permissions } from '../../../../enums/permissions.enum';
+import { GuildWebsocketService, WsChannelCreated, WsChannelDeleted, WsCategoryCreated, WsCategoryDeleted } from '../../../../services/guild-websocket.service';
+import { GuildVoiceService } from '../../../../services/guild-voice.service';
+import { GuildUiActionsService } from '../../../../services/guild-ui-actions.service';
 import { TranslateModule } from '@ngx-translate/core';
+import { ChannelListDragService } from './channel-list-drag.service';
 
 @Component({
   selector: 'app-channel-list',
+  providers: [ChannelListDragService],
   imports: [
     NgClass,
     FormsModule,
@@ -50,7 +51,7 @@ import { TranslateModule } from '@ngx-translate/core';
     ChannelSettingsModalComponent,
     CategorySettingsModalComponent,
     PrimeTemplate,
-    VoiceChannelContextMenuComponent,
+    CallContextMenuComponent,
     TranslateModule,
   ],
   templateUrl: './channel-list.component.html',
@@ -68,6 +69,7 @@ export class ChannelListComponent {
   protected readStateService = inject(GuildReadStateService);
   private   guildWsService   = inject(GuildWebsocketService);
   private   destroyRef       = inject(DestroyRef);
+  protected drag             = inject(ChannelListDragService);
 
   protected avatarUrl(userId: string): string | undefined {
     return this.profileService.getCachedByUserId(userId)?.avatarUrl;
@@ -82,34 +84,20 @@ export class ChannelListComponent {
 
   protected getSelfPermissions = computed(() => {
     const member = this.ownMember();
-
-    let basePermissions = member?.permissions ?? '';
-
-
+    const basePermissions = member?.permissions ?? '';
     const permissionString = member?.roleMembers.reduce((curr, m) => {
-      if(!m.role.permissions) return curr;
-
-      if(curr === '') return m.role.permissions;
-
-      return `${curr},${m.role.permissions}`;
+      if (!m.role.permissions) return curr;
+      return curr === '' ? m.role.permissions : `${curr},${m.role.permissions}`;
     }, basePermissions);
-
-
-    console.log('accumulated perm string', permissionString)
     return parsePermissions(permissionString);
-
   });
 
   protected canReorder = computed(() => {
-    const perms = this.getSelfPermissions();
-
     const ownUserId = this.profileService.ownProfile()?.userId;
     if (ownUserId && ownUserId === this.guild().ownerId) return true;
     const member = this.ownMember();
     if (!member) return false;
-
-
-
+    const perms = this.getSelfPermissions();
     return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.ManageChannel);
   });
 
@@ -134,19 +122,18 @@ export class ChannelListComponent {
       this.readStateService.loadForGuild(this.guild().id);
     });
 
-    // Sync local copies from guild input (resets when server sends fresh data)
     effect(() => {
       this.localChannels.set([...this.guild().channels]);
       this.localCategories.set([...this.guild().categories]);
     });
 
-    // Load own member to determine reorder permissions
     effect(() => {
       const guildId = this.guild().id;
       this.guildService.getOwnMember(guildId).subscribe(m => this.ownMember.set(m));
     });
 
-    // Apply position updates from ChannelReordered WebSocket event (for other users)
+    this.drag.setup(() => this.guild().id, this.localChannels, this.localCategories);
+
     this.guildWsService.channelReorderedObservable
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(dto => {
@@ -180,13 +167,10 @@ export class ChannelListComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((e: WsChannelDeleted) => {
         if (e.guildId !== this.guild().id) return;
-
         if (this.voiceChannelSvc.joinedChannelId() === e.channelId) {
           void this.voiceChannelSvc.leaveChannel();
         }
-
         this.localChannels.update(chs => chs.filter(c => c.id !== e.channelId));
-
         const view = this.navService.mainView();
         if (view.type === 'channel' && view.channel.id === e.channelId) {
           const firstText = this.localChannels().find(c => c.type === ChannelType.Text);
@@ -233,18 +217,6 @@ export class ChannelListComponent {
   private collapsedIds = signal(new Set<string>());
 
   // ── Computed channel groups (sorted by position) ──────────────────────────
-  protected uncategorizedText = computed(() =>
-    this.localChannels()
-      .filter(c => !c.categoryId && c.type === ChannelType.Text)
-      .sort((a, b) => a.position - b.position)
-  );
-
-  protected uncategorizedVoice = computed(() =>
-    this.localChannels()
-      .filter(c => !c.categoryId && c.type === ChannelType.Voice)
-      .sort((a, b) => a.position - b.position)
-  );
-
   protected uncategorizedChannels = computed(() =>
     this.localChannels()
       .filter(c => !c.categoryId)
@@ -300,200 +272,20 @@ export class ChannelListComponent {
     });
   }
 
-  // ── Drag state ────────────────────────────────────────────────────────────
-  private dragging: { type: 'category' | 'channel'; id: string; sourceCategoryId: string | null } | null = null;
-  protected dropTargetId = signal<string | null>(null);
-  protected dropPos      = signal<'before' | 'after'>('after');
+  // ── Drag delegates (HostListener must stay in component) ──────────────────
 
-  // WebView2 (Tauri/Windows) integrates with Windows OLE drag-and-drop and requires
-  // dropEffect = 'move' to be set on every dragover/dragenter event — calling only
-  // preventDefault() is not enough and results in an immediate red "no-drop" cursor.
-  // These document-level handlers cover all elements including gaps between items.
   @HostListener('document:dragover', ['$event'])
-  protected onGlobalDragOver(event: DragEvent): void {
-    if (!this.dragging) return;
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-  }
+  protected onGlobalDragOver(event: DragEvent): void { this.drag.onGlobalDragOver(event); }
 
   @HostListener('document:dragenter', ['$event'])
-  protected onGlobalDragEnter(event: DragEvent): void {
-    if (!this.dragging) return;
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-  }
+  protected onGlobalDragEnter(event: DragEvent): void { this.drag.onGlobalDragEnter(event); }
 
-  protected onCategoryDragStart(event: DragEvent, category: CategoryDto): void {
-    this.dragging = { type: 'category', id: category.id, sourceCategoryId: null };
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('text/plain', category.id);
-    }
-  }
-
-  protected onChannelDragStart(event: DragEvent, channel: ChannelDto): void {
-    this.dragging = { type: 'channel', id: channel.id, sourceCategoryId: channel.categoryId ?? null };
-    if (event.dataTransfer) {
-      event.dataTransfer.effectAllowed = 'move';
-      event.dataTransfer.setData('text/plain', channel.id);
-    }
-  }
-
-  // Prevent browser default on drop (e.g. navigation). Actual logic runs in onDragEnd.
   @HostListener('document:drop', ['$event'])
-  protected onGlobalDrop(event: DragEvent): void {
-    event.preventDefault();
-  }
-
-  // All drop logic lives here so it's driven by the indicator position (dropTargetId/dropPos),
-  // not by whichever physical DOM element the mouse happened to be over on release.
-  // This also handles WebView2 where the drop event may not fire at all.
-  protected onDragEnd(event: DragEvent): void {
-    const dragging = this.dragging;
-    const targetId  = this.dropTargetId();
-    const pos       = this.dropPos();
-    this.clearDragState();
-
-    if (!dragging || !targetId) return;
-
-    const targetChannel = this.localChannels().find(c => c.id === targetId);
-    if (targetChannel) {
-      if (dragging.type !== 'channel' || dragging.id === targetChannel.id) return;
-      const targetCategoryId = targetChannel.categoryId ?? null;
-      const categoryChanged  = dragging.sourceCategoryId !== targetCategoryId;
-      if (categoryChanged) {
-        this.localChannels.update(chs =>
-          chs.map(c => c.id === dragging.id ? { ...c, categoryId: targetCategoryId ?? undefined } : c)
-        );
-      }
-      this.reorderChannelsInSection(dragging.id, targetCategoryId, targetChannel.id, pos, categoryChanged ? targetCategoryId : undefined);
-      return;
-    }
-
-    const targetCategory = this.localCategories().find(c => c.id === targetId);
-    if (targetCategory) {
-      if (dragging.type === 'category' && dragging.id !== targetCategory.id) {
-        this.reorderCategoryAfterDrop(dragging.id, targetCategory.id, pos);
-      } else if (dragging.type === 'channel') {
-        if (pos === 'before') {
-          // Blue line before a category header = move channel to uncategorized section
-          if (dragging.sourceCategoryId !== null) {
-            this.localChannels.update(chs =>
-              chs.map(c => c.id === dragging.id ? { ...c, categoryId: undefined } : c)
-            );
-            this.appendChannelToSection(dragging.id, null, null);
-          }
-        } else if (dragging.sourceCategoryId !== targetCategory.id) {
-          // Blue line after/on a category header = move channel into that category
-          this.localChannels.update(chs =>
-            chs.map(c => c.id === dragging.id ? { ...c, categoryId: targetCategory.id } : c)
-          );
-          this.appendChannelToSection(dragging.id, targetCategory.id, targetCategory.id);
-        }
-      }
-    }
-  }
-
-  protected onItemDragOver(event: DragEvent, targetId: string): void {
-    event.preventDefault();
-    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
-    if (!this.dragging || this.dragging.id === targetId) return;
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-    this.dropTargetId.set(targetId);
-    this.dropPos.set(event.clientY < rect.top + rect.height / 2 ? 'before' : 'after');
-  }
-
-  private reorderChannelsInSection(
-    draggedId: string,
-    categoryId: string | null,
-    targetId: string,
-    pos: 'before' | 'after',
-    newCategoryId?: string | null,
-  ): void {
-    const sectionChannels = categoryId
-      ? this.categoryChannels(categoryId)
-      : [...this.uncategorizedText(), ...this.uncategorizedVoice()];
-
-    const dragged = this.localChannels().find(c => c.id === draggedId);
-    if (!dragged) return;
-
-    const sorted = sectionChannels.filter(c => c.id !== draggedId);
-    const targetIndex = sorted.findIndex(c => c.id === targetId);
-    const insertAt = targetIndex === -1
-      ? sorted.length
-      : pos === 'before' ? targetIndex : targetIndex + 1;
-    sorted.splice(insertAt, 0, dragged);
-
-    const newPositions = new Map(sorted.map((c, i) => [c.id, i]));
-    this.localChannels.update(chs =>
-      chs.map(c => newPositions.has(c.id) ? { ...c, position: newPositions.get(c.id)! } : c)
-    );
-
-    this.guildService.reorderChannels(this.guild().id, {
-      categories: [],
-      channels: sorted.map((c, i) => ({
-        channelId: c.id,
-        position: i,
-        ...(c.id === draggedId && newCategoryId !== undefined ? { categoryId: newCategoryId } : {}),
-      })),
-    }).subscribe();
-  }
-
-  private appendChannelToSection(channelId: string, categoryId: string | null, newCategoryId?: string | null): void {
-    const sectionChannels = categoryId
-      ? this.categoryChannels(categoryId)
-      : [...this.uncategorizedText(), ...this.uncategorizedVoice()];
-
-    const dragged = this.localChannels().find(c => c.id === channelId);
-    if (!dragged) return;
-
-    const sorted = [...sectionChannels.filter(c => c.id !== channelId), dragged];
-    const newPositions = new Map(sorted.map((c, i) => [c.id, i]));
-    this.localChannels.update(chs =>
-      chs.map(c => newPositions.has(c.id) ? { ...c, position: newPositions.get(c.id)! } : c)
-    );
-
-    this.guildService.reorderChannels(this.guild().id, {
-      categories: [],
-      channels: sorted.map((c, i) => ({
-        channelId: c.id,
-        position: i,
-        ...(c.id === channelId && newCategoryId !== undefined ? { categoryId: newCategoryId } : {}),
-      })),
-    }).subscribe();
-  }
-
-  private reorderCategoryAfterDrop(draggedId: string, targetId: string, pos: 'before' | 'after'): void {
-    const sorted = [...this.sortedCategories()];
-    const fromIndex = sorted.findIndex(c => c.id === draggedId);
-    if (fromIndex === -1) return;
-
-    const [dragged] = sorted.splice(fromIndex, 1);
-    const newTargetIndex = sorted.findIndex(c => c.id === targetId);
-    if (newTargetIndex === -1) return;
-
-    sorted.splice(pos === 'before' ? newTargetIndex : newTargetIndex + 1, 0, dragged);
-
-    const newPositions = new Map(sorted.map((c, i) => [c.id, i]));
-    this.localCategories.update(cats =>
-      cats.map(c => newPositions.has(c.id) ? { ...c, position: newPositions.get(c.id)! } : c)
-    );
-
-    this.guildService.reorderChannels(this.guild().id, {
-      categories: sorted.map((c, i) => ({ categoryId: c.id, position: i })),
-      channels: [],
-    }).subscribe();
-  }
-
-  private clearDragState(): void {
-    this.dragging = null;
-    this.dropTargetId.set(null);
-    this.dropPos.set('after');
-  }
+  protected onGlobalDrop(event: DragEvent): void { this.drag.onGlobalDrop(event); }
 
   // ── Modal visibility ──────────────────────────────────────────────────────
-  protected showGuildSettings   = signal(false);
-  protected showChannelSettings = signal(false);
+  protected showGuildSettings    = signal(false);
+  protected showChannelSettings  = signal(false);
   protected showCategorySettings = signal(false);
 
   // ── Quick invite dialog ───────────────────────────────────────────────────
@@ -503,15 +295,15 @@ export class ChannelListComponent {
   protected inviteCopied     = signal(false);
 
   // ── Create channel dialog ─────────────────────────────────────────────────
-  protected showCreateChannel      = signal(false);
-  protected createChannelName      = signal('');
-  protected createChannelType      = signal<ChannelType>(ChannelType.Text);
-  protected createChannelCategory  = signal<string | undefined>(undefined);
-  protected createChannelCreating  = signal(false);
+  protected showCreateChannel     = signal(false);
+  protected createChannelName     = signal('');
+  protected createChannelType     = signal<ChannelType>(ChannelType.Text);
+  protected createChannelCategory = signal<string | undefined>(undefined);
+  protected createChannelCreating = signal(false);
 
   // ── Create category dialog ────────────────────────────────────────────────
-  protected showCreateCategory    = signal(false);
-  protected createCategoryName    = signal('');
+  protected showCreateCategory     = signal(false);
+  protected createCategoryName     = signal('');
   protected createCategoryCreating = signal(false);
 
   // ── Context menu refs ─────────────────────────────────────────────────────
@@ -649,7 +441,7 @@ export class ChannelListComponent {
   }
 
   // ── Voice participant context menu ────────────────────────────────────────
-  protected participantMenu      = signal<ParticipantMenuData | null>(null);
+  protected participantMenu      = signal<CallParticipantMenuData | null>(null);
   private   participantChannelId = signal<string | null>(null);
 
   protected onParticipantContextMenu(event: MouseEvent, p: VoiceChannelParticipant, channelId: string): void {
@@ -692,14 +484,14 @@ export class ChannelListComponent {
     const menu = this.participantMenu();
     const channelId = this.participantChannelId();
     if (!menu || !channelId) return;
-    const { userId, isServerDeafened } = menu.participant;
+    const { userId, isServerDeafened } = menu.participant as VoiceChannelParticipant;
     const newState = !isServerDeafened;
     this.participantMenu.set({ ...menu, participant: { ...menu.participant, isServerDeafened: newState } });
     this.voiceChannelSvc.setServerDeafened(userId, newState);
     await firstValueFrom(
       this.guildVoiceSvc.serverDeafen(this.guild().id, channelId, userId, newState)
     ).catch(() => {
-      this.voiceChannelSvc.setServerDeafened(userId, isServerDeafened);
+      this.voiceChannelSvc.setServerDeafened(userId, isServerDeafened ?? false);
     });
   }
 

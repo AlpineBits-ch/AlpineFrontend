@@ -4,22 +4,22 @@
   <button
     (click)="muteToggle.emit()"
     class="w-12 h-12 rounded-xl flex items-center justify-center transition-all cursor-pointer border-0"
-    [ngClass]="voiceSvc.localState().isMuted
+    [ngClass]="isMuted()
       ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'
       : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
-    [title]="voiceSvc.localState().isMuted ? 'Unmute' : 'Mute'">
+    [title]="isMuted() ? 'Unmute' : 'Mute'">
     <i class="pi text-base"
-       [ngClass]="voiceSvc.localState().isMuted ? 'pi-microphone-slash' : 'pi-microphone'"></i>
+       [ngClass]="isMuted() ? 'pi-microphone-slash' : 'pi-microphone'"></i>
   </button>
 
   <!-- Deafen -->
   <button
     (click)="deafenToggle.emit()"
     class="w-12 h-12 rounded-xl flex items-center justify-center transition-all cursor-pointer border-0"
-    [ngClass]="voiceSvc.localState().isDeafened
+    [ngClass]="isDeafened()
       ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'
       : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
-    [title]="voiceSvc.localState().isDeafened ? 'Undeafen' : 'Deafen'">
+    [title]="isDeafened() ? 'Undeafen' : 'Deafen'">
     <i class="pi pi-volume-off text-base"></i>
   </button>
 
@@ -27,10 +27,10 @@
   <button
     (click)="cameraToggle.emit()"
     class="w-12 h-12 rounded-xl flex items-center justify-center transition-all cursor-pointer border-0"
-    [ngClass]="voiceSvc.localState().isCameraOn
+    [ngClass]="isCameraOn()
       ? 'bg-brand/20 text-brand-dim hover:bg-brand/30'
       : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
-    [title]="voiceSvc.localState().isCameraOn ? 'Turn off camera' : 'Turn on camera'">
+    [title]="isCameraOn() ? 'Turn off camera' : 'Turn on camera'">
     <i class="pi pi-camera text-base"></i>
   </button>
 
@@ -38,32 +38,46 @@
   <button
     (click)="screenShareToggle.emit()"
     class="w-12 h-12 rounded-xl flex items-center justify-center transition-all cursor-pointer border-0"
-    [ngClass]="voiceSvc.localState().isScreenSharing
+    [ngClass]="isScreenSharing()
       ? 'bg-brand/20 text-brand-dim hover:bg-brand/30'
       : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
-    [title]="voiceSvc.localState().isScreenSharing ? 'Stop sharing' : 'Share screen'">
+    [title]="isScreenSharing() ? 'Stop sharing' : 'Share screen'">
     <i class="pi pi-desktop text-base"></i>
   </button>
 
+  <!-- Mute stream audio — only shown when sharing and screen has audio -->
+  @if (isScreenSharing() && screenHasAudio()) {
+    <button
+      (click)="screenAudioToggle.emit()"
+      class="w-12 h-12 rounded-xl flex items-center justify-center transition-all cursor-pointer border-0"
+      [ngClass]="screenAudioMuted()
+        ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'
+        : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
+      [title]="screenAudioMuted() ? 'Unmute stream audio' : 'Mute stream audio'">
+      <i class="pi text-base"
+         [ngClass]="screenAudioMuted() ? 'pi-volume-off' : 'pi-volume-up'"></i>
+    </button>
+  }
+
   <!-- FPS + Resolution selectors — visible only while sharing -->
-  @if (voiceSvc.localState().isScreenSharing) {
+  @if (isScreenSharing()) {
     <div class="flex items-center gap-0.5 bg-white/[0.05] rounded-lg px-1 py-1 border border-white/[0.08]">
-      @for (fps of fpsList; track fps) {
+      @for (fps of fpsList(); track fps) {
         <button
           (click)="fpsChange.emit(fps)"
           class="px-2 py-1 rounded text-xs font-mono transition-colors border-0 cursor-pointer leading-none"
-          [ngClass]="rustMedia.captureFps() === fps
+          [ngClass]="captureFps() === fps
             ? 'bg-brand text-white'
             : 'bg-transparent text-white/45 hover:text-white/75 hover:bg-white/[0.07]'"
           [title]="fps + ' fps'">{{ fps }}</button>
       }
     </div>
     <div class="flex items-center gap-0.5 bg-white/[0.05] rounded-lg px-1 py-1 border border-white/[0.08]">
-      @for (res of resolutionList; track res) {
+      @for (res of resolutionList(); track res) {
         <button
           (click)="resolutionChange.emit(res)"
           class="px-2 py-1 rounded text-xs font-mono transition-colors border-0 cursor-pointer leading-none"
-          [ngClass]="rustMedia.captureResolution() === res
+          [ngClass]="captureResolution() === res
             ? 'bg-brand text-white'
             : 'bg-transparent text-white/45 hover:text-white/75 hover:bg-white/[0.07]'"
           [title]="res">{{ res }}</button>
@@ -73,11 +87,11 @@
 
   <div class="w-px h-7 bg-white/[0.12] mx-1"></div>
 
-  <!-- Disconnect -->
+  <!-- Disconnect / End Call -->
   <button
     (click)="disconnect.emit()"
     class="w-12 h-12 rounded-xl flex items-center justify-center bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 hover:text-rose-300 transition-all cursor-pointer border-0"
-    title="Disconnect">
+    [title]="disconnectLabel()">
     <i class="pi pi-phone text-base" style="transform: rotate(135deg); display: inline-block;"></i>
   </button>
 

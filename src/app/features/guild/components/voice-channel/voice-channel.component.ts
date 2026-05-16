@@ -9,22 +9,23 @@ import { GuildVoiceService } from '../../../../services/guild-voice.service';
 import { GuildMemberDto } from '../../../../dtos/response/member.dto';
 import { hasPermission, parsePermissions, Permissions } from '../../../../enums/permissions.enum';
 import { RustMediaService, StreamResolution } from '../../../../services/rust-media.service';
-import { VoiceChannelContextMenuComponent, ParticipantMenuData } from './voice-channel-context-menu.component';
-import { VoiceChannelParticipantTileComponent } from './voice-channel-participant-tile.component';
 import { VoiceChannelLobbyComponent } from './voice-channel-lobby.component';
-import { VoiceChannelControlsBarComponent } from './voice-channel-controls-bar.component';
-import { VoiceChannelScreenLayoutComponent } from './voice-channel-screen-layout.component';
+import { CallContextMenuComponent } from '../../../../shared/call/call-context-menu/call-context-menu.component';
+import { CallParticipantTileComponent } from '../../../../shared/call/call-participant-tile/call-participant-tile.component';
+import { CallControlsBarComponent } from '../../../../shared/call/call-controls-bar/call-controls-bar.component';
+import { CallScreenLayoutComponent } from '../../../../shared/call/call-screen-layout/call-screen-layout.component';
+import { CallParticipant, CallParticipantMenuData, CallScreenShare } from '../../../../shared/call/call.types';
 import { TranslateModule } from '@ngx-translate/core';
 
 @Component({
   selector: 'app-voice-channel',
   imports: [
     NgClass,
-    VoiceChannelContextMenuComponent,
-    VoiceChannelParticipantTileComponent,
     VoiceChannelLobbyComponent,
-    VoiceChannelControlsBarComponent,
-    VoiceChannelScreenLayoutComponent,
+    CallContextMenuComponent,
+    CallParticipantTileComponent,
+    CallControlsBarComponent,
+    CallScreenLayoutComponent,
     TranslateModule,
   ],
   templateUrl: './voice-channel.component.html',
@@ -61,16 +62,36 @@ export class VoiceChannelComponent {
     this.voiceSvc.channelParticipants().get(this.channel().id) ?? [],
   );
 
+  protected callParticipants = computed((): CallParticipant[] => this.participants());
+
   protected screenSharers = computed(() => {
     const all     = this.participants();
     const sharers = all.filter(p => p.isScreenSharing);
-    // If local state says we're sharing but the participant entry hasn't synced yet, include it
     if (this.voiceSvc.localState().isScreenSharing && !sharers.some(p => p.isLocal)) {
       const local = all.find(p => p.isLocal);
       if (local) return [...sharers, { ...local, isScreenSharing: true }];
     }
     return sharers;
   });
+
+  protected callScreenShares = computed((): CallScreenShare[] =>
+    this.screenSharers().map(p => ({
+      shareId:     p.cfSessionId ?? p.userId,
+      userId:      p.userId,
+      displayName: p.displayName,
+      avatarLabel: p.avatarLabel,
+      isLocal:     p.isLocal,
+      stream:      (p.isLocal
+        ? this.voiceSvc.localScreenStream()
+        : this.voiceSvc.getScreenStream(p.userId)) ?? undefined,
+      hasAudio:    p.isLocal ? this.voiceSvc.localScreenHasAudio() : true,
+      isAudioMuted: p.isLocal
+        ? this.voiceSvc.localScreenAudioMuted()
+        : this.voiceSvc.isScreenAudioMuted(p.userId),
+      renderedFps: p.isLocal ? this.rustMedia.renderedFps() : null,
+      inboundFps:  p.isLocal ? this.rustMedia.inboundFps()  : null,
+    }))
+  );
 
   protected isJoined = computed(() =>
     this.voiceSvc.joinedChannelId() === this.channel().id,
@@ -86,9 +107,9 @@ export class VoiceChannelComponent {
 
   // ── Context menu ───────────────────────────────────────────────────────────
 
-  protected participantMenu = signal<ParticipantMenuData | null>(null);
+  protected participantMenu = signal<CallParticipantMenuData | null>(null);
 
-  protected onParticipantContextMenu(event: MouseEvent, p: VoiceChannelParticipant): void {
+  protected onParticipantContextMenu(event: MouseEvent, p: CallParticipant): void {
     if (p.isLocal) return;
     event.preventDefault();
     event.stopPropagation();
@@ -126,14 +147,14 @@ export class VoiceChannelComponent {
   protected async toggleServerDeafen(): Promise<void> {
     const menu = this.participantMenu();
     if (!menu) return;
-    const { userId, isServerDeafened } = menu.participant;
+    const { userId, isServerDeafened } = menu.participant as VoiceChannelParticipant;
     const newState = !isServerDeafened;
     this.participantMenu.set({ ...menu, participant: { ...menu.participant, isServerDeafened: newState } });
     this.voiceSvc.setServerDeafened(userId, newState);
     await firstValueFrom(
       this.guildVoice.serverDeafen(this.channel().guildId, this.channel().id, userId, newState)
     ).catch(() => {
-      this.voiceSvc.setServerDeafened(userId, isServerDeafened);
+      this.voiceSvc.setServerDeafened(userId, isServerDeafened ?? false);
     });
   }
 
@@ -145,11 +166,13 @@ export class VoiceChannelComponent {
     void this.voiceSvc.joinChannel(this.channel(), guildName);
   }
 
-  protected leaveChannel():       void { void this.voiceSvc.leaveChannel(); }
-  protected toggleMute():         void { this.voiceSvc.toggleMute(); }
-  protected toggleDeafen():       void { this.voiceSvc.toggleDeafen(); }
-  protected toggleCamera():       void { void this.voiceSvc.toggleCamera(); }
-  protected toggleScreenShare():  void { void this.voiceSvc.toggleScreenShare(); }
-  protected setCaptureFps(fps: number): void { void this.rustMedia.setCaptureFps(fps); }
+  protected leaveChannel():               void { void this.voiceSvc.leaveChannel(); }
+  protected toggleMute():                 void { this.voiceSvc.toggleMute(); }
+  protected toggleDeafen():               void { this.voiceSvc.toggleDeafen(); }
+  protected toggleCamera():               void { void this.voiceSvc.toggleCamera(); }
+  protected toggleScreenShare():          void { void this.voiceSvc.toggleScreenShare(); }
+  protected toggleLocalScreenAudio():     void { this.voiceSvc.toggleLocalScreenAudio(); }
+  protected toggleRemoteScreenAudio(userId: string): void { this.voiceSvc.toggleScreenAudioMute(userId); }
+  protected setCaptureFps(fps: number):               void { void this.rustMedia.setCaptureFps(fps); }
   protected setScreenResolution(res: StreamResolution): void { void this.rustMedia.setScreenResolution(res); }
 }

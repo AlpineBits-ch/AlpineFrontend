@@ -1,10 +1,13 @@
-import { Component, effect, HostListener, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { Component, computed, effect, HostListener, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { CallSessionService } from '../../../../../services/call-session.service';
 import { CallWebRtcService } from '../../../../../services/call-webrtc.service';
 import { RustMediaService, StreamResolution } from '../../../../../services/rust-media.service';
-import { CallParticipantUi, ScreenShareUi } from '../../../../../services/call-session.types';
-import { SrcObjectDirective } from './src-object.directive';
-import { TranslateModule } from '@ngx-translate/core';
+import { CallParticipant, CallParticipantMenuData, CallScreenShare } from '../../../../../shared/call/call.types';
+import { CallParticipantTileComponent } from '../../../../../shared/call/call-participant-tile/call-participant-tile.component';
+import { CallControlsBarComponent } from '../../../../../shared/call/call-controls-bar/call-controls-bar.component';
+import { CallScreenLayoutComponent } from '../../../../../shared/call/call-screen-layout/call-screen-layout.component';
+import { CallContextMenuComponent } from '../../../../../shared/call/call-context-menu/call-context-menu.component';
+import { StreamSrcDirective } from '../../../../../directives/stream-src.directive';
 
 interface FocusedStream {
   kind: 'camera' | 'share';
@@ -13,49 +16,64 @@ interface FocusedStream {
   mirror: boolean;
 }
 
-interface VolumeMenu {
-  x: number;
-  y: number;
-  userId: string;
-  displayName: string;
-  volume: number; // 0–100
-}
-
-const MIN_HEIGHT = 200;
-const MAX_HEIGHT = 900;
-const DEFAULT_HEIGHT = 420;
+const MIN_HEIGHT         = 200;
+const MAX_HEIGHT         = 900;
+const DEFAULT_HEIGHT     = 420;
 const FOCUSED_MIN_HEIGHT = 500;
 
 @Component({
   selector: 'app-call-panel',
   templateUrl: './call-panel.component.html',
   styleUrl: './call-panel.component.css',
-  imports: [SrcObjectDirective, TranslateModule],
+  imports: [
+    StreamSrcDirective,
+    CallParticipantTileComponent,
+    CallControlsBarComponent,
+    CallScreenLayoutComponent,
+    CallContextMenuComponent,
+  ],
 })
 export class CallPanelComponent implements OnInit, OnDestroy {
-  private callSession = inject(CallSessionService);
-  private callWebRtc = inject(CallWebRtcService);
-  protected rustMedia = inject(RustMediaService);
+  private callSession  = inject(CallSessionService);
+  private callWebRtc   = inject(CallWebRtcService);
+  protected rustMedia  = inject(RustMediaService);
 
-  readonly fpsList         = [5, 10, 15, 30] as const;
-  readonly resolutionList  = ['native', '1440p', '1080p', '720p', '480p'] as const;
+  readonly fpsList        = [5, 10, 15, 30] as const;
+  readonly resolutionList = ['native', '1440p', '1080p', '720p', '480p'] as const;
 
-  protected session = this.callSession.session;
-  protected stats = this.callWebRtc.stats;
-  protected rtcState = this.callWebRtc.rtcState;
+  protected session               = this.callSession.session;
+  protected stats                 = this.callWebRtc.stats;
+  protected rtcState              = this.callWebRtc.rtcState;
   protected participantsWithAudio = this.callWebRtc.participantsWithAudio;
-  protected focusedStream = signal<FocusedStream | null>(null);
-  protected showStats = signal(false);
-  protected volumeMenu = signal<VolumeMenu | null>(null);
-  protected panelHeight = signal(DEFAULT_HEIGHT);
-  protected isResizing = signal(false);
-  protected duration = '00:00';
+  protected focusedStream         = signal<FocusedStream | null>(null);
+  protected showStats             = signal(false);
+  protected participantMenu       = signal<CallParticipantMenuData | null>(null);
+  protected panelHeight           = signal(DEFAULT_HEIGHT);
+  protected isResizing            = signal(false);
+  protected duration              = '00:00';
   private durationInterval?: ReturnType<typeof setInterval>;
-  private resizeStartY = 0;
+  private resizeStartY      = 0;
   private resizeStartHeight = 0;
 
+  // ── Shared-type projections ────────────────────────────────────────────────
+
+  protected callParticipants = computed((): CallParticipant[] => this.session()?.participants ?? []);
+
+  protected callScreenShares = computed((): CallScreenShare[] =>
+    (this.session()?.screenShares ?? []).map(sh => ({
+      shareId:      sh.shareId,
+      userId:       sh.userId,
+      displayName:  sh.displayName,
+      avatarLabel:  sh.displayName[0]?.toUpperCase() ?? '?',
+      isLocal:      sh.isLocal,
+      stream:       sh.stream,
+      hasAudio:     false,  // DM screen share does not capture audio yet
+      isAudioMuted: false,
+    }))
+  );
+
   constructor() {
-    // Auto-unfocus when the focused stream is no longer active
+    // Auto-unfocus when the focused stream becomes inactive
     effect(() => {
       const focused = this.focusedStream();
       if (!focused) return;
@@ -67,7 +85,6 @@ export class CallPanelComponent implements OnInit, OnDestroy {
       if (!stillActive) this.focusedStream.set(null);
     });
 
-    // Ensure panel is tall enough to comfortably show the focused video
     effect(() => {
       if (this.focusedStream()) {
         this.panelHeight.update(h => Math.max(h, FOCUSED_MIN_HEIGHT));
@@ -80,7 +97,7 @@ export class CallPanelComponent implements OnInit, OnDestroy {
       const s = this.callSession.session();
       if (!s) return;
       const elapsed = Math.floor((Date.now() - new Date(s.startedAt).getTime()) / 1000);
-      const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+      const m   = Math.floor(elapsed / 60).toString().padStart(2, '0');
       const sec = (elapsed % 60).toString().padStart(2, '0');
       this.duration = `${m}:${sec}`;
     }, 1000);
@@ -90,11 +107,11 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     clearInterval(this.durationInterval);
   }
 
-  // ── Resize ───────────────────────────────────────────────────────────────
+  // ── Resize ─────────────────────────────────────────────────────────────────
 
   protected onResizeStart(event: MouseEvent): void {
     this.isResizing.set(true);
-    this.resizeStartY = event.clientY;
+    this.resizeStartY      = event.clientY;
     this.resizeStartHeight = this.panelHeight();
     event.preventDefault();
   }
@@ -102,25 +119,21 @@ export class CallPanelComponent implements OnInit, OnDestroy {
   @HostListener('document:mousemove', ['$event'])
   protected onMouseMove(event: MouseEvent): void {
     if (!this.isResizing()) return;
-    const delta = event.clientY - this.resizeStartY;
-    const next = Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, this.resizeStartHeight + delta));
-    this.panelHeight.set(next);
+    this.panelHeight.set(Math.max(MIN_HEIGHT, Math.min(MAX_HEIGHT, this.resizeStartHeight + (event.clientY - this.resizeStartY))));
   }
 
   @HostListener('document:mouseup')
-  protected onMouseUp(): void {
-    this.isResizing.set(false);
-  }
+  protected onMouseUp(): void { this.isResizing.set(false); }
 
-  // ── Menu / volume ─────────────────────────────────────────────────────────
+  // ── Context menu ──────────────────────────────────────────────────────────
 
   @HostListener('document:click')
-  protected closeVolumeMenu(): void { this.volumeMenu.set(null); }
+  protected closeMenu(): void { this.participantMenu.set(null); }
 
   @HostListener('document:keydown.escape')
-  protected closeVolumeMenuKey(): void { this.volumeMenu.set(null); }
+  protected closeMenuKey(): void { this.participantMenu.set(null); }
 
-  // ── Actions ───────────────────────────────────────────────────────────────
+  // ── Actions ────────────────────────────────────────────────────────────────
 
   protected toggleMute():        void { this.callSession.toggleMute(); }
   protected toggleDeafen():      void { this.callSession.toggleDeafen(); }
@@ -128,7 +141,6 @@ export class CallPanelComponent implements OnInit, OnDestroy {
   protected toggleScreenShare(): void { void this.callSession.toggleScreenShare(); }
   protected setCaptureFps(fps: number): void { void this.rustMedia.setCaptureFps(fps); }
   protected setScreenResolution(res: StreamResolution): void { void this.rustMedia.setScreenResolution(res); }
-  protected joinScreenShare(id: string): void { this.callSession.joinScreenShare(id); }
   protected endCall():           void { this.callSession.end(); }
   protected toggleStats():       void { this.showStats.update(v => !v); }
   protected unfocus():           void { this.focusedStream.set(null); }
@@ -156,45 +168,28 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     } catch { /* denied or unavailable */ }
   }
 
-  protected pipFromTile(event: MouseEvent): void {
-    event.stopPropagation();
-    const tile = (event.currentTarget as HTMLElement).closest('.tile') as HTMLElement | null;
-    const video = tile?.querySelector('video') as HTMLVideoElement | null;
-    if (video) void this.requestPiP(video);
-  }
-
-  protected focusCamera(p: CallParticipantUi): void {
+  protected focusCamera(p: CallParticipant): void {
     if (!p.videoStream) return;
-    this.focusedStream.set({
-      kind: 'camera',
-      stream: p.videoStream,
-      label: p.isLocal ? 'You' : p.displayName,
-      mirror: p.isLocal,
-    });
+    this.focusedStream.set({ kind: 'camera', stream: p.videoStream, label: p.isLocal ? 'You' : p.displayName, mirror: p.isLocal });
   }
 
-  protected focusShare(share: ScreenShareUi): void {
+  protected focusShare(share: CallScreenShare): void {
     if (!share.stream) return;
-    this.focusedStream.set({
-      kind: 'share',
-      stream: share.stream,
-      label: `${share.displayName}'s screen`,
-      mirror: false,
-    });
+    this.focusedStream.set({ kind: 'share', stream: share.stream, label: `${share.displayName}'s screen`, mirror: false });
   }
 
-  protected onTileContextMenu(event: MouseEvent, p: CallParticipantUi): void {
+  protected onParticipantContextMenu(event: MouseEvent, p: CallParticipant): void {
     if (p.isLocal) return;
     event.preventDefault();
+    event.stopPropagation();
     const volume = Math.round(this.callWebRtc.getUserVolume(p.userId) * 100);
-    this.volumeMenu.set({ x: event.clientX, y: event.clientY, userId: p.userId, displayName: p.displayName, volume });
+    this.participantMenu.set({ x: event.clientX, y: event.clientY, participant: p, volume });
   }
 
-  protected onVolumeInput(event: Event): void {
-    const value = parseInt((event.target as HTMLInputElement).value, 10);
-    const menu = this.volumeMenu();
+  protected onVolumeChange(value: number): void {
+    const menu = this.participantMenu();
     if (!menu) return;
-    this.volumeMenu.set({ ...menu, volume: value });
-    this.callWebRtc.setUserVolume(menu.userId, value / 100);
+    this.participantMenu.set({ ...menu, volume: value });
+    this.callWebRtc.setUserVolume(menu.participant.userId, value / 100);
   }
 }

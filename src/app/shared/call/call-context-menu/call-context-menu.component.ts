@@ -1,26 +1,19 @@
 import { Component, HostListener, input, output } from '@angular/core';
-import { VoiceChannelParticipant } from '../../../../services/voice-channel.service';
-
-export interface ParticipantMenuData {
-  x: number;
-  y: number;
-  participant: VoiceChannelParticipant;
-  volume: number;
-}
+import { CallParticipantMenuData } from '../call.types';
 
 @Component({
-  selector: 'app-voice-channel-context-menu',
-  templateUrl: './voice-channel-context-menu.component.html',
+  selector: 'app-call-context-menu',
+  templateUrl: './call-context-menu.component.html',
   host: { '(click)': '$event.stopPropagation()' }
 })
-export class VoiceChannelContextMenuComponent {
-  menu = input.required<ParticipantMenuData>();
+export class CallContextMenuComponent {
+  menu         = input.required<CallParticipantMenuData>();
   isSuperadmin = input<boolean>(false);
 
-  close = output<void>();
+  close        = output<void>();
   volumeChange = output<number>();
-  kick = output<void>();
-  ban = output<void>();
+  kick         = output<void>();
+  ban          = output<void>();
   serverDeafen = output<void>();
 
   @HostListener('document:click')
