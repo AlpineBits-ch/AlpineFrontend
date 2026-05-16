@@ -57,7 +57,7 @@
   },
   "identifier": "com.alpinebits.echo",
   "productName": "Echo",
-  "version": "3.0.86",
+  "version": "3.0.87",
   "plugins": {
     "updater": {
       "windows": {
