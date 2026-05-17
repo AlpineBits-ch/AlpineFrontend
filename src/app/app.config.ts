@@ -55,7 +55,7 @@ export const appConfig: ApplicationConfig = {
             fallbackLang: 'en'
         }),
         provideZoneChangeDetection({eventCoalescing: true}),
-        provideRouter(routes, withHashLocation()),
+        provideRouter(routes),
         providePrimeNG({
             theme: {
                 preset: AlpinePreset,
