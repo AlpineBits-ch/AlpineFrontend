@@ -13,18 +13,14 @@
             </div>
         }
 
-        <!-- App identity — always part of the drag region -->
         <div class="identity" data-tauri-drag-region>
-            <!-- Logo placeholder — swap with <img src="..."> or an SVG when ready -->
             <div class="logo-mark">A</div>
-            <span class="app-name">Alpine</span>
+            <span class="app-name">Venta</span>
         </div>
 
-        <!-- Drag spacer -->
         <div class="grow" data-tauri-drag-region></div>
 
         @if (!isMac()) {
-            <!-- Windows / Linux: controls on the right -->
             <div class="win-controls">
                 <button (click)="minimize()" aria-label="Minimize" class="win-btn" title="Minimize">
                     <svg fill="none" height="1" viewBox="0 0 10 1" width="10">
