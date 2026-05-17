@@ -6,7 +6,7 @@ import {
   provideBrowserGlobalErrorListeners,
   provideZoneChangeDetection,
 } from "@angular/core";
-import {provideRouter} from "@angular/router";
+import {provideRouter, withHashLocation} from "@angular/router";
 import {provideAnimations} from "@angular/platform-browser/animations";
 import {provideIonicAngular} from '@ionic/angular/standalone';
 import {AuthConfig, OAuthStorage, provideOAuthClient} from 'angular-oauth2-oidc';
@@ -55,7 +55,7 @@ export const appConfig: ApplicationConfig = {
             fallbackLang: 'en'
         }),
         provideZoneChangeDetection({eventCoalescing: true}),
-        provideRouter(routes),
+        provideRouter(routes, withHashLocation()),
         providePrimeNG({
             theme: {
                 preset: AlpinePreset,
