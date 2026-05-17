@@ -1,13 +1,13 @@
 <div class="relative">
-  <!-- Picker container — always in DOM, hidden when closed -->
-  <div #pickerContainer
-       class="absolute bottom-full right-0 mb-2 z-50"
-       [class.hidden]="!showPicker()"></div>
+    <!-- Picker container — always in DOM, hidden when closed -->
+    <div #pickerContainer
+         [class.hidden]="!showPicker()"
+         class="absolute bottom-full right-0 mb-2 z-50"></div>
 
-  <p-button
-    icon="pi pi-face-smile"
-    [text]="true"
-    [severity]="showPicker() ? 'primary' : 'secondary'"
-    size="small"
-    (onClick)="toggle()" />
+    <p-button
+            (onClick)="toggle()"
+            [severity]="showPicker() ? 'primary' : 'secondary'"
+            [text]="true"
+            icon="pi pi-face-smile"
+            size="small"/>
 </div>

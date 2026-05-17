@@ -1,18 +1,18 @@
 <div class="relative shrink-0">
-  <button
-    class="w-11 h-11 flex items-center justify-center transition-colors border-0 cursor-pointer text-sm font-bold overflow-hidden rounded-2xl"
-    [ngClass]="serverData().isActive
+    <button
+            [ngClass]="serverData().isActive
       ? 'bg-indigo-500/20 text-indigo-400'
-      : 'bg-white/[0.07] text-white/60 hover:bg-indigo-500/20 hover:text-indigo-400'">
-    @if (serverData().icon && !imgFailed()) {
-      <img [src]="imgSrc()" (error)="onImgError()" alt="" class="w-full h-full object-cover" />
-    } @else {
-      {{ serverData().name[0]?.toUpperCase() }}
-    }
-  </button>
-  @if (serverData().badge) {
-    <span class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center pointer-events-none">
+      : 'bg-white/[0.07] text-white/60 hover:bg-indigo-500/20 hover:text-indigo-400'"
+            class="w-11 h-11 flex items-center justify-center transition-colors border-0 cursor-pointer text-sm font-bold overflow-hidden rounded-2xl">
+        @if (serverData().icon && !imgFailed()) {
+            <img (error)="onImgError()" [src]="imgSrc()" alt="" class="w-full h-full object-cover"/>
+        } @else {
+            {{ serverData().name[0]?.toUpperCase() }}
+        }
+    </button>
+    @if (serverData().badge) {
+        <span class="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center pointer-events-none">
       {{ serverData().badge }}
     </span>
-  }
+    }
 </div>

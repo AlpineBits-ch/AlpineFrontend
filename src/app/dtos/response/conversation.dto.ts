@@ -1,4 +1,4 @@
-import { ConversationEncryption } from '../../enums/conversation-encryption.enum';
+import {ConversationEncryption} from '../../enums/conversation-encryption.enum';
 
 export interface ConversationMemberDto {
     id: string;

@@ -1,493 +1,513 @@
-import { inject } from '@angular/core';
-import { patchState, signalStore, withHooks, withMethods, withState } from '@ngrx/signals';
-import { addEntities, removeEntities, removeEntity, updateEntity, upsertEntity, withEntities } from '@ngrx/signals/entities';
-import { MessageDto, MessageReaction } from '../dtos/response/message.dto';
-import { MessageEncryptionState } from '../enums/message-encryption-state.enum';
-import { MessageType } from '../enums/message-type.enum';
-import { MessagingService } from '../services/messaging.service';
-import { MlsService } from '../services/mls.service';
-import { MessagingWebsocketService, MessageUpdatedEvent, MessageDeletedEvent, ReactionEvent } from '../services/messaging-websocket.service';
-import { GuildWebsocketService } from '../services/guild-websocket.service';
-import { ProfileService } from '../services/profile.service';
-import { HttpErrorResponse } from '@angular/common/http';
-import { catchError, firstValueFrom, from, Observable, of, switchMap, tap } from 'rxjs';
+import {inject} from '@angular/core';
+import {patchState, signalStore, withHooks, withMethods, withState} from '@ngrx/signals';
+import {
+    addEntities,
+    removeEntities,
+    removeEntity,
+    updateEntity,
+    upsertEntity,
+    withEntities
+} from '@ngrx/signals/entities';
+import {MessageDto, MessageReaction} from '../dtos/response/message.dto';
+import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
+import {MessageType} from '../enums/message-type.enum';
+import {MessagingService} from '../services/messaging.service';
+import {MlsService} from '../services/mls.service';
+import {
+    MessageDeletedEvent,
+    MessageUpdatedEvent,
+    MessagingWebsocketService,
+    ReactionEvent
+} from '../services/messaging-websocket.service';
+import {GuildWebsocketService} from '../services/guild-websocket.service';
+import {ProfileService} from '../services/profile.service';
+import {HttpErrorResponse} from '@angular/common/http';
+import {catchError, firstValueFrom, from, Observable, of, switchMap, tap} from 'rxjs';
 import {fromBase64} from "../helpers/base64.helper";
 
 const PAGE_SIZE = 30;
 
 interface ConversationMeta {
-  offset: number;
-  hasMore: boolean;
-  loadingMore: boolean;
-  error?: number;
+    offset: number;
+    hasMore: boolean;
+    loadingMore: boolean;
+    error?: number;
 }
 
 interface SearchEntry {
-  query: string;
-  results: MessageDto[];
-  searching: boolean;
+    query: string;
+    results: MessageDto[];
+    searching: boolean;
 }
 
 interface MessageState {
-  conversationMeta: Record<string, ConversationMeta>;
-  searchEntries: Record<string, SearchEntry>;
-  channelMeta: Record<string, ConversationMeta>;
-  channelSearchEntries: Record<string, SearchEntry>;
+    conversationMeta: Record<string, ConversationMeta>;
+    searchEntries: Record<string, SearchEntry>;
+    channelMeta: Record<string, ConversationMeta>;
+    channelSearchEntries: Record<string, SearchEntry>;
 }
 
 function decodeContent(encoded: string): string {
-  try {
-    const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
-    return new TextDecoder().decode(bytes);
-  } catch {
-    return '';
-  }
+    try {
+        const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
+        return new TextDecoder().decode(bytes);
+    } catch {
+        return '';
+    }
 }
 
 function messageMatchesQuery(msg: MessageDto, q: string): boolean {
-  if (decodeContent(msg.content).toLowerCase().includes(q)) return true;
-  return msg.attachments.some(a => a.fileName.toLowerCase().includes(q));
+    if (decodeContent(msg.content).toLowerCase().includes(q)) return true;
+    return msg.attachments.some(a => a.fileName.toLowerCase().includes(q));
 }
 
 async function decryptMessages(messages: MessageDto[], mlsService: MlsService): Promise<MessageDto[]> {
-  const result: MessageDto[] = [];
-  for (const msg of messages) {
-    if (msg.encryptionState !== MessageEncryptionState.Encrypted || !msg.conversationId || msg.type === MessageType.System) {
-      result.push(msg);
-      console.log('skipping message', msg)
-      continue;
-    }
+    const result: MessageDto[] = [];
+    for (const msg of messages) {
+        if (msg.encryptionState !== MessageEncryptionState.Encrypted || !msg.conversationId || msg.type === MessageType.System) {
+            result.push(msg);
+            console.log('skipping message', msg)
+            continue;
+        }
 
-    console.log('decrypting message', msg)
+        console.log('decrypting message', msg)
 
-    // Check local plaintext cache first — MLS keys are ephemeral and deleted
-    // after use, so re-decryption from server ciphertext isn't possible.
-    const cached = await mlsService.getCachedMessage(msg.id);
-    if (cached) {
-      result.push({ ...msg, content: cached });
-      console.log('using cached plaintext for message', msg)
-      continue;
+        // Check local plaintext cache first — MLS keys are ephemeral and deleted
+        // after use, so re-decryption from server ciphertext isn't possible.
+        const cached = await mlsService.getCachedMessage(msg.id);
+        if (cached) {
+            result.push({...msg, content: cached});
+            console.log('using cached plaintext for message', msg)
+            continue;
+        }
+        const groupId = await mlsService.getGroupIdForConversation(msg.conversationId);
+        if (!groupId) {
+            console.log('group not found for message', msg.id, 'in conversation', msg.conversationId, 'with content', msg.content, 'and attachments', msg.attachments);
+            result.push(msg);
+            continue;
+        }
+        try {
+            const processed = await firstValueFrom(mlsService.processMessage(groupId, fromBase64(msg.content)));
+            if (processed.kind === 'application' && processed.plaintext) {
+                void mlsService.cacheMessage(msg.id, processed.plaintext);
+                result.push({...msg, content: processed.plaintext});
+                console.log('decrypt success')
+                continue;
+            }
+        } catch (e) {
+            console.error(e, groupId, msg.content)
+            // leave content as-is if decryption fails
+        }
+        result.push(msg);
     }
-    const groupId = await mlsService.getGroupIdForConversation(msg.conversationId);
-    if (!groupId) {
-      console.log('group not found for message', msg.id, 'in conversation', msg.conversationId, 'with content', msg.content, 'and attachments', msg.attachments);
-      result.push(msg);
-      continue;
-    }
-    try {
-      const processed = await firstValueFrom(mlsService.processMessage(groupId, fromBase64(msg.content)));
-      if (processed.kind === 'application' && processed.plaintext) {
-        void mlsService.cacheMessage(msg.id, processed.plaintext);
-        result.push({ ...msg, content: processed.plaintext });
-        console.log('decrypt success')
-        continue;
-      }
-    } catch (e){
-      console.error(e, groupId, msg.content)
-      // leave content as-is if decryption fails
-    }
-    result.push(msg);
-  }
-  return result;
+    return result;
 }
 
 export const MessageStore = signalStore(
-  { providedIn: 'root' },
-  withEntities<MessageDto>(),
-  withState<MessageState>({ conversationMeta: {}, searchEntries: {}, channelMeta: {}, channelSearchEntries: {} }),
+    {providedIn: 'root'},
+    withEntities<MessageDto>(),
+    withState<MessageState>({conversationMeta: {}, searchEntries: {}, channelMeta: {}, channelSearchEntries: {}}),
 
-  withMethods((store, messagingService = inject(MessagingService), mlsService = inject(MlsService)) => ({
-    loadForConversation(conversationId: string): void {
-      // Already fetched — no-op
-      if (store.conversationMeta()[conversationId]) return;
+    withMethods((store, messagingService = inject(MessagingService), mlsService = inject(MlsService)) => ({
+        loadForConversation(conversationId: string): void {
+            // Already fetched — no-op
+            if (store.conversationMeta()[conversationId]) return;
 
-      // Optimistically mark as loading so concurrent calls don't double-fetch
-      patchState(store, {
-        conversationMeta: {
-          ...store.conversationMeta(),
-          [conversationId]: { offset: 0, hasMore: true, loadingMore: true },
-        },
-      });
-
-      messagingService
-        .getMessagesForConversation(conversationId, 0, PAGE_SIZE)
-        .pipe(switchMap(messages => from(decryptMessages(messages, mlsService))))
-        .subscribe({
-          next: messages => {
-            patchState(store, addEntities(messages), {
-              conversationMeta: {
-                ...store.conversationMeta(),
-                [conversationId]: {
-                  offset: messages.length,
-                  hasMore: messages.length === PAGE_SIZE,
-                  loadingMore: false,
-                },
-              },
-            });
-          },
-          error: (err: HttpErrorResponse) => {
+            // Optimistically mark as loading so concurrent calls don't double-fetch
             patchState(store, {
-              conversationMeta: {
-                ...store.conversationMeta(),
-                [conversationId]: { offset: 0, hasMore: false, loadingMore: false, error: err.status || 0 },
-              },
-            });
-          },
-        });
-    },
-
-    loadMoreForConversation(conversationId: string): void {
-      const meta = store.conversationMeta()[conversationId];
-      if (!meta || meta.loadingMore || !meta.hasMore) return;
-
-      patchState(store, {
-        conversationMeta: {
-          ...store.conversationMeta(),
-          [conversationId]: { ...meta, loadingMore: true },
-        },
-      });
-
-      messagingService
-        .getMessagesForConversation(conversationId, meta.offset, PAGE_SIZE)
-        .pipe(switchMap(messages => from(decryptMessages(messages, mlsService))))
-        .subscribe({
-          next: messages => {
-            patchState(store, addEntities(messages), {
-              conversationMeta: {
-                ...store.conversationMeta(),
-                [conversationId]: {
-                  offset: meta.offset + messages.length,
-                  hasMore: messages.length === PAGE_SIZE,
-                  loadingMore: false,
+                conversationMeta: {
+                    ...store.conversationMeta(),
+                    [conversationId]: {offset: 0, hasMore: true, loadingMore: true},
                 },
-              },
             });
-          },
-          error: () => {
+
+            messagingService
+                .getMessagesForConversation(conversationId, 0, PAGE_SIZE)
+                .pipe(switchMap(messages => from(decryptMessages(messages, mlsService))))
+                .subscribe({
+                    next: messages => {
+                        patchState(store, addEntities(messages), {
+                            conversationMeta: {
+                                ...store.conversationMeta(),
+                                [conversationId]: {
+                                    offset: messages.length,
+                                    hasMore: messages.length === PAGE_SIZE,
+                                    loadingMore: false,
+                                },
+                            },
+                        });
+                    },
+                    error: (err: HttpErrorResponse) => {
+                        patchState(store, {
+                            conversationMeta: {
+                                ...store.conversationMeta(),
+                                [conversationId]: {
+                                    offset: 0,
+                                    hasMore: false,
+                                    loadingMore: false,
+                                    error: err.status || 0
+                                },
+                            },
+                        });
+                    },
+                });
+        },
+
+        loadMoreForConversation(conversationId: string): void {
+            const meta = store.conversationMeta()[conversationId];
+            if (!meta || meta.loadingMore || !meta.hasMore) return;
+
             patchState(store, {
-              conversationMeta: {
-                ...store.conversationMeta(),
-                [conversationId]: { ...meta, loadingMore: false },
-              },
-            });
-          },
-        });
-    },
-
-    clearConversationError(conversationId: string): void {
-      const meta = { ...store.conversationMeta() };
-      delete meta[conversationId];
-      patchState(store, { conversationMeta: meta });
-    },
-
-    addMessage(msg: MessageDto): void {
-      patchState(store, upsertEntity(msg));
-    },
-
-    /** Replace a pending (optimistic) message with the confirmed server response */
-    confirmMessage(tempId: string, confirmed: MessageDto): void {
-      patchState(store, updateEntity({ id: tempId, changes: { ...confirmed, isPending: false, isFailed: false } }));
-    },
-
-    /** Mark a pending message as failed */
-    failMessage(tempId: string): void {
-      patchState(store, updateEntity({ id: tempId, changes: { isPending: false, isFailed: true } }));
-    },
-
-    removeMessage(id: string): void {
-      patchState(store, removeEntity(id));
-    },
-
-    applyReactionAdded(event: ReactionEvent): void {
-      const msg = store.entityMap()[event.messageId];
-      if (!msg) return;
-      const reactions = msg.reactions ?? [];
-      if (reactions.some(r => r.emoji === event.emoji && r.userId === event.userId)) return;
-      const entry: MessageReaction = {
-        contextId: event.conversationId ?? event.channelId ?? '',
-        messageId: event.messageId,
-        emoji: event.emoji,
-        userId: event.userId,
-        createdAt: new Date().toISOString(),
-        conversationId: event.conversationId ?? null,
-        channelId: event.channelId ?? null,
-      };
-      patchState(store, updateEntity({ id: event.messageId, changes: { reactions: [...reactions, entry] } }));
-    },
-
-    applyReactionRemoved(event: ReactionEvent): void {
-      const msg = store.entityMap()[event.messageId];
-      if (!msg) return;
-      const reactions = (msg.reactions ?? []).filter(
-        r => !(r.emoji === event.emoji && r.userId === event.userId)
-      );
-      patchState(store, updateEntity({ id: event.messageId, changes: { reactions } }));
-    },
-
-    applyMessageUpdate(dto: MessageDto): void {
-      patchState(store, updateEntity({ id: dto.id, changes: dto }));
-    },
-
-    removeMessagesForConversation(conversationId: string): void {
-      const ids = store.entities()
-        .filter(m => m.conversationId === conversationId)
-        .map(m => m.id);
-      const meta = { ...store.conversationMeta() };
-      delete meta[conversationId];
-      patchState(store, removeEntities(ids), { conversationMeta: meta });
-    },
-
-    searchInConversation(conversationId: string, query: string): void {
-      const q = query.trim().toLowerCase();
-      if (!q) {
-        const entries = { ...store.searchEntries() };
-        delete entries[conversationId];
-        patchState(store, { searchEntries: entries });
-        return;
-      }
-
-      const localResults = store.entities()
-        .filter(m => m.conversationId === conversationId && !m.isPending && !m.isFailed)
-        .filter(m => messageMatchesQuery(m, q));
-
-      const meta = store.conversationMeta()[conversationId];
-      const needsRemote = meta?.hasMore ?? true;
-
-      patchState(store, {
-        searchEntries: {
-          ...store.searchEntries(),
-          [conversationId]: { query: q, results: localResults, searching: needsRemote },
-        },
-      });
-
-      if (!needsRemote) return;
-
-      messagingService.searchMessagesForConversation(conversationId, q).subscribe({
-        next: remoteResults => {
-          patchState(store, addEntities(remoteResults));
-          const localIds = new Set(localResults.map(m => m.id));
-          const merged = [
-            ...localResults,
-            ...remoteResults.filter(r => !localIds.has(r.id)),
-          ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          patchState(store, {
-            searchEntries: {
-              ...store.searchEntries(),
-              [conversationId]: { query: q, results: merged, searching: false },
-            },
-          });
-        },
-        error: () => {
-          patchState(store, {
-            searchEntries: {
-              ...store.searchEntries(),
-              [conversationId]: { ...store.searchEntries()[conversationId], searching: false },
-            },
-          });
-        },
-      });
-    },
-
-    clearSearch(conversationId: string): void {
-      const entries = { ...store.searchEntries() };
-      delete entries[conversationId];
-      patchState(store, { searchEntries: entries });
-    },
-
-    loadForChannel(channelId: string): void {
-      if (store.channelMeta()[channelId]) return;
-      patchState(store, {
-        channelMeta: {
-          ...store.channelMeta(),
-          [channelId]: { offset: 0, hasMore: true, loadingMore: true },
-        },
-      });
-      messagingService
-        .getMessagesForChannel(channelId, 0, PAGE_SIZE)
-        .subscribe({
-          next: messages => {
-            patchState(store, addEntities(messages), {
-              channelMeta: {
-                ...store.channelMeta(),
-                [channelId]: {
-                  offset: messages.length,
-                  hasMore: messages.length === PAGE_SIZE,
-                  loadingMore: false,
+                conversationMeta: {
+                    ...store.conversationMeta(),
+                    [conversationId]: {...meta, loadingMore: true},
                 },
-              },
             });
-          },
-          error: (err: HttpErrorResponse) => {
-            patchState(store, {
-              channelMeta: {
-                ...store.channelMeta(),
-                [channelId]: { offset: 0, hasMore: false, loadingMore: false, error: err.status || 0 },
-              },
-            });
-          },
-        });
-    },
 
-    loadMoreForChannel(channelId: string): void {
-      const meta = store.channelMeta()[channelId];
-      if (!meta || meta.loadingMore || !meta.hasMore) return;
-      patchState(store, {
-        channelMeta: {
-          ...store.channelMeta(),
-          [channelId]: { ...meta, loadingMore: true },
+            messagingService
+                .getMessagesForConversation(conversationId, meta.offset, PAGE_SIZE)
+                .pipe(switchMap(messages => from(decryptMessages(messages, mlsService))))
+                .subscribe({
+                    next: messages => {
+                        patchState(store, addEntities(messages), {
+                            conversationMeta: {
+                                ...store.conversationMeta(),
+                                [conversationId]: {
+                                    offset: meta.offset + messages.length,
+                                    hasMore: messages.length === PAGE_SIZE,
+                                    loadingMore: false,
+                                },
+                            },
+                        });
+                    },
+                    error: () => {
+                        patchState(store, {
+                            conversationMeta: {
+                                ...store.conversationMeta(),
+                                [conversationId]: {...meta, loadingMore: false},
+                            },
+                        });
+                    },
+                });
         },
-      });
-      messagingService
-        .getMessagesForChannel(channelId, meta.offset, PAGE_SIZE)
-        .subscribe({
-          next: messages => {
-            patchState(store, addEntities(messages), {
-              channelMeta: {
-                ...store.channelMeta(),
-                [channelId]: {
-                  offset: meta.offset + messages.length,
-                  hasMore: messages.length === PAGE_SIZE,
-                  loadingMore: false,
+
+        clearConversationError(conversationId: string): void {
+            const meta = {...store.conversationMeta()};
+            delete meta[conversationId];
+            patchState(store, {conversationMeta: meta});
+        },
+
+        addMessage(msg: MessageDto): void {
+            patchState(store, upsertEntity(msg));
+        },
+
+        /** Replace a pending (optimistic) message with the confirmed server response */
+        confirmMessage(tempId: string, confirmed: MessageDto): void {
+            patchState(store, updateEntity({id: tempId, changes: {...confirmed, isPending: false, isFailed: false}}));
+        },
+
+        /** Mark a pending message as failed */
+        failMessage(tempId: string): void {
+            patchState(store, updateEntity({id: tempId, changes: {isPending: false, isFailed: true}}));
+        },
+
+        removeMessage(id: string): void {
+            patchState(store, removeEntity(id));
+        },
+
+        applyReactionAdded(event: ReactionEvent): void {
+            const msg = store.entityMap()[event.messageId];
+            if (!msg) return;
+            const reactions = msg.reactions ?? [];
+            if (reactions.some(r => r.emoji === event.emoji && r.userId === event.userId)) return;
+            const entry: MessageReaction = {
+                contextId: event.conversationId ?? event.channelId ?? '',
+                messageId: event.messageId,
+                emoji: event.emoji,
+                userId: event.userId,
+                createdAt: new Date().toISOString(),
+                conversationId: event.conversationId ?? null,
+                channelId: event.channelId ?? null,
+            };
+            patchState(store, updateEntity({id: event.messageId, changes: {reactions: [...reactions, entry]}}));
+        },
+
+        applyReactionRemoved(event: ReactionEvent): void {
+            const msg = store.entityMap()[event.messageId];
+            if (!msg) return;
+            const reactions = (msg.reactions ?? []).filter(
+                r => !(r.emoji === event.emoji && r.userId === event.userId)
+            );
+            patchState(store, updateEntity({id: event.messageId, changes: {reactions}}));
+        },
+
+        applyMessageUpdate(dto: MessageDto): void {
+            patchState(store, updateEntity({id: dto.id, changes: dto}));
+        },
+
+        removeMessagesForConversation(conversationId: string): void {
+            const ids = store.entities()
+                .filter(m => m.conversationId === conversationId)
+                .map(m => m.id);
+            const meta = {...store.conversationMeta()};
+            delete meta[conversationId];
+            patchState(store, removeEntities(ids), {conversationMeta: meta});
+        },
+
+        searchInConversation(conversationId: string, query: string): void {
+            const q = query.trim().toLowerCase();
+            if (!q) {
+                const entries = {...store.searchEntries()};
+                delete entries[conversationId];
+                patchState(store, {searchEntries: entries});
+                return;
+            }
+
+            const localResults = store.entities()
+                .filter(m => m.conversationId === conversationId && !m.isPending && !m.isFailed)
+                .filter(m => messageMatchesQuery(m, q));
+
+            const meta = store.conversationMeta()[conversationId];
+            const needsRemote = meta?.hasMore ?? true;
+
+            patchState(store, {
+                searchEntries: {
+                    ...store.searchEntries(),
+                    [conversationId]: {query: q, results: localResults, searching: needsRemote},
                 },
-              },
             });
-          },
-          error: () => {
+
+            if (!needsRemote) return;
+
+            messagingService.searchMessagesForConversation(conversationId, q).subscribe({
+                next: remoteResults => {
+                    patchState(store, addEntities(remoteResults));
+                    const localIds = new Set(localResults.map(m => m.id));
+                    const merged = [
+                        ...localResults,
+                        ...remoteResults.filter(r => !localIds.has(r.id)),
+                    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                    patchState(store, {
+                        searchEntries: {
+                            ...store.searchEntries(),
+                            [conversationId]: {query: q, results: merged, searching: false},
+                        },
+                    });
+                },
+                error: () => {
+                    patchState(store, {
+                        searchEntries: {
+                            ...store.searchEntries(),
+                            [conversationId]: {...store.searchEntries()[conversationId], searching: false},
+                        },
+                    });
+                },
+            });
+        },
+
+        clearSearch(conversationId: string): void {
+            const entries = {...store.searchEntries()};
+            delete entries[conversationId];
+            patchState(store, {searchEntries: entries});
+        },
+
+        loadForChannel(channelId: string): void {
+            if (store.channelMeta()[channelId]) return;
             patchState(store, {
-              channelMeta: {
-                ...store.channelMeta(),
-                [channelId]: { ...meta, loadingMore: false },
-              },
+                channelMeta: {
+                    ...store.channelMeta(),
+                    [channelId]: {offset: 0, hasMore: true, loadingMore: true},
+                },
             });
-          },
-        });
-    },
-
-    clearChannelError(channelId: string): void {
-      const meta = { ...store.channelMeta() };
-      delete meta[channelId];
-      patchState(store, { channelMeta: meta });
-    },
-
-    removeMessagesForChannel(channelId: string): void {
-      const ids = store.entities()
-        .filter(m => m.channelId === channelId)
-        .map(m => m.id);
-      const meta = { ...store.channelMeta() };
-      delete meta[channelId];
-      patchState(store, removeEntities(ids), { channelMeta: meta });
-    },
-
-    searchInChannel(channelId: string, query: string): void {
-      const q = query.trim().toLowerCase();
-      if (!q) {
-        const entries = { ...store.channelSearchEntries() };
-        delete entries[channelId];
-        patchState(store, { channelSearchEntries: entries });
-        return;
-      }
-      const localResults = store.entities()
-        .filter(m => m.channelId === channelId && !m.isPending && !m.isFailed)
-        .filter(m => messageMatchesQuery(m, q));
-      const meta = store.channelMeta()[channelId];
-      const needsRemote = meta?.hasMore ?? true;
-      patchState(store, {
-        channelSearchEntries: {
-          ...store.channelSearchEntries(),
-          [channelId]: { query: q, results: localResults, searching: needsRemote },
+            messagingService
+                .getMessagesForChannel(channelId, 0, PAGE_SIZE)
+                .subscribe({
+                    next: messages => {
+                        patchState(store, addEntities(messages), {
+                            channelMeta: {
+                                ...store.channelMeta(),
+                                [channelId]: {
+                                    offset: messages.length,
+                                    hasMore: messages.length === PAGE_SIZE,
+                                    loadingMore: false,
+                                },
+                            },
+                        });
+                    },
+                    error: (err: HttpErrorResponse) => {
+                        patchState(store, {
+                            channelMeta: {
+                                ...store.channelMeta(),
+                                [channelId]: {offset: 0, hasMore: false, loadingMore: false, error: err.status || 0},
+                            },
+                        });
+                    },
+                });
         },
-      });
-      if (!needsRemote) return;
-      messagingService.searchMessagesForChannel(channelId, q).subscribe({
-        next: remoteResults => {
-          patchState(store, addEntities(remoteResults));
-          const localIds = new Set(localResults.map(m => m.id));
-          const merged = [
-            ...localResults,
-            ...remoteResults.filter(r => !localIds.has(r.id)),
-          ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-          patchState(store, {
-            channelSearchEntries: {
-              ...store.channelSearchEntries(),
-              [channelId]: { query: q, results: merged, searching: false },
-            },
-          });
+
+        loadMoreForChannel(channelId: string): void {
+            const meta = store.channelMeta()[channelId];
+            if (!meta || meta.loadingMore || !meta.hasMore) return;
+            patchState(store, {
+                channelMeta: {
+                    ...store.channelMeta(),
+                    [channelId]: {...meta, loadingMore: true},
+                },
+            });
+            messagingService
+                .getMessagesForChannel(channelId, meta.offset, PAGE_SIZE)
+                .subscribe({
+                    next: messages => {
+                        patchState(store, addEntities(messages), {
+                            channelMeta: {
+                                ...store.channelMeta(),
+                                [channelId]: {
+                                    offset: meta.offset + messages.length,
+                                    hasMore: messages.length === PAGE_SIZE,
+                                    loadingMore: false,
+                                },
+                            },
+                        });
+                    },
+                    error: () => {
+                        patchState(store, {
+                            channelMeta: {
+                                ...store.channelMeta(),
+                                [channelId]: {...meta, loadingMore: false},
+                            },
+                        });
+                    },
+                });
         },
-        error: () => {
-          patchState(store, {
-            channelSearchEntries: {
-              ...store.channelSearchEntries(),
-              [channelId]: { ...store.channelSearchEntries()[channelId], searching: false },
-            },
-          });
+
+        clearChannelError(channelId: string): void {
+            const meta = {...store.channelMeta()};
+            delete meta[channelId];
+            patchState(store, {channelMeta: meta});
         },
-      });
-    },
 
-    clearChannelSearch(channelId: string): void {
-      const entries = { ...store.channelSearchEntries() };
-      delete entries[channelId];
-      patchState(store, { channelSearchEntries: entries });
-    },
+        removeMessagesForChannel(channelId: string): void {
+            const ids = store.entities()
+                .filter(m => m.channelId === channelId)
+                .map(m => m.id);
+            const meta = {...store.channelMeta()};
+            delete meta[channelId];
+            patchState(store, removeEntities(ids), {channelMeta: meta});
+        },
 
-    getOrFetchMessage(messageId: string, context: { conversationId?: string; channelId?: string }): Observable<MessageDto | null> {
-      const existing = store.entityMap()[messageId];
-      if (existing) return of(existing);
-      return messagingService.getMessageById({ messageId, ...context }).pipe(
-        tap(msg => patchState(store, upsertEntity(msg))),
-        catchError(() => of(null)),
-      );
-    },
-  })),
+        searchInChannel(channelId: string, query: string): void {
+            const q = query.trim().toLowerCase();
+            if (!q) {
+                const entries = {...store.channelSearchEntries()};
+                delete entries[channelId];
+                patchState(store, {channelSearchEntries: entries});
+                return;
+            }
+            const localResults = store.entities()
+                .filter(m => m.channelId === channelId && !m.isPending && !m.isFailed)
+                .filter(m => messageMatchesQuery(m, q));
+            const meta = store.channelMeta()[channelId];
+            const needsRemote = meta?.hasMore ?? true;
+            patchState(store, {
+                channelSearchEntries: {
+                    ...store.channelSearchEntries(),
+                    [channelId]: {query: q, results: localResults, searching: needsRemote},
+                },
+            });
+            if (!needsRemote) return;
+            messagingService.searchMessagesForChannel(channelId, q).subscribe({
+                next: remoteResults => {
+                    patchState(store, addEntities(remoteResults));
+                    const localIds = new Set(localResults.map(m => m.id));
+                    const merged = [
+                        ...localResults,
+                        ...remoteResults.filter(r => !localIds.has(r.id)),
+                    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                    patchState(store, {
+                        channelSearchEntries: {
+                            ...store.channelSearchEntries(),
+                            [channelId]: {query: q, results: merged, searching: false},
+                        },
+                    });
+                },
+                error: () => {
+                    patchState(store, {
+                        channelSearchEntries: {
+                            ...store.channelSearchEntries(),
+                            [channelId]: {...store.channelSearchEntries()[channelId], searching: false},
+                        },
+                    });
+                },
+            });
+        },
 
-  withHooks({
-    onInit(store) {
-      const wsService = inject(MessagingWebsocketService);
-      const guildWsService = inject(GuildWebsocketService);
-      const profileService = inject(ProfileService);
+        clearChannelSearch(channelId: string): void {
+            const entries = {...store.channelSearchEntries()};
+            delete entries[channelId];
+            patchState(store, {channelSearchEntries: entries});
+        },
 
-      wsService.messageObservable.subscribe(msg =>
-        patchState(store, upsertEntity(msg))
-      );
+        getOrFetchMessage(messageId: string, context: {
+            conversationId?: string;
+            channelId?: string
+        }): Observable<MessageDto | null> {
+            const existing = store.entityMap()[messageId];
+            if (existing) return of(existing);
+            return messagingService.getMessageById({messageId, ...context}).pipe(
+                tap(msg => patchState(store, upsertEntity(msg))),
+                catchError(() => of(null)),
+            );
+        },
+    })),
 
-      guildWsService.messageObservable.subscribe(msg =>
-        patchState(store, upsertEntity(msg))
-      );
+    withHooks({
+        onInit(store) {
+            const wsService = inject(MessagingWebsocketService);
+            const guildWsService = inject(GuildWebsocketService);
+            const profileService = inject(ProfileService);
 
-      wsService.messageUpdatedObservable.subscribe((event: MessageUpdatedEvent) =>
-        patchState(store, updateEntity({
-          id: event.messageId,
-          changes: { content: event.content, updatedAt: new Date() },
-        }))
-      );
+            wsService.messageObservable.subscribe(msg =>
+                patchState(store, upsertEntity(msg))
+            );
 
-      wsService.messageDeletedObservable.subscribe((event: MessageDeletedEvent) =>
-        patchState(store, removeEntity(event.messageId))
-      );
+            guildWsService.messageObservable.subscribe(msg =>
+                patchState(store, upsertEntity(msg))
+            );
 
-      wsService.conversationRemovedObservable.subscribe(event => {
-        const ids = store.entities()
-          .filter(m => m.conversationId === event.conversationId)
-          .map(m => m.id);
-        const meta = { ...store.conversationMeta() };
-        delete meta[event.conversationId];
-        patchState(store, removeEntities(ids), { conversationMeta: meta });
-      });
+            wsService.messageUpdatedObservable.subscribe((event: MessageUpdatedEvent) =>
+                patchState(store, updateEntity({
+                    id: event.messageId,
+                    changes: {content: event.content, updatedAt: new Date()},
+                }))
+            );
 
-      wsService.conversationMemberRemovedObservable.subscribe(event => {
-        if (event.userId !== profileService.ownProfile()?.userId) return;
-        const ids = store.entities()
-          .filter(m => m.conversationId === event.conversationId)
-          .map(m => m.id);
-        const meta = { ...store.conversationMeta() };
-        delete meta[event.conversationId];
-        patchState(store, removeEntities(ids), { conversationMeta: meta });
-      });
+            wsService.messageDeletedObservable.subscribe((event: MessageDeletedEvent) =>
+                patchState(store, removeEntity(event.messageId))
+            );
 
-      wsService.reactionAddedObservable.subscribe(event => store.applyReactionAdded(event));
-      wsService.reactionRemovedObservable.subscribe(event => store.applyReactionRemoved(event));
-      guildWsService.reactionAddedObservable.subscribe(event => store.applyReactionAdded(event));
-      guildWsService.reactionRemovedObservable.subscribe(event => store.applyReactionRemoved(event));
-    },
-  })
+            wsService.conversationRemovedObservable.subscribe(event => {
+                const ids = store.entities()
+                    .filter(m => m.conversationId === event.conversationId)
+                    .map(m => m.id);
+                const meta = {...store.conversationMeta()};
+                delete meta[event.conversationId];
+                patchState(store, removeEntities(ids), {conversationMeta: meta});
+            });
+
+            wsService.conversationMemberRemovedObservable.subscribe(event => {
+                if (event.userId !== profileService.ownProfile()?.userId) return;
+                const ids = store.entities()
+                    .filter(m => m.conversationId === event.conversationId)
+                    .map(m => m.id);
+                const meta = {...store.conversationMeta()};
+                delete meta[event.conversationId];
+                patchState(store, removeEntities(ids), {conversationMeta: meta});
+            });
+
+            wsService.reactionAddedObservable.subscribe(event => store.applyReactionAdded(event));
+            wsService.reactionRemovedObservable.subscribe(event => store.applyReactionRemoved(event));
+            guildWsService.reactionAddedObservable.subscribe(event => store.applyReactionAdded(event));
+            guildWsService.reactionRemovedObservable.subscribe(event => store.applyReactionRemoved(event));
+        },
+    })
 );

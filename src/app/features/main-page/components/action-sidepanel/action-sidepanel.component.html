@@ -1,15 +1,16 @@
-<div class="flex flex-col w-60 h-full bg-sidebar border-r border-white/[0.10]" style="padding-top: env(safe-area-inset-top)">
+<div class="flex flex-col w-60 h-full bg-sidebar border-r border-white/[0.10]"
+     style="padding-top: env(safe-area-inset-top)">
 
-  <div class="flex-1 min-h-0 flex flex-col">
-    @let workspace = navService.workspace();
-    @switch (workspace.type) {
-      @case ('dms') {
-        <app-dm-sidepanel />
-      }
-      @case ('server') {
-        <app-channel-list [guild]="workspace.guild" class="flex flex-col flex-1 min-h-0" />
-      }
-    }
-  </div>
+    <div class="flex-1 min-h-0 flex flex-col">
+        @let workspace = navService.workspace();
+        @switch (workspace.type) {
+            @case ('dms') {
+                <app-dm-sidepanel/>
+            }
+            @case ('server') {
+                <app-channel-list [guild]="workspace.guild" class="flex flex-col flex-1 min-h-0"/>
+            }
+        }
+    </div>
 
 </div>

@@ -13,4 +13,6 @@ export interface CallTack {
     status: string;
 }
 
-export interface CallParticipant { userId: string; }
+export interface CallParticipant {
+    userId: string;
+}

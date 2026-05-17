@@ -7,76 +7,73 @@ import {ChannelOverviewComponent} from './pages/channel-overview/channel-overvie
 import {ChannelPermissionsComponent} from './pages/channel-permissions/channel-permissions.component';
 import {GuildService} from '../../../../services/guild.service';
 import {PrimeTemplate} from "primeng/api";
-import { TranslateModule } from '@ngx-translate/core';
+import {TranslateModule} from '@ngx-translate/core';
 
 interface NavItem {
-  id: string;
-  label: string;
-  icon: string;
+    id: string;
+    label: string;
+    icon: string;
 }
 
 @Component({
-  selector: 'app-channel-settings-modal',
+    selector: 'app-channel-settings-modal',
     imports: [NgClass, Dialog, Button, ChannelOverviewComponent, ChannelPermissionsComponent, PrimeTemplate, TranslateModule],
-  templateUrl: './channel-settings-modal.component.html',
+    templateUrl: './channel-settings-modal.component.html',
 })
 export class ChannelSettingsModalComponent {
-  isVisible = model.required<boolean>();
+    isVisible = model.required<boolean>();
 
-  channel = signal<ChannelDto | null>(null);
-  guild = signal<GuildDto | null>(null);
+    channel = signal<ChannelDto | null>(null);
+    guild = signal<GuildDto | null>(null);
 
-  channelUpdated = output<ChannelDto>();
-  channelDeleted = output<string>();
+    channelUpdated = output<ChannelDto>();
+    channelDeleted = output<string>();
+    activePage = signal('overview');
+    deleting = signal(false);
+    confirmDelete = signal(false);
+    navItems: NavItem[] = [
+        {id: 'overview', label: 'Overview', icon: 'pi pi-sliders-h'},
+        {id: 'permissions', label: 'Permissions', icon: 'pi pi-lock'},
+    ];
+    private guildService = inject(GuildService);
 
-  private guildService = inject(GuildService);
+    open(channel: ChannelDto, guild: GuildDto): void {
+        this.channel.set(channel);
+        this.guild.set(guild);
+        this.activePage.set('overview');
+        this.isVisible.set(true);
+    }
 
-  activePage = signal('overview');
-  deleting = signal(false);
-  confirmDelete = signal(false);
+    navItemClasses(id: string): Record<string, boolean> {
+        const active = this.activePage() === id;
+        return {
+            'bg-indigo-500/15': active,
+            'text-indigo-400': active,
+            'text-white/50': !active,
+        };
+    }
 
-  navItems: NavItem[] = [
-    {id: 'overview', label: 'Overview', icon: 'pi pi-sliders-h'},
-    {id: 'permissions', label: 'Permissions', icon: 'pi pi-lock'},
-  ];
+    currentLabel(): string {
+        return this.navItems.find(i => i.id === this.activePage())?.label ?? '';
+    }
 
-  open(channel: ChannelDto, guild: GuildDto): void {
-    this.channel.set(channel);
-    this.guild.set(guild);
-    this.activePage.set('overview');
-    this.isVisible.set(true);
-  }
+    onChannelUpdated(c: ChannelDto): void {
+        this.channel.set(c);
+        this.channelUpdated.emit(c);
+    }
 
-  navItemClasses(id: string): Record<string, boolean> {
-    const active = this.activePage() === id;
-    return {
-      'bg-indigo-500/15': active,
-      'text-indigo-400': active,
-      'text-white/50': !active,
-    };
-  }
-
-  currentLabel(): string {
-    return this.navItems.find(i => i.id === this.activePage())?.label ?? '';
-  }
-
-  onChannelUpdated(c: ChannelDto): void {
-    this.channel.set(c);
-    this.channelUpdated.emit(c);
-  }
-
-  deleteChannel(): void {
-    const ch = this.channel();
-    if (!ch || this.deleting()) return;
-    this.deleting.set(true);
-    this.guildService.deleteChannel(ch.id).subscribe({
-      next: () => {
-        this.channelDeleted.emit(ch.id);
-        this.isVisible.set(false);
-        this.confirmDelete.set(false);
-        this.deleting.set(false);
-      },
-      error: () => this.deleting.set(false),
-    });
-  }
+    deleteChannel(): void {
+        const ch = this.channel();
+        if (!ch || this.deleting()) return;
+        this.deleting.set(true);
+        this.guildService.deleteChannel(ch.id).subscribe({
+            next: () => {
+                this.channelDeleted.emit(ch.id);
+                this.isVisible.set(false);
+                this.confirmDelete.set(false);
+                this.deleting.set(false);
+            },
+            error: () => this.deleting.set(false),
+        });
+    }
 }

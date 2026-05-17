@@ -1,11 +1,12 @@
-import { Component, OnInit, signal } from '@angular/core';
+import {Component, OnInit, signal} from '@angular/core';
+
 type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 'SouthEast' | 'SouthWest' | 'West';
 
 // The titlebar (32px) occupies the full top edge and its corners,
 // so top/nw/ne handles are omitted — they would block drag and window controls.
 @Component({
-  selector: 'app-resize-handles',
-  template: `
+    selector: 'app-resize-handles',
+    template: `
     @if (isTauri()) {
       <div class="s"  (mousedown)="resize('South')"></div>
       <div class="e"  (mousedown)="resize('East')"></div>
@@ -14,7 +15,7 @@ type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 
       <div class="se" (mousedown)="resize('SouthEast')"></div>
     }
   `,
-  styles: [`
+    styles: [`
     :host { pointer-events: none; }
     div {
       position: fixed;
@@ -31,14 +32,14 @@ type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 
   `]
 })
 export class ResizeHandlesComponent implements OnInit {
-  protected isTauri = signal(false);
+    protected isTauri = signal(false);
 
-  ngOnInit(): void {
-    this.isTauri.set('__TAURI_INTERNALS__' in window);
-  }
+    ngOnInit(): void {
+        this.isTauri.set('__TAURI_INTERNALS__' in window);
+    }
 
-  protected async resize(direction: ResizeDirection): Promise<void> {
-    const { getCurrentWindow } = await import('@tauri-apps/api/window');
-    await getCurrentWindow().startResizeDragging(direction);
-  }
+    protected async resize(direction: ResizeDirection): Promise<void> {
+        const {getCurrentWindow} = await import('@tauri-apps/api/window');
+        await getCurrentWindow().startResizeDragging(direction);
+    }
 }

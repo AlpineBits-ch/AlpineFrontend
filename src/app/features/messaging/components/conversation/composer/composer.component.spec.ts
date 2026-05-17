@@ -1,23 +1,23 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import {ComponentFixture, TestBed} from '@angular/core/testing';
 
-import { ComposerComponent } from './composer.component';
+import {ComposerComponent} from './composer.component';
 
 describe('ComposerComponent', () => {
-  let component: ComposerComponent;
-  let fixture: ComponentFixture<ComposerComponent>;
+    let component: ComposerComponent;
+    let fixture: ComponentFixture<ComposerComponent>;
 
-  beforeEach(async () => {
-    await TestBed.configureTestingModule({
-      imports: [ComposerComponent]
-    })
-    .compileComponents();
+    beforeEach(async () => {
+        await TestBed.configureTestingModule({
+            imports: [ComposerComponent]
+        })
+            .compileComponents();
 
-    fixture = TestBed.createComponent(ComposerComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
-  });
+        fixture = TestBed.createComponent(ComposerComponent);
+        component = fixture.componentInstance;
+        fixture.detectChanges();
+    });
 
-  it('should create', () => {
-    expect(component).toBeTruthy();
-  });
+    it('should create', () => {
+        expect(component).toBeTruthy();
+    });
 });

@@ -17,7 +17,7 @@ export interface MinimalProfileId {
 export enum RelationshipStatus {
     None,
     PendingIncoming = 'PendingIncoming',
-    PendingOutgoing= 'PendingOutgoing',
+    PendingOutgoing = 'PendingOutgoing',
     Friends = 'Friends',
     Blocked = 'Blocked',
 }

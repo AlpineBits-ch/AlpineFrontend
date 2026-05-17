@@ -1,104 +1,136 @@
 /* ── Contenteditable placeholder ─────────────────────────────────────────── */
 .composer-editor {
-  position: relative;
-  word-break: break-word;
-  white-space: pre-wrap;
+    position: relative;
+    word-break: break-word;
+    white-space: pre-wrap;
 }
 
 .composer-editor.is-empty::before {
-  content: attr(data-placeholder);
-  position: absolute;
-  top: 0.375rem;
-  left: 0;
-  color: rgba(255, 255, 255, 0.25);
-  pointer-events: none;
+    content: attr(data-placeholder);
+    position: absolute;
+    top: 0.375rem;
+    left: 0;
+    color: rgba(255, 255, 255, 0.25);
+    pointer-events: none;
 }
 
 /* ── Markdown syntax highlighting in editor ──────────────────────────────── */
 :host ::ng-deep .md-mark {
-  color: rgba(255, 255, 255, 0.2);
+    color: rgba(255, 255, 255, 0.2);
 }
 
 :host ::ng-deep .composer-editor code {
-  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  font-size: 0.85em;
-  background: rgba(255, 255, 255, 0.07);
-  border-radius: 3px;
-  padding: 0 3px;
-  color: rgba(255, 255, 255, 0.65);
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.85em;
+    background: rgba(255, 255, 255, 0.07);
+    border-radius: 3px;
+    padding: 0 3px;
+    color: rgba(255, 255, 255, 0.65);
 }
 
 /* ── Code block in editor ────────────────────────────────────────────────── */
 :host ::ng-deep .md-codeblock {
-  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  font-size: 0.84em;
-  background: rgba(255, 255, 255, 0.06);
-  border-left: 2px solid rgba(255, 255, 255, 0.14);
-  padding: 2px 8px;
-  border-radius: 0 3px 3px 0;
-  color: rgba(255, 255, 255, 0.62);
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.84em;
+    background: rgba(255, 255, 255, 0.06);
+    border-left: 2px solid rgba(255, 255, 255, 0.14);
+    padding: 2px 8px;
+    border-radius: 0 3px 3px 0;
+    color: rgba(255, 255, 255, 0.62);
 }
 
 :host ::ng-deep .md-lang {
-  font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
-  font-size: 0.84em;
-  color: rgba(255, 255, 255, 0.28);
-  margin-left: 2px;
+    font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+    font-size: 0.84em;
+    color: rgba(255, 255, 255, 0.28);
+    margin-left: 2px;
 }
 
 /* ── highlight.js token colours inside composer code blocks ─────────────── */
 :host ::ng-deep .hljs-keyword,
 :host ::ng-deep .hljs-selector-tag,
 :host ::ng-deep .hljs-built_in,
-:host ::ng-deep .hljs-name { color: #c792ea; }
+:host ::ng-deep .hljs-name {
+    color: #c792ea;
+}
 
 :host ::ng-deep .hljs-string,
-:host ::ng-deep .hljs-attr { color: #c3e88d; }
+:host ::ng-deep .hljs-attr {
+    color: #c3e88d;
+}
 
 :host ::ng-deep .hljs-number,
-:host ::ng-deep .hljs-literal { color: #f78c6c; }
+:host ::ng-deep .hljs-literal {
+    color: #f78c6c;
+}
 
 :host ::ng-deep .hljs-comment,
-:host ::ng-deep .hljs-quote { color: rgba(255,255,255,0.30); font-style: italic; }
+:host ::ng-deep .hljs-quote {
+    color: rgba(255, 255, 255, 0.30);
+    font-style: italic;
+}
 
 :host ::ng-deep .hljs-title,
-:host ::ng-deep .hljs-section { color: #82aaff; }
+:host ::ng-deep .hljs-section {
+    color: #82aaff;
+}
 
 :host ::ng-deep .hljs-type,
-:host ::ng-deep .hljs-class { color: #ffcb6b; }
+:host ::ng-deep .hljs-class {
+    color: #ffcb6b;
+}
 
 :host ::ng-deep .hljs-variable,
-:host ::ng-deep .hljs-params { color: rgba(255,255,255,0.78); }
+:host ::ng-deep .hljs-params {
+    color: rgba(255, 255, 255, 0.78);
+}
 
 :host ::ng-deep .hljs-operator,
-:host ::ng-deep .hljs-punctuation { color: #89ddff; }
+:host ::ng-deep .hljs-punctuation {
+    color: #89ddff;
+}
 
-:host ::ng-deep .hljs-tag { color: #f07178; }
+:host ::ng-deep .hljs-tag {
+    color: #f07178;
+}
 
-:host ::ng-deep .hljs-attribute { color: #ffcb6b; }
+:host ::ng-deep .hljs-attribute {
+    color: #ffcb6b;
+}
 
 :host ::ng-deep .hljs-regexp,
-:host ::ng-deep .hljs-link { color: #f07178; }
+:host ::ng-deep .hljs-link {
+    color: #f07178;
+}
 
-:host ::ng-deep .hljs-meta { color: rgba(255,255,255,0.45); }
+:host ::ng-deep .hljs-meta {
+    color: rgba(255, 255, 255, 0.45);
+}
 
-:host ::ng-deep .hljs-deletion { color: #f07178; background: rgba(240,113,120,0.12); }
-:host ::ng-deep .hljs-addition { color: #c3e88d; background: rgba(195,232,141,0.10); }
+:host ::ng-deep .hljs-deletion {
+    color: #f07178;
+    background: rgba(240, 113, 120, 0.12);
+}
+
+:host ::ng-deep .hljs-addition {
+    color: #c3e88d;
+    background: rgba(195, 232, 141, 0.10);
+}
 
 /* ── Mention chip ─────────────────────────────────────────────────────────── */
 /* Chips are created via document.createElement — Angular's scoped attribute
    is never added, so ::ng-deep is required to reach them. */
 :host ::ng-deep .mention-chip {
-  display: inline-flex;
-  align-items: center;
-  background: rgba(99, 102, 241, 0.18);
-  color: rgb(129, 140, 248);
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-size: 0.875rem;
-  font-weight: 500;
-  cursor: default;
-  user-select: none;
-  line-height: 1.5;
-  vertical-align: baseline;
+    display: inline-flex;
+    align-items: center;
+    background: rgba(99, 102, 241, 0.18);
+    color: rgb(129, 140, 248);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    cursor: default;
+    user-select: none;
+    line-height: 1.5;
+    vertical-align: baseline;
 }

@@ -1,88 +1,88 @@
 <div class="flex w-full overflow-hidden bg-app-bg h-full">
 
-  <!-- Mobile drawer backdrop -->
-  @if (navService.mobileNavOpen()) {
-    <div class="fixed inset-0 z-40 bg-black/60 lg:hidden" (click)="navService.mobileNavOpen.set(false)"></div>
-  }
-
-  <!-- Left panel: [server rail | sidebar] with profile spanning bottom -->
-  <div class="fixed top-0 bottom-0 left-0 z-50 flex flex-col transition-transform duration-200
-              lg:relative lg:top-auto lg:bottom-auto lg:z-auto lg:![translate:none]"
-       [class.-translate-x-full]="!navService.mobileNavOpen()"
-       [class.translate-x-0]="navService.mobileNavOpen()">
-
-    <!-- Server rail + sidebar side by side -->
-    <div class="flex flex-1 min-h-0">
-      <app-server-taskbar />
-      <app-action-sidepanel />
-    </div>
-
-    <!-- Voice connected status bar (shown above profile when in a voice channel) -->
-    <app-voice-status-bar />
-    <!-- Profile spans both columns -->
-    <app-quick-settings />
-  </div>
-
-  @let view = navService.mainView();
-
-  <!-- Wiki panel (second sidebar, slides in to the right of channels) -->
-  @if (navService.wikiPanelGuildId()) {
-    <app-wiki-panel />
-  }
-
-  <!-- Main content -->
-  <div class="flex-1 min-w-0 overflow-hidden">
-    @switch (view.type) {
-      @case ('home') {
-        @if (navService.mobileSection() === 'conversations') {
-          <app-mobile-conversations-page class="lg:hidden" />
-        }
-        <app-home [class.hidden]="navService.mobileSection() === 'conversations'"
-                  class="lg:!block" />
-      }
-      @case ('conversation') {
-        <app-conversation [conversation]="view.conversation" (back)="navService.showHome()" />
-      }
-      @case ('channel') {
-        @if (view.channel.type === ChannelType.Voice) {
-          <app-voice-channel [channel]="view.channel" />
-        } @else {
-          <app-channel [channel]="view.channel" (back)="navService.showHome()" />
-        }
-      }
-      @case ('wiki') {
-        <app-wiki [guildId]="view.guildId" />
-      }
+    <!-- Mobile drawer backdrop -->
+    @if (navService.mobileNavOpen()) {
+        <div (click)="navService.mobileNavOpen.set(false)" class="fixed inset-0 z-40 bg-black/60 lg:hidden"></div>
     }
-  </div>
 
-  <!-- Right sidebar: activity feed on home, conversation info on conversation, member list on channel -->
-  @if (view.type === 'home') {
-    <div class="hidden xl:flex shrink-0 h-full">
-      <app-activity-feed />
+    <!-- Left panel: [server rail | sidebar] with profile spanning bottom -->
+    <div [class.-translate-x-full]="!navService.mobileNavOpen()"
+         [class.translate-x-0]="navService.mobileNavOpen()"
+         class="fixed top-0 bottom-0 left-0 z-50 flex flex-col transition-transform duration-200
+              lg:relative lg:top-auto lg:bottom-auto lg:z-auto lg:![translate:none]">
+
+        <!-- Server rail + sidebar side by side -->
+        <div class="flex flex-1 min-h-0">
+            <app-server-taskbar/>
+            <app-action-sidepanel/>
+        </div>
+
+        <!-- Voice connected status bar (shown above profile when in a voice channel) -->
+        <app-voice-status-bar/>
+        <!-- Profile spans both columns -->
+        <app-quick-settings/>
     </div>
-  } @else if (view.type === 'conversation') {
-    <div class="hidden xl:flex shrink-0 h-full">
-      <app-conversation-info-panel [conversation]="view.conversation" />
-    </div>
-  } @else if (view.type === 'channel') {
-    @let ws = navService.workspace();
-    @if (ws.type === 'server') {
-      <div class="hidden xl:flex shrink-0 h-full">
-        <app-guild-member-list [guild]="ws.guild" />
-      </div>
+
+    @let view = navService.mainView();
+
+    <!-- Wiki panel (second sidebar, slides in to the right of channels) -->
+    @if (navService.wikiPanelGuildId()) {
+        <app-wiki-panel/>
     }
-  }
 
-  <app-profile-dialog
-    [userId]="profileDialogSvc.selectedUserId()"
-    (visibleChange)="profileDialogSvc.close()" />
+    <!-- Main content -->
+    <div class="flex-1 min-w-0 overflow-hidden">
+        @switch (view.type) {
+            @case ('home') {
+                @if (navService.mobileSection() === 'conversations') {
+                    <app-mobile-conversations-page class="lg:hidden"/>
+                }
+                <app-home [class.hidden]="navService.mobileSection() === 'conversations'"
+                          class="lg:!block"/>
+            }
+            @case ('conversation') {
+                <app-conversation (back)="navService.showHome()" [conversation]="view.conversation"/>
+            }
+            @case ('channel') {
+                @if (view.channel.type === ChannelType.Voice) {
+                    <app-voice-channel [channel]="view.channel"/>
+                } @else {
+                    <app-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                }
+            }
+            @case ('wiki') {
+                <app-wiki [guildId]="view.guildId"/>
+            }
+        }
+    </div>
 
-  <app-device-registration-modal
-    [visible]="showDeviceRegistration()"
-    (registered)="onDeviceRegistered($event)" />
+    <!-- Right sidebar: activity feed on home, conversation info on conversation, member list on channel -->
+    @if (view.type === 'home') {
+        <div class="hidden xl:flex shrink-0 h-full">
+            <app-activity-feed/>
+        </div>
+    } @else if (view.type === 'conversation') {
+        <div class="hidden xl:flex shrink-0 h-full">
+            <app-conversation-info-panel [conversation]="view.conversation"/>
+        </div>
+    } @else if (view.type === 'channel') {
+        @let ws = navService.workspace();
+        @if (ws.type === 'server') {
+            <div class="hidden xl:flex shrink-0 h-full">
+                <app-guild-member-list [guild]="ws.guild"/>
+            </div>
+        }
+    }
 
-  <app-key-setup-dialog
-    [visible]="showKeySetup()"
-    (setupComplete)="showKeySetup.set(false)" />
+    <app-profile-dialog
+            (visibleChange)="profileDialogSvc.close()"
+            [userId]="profileDialogSvc.selectedUserId()"/>
+
+    <app-device-registration-modal
+            (registered)="onDeviceRegistered($event)"
+            [visible]="showDeviceRegistration()"/>
+
+    <app-key-setup-dialog
+            (setupComplete)="showKeySetup.set(false)"
+            [visible]="showKeySetup()"/>
 </div>

@@ -1,397 +1,404 @@
-<div class="flex flex-col flex-1 min-h-0 select-none" (contextmenu)="onListContextMenu($event)">
+<div (contextmenu)="onListContextMenu($event)" class="flex flex-col flex-1 min-h-0 select-none">
 
-  <!-- Guild name header -->
-  <div class="px-4 py-3 border-b border-white/[0.10] flex items-center justify-between shrink-0">
-    <span class="text-sm font-semibold text-white/90 truncate">{{ guild().name }}</span>
-    <button
-      (click)="toggleGuildMenu($event)"
-      class="w-6 h-6 flex items-center justify-center text-white/40 hover:text-white/70 transition-colors cursor-pointer border-0 bg-transparent rounded-lg hover:bg-white/[0.05]">
-      <i class="pi pi-chevron-down text-xs"></i>
-    </button>
-  </div>
+    <!-- Guild name header -->
+    <div class="px-4 py-3 border-b border-white/[0.10] flex items-center justify-between shrink-0">
+        <span class="text-sm font-semibold text-white/90 truncate">{{ guild().name }}</span>
+        <button
+                (click)="toggleGuildMenu($event)"
+                class="w-6 h-6 flex items-center justify-center text-white/40 hover:text-white/70 transition-colors cursor-pointer border-0 bg-transparent rounded-lg hover:bg-white/[0.05]">
+            <i class="pi pi-chevron-down text-xs"></i>
+        </button>
+    </div>
 
-  <!-- Wiki quick-link -->
-  <div class="px-2 pt-2 shrink-0">
-    <button (click)="openWiki()"
-      [ngClass]="isWikiActive() ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-      class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer mb-1">
-      <i class="pi pi-book text-[13px] shrink-0"
-         [ngClass]="isWikiActive() ? 'text-brand-dim' : 'text-white/35'"></i>
-      <span class="text-[15px] font-medium">{{ 'GUILD.WIKI' | translate }}</span>
-    </button>
-  </div>
+    <!-- Wiki quick-link -->
+    <div class="px-2 pt-2 shrink-0">
+        <button (click)="openWiki()"
+                [ngClass]="isWikiActive() ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
+                class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer mb-1">
+            <i [ngClass]="isWikiActive() ? 'text-brand-dim' : 'text-white/35'"
+               class="pi pi-book text-[13px] shrink-0"></i>
+            <span class="text-[15px] font-medium">{{ 'GUILD.WIKI' | translate }}</span>
+        </button>
+    </div>
 
-  <!-- Channel list -->
-  <div class="flex-1 min-h-0 overflow-y-auto px-2 py-2"
-       (dragover)="$event.preventDefault()"
-       style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+    <!-- Channel list -->
+    <div (dragover)="$event.preventDefault()"
+         class="flex-1 min-h-0 overflow-y-auto px-2 py-2"
+         style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
 
-    <!-- Free-floating channels (no category) -->
-    @if (uncategorizedChannels().length > 0) {
-      <div class="mb-1"
-           (dragover)="$event.preventDefault()">
-        @for (channel of uncategorizedChannels(); track channel.id) {
-          @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'before') {
-            <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
-          }
-          @if (channel.type === ChannelType.Voice) {
-            <div
-              [attr.draggable]="canReorder() ? 'true' : null"
-              (dragstart)="drag.onChannelDragStart($event, channel)"
-              (dragend)="drag.onDragEnd($event)"
-              (dragover)="drag.onItemDragOver($event, channel.id)">
-              <button
-                (click)="onVoiceChannelClick(channel)"
-                (contextmenu)="onChannelContextMenu($event, channel)"
-                [ngClass]="isJoinedVoice(channel)
+        <!-- Free-floating channels (no category) -->
+        @if (uncategorizedChannels().length > 0) {
+            <div (dragover)="$event.preventDefault()"
+                 class="mb-1">
+                @for (channel of uncategorizedChannels(); track channel.id) {
+                    @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'before') {
+                        <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+                    }
+                    @if (channel.type === ChannelType.Voice) {
+                        <div
+                                (dragend)="drag.onDragEnd($event)"
+                                (dragover)="drag.onItemDragOver($event, channel.id)"
+                                (dragstart)="drag.onChannelDragStart($event, channel)"
+                                [attr.draggable]="canReorder() ? 'true' : null">
+                            <button
+                                    (click)="onVoiceChannelClick(channel)"
+                                    (contextmenu)="onChannelContextMenu($event, channel)"
+                                    [class.cursor-grab]="canReorder()"
+                                    [ngClass]="isJoinedVoice(channel)
                   ? 'bg-online/10 text-online/80'
                   : isActive(channel)
                     ? 'bg-white/[0.08] text-white/90'
                     : 'bg-transparent text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-                class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer"
-                [class.cursor-grab]="canReorder()">
-                <i class="pi pi-volume-up text-[13px] shrink-0"
-                   [ngClass]="isJoinedVoice(channel) ? 'text-online/60' : 'text-white/35'"></i>
-                <span class="text-[15px] font-medium truncate">{{ channel.name }}</span>
-                @if (channel.isPrivate) {
-                  <i class="pi pi-lock text-[11px] text-white/35 ml-auto shrink-0"></i>
-                }
-                @let vcParticipants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
-                @if (vcParticipants.length > 0 && !channel.isPrivate) {
-                  <span class="ml-auto text-[11px] text-white/40 shrink-0">{{ vcParticipants.length }}</span>
-                }
-              </button>
-              @let participants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
-              @for (p of participants; track p.userId) {
-                <div class="flex items-center gap-2 pl-7 pr-2 py-0.5 rounded-md hover:bg-white/[0.04] cursor-pointer transition-colors"
-                     (click)="onVoiceChannelClick(channel)"
-                     (contextmenu)="onParticipantContextMenu($event, p, channel.id)">
-                  <app-avatar [userId]="p.userId" [label]="p.avatarLabel" styleClass="!w-5 !h-5 !text-[9px]" class="flex shrink-0" />
-                  <span class="text-[13px] flex-1 truncate"
-                        [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/55'">
+                                    class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer">
+                                <i [ngClass]="isJoinedVoice(channel) ? 'text-online/60' : 'text-white/35'"
+                                   class="pi pi-volume-up text-[13px] shrink-0"></i>
+                                <span class="text-[15px] font-medium truncate">{{ channel.name }}</span>
+                                @if (channel.isPrivate) {
+                                    <i class="pi pi-lock text-[11px] text-white/35 ml-auto shrink-0"></i>
+                                }
+                                @let vcParticipants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
+                                @if (vcParticipants.length > 0 && !channel.isPrivate) {
+                                    <span class="ml-auto text-[11px] text-white/40 shrink-0">{{ vcParticipants.length }}</span>
+                                }
+                            </button>
+                            @let participants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
+                            @for (p of participants; track p.userId) {
+                                <div (click)="onVoiceChannelClick(channel)"
+                                     (contextmenu)="onParticipantContextMenu($event, p, channel.id)"
+                                     class="flex items-center gap-2 pl-7 pr-2 py-0.5 rounded-md hover:bg-white/[0.04] cursor-pointer transition-colors">
+                                    <app-avatar [label]="p.avatarLabel" [userId]="p.userId"
+                                                class="flex shrink-0" styleClass="!w-5 !h-5 !text-[9px]"/>
+                                    <span [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/55'"
+                                          class="text-[13px] flex-1 truncate">
                     {{ p.displayName }}
                   </span>
-                  @if (p.isScreenSharing) {
-                    <span class="text-[9px] font-bold text-red-400 bg-red-500/15 px-1 py-0.5 rounded leading-none shrink-0">LIVE</span>
-                  } @else if (p.isMuted) {
-                    <i class="pi pi-microphone-slash text-[9px] text-white/35 shrink-0"></i>
-                  }
-                </div>
-              }
-            </div>
-          } @else {
-            @let rs = readStateService.getChannelState(channel.id);
-            <div
-              [attr.draggable]="canReorder() ? 'true' : null"
-              (dragstart)="drag.onChannelDragStart($event, channel)"
-              (dragend)="drag.onDragEnd($event)"
-              (dragover)="drag.onItemDragOver($event, channel.id)">
-              <button
-                (click)="onChannelClick(channel)"
-                (contextmenu)="onChannelContextMenu($event, channel)"
-                [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/95' : rs.isUnread ? 'text-white/90 font-semibold hover:bg-white/[0.06] hover:text-white' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-                class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer"
-                [class.cursor-grab]="canReorder()">
-                <span class="text-white/35 text-[15px] leading-none font-medium shrink-0 pointer-events-none">#</span>
-                <span class="text-[15px] font-medium truncate flex-1 pointer-events-none">{{ channel.name }}</span>
-                @if (!rs.isUnread && rs.mentionCount > 0) {
-                  <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0 pointer-events-none">
+                                    @if (p.isScreenSharing) {
+                                        <span class="text-[9px] font-bold text-red-400 bg-red-500/15 px-1 py-0.5 rounded leading-none shrink-0">LIVE</span>
+                                    } @else if (p.isMuted) {
+                                        <i class="pi pi-microphone-slash text-[9px] text-white/35 shrink-0"></i>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    } @else {
+                        @let rs = readStateService.getChannelState(channel.id);
+                        <div
+                                (dragend)="drag.onDragEnd($event)"
+                                (dragover)="drag.onItemDragOver($event, channel.id)"
+                                (dragstart)="drag.onChannelDragStart($event, channel)"
+                                [attr.draggable]="canReorder() ? 'true' : null">
+                            <button
+                                    (click)="onChannelClick(channel)"
+                                    (contextmenu)="onChannelContextMenu($event, channel)"
+                                    [class.cursor-grab]="canReorder()"
+                                    [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/95' : rs.isUnread ? 'text-white/90 font-semibold hover:bg-white/[0.06] hover:text-white' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
+                                    class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer">
+                                <span class="text-white/35 text-[15px] leading-none font-medium shrink-0 pointer-events-none">#</span>
+                                <span class="text-[15px] font-medium truncate flex-1 pointer-events-none">{{ channel.name }}</span>
+                                @if (!rs.isUnread && rs.mentionCount > 0) {
+                                    <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0 pointer-events-none">
                     {{ rs.mentionCount }}
                   </span>
+                                }
+                                @if (channel.isPrivate) {
+                                    <i class="pi pi-lock text-[11px] text-white/35 shrink-0 pointer-events-none"></i>
+                                }
+                            </button>
+                        </div>
+                    }
+                    @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'after') {
+                        <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+                    }
                 }
-                @if (channel.isPrivate) {
-                  <i class="pi pi-lock text-[11px] text-white/35 shrink-0 pointer-events-none"></i>
-                }
-              </button>
             </div>
-          }
-          @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'after') {
-            <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
-          }
         }
-      </div>
-    }
 
-    <!-- Categories -->
-    @for (category of sortedCategories(); track category.id) {
-      @if (drag.dropTargetId() === category.id && drag.dropPos() === 'before') {
-        <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
-      }
-      <div class="mb-1 mt-2">
-        <!-- Category header -->
-        <div
-          [attr.draggable]="canReorder() ? 'true' : null"
-          (dragstart)="drag.onCategoryDragStart($event, category)"
-          (dragend)="drag.onDragEnd($event)"
-          (dragover)="drag.onItemDragOver($event, category.id)">
-        <button
-          (click)="toggleCollapse(category.id)"
-          (contextmenu)="onCategoryContextMenu($event, category)"
-          [ngClass]="drag.dropTargetId() === category.id ? 'bg-white/[0.04] rounded-lg' : ''"
-          class="flex items-center justify-between w-full px-2 py-1 mb-0.5 group border-0 bg-transparent cursor-pointer transition-colors"
-          [class.cursor-grab]="canReorder()">
-          <div class="flex items-center gap-1.5 min-w-0 flex-1 pointer-events-none">
+        <!-- Categories -->
+        @for (category of sortedCategories(); track category.id) {
+            @if (drag.dropTargetId() === category.id && drag.dropPos() === 'before') {
+                <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+            }
+            <div class="mb-1 mt-2">
+                <!-- Category header -->
+                <div
+                        (dragend)="drag.onDragEnd($event)"
+                        (dragover)="drag.onItemDragOver($event, category.id)"
+                        (dragstart)="drag.onCategoryDragStart($event, category)"
+                        [attr.draggable]="canReorder() ? 'true' : null">
+                    <button
+                            (click)="toggleCollapse(category.id)"
+                            (contextmenu)="onCategoryContextMenu($event, category)"
+                            [class.cursor-grab]="canReorder()"
+                            [ngClass]="drag.dropTargetId() === category.id ? 'bg-white/[0.04] rounded-lg' : ''"
+                            class="flex items-center justify-between w-full px-2 py-1 mb-0.5 group border-0 bg-transparent cursor-pointer transition-colors">
+                        <div class="flex items-center gap-1.5 min-w-0 flex-1 pointer-events-none">
             <span class="text-[12px] font-semibold text-white/50 truncate group-hover:text-white/70 transition-colors">
               {{ category.name }}
             </span>
-            <i class="pi text-[8px] text-white/30 group-hover:text-white/50 shrink-0 transition-all duration-150"
-               [ngClass]="isCollapsed(category.id) ? 'pi-chevron-right' : 'pi-chevron-down'"></i>
-          </div>
-          <button
-            (click)="$event.stopPropagation(); openCreateChannel(category.id)"
-            class="w-5 h-5 flex items-center justify-center text-white/25 hover:text-white/65 transition-colors cursor-pointer border-0 bg-transparent opacity-0 group-hover:opacity-100 rounded">
-            <i class="pi pi-plus text-[10px]"></i>
-          </button>
-        </button>
-        </div>
+                            <i [ngClass]="isCollapsed(category.id) ? 'pi-chevron-right' : 'pi-chevron-down'"
+                               class="pi text-[8px] text-white/30 group-hover:text-white/50 shrink-0 transition-all duration-150"></i>
+                        </div>
+                        <button
+                                (click)="$event.stopPropagation(); openCreateChannel(category.id)"
+                                class="w-5 h-5 flex items-center justify-center text-white/25 hover:text-white/65 transition-colors cursor-pointer border-0 bg-transparent opacity-0 group-hover:opacity-100 rounded">
+                            <i class="pi pi-plus text-[10px]"></i>
+                        </button>
+                    </button>
+                </div>
 
-        @if (!isCollapsed(category.id)) {
-          @for (channel of categoryChannels(category.id); track channel.id) {
-            @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'before') {
-              <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
-            }
-            @if (channel.type === ChannelType.Voice) {
-              <div
-                [attr.draggable]="canReorder() ? 'true' : null"
-                (dragstart)="drag.onChannelDragStart($event, channel)"
-                (dragend)="drag.onDragEnd($event)"
-                (dragover)="drag.onItemDragOver($event, channel.id)">
-                <button
-                  (click)="onVoiceChannelClick(channel)"
-                  (contextmenu)="onChannelContextMenu($event, channel)"
-                  [ngClass]="isJoinedVoice(channel)
+                @if (!isCollapsed(category.id)) {
+                    @for (channel of categoryChannels(category.id); track channel.id) {
+                        @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'before') {
+                            <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+                        }
+                        @if (channel.type === ChannelType.Voice) {
+                            <div
+                                    (dragend)="drag.onDragEnd($event)"
+                                    (dragover)="drag.onItemDragOver($event, channel.id)"
+                                    (dragstart)="drag.onChannelDragStart($event, channel)"
+                                    [attr.draggable]="canReorder() ? 'true' : null">
+                                <button
+                                        (click)="onVoiceChannelClick(channel)"
+                                        (contextmenu)="onChannelContextMenu($event, channel)"
+                                        [class.cursor-grab]="canReorder()"
+                                        [ngClass]="isJoinedVoice(channel)
                     ? 'bg-online/10 text-online/80'
                     : isActive(channel)
                       ? 'bg-white/[0.08] text-white/90'
                       : 'bg-transparent text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-                  class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer"
-                  [class.cursor-grab]="canReorder()">
-                  <i class="pi pi-volume-up text-[13px] shrink-0"
-                     [ngClass]="isJoinedVoice(channel) ? 'text-online/60' : 'text-white/35'"></i>
-                  <span class="text-[15px] font-medium truncate">{{ channel.name }}</span>
-                  @if (channel.isPrivate) {
-                    <i class="pi pi-lock text-[11px] text-white/35 ml-auto shrink-0"></i>
-                  }
-                  @let vcCount = (voiceChannelSvc.channelParticipants().get(channel.id) ?? []).length;
-                  @if (vcCount > 0 && !channel.isPrivate) {
-                    <span class="ml-auto text-[11px] text-white/40 shrink-0">{{ vcCount }}</span>
-                  }
-                </button>
-                @let catParticipants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
-                @for (p of catParticipants; track p.userId) {
-                  <div class="flex items-center gap-2 pl-7 pr-2 py-0.5 rounded-md hover:bg-white/[0.04] cursor-pointer transition-colors"
-                       (click)="onVoiceChannelClick(channel)"
-                       (contextmenu)="onParticipantContextMenu($event, p, channel.id)">
-                    <app-avatar [userId]="p.userId" [label]="p.avatarLabel" styleClass="!w-5 !h-5 !text-[9px]" class="flex shrink-0" />
-                    <span class="text-[13px] flex-1 truncate"
-                          [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/55'">
+                                        class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer">
+                                    <i [ngClass]="isJoinedVoice(channel) ? 'text-online/60' : 'text-white/35'"
+                                       class="pi pi-volume-up text-[13px] shrink-0"></i>
+                                    <span class="text-[15px] font-medium truncate">{{ channel.name }}</span>
+                                    @if (channel.isPrivate) {
+                                        <i class="pi pi-lock text-[11px] text-white/35 ml-auto shrink-0"></i>
+                                    }
+                                    @let vcCount = (voiceChannelSvc.channelParticipants().get(channel.id) ?? []).length;
+                                    @if (vcCount > 0 && !channel.isPrivate) {
+                                        <span class="ml-auto text-[11px] text-white/40 shrink-0">{{ vcCount }}</span>
+                                    }
+                                </button>
+                                @let catParticipants = voiceChannelSvc.channelParticipants().get(channel.id) ?? [];
+                                @for (p of catParticipants; track p.userId) {
+                                    <div (click)="onVoiceChannelClick(channel)"
+                                         (contextmenu)="onParticipantContextMenu($event, p, channel.id)"
+                                         class="flex items-center gap-2 pl-7 pr-2 py-0.5 rounded-md hover:bg-white/[0.04] cursor-pointer transition-colors">
+                                        <app-avatar [label]="p.avatarLabel" [userId]="p.userId"
+                                                    class="flex shrink-0" styleClass="!w-5 !h-5 !text-[9px]"/>
+                                        <span [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/55'"
+                                              class="text-[13px] flex-1 truncate">
                       {{ p.displayName }}
                     </span>
-                    @if (p.isScreenSharing) {
-                      <span class="text-[9px] font-bold text-red-400 bg-red-500/15 px-1 py-0.5 rounded leading-none shrink-0">LIVE</span>
-                    } @else if (p.isMuted) {
-                      <i class="pi pi-microphone-slash text-[9px] text-white/35 shrink-0"></i>
-                    }
-                  </div>
-                }
-              </div>
-            } @else {
-              @let catRs = readStateService.getChannelState(channel.id);
-              <div
-                [attr.draggable]="canReorder() ? 'true' : null"
-                (dragstart)="drag.onChannelDragStart($event, channel)"
-                (dragend)="drag.onDragEnd($event)"
-                (dragover)="drag.onItemDragOver($event, channel.id)">
-                <button
-                  (click)="onChannelClick(channel)"
-                  (contextmenu)="onChannelContextMenu($event, channel)"
-                  [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/95' : catRs.isUnread ? 'text-white/90 font-semibold hover:bg-white/[0.06] hover:text-white' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-                  class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer"
-                  [class.cursor-grab]="canReorder()">
-                  <span class="text-white/35 text-[15px] leading-none font-medium shrink-0 pointer-events-none">#</span>
-                  <span class="text-[15px] font-medium truncate flex-1 pointer-events-none">{{ channel.name }}</span>
-                  @if (catRs.mentionCount > 0) {
-                    <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0 pointer-events-none">
+                                        @if (p.isScreenSharing) {
+                                            <span class="text-[9px] font-bold text-red-400 bg-red-500/15 px-1 py-0.5 rounded leading-none shrink-0">LIVE</span>
+                                        } @else if (p.isMuted) {
+                                            <i class="pi pi-microphone-slash text-[9px] text-white/35 shrink-0"></i>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        } @else {
+                            @let catRs = readStateService.getChannelState(channel.id);
+                            <div
+                                    (dragend)="drag.onDragEnd($event)"
+                                    (dragover)="drag.onItemDragOver($event, channel.id)"
+                                    (dragstart)="drag.onChannelDragStart($event, channel)"
+                                    [attr.draggable]="canReorder() ? 'true' : null">
+                                <button
+                                        (click)="onChannelClick(channel)"
+                                        (contextmenu)="onChannelContextMenu($event, channel)"
+                                        [class.cursor-grab]="canReorder()"
+                                        [ngClass]="isActive(channel) ? 'bg-white/[0.08] text-white/95' : catRs.isUnread ? 'text-white/90 font-semibold hover:bg-white/[0.06] hover:text-white' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
+                                        class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer">
+                                    <span class="text-white/35 text-[15px] leading-none font-medium shrink-0 pointer-events-none">#</span>
+                                    <span class="text-[15px] font-medium truncate flex-1 pointer-events-none">{{ channel.name }}</span>
+                                    @if (catRs.mentionCount > 0) {
+                                        <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0 pointer-events-none">
                       {{ catRs.mentionCount }}
                     </span>
-                  }
-                  @if (channel.isPrivate) {
-                    <i class="pi pi-lock text-[11px] text-white/35 shrink-0 pointer-events-none"></i>
-                  }
-                </button>
-              </div>
+                                    }
+                                    @if (channel.isPrivate) {
+                                        <i class="pi pi-lock text-[11px] text-white/35 shrink-0 pointer-events-none"></i>
+                                    }
+                                </button>
+                            </div>
+                        }
+                        @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'after') {
+                            <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+                        }
+                    }
+                }
+            </div>
+            @if (drag.dropTargetId() === category.id && drag.dropPos() === 'after') {
+                <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
             }
-            @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'after') {
-              <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
-            }
-          }
         }
-      </div>
-      @if (drag.dropTargetId() === category.id && drag.dropPos() === 'after') {
-        <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
-      }
-    }
 
-    @if (localChannels().length === 0 && localCategories().length === 0) {
-      <p class="text-[13px] text-white/25 text-center mt-6">{{ 'GUILD.NO_CHANNELS' | translate }}</p>
-    }
+        @if (localChannels().length === 0 && localCategories().length === 0) {
+            <p class="text-[13px] text-white/25 text-center mt-6">{{ 'GUILD.NO_CHANNELS' | translate }}</p>
+        }
 
-  </div>
+    </div>
 
 </div>
 
 <!-- ── Popup menus ──────────────────────────────────────────────────────────── -->
-<p-menu #guildMenu [model]="guildMenuItems" [popup]="true" appendTo="body" />
-<p-menu #channelMenu [model]="[]" [popup]="true" appendTo="body" />
-<p-menu #categoryMenu [model]="[]" [popup]="true" appendTo="body" />
-<p-contextMenu #listMenu [model]="guildMenuItems" appendTo="body" />
+<p-menu #guildMenu [model]="guildMenuItems" [popup]="true" appendTo="body"/>
+<p-menu #channelMenu [model]="[]" [popup]="true" appendTo="body"/>
+<p-menu #categoryMenu [model]="[]" [popup]="true" appendTo="body"/>
+<p-contextMenu #listMenu [model]="guildMenuItems" appendTo="body"/>
 
 <!-- ── Voice participant context menu ─────────────────────────────────────── -->
 @if (participantMenu(); as menu) {
-  <app-call-context-menu
-    [menu]="menu"
-    [isSuperadmin]="isSuperadmin()"
-    (close)="participantMenu.set(null)"
-    (volumeChange)="onParticipantVolumeChange($event)"
-    (kick)="kickParticipant()"
-    (ban)="banParticipant()"
-    (serverDeafen)="toggleParticipantServerDeafen()"
-  />
+    <app-call-context-menu
+            (ban)="banParticipant()"
+            (close)="participantMenu.set(null)"
+            (kick)="kickParticipant()"
+            (serverDeafen)="toggleParticipantServerDeafen()"
+            (volumeChange)="onParticipantVolumeChange($event)"
+            [isSuperadmin]="isSuperadmin()"
+            [menu]="menu"
+    />
 }
 
 <!-- ── Guild settings modal ───────────────────────────────────────────────── -->
 <app-guild-settings-modal
-  [(isVisible)]="showGuildSettings"
-  [guild]="guild()"
-  (guildUpdated)="onGuildUpdated($event)" />
+        (guildUpdated)="onGuildUpdated($event)"
+        [(isVisible)]="showGuildSettings"
+        [guild]="guild()"/>
 
 <!-- ── Channel settings modal ─────────────────────────────────────────────── -->
 <app-channel-settings-modal
-  [(isVisible)]="showChannelSettings" />
+        [(isVisible)]="showChannelSettings"/>
 
 <!-- ── Category settings modal ────────────────────────────────────────────── -->
 <app-category-settings-modal
-  [(isVisible)]="showCategorySettings" />
+        [(isVisible)]="showCategorySettings"/>
 
 <!-- ── Quick Invite Dialog ────────────────────────────────────────────────── -->
 <p-dialog
-  [(visible)]="showInviteDialog"
-  [modal]="true" [closable]="true" [draggable]="false" [resizable]="false"
-  appendTo="body" [dismissableMask]="true"
-  [style]="{width: '420px'}">
-  <ng-template pTemplate="header">
-    <div class="flex items-center gap-2">
-      <i class="pi pi-link text-brand-dim"></i>
-      <span class="text-sm font-semibold text-white/85">{{ 'GUILD.INVITE_PEOPLE' | translate }}</span>
+        [(visible)]="showInviteDialog"
+        [closable]="true" [dismissableMask]="true" [draggable]="false" [modal]="true"
+        [resizable]="false" [style]="{width: '420px'}"
+        appendTo="body">
+    <ng-template pTemplate="header">
+        <div class="flex items-center gap-2">
+            <i class="pi pi-link text-brand-dim"></i>
+            <span class="text-sm font-semibold text-white/85">{{ 'GUILD.INVITE_PEOPLE' | translate }}</span>
+        </div>
+    </ng-template>
+    <div class="py-2 space-y-4">
+        <p class="text-xs text-white/40">{{ 'GUILD.INVITE_SHARE' | translate }} <strong
+                class="text-white/65">{{ guild().name }}</strong>.</p>
+        @if (inviteLoading()) {
+            <div class="flex items-center justify-center py-4">
+                <i class="pi pi-spin pi-spinner text-white/30 text-xl"></i>
+            </div>
+        } @else {
+            <div class="flex gap-2">
+                <input [value]="inviteLink()" class="flex-1 text-sm font-mono text-white/60" pInputText readonly/>
+                <p-button
+                        (onClick)="copyInviteLink()"
+                        [icon]="inviteCopied() ? 'pi pi-check' : 'pi pi-copy'"
+                        [label]="inviteCopied() ? ('GUILD.COPIED' | translate) : ('GUILD.COPY' | translate)" severity="primary"
+                        size="small"/>
+            </div>
+        }
     </div>
-  </ng-template>
-  <div class="py-2 space-y-4">
-    <p class="text-xs text-white/40">{{ 'GUILD.INVITE_SHARE' | translate }} <strong class="text-white/65">{{ guild().name }}</strong>.</p>
-    @if (inviteLoading()) {
-      <div class="flex items-center justify-center py-4">
-        <i class="pi pi-spin pi-spinner text-white/30 text-xl"></i>
-      </div>
-    } @else {
-      <div class="flex gap-2">
-        <input pInputText [value]="inviteLink()" readonly class="flex-1 text-sm font-mono text-white/60" />
-        <p-button
-          [icon]="inviteCopied() ? 'pi pi-check' : 'pi pi-copy'"
-          [label]="inviteCopied() ? ('GUILD.COPIED' | translate) : ('GUILD.COPY' | translate)"
-          severity="primary" size="small"
-          (onClick)="copyInviteLink()" />
-      </div>
-    }
-  </div>
 </p-dialog>
 
 <!-- ── Create Channel Dialog ──────────────────────────────────────────────── -->
 <p-dialog
-  [(visible)]="showCreateChannel"
-  [modal]="true" [closable]="true" [draggable]="false" [resizable]="false"
-  appendTo="body" [dismissableMask]="true"
-  [style]="{width: '420px'}">
-  <ng-template pTemplate="header">
-    <span class="text-sm font-semibold text-white/85">{{ 'GUILD.CREATE_CHANNEL' | translate }}</span>
-  </ng-template>
-  <div class="py-2 space-y-5">
+        [(visible)]="showCreateChannel"
+        [closable]="true" [dismissableMask]="true" [draggable]="false" [modal]="true"
+        [resizable]="false" [style]="{width: '420px'}"
+        appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-white/85">{{ 'GUILD.CREATE_CHANNEL' | translate }}</span>
+    </ng-template>
+    <div class="py-2 space-y-5">
 
-    <!-- Type selector -->
-    <div>
-      <p class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD.CHANNEL_TYPE' | translate }}</p>
-      <div class="grid grid-cols-2 gap-2">
-        <button
-          (click)="createChannelType.set(ChannelType.Text)"
-          class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer"
-          [ngClass]="createChannelType() === ChannelType.Text ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'">
-          <span class="text-base font-bold text-white/50">#</span>
-          <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_TEXT' | translate }}</span>
-          <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_TEXT_DESC' | translate }}</span>
-        </button>
-        <button
-          (click)="createChannelType.set(ChannelType.Voice)"
-          class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer"
-          [ngClass]="createChannelType() === ChannelType.Voice ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'">
-          <i class="pi pi-volume-up text-white/50"></i>
-          <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_VOICE' | translate }}</span>
-          <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_VOICE_DESC' | translate }}</span>
-        </button>
-      </div>
-    </div>
+        <!-- Type selector -->
+        <div>
+            <p class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD.CHANNEL_TYPE' | translate }}</p>
+            <div class="grid grid-cols-2 gap-2">
+                <button
+                        (click)="createChannelType.set(ChannelType.Text)"
+                        [ngClass]="createChannelType() === ChannelType.Text ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'"
+                        class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer">
+                    <span class="text-base font-bold text-white/50">#</span>
+                    <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_TEXT' | translate }}</span>
+                    <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_TEXT_DESC' | translate }}</span>
+                </button>
+                <button
+                        (click)="createChannelType.set(ChannelType.Voice)"
+                        [ngClass]="createChannelType() === ChannelType.Voice ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'"
+                        class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer">
+                    <i class="pi pi-volume-up text-white/50"></i>
+                    <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_VOICE' | translate }}</span>
+                    <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_VOICE_DESC' | translate }}</span>
+                </button>
+            </div>
+        </div>
 
-    <!-- Name -->
-    <div>
-      <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD.CHANNEL_NAME' | translate }}</label>
-      <div class="relative">
+        <!-- Name -->
+        <div>
+            <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD.CHANNEL_NAME' | translate }}</label>
+            <div class="relative">
         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-white/30 font-bold text-sm pointer-events-none">
-          @if (createChannelType() === ChannelType.Text) { # } @else { <i class="pi pi-volume-up text-xs"></i> }
+          @if (createChannelType() === ChannelType.Text) {
+              #
+          } @else {
+              <i class="pi pi-volume-up text-xs"></i>
+          }
         </span>
-        <input pInputText
-          [ngModel]="createChannelName()"
-          (ngModelChange)="createChannelName.set($event)"
-          [placeholder]="'GUILD.CHANNEL_NAME_PLACEHOLDER' | translate"
-          class="w-full !pl-8" />
-      </div>
-    </div>
+                <input (ngModelChange)="createChannelName.set($event)"
+                       [ngModel]="createChannelName()"
+                       [placeholder]="'GUILD.CHANNEL_NAME_PLACEHOLDER' | translate"
+                       class="w-full !pl-8"
+                       pInputText/>
+            </div>
+        </div>
 
-    @if (createChannelCategory()) {
-      <p class="text-xs text-white/30">{{ 'GUILD.CHANNEL_IN_CATEGORY' | translate }}</p>
-    }
-  </div>
-  <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.06]">
-    <p-button [label]="'GUILD.CANCEL' | translate" severity="secondary" size="small"
-      (onClick)="showCreateChannel.set(false)" />
-    <p-button [label]="'GUILD.CREATE_CHANNEL_SUBMIT' | translate" severity="primary" size="small"
-      [loading]="createChannelCreating()"
-      [disabled]="!createChannelName().trim()"
-      (onClick)="submitCreateChannel()" />
-  </div>
+        @if (createChannelCategory()) {
+            <p class="text-xs text-white/30">{{ 'GUILD.CHANNEL_IN_CATEGORY' | translate }}</p>
+        }
+    </div>
+    <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.06]">
+        <p-button (onClick)="showCreateChannel.set(false)" [label]="'GUILD.CANCEL' | translate" severity="secondary"
+                  size="small"/>
+        <p-button (onClick)="submitCreateChannel()" [disabled]="!createChannelName().trim()" [label]="'GUILD.CREATE_CHANNEL_SUBMIT' | translate"
+                  [loading]="createChannelCreating()"
+                  severity="primary"
+                  size="small"/>
+    </div>
 </p-dialog>
 
 <!-- ── Create Category Dialog ─────────────────────────────────────────────── -->
 <p-dialog
-  [(visible)]="showCreateCategory"
-  [modal]="true" [closable]="true" [draggable]="false" [resizable]="false"
-  appendTo="body" [dismissableMask]="true"
-  [style]="{width: '360px'}">
-  <ng-template pTemplate="header">
-    <span class="text-sm font-semibold text-white/85">{{ 'GUILD.CREATE_CATEGORY' | translate }}</span>
-  </ng-template>
-  <div class="py-2 space-y-4">
-    <div>
-      <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD.CATEGORY_NAME' | translate }}</label>
-      <input pInputText
-        [ngModel]="createCategoryName()"
-        (ngModelChange)="createCategoryName.set($event)"
-        [placeholder]="'GUILD.CATEGORY_NAME_PLACEHOLDER' | translate"
-        class="w-full" />
+        [(visible)]="showCreateCategory"
+        [closable]="true" [dismissableMask]="true" [draggable]="false" [modal]="true"
+        [resizable]="false" [style]="{width: '360px'}"
+        appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-white/85">{{ 'GUILD.CREATE_CATEGORY' | translate }}</span>
+    </ng-template>
+    <div class="py-2 space-y-4">
+        <div>
+            <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD.CATEGORY_NAME' | translate }}</label>
+            <input (ngModelChange)="createCategoryName.set($event)"
+                   [ngModel]="createCategoryName()"
+                   [placeholder]="'GUILD.CATEGORY_NAME_PLACEHOLDER' | translate"
+                   class="w-full"
+                   pInputText/>
+        </div>
     </div>
-  </div>
-  <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.06]">
-    <p-button [label]="'GUILD.CANCEL' | translate" severity="secondary" size="small"
-      (onClick)="showCreateCategory.set(false)" />
-    <p-button [label]="'GUILD.CREATE_CATEGORY_SUBMIT' | translate" severity="primary" size="small"
-      [loading]="createCategoryCreating()"
-      [disabled]="!createCategoryName().trim()"
-      (onClick)="submitCreateCategory()" />
-  </div>
+    <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.06]">
+        <p-button (onClick)="showCreateCategory.set(false)" [label]="'GUILD.CANCEL' | translate" severity="secondary"
+                  size="small"/>
+        <p-button (onClick)="submitCreateCategory()" [disabled]="!createCategoryName().trim()" [label]="'GUILD.CREATE_CATEGORY_SUBMIT' | translate"
+                  [loading]="createCategoryCreating()"
+                  severity="primary"
+                  size="small"/>
+    </div>
 </p-dialog>

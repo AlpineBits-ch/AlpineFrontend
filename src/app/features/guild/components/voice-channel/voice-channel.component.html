@@ -1,134 +1,142 @@
 <div class="flex flex-col h-full bg-app-bg overflow-hidden">
 
-  <!-- Header -->
-  <header class="flex items-center px-3 sm:px-5 border-b border-white/[0.10] shrink-0 bg-app-bg" style="padding-top: env(safe-area-inset-top); min-height: calc(env(safe-area-inset-top) + 3.5rem)">
-    <button class="lg:hidden shrink-0 mr-1 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/[0.07] text-white/50 border-0 bg-transparent cursor-pointer transition-colors"
-      (click)="navService.mobileNavOpen.set(true)">
-      <i class="pi pi-bars text-sm"></i>
-    </button>
-    <div class="flex items-center gap-2.5 min-w-0">
-      <i class="pi pi-volume-up text-base text-white/50 shrink-0"></i>
-      <span class="font-semibold text-white/85 truncate">{{ channel().name }}</span>
-      @if (participants().length > 0) {
-        <span class="text-sm text-white/45">— {{ participants().length }} connected</span>
-      }
-    </div>
-    <div class="ml-auto flex items-center gap-1 text-white/45">
-      <button class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/[0.05] hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
-        <i class="pi pi-users text-base"></i>
-      </button>
-      <button class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/[0.05] hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
-        <i class="pi pi-link text-base"></i>
-      </button>
-    </div>
-  </header>
-
-  <!-- Content -->
-  @if (!isJoined()) {
-
-    <!-- Lobby view -->
-    <app-voice-channel-lobby
-      class="flex-1 min-h-0"
-      [channel]="channel()"
-      [participants]="participants()"
-      (joinVoice)="joinChannel()"
-    />
-
-  } @else {
-
-    <!-- Connected view -->
-    <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
-
-      <!-- Connection state banners -->
-      @let rtc = voiceSvc.rtcState();
-      @if (rtc === 'failed' || rtc === 'disconnected') {
-        <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium bg-rose-500/[0.12] border-b border-rose-500/20 text-rose-400">
-          <div class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" style="animation: vc-rtc-pulse 0.8s ease-in-out infinite"></div>
-          <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12" class="shrink-0">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-          </svg>
-          {{ rtc === 'failed' ? 'Connection failed — audio unavailable' : 'Connection lost — attempting to reconnect' }}
-        </div>
-      } @else if (rtc === 'new' || rtc === 'connecting') {
-        <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium bg-amber-400/10 border-b border-amber-400/20 text-amber-400">
-          <div class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" style="animation: vc-rtc-pulse 1s ease-in-out infinite"></div>
-          Establishing connection...
-        </div>
-      }
-
-      <!-- No-audio warning -->
-      @let pwa = voiceSvc.participantsWithAudio();
-      @if (participants().some(p => !p.isLocal && !pwa.has(p.userId))) {
-        <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium bg-amber-400/10 border-b border-amber-400/20 text-amber-400">
-          <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12" class="shrink-0">
-            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-          </svg>
-          No audio received from some participants — they may need to rejoin
-        </div>
-      }
-
-      <!-- Screen share layout or participant grid -->
-      @if (callScreenShares().length > 0) {
-        <app-call-screen-layout
-          class="flex-1 min-h-0"
-          [screenShares]="callScreenShares()"
-          [participants]="callParticipants()"
-          [participantsWithAudio]="voiceSvc.participantsWithAudio()"
-          (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
-          (localAudioToggle)="toggleLocalScreenAudio()"
-          (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
-        />
-      } @else {
-        <div class="flex-1 min-h-0 overflow-y-auto p-6 flex items-start justify-center"
-             style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
-          <div class="grid gap-4 w-full" [ngClass]="participantGridClass()">
-            @for (p of participants(); track p.userId) {
-              <app-call-participant-tile
-                [participant]="p"
-                [hasAudio]="voiceSvc.participantsWithAudio().has(p.userId)"
-                [videoStream]="p.isLocal ? voiceSvc.localVideoStream() : voiceSvc.getVideoStream(p.userId)"
-                (contextMenu)="onParticipantContextMenu($event, p)"
-              />
+    <!-- Header -->
+    <header class="flex items-center px-3 sm:px-5 border-b border-white/[0.10] shrink-0 bg-app-bg"
+            style="padding-top: env(safe-area-inset-top); min-height: calc(env(safe-area-inset-top) + 3.5rem)">
+        <button (click)="navService.mobileNavOpen.set(true)"
+                class="lg:hidden shrink-0 mr-1 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/[0.07] text-white/50 border-0 bg-transparent cursor-pointer transition-colors">
+            <i class="pi pi-bars text-sm"></i>
+        </button>
+        <div class="flex items-center gap-2.5 min-w-0">
+            <i class="pi pi-volume-up text-base text-white/50 shrink-0"></i>
+            <span class="font-semibold text-white/85 truncate">{{ channel().name }}</span>
+            @if (participants().length > 0) {
+                <span class="text-sm text-white/45">— {{ participants().length }} connected</span>
             }
-          </div>
         </div>
-      }
+        <div class="ml-auto flex items-center gap-1 text-white/45">
+            <button class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/[0.05] hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
+                <i class="pi pi-users text-base"></i>
+            </button>
+            <button class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/[0.05] hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
+                <i class="pi pi-link text-base"></i>
+            </button>
+        </div>
+    </header>
 
-      <!-- Controls bar -->
-      <app-call-controls-bar
-        [isMuted]="voiceSvc.localState().isMuted"
-        [isDeafened]="voiceSvc.localState().isDeafened"
-        [isCameraOn]="voiceSvc.localState().isCameraOn"
-        [isScreenSharing]="voiceSvc.localState().isScreenSharing"
-        [screenHasAudio]="voiceSvc.localScreenHasAudio()"
-        [screenAudioMuted]="voiceSvc.localScreenAudioMuted()"
-        [captureFps]="rustMedia.captureFps()"
-        [captureResolution]="rustMedia.captureResolution()"
-        (muteToggle)="toggleMute()"
-        (deafenToggle)="toggleDeafen()"
-        (cameraToggle)="toggleCamera()"
-        (screenShareToggle)="toggleScreenShare()"
-        (screenAudioToggle)="toggleLocalScreenAudio()"
-        (fpsChange)="setCaptureFps($event)"
-        (resolutionChange)="setScreenResolution($event)"
-        (disconnect)="leaveChannel()"
-      />
+    <!-- Content -->
+    @if (!isJoined()) {
 
-    </div>
+        <!-- Lobby view -->
+        <app-voice-channel-lobby
+                (joinVoice)="joinChannel()"
+                [channel]="channel()"
+                [participants]="participants()"
+                class="flex-1 min-h-0"
+        />
 
-  }
+    } @else {
+
+        <!-- Connected view -->
+        <div class="flex-1 min-h-0 flex flex-col overflow-hidden relative group/call">
+
+            <!-- Connection state banners -->
+            @let rtc = voiceSvc.rtcState();
+            @if (rtc === 'failed' || rtc === 'disconnected') {
+                <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium bg-rose-500/[0.12] border-b border-rose-500/20 text-rose-400">
+                    <div class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"
+                         style="animation: vc-rtc-pulse 0.8s ease-in-out infinite"></div>
+                    <svg class="shrink-0" fill="currentColor" height="12" viewBox="0 0 24 24" width="12">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                    </svg>
+                    {{ rtc === 'failed' ? 'Connection failed — audio unavailable' : 'Connection lost — attempting to reconnect' }}
+                </div>
+            } @else if (rtc === 'new' || rtc === 'connecting') {
+                <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium bg-amber-400/10 border-b border-amber-400/20 text-amber-400">
+                    <div class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"
+                         style="animation: vc-rtc-pulse 1s ease-in-out infinite"></div>
+                    Establishing connection...
+                </div>
+            }
+
+            <!-- No-audio warning -->
+            @let pwa = voiceSvc.participantsWithAudio();
+            @if (participants().some(p => !p.isLocal && !pwa.has(p.userId))) {
+                <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium bg-amber-400/10 border-b border-amber-400/20 text-amber-400">
+                    <svg class="shrink-0" fill="currentColor" height="12" viewBox="0 0 24 24" width="12">
+                        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                    </svg>
+                    No audio received from some participants — they may need to rejoin
+                </div>
+            }
+
+            <!-- Screen share layout or participant grid -->
+            <div class="flex-1 min-h-0 relative">
+                @if (callScreenShares().length > 0) {
+                    <app-call-screen-layout
+                            (localAudioToggle)="toggleLocalScreenAudio()"
+                            (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
+                            (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
+                            [participantsWithAudio]="voiceSvc.participantsWithAudio()"
+                            [participants]="callParticipants()"
+                            [screenShares]="callScreenShares()"
+                            class="w-full h-full"
+                    />
+                } @else {
+                    <div class="w-full h-full overflow-y-auto p-6 flex items-center justify-center bg-black/10"
+                         style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+                        <div [ngClass]="participantGridClass()" class="grid gap-6 w-full justify-center">
+                            @for (p of participants(); track p.userId) {
+                                <app-call-participant-tile
+                                        (contextMenu)="onParticipantContextMenu($event, p)"
+                                        [hasAudio]="voiceSvc.participantsWithAudio().has(p.userId)"
+                                        [participant]="p"
+                                        [videoStream]="p.isLocal ? voiceSvc.localVideoStream() : voiceSvc.getVideoStream(p.userId)"
+                                />
+                            }
+                        </div>
+                    </div>
+                }
+
+                <!-- Floating Controls bar -->
+                <div class="absolute bottom-8 left-0 right-0 flex justify-center z-20 pointer-events-none transition-all duration-300">
+                    <app-call-controls-bar
+                            (cameraToggle)="toggleCamera()"
+                            (deafenToggle)="toggleDeafen()"
+                            (disconnect)="leaveChannel()"
+                            (fpsChange)="setCaptureFps($event)"
+                            (muteToggle)="toggleMute()"
+                            (resolutionChange)="setScreenResolution($event)"
+                            (screenAudioToggle)="toggleLocalScreenAudio()"
+                            (screenShareToggle)="toggleScreenShare()"
+                            [captureFps]="rustMedia.captureFps()"
+                            [captureResolution]="rustMedia.captureResolution()"
+                            [isCameraOn]="voiceSvc.localState().isCameraOn"
+                            [isDeafened]="voiceSvc.localState().isDeafened"
+                            [isMuted]="voiceSvc.localState().isMuted"
+                            [isScreenSharing]="voiceSvc.localState().isScreenSharing"
+                            [screenAudioMuted]="voiceSvc.localScreenAudioMuted()"
+                            [screenHasAudio]="voiceSvc.localScreenHasAudio()"
+                            class="pointer-events-auto shadow-[0_8px_32px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden border border-white/10 bg-black/60 backdrop-blur-xl"
+                    />
+                </div>
+            </div>
+
+        </div>
+
+    }
 
 </div>
 
 <!-- Context menu -->
 @if (participantMenu(); as menu) {
-  <app-call-context-menu
-    [menu]="menu"
-    [isSuperadmin]="isSuperadmin()"
-    (close)="participantMenu.set(null)"
-    (volumeChange)="onVolumeChange($event)"
-    (kick)="kickParticipant()"
-    (ban)="banParticipant()"
-    (serverDeafen)="toggleServerDeafen()"
-  />
+    <app-call-context-menu
+            (ban)="banParticipant()"
+            (close)="participantMenu.set(null)"
+            (kick)="kickParticipant()"
+            (serverDeafen)="toggleServerDeafen()"
+            (volumeChange)="onVolumeChange($event)"
+            [isSuperadmin]="isSuperadmin()"
+            [menu]="menu"
+    />
 }

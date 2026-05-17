@@ -1,61 +1,62 @@
 <p-dialog
-  [(visible)]="visible"
-  [modal]="true"
-  [draggable]="false"
-  appendTo="body"
-  [resizable]="false"
-  [style]="{ width: '420px' }"
-  styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl"
-  maskStyleClass="backdrop-blur-sm"
-  (onHide)="close()">
+        (onHide)="close()"
+        [(visible)]="visible"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{ width: '420px' }"
+        appendTo="body"
+        maskStyleClass="backdrop-blur-sm"
+        styleClass="!bg-card !border !border-white/[0.08] !rounded-2xl">
 
-  <ng-template pTemplate="header">
-    <span class="text-base font-semibold text-white/85">{{ 'CREATE_GUILD.TITLE' | translate }}</span>
-  </ng-template>
+    <ng-template pTemplate="header">
+        <span class="text-base font-semibold text-white/85">{{ 'CREATE_GUILD.TITLE' | translate }}</span>
+    </ng-template>
 
-  <div class="px-1 py-1 flex flex-col gap-4">
+    <div class="px-1 py-1 flex flex-col gap-4">
 
-    <div class="flex flex-col gap-1.5">
-      <label class="text-[10.5px] font-semibold text-white/30 uppercase tracking-widest">
-        {{ 'CREATE_GUILD.SERVER_NAME' | translate }} <span class="text-rose-400/70 normal-case font-normal">*</span>
-      </label>
-      <input pInputText
-             [ngModel]="name()"
-             (ngModelChange)="name.set($event)"
-             [placeholder]="'CREATE_GUILD.SERVER_NAME_PLACEHOLDER' | translate"
-             class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
-             [disabled]="loading()" />
-    </div>
+        <div class="flex flex-col gap-1.5">
+            <label class="text-[10.5px] font-semibold text-white/30 uppercase tracking-widest">
+                {{ 'CREATE_GUILD.SERVER_NAME' | translate }} <span
+                    class="text-rose-400/70 normal-case font-normal">*</span>
+            </label>
+            <input (ngModelChange)="name.set($event)"
+                   [disabled]="loading()"
+                   [ngModel]="name()"
+                   [placeholder]="'CREATE_GUILD.SERVER_NAME_PLACEHOLDER' | translate"
+                   class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
+                   pInputText/>
+        </div>
 
-    <div class="flex flex-col gap-1.5">
-      <label class="text-[10.5px] font-semibold text-white/30 uppercase tracking-widest">
-        {{ 'CREATE_GUILD.DESCRIPTION' | translate }}
-        <span class="text-white/20 normal-case font-normal tracking-normal">{{ 'CREATE_GUILD.DESCRIPTION_OPTIONAL' | translate }}</span>
-      </label>
-      <textarea
-        [ngModel]="description()"
-        (ngModelChange)="description.set($event)"
-        [placeholder]="'CREATE_GUILD.DESCRIPTION_PLACEHOLDER' | translate"
-        rows="3"
-        class="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white/85 placeholder:text-white/25 px-3 py-2 outline-none focus:border-white/20 transition-colors resize-none"
-        [disabled]="loading()">
+        <div class="flex flex-col gap-1.5">
+            <label class="text-[10.5px] font-semibold text-white/30 uppercase tracking-widest">
+                {{ 'CREATE_GUILD.DESCRIPTION' | translate }}
+                <span class="text-white/20 normal-case font-normal tracking-normal">{{ 'CREATE_GUILD.DESCRIPTION_OPTIONAL' | translate }}</span>
+            </label>
+            <textarea
+                    (ngModelChange)="description.set($event)"
+                    [disabled]="loading()"
+                    [ngModel]="description()"
+                    [placeholder]="'CREATE_GUILD.DESCRIPTION_PLACEHOLDER' | translate"
+                    class="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white/85 placeholder:text-white/25 px-3 py-2 outline-none focus:border-white/20 transition-colors resize-none"
+                    rows="3">
       </textarea>
+        </div>
+
     </div>
 
-  </div>
-
-  <ng-template pTemplate="footer">
-    <div class="flex items-center justify-end gap-2 pt-1">
-      <p-button [label]="'CREATE_GUILD.CANCEL' | translate" severity="secondary" [text]="true" size="small"
-                (onClick)="close()" [disabled]="loading()" />
-      <p-button
-        [label]="'CREATE_GUILD.CREATE' | translate"
-        severity="primary"
-        size="small"
-        [disabled]="!name().trim() || loading()"
-        [loading]="loading()"
-        (onClick)="submit()" />
-    </div>
-  </ng-template>
+    <ng-template pTemplate="footer">
+        <div class="flex items-center justify-end gap-2 pt-1">
+            <p-button (onClick)="close()" [disabled]="loading()" [label]="'CREATE_GUILD.CANCEL' | translate" [text]="true"
+                      severity="secondary" size="small"/>
+            <p-button
+                    (onClick)="submit()"
+                    [disabled]="!name().trim() || loading()"
+                    [label]="'CREATE_GUILD.CREATE' | translate"
+                    [loading]="loading()"
+                    severity="primary"
+                    size="small"/>
+        </div>
+    </ng-template>
 
 </p-dialog>

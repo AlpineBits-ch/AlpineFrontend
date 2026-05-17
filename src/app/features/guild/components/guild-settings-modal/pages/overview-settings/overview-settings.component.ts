@@ -1,138 +1,133 @@
-import { Component, inject, input, OnDestroy, OnInit, output, signal } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { Button } from 'primeng/button';
-import { InputText } from 'primeng/inputtext';
-import { Textarea } from 'primeng/textarea';
-import { Dialog } from 'primeng/dialog';
-import { GuildDto } from '../../../../../../dtos/response/guild.dto';
-import { GuildService, UpdateGuildDto } from '../../../../../../services/guild.service';
-import { ImageCropperComponent } from '../../../../../../components/image-cropper/image-cropper.component';
-import { environment } from '../../../../../../../environments/environment';
-import { TranslateModule } from '@ngx-translate/core';
+import {Component, inject, input, OnDestroy, OnInit, output, signal} from '@angular/core';
+import {FormsModule} from '@angular/forms';
+import {Button} from 'primeng/button';
+import {InputText} from 'primeng/inputtext';
+import {Textarea} from 'primeng/textarea';
+import {Dialog} from 'primeng/dialog';
+import {GuildDto} from '../../../../../../dtos/response/guild.dto';
+import {GuildService, UpdateGuildDto} from '../../../../../../services/guild.service';
+import {ImageCropperComponent} from '../../../../../../components/image-cropper/image-cropper.component';
+import {environment} from '../../../../../../../environments/environment';
+import {TranslateModule} from '@ngx-translate/core';
 
 @Component({
-  selector: 'app-overview-settings',
-  imports: [FormsModule, Button, InputText, Textarea, Dialog, ImageCropperComponent, TranslateModule],
-  templateUrl: './overview-settings.component.html',
+    selector: 'app-overview-settings',
+    imports: [FormsModule, Button, InputText, Textarea, Dialog, ImageCropperComponent, TranslateModule],
+    templateUrl: './overview-settings.component.html',
 })
 export class OverviewSettingsComponent implements OnInit, OnDestroy {
-  guild = input.required<GuildDto>();
-  guildUpdated = output<GuildDto>();
+    guild = input.required<GuildDto>();
+    guildUpdated = output<GuildDto>();
+    name = signal('');
+    description = signal('');
+    saving = signal(false);
+    dirty = signal(false);
+    iconPreview = signal<string | null>(null);
+    pendingIconFile = signal<File | null>(null);
+    iconRemoved = signal(false);
+    cropVisible = signal(false);
+    cropSrc = signal('');
+    private guildService = inject(GuildService);
+    private previewObjectUrl: string | null = null;
 
-  private guildService = inject(GuildService);
-
-  name = signal('');
-  description = signal('');
-  saving = signal(false);
-  dirty = signal(false);
-
-  iconPreview = signal<string | null>(null);
-  pendingIconFile = signal<File | null>(null);
-  iconRemoved = signal(false);
-
-  cropVisible = signal(false);
-  cropSrc = signal('');
-
-  private previewObjectUrl: string | null = null;
-
-  private iconUrl(guildId: string): string {
-    return `${environment.apiUrl}/api/v1/guild/guilds/${guildId}/icon`;
-  }
-
-  ngOnInit(): void {
-    this.name.set(this.guild().name);
-    this.description.set(this.guild().description ?? '');
-    if (this.previewObjectUrl) {
-      URL.revokeObjectURL(this.previewObjectUrl);
-      this.previewObjectUrl = null;
+    ngOnInit(): void {
+        this.name.set(this.guild().name);
+        this.description.set(this.guild().description ?? '');
+        if (this.previewObjectUrl) {
+            URL.revokeObjectURL(this.previewObjectUrl);
+            this.previewObjectUrl = null;
+        }
+        this.pendingIconFile.set(null);
+        this.iconRemoved.set(false);
+        this.iconPreview.set(this.iconUrl(this.guild().id));
     }
-    this.pendingIconFile.set(null);
-    this.iconRemoved.set(false);
-    this.iconPreview.set(this.iconUrl(this.guild().id));
-  }
 
-  ngOnDestroy(): void {
-    if (this.previewObjectUrl) URL.revokeObjectURL(this.previewObjectUrl);
-  }
-
-  onFieldChange(): void {
-    const g = this.guild();
-    this.dirty.set(
-      this.name() !== g.name || this.description() !== (g.description ?? '')
-    );
-  }
-
-  onIconSelected(event: Event): void {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = '';
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      this.cropSrc.set(reader.result as string);
-      this.cropVisible.set(true);
-    };
-    reader.readAsDataURL(file);
-  }
-
-  onCropConfirmed(file: File): void {
-    this.cropVisible.set(false);
-    if (this.previewObjectUrl) URL.revokeObjectURL(this.previewObjectUrl);
-    this.previewObjectUrl = URL.createObjectURL(file);
-    this.pendingIconFile.set(file);
-    this.iconPreview.set(this.previewObjectUrl);
-    this.dirty.set(true);
-  }
-
-  removeIcon(): void {
-    if (this.previewObjectUrl) {
-      URL.revokeObjectURL(this.previewObjectUrl);
-      this.previewObjectUrl = null;
+    ngOnDestroy(): void {
+        if (this.previewObjectUrl) URL.revokeObjectURL(this.previewObjectUrl);
     }
-    this.iconPreview.set(null);
-    this.pendingIconFile.set(null);
-    this.iconRemoved.set(true);
-    this.dirty.set(true);
-  }
 
-  onIconLoadError(): void {
-    if (this.iconPreview() === this.iconUrl(this.guild().id)) {
-      this.iconPreview.set(null);
+    onFieldChange(): void {
+        const g = this.guild();
+        this.dirty.set(
+            this.name() !== g.name || this.description() !== (g.description ?? '')
+        );
     }
-  }
 
-  save(): void {
-    if (this.saving()) return;
-    this.saving.set(true);
-
-    const doUpdate = (g: GuildDto) => {
-      const dto: UpdateGuildDto = { name: this.name(), description: this.description() };
-      this.guildService.updateGuild(g.id, dto).subscribe({
-        next: updated => {
-          this.guildService.guildUpdated$.next(updated);
-          this.guildUpdated.emit(updated);
-          this.dirty.set(false);
-          this.saving.set(false);
-        },
-        error: () => this.saving.set(false),
-      });
-    };
-
-    if (this.pendingIconFile()) {
-      this.guildService.uploadGuildIcon(this.guild().id, this.pendingIconFile()!).subscribe({
-        next: () => {
-          this.pendingIconFile.set(null);
-          doUpdate(this.guild());
-        },
-        error: () => this.saving.set(false),
-      });
-    } else if (this.iconRemoved()) {
-      this.guildService.removeGuildIcon(this.guild().id).subscribe({
-        next: updated => doUpdate(updated),
-        error: () => this.saving.set(false),
-      });
-    } else {
-      doUpdate(this.guild());
+    onIconSelected(event: Event): void {
+        const input = event.target as HTMLInputElement;
+        const file = input.files?.[0];
+        input.value = '';
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            this.cropSrc.set(reader.result as string);
+            this.cropVisible.set(true);
+        };
+        reader.readAsDataURL(file);
     }
-  }
+
+    onCropConfirmed(file: File): void {
+        this.cropVisible.set(false);
+        if (this.previewObjectUrl) URL.revokeObjectURL(this.previewObjectUrl);
+        this.previewObjectUrl = URL.createObjectURL(file);
+        this.pendingIconFile.set(file);
+        this.iconPreview.set(this.previewObjectUrl);
+        this.dirty.set(true);
+    }
+
+    removeIcon(): void {
+        if (this.previewObjectUrl) {
+            URL.revokeObjectURL(this.previewObjectUrl);
+            this.previewObjectUrl = null;
+        }
+        this.iconPreview.set(null);
+        this.pendingIconFile.set(null);
+        this.iconRemoved.set(true);
+        this.dirty.set(true);
+    }
+
+    onIconLoadError(): void {
+        if (this.iconPreview() === this.iconUrl(this.guild().id)) {
+            this.iconPreview.set(null);
+        }
+    }
+
+    save(): void {
+        if (this.saving()) return;
+        this.saving.set(true);
+
+        const doUpdate = (g: GuildDto) => {
+            const dto: UpdateGuildDto = {name: this.name(), description: this.description()};
+            this.guildService.updateGuild(g.id, dto).subscribe({
+                next: updated => {
+                    this.guildService.guildUpdated$.next(updated);
+                    this.guildUpdated.emit(updated);
+                    this.dirty.set(false);
+                    this.saving.set(false);
+                },
+                error: () => this.saving.set(false),
+            });
+        };
+
+        if (this.pendingIconFile()) {
+            this.guildService.uploadGuildIcon(this.guild().id, this.pendingIconFile()!).subscribe({
+                next: () => {
+                    this.pendingIconFile.set(null);
+                    doUpdate(this.guild());
+                },
+                error: () => this.saving.set(false),
+            });
+        } else if (this.iconRemoved()) {
+            this.guildService.removeGuildIcon(this.guild().id).subscribe({
+                next: updated => doUpdate(updated),
+                error: () => this.saving.set(false),
+            });
+        } else {
+            doUpdate(this.guild());
+        }
+    }
+
+    private iconUrl(guildId: string): string {
+        return `${environment.apiUrl}/api/v1/guild/guilds/${guildId}/icon`;
+    }
 }

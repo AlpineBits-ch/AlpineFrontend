@@ -1,99 +1,105 @@
 <p-dialog
-  [header]="'Manage Relationships'"
-  [(visible)]="isVisible"
-  [modal]="true"
-  [breakpoints]="{ '960px': '75vw', '640px': '90vw' }"
-  [style]="{ width: '560px' }">
+        [(visible)]="isVisible"
+        [breakpoints]="{ '960px': '75vw', '640px': '90vw' }"
+        [header]="'Manage Relationships'"
+        [modal]="true"
+        [style]="{ width: '560px' }">
 
-  <div class="flex flex-col gap-6 py-1">
+    <div class="flex flex-col gap-6 py-1">
 
-    <!-- Add Friend -->
-    <div class="flex flex-col gap-2">
-      <p class="text-xs font-semibold text-white/30 uppercase tracking-widest">Add Friend</p>
-      <div class="flex gap-2">
-        <div class="flex items-center gap-2 flex-1 bg-white/[0.04] border border-white/[0.09] rounded-xl px-3">
-          <i class="pi pi-user-plus text-white/30 text-sm shrink-0"></i>
-          <input type="text" [(ngModel)]="friendId" pInputText
-            placeholder="username#0000"
-            class="flex-1 bg-transparent border-0 outline-none py-2.5 text-sm text-white/80 placeholder:text-white/25" />
-        </div>
-        <p-button label="Send Request" icon="pi pi-send" severity="primary" size="small"
-          (onClick)="sendFriendrequest()" />
-      </div>
-    </div>
-
-    <!-- Requests row -->
-    <div class="grid grid-cols-2 gap-3">
-
-      <!-- Incoming -->
-      <div class="flex flex-col gap-2">
-        <p class="text-xs font-semibold text-white/30 uppercase tracking-widest">Incoming</p>
-        <div class="flex flex-col gap-1 bg-white/[0.03] border border-white/[0.06] rounded-xl p-2 min-h-[80px] max-h-44 overflow-y-auto"
-             style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
-          @for (rel of incomingFriendRequest(); track rel.id) {
-            <div class="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors">
-              <span class="text-sm text-white/75 truncate">{{ rel.target.userName }}</span>
-              <div class="flex gap-0.5 shrink-0">
-                <p-button icon="pi pi-check" [rounded]="true" severity="success" [text]="true" size="small"
-                  pTooltip="Accept" tooltipPosition="top" (click)="acceptFriendRequest(rel.id)" />
-                <p-button icon="pi pi-times" [rounded]="true" severity="danger" [text]="true" size="small"
-                  pTooltip="Decline" tooltipPosition="top" (click)="rejectFriendRequest(rel.id)" />
-              </div>
+        <!-- Add Friend -->
+        <div class="flex flex-col gap-2">
+            <p class="text-xs font-semibold text-white/30 uppercase tracking-widest">Add Friend</p>
+            <div class="flex gap-2">
+                <div class="flex items-center gap-2 flex-1 bg-white/[0.04] border border-white/[0.09] rounded-xl px-3">
+                    <i class="pi pi-user-plus text-white/30 text-sm shrink-0"></i>
+                    <input [(ngModel)]="friendId" class="flex-1 bg-transparent border-0 outline-none py-2.5 text-sm text-white/80 placeholder:text-white/25" pInputText
+                           placeholder="username#0000"
+                           type="text"/>
+                </div>
+                <p-button (onClick)="sendFriendrequest()" icon="pi pi-send" label="Send Request" severity="primary"
+                          size="small"/>
             </div>
-          } @empty {
-            <p class="text-xs text-white/25 italic p-2">No pending requests.</p>
-          }
         </div>
-      </div>
 
-      <!-- Outgoing -->
-      <div class="flex flex-col gap-2">
-        <p class="text-xs font-semibold text-white/30 uppercase tracking-widest">Sent</p>
-        <div class="flex flex-col gap-1 bg-white/[0.03] border border-white/[0.06] rounded-xl p-2 min-h-[80px] max-h-44 overflow-y-auto"
-             style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
-          @for (rel of outgoingFriendRequest(); track rel.id) {
-            <div class="flex items-center justify-between px-2 py-1.5 rounded-lg">
-              <span class="text-sm text-white/75 truncate">{{ rel.target.userName }}</span>
-              <p-tag value="Pending" severity="warn" />
+        <!-- Requests row -->
+        <div class="grid grid-cols-2 gap-3">
+
+            <!-- Incoming -->
+            <div class="flex flex-col gap-2">
+                <p class="text-xs font-semibold text-white/30 uppercase tracking-widest">Incoming</p>
+                <div class="flex flex-col gap-1 bg-white/[0.03] border border-white/[0.06] rounded-xl p-2 min-h-[80px] max-h-44 overflow-y-auto"
+                     style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+                    @for (rel of incomingFriendRequest(); track rel.id) {
+                        <div class="flex items-center justify-between px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors">
+                            <span class="text-sm text-white/75 truncate">{{ rel.target.userName }}</span>
+                            <div class="flex gap-0.5 shrink-0">
+                                <p-button (click)="acceptFriendRequest(rel.id)" [rounded]="true" [text]="true" icon="pi pi-check"
+                                          pTooltip="Accept"
+                                          severity="success" size="small"
+                                          tooltipPosition="top"/>
+                                <p-button (click)="rejectFriendRequest(rel.id)" [rounded]="true" [text]="true" icon="pi pi-times"
+                                          pTooltip="Decline"
+                                          severity="danger" size="small"
+                                          tooltipPosition="top"/>
+                            </div>
+                        </div>
+                    } @empty {
+                        <p class="text-xs text-white/25 italic p-2">No pending requests.</p>
+                    }
+                </div>
             </div>
-          } @empty {
-            <p class="text-xs text-white/25 italic p-2">No sent requests.</p>
-          }
-        </div>
-      </div>
-    </div>
 
-    <!-- Friends list -->
-    <div class="flex flex-col gap-2">
-      <p class="text-xs font-semibold text-white/30 uppercase tracking-widest flex items-center gap-1.5">
-        <i class="pi pi-users text-white/25"></i> Friends
-      </p>
-      <div class="flex flex-col gap-0.5 bg-white/[0.03] border border-white/[0.06] rounded-xl p-2 max-h-64 overflow-y-auto"
-           style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
-        @for (rel of friends(); track rel.id) {
-          <div class="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-white/[0.04] transition-colors group">
-            <div class="flex items-center gap-2.5 min-w-0">
-              <p-avatar icon="pi pi-user" shape="circle" size="normal" />
-              <span class="text-sm text-white/75 truncate">
+            <!-- Outgoing -->
+            <div class="flex flex-col gap-2">
+                <p class="text-xs font-semibold text-white/30 uppercase tracking-widest">Sent</p>
+                <div class="flex flex-col gap-1 bg-white/[0.03] border border-white/[0.06] rounded-xl p-2 min-h-[80px] max-h-44 overflow-y-auto"
+                     style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+                    @for (rel of outgoingFriendRequest(); track rel.id) {
+                        <div class="flex items-center justify-between px-2 py-1.5 rounded-lg">
+                            <span class="text-sm text-white/75 truncate">{{ rel.target.userName }}</span>
+                            <p-tag severity="warn" value="Pending"/>
+                        </div>
+                    } @empty {
+                        <p class="text-xs text-white/25 italic p-2">No sent requests.</p>
+                    }
+                </div>
+            </div>
+        </div>
+
+        <!-- Friends list -->
+        <div class="flex flex-col gap-2">
+            <p class="text-xs font-semibold text-white/30 uppercase tracking-widest flex items-center gap-1.5">
+                <i class="pi pi-users text-white/25"></i> Friends
+            </p>
+            <div class="flex flex-col gap-0.5 bg-white/[0.03] border border-white/[0.06] rounded-xl p-2 max-h-64 overflow-y-auto"
+                 style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+                @for (rel of friends(); track rel.id) {
+                    <div class="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-white/[0.04] transition-colors group">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                            <p-avatar icon="pi pi-user" shape="circle" size="normal"/>
+                            <span class="text-sm text-white/75 truncate">
                 {{ rel.target.userName }}
               </span>
+                        </div>
+                        <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            <p-button (onClick)="onMessageClick(rel)" [rounded]="true" [text]="true" icon="pi pi-comment"
+                                      pTooltip="Message"
+                                      severity="secondary" size="small" tooltipPosition="top"/>
+                            <p-button [rounded]="true" [text]="true" icon="pi pi-ban" pTooltip="Block" severity="danger"
+                                      size="small" tooltipPosition="top"/>
+                        </div>
+                    </div>
+                } @empty {
+                    <p class="text-xs text-white/25 italic p-3">You haven't added any friends yet.</p>
+                }
             </div>
-            <div class="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-              <p-button icon="pi pi-comment" severity="secondary" [rounded]="true" [text]="true" size="small"
-                pTooltip="Message" tooltipPosition="top" (onClick)="onMessageClick(rel)" />
-              <p-button icon="pi pi-ban" severity="danger" [rounded]="true" [text]="true" size="small"
-                pTooltip="Block" tooltipPosition="top" />
-            </div>
-          </div>
-        } @empty {
-          <p class="text-xs text-white/25 italic p-3">You haven't added any friends yet.</p>
-        }
-      </div>
+        </div>
+
     </div>
 
-  </div>
-
-  <ng-template pTemplate="footer">
-    <p-button label="Close" icon="pi pi-times" (click)="isVisible.set(false)" severity="secondary" [text]="true" size="small" />
-  </ng-template>
+    <ng-template pTemplate="footer">
+        <p-button (click)="isVisible.set(false)" [text]="true" icon="pi pi-times" label="Close" severity="secondary"
+                  size="small"/>
+    </ng-template>
 </p-dialog>

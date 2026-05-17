@@ -13,9 +13,8 @@ export interface GuildMemberDto {
 }
 
 export interface SelfGuildMemberDto extends GuildMemberDto {
-    roleMembers: {role: RoleDto}[]
+    roleMembers: { role: RoleDto }[]
 }
-
 
 
 export interface RoleMemberDto {

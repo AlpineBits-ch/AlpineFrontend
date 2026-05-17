@@ -1,106 +1,106 @@
-<div class="relative px-3 pt-2 sm:px-4 sm:pt-3"
-     style="padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem)"
-     (dragenter)="attachments.onDragEnter($event)"
-     (dragover)="attachments.onDragOver($event)"
+<div (dragenter)="attachments.onDragEnter($event)"
      (dragleave)="attachments.onDragLeave()"
-     (drop)="attachments.onDrop($event)">
+     (dragover)="attachments.onDragOver($event)"
+     (drop)="attachments.onDrop($event)"
+     class="relative px-3 pt-2 sm:px-4 sm:pt-3"
+     style="padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem)">
 
-  <!-- Hidden file input -->
-  <input #fileInput type="file" multiple class="hidden"
-         (change)="onFileInputChange($event)" />
+    <!-- Hidden file input -->
+    <input #fileInput (change)="onFileInputChange($event)" class="hidden" multiple
+           type="file"/>
 
-  <!-- Suggestion overlay (mentions + commands) -->
-  <app-suggestion-overlay
-    [overlayType]="overlayType()"
-    [filteredMentions]="filteredMentions()"
-    [filteredCommands]="filteredCommands()"
-    [filteredEmojis]="filteredEmojis()"
-    [selectedIndex]="selectedIndex()"
-    [query]="query()"
-    (mentionSelected)="onMentionSelected($event)"
-    (commandSelected)="onCommandSelected($event)"
-    (emojiSelected)="onEmojiShortcodeSelected($event)" />
+    <!-- Suggestion overlay (mentions + commands) -->
+    <app-suggestion-overlay
+            (commandSelected)="onCommandSelected($event)"
+            (emojiSelected)="onEmojiShortcodeSelected($event)"
+            (mentionSelected)="onMentionSelected($event)"
+            [filteredCommands]="filteredCommands()"
+            [filteredEmojis]="filteredEmojis()"
+            [filteredMentions]="filteredMentions()"
+            [overlayType]="overlayType()"
+            [query]="query()"
+            [selectedIndex]="selectedIndex()"/>
 
-  <!-- Reply banner -->
-  @if (replyTo()) {
-    <div class="flex items-center gap-2 mb-2 px-2 py-1.5 bg-white/[0.04] rounded-xl border border-white/[0.06]">
-      <i class="pi pi-reply text-[10px] text-brand-dim shrink-0"></i>
-      <span class="text-[11px] text-white/40">Replying to</span>
-      <span class="text-[11px] font-semibold text-white/65 shrink-0">{{ replyAuthorName() }}</span>
-      @if (replySnippet()) {
-        <span class="text-[11px] text-white/30 truncate min-w-0 flex-1">{{ replySnippet() }}</span>
-      }
-      <button (click)="cancelReply.emit()"
-        class="ml-auto shrink-0 w-5 h-5 flex items-center justify-center rounded
+    <!-- Reply banner -->
+    @if (replyTo()) {
+        <div class="flex items-center gap-2 mb-2 px-2 py-1.5 bg-white/[0.04] rounded-xl border border-white/[0.06]">
+            <i class="pi pi-reply text-[10px] text-brand-dim shrink-0"></i>
+            <span class="text-[11px] text-white/40">Replying to</span>
+            <span class="text-[11px] font-semibold text-white/65 shrink-0">{{ replyAuthorName() }}</span>
+            @if (replySnippet()) {
+                <span class="text-[11px] text-white/30 truncate min-w-0 flex-1">{{ replySnippet() }}</span>
+            }
+            <button (click)="cancelReply.emit()"
+                    class="ml-auto shrink-0 w-5 h-5 flex items-center justify-center rounded
                text-white/25 hover:text-white/60 border-0 bg-transparent cursor-pointer transition-colors">
-        <i class="pi pi-times text-[10px]"></i>
-      </button>
-    </div>
-  }
-
-  <!-- Active command hint bar -->
-  @if (activeCommand()) {
-    <div class="flex items-center gap-2 mb-2 px-1">
-      <span class="text-[11px] font-bold text-indigo-400">/ {{ activeCommand()!.name }}</span>
-      <span class="text-[11px] text-white/30">—</span>
-      <span class="text-[11px] text-white/30">{{ activeCommand()!.description }}</span>
-      <button
-        (click)="activeCommand.set(null)"
-        class="ml-auto text-[11px] text-white/20 hover:text-white/50 border-0 bg-transparent cursor-pointer transition-colors p-0">
-        ✕ cancel
-      </button>
-    </div>
-  }
-
-  <!-- Input row -->
-  <div class="relative flex flex-col bg-white/[0.05] border border-white/[0.08] rounded-2xl focus-within:border-white/[0.15] transition-colors">
-
-    <!-- Drop overlay -->
-    @if (attachments.isDraggingOver()) {
-      <div class="absolute inset-0 rounded-2xl bg-indigo-500/10 border-2 border-dashed border-indigo-500/40 flex items-center justify-center z-10 pointer-events-none">
-        <div class="flex flex-col items-center gap-1.5">
-          <i class="pi pi-upload text-indigo-400 text-lg"></i>
-          <p class="text-xs text-indigo-400/70">Drop files here</p>
+                <i class="pi pi-times text-[10px]"></i>
+            </button>
         </div>
-      </div>
     }
 
-    <!-- Attachment previews -->
-    <app-attachment-previews
-      [files]="attachments.files()"
-      (remove)="attachments.remove($event)" />
-
-    <!-- Text + action row -->
-    <div class="flex items-end gap-1 sm:gap-2 px-1.5 sm:px-2 py-1 sm:py-1.5">
-
-      <p-button icon="pi pi-plus" [text]="true" severity="secondary" size="small"
-                styleClass="shrink-0 self-end mb-0.5" (onClick)="onAttachClick()" />
-
-      <div
-        #editor
-        contenteditable="true"
-        role="textbox"
-        aria-multiline="true"
-        [attr.data-placeholder]="placeholder()"
-        [class.is-empty]="isEmpty()"
-        class="composer-editor flex-1 min-w-0 py-1.5 max-h-[120px] sm:max-h-[160px] overflow-y-auto outline-none text-sm text-white/80"
-        style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.06) transparent;"
-        (input)="onInput()"
-        (keydown)="onKeydown($event)"
-        (paste)="onPaste($event)"
-        (click)="onEditorClick()"
-        (focus)="onEditorFocus()"
-        autofocus
-      ></div>
-
-      <div class="flex items-center gap-0.5 sm:gap-1 self-end mb-0.5 shrink-0">
-        <div class="hidden sm:contents">
-          <app-gif-picker-button (gifSelected)="onGifSelected($event)" />
+    <!-- Active command hint bar -->
+    @if (activeCommand()) {
+        <div class="flex items-center gap-2 mb-2 px-1">
+            <span class="text-[11px] font-bold text-indigo-400">/ {{ activeCommand()!.name }}</span>
+            <span class="text-[11px] text-white/30">—</span>
+            <span class="text-[11px] text-white/30">{{ activeCommand()!.description }}</span>
+            <button
+                    (click)="activeCommand.set(null)"
+                    class="ml-auto text-[11px] text-white/20 hover:text-white/50 border-0 bg-transparent cursor-pointer transition-colors p-0">
+                ✕ cancel
+            </button>
         </div>
-        <app-emoji-picker-button (emojiSelected)="onEmojiSelected($event)" />
-        <p-button icon="pi pi-send" [text]="true" severity="primary" size="small" (onClick)="send()" />
-      </div>
+    }
 
+    <!-- Input row -->
+    <div class="relative flex flex-col bg-white/[0.05] border border-white/[0.08] rounded-2xl focus-within:border-white/[0.15] transition-colors">
+
+        <!-- Drop overlay -->
+        @if (attachments.isDraggingOver()) {
+            <div class="absolute inset-0 rounded-2xl bg-indigo-500/10 border-2 border-dashed border-indigo-500/40 flex items-center justify-center z-10 pointer-events-none">
+                <div class="flex flex-col items-center gap-1.5">
+                    <i class="pi pi-upload text-indigo-400 text-lg"></i>
+                    <p class="text-xs text-indigo-400/70">Drop files here</p>
+                </div>
+            </div>
+        }
+
+        <!-- Attachment previews -->
+        <app-attachment-previews
+                (remove)="attachments.remove($event)"
+                [files]="attachments.files()"/>
+
+        <!-- Text + action row -->
+        <div class="flex items-end gap-1 sm:gap-2 px-1.5 sm:px-2 py-1 sm:py-1.5">
+
+            <p-button (onClick)="onAttachClick()" [text]="true" icon="pi pi-plus" severity="secondary"
+                      size="small" styleClass="shrink-0 self-end mb-0.5"/>
+
+            <div
+                #editor
+                (click)="onEditorClick()"
+                (focus)="onEditorFocus()"
+                (input)="onInput()"
+                (keydown)="onKeydown($event)"
+                (paste)="onPaste($event)"
+                [attr.data-placeholder]="placeholder()"
+                [class.is-empty]="isEmpty()"
+                aria-multiline="true"
+                autofocus
+                class="composer-editor flex-1 min-w-0 py-1.5 max-h-[120px] sm:max-h-[160px] overflow-y-auto outline-none text-sm text-white/80"
+                contenteditable="true"
+                role="textbox"
+                style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.06) transparent;"
+            ></div>
+
+            <div class="flex items-center gap-0.5 sm:gap-1 self-end mb-0.5 shrink-0">
+                <div class="hidden sm:contents">
+                    <app-gif-picker-button (gifSelected)="onGifSelected($event)"/>
+                </div>
+                <app-emoji-picker-button (emojiSelected)="onEmojiSelected($event)"/>
+                <p-button (onClick)="send()" [text]="true" icon="pi pi-send" severity="primary" size="small"/>
+            </div>
+
+        </div>
     </div>
-  </div>
 </div>

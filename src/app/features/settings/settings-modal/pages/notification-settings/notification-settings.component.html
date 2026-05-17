@@ -1,155 +1,159 @@
 <div class="flex flex-col gap-8 max-w-2xl">
 
-  <!-- General -->
-  <section class="flex flex-col gap-4">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">General</h2>
+    <!-- General -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            General</h2>
 
-    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
-      <div>
-        <p class="text-sm text-white/75">Enable Notifications</p>
-        <p class="text-xs text-white/35 mt-0.5">Receive alerts for messages and activity.</p>
-      </div>
-      <p-toggleswitch
-        [ngModel]="userSettings.notificationSettings().enabled"
-        (ngModelChange)="userSettings.updateNotifications({ enabled: $event })" />
-    </div>
-
-    <div class="flex flex-col gap-3 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3 transition-opacity duration-200"
-         [class.opacity-40]="!userSettings.notificationSettings().enabled"
-         [class.pointer-events-none]="!userSettings.notificationSettings().enabled">
-      <div class="flex items-center justify-between">
-        <div>
-          <p class="text-sm text-white/75">Notification Cooldown</p>
-          <p class="text-xs text-white/35 mt-0.5">Send one notification, then ignore the rest until the cooldown expires.</p>
-        </div>
-        <p-toggleswitch
-          [ngModel]="userSettings.notificationSettings().cooldownEnabled"
-          (ngModelChange)="userSettings.updateNotifications({ cooldownEnabled: $event })" />
-      </div>
-      @if (userSettings.notificationSettings().cooldownEnabled) {
-        <div class="flex items-center gap-3 pt-2 border-t border-white/[0.06]">
-          <span class="text-xs text-white/35 shrink-0">Cooldown duration</span>
-          <input type="number" min="1" max="300"
-                 [value]="userSettings.notificationSettings().cooldownSeconds"
-                 (change)="onCooldownSecondsChange($any($event.target).value)"
-                 class="w-16 bg-white/[0.05] border border-white/[0.10] rounded-lg px-2 py-1 text-xs text-white/75 text-center outline-none focus:border-brand/40" />
-          <span class="text-xs text-white/35">seconds</span>
-        </div>
-      }
-    </div>
-  </section>
-
-  <!-- Messages -->
-  <section class="flex flex-col gap-4 transition-opacity duration-200"
-           [class.opacity-40]="!userSettings.notificationSettings().enabled"
-           [class.pointer-events-none]="!userSettings.notificationSettings().enabled">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Messages</h2>
-
-    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
-      <div>
-        <p class="text-sm text-white/75">Direct Messages</p>
-        <p class="text-xs text-white/35 mt-0.5">Notify me when I receive a direct message.</p>
-      </div>
-      <p-toggleswitch
-        [ngModel]="userSettings.notificationSettings().dm"
-        (ngModelChange)="userSettings.updateNotifications({ dm: $event })" />
-    </div>
-
-    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
-      <div>
-        <p class="text-sm text-white/75">Mentions & Replies</p>
-        <p class="text-xs text-white/35 mt-0.5">Notify me when someone mentions or replies to me.</p>
-      </div>
-      <p-toggleswitch
-        [ngModel]="userSettings.notificationSettings().mentions"
-        (ngModelChange)="userSettings.updateNotifications({ mentions: $event })" />
-    </div>
-  </section>
-
-  <!-- Sounds -->
-  <section class="flex flex-col gap-4 transition-opacity duration-200"
-           [class.opacity-40]="!userSettings.notificationSettings().enabled"
-           [class.pointer-events-none]="!userSettings.notificationSettings().enabled">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Sounds</h2>
-
-    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
-      <div>
-        <p class="text-sm text-white/75">Notification Sounds</p>
-        <p class="text-xs text-white/35 mt-0.5">Play a sound when a notification arrives.</p>
-      </div>
-      <p-toggleswitch
-        [ngModel]="userSettings.notificationSettings().sounds"
-        (ngModelChange)="userSettings.updateNotifications({ sounds: $event })" />
-    </div>
-
-    <!-- Per-sound cards -->
-    <div class="flex flex-col gap-3 transition-opacity duration-200"
-         [class.opacity-40]="!userSettings.notificationSettings().sounds"
-         [class.pointer-events-none]="!userSettings.notificationSettings().sounds">
-
-      @for (item of soundItems; track item.key) {
-        <div class="flex flex-col gap-3 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-4">
-
-          <!-- Card header: label + preview -->
-          <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
             <div>
-              <p class="text-sm text-white/75">{{ item.label }}</p>
-              <p class="text-xs text-white/35 mt-0.5">{{ item.description }}</p>
+                <p class="text-sm text-white/75">Enable Notifications</p>
+                <p class="text-xs text-white/35 mt-0.5">Receive alerts for messages and activity.</p>
             </div>
-            <button (click)="preview(item.key)"
-                    class="flex items-center gap-1.5 text-xs text-white/40 hover:text-brand-dim border border-white/[0.08] hover:border-brand-dim/30 px-2.5 py-1.5 rounded-lg transition-colors">
-              <i class="pi pi-play" style="font-size: 10px;"></i>
-              Preview
-            </button>
-          </div>
+            <p-toggleswitch
+                    (ngModelChange)="userSettings.updateNotifications({ enabled: $event })"
+                    [ngModel]="userSettings.notificationSettings().enabled"/>
+        </div>
 
-          <!-- Volume row -->
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-white/35 w-12 shrink-0">Volume</span>
-            <i class="pi pi-volume-off text-xs text-white/20 shrink-0"></i>
-            <input
-              type="range" min="0" max="100"
-              [value]="getVolumePct(item.key)"
-              (input)="updateVolume(item.key, +$any($event.target).value)"
-              [style.--pct]="getVolumePct(item.key) + '%'"
-              class="sound-slider flex-1" />
-            <i class="pi pi-volume-up text-xs text-white/20 shrink-0"></i>
-            <span class="text-xs text-white/35 w-8 text-right shrink-0">{{ getVolumePct(item.key) }}%</span>
-          </div>
-
-          <!-- File picker row -->
-          <div class="flex items-center gap-3">
-            <span class="text-xs text-white/35 w-12 shrink-0">Sound</span>
-            <div class="flex-1 flex items-center gap-2 min-w-0">
-              @if (soundSettings.settings()[item.key].customUrl) {
-                <i class="pi pi-file-audio text-xs text-brand-dim shrink-0"></i>
-                <span class="text-xs text-white/60 truncate flex-1">{{ soundSettings.settings()[item.key].customName }}</span>
-                <button (click)="clearCustom(item.key)"
-                        class="text-white/25 hover:text-white/55 transition-colors shrink-0 p-1">
-                  <i class="pi pi-times" style="font-size: 10px;"></i>
-                </button>
-              } @else {
-                <span class="text-xs text-white/35 flex-1">Default</span>
-              }
+        <div [class.opacity-40]="!userSettings.notificationSettings().enabled"
+             [class.pointer-events-none]="!userSettings.notificationSettings().enabled"
+             class="flex flex-col gap-3 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3 transition-opacity duration-200">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-white/75">Notification Cooldown</p>
+                    <p class="text-xs text-white/35 mt-0.5">Send one notification, then ignore the rest until the
+                        cooldown expires.</p>
+                </div>
+                <p-toggleswitch
+                        (ngModelChange)="userSettings.updateNotifications({ cooldownEnabled: $event })"
+                        [ngModel]="userSettings.notificationSettings().cooldownEnabled"/>
             </div>
-            <button (click)="triggerUpload(item.key)"
-                    class="text-xs text-white/40 hover:text-white/70 border border-white/[0.1] hover:border-white/20 px-2.5 py-1.5 rounded-lg transition-colors shrink-0">
-              Upload .wav
-            </button>
-          </div>
+            @if (userSettings.notificationSettings().cooldownEnabled) {
+                <div class="flex items-center gap-3 pt-2 border-t border-white/[0.06]">
+                    <span class="text-xs text-white/35 shrink-0">Cooldown duration</span>
+                    <input (change)="onCooldownSecondsChange($any($event.target).value)" [value]="userSettings.notificationSettings().cooldownSeconds" class="w-16 bg-white/[0.05] border border-white/[0.10] rounded-lg px-2 py-1 text-xs text-white/75 text-center outline-none focus:border-brand/40"
+                           max="300"
+                           min="1"
+                           type="number"/>
+                    <span class="text-xs text-white/35">seconds</span>
+                </div>
+            }
+        </div>
+    </section>
+
+    <!-- Messages -->
+    <section [class.opacity-40]="!userSettings.notificationSettings().enabled"
+             [class.pointer-events-none]="!userSettings.notificationSettings().enabled"
+             class="flex flex-col gap-4 transition-opacity duration-200">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Messages</h2>
+
+        <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+            <div>
+                <p class="text-sm text-white/75">Direct Messages</p>
+                <p class="text-xs text-white/35 mt-0.5">Notify me when I receive a direct message.</p>
+            </div>
+            <p-toggleswitch
+                    (ngModelChange)="userSettings.updateNotifications({ dm: $event })"
+                    [ngModel]="userSettings.notificationSettings().dm"/>
+        </div>
+
+        <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+            <div>
+                <p class="text-sm text-white/75">Mentions & Replies</p>
+                <p class="text-xs text-white/35 mt-0.5">Notify me when someone mentions or replies to me.</p>
+            </div>
+            <p-toggleswitch
+                    (ngModelChange)="userSettings.updateNotifications({ mentions: $event })"
+                    [ngModel]="userSettings.notificationSettings().mentions"/>
+        </div>
+    </section>
+
+    <!-- Sounds -->
+    <section [class.opacity-40]="!userSettings.notificationSettings().enabled"
+             [class.pointer-events-none]="!userSettings.notificationSettings().enabled"
+             class="flex flex-col gap-4 transition-opacity duration-200">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Sounds</h2>
+
+        <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+            <div>
+                <p class="text-sm text-white/75">Notification Sounds</p>
+                <p class="text-xs text-white/35 mt-0.5">Play a sound when a notification arrives.</p>
+            </div>
+            <p-toggleswitch
+                    (ngModelChange)="userSettings.updateNotifications({ sounds: $event })"
+                    [ngModel]="userSettings.notificationSettings().sounds"/>
+        </div>
+
+        <!-- Per-sound cards -->
+        <div [class.opacity-40]="!userSettings.notificationSettings().sounds"
+             [class.pointer-events-none]="!userSettings.notificationSettings().sounds"
+             class="flex flex-col gap-3 transition-opacity duration-200">
+
+            @for (item of soundItems; track item.key) {
+                <div class="flex flex-col gap-3 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-4">
+
+                    <!-- Card header: label + preview -->
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-white/75">{{ item.label }}</p>
+                            <p class="text-xs text-white/35 mt-0.5">{{ item.description }}</p>
+                        </div>
+                        <button (click)="preview(item.key)"
+                                class="flex items-center gap-1.5 text-xs text-white/40 hover:text-brand-dim border border-white/[0.08] hover:border-brand-dim/30 px-2.5 py-1.5 rounded-lg transition-colors">
+                            <i class="pi pi-play" style="font-size: 10px;"></i>
+                            Preview
+                        </button>
+                    </div>
+
+                    <!-- Volume row -->
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-white/35 w-12 shrink-0">Volume</span>
+                        <i class="pi pi-volume-off text-xs text-white/20 shrink-0"></i>
+                        <input
+                                (input)="updateVolume(item.key, +$any($event.target).value)" [style.--pct]="getVolumePct(item.key) + '%'" [value]="getVolumePct(item.key)"
+                                class="sound-slider flex-1"
+                                max="100"
+                                min="0"
+                                type="range"/>
+                        <i class="pi pi-volume-up text-xs text-white/20 shrink-0"></i>
+                        <span class="text-xs text-white/35 w-8 text-right shrink-0">{{ getVolumePct(item.key) }}%</span>
+                    </div>
+
+                    <!-- File picker row -->
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs text-white/35 w-12 shrink-0">Sound</span>
+                        <div class="flex-1 flex items-center gap-2 min-w-0">
+                            @if (soundSettings.settings()[item.key].customUrl) {
+                                <i class="pi pi-file-audio text-xs text-brand-dim shrink-0"></i>
+                                <span class="text-xs text-white/60 truncate flex-1">{{ soundSettings.settings()[item.key].customName }}</span>
+                                <button (click)="clearCustom(item.key)"
+                                        class="text-white/25 hover:text-white/55 transition-colors shrink-0 p-1">
+                                    <i class="pi pi-times" style="font-size: 10px;"></i>
+                                </button>
+                            } @else {
+                                <span class="text-xs text-white/35 flex-1">Default</span>
+                            }
+                        </div>
+                        <button (click)="triggerUpload(item.key)"
+                                class="text-xs text-white/40 hover:text-white/70 border border-white/[0.1] hover:border-white/20 px-2.5 py-1.5 rounded-lg transition-colors shrink-0">
+                            Upload .wav
+                        </button>
+                    </div>
+
+                </div>
+            }
+
+            <!-- Shared hidden file input -->
+            <input #fileInput (change)="onFileSelected($event)" accept=".wav,.mp3,.ogg,.aac,.flac" class="hidden"
+                   type="file"/>
+
+            @if (uploadError()) {
+                <p class="text-xs text-rose-400">{{ uploadError() }}</p>
+            }
 
         </div>
-      }
-
-      <!-- Shared hidden file input -->
-      <input #fileInput type="file" accept=".wav,.mp3,.ogg,.aac,.flac" class="hidden"
-             (change)="onFileSelected($event)" />
-
-      @if (uploadError()) {
-        <p class="text-xs text-rose-400">{{ uploadError() }}</p>
-      }
-
-    </div>
-  </section>
+    </section>
 
 </div>

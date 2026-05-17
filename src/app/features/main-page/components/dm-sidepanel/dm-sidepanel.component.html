@@ -1,28 +1,31 @@
 <div class="flex flex-col flex-1 min-h-0">
 
-  <!-- Nav items -->
-  <div class="p-2 pt-3 flex flex-col gap-0.5">
-    <button (click)="navService.showFriends()" class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium bg-indigo-500/15 text-indigo-400 w-full text-left cursor-pointer border-0">
-      <i class="pi pi-users text-sm"></i>
-      <span>{{ 'SIDEBAR.FRIENDS' | translate }}</span>
-      @if (onlineFriendsCount() > 0) {
-        <span class="ml-auto text-[11px] bg-indigo-500/25 text-indigo-300 px-1.5 py-0.5 rounded-full font-semibold">{{ 'SIDEBAR.FRIENDS_COUNT' | translate:{ count: onlineFriendsCount() } }}</span>
-      }
-    </button>
+    <!-- Nav items -->
+    <div class="p-2 pt-3 flex flex-col gap-0.5">
+        <button (click)="navService.showFriends()"
+                class="flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium bg-indigo-500/15 text-indigo-400 w-full text-left cursor-pointer border-0">
+            <i class="pi pi-users text-sm"></i>
+            <span>{{ 'SIDEBAR.FRIENDS' | translate }}</span>
+            @if (onlineFriendsCount() > 0) {
+                <span class="ml-auto text-[11px] bg-indigo-500/25 text-indigo-300 px-1.5 py-0.5 rounded-full font-semibold">{{ 'SIDEBAR.FRIENDS_COUNT' | translate:{count: onlineFriendsCount()} }}</span>
+            }
+        </button>
 
-  </div>
+    </div>
 
-  <!-- DMs header -->
-  <div class="flex items-center justify-between px-4 pt-4 pb-2">
-    <span class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest">{{ 'SIDEBAR.DIRECT_MESSAGES' | translate }}</span>
-    <p-button icon="pi pi-plus" [text]="true" severity="secondary" size="small" styleClass="!p-1" (onClick)="showNewConversation.set(true)" />
-  </div>
+    <!-- DMs header -->
+    <div class="flex items-center justify-between px-4 pt-4 pb-2">
+        <span class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest">{{ 'SIDEBAR.DIRECT_MESSAGES' | translate }}</span>
+        <p-button (onClick)="showNewConversation.set(true)" [text]="true" icon="pi pi-plus" severity="secondary" size="small"
+                  styleClass="!p-1"/>
+    </div>
 
-  <!-- DM list -->
-  <div class="flex-1 min-h-0 overflow-y-auto px-2 pb-2" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
-    <app-conversation-list (conversationSelected)="onConversationSelected($event)"></app-conversation-list>
-  </div>
+    <!-- DM list -->
+    <div class="flex-1 min-h-0 overflow-y-auto px-2 pb-2"
+         style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+        <app-conversation-list (conversationSelected)="onConversationSelected($event)"></app-conversation-list>
+    </div>
 
 </div>
 
-<app-new-conversation-dialog [(visible)]="showNewConversation" />
+<app-new-conversation-dialog [(visible)]="showNewConversation"/>

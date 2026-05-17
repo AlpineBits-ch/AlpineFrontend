@@ -1,46 +1,46 @@
 <div class="space-y-4">
-  @for (group of groups; track group.label) {
-    <div>
-      <p class="text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-2">{{ group.label }}</p>
-      <div class="space-y-1">
-        @for (key of group.perms; track key) {
-          <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.05] transition-colors">
-            <span class="text-sm text-white/70">{{ label(key) }}</span>
-            <div class="flex items-center gap-1">
-              <!-- Allow -->
-              <button
-                (click)="setState(key, getState(key) === 'allow' ? 'inherit' : 'allow')"
-                class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
-                [ngClass]="getState(key) === 'allow'
+    @for (group of groups; track group.label) {
+        <div>
+            <p class="text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-2">{{ group.label }}</p>
+            <div class="space-y-1">
+                @for (key of group.perms; track key) {
+                    <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.05] transition-colors">
+                        <span class="text-sm text-white/70">{{ label(key) }}</span>
+                        <div class="flex items-center gap-1">
+                            <!-- Allow -->
+                            <button
+                                    (click)="setState(key, getState(key) === 'allow' ? 'inherit' : 'allow')"
+                                    [ngClass]="getState(key) === 'allow'
                   ? 'bg-emerald-500/20 text-emerald-400'
                   : 'bg-white/[0.05] text-white/25 hover:bg-emerald-500/10 hover:text-emerald-400/60'"
-                title="Allow">
-                <i class="pi pi-check"></i>
-              </button>
-              <!-- Inherit (neutral) -->
-              <button
-                (click)="setState(key, 'inherit')"
-                class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
-                [ngClass]="getState(key) === 'inherit'
+                                    class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
+                                    title="Allow">
+                                <i class="pi pi-check"></i>
+                            </button>
+                            <!-- Inherit (neutral) -->
+                            <button
+                                    (click)="setState(key, 'inherit')"
+                                    [ngClass]="getState(key) === 'inherit'
                   ? 'bg-white/[0.12] text-white/60'
                   : 'bg-white/[0.05] text-white/20 hover:bg-white/[0.1] hover:text-white/50'"
-                title="Inherit">
-                <i class="pi pi-minus"></i>
-              </button>
-              <!-- Deny -->
-              <button
-                (click)="setState(key, getState(key) === 'deny' ? 'inherit' : 'deny')"
-                class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
-                [ngClass]="getState(key) === 'deny'
+                                    class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
+                                    title="Inherit">
+                                <i class="pi pi-minus"></i>
+                            </button>
+                            <!-- Deny -->
+                            <button
+                                    (click)="setState(key, getState(key) === 'deny' ? 'inherit' : 'deny')"
+                                    [ngClass]="getState(key) === 'deny'
                   ? 'bg-rose-500/20 text-rose-400'
                   : 'bg-white/[0.05] text-white/25 hover:bg-rose-500/10 hover:text-rose-400/60'"
-                title="Deny">
-                <i class="pi pi-times"></i>
-              </button>
+                                    class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
+                                    title="Deny">
+                                <i class="pi pi-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                }
             </div>
-          </div>
-        }
-      </div>
-    </div>
-  }
+        </div>
+    }
 </div>

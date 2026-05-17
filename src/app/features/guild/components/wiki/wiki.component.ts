@@ -7,23 +7,23 @@ import {WikiHomeComponent} from './wiki-home/wiki-home.component';
 import {WikiPageDto} from '../../../../dtos/response/wiki.dto';
 
 @Component({
-  selector: 'app-wiki',
-  imports: [WikiHomeComponent, WikiPageViewComponent, WikiEditorComponent, WikiHistoryComponent],
-  templateUrl: './wiki.component.html',
+    selector: 'app-wiki',
+    imports: [WikiHomeComponent, WikiPageViewComponent, WikiEditorComponent, WikiHistoryComponent],
+    templateUrl: './wiki.component.html',
 })
 export class WikiComponent {
-  readonly guildId = input.required<string>();
+    readonly guildId = input.required<string>();
 
-  protected readonly state = inject(WikiStateService);
+    protected readonly state = inject(WikiStateService);
 
-  constructor() {
-    effect(() => {
-      const id = this.guildId();
-      if (id) this.state.initialize(id);
-    });
-  }
+    constructor() {
+        effect(() => {
+            const id = this.guildId();
+            if (id) this.state.initialize(id);
+        });
+    }
 
-  protected onEditorSaved(page: WikiPageDto): void {
-    this.state.afterSaved(page);
-  }
+    protected onEditorSaved(page: WikiPageDto): void {
+        this.state.afterSaved(page);
+    }
 }

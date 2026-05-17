@@ -7,76 +7,73 @@ import {CategoryOverviewComponent} from './pages/category-overview/category-over
 import {CategoryPermissionsComponent} from './pages/category-permissions/category-permissions.component';
 import {GuildService} from '../../../../services/guild.service';
 import {PrimeTemplate} from "primeng/api";
-import { TranslateModule } from '@ngx-translate/core';
+import {TranslateModule} from '@ngx-translate/core';
 
 interface NavItem {
-  id: string;
-  label: string;
-  icon: string;
+    id: string;
+    label: string;
+    icon: string;
 }
 
 @Component({
-  selector: 'app-category-settings-modal',
-  imports: [NgClass, Dialog, Button, CategoryOverviewComponent, CategoryPermissionsComponent, PrimeTemplate, TranslateModule],
-  templateUrl: './category-settings-modal.component.html',
+    selector: 'app-category-settings-modal',
+    imports: [NgClass, Dialog, Button, CategoryOverviewComponent, CategoryPermissionsComponent, PrimeTemplate, TranslateModule],
+    templateUrl: './category-settings-modal.component.html',
 })
 export class CategorySettingsModalComponent {
-  isVisible = model.required<boolean>();
+    isVisible = model.required<boolean>();
 
-  category = signal<CategoryDto | null>(null);
-  guild = signal<GuildDto | null>(null);
+    category = signal<CategoryDto | null>(null);
+    guild = signal<GuildDto | null>(null);
 
-  categoryUpdated = output<CategoryDto>();
-  categoryDeleted = output<string>();
+    categoryUpdated = output<CategoryDto>();
+    categoryDeleted = output<string>();
+    activePage = signal('overview');
+    deleting = signal(false);
+    confirmDelete = signal(false);
+    navItems: NavItem[] = [
+        {id: 'overview', label: 'Overview', icon: 'pi pi-folder'},
+        {id: 'permissions', label: 'Permissions', icon: 'pi pi-lock'},
+    ];
+    private guildService = inject(GuildService);
 
-  private guildService = inject(GuildService);
+    open(category: CategoryDto, guild: GuildDto): void {
+        this.category.set(category);
+        this.guild.set(guild);
+        this.activePage.set('overview');
+        this.isVisible.set(true);
+    }
 
-  activePage = signal('overview');
-  deleting = signal(false);
-  confirmDelete = signal(false);
+    navItemClasses(id: string): Record<string, boolean> {
+        const active = this.activePage() === id;
+        return {
+            'bg-indigo-500/15': active,
+            'text-indigo-400': active,
+            'text-white/50': !active,
+        };
+    }
 
-  navItems: NavItem[] = [
-    {id: 'overview', label: 'Overview', icon: 'pi pi-folder'},
-    {id: 'permissions', label: 'Permissions', icon: 'pi pi-lock'},
-  ];
+    currentLabel(): string {
+        return this.navItems.find(i => i.id === this.activePage())?.label ?? '';
+    }
 
-  open(category: CategoryDto, guild: GuildDto): void {
-    this.category.set(category);
-    this.guild.set(guild);
-    this.activePage.set('overview');
-    this.isVisible.set(true);
-  }
+    onCategoryUpdated(c: CategoryDto): void {
+        this.category.set(c);
+        this.categoryUpdated.emit(c);
+    }
 
-  navItemClasses(id: string): Record<string, boolean> {
-    const active = this.activePage() === id;
-    return {
-      'bg-indigo-500/15': active,
-      'text-indigo-400': active,
-      'text-white/50': !active,
-    };
-  }
-
-  currentLabel(): string {
-    return this.navItems.find(i => i.id === this.activePage())?.label ?? '';
-  }
-
-  onCategoryUpdated(c: CategoryDto): void {
-    this.category.set(c);
-    this.categoryUpdated.emit(c);
-  }
-
-  deleteCategory(): void {
-    const cat = this.category();
-    if (!cat || this.deleting()) return;
-    this.deleting.set(true);
-    this.guildService.deleteCategory(cat.id).subscribe({
-      next: () => {
-        this.categoryDeleted.emit(cat.id);
-        this.isVisible.set(false);
-        this.confirmDelete.set(false);
-        this.deleting.set(false);
-      },
-      error: () => this.deleting.set(false),
-    });
-  }
+    deleteCategory(): void {
+        const cat = this.category();
+        if (!cat || this.deleting()) return;
+        this.deleting.set(true);
+        this.guildService.deleteCategory(cat.id).subscribe({
+            next: () => {
+                this.categoryDeleted.emit(cat.id);
+                this.isVisible.set(false);
+                this.confirmDelete.set(false);
+                this.deleting.set(false);
+            },
+            error: () => this.deleting.set(false),
+        });
+    }
 }

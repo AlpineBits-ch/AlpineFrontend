@@ -1,138 +1,139 @@
 @if (picker.visible()) {
-  <!-- Backdrop -->
-  <div class="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm"
-       (click)="cancel()">
+    <!-- Backdrop -->
+    <div (click)="cancel()"
+         class="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
 
-    <!-- Panel -->
-    <div class="relative flex flex-col w-[720px] max-h-[80vh] bg-sidebar rounded-2xl border border-border shadow-2xl overflow-hidden"
-         (click)="$event.stopPropagation()">
+        <!-- Panel -->
+        <div (click)="$event.stopPropagation()"
+             class="relative flex flex-col w-[720px] max-h-[80vh] bg-sidebar rounded-2xl border border-border shadow-2xl overflow-hidden">
 
-      <!-- Header -->
-      <div class="flex items-center justify-between px-5 py-4 border-b border-border-subtle shrink-0">
-        <div>
-          <h2 class="text-sm font-semibold text-text-primary">Share your screen</h2>
-          <p class="text-xs text-text-muted mt-0.5">Pick a monitor or window to share</p>
-        </div>
-        <button (click)="cancel()"
-          class="flex items-center justify-center w-7 h-7 rounded-lg text-text-muted
+            <!-- Header -->
+            <div class="flex items-center justify-between px-5 py-4 border-b border-border-subtle shrink-0">
+                <div>
+                    <h2 class="text-sm font-semibold text-text-primary">Share your screen</h2>
+                    <p class="text-xs text-text-muted mt-0.5">Pick a monitor or window to share</p>
+                </div>
+                <button (click)="cancel()"
+                        class="flex items-center justify-center w-7 h-7 rounded-lg text-text-muted
                  hover:text-text-primary hover:bg-white/[0.08] transition-colors cursor-pointer">
-          <i class="pi pi-times text-xs"></i>
-        </button>
-      </div>
-
-      <!-- Tabs -->
-      <div class="flex gap-1 px-5 pt-3 shrink-0">
-        <button (click)="activeTab.set('monitors')"
-          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer"
-          [class.bg-brand]="activeTab() === 'monitors'"
-          [class.text-white]="activeTab() === 'monitors'"
-          [class.text-text-muted]="activeTab() !== 'monitors'"
-          [class.hover:text-text-secondary]="activeTab() !== 'monitors'">
-          Displays
-        </button>
-        <button (click)="activeTab.set('windows')"
-          class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer"
-          [class.bg-brand]="activeTab() === 'windows'"
-          [class.text-white]="activeTab() === 'windows'"
-          [class.text-text-muted]="activeTab() !== 'windows'"
-          [class.hover:text-text-secondary]="activeTab() !== 'windows'">
-          Windows
-        </button>
-      </div>
-
-      <!-- Source grid -->
-      <div class="flex-1 overflow-y-auto px-5 py-3 min-h-0"
-           style="scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.08) transparent">
-
-        @if (picker.loading()) {
-          <div class="flex flex-col items-center justify-center gap-3 py-12 text-text-muted">
-            <i class="pi pi-spin pi-spinner text-2xl"></i>
-            <span class="text-xs">Capturing previews…</span>
-          </div>
-        } @else {
-          @let list = activeTab() === 'monitors' ? monitors : windows;
-
-          @if (list.length === 0) {
-            <div class="flex flex-col items-center justify-center gap-2 py-12 text-text-muted">
-              <i class="pi pi-desktop text-2xl"></i>
-              <span class="text-xs">No {{ activeTab() }} found</span>
-            </div>
-          } @else {
-            <div class="grid grid-cols-3 gap-3">
-              @for (source of list; track source.id) {
-                <button (click)="select(source)"
-                  class="relative flex flex-col rounded-xl border-2 overflow-hidden
-                         transition-all cursor-pointer group text-left"
-                  [class.border-brand]="selectedId() === source.id"
-                  [class.border-border-subtle]="selectedId() !== source.id"
-                  [class.ring-1]="selectedId() === source.id"
-                  [class.ring-brand]="selectedId() === source.id">
-
-                  <!-- Thumbnail -->
-                  <div class="relative w-full bg-card" style="aspect-ratio:16/10">
-                    @if (thumbSrc(source)) {
-                      <img [src]="thumbSrc(source)"
-                           class="w-full h-full object-cover"
-                           alt="" />
-                    } @else {
-                      <div class="flex items-center justify-center w-full h-full text-text-muted">
-                        <i class="pi pi-desktop text-2xl"></i>
-                      </div>
-                    }
-                    <!-- Selection tick -->
-                    @if (selectedId() === source.id) {
-                      <div class="absolute top-1.5 right-1.5 flex items-center justify-center
-                                  w-5 h-5 rounded-full bg-brand">
-                        <i class="pi pi-check text-[10px] text-white"></i>
-                      </div>
-                    }
-                  </div>
-
-                  <!-- Label -->
-                  <div class="px-2.5 py-2 bg-card">
-                    <p class="text-xs font-medium text-text-primary truncate leading-snug">{{ source.name }}</p>
-                    @if (source.isMonitor) {
-                      <p class="text-[10px] text-text-muted mt-0.5">{{ source.width }}×{{ source.height }}</p>
-                    }
-                  </div>
+                    <i class="pi pi-times text-xs"></i>
                 </button>
-              }
             </div>
-          }
-        }
-      </div>
 
-      <!-- Live preview — shown when a source is selected and 1 fps capture is running -->
-      @if (previewStream()) {
-        <div class="shrink-0 px-5 pb-3">
-          <p class="text-[10px] font-medium text-text-muted mb-1.5 uppercase tracking-wide">Preview</p>
-          <div class="relative w-full bg-black rounded-xl overflow-hidden" style="aspect-ratio:16/9">
-            <video #livePreview autoplay muted playsinline
-                   class="w-full h-full object-contain"></video>
-          </div>
-        </div>
-      }
+            <!-- Tabs -->
+            <div class="flex gap-1 px-5 pt-3 shrink-0">
+                <button (click)="activeTab.set('monitors')"
+                        [class.bg-brand]="activeTab() === 'monitors'"
+                        [class.hover:text-text-secondary]="activeTab() !== 'monitors'"
+                        [class.text-text-muted]="activeTab() !== 'monitors'"
+                        [class.text-white]="activeTab() === 'monitors'"
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer">
+                    Displays
+                </button>
+                <button (click)="activeTab.set('windows')"
+                        [class.bg-brand]="activeTab() === 'windows'"
+                        [class.hover:text-text-secondary]="activeTab() !== 'windows'"
+                        [class.text-text-muted]="activeTab() !== 'windows'"
+                        [class.text-white]="activeTab() === 'windows'"
+                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer">
+                    Windows
+                </button>
+            </div>
 
-      <!-- Footer -->
-      <div class="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-border-subtle shrink-0">
-        <button (click)="cancel()"
-          class="px-4 py-1.5 rounded-lg text-xs font-medium text-text-secondary
+            <!-- Source grid -->
+            <div class="flex-1 overflow-y-auto px-5 py-3 min-h-0"
+                 style="scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.08) transparent">
+
+                @if (picker.loading()) {
+                    <div class="flex flex-col items-center justify-center gap-3 py-12 text-text-muted">
+                        <i class="pi pi-spin pi-spinner text-2xl"></i>
+                        <span class="text-xs">Capturing previews…</span>
+                    </div>
+                } @else {
+                    @let list = activeTab() === 'monitors' ? monitors : windows;
+
+                    @if (list.length === 0) {
+                        <div class="flex flex-col items-center justify-center gap-2 py-12 text-text-muted">
+                            <i class="pi pi-desktop text-2xl"></i>
+                            <span class="text-xs">No {{ activeTab() }} found</span>
+                        </div>
+                    } @else {
+                        <div class="grid grid-cols-3 gap-3">
+                            @for (source of list; track source.id) {
+                                <button (click)="select(source)"
+                                        [class.border-border-subtle]="selectedId() !== source.id"
+                                        [class.border-brand]="selectedId() === source.id"
+                                        [class.ring-1]="selectedId() === source.id"
+                                        [class.ring-brand]="selectedId() === source.id"
+                                        class="relative flex flex-col rounded-xl border-2 overflow-hidden
+                         transition-all cursor-pointer group text-left">
+
+                                    <!-- Thumbnail -->
+                                    <div class="relative w-full bg-card" style="aspect-ratio:16/10">
+                                        @if (thumbSrc(source)) {
+                                            <img [src]="thumbSrc(source)"
+                                                 alt=""
+                                                 class="w-full h-full object-cover"/>
+                                        } @else {
+                                            <div class="flex items-center justify-center w-full h-full text-text-muted">
+                                                <i class="pi pi-desktop text-2xl"></i>
+                                            </div>
+                                        }
+                                        <!-- Selection tick -->
+                                        @if (selectedId() === source.id) {
+                                            <div class="absolute top-1.5 right-1.5 flex items-center justify-center
+                                  w-5 h-5 rounded-full bg-brand">
+                                                <i class="pi pi-check text-[10px] text-white"></i>
+                                            </div>
+                                        }
+                                    </div>
+
+                                    <!-- Label -->
+                                    <div class="px-2.5 py-2 bg-card">
+                                        <p class="text-xs font-medium text-text-primary truncate leading-snug">{{ source.name }}</p>
+                                        @if (source.isMonitor) {
+                                            <p class="text-[10px] text-text-muted mt-0.5">{{ source.width }}
+                                                ×{{ source.height }}</p>
+                                        }
+                                    </div>
+                                </button>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+
+            <!-- Live preview — shown when a source is selected and 1 fps capture is running -->
+            @if (previewStream()) {
+                <div class="shrink-0 px-5 pb-3">
+                    <p class="text-[10px] font-medium text-text-muted mb-1.5 uppercase tracking-wide">Preview</p>
+                    <div class="relative w-full bg-black rounded-xl overflow-hidden" style="aspect-ratio:16/9">
+                        <video #livePreview autoplay class="w-full h-full object-contain" muted
+                               playsinline></video>
+                    </div>
+                </div>
+            }
+
+            <!-- Footer -->
+            <div class="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-border-subtle shrink-0">
+                <button (click)="cancel()"
+                        class="px-4 py-1.5 rounded-lg text-xs font-medium text-text-secondary
                  border border-border-subtle hover:bg-white/[0.05] transition-colors cursor-pointer">
-          Cancel
-        </button>
-        <button (click)="confirm()"
-          [disabled]="!selectedId()"
-          class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
-          [class.bg-brand]="!!selectedId()"
-          [class.text-white]="!!selectedId()"
-          [class.hover:bg-brand-hover]="!!selectedId()"
-          [class.opacity-40]="!selectedId()"
-          [class.cursor-not-allowed]="!selectedId()"
-          [class.bg-white/10]="!selectedId()"
-          [class.text-text-muted]="!selectedId()">
-          Share
-        </button>
-      </div>
+                    Cancel
+                </button>
+                <button (click)="confirm()"
+                        [class.bg-brand]="!!selectedId()"
+                        [class.bg-white
+                        [class.cursor-not-allowed]="!selectedId()"
+                        [class.hover:bg-brand-hover]="!!selectedId()"
+                        [class.opacity-40]="!selectedId()"
+                        [class.text-white]="!!selectedId()"
+                        [disabled]="!selectedId()"
+                        class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer/10]=!selectedId()"
+                [class.text-text-muted]="!selectedId()">
+                Share
+                </button>
+            </div>
+        </div>
     </div>
-  </div>
 }

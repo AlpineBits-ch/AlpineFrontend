@@ -1,14 +1,14 @@
-<p-toast position="top-center" />
+<p-toast position="top-center"/>
 @if (!isPopup) {
-  <app-resize-handles />
-  <app-titlebar />
-  <app-call-overlay />
-  <app-screen-picker />
+    <app-resize-handles/>
+    <app-titlebar/>
+    <app-call-overlay/>
+    <app-screen-picker/>
 }
 <main [class]="isPopup ? 'w-full h-full' : 'flex-1 min-h-0'">
-  <router-outlet />
+    <router-outlet/>
 </main>
 @if (!isPopup) {
-  <app-update-dialog />
-  <app-email-verification-dialog />
+    <app-update-dialog/>
+    <app-email-verification-dialog/>
 }

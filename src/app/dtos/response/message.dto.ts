@@ -1,22 +1,22 @@
 import {MessageEncryptionState} from "../../enums/message-encryption-state.enum";
-import { MessageType } from '../../enums/message-type.enum';
+import {MessageType} from '../../enums/message-type.enum';
 
 export interface MessageAttachment {
-  id: string;
-  fileName: string;
-  contentType: string;
-  url: string;
-  thumbnailUrl?: string;
+    id: string;
+    fileName: string;
+    contentType: string;
+    url: string;
+    thumbnailUrl?: string;
 }
 
 export interface MessageReaction {
-  contextId: string;
-  messageId: string;
-  emoji: string;
-  userId: string;
-  createdAt: string;
-  conversationId: string | null;
-  channelId: string | null;
+    contextId: string;
+    messageId: string;
+    emoji: string;
+    userId: string;
+    createdAt: string;
+    conversationId: string | null;
+    channelId: string | null;
 }
 
 export interface MessageDto {

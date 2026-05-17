@@ -1,5 +1,4 @@
-﻿
-import {GuildDto} from './guild.dto';
+﻿import {GuildDto} from './guild.dto';
 
 export enum InviteType {
     OneTime = 'OneTime',

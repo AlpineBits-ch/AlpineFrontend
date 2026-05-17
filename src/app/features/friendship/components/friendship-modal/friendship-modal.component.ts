@@ -1,4 +1,4 @@
-import {Component, computed, DestroyRef, inject, input, model, signal} from '@angular/core';
+import {Component, computed, DestroyRef, inject, model, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Dialog} from "primeng/dialog";
 import {RelationshipModel, RelationshipStatus} from "./dto/relationship.model";
@@ -16,103 +16,101 @@ import {ConversationStore} from "../../../../stores/conversation.store";
 import {NavigationService} from "../../../main-page/navigation.service";
 import {ProfileService} from "../../../../services/profile.service";
 import {MessagingWebsocketService} from "../../../../services/messaging-websocket.service";
-import { TranslateModule } from '@ngx-translate/core';
+import {TranslateModule} from '@ngx-translate/core';
 
 @Component({
-  selector: 'app-friendship-modal',
-  imports: [
-    Dialog,
-    Button,
-    Tag,
-    Avatar,
-    PrimeTemplate,
-    InputText,
-    Tooltip,
-    FormsModule,
-    TranslateModule
-  ],
-  templateUrl: './friendship-modal.component.html',
-  styleUrl: './friendship-modal.component.css',
+    selector: 'app-friendship-modal',
+    imports: [
+        Dialog,
+        Button,
+        Tag,
+        Avatar,
+        PrimeTemplate,
+        InputText,
+        Tooltip,
+        FormsModule,
+        TranslateModule
+    ],
+    templateUrl: './friendship-modal.component.html',
+    styleUrl: './friendship-modal.component.css',
 })
 export class FriendshipModalComponent {
-  public isVisible = model.required<boolean>();
-  public conversationService = inject(ConversationService);
-  public relationships = signal<RelationshipModel[]>([])
+    public isVisible = model.required<boolean>();
+    public conversationService = inject(ConversationService);
+    public relationships = signal<RelationshipModel[]>([])
 
-  public incomingFriendRequest = computed(() => {
-    return this.relationships().filter(r => r.status === RelationshipStatus.PendingIncoming);
-  })
+    public incomingFriendRequest = computed(() => {
+        return this.relationships().filter(r => r.status === RelationshipStatus.PendingIncoming);
+    })
 
-  public outgoingFriendRequest = computed(() => {
-    return this.relationships().filter(r => r.status === RelationshipStatus.PendingOutgoing);
-  })
+    public outgoingFriendRequest = computed(() => {
+        return this.relationships().filter(r => r.status === RelationshipStatus.PendingOutgoing);
+    })
 
-  public friends = computed(() => {
-    return this.relationships().filter(r => r.status === RelationshipStatus.Friends);
-  })
+    public friends = computed(() => {
+        return this.relationships().filter(r => r.status === RelationshipStatus.Friends);
+    })
+    public friendId: string = '';
+    protected readonly RelationshipStatus = RelationshipStatus;
+    private relationshipService = inject(RelationshipService);
+    private conversationStore = inject(ConversationStore);
+    private navService = inject(NavigationService);
+    private profileService = inject(ProfileService);
+    private wsService = inject(MessagingWebsocketService);
+    private destroyRef = inject(DestroyRef);
 
-  private relationshipService = inject(RelationshipService);
-  private conversationStore = inject(ConversationStore);
-  private navService = inject(NavigationService);
-  private profileService = inject(ProfileService);
-  private wsService = inject(MessagingWebsocketService);
-  private destroyRef = inject(DestroyRef);
-
-  public friendId: string = '';
-  constructor() {
-    this.load();
-    this.wsService.friendRequestReceivedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load());
-    this.wsService.friendRequestAcceptedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load());
-  }
-
-  private load(): void {
-    this.relationshipService.getRelationships().subscribe(d => this.relationships.set(d));
-  }
-
-  public sendFriendrequest(){
-    const id= Number.parseInt(this.friendId.split('#')[1]);
-    const username = this.friendId.split('#')[0];
-    this.relationshipService.createFriendRequest(username, id).subscribe(() => {
-      this.friendId = '';
-      this.load();
-    });
-  }
-
-  public acceptFriendRequest(id: string){
-    this.relationshipService.acceptFriendRequest(id).subscribe(() => this.load());
-  }
-
-  public rejectFriendRequest(id: string){
-    this.relationshipService.rejectFriendRequest(id).subscribe(() => this.load());
-  }
-
-  public onMessageClick(relationship: RelationshipModel): void {
-    const ownId = this.profileService.ownProfile()?.userId;
-    const targetUserId = relationship.owner.userId === ownId
-      ? relationship.target.userId
-      : relationship.owner.userId;
-
-    const existing = this.conversationStore.entities().find(conv =>
-      conv.members.length === 2 && conv.members.some(m => m.userId === targetUserId)
-    );
-
-    if (existing) {
-      this.navService.openConversation(existing);
-      this.isVisible.set(false);
-      return;
+    constructor() {
+        this.load();
+        this.wsService.friendRequestReceivedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load());
+        this.wsService.friendRequestAcceptedObservable.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.load());
     }
 
-    this.conversationService.createConversation({
-      members: [{ userId: targetUserId }],
-      encryption: ConversationEncryption.Plain,
-      name: undefined,
-      deviceWelcomes: [],
-    }).subscribe(conv => {
-      this.conversationStore.addConversation(conv);
-      this.navService.openConversation(conv);
-      this.isVisible.set(false);
-    });
-  }
+    public sendFriendrequest() {
+        const id = Number.parseInt(this.friendId.split('#')[1]);
+        const username = this.friendId.split('#')[0];
+        this.relationshipService.createFriendRequest(username, id).subscribe(() => {
+            this.friendId = '';
+            this.load();
+        });
+    }
 
-    protected readonly RelationshipStatus = RelationshipStatus;
+    public acceptFriendRequest(id: string) {
+        this.relationshipService.acceptFriendRequest(id).subscribe(() => this.load());
+    }
+
+    public rejectFriendRequest(id: string) {
+        this.relationshipService.rejectFriendRequest(id).subscribe(() => this.load());
+    }
+
+    public onMessageClick(relationship: RelationshipModel): void {
+        const ownId = this.profileService.ownProfile()?.userId;
+        const targetUserId = relationship.owner.userId === ownId
+            ? relationship.target.userId
+            : relationship.owner.userId;
+
+        const existing = this.conversationStore.entities().find(conv =>
+            conv.members.length === 2 && conv.members.some(m => m.userId === targetUserId)
+        );
+
+        if (existing) {
+            this.navService.openConversation(existing);
+            this.isVisible.set(false);
+            return;
+        }
+
+        this.conversationService.createConversation({
+            members: [{userId: targetUserId}],
+            encryption: ConversationEncryption.Plain,
+            name: undefined,
+            deviceWelcomes: [],
+        }).subscribe(conv => {
+            this.conversationStore.addConversation(conv);
+            this.navService.openConversation(conv);
+            this.isVisible.set(false);
+        });
+    }
+
+    private load(): void {
+        this.relationshipService.getRelationships().subscribe(d => this.relationships.set(d));
+    }
 }

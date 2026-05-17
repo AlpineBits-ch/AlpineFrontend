@@ -1,127 +1,133 @@
 <div class="flex flex-col h-full gap-4">
 
-  <!-- Search -->
-  <div class="relative">
-    <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-xs"></i>
-    <input pInputText
-      [ngModel]="filter()"
-      (ngModelChange)="filter.set($event)"
-      [placeholder]="'GUILD_SETTINGS.MEMBERS.SEARCH_PLACEHOLDER' | translate"
-      class="w-full pl-8 text-sm" />
-  </div>
-
-  <!-- Count -->
-  <p class="text-xs text-white/30">
-     {{ members().length !== 1 ? ('GUILD_SETTINGS.MEMBERS.COUNT_PLURAL' | translate: {
-      count: members().length
-  }) : ('GUILD_SETTINGS.MEMBERS.COUNT_SINGLE' | translate) }}
-  </p>
-
-  <!-- List -->
-  @if (loading()) {
-    <div class="flex items-center justify-center py-10">
-      <i class="pi pi-spin pi-spinner text-white/30 text-xl"></i>
+    <!-- Search -->
+    <div class="relative">
+        <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-xs"></i>
+        <input (ngModelChange)="filter.set($event)"
+               [ngModel]="filter()"
+               [placeholder]="'GUILD_SETTINGS.MEMBERS.SEARCH_PLACEHOLDER' | translate"
+               class="w-full pl-8 text-sm"
+               pInputText/>
     </div>
-  } @else {
-    <div class="space-y-1 overflow-y-auto flex-1"
-         style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;"
-         (scroll)="onScroll($event)">
-      @for (row of filteredMembers; track row.member.id) {
-        <div class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/[0.04] transition-colors group">
 
-          <!-- Avatar -->
-          <div class="w-9 h-9 rounded-full overflow-hidden bg-card shrink-0 flex items-center justify-center">
-            @if (avatarUrl(row)) {
-              <img [src]="avatarUrl(row)!" [alt]="displayName(row)" class="w-full h-full object-cover" />
-            } @else {
-              <span class="text-sm font-semibold text-white/40">{{ displayName(row).charAt(0).toUpperCase() }}</span>
-            }
-          </div>
+    <!-- Count -->
+    <p class="text-xs text-white/30">
+        {{
+            members().length !== 1 ? ('GUILD_SETTINGS.MEMBERS.COUNT_PLURAL' | translate: {
+                count: members().length
+            }) : ('GUILD_SETTINGS.MEMBERS.COUNT_SINGLE' | translate)
+        }}
+    </p>
 
-          <!-- Info -->
-          <div class="flex-1 min-w-0">
-            <p class="text-sm font-medium text-white/85 truncate">{{ displayName(row) }}</p>
-            @if (row.roleNames.length > 0) {
-              <p class="text-[11px] text-white/35 truncate">{{ row.roleNames.join(', ') }}</p>
-            }
-          </div>
-
-          <!-- Actions (visible on hover) -->
-          <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <p-button icon="pi pi-shield" [text]="true" severity="secondary" size="small"
-              [pTooltip]="'GUILD_SETTINGS.MEMBERS.EDIT_PERMISSIONS' | translate" tooltipPosition="top"
-              (onClick)="openEditPermissions(row)" />
-            <p-button icon="pi pi-user-minus" [text]="true" severity="danger" size="small"
-              [pTooltip]="'GUILD_SETTINGS.MEMBERS.KICK' | translate" tooltipPosition="top"
-              (onClick)="openKickDialog(row)" />
-          </div>
+    <!-- List -->
+    @if (loading()) {
+        <div class="flex items-center justify-center py-10">
+            <i class="pi pi-spin pi-spinner text-white/30 text-xl"></i>
         </div>
-      }
+    } @else {
+        <div (scroll)="onScroll($event)"
+             class="space-y-1 overflow-y-auto flex-1"
+             style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+            @for (row of filteredMembers; track row.member.id) {
+                <div class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/[0.04] transition-colors group">
 
-      @if (filteredMembers.length === 0 && !loadingMore()) {
-        <p class="text-sm text-white/25 text-center py-6">{{ 'GUILD_SETTINGS.MEMBERS.NO_MEMBERS' | translate }}</p>
-      }
+                    <!-- Avatar -->
+                    <div class="w-9 h-9 rounded-full overflow-hidden bg-card shrink-0 flex items-center justify-center">
+                        @if (avatarUrl(row)) {
+                            <img [alt]="displayName(row)" [src]="avatarUrl(row)!" class="w-full h-full object-cover"/>
+                        } @else {
+                            <span class="text-sm font-semibold text-white/40">{{ displayName(row).charAt(0).toUpperCase() }}</span>
+                        }
+                    </div>
 
-      @if (loadingMore()) {
-        <div class="flex items-center justify-center py-3">
-          <i class="pi pi-spin pi-spinner text-white/30 text-sm"></i>
+                    <!-- Info -->
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-white/85 truncate">{{ displayName(row) }}</p>
+                        @if (row.roleNames.length > 0) {
+                            <p class="text-[11px] text-white/35 truncate">{{ row.roleNames.join(', ') }}</p>
+                        }
+                    </div>
+
+                    <!-- Actions (visible on hover) -->
+                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <p-button (onClick)="openEditPermissions(row)" [pTooltip]="'GUILD_SETTINGS.MEMBERS.EDIT_PERMISSIONS' | translate" [text]="true" icon="pi pi-shield"
+                                  severity="secondary"
+                                  size="small"
+                                  tooltipPosition="top"/>
+                        <p-button (onClick)="openKickDialog(row)" [pTooltip]="'GUILD_SETTINGS.MEMBERS.KICK' | translate" [text]="true" icon="pi pi-user-minus"
+                                  severity="danger" size="small"
+                                  tooltipPosition="top"/>
+                    </div>
+                </div>
+            }
+
+            @if (filteredMembers.length === 0 && !loadingMore()) {
+                <p class="text-sm text-white/25 text-center py-6">{{ 'GUILD_SETTINGS.MEMBERS.NO_MEMBERS' | translate }}</p>
+            }
+
+            @if (loadingMore()) {
+                <div class="flex items-center justify-center py-3">
+                    <i class="pi pi-spin pi-spinner text-white/30 text-sm"></i>
+                </div>
+            }
         </div>
-      }
-    </div>
-  }
+    }
 
 </div>
 
 <!-- Edit Permissions Dialog -->
 <p-dialog
-  [(visible)]="showEditDialog"
-  [modal]="true" [closable]="true" [draggable]="false" [resizable]="false"
-  appendTo="body" [dismissableMask]="true"
-  [style]="{width: '440px', maxHeight: '80vh'}">
+        [(visible)]="showEditDialog"
+        [closable]="true" [dismissableMask]="true" [draggable]="false" [modal]="true"
+        [resizable]="false" [style]="{width: '440px', maxHeight: '80vh'}"
+        appendTo="body">
 
-  <ng-template pTemplate="header">
-    <span class="text-sm font-semibold text-white/85">{{ 'GUILD_SETTINGS.MEMBERS.DIALOG_PERMISSIONS' | translate }}</span>
-  </ng-template>
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-white/85">{{ 'GUILD_SETTINGS.MEMBERS.DIALOG_PERMISSIONS' | translate }}</span>
+    </ng-template>
 
-  @if (editMember()) {
-    <div class="py-2">
-      <p class="text-xs text-white/40 mb-4">
-        {{ 'GUILD_SETTINGS.MEMBERS.PERMISSIONS_DESC' | translate: { name: displayName(editMember()!) } }}
-      </p>
-      <div class="overflow-y-auto max-h-[50vh]"
-           style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
-        <app-permission-toggle [mask]="editPermMask()" (maskChange)="onPermissionChange($event)" />
-      </div>
-    </div>
-    <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.10]">
-      <p-button [label]="'GUILD_SETTINGS.MEMBERS.CANCEL' | translate" severity="secondary" size="small" [text]="true"
-        (onClick)="showEditDialog.set(false)" />
-      <p-button [label]="'GUILD_SETTINGS.MEMBERS.SAVE' | translate" severity="primary" size="small"
-        [loading]="editSaving()" (onClick)="savePermissions()" />
-    </div>
-  }
+    @if (editMember()) {
+        <div class="py-2">
+            <p class="text-xs text-white/40 mb-4">
+                {{ 'GUILD_SETTINGS.MEMBERS.PERMISSIONS_DESC' | translate: {name: displayName(editMember()!)} }}
+            </p>
+            <div class="overflow-y-auto max-h-[50vh]"
+                 style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+                <app-permission-toggle (maskChange)="onPermissionChange($event)" [mask]="editPermMask()"/>
+            </div>
+        </div>
+        <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.10]">
+            <p-button (onClick)="showEditDialog.set(false)" [label]="'GUILD_SETTINGS.MEMBERS.CANCEL' | translate" [text]="true"
+                      severity="secondary"
+                      size="small"/>
+            <p-button (onClick)="savePermissions()" [label]="'GUILD_SETTINGS.MEMBERS.SAVE' | translate" [loading]="editSaving()"
+                      severity="primary" size="small"/>
+        </div>
+    }
 </p-dialog>
 
 <!-- Confirm Kick Dialog -->
 <p-dialog
-  [(visible)]="showKickDialog"
-  [modal]="true" [closable]="true" [draggable]="false" [resizable]="false"
-  appendTo="body" [dismissableMask]="true"
-  [style]="{width: '380px'}">
+        [(visible)]="showKickDialog"
+        [closable]="true" [dismissableMask]="true" [draggable]="false" [modal]="true"
+        [resizable]="false" [style]="{width: '380px'}"
+        appendTo="body">
 
-  <ng-template pTemplate="header">
-    <span class="text-sm font-semibold text-white/85">{{ 'GUILD_SETTINGS.MEMBERS.KICK_TITLE' | translate }}</span>
-  </ng-template>
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-white/85">{{ 'GUILD_SETTINGS.MEMBERS.KICK_TITLE' | translate }}</span>
+    </ng-template>
 
-  @if (confirmKickMember()) {
-    <p class="text-sm text-white/60 py-2">
-      {{ 'GUILD_SETTINGS.MEMBERS.KICK_CONFIRM' | translate: { name: displayName(confirmKickMember()!) } }}
-    </p>
-    <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.10]">
-      <p-button [label]="'GUILD_SETTINGS.MEMBERS.CANCEL' | translate" severity="secondary" size="small" [text]="true"
-        (onClick)="closeKickDialog()" />
-      <p-button [label]="'GUILD_SETTINGS.MEMBERS.KICK_BTN' | translate" severity="danger" size="small" [outlined]="true"
-        [loading]="kicking()" (onClick)="kickMember(confirmKickMember()!)" />
-    </div>
-  }
+    @if (confirmKickMember()) {
+        <p class="text-sm text-white/60 py-2">
+            {{ 'GUILD_SETTINGS.MEMBERS.KICK_CONFIRM' | translate: {name: displayName(confirmKickMember()!)} }}
+        </p>
+        <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.10]">
+            <p-button (onClick)="closeKickDialog()" [label]="'GUILD_SETTINGS.MEMBERS.CANCEL' | translate" [text]="true"
+                      severity="secondary"
+                      size="small"/>
+            <p-button (onClick)="kickMember(confirmKickMember()!)" [label]="'GUILD_SETTINGS.MEMBERS.KICK_BTN' | translate" [loading]="kicking()"
+                      [outlined]="true"
+                      severity="danger" size="small"/>
+        </div>
+    }
 </p-dialog>

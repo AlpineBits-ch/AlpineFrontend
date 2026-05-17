@@ -1,28 +1,28 @@
 @if (platformService.isMobile) {
-    <ion-list lines="none" class="ion-no-padding bg-transparent">
+    <ion-list class="ion-no-padding bg-transparent" lines="none">
         @for (conv of sortedConversations(); track conv.id) {
             @let preview = getPreview(conv);
             @let unread = getUnreadCount(conv.id);
 
             <ion-item-sliding>
-                <ion-item button detail="false"
-                          [class.conv-selected]="selectedId() === conv.id"
+                <ion-item (click)="conversationSelected.emit(conv)" [class.conv-selected]="selectedId() === conv.id"
+                          button
                           class="conv-item rounded-xl my-0.5"
-                          (click)="conversationSelected.emit(conv)">
+                          detail="false">
 
-                    <div slot="start" class="relative shrink-0 mr-2.5 self-center">
+                    <div class="relative shrink-0 mr-2.5 self-center" slot="start">
                         @let member = convUtils.getPartnerMember(conv);
                         <app-avatar
-                                [userId]="member?.userId"
                                 [label]="member?.cachedUserName?.[0]?.toUpperCase()"
-                                size="normal" />
-                        <app-user-status-dot [status]="convUtils.getPartnerStatus(conv)" />
+                                [userId]="member?.userId"
+                                size="normal"/>
+                        <app-user-status-dot [status]="convUtils.getPartnerStatus(conv)"/>
                     </div>
 
                     <ion-label class="min-w-0 my-2">
                         <div class="flex items-center justify-between gap-1">
-                            <span class="text-sm font-medium truncate"
-                                  [ngClass]="selectedId() === conv.id ? 'text-white/90' : 'text-white/65'">
+                            <span [ngClass]="selectedId() === conv.id ? 'text-white/90' : 'text-white/65'"
+                                  class="text-sm font-medium truncate">
                                 {{ convUtils.getChatTitle(conv) }}
                             </span>
                             <div class="flex items-center gap-1.5 shrink-0">
@@ -30,7 +30,7 @@
                                     <span class="text-[10px] text-white/25">{{ previewMessages().get(conv.id)?.[0]?.createdAt | date: 'shortTime' }}</span>
                                 }
                                 @if (unread > 0) {
-                                    <ion-badge color="primary" class="min-w-[18px] h-[18px] px-1 text-[10px] font-bold">
+                                    <ion-badge class="min-w-[18px] h-[18px] px-1 text-[10px] font-bold" color="primary">
                                         {{ unread >= 30 ? '30+' : unread }}
                                     </ion-badge>
                                 }
@@ -39,11 +39,12 @@
 
                         @if (convUtils.getTypingLabel(conv); as typingLabel) {
                             <p class="text-[11px] truncate flex items-center gap-1 text-brand-dim italic mt-0.5 mb-0">
-                                <app-typing-dots />{{ typingLabel }}
+                                <app-typing-dots/>
+                                {{ typingLabel }}
                             </p>
                         } @else if (preview) {
-                            <p class="text-[11px] truncate mt-0.5 mb-0"
-                               [ngClass]="unread > 0 ? 'text-white/50 font-medium' : 'text-white/30'">
+                            <p [ngClass]="unread > 0 ? 'text-white/50 font-medium' : 'text-white/30'"
+                               class="text-[11px] truncate mt-0.5 mb-0">
                                 <span class="text-white/45">{{ preview.sender }}:</span> {{ preview.text }}
                             </p>
                         } @else {
@@ -53,8 +54,8 @@
                 </ion-item>
 
                 <ion-item-options side="end">
-                    <ion-item-option color="danger" (click)="deleteConversation(conv)">
-                        <ion-icon slot="icon-only" name="trash-outline"></ion-icon>
+                    <ion-item-option (click)="deleteConversation(conv)" color="danger">
+                        <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
                     </ion-item-option>
                 </ion-item-options>
             </ion-item-sliding>
@@ -67,12 +68,12 @@
         }
     </ion-list>
 } @else {
-    <div class="flex flex-col gap-0.5" [@convList]="sortKey()">
+    <div [@convList]="sortKey()" class="flex flex-col gap-0.5">
         @for (conv of sortedConversations(); track conv.id) {
             @let preview = getPreview(conv);
             @let unread = getUnreadCount(conv.id);
 
-            <div class="relative group/conv" (contextmenu)="onConvContextMenu($event, conv)">
+            <div (contextmenu)="onConvContextMenu($event, conv)" class="relative group/conv">
                 <button
                         (click)="conversationSelected.emit(conv)"
                         [ngClass]="selectedId() === conv.id ? 'bg-white/[0.08]' : 'bg-transparent hover:bg-white/[0.05]'"
@@ -81,16 +82,16 @@
                     <div class="relative shrink-0">
                         @let member = convUtils.getPartnerMember(conv);
                         <app-avatar
-                                [userId]="member?.userId"
                                 [label]="member?.cachedUserName?.[0]?.toUpperCase()"
-                                size="normal" />
-                        <app-user-status-dot [status]="convUtils.getPartnerStatus(conv)" />
+                                [userId]="member?.userId"
+                                size="normal"/>
+                        <app-user-status-dot [status]="convUtils.getPartnerStatus(conv)"/>
                     </div>
 
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center justify-between gap-1">
-          <span class="text-sm font-medium truncate"
-                [ngClass]="selectedId() === conv.id ? 'text-white/90' : 'text-white/65'">
+          <span [ngClass]="selectedId() === conv.id ? 'text-white/90' : 'text-white/65'"
+                class="text-sm font-medium truncate">
             {{ convUtils.getChatTitle(conv) }}
           </span>
                             <div class="flex items-center gap-1.5 shrink-0">
@@ -107,12 +108,12 @@
 
                         @if (convUtils.getTypingLabel(conv); as typingLabel) {
                             <span class="text-[11px] truncate flex items-center gap-1 text-brand-dim italic">
-            <app-typing-dots />
+            <app-typing-dots/>
                                 {{ typingLabel }}
           </span>
                         } @else if (preview) {
-                            <span class="text-[11px] truncate block"
-                                  [ngClass]="unread > 0 ? 'text-white/50 font-medium' : 'text-white/30'">
+                            <span [ngClass]="unread > 0 ? 'text-white/50 font-medium' : 'text-white/30'"
+                                  class="text-[11px] truncate block">
             <span class="text-white/45">{{ preview.sender }}:</span> {{ preview.text }}
           </span>
                         } @else {
@@ -137,12 +138,16 @@
             <button
                     (click)="conversationStore.loadMore()"
                     class="w-full text-center text-[11px] text-white/30 hover:text-white/55 py-2 cursor-pointer border-0 bg-transparent transition-colors">
-                @if (conversationStore.loading()) { Loading… } @else { Load more }
+                @if (conversationStore.loading()) {
+                    Loading…
+                } @else {
+                    Load more
+                }
             </button>
         }
     </div>
 
 }
 
-<p-contextMenu #convMenu [model]="[]" appendTo="body" />
-<p-confirmdialog appendTo="body" />
+<p-contextMenu #convMenu [model]="[]" appendTo="body"/>
+<p-confirmdialog appendTo="body"/>

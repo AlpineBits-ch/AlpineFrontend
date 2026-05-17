@@ -1,97 +1,116 @@
 <div class="login-bg" data-tauri-drag-region>
 
-  <!-- Background orbs -->
-  <div class="orb orb-1"></div>
-  <div class="orb orb-2"></div>
-  <div class="orb orb-3"></div>
-  <div class="bg-grid"></div>
+    <!-- Background orbs -->
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+    <div class="orb orb-3"></div>
+    <div class="bg-grid"></div>
 
-  <!-- Form card -->
-  <div class="login-card">
+    <!-- Form card -->
+    <div class="login-card">
 
-    <!-- Logo -->
-    <div class="flex flex-col items-center gap-1.5 mb-5">
-      <div class="w-11 h-11 rounded-[13px] bg-gradient-to-br from-indigo-400 to-indigo-700 flex items-center justify-center text-[20px] font-black text-white shadow-[0_4px_18px_rgba(67,56,202,0.45)]">A</div>
-      <span class="text-sm font-semibold text-slate-300 tracking-tight">Echo</span>
+        <!-- Logo -->
+        <div class="flex flex-col items-center gap-1.5 mb-5">
+            <div class="w-11 h-11 rounded-[13px] bg-gradient-to-br from-indigo-400 to-indigo-700 flex items-center justify-center text-[20px] font-black text-white shadow-[0_4px_18px_rgba(67,56,202,0.45)]">
+                A
+            </div>
+            <span class="text-sm font-semibold text-slate-300 tracking-tight">Echo</span>
+        </div>
+
+        <!-- Mode toggle -->
+        <div class="flex bg-white/[0.05] border border-white/[0.06] rounded-[12px] p-[3px] gap-[3px] mb-5">
+            <button
+                    (click)="switchToMode(true)"
+                    [ngClass]="{ 'bg-white/[0.09] text-slate-100 shadow-sm': isLoginMode(), 'text-slate-500 hover:text-slate-400': !isLoginMode() }"
+                    class="flex-1 py-2 px-2 rounded-[9px] text-[13px] font-medium cursor-pointer transition-all duration-150 border-0 outline-none bg-transparent touch-manipulation">
+                {{ 'LOGIN.TAB.SIGN_IN' | translate }}
+            </button>
+            <button
+                    (click)="switchToMode(false)"
+                    [ngClass]="{ 'bg-white/[0.09] text-slate-100 shadow-sm': !isLoginMode(), 'text-slate-500 hover:text-slate-400': isLoginMode() }"
+                    class="flex-1 py-2 px-2 rounded-[9px] text-[13px] font-medium cursor-pointer transition-all duration-150 border-0 outline-none bg-transparent touch-manipulation">
+                {{ 'LOGIN.TAB.CREATE_ACCOUNT' | translate }}
+            </button>
+        </div>
+
+        @if (isLoginMode()) {
+            <div class="flex flex-col gap-3.5">
+                <div class="text-center mb-0.5">
+                    <h2 class="text-[16px] font-semibold text-slate-100">{{ 'LOGIN.LOGIN.TITLE' | translate }}</h2>
+                    <p class="text-[12px] text-slate-500 mt-0.5">{{ 'LOGIN.LOGIN.SUBTITLE' | translate }}</p>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.LOGIN.EMAIL' | translate }}</label>
+                    <input (keydown.enter)="login()" [formField]="loginForm.email" [placeholder]="'LOGIN.REGISTER.EMAIL_PLACEHOLDER' | translate"
+                           autocomplete="email" inputmode="email"
+                           pInputText type="email"/>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.LOGIN.PASSWORD' | translate }}</label>
+                    <input (keydown.enter)="login()" [formField]="loginForm.password" [placeholder]="'LOGIN.LOGIN.PASSWORD_PLACEHOLDER' | translate"
+                           autocomplete="current-password"
+                           pPassword type="password"/>
+                </div>
+                <p-button (onClick)="login()" [label]="'LOGIN.LOGIN.SUBMIT' | translate"/>
+                <p class="text-center text-[11px] text-slate-600 leading-relaxed mt-0.5">
+                    {{ 'LOGIN.TERMS' | translate }}
+                    <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors"
+                       href="#">{{ 'LOGIN.TERMS_OF_SERVICE' | translate }}</a>
+                    {{ 'LOGIN.AND' | translate }}
+                    <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors"
+                       href="#">{{ 'LOGIN.PRIVACY_POLICY' | translate }}</a>.
+                </p>
+            </div>
+        } @else {
+            <div class="flex flex-col gap-3">
+                <div class="text-center mb-0.5">
+                    <h2 class="text-[16px] font-semibold text-slate-100">{{ 'LOGIN.REGISTER.TITLE' | translate }}</h2>
+                    <p class="text-[12px] text-slate-500 mt-0.5">{{ 'LOGIN.REGISTER.SUBTITLE' | translate }}</p>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.REGISTER.USERNAME' | translate }}</label>
+                    <input [formField]="registerForm.username" [placeholder]="'LOGIN.REGISTER.USERNAME_PLACEHOLDER' | translate" autocomplete="username"
+                           pInputText type="text"/>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.REGISTER.EMAIL' | translate }}</label>
+                    <input [formField]="registerForm.email" [placeholder]="'LOGIN.REGISTER.EMAIL_PLACEHOLDER' | translate" autocomplete="email"
+                           inputmode="email" pInputText
+                           type="email"/>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.REGISTER.DOB' | translate }}</label>
+                    <input [formField]="registerForm.birthdate" [placeholder]="'LOGIN.REGISTER.DOB_PLACEHOLDER' | translate" autocomplete="bday"
+                           pInputText type="text"/>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.REGISTER.PASSWORD' | translate }}</label>
+                    <input (input)="passwordMismatch.set(false)" [formField]="registerForm.password" [placeholder]="'LOGIN.REGISTER.PASSWORD_PLACEHOLDER' | translate"
+                           autocomplete="new-password" pPassword
+                           type="password"/>
+                </div>
+                <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.REGISTER.CONFIRM_PASSWORD' | translate }}</label>
+                    <input (input)="passwordMismatch.set(false)" (keydown.enter)="register()" [formField]="registerForm.confirmPassword"
+                           [placeholder]="'LOGIN.REGISTER.CONFIRM_PASSWORD_PLACEHOLDER' | translate"
+                           autocomplete="new-password" pPassword
+                           type="password"/>
+                    @if (passwordMismatch()) {
+                        <span class="text-[11px] text-rose-400">{{ 'LOGIN.REGISTER.PASSWORD_MISMATCH' | translate }}</span>
+                    }
+                </div>
+                <p-button (onClick)="register()" [label]="'LOGIN.REGISTER.SUBMIT' | translate"/>
+                <p class="text-center text-[11px] text-slate-600 leading-relaxed mt-0.5">
+                    {{ 'LOGIN.TERMS' | translate }}
+                    <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors"
+                       href="#">{{ 'LOGIN.TERMS_OF_SERVICE' | translate }}</a>
+                    {{ 'LOGIN.AND' | translate }}
+                    <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors"
+                       href="#">{{ 'LOGIN.PRIVACY_POLICY' | translate }}</a>.
+                </p>
+            </div>
+        }
+
     </div>
-
-    <!-- Mode toggle -->
-    <div class="flex bg-white/[0.05] border border-white/[0.06] rounded-[12px] p-[3px] gap-[3px] mb-5">
-      <button
-        class="flex-1 py-2 px-2 rounded-[9px] text-[13px] font-medium cursor-pointer transition-all duration-150 border-0 outline-none bg-transparent touch-manipulation"
-        [ngClass]="{ 'bg-white/[0.09] text-slate-100 shadow-sm': isLoginMode(), 'text-slate-500 hover:text-slate-400': !isLoginMode() }"
-        (click)="switchToMode(true)">
-        {{ 'LOGIN.TAB.SIGN_IN' | translate }}
-      </button>
-      <button
-        class="flex-1 py-2 px-2 rounded-[9px] text-[13px] font-medium cursor-pointer transition-all duration-150 border-0 outline-none bg-transparent touch-manipulation"
-        [ngClass]="{ 'bg-white/[0.09] text-slate-100 shadow-sm': !isLoginMode(), 'text-slate-500 hover:text-slate-400': isLoginMode() }"
-        (click)="switchToMode(false)">
-        {{ 'LOGIN.TAB.CREATE_ACCOUNT' | translate }}
-      </button>
-    </div>
-
-    @if (isLoginMode()) {
-      <div class="flex flex-col gap-3.5">
-        <div class="text-center mb-0.5">
-          <h2 class="text-[16px] font-semibold text-slate-100">{{ 'LOGIN.LOGIN.TITLE' | translate }}</h2>
-          <p class="text-[12px] text-slate-500 mt-0.5">{{ 'LOGIN.LOGIN.SUBTITLE' | translate }}</p>
-        </div>
-        <div class="flex flex-col gap-1">
-          <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.LOGIN.EMAIL' | translate }}</label>
-          <input pInputText [formField]="loginForm.email" type="email" [placeholder]="'LOGIN.REGISTER.EMAIL_PLACEHOLDER' | translate" autocomplete="email" inputmode="email" (keydown.enter)="login()" />
-        </div>
-        <div class="flex flex-col gap-1">
-          <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.LOGIN.PASSWORD' | translate }}</label>
-          <input pPassword [formField]="loginForm.password" type="password" [placeholder]="'LOGIN.LOGIN.PASSWORD_PLACEHOLDER' | translate" autocomplete="current-password" (keydown.enter)="login()" />
-        </div>
-        <p-button (onClick)="login()" [label]="'LOGIN.LOGIN.SUBMIT' | translate" />
-        <p class="text-center text-[11px] text-slate-600 leading-relaxed mt-0.5">
-          {{ 'LOGIN.TERMS' | translate }}
-          <a href="#" class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors">{{ 'LOGIN.TERMS_OF_SERVICE' | translate }}</a>
-          {{ 'LOGIN.AND' | translate }}
-          <a href="#" class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors">{{ 'LOGIN.PRIVACY_POLICY' | translate }}</a>.
-        </p>
-      </div>
-    } @else {
-      <div class="flex flex-col gap-3">
-        <div class="text-center mb-0.5">
-          <h2 class="text-[16px] font-semibold text-slate-100">{{ 'LOGIN.REGISTER.TITLE' | translate }}</h2>
-          <p class="text-[12px] text-slate-500 mt-0.5">{{ 'LOGIN.REGISTER.SUBTITLE' | translate }}</p>
-        </div>
-        <div class="flex flex-col gap-1">
-          <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.REGISTER.USERNAME' | translate }}</label>
-          <input [formField]="registerForm.username" pInputText type="text" [placeholder]="'LOGIN.REGISTER.USERNAME_PLACEHOLDER' | translate" autocomplete="username" />
-        </div>
-        <div class="flex flex-col gap-1">
-          <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.REGISTER.EMAIL' | translate }}</label>
-          <input [formField]="registerForm.email" pInputText type="email" [placeholder]="'LOGIN.REGISTER.EMAIL_PLACEHOLDER' | translate" autocomplete="email" inputmode="email" />
-        </div>
-        <div class="flex flex-col gap-1">
-          <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.REGISTER.DOB' | translate }}</label>
-          <input [formField]="registerForm.birthdate" pInputText type="text" [placeholder]="'LOGIN.REGISTER.DOB_PLACEHOLDER' | translate" autocomplete="bday" />
-        </div>
-        <div class="flex flex-col gap-1">
-          <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.REGISTER.PASSWORD' | translate }}</label>
-          <input [formField]="registerForm.password" pPassword type="password" [placeholder]="'LOGIN.REGISTER.PASSWORD_PLACEHOLDER' | translate" autocomplete="new-password" (input)="passwordMismatch.set(false)" />
-        </div>
-        <div class="flex flex-col gap-1">
-          <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.REGISTER.CONFIRM_PASSWORD' | translate }}</label>
-          <input [formField]="registerForm.confirmPassword" pPassword type="password" [placeholder]="'LOGIN.REGISTER.CONFIRM_PASSWORD_PLACEHOLDER' | translate" autocomplete="new-password" (input)="passwordMismatch.set(false)" (keydown.enter)="register()" />
-          @if (passwordMismatch()) {
-            <span class="text-[11px] text-rose-400">{{ 'LOGIN.REGISTER.PASSWORD_MISMATCH' | translate }}</span>
-          }
-        </div>
-        <p-button (onClick)="register()" [label]="'LOGIN.REGISTER.SUBMIT' | translate" />
-        <p class="text-center text-[11px] text-slate-600 leading-relaxed mt-0.5">
-          {{ 'LOGIN.TERMS' | translate }}
-          <a href="#" class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors">{{ 'LOGIN.TERMS_OF_SERVICE' | translate }}</a>
-          {{ 'LOGIN.AND' | translate }}
-          <a href="#" class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors">{{ 'LOGIN.PRIVACY_POLICY' | translate }}</a>.
-        </p>
-      </div>
-    }
-
-  </div>
 
 </div>

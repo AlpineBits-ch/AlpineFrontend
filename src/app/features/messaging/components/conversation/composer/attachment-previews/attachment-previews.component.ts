@@ -1,11 +1,11 @@
-import { Component, input, output } from '@angular/core';
-import { AttachedFile } from '../composer-attachments.service';
+import {Component, input, output} from '@angular/core';
+import {AttachedFile} from '../composer-attachments.service';
 
 @Component({
-  selector: 'app-attachment-previews',
-  templateUrl: './attachment-previews.component.html',
+    selector: 'app-attachment-previews',
+    templateUrl: './attachment-previews.component.html',
 })
 export class AttachmentPreviewsComponent {
-  files = input.required<AttachedFile[]>();
-  remove = output<number>();
+    files = input.required<AttachedFile[]>();
+    remove = output<number>();
 }

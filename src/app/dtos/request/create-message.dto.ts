@@ -1,4 +1,4 @@
-import { MessageEncryptionState } from '../../enums/message-encryption-state.enum';
+import {MessageEncryptionState} from '../../enums/message-encryption-state.enum';
 
 export interface CreateMessageDto {
     content: string;

@@ -1,14 +1,14 @@
-import { Injectable, signal } from '@angular/core';
+import {Injectable, signal} from '@angular/core';
 
-@Injectable({ providedIn: 'root' })
+@Injectable({providedIn: 'root'})
 export class ProfileDialogService {
-  readonly selectedUserId = signal<string | null>(null);
+    readonly selectedUserId = signal<string | null>(null);
 
-  open(userId: string): void {
-    this.selectedUserId.set(userId);
-  }
+    open(userId: string): void {
+        this.selectedUserId.set(userId);
+    }
 
-  close(): void {
-    this.selectedUserId.set(null);
-  }
+    close(): void {
+        this.selectedUserId.set(null);
+    }
 }

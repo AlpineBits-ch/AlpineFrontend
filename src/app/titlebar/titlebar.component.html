@@ -1,60 +1,62 @@
 @if (isTauri()) {
-  <div class="titlebar" data-tauri-drag-region (dblclick)="toggleMaximize()">
+    <div (dblclick)="toggleMaximize()" class="titlebar" data-tauri-drag-region>
 
-    @if (isMac()) {
-      <!-- macOS: traffic lights on the left -->
-      <div class="mac-controls"
-           [class.mac-hover]="macHover"
-           (mouseenter)="macHover = true"
-           (mouseleave)="macHover = false">
-        <button class="dot dot-close"    (click)="close()"           title="Close"></button>
-        <button class="dot dot-minimize" (click)="minimize()"        title="Minimize"></button>
-        <button class="dot dot-maximize" (click)="toggleMaximize()"  title="Zoom"></button>
-      </div>
-    }
+        @if (isMac()) {
+            <!-- macOS: traffic lights on the left -->
+            <div (mouseenter)="macHover = true"
+                 (mouseleave)="macHover = false"
+                 [class.mac-hover]="macHover"
+                 class="mac-controls">
+                <button (click)="close()" class="dot dot-close" title="Close"></button>
+                <button (click)="minimize()" class="dot dot-minimize" title="Minimize"></button>
+                <button (click)="toggleMaximize()" class="dot dot-maximize" title="Zoom"></button>
+            </div>
+        }
 
-    <!-- App identity — always part of the drag region -->
-    <div class="identity" data-tauri-drag-region>
-      <!-- Logo placeholder — swap with <img src="..."> or an SVG when ready -->
-      <div class="logo-mark">A</div>
-      <span class="app-name">Alpine</span>
+        <!-- App identity — always part of the drag region -->
+        <div class="identity" data-tauri-drag-region>
+            <!-- Logo placeholder — swap with <img src="..."> or an SVG when ready -->
+            <div class="logo-mark">A</div>
+            <span class="app-name">Alpine</span>
+        </div>
+
+        <!-- Drag spacer -->
+        <div class="grow" data-tauri-drag-region></div>
+
+        @if (!isMac()) {
+            <!-- Windows / Linux: controls on the right -->
+            <div class="win-controls">
+                <button (click)="minimize()" aria-label="Minimize" class="win-btn" title="Minimize">
+                    <svg fill="none" height="1" viewBox="0 0 10 1" width="10">
+                        <rect fill="currentColor" height="1.2" rx="0.6" width="10"/>
+                    </svg>
+                </button>
+                <button (click)="toggleMaximize()"
+                        [attr.aria-label]="isMaximized() ? 'Restore' : 'Maximize'"
+                        [title]="isMaximized() ? 'Restore' : 'Maximize'"
+                        class="win-btn">
+                    @if (isMaximized()) {
+                        <!-- Restore icon -->
+                        <svg fill="none" height="10" viewBox="0 0 10 10" width="10">
+                            <path d="M1 3H7V9H1V3Z" stroke="currentColor" stroke-width="1.1"/>
+                            <path d="M3 1H9V7" stroke="currentColor" stroke-linecap="square" stroke-width="1.1"/>
+                        </svg>
+                    } @else {
+                        <!-- Maximize icon -->
+                        <svg fill="none" height="10" viewBox="0 0 10 10" width="10">
+                            <rect height="8.9" rx="0.2" stroke="currentColor" stroke-width="1.1" width="8.9" x="0.55"
+                                  y="0.55"/>
+                        </svg>
+                    }
+                </button>
+                <button (click)="close()" aria-label="Close" class="win-btn win-close" title="Close">
+                    <svg fill="none" height="10" viewBox="0 0 10 10" width="10">
+                        <path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" stroke-linecap="round"
+                              stroke-width="1.2"/>
+                    </svg>
+                </button>
+            </div>
+        }
+
     </div>
-
-    <!-- Drag spacer -->
-    <div class="grow" data-tauri-drag-region></div>
-
-    @if (!isMac()) {
-      <!-- Windows / Linux: controls on the right -->
-      <div class="win-controls">
-        <button class="win-btn" (click)="minimize()" title="Minimize" aria-label="Minimize">
-          <svg width="10" height="1" viewBox="0 0 10 1" fill="none">
-            <rect width="10" height="1.2" rx="0.6" fill="currentColor"/>
-          </svg>
-        </button>
-        <button class="win-btn"
-                (click)="toggleMaximize()"
-                [title]="isMaximized() ? 'Restore' : 'Maximize'"
-                [attr.aria-label]="isMaximized() ? 'Restore' : 'Maximize'">
-          @if (isMaximized()) {
-            <!-- Restore icon -->
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <path d="M1 3H7V9H1V3Z" stroke="currentColor" stroke-width="1.1"/>
-              <path d="M3 1H9V7" stroke="currentColor" stroke-width="1.1" stroke-linecap="square"/>
-            </svg>
-          } @else {
-            <!-- Maximize icon -->
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <rect x="0.55" y="0.55" width="8.9" height="8.9" rx="0.2" stroke="currentColor" stroke-width="1.1"/>
-            </svg>
-          }
-        </button>
-        <button class="win-btn win-close" (click)="close()" title="Close" aria-label="Close">
-          <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-            <path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-          </svg>
-        </button>
-      </div>
-    }
-
-  </div>
 }

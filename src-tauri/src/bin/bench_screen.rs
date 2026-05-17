@@ -38,11 +38,6 @@ fn base64_encode(data: &[u8]) -> String {
     base64::engine::general_purpose::STANDARD.encode(data)
 }
 
-fn encode_jpeg(img: &DynamicImage, quality: u8) -> Vec<u8> {
-    let mut buf = Vec::new();
-    encode_jpeg_into(img, quality, &mut buf);
-    buf
-}
 
 fn encode_jpeg_into(img: &DynamicImage, quality: u8, buf: &mut Vec<u8>) {
     buf.clear();

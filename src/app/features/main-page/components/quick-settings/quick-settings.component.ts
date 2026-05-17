@@ -8,33 +8,32 @@ import {ConnectionStatusComponent} from "../connection-status/connection-status.
 import {SettingsModalComponent} from "../../../../features/settings/settings-modal/settings-modal.component";
 import {VoiceChannelService} from "../../../../services/voice-channel.service";
 import {ProfileDialogService} from "../../../../services/profile-dialog.service";
-import { TranslateModule } from '@ngx-translate/core';
+import {TranslateModule} from '@ngx-translate/core';
 
 @Component({
-  selector: 'app-quick-settings',
-  imports: [
-    AppAvatarComponent,
-    Button,
-    ConnectionStatusComponent,
-    SettingsModalComponent,
-    NgClass,
-    TranslateModule,
-  ],
-  templateUrl: './quick-settings.component.html',
-  styleUrl: './quick-settings.component.css',
+    selector: 'app-quick-settings',
+    imports: [
+        AppAvatarComponent,
+        Button,
+        ConnectionStatusComponent,
+        SettingsModalComponent,
+        NgClass,
+        TranslateModule,
+    ],
+    templateUrl: './quick-settings.component.html',
+    styleUrl: './quick-settings.component.css',
 })
 export class QuickSettingsComponent {
-  protected profileService    = inject(ProfileService);
-  protected websocketService  = inject(MessagingWebsocketService);
-  protected voiceSvc          = inject(VoiceChannelService);
-  protected profileDialogSvc  = inject(ProfileDialogService);
-  protected readonly ConnectionState = ConnectionState;
+    public isSettingsOpen = signal(false);
+    protected profileService = inject(ProfileService);
+    protected websocketService = inject(MessagingWebsocketService);
+    protected voiceSvc = inject(VoiceChannelService);
+    protected profileDialogSvc = inject(ProfileDialogService);
+    protected readonly ConnectionState = ConnectionState;
 
-  public isSettingsOpen = signal(false);
-
-  constructor() {
-    if (!this.profileService.ownProfile()) {
-      this.profileService.getSelf().subscribe();
+    constructor() {
+        if (!this.profileService.ownProfile()) {
+            this.profileService.getSelf().subscribe();
+        }
     }
-  }
 }

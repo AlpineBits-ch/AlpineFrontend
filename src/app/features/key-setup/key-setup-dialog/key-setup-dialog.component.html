@@ -1,88 +1,85 @@
 <p-dialog
-  [visible]="visible"
-  [modal]="true"
-  [closable]="false"
-  [draggable]="false"
-  [resizable]="false"
-  [dismissableMask]="false"
-  appendTo="body"
-  [style]="{ width: '480px' }"
-  [breakpoints]="{ '640px': '100vw' }"
-  styleClass="key-setup-dialog">
+        [breakpoints]="{ '640px': '100vw' }"
+        [closable]="false"
+        [dismissableMask]="false"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{ width: '480px' }"
+        [visible]="visible"
+        appendTo="body"
+        styleClass="key-setup-dialog">
 
-  @switch (step()) {
+    @switch (step()) {
 
-    @case ('password') {
-      <div class="ks-panel">
+        @case ('password') {
+            <div class="ks-panel">
 
-        <div class="ks-icon-wrap">
-          <div class="ks-icon-ring">
-            <i class="pi pi-lock text-2xl" style="color: var(--color-brand-dim)"></i>
-          </div>
-        </div>
+                <div class="ks-icon-wrap">
+                    <div class="ks-icon-ring">
+                        <i class="pi pi-lock text-2xl" style="color: var(--color-brand-dim)"></i>
+                    </div>
+                </div>
 
-        <h2 class="ks-title">Secure Your Account</h2>
-        <p class="ks-subtitle">
-          Alpine uses end-to-end encryption. Enter your password to generate
-          your personal encryption keys — this only happens once.
-        </p>
+                <h2 class="ks-title">Secure Your Account</h2>
+                <p class="ks-subtitle">
+                    Alpine uses end-to-end encryption. Enter your password to generate
+                    your personal encryption keys — this only happens once.
+                </p>
 
-        <div class="ks-field">
-          <label class="ks-label">Password</label>
-          <input
-            pPassword
-            type="password"
-            [feedback]="false"
-            placeholder="Your account password"
-            [value]="password()"
-            (input)="onPasswordInput($event)"
-            (keydown.enter)="onContinue()"
-          />
-        </div>
+                <div class="ks-field">
+                    <label class="ks-label">Password</label>
+                    <input
+                            (input)="onPasswordInput($event)"
+                            (keydown.enter)="onContinue()"
+                            [feedback]="false"
+                            [value]="password()"
+                            pPassword
+                            placeholder="Your account password"
+                            type="password"
+                    />
+                </div>
 
-        @if (errorMsg()) {
-          <p class="ks-error">
-            <i class="pi pi-exclamation-circle mr-1.5"></i>{{ errorMsg() }}
-          </p>
+                @if (errorMsg()) {
+                    <p class="ks-error">
+                        <i class="pi pi-exclamation-circle mr-1.5"></i>{{ errorMsg() }}
+                    </p>
+                }
+
+                <p-button
+                        (onClick)="onContinue()"
+                        icon="pi pi-arrow-right"
+                        iconPos="right"
+                        label="Continue"
+                        styleClass="w-full justify-center mt-2"
+                />
+
+            </div>
+        }
+        @case ('entropy') {
+            <div class="ks-panel">
+                <app-entropy-modal (done)="onEntropyDone($event)"/>
+            </div>
+        }
+        @case ('processing') {
+            <div class="ks-panel ks-centered">
+                <div class="ks-spinner-ring">
+                    <i class="pi pi-spin pi-spinner text-3xl" style="color: var(--color-brand)"></i>
+                </div>
+                <h2 class="ks-title mt-4">Setting up your vault…</h2>
+                <p class="ks-subtitle">Deriving keys and encrypting. Just a moment.</p>
+            </div>
+        }
+        @case ('done') {
+            <div class="ks-panel ks-centered">
+                <div class="ks-check-ring">
+                    <i class="pi pi-check text-2xl" style="color: var(--color-online)"></i>
+                </div>
+                <h2 class="ks-title mt-4">Vault Ready</h2>
+                <p class="ks-subtitle">Your encryption keys are set up. All your data is end-to-end encrypted.</p>
+            </div>
         }
 
-        <p-button
-          label="Continue"
-          icon="pi pi-arrow-right"
-          iconPos="right"
-          styleClass="w-full justify-center mt-2"
-          (onClick)="onContinue()"
-        />
-
-      </div>
     }
-
-    @case ('entropy') {
-      <div class="ks-panel">
-        <app-entropy-modal (done)="onEntropyDone($event)" />
-      </div>
-    }
-
-    @case ('processing') {
-      <div class="ks-panel ks-centered">
-        <div class="ks-spinner-ring">
-          <i class="pi pi-spin pi-spinner text-3xl" style="color: var(--color-brand)"></i>
-        </div>
-        <h2 class="ks-title mt-4">Setting up your vault…</h2>
-        <p class="ks-subtitle">Deriving keys and encrypting. Just a moment.</p>
-      </div>
-    }
-
-    @case ('done') {
-      <div class="ks-panel ks-centered">
-        <div class="ks-check-ring">
-          <i class="pi pi-check text-2xl" style="color: var(--color-online)"></i>
-        </div>
-        <h2 class="ks-title mt-4">Vault Ready</h2>
-        <p class="ks-subtitle">Your encryption keys are set up. All your data is end-to-end encrypted.</p>
-      </div>
-    }
-
-  }
 
 </p-dialog>

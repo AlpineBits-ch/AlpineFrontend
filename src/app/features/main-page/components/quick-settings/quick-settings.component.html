@@ -1,58 +1,59 @@
 <app-settings-modal [(isVisible)]="isSettingsOpen"></app-settings-modal>
 
 <div class="shrink-0 bg-sidebar border-t border-white/[0.10] p-3">
-  <div class="flex items-center gap-1.5">
+    <div class="flex items-center gap-1.5">
 
-    <!-- Avatar + name (clickable — opens own profile) -->
-    <button class="flex items-center gap-1.5 flex-1 min-w-0 rounded-lg p-1 -m-1 hover:bg-white/[0.06] transition-colors cursor-pointer border-0 text-left"
-      (click)="profileDialogSvc.open(profileService.ownProfile()!.userId)">
+        <!-- Avatar + name (clickable — opens own profile) -->
+        <button (click)="profileDialogSvc.open(profileService.ownProfile()!.userId)"
+                class="flex items-center gap-1.5 flex-1 min-w-0 rounded-lg p-1 -m-1 hover:bg-white/[0.06] transition-colors cursor-pointer border-0 text-left">
 
-      <!-- Avatar + status dot -->
-      <div class="relative shrink-0 mr-1">
-        <app-avatar [userId]="profileService.ownProfile()?.userId" />
-        <div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-sidebar"
-          [ngClass]="{
+            <!-- Avatar + status dot -->
+            <div class="relative shrink-0 mr-1">
+                <app-avatar [userId]="profileService.ownProfile()?.userId"/>
+                <div [ngClass]="{
             'bg-emerald-400': websocketService.connectionState() === ConnectionState.Connected,
             'bg-amber-400': websocketService.connectionState() === ConnectionState.Connecting,
             'bg-rose-500': websocketService.connectionState() === ConnectionState.Disconnected
-          }"></div>
-      </div>
+          }"
+                     class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-sidebar"></div>
+            </div>
 
-      <!-- Name + connection status -->
-      <div class="flex-1 min-w-0">
-        <p class="text-sm font-medium text-white/85 truncate leading-tight">{{ profileService.ownProfile()?.userName }}</p>
-        <app-connection-status></app-connection-status>
-      </div>
+            <!-- Name + connection status -->
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-white/85 truncate leading-tight">{{ profileService.ownProfile()?.userName }}</p>
+                <app-connection-status></app-connection-status>
+            </div>
 
-    </button>
+        </button>
 
-    <!-- Mute (only when in voice) -->
-    @if (voiceSvc.isInVoice()) {
-      <button
-        (click)="voiceSvc.toggleMute()"
-        class="w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer border-0 shrink-0"
-        [ngClass]="voiceSvc.localState().isMuted
+        <!-- Mute (only when in voice) -->
+        @if (voiceSvc.isInVoice()) {
+            <button
+                    (click)="voiceSvc.toggleMute()"
+                    [ngClass]="voiceSvc.localState().isMuted
           ? 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25'
           : 'text-white/50 hover:bg-white/[0.07] hover:text-white/75'"
-        [title]="(voiceSvc.localState().isMuted ? 'QUICK_SETTINGS.UNMUTE' : 'QUICK_SETTINGS.MUTE') | translate">
-        <i class="pi text-sm"
-           [ngClass]="voiceSvc.localState().isMuted ? 'pi-microphone-slash' : 'pi-microphone'"></i>
-      </button>
+                    [title]="(voiceSvc.localState().isMuted ? 'QUICK_SETTINGS.UNMUTE' : 'QUICK_SETTINGS.MUTE') | translate"
+                    class="w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer border-0 shrink-0">
+                <i [ngClass]="voiceSvc.localState().isMuted ? 'pi-microphone-slash' : 'pi-microphone'"
+                   class="pi text-sm"></i>
+            </button>
 
-      <!-- Deafen (only when in voice) -->
-      <button
-        (click)="voiceSvc.toggleDeafen()"
-        class="w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer border-0 shrink-0"
-        [ngClass]="voiceSvc.localState().isDeafened
+            <!-- Deafen (only when in voice) -->
+            <button
+                    (click)="voiceSvc.toggleDeafen()"
+                    [ngClass]="voiceSvc.localState().isDeafened
           ? 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25'
           : 'text-white/50 hover:bg-white/[0.07] hover:text-white/75'"
-        [title]="(voiceSvc.localState().isDeafened ? 'QUICK_SETTINGS.UNDEAFEN' : 'QUICK_SETTINGS.DEAFEN') | translate">
-        <i class="pi pi-volume-off text-sm"></i>
-      </button>
-    }
+                    [title]="(voiceSvc.localState().isDeafened ? 'QUICK_SETTINGS.UNDEAFEN' : 'QUICK_SETTINGS.DEAFEN') | translate"
+                    class="w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer border-0 shrink-0">
+                <i class="pi pi-volume-off text-sm"></i>
+            </button>
+        }
 
-    <!-- Settings -->
-    <p-button icon="pi pi-cog" [text]="true" severity="secondary" size="small" styleClass="shrink-0" (onClick)="isSettingsOpen.set(true)" />
+        <!-- Settings -->
+        <p-button (onClick)="isSettingsOpen.set(true)" [text]="true" icon="pi pi-cog" severity="secondary" size="small"
+                  styleClass="shrink-0"/>
 
-  </div>
+    </div>
 </div>

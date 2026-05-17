@@ -1,70 +1,74 @@
 <div class="space-y-5">
 
-  <!-- Actions -->
-  <div class="flex items-center gap-2">
-    <p-button icon="pi pi-plus" [label]="'GUILD_SETTINGS.INVITES.PERMANENT' | translate" severity="secondary" size="small"
-      [loading]="creating()" (onClick)="createPermanentInvite()" />
-    <p-button icon="pi pi-plus" [label]="'GUILD_SETTINGS.INVITES.ONE_TIME' | translate" severity="secondary" size="small"
-      [loading]="creating()" (onClick)="createOneTimeInvite()" />
-  </div>
-
-  <p class="text-xs text-white/30">
-    {{ 'GUILD_SETTINGS.INVITES.HINT' | translate }}
-  </p>
-
-  @if (loading()) {
-    <div class="flex items-center justify-center py-10">
-      <i class="pi pi-spin pi-spinner text-white/30 text-xl"></i>
+    <!-- Actions -->
+    <div class="flex items-center gap-2">
+        <p-button (onClick)="createPermanentInvite()" [label]="'GUILD_SETTINGS.INVITES.PERMANENT' | translate" [loading]="creating()"
+                  icon="pi pi-plus"
+                  severity="secondary" size="small"/>
+        <p-button (onClick)="createOneTimeInvite()" [label]="'GUILD_SETTINGS.INVITES.ONE_TIME' | translate" [loading]="creating()"
+                  icon="pi pi-plus"
+                  severity="secondary" size="small"/>
     </div>
-  } @else if (invites().length === 0) {
-    <div class="flex flex-col items-center justify-center py-12 gap-3 text-center">
-      <i class="pi pi-link text-3xl text-white/15"></i>
-      <p class="text-sm text-white/30">{{ 'GUILD_SETTINGS.INVITES.EMPTY_TITLE' | translate }}</p>
-      <p class="text-xs text-white/20">{{ 'GUILD_SETTINGS.INVITES.EMPTY_HINT' | translate }}</p>
-    </div>
-  } @else {
-    <div class="space-y-2">
-      @for (invite of invites(); track invite.id) {
-        <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
 
-          <!-- Icon + info -->
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-2 mb-0.5">
-              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide"
-                [ngClass]="invite.type === InviteType.Permanent ? 'bg-indigo-500/15 text-indigo-400' : 'bg-amber-500/15 text-amber-400'">
+    <p class="text-xs text-white/30">
+        {{ 'GUILD_SETTINGS.INVITES.HINT' | translate }}
+    </p>
+
+    @if (loading()) {
+        <div class="flex items-center justify-center py-10">
+            <i class="pi pi-spin pi-spinner text-white/30 text-xl"></i>
+        </div>
+    } @else if (invites().length === 0) {
+        <div class="flex flex-col items-center justify-center py-12 gap-3 text-center">
+            <i class="pi pi-link text-3xl text-white/15"></i>
+            <p class="text-sm text-white/30">{{ 'GUILD_SETTINGS.INVITES.EMPTY_TITLE' | translate }}</p>
+            <p class="text-xs text-white/20">{{ 'GUILD_SETTINGS.INVITES.EMPTY_HINT' | translate }}</p>
+        </div>
+    } @else {
+        <div class="space-y-2">
+            @for (invite of invites(); track invite.id) {
+                <div class="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.05]">
+
+                    <!-- Icon + info -->
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center gap-2 mb-0.5">
+              <span [ngClass]="invite.type === InviteType.Permanent ? 'bg-indigo-500/15 text-indigo-400' : 'bg-amber-500/15 text-amber-400'"
+                    class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide">
                 @if (invite.type === InviteType.Permanent) {
-                  <i class="pi pi-infinity text-[9px]"></i> {{ 'GUILD_SETTINGS.INVITES.TYPE_PERMANENT' | translate }}
+                    <i class="pi pi-infinity text-[9px]"></i> {{ 'GUILD_SETTINGS.INVITES.TYPE_PERMANENT' | translate }}
                 } @else {
-                  <i class="pi pi-ticket text-[9px]"></i> {{ 'GUILD_SETTINGS.INVITES.TYPE_ONE_TIME' | translate }}
+                    <i class="pi pi-ticket text-[9px]"></i> {{ 'GUILD_SETTINGS.INVITES.TYPE_ONE_TIME' | translate }}
                 }
               </span>
-              @if (invite.state === InviteState.Expired) {
-                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-rose-500/15 text-rose-400">
+                            @if (invite.state === InviteState.Expired) {
+                                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-rose-500/15 text-rose-400">
                   {{ 'GUILD_SETTINGS.INVITES.EXPIRED' | translate }}
                 </span>
-              }
-            </div>
-            <p class="text-xs font-mono text-white/35 truncate">{{ inviteLink(invite) }}</p>
-            <p class="text-[11px] text-white/25 mt-0.5">{{ 'GUILD_SETTINGS.INVITES.CREATED' | translate: {
-                date: formatDate(invite.createdAt)
-            } }} </p>
-          </div>
+                            }
+                        </div>
+                        <p class="text-xs font-mono text-white/35 truncate">{{ inviteLink(invite) }}</p>
+                        <p class="text-[11px] text-white/25 mt-0.5">{{
+                                'GUILD_SETTINGS.INVITES.CREATED' | translate: {
+                                    date: formatDate(invite.createdAt)
+                                }
+                            }} </p>
+                    </div>
 
-          <!-- Actions -->
-          <div class="flex items-center gap-1 shrink-0">
-            <p-button
-              [icon]="copiedId() === invite.id ? 'pi pi-check' : 'pi pi-copy'"
-              [text]="true" severity="secondary" size="small"
-              [pTooltip]="copiedId() === invite.id ? ('GUILD.COPIED' | translate) : ('GUILD_SETTINGS.INVITES.COPY_LINK' | translate)"
-              tooltipPosition="top"
-              (onClick)="copyInvite(invite)" />
-            <p-button icon="pi pi-trash" [text]="true" severity="danger" size="small"
-              [pTooltip]="'GUILD_SETTINGS.INVITES.REVOKE' | translate" tooltipPosition="top"
-              [loading]="deletingId() === invite.id"
-              (onClick)="revokeInvite(invite)" />
-          </div>
+                    <!-- Actions -->
+                    <div class="flex items-center gap-1 shrink-0">
+                        <p-button
+                                (onClick)="copyInvite(invite)"
+                                [icon]="copiedId() === invite.id ? 'pi pi-check' : 'pi pi-copy'" [pTooltip]="copiedId() === invite.id ? ('GUILD.COPIED' | translate) : ('GUILD_SETTINGS.INVITES.COPY_LINK' | translate)" [text]="true"
+                                severity="secondary"
+                                size="small"
+                                tooltipPosition="top"/>
+                        <p-button (onClick)="revokeInvite(invite)" [loading]="deletingId() === invite.id" [pTooltip]="'GUILD_SETTINGS.INVITES.REVOKE' | translate" [text]="true"
+                                  icon="pi pi-trash" severity="danger"
+                                  size="small"
+                                  tooltipPosition="top"/>
+                    </div>
+                </div>
+            }
         </div>
-      }
-    </div>
-  }
+    }
 </div>

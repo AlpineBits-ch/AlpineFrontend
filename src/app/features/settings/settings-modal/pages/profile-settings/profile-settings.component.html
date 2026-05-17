@@ -1,386 +1,394 @@
 <div class="flex flex-col gap-8 max-w-2xl">
 
-  <!-- ── Profile Overview ──────────────────────────────────────────────── -->
-  <section class="flex flex-col gap-4">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Profile Overview</h2>
+    <!-- ── Profile Overview ──────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Profile Overview</h2>
 
-    <div class="flex items-center gap-5 bg-white/[0.03] border border-white/[0.10] rounded-xl px-5 py-4">
+        <div class="flex items-center gap-5 bg-white/[0.03] border border-white/[0.10] rounded-xl px-5 py-4">
 
-      <!-- Avatar -->
-      <div class="relative shrink-0 cursor-pointer group" (click)="avatarExpanded.set(true)">
-        @if (ownProfile()?.avatarUrl && !avatarError()) {
-          <img [src]="ownProfile()!.avatarUrl" alt="Avatar"
-            class="w-16 h-16 rounded-full object-cover border-2 border-white/10 transition-opacity group-hover:opacity-80"
-            (error)="onAvatarError()" />
-        } @else {
-          <div class="w-16 h-16 rounded-full bg-indigo-500/20 border-2 border-white/10
+            <!-- Avatar -->
+            <div (click)="avatarExpanded.set(true)" class="relative shrink-0 cursor-pointer group">
+                @if (ownProfile()?.avatarUrl && !avatarError()) {
+                    <img (error)="onAvatarError()" [src]="ownProfile()!.avatarUrl"
+                         alt="Avatar"
+                         class="w-16 h-16 rounded-full object-cover border-2 border-white/10 transition-opacity group-hover:opacity-80"/>
+                } @else {
+                    <div class="w-16 h-16 rounded-full bg-indigo-500/20 border-2 border-white/10
                       flex items-center justify-center text-2xl font-semibold text-indigo-300
                       transition-opacity group-hover:opacity-80">
-            {{ avatarLabel() }}
-          </div>
-        }
-        <div class="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <i class="pi pi-search-plus text-white text-sm drop-shadow"></i>
-        </div>
-      </div>
+                        {{ avatarLabel() }}
+                    </div>
+                }
+                <div class="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i class="pi pi-search-plus text-white text-sm drop-shadow"></i>
+                </div>
+            </div>
 
-      <!-- Info -->
-      <div class="flex flex-col gap-1 min-w-0">
-        <div class="flex items-center gap-2 flex-wrap">
+            <!-- Info -->
+            <div class="flex flex-col gap-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
           <span class="text-base font-semibold text-white/85 truncate">
             {{ usernameDisplay() }}
           </span>
-          @if (ownProfile()?.onlineStatus === 'Online') {
-            <span class="inline-flex items-center gap-1 text-[0.625rem] font-medium text-online bg-online/10 border border-online/20 rounded-full px-2 py-0.5">
+                    @if (ownProfile()?.onlineStatus === 'Online') {
+                        <span class="inline-flex items-center gap-1 text-[0.625rem] font-medium text-online bg-online/10 border border-online/20 rounded-full px-2 py-0.5">
               <span class="w-1.5 h-1.5 rounded-full bg-online"></span>Online
             </span>
-          } @else {
-            <span class="inline-flex items-center gap-1 text-[0.625rem] font-medium text-white/35 bg-white/[0.05] border border-white/[0.10] rounded-full px-2 py-0.5">
+                    } @else {
+                        <span class="inline-flex items-center gap-1 text-[0.625rem] font-medium text-white/35 bg-white/[0.05] border border-white/[0.10] rounded-full px-2 py-0.5">
               <span class="w-1.5 h-1.5 rounded-full bg-white/25"></span>Offline
             </span>
-          }
-        </div>
+                    }
+                </div>
 
-        @if (ownProfile()?.bio) {
-          <p class="text-sm text-white/55 truncate">{{ ownProfile()!.bio }}</p>
-        }
+                @if (ownProfile()?.bio) {
+                    <p class="text-sm text-white/55 truncate">{{ ownProfile()!.bio }}</p>
+                }
 
-        <div class="flex items-center gap-3 mt-0.5 flex-wrap">
-          @if (user()) {
-            <span class="text-xs text-white/30">
+                <div class="flex items-center gap-3 mt-0.5 flex-wrap">
+                    @if (user()) {
+                        <span class="text-xs text-white/30">
               <i class="pi pi-envelope text-[10px] mr-1"></i>{{ user()!.email }}
             </span>
-          }
-          @if (ownProfile()?.createdAt) {
-            <span class="text-xs text-white/30">
+                    }
+                    @if (ownProfile()?.createdAt) {
+                        <span class="text-xs text-white/30">
               <i class="pi pi-calendar text-[10px] mr-1"></i>
               Member since {{ ownProfile()!.createdAt | date:'MMM yyyy' }}
             </span>
-          }
+                    }
+                </div>
+            </div>
+
         </div>
-      </div>
+    </section>
 
-    </div>
-  </section>
+    <!-- ── Avatar ──────────────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Avatar</h2>
+        <div class="flex items-center gap-5">
 
-  <!-- ── Avatar ──────────────────────────────────────────────────────────── -->
-  <section class="flex flex-col gap-4">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Avatar</h2>
-    <div class="flex items-center gap-5">
-
-      <div class="relative w-20 h-20 shrink-0 cursor-pointer group" (click)="avatarExpanded.set(true)">
-        @if (ownProfile()?.avatarUrl && !avatarError()) {
-          <img [src]="ownProfile()!.avatarUrl" alt="Avatar"
-            class="w-20 h-20 rounded-full object-cover border-2 border-white/10 transition-opacity group-hover:opacity-80"
-            (error)="onAvatarError()" />
-        } @else {
-          <div class="w-20 h-20 rounded-full bg-indigo-500/20 border-2 border-white/10
+            <div (click)="avatarExpanded.set(true)" class="relative w-20 h-20 shrink-0 cursor-pointer group">
+                @if (ownProfile()?.avatarUrl && !avatarError()) {
+                    <img (error)="onAvatarError()" [src]="ownProfile()!.avatarUrl"
+                         alt="Avatar"
+                         class="w-20 h-20 rounded-full object-cover border-2 border-white/10 transition-opacity group-hover:opacity-80"/>
+                } @else {
+                    <div class="w-20 h-20 rounded-full bg-indigo-500/20 border-2 border-white/10
                       flex items-center justify-center text-3xl font-semibold text-indigo-300
                       transition-opacity group-hover:opacity-80">
-            {{ avatarLabel() }}
-          </div>
-        }
-        <div class="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <i class="pi pi-search-plus text-white text-sm drop-shadow"></i>
+                        {{ avatarLabel() }}
+                    </div>
+                }
+                <div class="absolute inset-0 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    <i class="pi pi-search-plus text-white text-sm drop-shadow"></i>
+                </div>
+                @if (uploading()) {
+                    <div class="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center">
+                        <i class="pi pi-spin pi-spinner text-white text-xl"></i>
+                    </div>
+                }
+            </div>
+
+            <div class="flex flex-col gap-2">
+                <input #fileInput (change)="onFileSelected($event)" accept="image/*" class="hidden" type="file"/>
+                <p-button (onClick)="pickFile()" [disabled]="uploading()" label="Change Avatar"
+                          severity="primary" size="small"/>
+                @if (ownProfile()?.avatarUrl) {
+                    <p-button (onClick)="removeAvatar()" [disabled]="uploading()" label="Remove"
+                              severity="secondary" size="small"/>
+                }
+            </div>
+
         </div>
-        @if (uploading()) {
-          <div class="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center">
-            <i class="pi pi-spin pi-spinner text-white text-xl"></i>
-          </div>
-        }
-      </div>
+    </section>
 
-      <div class="flex flex-col gap-2">
-        <input #fileInput type="file" accept="image/*" class="hidden" (change)="onFileSelected($event)" />
-        <p-button label="Change Avatar" severity="primary" size="small"
-          [disabled]="uploading()" (onClick)="pickFile()" />
-        @if (ownProfile()?.avatarUrl) {
-          <p-button label="Remove" severity="secondary" size="small"
-            [disabled]="uploading()" (onClick)="removeAvatar()" />
-        }
-      </div>
+    <!-- ── Display ─────────────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Display</h2>
 
-    </div>
-  </section>
-
-  <!-- ── Display ─────────────────────────────────────────────────────────── -->
-  <section class="flex flex-col gap-4">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Display</h2>
-
-    <div class="flex flex-col gap-1.5">
-      <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Display Name</label>
-      <input type="text" [value]="ownProfile()?.userName ?? ''" placeholder="Your display name" disabled
-        class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 text-sm text-white/40 placeholder:text-white/20 outline-none cursor-not-allowed" />
-      <p class="text-[11px] text-white/25">Coming soon — this will be your visible name in chats.</p>
-    </div>
-
-    <div class="flex flex-col gap-1.5">
-      <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Bio</label>
-      <textarea rows="3" [value]="ownProfile()?.bio ?? ''" placeholder="Tell people a bit about yourself…" disabled
-        class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 text-sm text-white/40 placeholder:text-white/20 outline-none cursor-not-allowed resize-none"></textarea>
-    </div>
-  </section>
-
-  <!-- ── Account Info ────────────────────────────────────────────────────── -->
-  <section class="flex flex-col gap-4">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Account</h2>
-
-    <div class="flex flex-col gap-3">
-      <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
-        <div>
-          <p class="text-xs text-white/30 mb-0.5">Username</p>
-          <p class="text-sm text-white/70 font-mono">{{ usernameDisplay() }}</p>
+        <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Display Name</label>
+            <input [value]="ownProfile()?.userName ?? ''" class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 text-sm text-white/40 placeholder:text-white/20 outline-none cursor-not-allowed" disabled placeholder="Your display name"
+                   type="text"/>
+            <p class="text-[11px] text-white/25">Coming soon — this will be your visible name in chats.</p>
         </div>
-        <p-button label="Edit" [text]="true" severity="secondary" size="small" [disabled]="true" />
-      </div>
 
-      <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
-        <div>
-          <p class="text-xs text-white/30 mb-0.5">Email</p>
-          @if (userLoading()) {
-            <div class="h-4 w-40 bg-white/[0.06] rounded animate-pulse mt-0.5"></div>
-          } @else {
-            <p class="text-sm text-white/70">{{ user()?.email ?? '—' }}</p>
-          }
+        <div class="flex flex-col gap-1.5">
+            <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Bio</label>
+            <textarea [value]="ownProfile()?.bio ?? ''" class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 text-sm text-white/40 placeholder:text-white/20 outline-none cursor-not-allowed resize-none" disabled
+                      placeholder="Tell people a bit about yourself…"
+                      rows="3"></textarea>
         </div>
-        <p-button label="Edit" [text]="true" severity="secondary" size="small" [disabled]="true" />
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- ── Sessions ────────────────────────────────────────────────────────── -->
-  <section class="flex flex-col gap-4">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Sessions</h2>
+    <!-- ── Account Info ────────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Account</h2>
 
-    <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
-      <div>
-        <p class="text-sm text-white/75">Sign Out All Other Devices</p>
-        <p class="text-xs text-white/35 mt-0.5">All other active sessions will be revoked within 1 hour.</p>
-      </div>
-      @if (signOutSuccess()) {
-        <span class="text-xs text-online flex items-center gap-1.5 shrink-0 ml-4">
+        <div class="flex flex-col gap-3">
+            <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+                <div>
+                    <p class="text-xs text-white/30 mb-0.5">Username</p>
+                    <p class="text-sm text-white/70 font-mono">{{ usernameDisplay() }}</p>
+                </div>
+                <p-button [disabled]="true" [text]="true" label="Edit" severity="secondary" size="small"/>
+            </div>
+
+            <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+                <div>
+                    <p class="text-xs text-white/30 mb-0.5">Email</p>
+                    @if (userLoading()) {
+                        <div class="h-4 w-40 bg-white/[0.06] rounded animate-pulse mt-0.5"></div>
+                    } @else {
+                        <p class="text-sm text-white/70">{{ user()?.email ?? '—' }}</p>
+                    }
+                </div>
+                <p-button [disabled]="true" [text]="true" label="Edit" severity="secondary" size="small"/>
+            </div>
+        </div>
+    </section>
+
+    <!-- ── Sessions ────────────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Sessions</h2>
+
+        <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+            <div>
+                <p class="text-sm text-white/75">Sign Out All Other Devices</p>
+                <p class="text-xs text-white/35 mt-0.5">All other active sessions will be revoked within 1 hour.</p>
+            </div>
+            @if (signOutSuccess()) {
+                <span class="text-xs text-online flex items-center gap-1.5 shrink-0 ml-4">
           <i class="pi pi-check-circle"></i> Revoked
         </span>
-      } @else {
-        <p-button label="Sign Out Others" severity="secondary" size="small"
-          styleClass="shrink-0 ml-4"
-          (onClick)="signOutAllVisible.set(true)" />
-      }
-    </div>
-  </section>
-
-  <!-- ── Change Password ─────────────────────────────────────────────────── -->
-  <section class="flex flex-col gap-4">
-    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">Change Password</h2>
-
-    <div class="flex flex-col gap-3">
-
-      <!-- Current password -->
-      <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Current Password</label>
-        <div class="relative">
-          <input [type]="showCurrentPw() ? 'text' : 'password'"
-            [(ngModel)]="currentPassword"
-            placeholder="Enter your current password"
-            autocomplete="current-password"
-            class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 pr-10 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-brand/40 transition-colors" />
-          <button type="button"
-            class="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
-            (click)="showCurrentPw.set(!showCurrentPw())">
-            <i [class]="showCurrentPw() ? 'pi pi-eye-slash' : 'pi pi-eye'" style="font-size: 14px;"></i>
-          </button>
+            } @else {
+                <p-button (onClick)="signOutAllVisible.set(true)" label="Sign Out Others" severity="secondary"
+                          size="small"
+                          styleClass="shrink-0 ml-4"/>
+            }
         </div>
-      </div>
+    </section>
 
-      <!-- New password -->
-      <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-medium text-white/45 uppercase tracking-wide">New Password</label>
-        <div class="relative">
-          <input [type]="showNewPw() ? 'text' : 'password'"
-            [(ngModel)]="newPassword"
-            placeholder="At least 8 characters"
-            autocomplete="new-password"
-            class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 pr-10 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-brand/40 transition-colors" />
-          <button type="button"
-            class="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
-            (click)="showNewPw.set(!showNewPw())">
-            <i [class]="showNewPw() ? 'pi pi-eye-slash' : 'pi pi-eye'" style="font-size: 14px;"></i>
-          </button>
+    <!-- ── Change Password ─────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Change Password</h2>
+
+        <div class="flex flex-col gap-3">
+
+            <!-- Current password -->
+            <div class="flex flex-col gap-1.5">
+                <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Current Password</label>
+                <div class="relative">
+                    <input [(ngModel)]="currentPassword"
+                           [type]="showCurrentPw() ? 'text' : 'password'"
+                           autocomplete="current-password"
+                           class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 pr-10 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-brand/40 transition-colors"
+                           placeholder="Enter your current password"/>
+                    <button (click)="showCurrentPw.set(!showCurrentPw())"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                            type="button">
+                        <i [class]="showCurrentPw() ? 'pi pi-eye-slash' : 'pi pi-eye'" style="font-size: 14px;"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- New password -->
+            <div class="flex flex-col gap-1.5">
+                <label class="text-xs font-medium text-white/45 uppercase tracking-wide">New Password</label>
+                <div class="relative">
+                    <input [(ngModel)]="newPassword"
+                           [type]="showNewPw() ? 'text' : 'password'"
+                           autocomplete="new-password"
+                           class="w-full bg-white/[0.04] border border-white/[0.09] rounded-xl px-4 py-2.5 pr-10 text-sm text-white/80 placeholder:text-white/25 outline-none focus:border-brand/40 transition-colors"
+                           placeholder="At least 8 characters"/>
+                    <button (click)="showNewPw.set(!showNewPw())"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                            type="button">
+                        <i [class]="showNewPw() ? 'pi pi-eye-slash' : 'pi pi-eye'" style="font-size: 14px;"></i>
+                    </button>
+                </div>
+                @if (newPassword.length > 0 && newPassword.length < 8) {
+                    <p class="text-[11px] text-amber-400/80">Must be at least 8 characters.</p>
+                }
+            </div>
+
+            <!-- Confirm new password -->
+            <div class="flex flex-col gap-1.5">
+                <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Confirm New Password</label>
+                <div class="relative">
+                    <input [(ngModel)]="confirmPassword"
+                           [style.border-color]="passwordMismatch ? 'rgba(244,63,94,0.40)' : 'rgba(255,255,255,0.09)'"
+                           [type]="showConfirmPw() ? 'text' : 'password'"
+                           autocomplete="new-password"
+                           class="w-full bg-white/[0.04] rounded-xl px-4 py-2.5 pr-10 text-sm text-white/80 placeholder:text-white/25 outline-none transition-colors border"
+                           placeholder="Re-enter your new password"/>
+                    <button (click)="showConfirmPw.set(!showConfirmPw())"
+                            class="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
+                            type="button">
+                        <i [class]="showConfirmPw() ? 'pi pi-eye-slash' : 'pi pi-eye'" style="font-size: 14px;"></i>
+                    </button>
+                </div>
+                @if (passwordMismatch) {
+                    <p class="text-[11px] text-rose-400/80">Passwords do not match.</p>
+                }
+            </div>
+
+            <!-- Result banner -->
+            @if (passwordResult()) {
+                @if (passwordResult()!.code >= 200 && passwordResult()!.code < 300) {
+                    <div class="flex items-center gap-2.5 bg-online/[0.08] border border-online/20 text-online rounded-xl px-4 py-3 text-sm">
+                        <i class="pi pi-check-circle"></i>
+                        <span>{{ passwordResult()!.message }}</span>
+                        <span class="ml-auto text-xs opacity-60 font-mono">{{ passwordResult()!.code }}</span>
+                    </div>
+                } @else {
+                    <div class="flex items-center gap-2.5 bg-rose-500/[0.08] border border-rose-500/20 text-rose-400 rounded-xl px-4 py-3 text-sm">
+                        <i class="pi pi-exclamation-circle"></i>
+                        <span>{{ passwordResult()!.message }}</span>
+                        <span class="ml-auto text-xs opacity-60 font-mono">{{ passwordResult()!.code }}</span>
+                    </div>
+                }
+            }
+
+            <!-- Submit -->
+            <div class="flex items-center gap-3 pt-1">
+                <p-button (onClick)="submitPasswordChange()" [disabled]="!passwordFormValid" [loading]="passwordChanging()"
+                          label="Change Password"
+                          severity="primary"
+                          size="small"/>
+                @if (currentPassword || newPassword || confirmPassword) {
+                    <p-button (onClick)="currentPassword = ''; newPassword = ''; confirmPassword = ''; passwordResult.set(null)" [text]="true" label="Clear" severity="secondary"
+                              size="small"/>
+                }
+            </div>
+
         </div>
-        @if (newPassword.length > 0 && newPassword.length < 8) {
-          <p class="text-[11px] text-amber-400/80">Must be at least 8 characters.</p>
-        }
-      </div>
+    </section>
 
-      <!-- Confirm new password -->
-      <div class="flex flex-col gap-1.5">
-        <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Confirm New Password</label>
-        <div class="relative">
-          <input [type]="showConfirmPw() ? 'text' : 'password'"
-            [(ngModel)]="confirmPassword"
-            placeholder="Re-enter your new password"
-            autocomplete="new-password"
-            class="w-full bg-white/[0.04] rounded-xl px-4 py-2.5 pr-10 text-sm text-white/80 placeholder:text-white/25 outline-none transition-colors border"
-            [style.border-color]="passwordMismatch ? 'rgba(244,63,94,0.40)' : 'rgba(255,255,255,0.09)'" />
-          <button type="button"
-            class="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition-colors"
-            (click)="showConfirmPw.set(!showConfirmPw())">
-            <i [class]="showConfirmPw() ? 'pi pi-eye-slash' : 'pi pi-eye'" style="font-size: 14px;"></i>
-          </button>
+    <!-- ── Danger Zone ─────────────────────────────────────────────────────── -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-[0.625rem] font-semibold text-rose-400/60 uppercase tracking-widest border-b border-rose-500/20 pb-3">
+            Danger Zone
+        </h2>
+        <div class="flex items-center justify-between bg-rose-500/[0.04] border border-rose-500/20 rounded-xl px-4 py-3">
+            <div>
+                <p class="text-sm text-white/75">Delete Account</p>
+                <p class="text-xs text-white/35 mt-0.5">Permanently delete your account and all associated data. This
+                    cannot be undone.</p>
+            </div>
+            <p-button (onClick)="confirmDeleteVisible.set(true)" label="Delete Account" severity="danger"
+                      size="small"
+                      styleClass="shrink-0 ml-4"/>
         </div>
-        @if (passwordMismatch) {
-          <p class="text-[11px] text-rose-400/80">Passwords do not match.</p>
-        }
-      </div>
-
-      <!-- Result banner -->
-      @if (passwordResult()) {
-        @if (passwordResult()!.code >= 200 && passwordResult()!.code < 300) {
-          <div class="flex items-center gap-2.5 bg-online/[0.08] border border-online/20 text-online rounded-xl px-4 py-3 text-sm">
-            <i class="pi pi-check-circle"></i>
-            <span>{{ passwordResult()!.message }}</span>
-            <span class="ml-auto text-xs opacity-60 font-mono">{{ passwordResult()!.code }}</span>
-          </div>
-        } @else {
-          <div class="flex items-center gap-2.5 bg-rose-500/[0.08] border border-rose-500/20 text-rose-400 rounded-xl px-4 py-3 text-sm">
-            <i class="pi pi-exclamation-circle"></i>
-            <span>{{ passwordResult()!.message }}</span>
-            <span class="ml-auto text-xs opacity-60 font-mono">{{ passwordResult()!.code }}</span>
-          </div>
-        }
-      }
-
-      <!-- Submit -->
-      <div class="flex items-center gap-3 pt-1">
-        <p-button label="Change Password" severity="primary" size="small"
-          [disabled]="!passwordFormValid"
-          [loading]="passwordChanging()"
-          (onClick)="submitPasswordChange()" />
-        @if (currentPassword || newPassword || confirmPassword) {
-          <p-button label="Clear" severity="secondary" size="small" [text]="true"
-            (onClick)="currentPassword = ''; newPassword = ''; confirmPassword = ''; passwordResult.set(null)" />
-        }
-      </div>
-
-    </div>
-  </section>
-
-  <!-- ── Danger Zone ─────────────────────────────────────────────────────── -->
-  <section class="flex flex-col gap-4">
-    <h2 class="text-[0.625rem] font-semibold text-rose-400/60 uppercase tracking-widest border-b border-rose-500/20 pb-3">
-      Danger Zone
-    </h2>
-    <div class="flex items-center justify-between bg-rose-500/[0.04] border border-rose-500/20 rounded-xl px-4 py-3">
-      <div>
-        <p class="text-sm text-white/75">Delete Account</p>
-        <p class="text-xs text-white/35 mt-0.5">Permanently delete your account and all associated data. This cannot be undone.</p>
-      </div>
-      <p-button label="Delete Account" severity="danger" size="small"
-                styleClass="shrink-0 ml-4"
-                (onClick)="confirmDeleteVisible.set(true)" />
-    </div>
-  </section>
+    </section>
 
 </div>
 
 <!-- ── Avatar crop dialog ─────────────────────────────────────────────────── -->
 <p-dialog
-  [(visible)]="cropVisible"
-  header="Crop Avatar"
-  [modal]="true"
-  [draggable]="false"
-  [resizable]="false"
-  appendTo="body"
-  [style]="{width: '380px'}">
-  @if (cropVisible() && cropSrc()) {
-    <app-image-cropper
-      [imageSrc]="cropSrc()"
-      [circular]="true"
-      [outputSize]="400"
-      (confirmed)="onCropConfirmed($event)"
-      (cancelled)="cropVisible.set(false)" />
-  }
+        [(visible)]="cropVisible"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '380px'}"
+        appendTo="body"
+        header="Crop Avatar">
+    @if (cropVisible() && cropSrc()) {
+        <app-image-cropper
+                (cancelled)="cropVisible.set(false)"
+                (confirmed)="onCropConfirmed($event)"
+                [circular]="true"
+                [imageSrc]="cropSrc()"
+                [outputSize]="400"/>
+    }
 </p-dialog>
 
 <!-- ── Sign out all devices confirm dialog ───────────────────────────────── -->
 <p-dialog
-  [(visible)]="signOutAllVisible"
-  header="Sign Out Other Devices"
-  [modal]="true"
-  [draggable]="false"
-  [resizable]="false"
-  appendTo="body"
-  [closable]="!signingOutAll()"
-  [style]="{width: '420px'}">
-  <div class="flex flex-col gap-4 pt-1">
-    <div class="flex items-start gap-3 bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-4 py-3">
-      <i class="pi pi-info-circle text-amber-400 shrink-0 mt-0.5"></i>
-      <p class="text-sm text-white/70">
-        All sessions on other devices will be <strong class="text-white/90">revoked within 1 hour</strong>.
-        Your current session will not be affected.
-      </p>
+        [(visible)]="signOutAllVisible"
+        [closable]="!signingOutAll()"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '420px'}"
+        appendTo="body"
+        header="Sign Out Other Devices">
+    <div class="flex flex-col gap-4 pt-1">
+        <div class="flex items-start gap-3 bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-4 py-3">
+            <i class="pi pi-info-circle text-amber-400 shrink-0 mt-0.5"></i>
+            <p class="text-sm text-white/70">
+                All sessions on other devices will be <strong class="text-white/90">revoked within 1 hour</strong>.
+                Your current session will not be affected.
+            </p>
+        </div>
+        <div class="flex gap-3 justify-end">
+            <p-button (onClick)="signOutAllVisible.set(false)" [disabled]="signingOutAll()" label="Cancel"
+                      severity="secondary"
+                      size="small"/>
+            <p-button (onClick)="confirmSignOutAll()" [loading]="signingOutAll()" label="Sign Out Others"
+                      severity="primary"
+                      size="small"/>
+        </div>
     </div>
-    <div class="flex gap-3 justify-end">
-      <p-button label="Cancel" severity="secondary" size="small"
-                [disabled]="signingOutAll()"
-                (onClick)="signOutAllVisible.set(false)" />
-      <p-button label="Sign Out Others" severity="primary" size="small"
-                [loading]="signingOutAll()"
-                (onClick)="confirmSignOutAll()" />
-    </div>
-  </div>
 </p-dialog>
 
 <!-- ── Delete account confirm dialog ─────────────────────────────────────── -->
 <p-dialog
-  [(visible)]="confirmDeleteVisible"
-  header="Delete Account"
-  [modal]="true"
-  [draggable]="false"
-  [resizable]="false"
-  appendTo="body"
-  [closable]="!deleting()"
-  [style]="{width: '420px'}">
-  <div class="flex flex-col gap-4 pt-1">
-    <div class="flex items-start gap-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-xl px-4 py-3">
-      <i class="pi pi-exclamation-triangle text-rose-400 shrink-0 mt-0.5"></i>
-      <p class="text-sm text-white/70">
-        This will permanently delete your account, all your messages, and your encryption keys.
-        <strong class="text-white/90">This cannot be undone.</strong>
-      </p>
+        [(visible)]="confirmDeleteVisible"
+        [closable]="!deleting()"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '420px'}"
+        appendTo="body"
+        header="Delete Account">
+    <div class="flex flex-col gap-4 pt-1">
+        <div class="flex items-start gap-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-xl px-4 py-3">
+            <i class="pi pi-exclamation-triangle text-rose-400 shrink-0 mt-0.5"></i>
+            <p class="text-sm text-white/70">
+                This will permanently delete your account, all your messages, and your encryption keys.
+                <strong class="text-white/90">This cannot be undone.</strong>
+            </p>
+        </div>
+        <div class="flex gap-3 justify-end">
+            <p-button (onClick)="confirmDeleteVisible.set(false)" [disabled]="deleting()" label="Cancel"
+                      severity="secondary"
+                      size="small"/>
+            <p-button (onClick)="confirmDeleteAccount()" [loading]="deleting()" label="Delete My Account"
+                      severity="danger"
+                      size="small"/>
+        </div>
     </div>
-    <div class="flex gap-3 justify-end">
-      <p-button label="Cancel" severity="secondary" size="small"
-                [disabled]="deleting()"
-                (onClick)="confirmDeleteVisible.set(false)" />
-      <p-button label="Delete My Account" severity="danger" size="small"
-                [loading]="deleting()"
-                (onClick)="confirmDeleteAccount()" />
-    </div>
-  </div>
 </p-dialog>
 
 <!-- ── Avatar lightbox ────────────────────────────────────────────────────── -->
 <p-dialog
-  [(visible)]="avatarExpanded"
-  [modal]="true"
-  [closable]="true"
-  [draggable]="false"
-  [resizable]="false"
-  appendTo="body"
-  [dismissableMask]="true"
-  [showHeader]="false"
-  styleClass="avatar-lightbox"
-  [style]="{background: 'transparent', boxShadow: 'none', border: 'none'}">
-  <div class="flex items-center justify-center p-2">
-    @if (ownProfile()?.avatarUrl && !avatarError()) {
-      <img [src]="ownProfile()!.avatarUrl" alt="Avatar"
-        class="w-64 h-64 rounded-full object-cover border-4 border-white/10 shadow-2xl" />
-    } @else {
-      <div class="w-64 h-64 rounded-full bg-indigo-500/20 border-4 border-white/10 shadow-2xl
+        [(visible)]="avatarExpanded"
+        [closable]="true"
+        [dismissableMask]="true"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [showHeader]="false"
+        [style]="{background: 'transparent', boxShadow: 'none', border: 'none'}"
+        appendTo="body"
+        styleClass="avatar-lightbox">
+    <div class="flex items-center justify-center p-2">
+        @if (ownProfile()?.avatarUrl && !avatarError()) {
+            <img [src]="ownProfile()!.avatarUrl" alt="Avatar"
+                 class="w-64 h-64 rounded-full object-cover border-4 border-white/10 shadow-2xl"/>
+        } @else {
+            <div class="w-64 h-64 rounded-full bg-indigo-500/20 border-4 border-white/10 shadow-2xl
                   flex items-center justify-center text-8xl font-semibold text-indigo-300">
-        {{ avatarLabel() }}
-      </div>
-    }
-  </div>
+                {{ avatarLabel() }}
+            </div>
+        }
+    </div>
 </p-dialog>

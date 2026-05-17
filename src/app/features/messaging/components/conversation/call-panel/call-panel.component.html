@@ -1,177 +1,185 @@
 @let s = session();
 @if (s) {
 
-  <div class="panel" [class.panel--resizing]="isResizing()" [style.height.px]="panelHeight()">
+    <div [class.panel--resizing]="isResizing()" [style.height.px]="panelHeight()" class="panel">
 
-    <!-- ── Status bar ──────────────────────────────────────────────────────── -->
-    @let rtc = rtcState();
-    @let rtcFailed = rtc === 'failed' || rtc === 'disconnected';
-    @let rtcConnecting = rtc === 'new' || rtc === 'connecting';
-    <div class="status-bar">
-      <span class="live-dot"
-        [class.live-dot--connecting]="rtcConnecting"
-        [class.live-dot--failed]="rtcFailed"></span>
-      <span class="status-label"
-        [class.status-label--connecting]="rtcConnecting"
-        [class.status-label--failed]="rtcFailed">
+        <!-- ── Status bar ──────────────────────────────────────────────────────── -->
+        @let rtc = rtcState();
+        @let rtcFailed = rtc === 'failed' || rtc === 'disconnected';
+        @let rtcConnecting = rtc === 'new' || rtc === 'connecting';
+        <div class="status-bar">
+      <span [class.live-dot--connecting]="rtcConnecting"
+            [class.live-dot--failed]="rtcFailed"
+            class="live-dot"></span>
+            <span [class.status-label--connecting]="rtcConnecting"
+                  [class.status-label--failed]="rtcFailed"
+                  class="status-label">
         {{ rtcFailed ? (rtc === 'failed' ? 'Connection Failed' : 'Connection Lost') : rtcConnecting ? 'Connecting...' : 'Voice Call' }}
-        @if (!rtcFailed && !rtcConnecting) { · {{ duration }} }
+                @if (!rtcFailed && !rtcConnecting) {
+                    · {{ duration }}
+                }
       </span>
-      <button class="stats-toggle" [class.stats-toggle--active]="showStats()"
-        (click)="toggleStats()" title="Connection stats">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12">
-          <rect x="2" y="12" width="4" height="10" rx="1"/>
-          <rect x="9" y="7" width="4" height="15" rx="1"/>
-          <rect x="16" y="2" width="4" height="20" rx="1"/>
-        </svg>
-      </button>
-      <button class="stats-toggle" (click)="toggleMaximize()"
-        [title]="panelHeight() >= 900 ? 'Restore' : 'Maximize'">
-        @if (panelHeight() >= 900) {
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
-          </svg>
-        } @else {
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
-            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-          </svg>
-        }
-      </button>
-    </div>
-
-    <!-- ── Connection problem banner ─────────────────────────────────────── -->
-    @if (rtcFailed) {
-      <div class="conn-banner conn-banner--error">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13" class="shrink-0">
-          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-        </svg>
-        <span>{{ rtc === 'failed' ? 'WebRTC connection failed — you may not be able to hear others' : 'Connection lost — attempting to reconnect' }}</span>
-      </div>
-    }
-
-    <!-- ── No-audio warning ───────────────────────────────────────────────── -->
-    @let pwa = participantsWithAudio();
-    @if (s.participants.some(p => !p.isLocal && !pwa.has(p.userId))) {
-      <div class="conn-banner conn-banner--warn">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="13" height="13" class="shrink-0">
-          <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-        </svg>
-        <span>No audio received from some participants — they may need to rejoin</span>
-      </div>
-    }
-
-    <!-- ── Stats bar ─────────────────────────────────────────────────────── -->
-    @if (showStats() && stats(); as st) {
-      <div class="stats-bar">
-        <span class="stats-item"><span class="stats-arrow stats-arrow--down">↓</span><span>{{ st.inboundKbps }} kbps</span></span>
-        <span class="stats-sep">·</span>
-        <span class="stats-item"><span class="stats-arrow stats-arrow--up">↑</span><span>{{ st.outboundKbps }} kbps</span></span>
-        @if (st.inboundVideoKbps > 0) {
-          <span class="stats-sep">·</span>
-          <span class="stats-item stats-item--muted">vid ↓ {{ st.inboundVideoKbps }}k</span>
-        }
-        @if (st.outboundVideoKbps > 0) {
-          <span class="stats-sep">·</span>
-          <span class="stats-item stats-item--muted">vid ↑ {{ st.outboundVideoKbps }}k</span>
-        }
-        @if (st.packetsLost > 0) {
-          <span class="stats-sep">·</span>
-          <span class="stats-item stats-item--warn">✗ {{ st.packetsLost }}</span>
-        }
-      </div>
-    }
-
-    <!-- ── Focused stream view ────────────────────────────────────────────── -->
-    @if (focusedStream(); as focused) {
-      <div class="focused-view" #focusedViewEl>
-        <div class="focused-header">
-          <span class="focused-label">{{ focused.label }}</span>
-          <div class="focused-actions">
-            <button class="focused-action-btn" (click)="requestPiP(focusedVideoEl)" title="Picture in picture">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                <rect x="2" y="3" width="20" height="14" rx="2"/>
-                <rect x="12" y="9" width="9" height="6" rx="1" fill="currentColor" stroke="none"/>
-              </svg>
+            <button (click)="toggleStats()" [class.stats-toggle--active]="showStats()"
+                    class="stats-toggle" title="Connection stats">
+                <svg fill="currentColor" height="12" viewBox="0 0 24 24" width="12">
+                    <rect height="10" rx="1" width="4" x="2" y="12"/>
+                    <rect height="15" rx="1" width="4" x="9" y="7"/>
+                    <rect height="20" rx="1" width="4" x="16" y="2"/>
+                </svg>
             </button>
-            <button class="focused-action-btn" (click)="toggleFullscreen(focusedViewEl)" title="Fullscreen">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-              </svg>
+            <button (click)="toggleMaximize()" [title]="panelHeight() >= 900 ? 'Restore' : 'Maximize'"
+                    class="stats-toggle">
+                @if (panelHeight() >= 900) {
+                    <svg fill="none" height="12" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="12">
+                        <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+                    </svg>
+                } @else {
+                    <svg fill="none" height="12" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="12">
+                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                    </svg>
+                }
             </button>
-            <button class="focused-action-btn focused-close" (click)="unfocus()" title="Close">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14">
-                <line x1="18" y1="6" x2="6" y2="18"/>
-                <line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
         </div>
-        <video #focusedVideoEl class="focused-video" autoplay playsinline muted
-          [class.focused-video--mirror]="focused.mirror"
-          [streamSrc]="focused.stream"></video>
-      </div>
 
-    } @else if (callScreenShares().length > 0) {
-
-      <!-- ── Screen share layout ────────────────────────────────────────────── -->
-      <app-call-screen-layout
-        class="flex-1 min-h-0"
-        [screenShares]="callScreenShares()"
-        [participants]="callParticipants()"
-        [participantsWithAudio]="participantsWithAudio()"
-        (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
-      />
-
-    } @else {
-
-      <!-- ── Participants grid ─────────────────────────────────────────────── -->
-      <div class="participants" [attr.data-count]="s.participants.length">
-        @for (p of callParticipants(); track p.userId) {
-          <app-call-participant-tile
-            [participant]="p"
-            [hasAudio]="participantsWithAudio().has(p.userId)"
-            [videoStream]="p.videoStream ?? null"
-            (contextMenu)="onParticipantContextMenu($event, p)"
-          />
+        <!-- ── Connection problem banner ─────────────────────────────────────── -->
+        @if (rtcFailed) {
+            <div class="conn-banner conn-banner--error">
+                <svg class="shrink-0" fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                </svg>
+                <span>{{ rtc === 'failed' ? 'WebRTC connection failed — you may not be able to hear others' : 'Connection lost — attempting to reconnect' }}</span>
+            </div>
         }
-      </div>
 
-    }
+        <!-- ── No-audio warning ───────────────────────────────────────────────── -->
+        @let pwa = participantsWithAudio();
+        @if (s.participants.some(p => !p.isLocal && !pwa.has(p.userId))) {
+            <div class="conn-banner conn-banner--warn">
+                <svg class="shrink-0" fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
+                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                </svg>
+                <span>No audio received from some participants — they may need to rejoin</span>
+            </div>
+        }
 
-    <!-- ── Controls bar ────────────────────────────────────────────────────── -->
-    <app-call-controls-bar
-      [isMuted]="s.local.isMuted"
-      [isDeafened]="s.local.isDeafened"
-      [isCameraOn]="s.local.isCameraOn"
-      [isScreenSharing]="s.local.isSharing"
-      [screenHasAudio]="false"
-      [captureFps]="rustMedia.captureFps()"
-      [captureResolution]="rustMedia.captureResolution()"
-      disconnectLabel="End Call"
-      (muteToggle)="toggleMute()"
-      (deafenToggle)="toggleDeafen()"
-      (cameraToggle)="toggleCamera()"
-      (screenShareToggle)="toggleScreenShare()"
-      (fpsChange)="setCaptureFps($event)"
-      (resolutionChange)="setScreenResolution($event)"
-      (disconnect)="endCall()"
-    />
+        <!-- ── Stats bar ─────────────────────────────────────────────────────── -->
+        @if (showStats() && stats(); as st) {
+            <div class="stats-bar">
+                <span class="stats-item"><span class="stats-arrow stats-arrow--down">↓</span><span>{{ st.inboundKbps }}
+                    kbps</span></span>
+                <span class="stats-sep">·</span>
+                <span class="stats-item"><span class="stats-arrow stats-arrow--up">↑</span><span>{{ st.outboundKbps }}
+                    kbps</span></span>
+                @if (st.inboundVideoKbps > 0) {
+                    <span class="stats-sep">·</span>
+                    <span class="stats-item stats-item--muted">vid ↓ {{ st.inboundVideoKbps }}k</span>
+                }
+                @if (st.outboundVideoKbps > 0) {
+                    <span class="stats-sep">·</span>
+                    <span class="stats-item stats-item--muted">vid ↑ {{ st.outboundVideoKbps }}k</span>
+                }
+                @if (st.packetsLost > 0) {
+                    <span class="stats-sep">·</span>
+                    <span class="stats-item stats-item--warn">✗ {{ st.packetsLost }}</span>
+                }
+            </div>
+        }
 
-    <!-- ── Resize handle ───────────────────────────────────────────────────── -->
-    <div class="resize-handle" (mousedown)="onResizeStart($event)">
-      <div class="resize-grip"></div>
+        <!-- ── Focused stream view ────────────────────────────────────────────── -->
+        @if (focusedStream(); as focused) {
+            <div #focusedViewEl class="focused-view">
+                <div class="focused-header">
+                    <span class="focused-label">{{ focused.label }}</span>
+                    <div class="focused-actions">
+                        <button (click)="requestPiP(focusedVideoEl)" class="focused-action-btn"
+                                title="Picture in picture">
+                            <svg fill="none" height="14" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                                 width="14">
+                                <rect height="14" rx="2" width="20" x="2" y="3"/>
+                                <rect fill="currentColor" height="6" rx="1" stroke="none" width="9" x="12" y="9"/>
+                            </svg>
+                        </button>
+                        <button (click)="toggleFullscreen(focusedViewEl)" class="focused-action-btn" title="Fullscreen">
+                            <svg fill="none" height="14" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                                 width="14">
+                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                            </svg>
+                        </button>
+                        <button (click)="unfocus()" class="focused-action-btn focused-close" title="Close">
+                            <svg fill="none" height="14" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"
+                                 width="14">
+                                <line x1="18" x2="6" y1="6" y2="18"/>
+                                <line x1="6" x2="18" y1="6" y2="18"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <video #focusedVideoEl [class.focused-video--mirror]="focused.mirror" [streamSrc]="focused.stream" autoplay class="focused-video"
+                       muted
+                       playsinline></video>
+            </div>
+
+        } @else if (callScreenShares().length > 0) {
+
+            <!-- ── Screen share layout ────────────────────────────────────────────── -->
+            <app-call-screen-layout
+                    (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
+                    [participantsWithAudio]="participantsWithAudio()"
+                    [participants]="callParticipants()"
+                    [screenShares]="callScreenShares()"
+                    class="flex-1 min-h-0"
+            />
+
+        } @else {
+
+            <!-- ── Participants grid ─────────────────────────────────────────────── -->
+            <div [attr.data-count]="s.participants.length" class="participants">
+                @for (p of callParticipants(); track p.userId) {
+                    <app-call-participant-tile
+                            (contextMenu)="onParticipantContextMenu($event, p)"
+                            [hasAudio]="participantsWithAudio().has(p.userId)"
+                            [participant]="p"
+                            [videoStream]="p.videoStream ?? null"
+                    />
+                }
+            </div>
+
+        }
+
+        <!-- ── Controls bar ────────────────────────────────────────────────────── -->
+        <app-call-controls-bar
+                (cameraToggle)="toggleCamera()"
+                (deafenToggle)="toggleDeafen()"
+                (disconnect)="endCall()"
+                (fpsChange)="setCaptureFps($event)"
+                (muteToggle)="toggleMute()"
+                (resolutionChange)="setScreenResolution($event)"
+                (screenShareToggle)="toggleScreenShare()"
+                [captureFps]="rustMedia.captureFps()"
+                [captureResolution]="rustMedia.captureResolution()"
+                [isCameraOn]="s.local.isCameraOn"
+                [isDeafened]="s.local.isDeafened"
+                [isMuted]="s.local.isMuted"
+                [isScreenSharing]="s.local.isSharing"
+                [screenHasAudio]="false"
+                disconnectLabel="End Call"
+        />
+
+        <!-- ── Resize handle ───────────────────────────────────────────────────── -->
+        <div (mousedown)="onResizeStart($event)" class="resize-handle">
+            <div class="resize-grip"></div>
+        </div>
+
     </div>
 
-  </div>
-
-  <!-- ── Participant context menu (volume only for DM calls) ──────────────── -->
-  @if (participantMenu(); as menu) {
-    <app-call-context-menu
-      [menu]="menu"
-      [isSuperadmin]="false"
-      (close)="participantMenu.set(null)"
-      (volumeChange)="onVolumeChange($event)"
-    />
-  }
+    <!-- ── Participant context menu (volume only for DM calls) ──────────────── -->
+    @if (participantMenu(); as menu) {
+        <app-call-context-menu
+                (close)="participantMenu.set(null)"
+                (volumeChange)="onVolumeChange($event)"
+                [isSuperadmin]="false"
+                [menu]="menu"
+        />
+    }
 
 }

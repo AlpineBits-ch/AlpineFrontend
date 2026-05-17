@@ -1,6 +1,6 @@
 ::ng-deep em-emoji-picker {
-  --border-radius: 12px;
-  --font-family: inherit;
-  height: 380px;
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+    --border-radius: 12px;
+    --font-family: inherit;
+    height: 380px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
 }
