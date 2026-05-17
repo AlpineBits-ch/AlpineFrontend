@@ -53,6 +53,11 @@
         "epoch": 0,
         "release": "1"
       }
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
     }
   },
   "identifier": "com.alpinebits.echo",
