@@ -4,14 +4,13 @@ import {PasswordDirective} from "primeng/password";
 import {Button} from "primeng/button";
 import {AuthService} from "../../services/auth.service";
 import {catchError, EMPTY, tap} from "rxjs";
-import {email, form, FormField, PathKind, pattern, required, SchemaPath} from "@angular/forms/signals";
+import {email, form, FormField, pattern, required} from "@angular/forms/signals";
 import {Router} from "@angular/router";
 import {NgClass} from "@angular/common";
 import {UserSettingsService} from "../../services/user-settings.service";
 import {ToastService} from "../../services/toast.service";
 import {TranslateModule} from '@ngx-translate/core';
 import {EmailVerificationService} from '../../services/email-verification.service';
-import Child = PathKind.Child;
 import {ExternalLinkService} from "../../services/external-link.service";
 
 
