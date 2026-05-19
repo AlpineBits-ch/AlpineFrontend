@@ -69,7 +69,7 @@ dependencies = [
 
 [[package]]
 name = "alpine"
-version = "3.0.88"
+version = "3.0.89"
 dependencies = [
  "aes-gcm",
  "argon2",

@@ -12,9 +12,9 @@
         <!-- Logo -->
         <div class="flex flex-col items-center gap-1.5 mb-5">
             <div class="w-11 h-11 rounded-[13px] bg-gradient-to-br from-indigo-400 to-indigo-700 flex items-center justify-center text-[20px] font-black text-white shadow-[0_4px_18px_rgba(67,56,202,0.45)]">
-                A
+                V
             </div>
-            <span class="text-sm font-semibold text-slate-300 tracking-tight">Echo</span>
+            <span class="text-sm font-semibold text-slate-300 tracking-tight">Venta</span>
         </div>
 
         <!-- Mode toggle -->
@@ -67,39 +67,74 @@
                     <h2 class="text-[16px] font-semibold text-slate-100">{{ 'LOGIN.REGISTER.TITLE' | translate }}</h2>
                     <p class="text-[12px] text-slate-500 mt-0.5">{{ 'LOGIN.REGISTER.SUBTITLE' | translate }}</p>
                 </div>
+
+                <!-- Username Field -->
                 <div class="flex flex-col gap-1">
                     <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.REGISTER.USERNAME' | translate }}</label>
                     <input [formField]="registerForm.username" [placeholder]="'LOGIN.REGISTER.USERNAME_PLACEHOLDER' | translate" autocomplete="username"
                            pInputText type="text"/>
+                    @if (registerForm.username().touched() && registerForm.username().invalid()) {
+                        @for (error of registerForm.username().errors(); track error) {
+                            <span class="text-[11px] text-rose-400">{{ error.message }}</span>
+                        }
+                    }
                 </div>
+
+                <!-- Email Field -->
                 <div class="flex flex-col gap-1">
                     <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.REGISTER.EMAIL' | translate }}</label>
                     <input [formField]="registerForm.email" [placeholder]="'LOGIN.REGISTER.EMAIL_PLACEHOLDER' | translate" autocomplete="email"
                            inputmode="email" pInputText
                            type="email"/>
+                    @if (registerForm.email().touched() && registerForm.email().invalid()) {
+                        @for (error of registerForm.email().errors(); track error) {
+                            <span class="text-[11px] text-rose-400">{{ error.message }}</span>
+                        }
+                    }
                 </div>
+
+                <!-- Date of Birth Field -->
                 <div class="flex flex-col gap-1">
                     <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.REGISTER.DOB' | translate }}</label>
                     <input [formField]="registerForm.birthdate" [placeholder]="'LOGIN.REGISTER.DOB_PLACEHOLDER' | translate" autocomplete="bday"
                            pInputText type="text"/>
+                    @if (registerForm.birthdate().touched() && registerForm.birthdate().invalid()) {
+                        @for (error of registerForm.birthdate().errors(); track error) {
+                            <span class="text-[11px] text-rose-400">{{ error.message }}</span>
+                        }
+                    }
                 </div>
+
+                <!-- Password Field -->
                 <div class="flex flex-col gap-1">
                     <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.REGISTER.PASSWORD' | translate }}</label>
                     <input (input)="passwordMismatch.set(false)" [formField]="registerForm.password" [placeholder]="'LOGIN.REGISTER.PASSWORD_PLACEHOLDER' | translate"
                            autocomplete="new-password" pPassword
                            type="password"/>
+                    @if (registerForm.password().touched() && registerForm.password().invalid()) {
+                        @for (error of registerForm.password().errors(); track error) {
+                            <span class="text-[11px] text-rose-400">{{ error.message }}</span>
+                        }
+                    }
                 </div>
+
+                <!-- Confirm Password Field -->
                 <div class="flex flex-col gap-1">
                     <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.REGISTER.CONFIRM_PASSWORD' | translate }}</label>
                     <input (input)="passwordMismatch.set(false)" (keydown.enter)="register()" [formField]="registerForm.confirmPassword"
                            [placeholder]="'LOGIN.REGISTER.CONFIRM_PASSWORD_PLACEHOLDER' | translate"
                            autocomplete="new-password" pPassword
                            type="password"/>
+                    @if (registerForm.confirmPassword().touched() && registerForm.confirmPassword().invalid()) {
+                        @for (error of registerForm.confirmPassword().errors(); track error) {
+                            <span class="text-[11px] text-rose-400">{{ error.message }}</span>
+                        }
+                    }
                     @if (passwordMismatch()) {
                         <span class="text-[11px] text-rose-400">{{ 'LOGIN.REGISTER.PASSWORD_MISMATCH' | translate }}</span>
                     }
                 </div>
-                <p-button (onClick)="register()" [label]="'LOGIN.REGISTER.SUBMIT' | translate"/>
+                <p-button  (onClick)="register()" [label]="'LOGIN.REGISTER.SUBMIT' | translate"/>
                 <p class="text-center text-[11px] text-slate-600 leading-relaxed mt-0.5">
                     {{ 'LOGIN.TERMS' | translate }}
                     <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors"

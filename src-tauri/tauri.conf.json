@@ -62,7 +62,7 @@
   },
   "identifier": "com.alpinebits.echo",
   "productName": "Venta",
-  "version": "3.0.88",
+  "version": "3.0.89",
   "plugins": {
     "updater": {
       "windows": {
