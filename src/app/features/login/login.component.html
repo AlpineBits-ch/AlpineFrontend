@@ -54,11 +54,15 @@
                 <p-button (onClick)="login()" [label]="'LOGIN.LOGIN.SUBMIT' | translate"/>
                 <p class="text-center text-[11px] text-slate-600 leading-relaxed mt-0.5">
                     {{ 'LOGIN.TERMS' | translate }}
-                    <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors"
-                       href="#">{{ 'LOGIN.TERMS_OF_SERVICE' | translate }}</a>
+                    <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors cursor-pointer"
+                       (click)="openLink('https://venta.gg/#/eula')">
+                        {{ 'LOGIN.TERMS_OF_SERVICE' | translate }}
+                    </a>
                     {{ 'LOGIN.AND' | translate }}
-                    <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors"
-                       href="#">{{ 'LOGIN.PRIVACY_POLICY' | translate }}</a>.
+                    <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors cursor-pointer"
+                       (click)="openLink('https://venta.gg/#/privacy')">
+                        {{ 'LOGIN.PRIVACY_POLICY' | translate }}
+                    </a>.
                 </p>
             </div>
         } @else {
@@ -137,11 +141,15 @@
                 <p-button  (onClick)="register()" [label]="'LOGIN.REGISTER.SUBMIT' | translate"/>
                 <p class="text-center text-[11px] text-slate-600 leading-relaxed mt-0.5">
                     {{ 'LOGIN.TERMS' | translate }}
-                    <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors"
-                       href="#">{{ 'LOGIN.TERMS_OF_SERVICE' | translate }}</a>
+                    <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors cursor-pointer"
+                       (click)="openLink('https://venta.gg/#/eula')">
+                        {{ 'LOGIN.TERMS_OF_SERVICE' | translate }}
+                    </a>
                     {{ 'LOGIN.AND' | translate }}
-                    <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors"
-                       href="#">{{ 'LOGIN.PRIVACY_POLICY' | translate }}</a>.
+                    <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors cursor-pointer"
+                       (click)="openLink('https://venta.gg/#/privacy')">
+                        {{ 'LOGIN.PRIVACY_POLICY' | translate }}
+                    </a>.
                 </p>
             </div>
         }

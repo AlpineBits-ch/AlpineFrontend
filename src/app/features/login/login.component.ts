@@ -12,6 +12,7 @@ import {ToastService} from "../../services/toast.service";
 import {TranslateModule} from '@ngx-translate/core';
 import {EmailVerificationService} from '../../services/email-verification.service';
 import Child = PathKind.Child;
+import {ExternalLinkService} from "../../services/external-link.service";
 
 
 interface LoginModel {
@@ -42,6 +43,7 @@ interface RegisterModel {
 })
 export class Login {
     protected isLoginMode = signal(true);
+    protected externalLinkService = inject(ExternalLinkService);
     protected authService = inject(AuthService);
     protected router = inject(Router);
     protected loginModel = signal<LoginModel>({email: '', password: ''});
@@ -164,6 +166,10 @@ export class Login {
     private parseBirthdate(dateStr: string): Date {
         const [day, month, year] = dateStr.split('.').map(Number);
         return new Date(year, month - 1, day);
+    }
+
+    public openLink(link: string): void {
+        this.externalLinkService.openExternalLink( link);
     }
 
 }

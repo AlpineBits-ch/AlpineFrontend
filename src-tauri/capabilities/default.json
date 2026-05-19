@@ -5,6 +5,7 @@
   "permissions": [
     "core:default",
     "opener:default",
+    "opener:allow-default-urls",
     "core:webview:allow-create-webview-window",
     "core:window:allow-primary-monitor",
     "core:window:allow-is-focused",
@@ -37,6 +38,7 @@
     "fs:allow-read-text-file"
   ],
   "windows": [
+    "*",
     "echo"
   ]
 }
