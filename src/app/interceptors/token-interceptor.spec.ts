@@ -21,7 +21,7 @@ import {OAuthService} from 'angular-oauth2-oidc';
 import {Router} from '@angular/router';
 import {_resetInterceptorState, tokenInterceptor} from './token-interceptor';
 
-const API = 'https://api.alpinebits.ch/test';
+const API = 'https://api.venta.gg/test';
 
 function setup() {
     const oAuth = {

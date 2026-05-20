@@ -24,7 +24,7 @@ import {provideTranslateHttpLoader} from '@ngx-translate/http-loader';
 import {AlpinePreset} from './theme/alpine-preset';
 
 export const authConfig: AuthConfig = {
-    issuer: 'http://identity:8080/', // Your OpenIddict server
+    issuer: 'https://api.venta.gg',
     tokenEndpoint: `${environment.apiUrl}/connect/token`,
     clientId: 'echo',
     scope: 'openid offline_access',

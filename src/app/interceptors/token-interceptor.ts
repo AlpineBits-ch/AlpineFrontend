@@ -3,6 +3,7 @@ import {inject} from "@angular/core";
 import {OAuthService} from "angular-oauth2-oidc";
 import {Router} from "@angular/router";
 import {catchError, from, switchMap, throwError} from "rxjs";
+import {environment} from "../../environments/environment";
 
 // Shared across all interceptor invocations. When a refresh is in-flight every
 // concurrent 401 waits on the same Promise instead of triggering its own
@@ -18,7 +19,7 @@ export function _resetInterceptorState(): void {
 
 export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
     if (req.url.includes('connect/token')) return next(req);
-    if (!req.url.startsWith('https://api.alpinebits.ch')) return next(req);
+    if (!req.url.startsWith(environment.apiUrl)) return next(req);
 
     const oAuthService = inject(OAuthService);
     const router = inject(Router);
