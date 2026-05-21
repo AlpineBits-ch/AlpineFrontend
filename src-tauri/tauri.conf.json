@@ -13,7 +13,7 @@
         "minWidth": 900,
         "minHeight": 600,
         "decorations": false,
-        "shadow": false,
+        "shadow": true,
         "dragDropEnabled": false,
         "visible": false,
         "resizable": true,
@@ -62,7 +62,7 @@
   },
   "identifier": "com.alpinebits.venta",
   "productName": "Venta",
-  "version": "3.0.94",
+  "version": "3.0.95",
   "plugins": {
     "deep-link": {
       "desktop": {
