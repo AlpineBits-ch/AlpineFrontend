@@ -4,12 +4,12 @@ use windows::{
     core::{IInspectable, HSTRING, PCWSTR},
     Data::Xml::Dom::XmlDocument,
     Foundation::TypedEventHandler,
-    UI::Notifications::{ToastNotification, ToastNotificationManager},
     Win32::System::Registry::{
         RegCreateKeyExW, RegSetValueExW, HKEY, HKEY_CURRENT_USER, KEY_WRITE,
         REG_OPTION_NON_VOLATILE, REG_SZ,
     },
     Win32::UI::Shell::SetCurrentProcessExplicitAppUserModelID,
+    UI::Notifications::{ToastNotification, ToastNotificationManager},
 };
 
 const AUMID: &str = "Alpine";
@@ -110,24 +110,26 @@ pub async fn send_toast(
     );
 
     let doc = XmlDocument::new().map_err(|e| e.to_string())?;
-    doc.LoadXml(&HSTRING::from(xml)).map_err(|e| e.to_string())?;
+    doc.LoadXml(&HSTRING::from(xml))
+        .map_err(|e| e.to_string())?;
 
-    let toast =
-        ToastNotification::CreateToastNotification(&doc).map_err(|e| e.to_string())?;
+    let toast = ToastNotification::CreateToastNotification(&doc).map_err(|e| e.to_string())?;
 
     toast
-        .Activated(&TypedEventHandler::<ToastNotification, IInspectable>::new({
-            let app = app.clone();
-            move |_, _| {
-                let _ = app.emit("notification-action", &extra);
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.unminimize();
-                    let _ = window.set_focus();
+        .Activated(&TypedEventHandler::<ToastNotification, IInspectable>::new(
+            {
+                let app = app.clone();
+                move |_, _| {
+                    let _ = app.emit("notification-action", &extra);
+                    if let Some(window) = app.get_webview_window("main") {
+                        let _ = window.show();
+                        let _ = window.unminimize();
+                        let _ = window.set_focus();
+                    }
+                    Ok(())
                 }
-                Ok(())
-            }
-        }))
+            },
+        ))
         .map_err(|e| e.to_string())?;
 
     ToastNotificationManager::CreateToastNotifierWithId(&HSTRING::from(AUMID))

@@ -7,6 +7,7 @@ use aes_gcm::{
     {Aes256Gcm, KeyInit, Nonce},
 };
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
+use openmls::prelude::*;
 use openmls::prelude::{
     tls_codec::{Deserialize as TlsCodecDeserialize, DeserializeBytes, Serialize as TlsSerialize},
     BasicCredential, Ciphersuite, CredentialWithKey, GroupId, KeyPackage, KeyPackageIn,
@@ -18,8 +19,7 @@ use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
-use openmls::prelude::*; // This usually brings in SenderRatchetConfiguration
+use uuid::Uuid; // This usually brings in SenderRatchetConfiguration
 const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
 // ---------------------------------------------------------------------------
@@ -134,13 +134,22 @@ impl Default for MlsState {
 impl MlsState {
     fn to_persisted(&self) -> PersistedMlsState {
         let values = self.provider.storage().values.read().unwrap();
-        let storage = values.iter().map(|(k, v)| (B64.encode(k), B64.encode(v))).collect();
+        let storage = values
+            .iter()
+            .map(|(k, v)| (B64.encode(k), B64.encode(v)))
+            .collect();
         let group_ids = self.groups.keys().map(|k| B64.encode(k)).collect();
-        PersistedMlsState { version: 1, group_ids, storage }
+        PersistedMlsState {
+            version: 1,
+            group_ids,
+            storage,
+        }
     }
 
     fn save_to_disk(&self) -> Result<(), String> {
-        let Some(path) = &self.state_path else { return Ok(()) };
+        let Some(path) = &self.state_path else {
+            return Ok(());
+        };
         let json = serde_json::to_vec(&self.to_persisted()).map_err(|e| e.to_string())?;
         std::fs::write(path, json).map_err(|e| e.to_string())?;
         Ok(())
@@ -158,7 +167,9 @@ fn encrypt_blob(plaintext: &[u8], key_bytes: &[u8]) -> Result<Vec<u8>, String> {
     let mut nonce_bytes = [0u8; 12];
     rand::thread_rng().fill_bytes(&mut nonce_bytes);
     let nonce = Nonce::from_slice(&nonce_bytes);
-    let ciphertext = cipher.encrypt(nonce, plaintext).map_err(|e| e.to_string())?;
+    let ciphertext = cipher
+        .encrypt(nonce, plaintext)
+        .map_err(|e| e.to_string())?;
     let mut out = nonce_bytes.to_vec();
     out.extend_from_slice(&ciphertext);
     Ok(out)
@@ -170,7 +181,9 @@ fn decrypt_blob(data: &[u8], key_bytes: &[u8]) -> Result<Vec<u8>, String> {
     }
     let (nonce_bytes, ciphertext) = data.split_at(12);
     let cipher = Aes256Gcm::new_from_slice(key_bytes).map_err(|e| e.to_string())?;
-    cipher.decrypt(Nonce::from_slice(nonce_bytes), ciphertext).map_err(|e| e.to_string())
+    cipher
+        .decrypt(Nonce::from_slice(nonce_bytes), ciphertext)
+        .map_err(|e| e.to_string())
 }
 
 // ---------------------------------------------------------------------------
@@ -186,17 +199,26 @@ fn build_signer_from_entry(entry: &SignerEntry) -> SignatureKeyPair {
 }
 
 fn get_signer_entry<'a>(mls: &'a MlsState, key_handle: &str) -> Result<&'a SignerEntry, String> {
-    mls.signers
-        .get(key_handle)
-        .ok_or_else(|| format!("KeyNotFound: no signing key loaded for handle '{}'", key_handle))
+    mls.signers.get(key_handle).ok_or_else(|| {
+        format!(
+            "KeyNotFound: no signing key loaded for handle '{}'",
+            key_handle
+        )
+    })
 }
 
 fn map_mls_error(e: impl std::fmt::Display) -> String {
     let s = e.to_string();
     let lower = s.to_lowercase();
-    if lower.contains("wrong epoch") || lower.contains("epoch mismatch") || lower.contains("wrongepoch") {
+    if lower.contains("wrong epoch")
+        || lower.contains("epoch mismatch")
+        || lower.contains("wrongepoch")
+    {
         format!("WrongEpoch: {}", s)
-    } else if lower.contains("unknown sender") || lower.contains("invalid sender") || lower.contains("unknownsender") {
+    } else if lower.contains("unknown sender")
+        || lower.contains("invalid sender")
+        || lower.contains("unknownsender")
+    {
         format!("UnknownSender: {}", s)
     } else if lower.contains("validation") || lower.contains("invalid message") {
         format!("ValidationError: {}", s)
@@ -236,21 +258,21 @@ fn build_group_info(group: &MlsGroup) -> MlsGroupInfo {
 
 fn create_config() -> MlsGroupCreateConfig {
     let ratchet_config = SenderRatchetConfiguration::new(
-            500, // max_forward_distance: increase this from the default (usually 100)
-            10,  // out_of_order_tolerance: how many "old" keys to keep in the cache
-        );
+        500, // max_forward_distance: increase this from the default (usually 100)
+        10,  // out_of_order_tolerance: how many "old" keys to keep in the cache
+    );
     MlsGroupCreateConfig::builder()
-    .sender_ratchet_configuration(ratchet_config)
+        .sender_ratchet_configuration(ratchet_config)
         .use_ratchet_tree_extension(true)
         .build()
 }
 
 fn join_config() -> MlsGroupJoinConfig {
-let ratchet_config = SenderRatchetConfiguration::new(
+    let ratchet_config = SenderRatchetConfiguration::new(
         500, // max_forward_distance: increase this from the default (usually 100)
         10,  // out_of_order_tolerance: how many "old" keys to keep in the cache
     );
-        MlsGroupJoinConfig::builder()
+    MlsGroupJoinConfig::builder()
         .sender_ratchet_configuration(ratchet_config)
         .use_ratchet_tree_extension(true)
         .build()
@@ -273,10 +295,21 @@ fn load_signing_key_impl(
     signing_private_key_b64: String,
     identity: String,
 ) -> Result<String, String> {
-    let pub_bytes = B64.decode(&signing_public_key_b64).map_err(|e| e.to_string())?;
-    let priv_bytes = B64.decode(&signing_private_key_b64).map_err(|e| e.to_string())?;
+    let pub_bytes = B64
+        .decode(&signing_public_key_b64)
+        .map_err(|e| e.to_string())?;
+    let priv_bytes = B64
+        .decode(&signing_private_key_b64)
+        .map_err(|e| e.to_string())?;
     let handle = Uuid::new_v4().to_string();
-    mls.signers.insert(handle.clone(), SignerEntry { pub_bytes, priv_bytes, identity });
+    mls.signers.insert(
+        handle.clone(),
+        SignerEntry {
+            pub_bytes,
+            priv_bytes,
+            identity,
+        },
+    );
     Ok(handle)
 }
 
@@ -290,8 +323,8 @@ fn generate_key_packages_impl(
     identity: String,
     count: u32,
 ) -> Result<MlsKeyPackageBatch, String> {
-    let signer = SignatureKeyPair::new(CIPHERSUITE.signature_algorithm())
-        .map_err(|e| e.to_string())?;
+    let signer =
+        SignatureKeyPair::new(CIPHERSUITE.signature_algorithm()).map_err(|e| e.to_string())?;
     let credential = BasicCredential::new(identity.clone().into_bytes());
     let credential_with_key = CredentialWithKey {
         credential: credential.into(),
@@ -331,7 +364,8 @@ fn generate_key_packages_impl(
         key_packages,
         key_handle: handle,
     };
-    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
+    mls.save_to_disk()
+        .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(batch)
 }
 
@@ -366,7 +400,8 @@ fn generate_key_packages_with_handle_impl(
             });
         }
     }
-    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
+    mls.save_to_disk()
+        .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(key_packages)
 }
 
@@ -388,12 +423,19 @@ fn create_group_impl(
     };
     let group = {
         let MlsState { provider, .. } = &*mls;
-        MlsGroup::new_with_group_id(provider, &signer, &create_config(), group_id, credential_with_key)
-            .map_err(|e| map_mls_error(e))?
+        MlsGroup::new_with_group_id(
+            provider,
+            &signer,
+            &create_config(),
+            group_id,
+            credential_with_key,
+        )
+        .map_err(|e| map_mls_error(e))?
     };
     let info = build_group_info(&group);
     mls.groups.insert(group_id_bytes, group);
-    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
+    mls.save_to_disk()
+        .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(info)
 }
 
@@ -414,31 +456,42 @@ fn add_members_impl(
             .iter()
             .map(|kp_b64| {
                 let kp_bytes = B64.decode(kp_b64).map_err(|e| e.to_string())?;
-                let kp_in = KeyPackageIn::tls_deserialize(&mut &kp_bytes[..])
-                    .map_err(|e| e.to_string())?;
-                kp_in.validate(crypto, ProtocolVersion::Mls10).map_err(|e| map_mls_error(e))
+                let kp_in =
+                    KeyPackageIn::tls_deserialize(&mut &kp_bytes[..]).map_err(|e| e.to_string())?;
+                kp_in
+                    .validate(crypto, ProtocolVersion::Mls10)
+                    .map_err(|e| map_mls_error(e))
             })
             .collect::<Result<_, _>>()?
     };
     let commit_out = {
-        let MlsState { provider, groups, .. } = &mut *mls;
+        let MlsState {
+            provider, groups, ..
+        } = &mut *mls;
         let group = groups
             .get_mut(&group_id_bytes)
             .ok_or_else(|| "GroupNotFound: group not found".to_string())?;
         let (commit_msg, welcome_msg, _group_info) = group
             .add_members(provider, &signer, &key_packages)
             .map_err(|e| map_mls_error(e))?;
-        group.merge_pending_commit(provider).map_err(|e| e.to_string())?;
+        group
+            .merge_pending_commit(provider)
+            .map_err(|e| e.to_string())?;
         let epoch = group.epoch().as_u64();
-        let commit_bytes = commit_msg.tls_serialize_detached().map_err(|e| e.to_string())?;
-        let welcome_bytes = welcome_msg.tls_serialize_detached().map_err(|e| e.to_string())?;
+        let commit_bytes = commit_msg
+            .tls_serialize_detached()
+            .map_err(|e| e.to_string())?;
+        let welcome_bytes = welcome_msg
+            .tls_serialize_detached()
+            .map_err(|e| e.to_string())?;
         MlsCommitOut {
             commit: B64.encode(&commit_bytes),
             welcome: Some(B64.encode(&welcome_bytes)),
             epoch,
         }
     };
-    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
+    mls.save_to_disk()
+        .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(commit_out)
 }
 
@@ -464,7 +517,8 @@ fn join_group_impl(
     let info = build_group_info(&group);
     let group_id_bytes = group.group_id().as_slice().to_vec();
     mls.groups.insert(group_id_bytes, group);
-    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
+    mls.save_to_disk()
+        .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(info)
 }
 
@@ -484,7 +538,9 @@ fn leave_group_impl(
         build_signer_from_entry(entry)
     };
     let proposal_out = {
-        let MlsState { provider, groups, .. } = &mut *mls;
+        let MlsState {
+            provider, groups, ..
+        } = &mut *mls;
         let group = groups
             .get_mut(&group_id_bytes)
             .ok_or_else(|| "GroupNotFound: group not found".to_string())?;
@@ -492,8 +548,9 @@ fn leave_group_impl(
         let (proposal_msg, _group_info) = group
             .propose_remove_member(provider, &signer, own_leaf)
             .map_err(|e| map_mls_error(e))?;
-        let proposal_bytes =
-            proposal_msg.tls_serialize_detached().map_err(|e| e.to_string())?;
+        let proposal_bytes = proposal_msg
+            .tls_serialize_detached()
+            .map_err(|e| e.to_string())?;
         // Erase local state — the leaver no longer participates.
         groups.remove(&group_id_bytes);
         MlsCommitOut {
@@ -502,7 +559,8 @@ fn leave_group_impl(
             epoch: 0,
         }
     };
-    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
+    mls.save_to_disk()
+        .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(proposal_out)
 }
 
@@ -519,16 +577,22 @@ fn commit_pending_proposals_impl(
         build_signer_from_entry(entry)
     };
     let commit_out = {
-        let MlsState { provider, groups, .. } = &mut *mls;
+        let MlsState {
+            provider, groups, ..
+        } = &mut *mls;
         let group = groups
             .get_mut(&group_id_bytes)
             .ok_or_else(|| "GroupNotFound: group not found".to_string())?;
         let (commit_msg, welcome_opt, _group_info) = group
             .commit_to_pending_proposals(provider, &signer)
             .map_err(|e| map_mls_error(e))?;
-        group.merge_pending_commit(provider).map_err(|e| e.to_string())?;
+        group
+            .merge_pending_commit(provider)
+            .map_err(|e| e.to_string())?;
         let epoch = group.epoch().as_u64();
-        let commit_bytes = commit_msg.tls_serialize_detached().map_err(|e| e.to_string())?;
+        let commit_bytes = commit_msg
+            .tls_serialize_detached()
+            .map_err(|e| e.to_string())?;
         let welcome = welcome_opt.map(serialize_welcome).transpose()?;
         MlsCommitOut {
             commit: B64.encode(&commit_bytes),
@@ -536,7 +600,8 @@ fn commit_pending_proposals_impl(
             epoch,
         }
     };
-    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
+    mls.save_to_disk()
+        .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(commit_out)
 }
 
@@ -557,7 +622,9 @@ fn export_group_info_impl(
     let group_info_msg = group
         .export_group_info(mls.provider.crypto(), &signer, true)
         .map_err(|e| e.to_string())?;
-    let bytes = group_info_msg.tls_serialize_detached().map_err(|e| e.to_string())?;
+    let bytes = group_info_msg
+        .tls_serialize_detached()
+        .map_err(|e| e.to_string())?;
     Ok(B64.encode(&bytes))
 }
 
@@ -571,8 +638,7 @@ fn rejoin_group_impl(
         (build_signer_from_entry(entry), entry.identity.clone())
     };
     let gi_bytes = B64.decode(&group_info_b64).map_err(|e| e.to_string())?;
-    let gi_msg =
-        MlsMessageIn::tls_deserialize_exact_bytes(&gi_bytes).map_err(|e| e.to_string())?;
+    let gi_msg = MlsMessageIn::tls_deserialize_exact_bytes(&gi_bytes).map_err(|e| e.to_string())?;
     let verifiable_group_info = match gi_msg.extract() {
         MlsMessageBodyIn::GroupInfo(vgi) => vgi,
         _ => return Err("MlsError: message is not a GroupInfo".to_string()),
@@ -583,7 +649,9 @@ fn rejoin_group_impl(
         signature_key: signer.public().into(),
     };
     let rejoin_out = {
-        let MlsState { provider, groups, .. } = &mut *mls;
+        let MlsState {
+            provider, groups, ..
+        } = &mut *mls;
         let (group, bundle) = MlsGroup::external_commit_builder()
             .with_config(join_config())
             .build_group(provider, verifiable_group_info, credential_with_key)
@@ -606,7 +674,8 @@ fn rejoin_group_impl(
             external_commit: B64.encode(&external_commit_bytes),
         }
     };
-    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
+    mls.save_to_disk()
+        .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(rejoin_out)
 }
 
@@ -616,7 +685,8 @@ fn delete_group_impl(mls: &mut MlsState, group_id_b64: String) -> Result<(), Str
         return Err("GroupNotFound: group not found".to_string());
     }
     mls.pending_messages.remove(&group_id_bytes);
-    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
+    mls.save_to_disk()
+        .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(())
 }
 
@@ -633,7 +703,9 @@ fn send_message_impl(
         build_signer_from_entry(entry)
     };
     let out = {
-        let MlsState { provider, groups, .. } = &mut *mls;
+        let MlsState {
+            provider, groups, ..
+        } = &mut *mls;
         let group = groups
             .get_mut(&group_id_bytes)
             .ok_or_else(|| "GroupNotFound: group not found".to_string())?;
@@ -641,10 +713,16 @@ fn send_message_impl(
             .create_message(provider, &signer, &plaintext)
             .map_err(|e| map_mls_error(e))?;
         let epoch = group.epoch().as_u64();
-        let msg_bytes = msg_out.tls_serialize_detached().map_err(|e| e.to_string())?;
-        MlsSendOut { ciphertext: B64.encode(&msg_bytes), epoch }
+        let msg_bytes = msg_out
+            .tls_serialize_detached()
+            .map_err(|e| e.to_string())?;
+        MlsSendOut {
+            ciphertext: B64.encode(&msg_bytes),
+            epoch,
+        }
     };
-    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
+    mls.save_to_disk()
+        .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(out)
 }
 
@@ -657,14 +735,22 @@ fn process_message_impl(
     let msg_bytes = B64.decode(&message_b64).map_err(|e| e.to_string())?;
     let msg_in =
         MlsMessageIn::tls_deserialize_exact_bytes(&msg_bytes).map_err(|e| e.to_string())?;
-    let protocol_msg = msg_in.try_into_protocol_message().map_err(|e| e.to_string())?;
+    let protocol_msg = msg_in
+        .try_into_protocol_message()
+        .map_err(|e| e.to_string())?;
     let processed_msg = {
-        let MlsState { provider, groups, pending_messages, .. } = &mut *mls;
+        let MlsState {
+            provider,
+            groups,
+            pending_messages,
+            ..
+        } = &mut *mls;
         let group = groups
             .get_mut(&group_id_bytes)
             .ok_or_else(|| "GroupNotFound: group not found".to_string())?;
-        let processed =
-            group.process_message(provider, protocol_msg).map_err(|e| map_mls_error(e))?;
+        let processed = group
+            .process_message(provider, protocol_msg)
+            .map_err(|e| map_mls_error(e))?;
         let sender_identity = BasicCredential::try_from(processed.credential().clone())
             .map(|bc| String::from_utf8_lossy(bc.identity()).into_owned())
             .ok();
@@ -752,7 +838,8 @@ fn process_message_impl(
             }
         }
     };
-    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
+    mls.save_to_disk()
+        .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(processed_msg)
 }
 
@@ -767,19 +854,27 @@ fn remove_members_impl(
         let entry = get_signer_entry(mls, &key_handle)?;
         build_signer_from_entry(entry)
     };
-    let members: Vec<LeafNodeIndex> =
-        leaf_indices.iter().map(|i| LeafNodeIndex::new(*i)).collect();
+    let members: Vec<LeafNodeIndex> = leaf_indices
+        .iter()
+        .map(|i| LeafNodeIndex::new(*i))
+        .collect();
     let commit_out = {
-        let MlsState { provider, groups, .. } = &mut *mls;
+        let MlsState {
+            provider, groups, ..
+        } = &mut *mls;
         let group = groups
             .get_mut(&group_id_bytes)
             .ok_or_else(|| "GroupNotFound: group not found".to_string())?;
         let (commit_msg, welcome_opt, _group_info) = group
             .remove_members(provider, &signer, &members)
             .map_err(|e| map_mls_error(e))?;
-        group.merge_pending_commit(provider).map_err(|e| e.to_string())?;
+        group
+            .merge_pending_commit(provider)
+            .map_err(|e| e.to_string())?;
         let epoch = group.epoch().as_u64();
-        let commit_bytes = commit_msg.tls_serialize_detached().map_err(|e| e.to_string())?;
+        let commit_bytes = commit_msg
+            .tls_serialize_detached()
+            .map_err(|e| e.to_string())?;
         let welcome = welcome_opt.map(serialize_welcome).transpose()?;
         MlsCommitOut {
             commit: B64.encode(&commit_bytes),
@@ -787,7 +882,8 @@ fn remove_members_impl(
             epoch,
         }
     };
-    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
+    mls.save_to_disk()
+        .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(commit_out)
 }
 
@@ -855,7 +951,8 @@ fn import_state_impl(
             mls.groups.insert(group_id_bytes, group);
         }
     }
-    mls.save_to_disk().map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
+    mls.save_to_disk()
+        .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(())
 }
 
@@ -871,7 +968,12 @@ pub fn mls_load_signing_key(
     identity: String,
 ) -> Result<String, String> {
     let mut mls = state.lock().map_err(|e| e.to_string())?;
-    load_signing_key_impl(&mut mls, signing_public_key_b64, signing_private_key_b64, identity)
+    load_signing_key_impl(
+        &mut mls,
+        signing_public_key_b64,
+        signing_private_key_b64,
+        identity,
+    )
 }
 
 #[tauri::command]
@@ -1054,8 +1156,7 @@ pub fn mls_init_storage(
     }
 
     let json = std::fs::read(&state_path).map_err(|e| e.to_string())?;
-    let persisted: PersistedMlsState =
-        serde_json::from_slice(&json).map_err(|e| e.to_string())?;
+    let persisted: PersistedMlsState = serde_json::from_slice(&json).map_err(|e| e.to_string())?;
 
     {
         let mut values = mls.provider.storage().values.write().unwrap();
@@ -1092,9 +1193,7 @@ pub fn mls_init_storage(
 }
 
 #[tauri::command]
-pub fn mls_clear_storage(
-    state: tauri::State<MlsStateHandle>,
-) -> Result<(), String> {
+pub fn mls_clear_storage(state: tauri::State<MlsStateHandle>) -> Result<(), String> {
     let mut mls = state.lock().map_err(|e| e.to_string())?;
     if let Some(path) = &mls.state_path {
         if path.exists() {
@@ -1211,20 +1310,21 @@ mod integration_tests {
     #[test]
     fn key_packages_returns_requested_count() {
         let mut mls = make_mls();
-        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 5)
-            .expect("should succeed");
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 5).expect("should succeed");
         assert_eq!(batch.key_packages.len(), 5);
     }
 
     #[test]
     fn key_packages_fields_are_non_empty_valid_base64() {
         let mut mls = make_mls();
-        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1)
-            .expect("should succeed");
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
         assert!(!batch.signing_public_key.is_empty());
         assert!(!batch.signing_private_key.is_empty());
         assert!(!batch.key_handle.is_empty());
-        B64.decode(&batch.signing_public_key).expect("signing_public_key must be valid base64");
+        B64.decode(&batch.signing_public_key)
+            .expect("signing_public_key must be valid base64");
         B64.decode(&batch.key_packages[0].key_package)
             .expect("key_package must be valid base64");
     }
@@ -1232,8 +1332,8 @@ mod integration_tests {
     #[test]
     fn key_handle_from_generate_is_immediately_usable() {
         let mut mls = make_mls();
-        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1)
-            .expect("should succeed");
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
         create_group_impl(&mut mls, rand_group_id(), batch.key_handle)
             .expect("handle from generate_key_packages must work for create_group");
     }
@@ -1241,14 +1341,14 @@ mod integration_tests {
     #[test]
     fn generate_with_handle_reuses_signing_key() {
         let mut mls = make_mls();
-        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1)
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+        let more = generate_key_packages_with_handle_impl(&mls, batch.key_handle, 3)
             .expect("should succeed");
-        let more =
-            generate_key_packages_with_handle_impl(&mls, batch.key_handle, 3)
-                .expect("should succeed");
         assert_eq!(more.len(), 3);
         for kp in &more {
-            B64.decode(&kp.key_package).expect("key_package must be valid base64");
+            B64.decode(&kp.key_package)
+                .expect("key_package must be valid base64");
         }
     }
 
@@ -1257,8 +1357,8 @@ mod integration_tests {
     #[test]
     fn load_signing_key_returns_non_empty_handle() {
         let mut mls = make_mls();
-        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1)
-            .expect("should succeed");
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
         let handle = load_signing_key_impl(
             &mut mls,
             batch.signing_public_key,
@@ -1272,8 +1372,8 @@ mod integration_tests {
     #[test]
     fn unloaded_handle_is_rejected_with_key_not_found() {
         let mut mls = make_mls();
-        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1)
-            .expect("should succeed");
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
         let handle = load_signing_key_impl(
             &mut mls,
             batch.signing_public_key,
@@ -1300,10 +1400,10 @@ mod integration_tests {
     #[test]
     fn create_group_starts_at_epoch_zero_with_one_member() {
         let mut mls = make_mls();
-        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1)
-            .expect("should succeed");
-        let info = create_group_impl(&mut mls, rand_group_id(), batch.key_handle)
-            .expect("should succeed");
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+        let info =
+            create_group_impl(&mut mls, rand_group_id(), batch.key_handle).expect("should succeed");
         assert_eq!(info.epoch, 0);
         assert_eq!(info.own_leaf_index, 0);
         assert_eq!(info.members.len(), 1);
@@ -1313,8 +1413,8 @@ mod integration_tests {
     #[test]
     fn get_group_info_matches_create_response() {
         let mut mls = make_mls();
-        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1)
-            .expect("should succeed");
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
         let group_id = rand_group_id();
         let created = create_group_impl(&mut mls, group_id.clone(), batch.key_handle)
             .expect("should succeed");
@@ -1327,8 +1427,8 @@ mod integration_tests {
     #[test]
     fn get_members_lists_only_creator() {
         let mut mls = make_mls();
-        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1)
-            .expect("should succeed");
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
         let group_id = rand_group_id();
         create_group_impl(&mut mls, group_id.clone(), batch.key_handle).expect("should succeed");
         let members = get_members_impl(&mls, group_id).expect("should succeed");
@@ -1346,8 +1446,8 @@ mod integration_tests {
     #[test]
     fn delete_group_makes_it_inaccessible() {
         let mut mls = make_mls();
-        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1)
-            .expect("should succeed");
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
         let group_id = rand_group_id();
         create_group_impl(&mut mls, group_id.clone(), batch.key_handle).expect("should succeed");
         delete_group_impl(&mut mls, group_id.clone()).expect("delete must succeed");
@@ -1368,13 +1468,13 @@ mod integration_tests {
     fn add_members_produces_welcome_and_advances_epoch() {
         let mut alice = make_mls();
         let mut bob = make_mls();
-        let alice_batch = generate_key_packages_impl(&mut alice, "alice".to_string(), 1)
-            .expect("should succeed");
+        let alice_batch =
+            generate_key_packages_impl(&mut alice, "alice".to_string(), 1).expect("should succeed");
         let group_id = rand_group_id();
         create_group_impl(&mut alice, group_id.clone(), alice_batch.key_handle.clone())
             .expect("should succeed");
-        let bob_batch = generate_key_packages_impl(&mut bob, "bob".to_string(), 1)
-            .expect("should succeed");
+        let bob_batch =
+            generate_key_packages_impl(&mut bob, "bob".to_string(), 1).expect("should succeed");
         let add_out = add_members_impl(
             &mut alice,
             group_id,
@@ -1382,8 +1482,14 @@ mod integration_tests {
             vec![bob_batch.key_packages[0].key_package.clone()],
         )
         .expect("should succeed");
-        assert!(add_out.welcome.is_some(), "add_members must produce a Welcome");
-        assert_eq!(add_out.epoch, 1, "epoch must advance to 1 after adding first member");
+        assert!(
+            add_out.welcome.is_some(),
+            "add_members must produce a Welcome"
+        );
+        assert_eq!(
+            add_out.epoch, 1,
+            "epoch must advance to 1 after adding first member"
+        );
     }
 
     #[test]
@@ -1401,7 +1507,9 @@ mod integration_tests {
         let alice_n = get_members_impl(&tp.alice, tp.group_id.clone())
             .expect("should succeed")
             .len();
-        let bob_n = get_members_impl(&tp.bob, tp.group_id).expect("should succeed").len();
+        let bob_n = get_members_impl(&tp.bob, tp.group_id)
+            .expect("should succeed")
+            .len();
         assert_eq!(alice_n, bob_n);
     }
 
@@ -1451,8 +1559,7 @@ mod integration_tests {
             a_to_b.clone(),
         )
         .expect("alice send");
-        let r1 = process_message_impl(&mut tp.bob, tp.group_id.clone(), ct1)
-            .expect("bob receive");
+        let r1 = process_message_impl(&mut tp.bob, tp.group_id.clone(), ct1).expect("bob receive");
         assert_eq!(r1.plaintext, Some(a_to_b));
 
         let ct2 = send_message_impl(
@@ -1472,14 +1579,14 @@ mod integration_tests {
         let mut bob = make_mls();
         let mut charlie = make_mls();
 
-        let alice_batch = generate_key_packages_impl(&mut alice, "alice".to_string(), 3)
-            .expect("should succeed");
+        let alice_batch =
+            generate_key_packages_impl(&mut alice, "alice".to_string(), 3).expect("should succeed");
         let group_id = rand_group_id();
         create_group_impl(&mut alice, group_id.clone(), alice_batch.key_handle.clone())
             .expect("should succeed");
 
-        let bob_batch = generate_key_packages_impl(&mut bob, "bob".to_string(), 1)
-            .expect("should succeed");
+        let bob_batch =
+            generate_key_packages_impl(&mut bob, "bob".to_string(), 1).expect("should succeed");
         let add1 = add_members_impl(
             &mut alice,
             group_id.clone(),
@@ -1487,8 +1594,7 @@ mod integration_tests {
             vec![bob_batch.key_packages[0].key_package.clone()],
         )
         .expect("should succeed");
-        join_group_impl(&mut bob, add1.welcome.unwrap(), bob_batch.key_handle)
-            .expect("bob joins");
+        join_group_impl(&mut bob, add1.welcome.unwrap(), bob_batch.key_handle).expect("bob joins");
 
         let charlie_batch = generate_key_packages_impl(&mut charlie, "charlie".to_string(), 1)
             .expect("should succeed");
@@ -1512,8 +1618,7 @@ mod integration_tests {
     #[test]
     fn remove_member_decreases_count_and_marks_self_removed() {
         let mut tp = setup_two_party();
-        let members =
-            get_members_impl(&tp.alice, tp.group_id.clone()).expect("should succeed");
+        let members = get_members_impl(&tp.alice, tp.group_id.clone()).expect("should succeed");
         let bob_leaf = members
             .iter()
             .find(|m| m.identity == "bob")
@@ -1534,7 +1639,10 @@ mod integration_tests {
         let processed = process_message_impl(&mut tp.bob, tp.group_id, remove_out.commit)
             .expect("bob processes removal commit");
         assert_eq!(processed.kind, "commit");
-        assert!(processed.self_removed, "self_removed must be true for the evicted member");
+        assert!(
+            processed.self_removed,
+            "self_removed must be true for the evicted member"
+        );
     }
 
     // ─── Leave group ──────────────────────────────────────────────────────────
@@ -1590,9 +1698,8 @@ mod integration_tests {
         let mut charlie = make_mls();
         let charlie_batch = generate_key_packages_impl(&mut charlie, "charlie".to_string(), 1)
             .expect("should succeed");
-        let rejoin_out =
-            rejoin_group_impl(&mut charlie, group_info_b64, charlie_batch.key_handle)
-                .expect("rejoin must succeed");
+        let rejoin_out = rejoin_group_impl(&mut charlie, group_info_b64, charlie_batch.key_handle)
+            .expect("rejoin must succeed");
 
         assert!(!rejoin_out.external_commit.is_empty());
         assert_eq!(
@@ -1618,8 +1725,8 @@ mod integration_tests {
     #[test]
     fn export_import_state_preserves_groups() {
         let mut mls = make_mls();
-        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1)
-            .expect("should succeed");
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
         let group_id = rand_group_id();
         let created = create_group_impl(&mut mls, group_id.clone(), batch.key_handle)
             .expect("should succeed");
@@ -1631,8 +1738,8 @@ mod integration_tests {
         let mut new_mls = make_mls();
         import_state_impl(&mut new_mls, exported, key_b64).expect("import must succeed");
 
-        let imported = get_group_info_impl(&new_mls, group_id)
-            .expect("group must be accessible after import");
+        let imported =
+            get_group_info_impl(&new_mls, group_id).expect("group must be accessible after import");
         assert_eq!(imported.group_id, created.group_id);
         assert_eq!(imported.epoch, created.epoch);
         assert_eq!(imported.members.len(), created.members.len());
@@ -1641,8 +1748,8 @@ mod integration_tests {
     #[test]
     fn import_with_wrong_key_fails_decryption() {
         let mut mls = make_mls();
-        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1)
-            .expect("should succeed");
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
         create_group_impl(&mut mls, rand_group_id(), batch.key_handle).expect("should succeed");
 
         let key_b64 = rand_key_32();
@@ -1662,10 +1769,10 @@ mod integration_tests {
         let mut alice = make_mls();
         let mut bob = make_mls();
 
-        let alice_batch = generate_key_packages_impl(&mut alice, "alice".to_string(), 3)
-            .expect("alice key gen");
-        let bob_batch = generate_key_packages_impl(&mut bob, "bob".to_string(), 1)
-            .expect("bob key gen");
+        let alice_batch =
+            generate_key_packages_impl(&mut alice, "alice".to_string(), 3).expect("alice key gen");
+        let bob_batch =
+            generate_key_packages_impl(&mut bob, "bob".to_string(), 1).expect("bob key gen");
 
         let group_id = rand_group_id();
         create_group_impl(&mut alice, group_id.clone(), alice_batch.key_handle.clone())
@@ -1724,7 +1831,12 @@ mod integration_tests {
         )
         .expect("alice commits leave proposal");
         assert!(!commit_out.commit.is_empty());
-        assert_eq!(get_members_impl(&alice, group_id.clone()).expect("should succeed").len(), 1);
+        assert_eq!(
+            get_members_impl(&alice, group_id.clone())
+                .expect("should succeed")
+                .len(),
+            1
+        );
 
         delete_group_impl(&mut alice, group_id.clone()).expect("alice delete");
         assert!(get_group_info_impl(&alice, group_id).is_err());

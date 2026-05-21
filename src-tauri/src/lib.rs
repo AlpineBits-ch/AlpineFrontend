@@ -24,7 +24,6 @@ mod win32 {
     pub const WS_EX_TOOLWINDOW: u32 = 0x0000_0080;
     pub const SW_SHOWNOACTIVATE: i32 = 4;
 
-
     #[link(name = "user32")]
     extern "system" {
         pub fn GetWindowLongPtrW(hwnd: *mut core::ffi::c_void, n_index: i32) -> isize;
@@ -40,9 +39,17 @@ mod win32 {
     pub const MONITOR_DEFAULTTONEAREST: u32 = 0x00000002;
 
     #[repr(C)]
-    pub struct POINT { pub x: i32, pub y: i32 }
+    pub struct POINT {
+        pub x: i32,
+        pub y: i32,
+    }
     #[repr(C)]
-    pub struct RECT { pub left: i32, pub top: i32, pub right: i32, pub bottom: i32 }
+    pub struct RECT {
+        pub left: i32,
+        pub top: i32,
+        pub right: i32,
+        pub bottom: i32,
+    }
     #[repr(C)]
     pub struct MINMAXINFO {
         pub pt_reserved: POINT,
@@ -61,7 +68,10 @@ mod win32 {
 
     #[link(name = "user32")]
     extern "system" {
-        pub fn MonitorFromWindow(hwnd: *mut core::ffi::c_void, dw_flags: u32) -> *mut core::ffi::c_void;
+        pub fn MonitorFromWindow(
+            hwnd: *mut core::ffi::c_void,
+            dw_flags: u32,
+        ) -> *mut core::ffi::c_void;
         pub fn GetMonitorInfoW(h_monitor: *mut core::ffi::c_void, lp_mi: *mut MONITORINFO) -> i32;
     }
 
@@ -69,7 +79,14 @@ mod win32 {
     extern "system" {
         pub fn SetWindowSubclass(
             hwnd: *mut core::ffi::c_void,
-            pfn_subclass: unsafe extern "system" fn(*mut core::ffi::c_void, u32, usize, isize, usize, usize) -> isize,
+            pfn_subclass: unsafe extern "system" fn(
+                *mut core::ffi::c_void,
+                u32,
+                usize,
+                isize,
+                usize,
+                usize,
+            ) -> isize,
             uid_subclass: usize,
             dw_ref_data: usize,
         ) -> i32;
@@ -100,8 +117,18 @@ mod win32 {
             if !monitor.is_null() {
                 let mut info = MONITORINFO {
                     cb_size: core::mem::size_of::<MONITORINFO>() as u32,
-                    rc_monitor: RECT { left: 0, top: 0, right: 0, bottom: 0 },
-                    rc_work: RECT { left: 0, top: 0, right: 0, bottom: 0 },
+                    rc_monitor: RECT {
+                        left: 0,
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
+                    },
+                    rc_work: RECT {
+                        left: 0,
+                        top: 0,
+                        right: 0,
+                        bottom: 0,
+                    },
                     dw_flags: 0,
                 };
                 if GetMonitorInfoW(monitor, &mut info) != 0 {
@@ -254,6 +281,7 @@ async fn send_windows_toast(
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_deep_link::init())
         .setup(|_app| {
             #[cfg(target_os = "windows")]
             windows_notifications::setup("Alpine");
@@ -266,6 +294,8 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_deep_link::init())
+
         .plugin(tauri_plugin_secure_storage::init());
 
     // Desktop-only plugins
@@ -274,6 +304,16 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_autostart::Builder::new().build())
+         .plugin(tauri_plugin_single_instance::init(|_app, argv, _cwd| {
+                          println!("a new app instance was opened with {argv:?} and the deep link event was already triggered");
+                          // when defining deep link schemes at runtime, you must also check `argv` here
+                        }))
+         .setup(|app| {
+           #[cfg(desktop)]
+           use tauri_plugin_deep_link::DeepLinkExt;
+           app.deep_link().register("venta")?;
+           Ok(())
+          })
         .plugin(tauri_plugin_notifications::init());
 
     // Mobile-only plugins
@@ -287,10 +327,10 @@ pub fn run() {
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
-        std::env::set_var(
-            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-            "--remote-debugging-port=9222"
-        );
+    std::env::set_var(
+        "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+        "--remote-debugging-port=9222",
+    );
     builder
         .manage(media::audio::AudioCaptureState::default())
         .manage(media::audio::LoopbackCaptureState::default())

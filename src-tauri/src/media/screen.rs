@@ -46,8 +46,8 @@ pub struct ScreenFrame {
 }
 
 pub struct ScreenCaptureState {
-    stop:  Arc<Mutex<Option<std::sync::mpsc::SyncSender<()>>>>,
-    fps:   Arc<AtomicU32>,
+    stop: Arc<Mutex<Option<std::sync::mpsc::SyncSender<()>>>>,
+    fps: Arc<AtomicU32>,
     max_w: Arc<AtomicU32>,
     max_h: Arc<AtomicU32>,
 }
@@ -55,8 +55,8 @@ pub struct ScreenCaptureState {
 impl Default for ScreenCaptureState {
     fn default() -> Self {
         Self {
-            stop:  Arc::new(Mutex::new(None)),
-            fps:   Arc::new(AtomicU32::new(15)),
+            stop: Arc::new(Mutex::new(None)),
+            fps: Arc::new(AtomicU32::new(15)),
             max_w: Arc::new(AtomicU32::new(1920)),
             max_h: Arc::new(AtomicU32::new(1080)),
         }
@@ -213,7 +213,7 @@ pub async fn start_screen_capture(
 
     let fps = fps.clamp(1, 60);
     state.fps.store(fps, Ordering::Relaxed);
-    let fps_arc   = Arc::clone(&state.fps);
+    let fps_arc = Arc::clone(&state.fps);
     let max_w_arc = Arc::clone(&state.max_w);
     let max_h_arc = Arc::clone(&state.max_h);
 
@@ -335,7 +335,9 @@ pub fn set_screen_capture_resolution(
     state: tauri::State<'_, ScreenCaptureState>,
 ) {
     state.max_w.store(width.clamp(480, 3840), Ordering::Relaxed);
-    state.max_h.store(height.clamp(270, 2160), Ordering::Relaxed);
+    state
+        .max_h
+        .store(height.clamp(270, 2160), Ordering::Relaxed);
 }
 
 fn stop_screen_capture_inner(state: &ScreenCaptureState) {

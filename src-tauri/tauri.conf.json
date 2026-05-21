@@ -62,8 +62,15 @@
   },
   "identifier": "com.alpinebits.venta",
   "productName": "Venta",
-  "version": "3.0.93",
+  "version": "3.0.94",
   "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "venta"
+        ]
+      }
+    },
     "updater": {
       "windows": {
         "installMode": "passive"

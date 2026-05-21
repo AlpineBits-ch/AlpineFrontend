@@ -1,11 +1,11 @@
 [package]
-name = "alpine"
-version = "3.0.93"
-description = "A Tauri App"
+name = "Venta"
+version = "3.0.94"
+description = ""
 authors = ["you"]
 edition = "2021"
 license = "MIT"
-default-run = "alpine"
+default-run = "Venta"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -32,7 +32,7 @@ getrandom = "0.2"
 sysinfo = "0.38.4"
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-process = "2.3.1"
-tauri-plugin-single-instance = "2"
+tauri-plugin-single-instance = {version = "2", features = ["deep-link"] }
 tauri-plugin-os = "2"
 openmls = "0.8.1"
 openmls_rust_crypto = "0.5"
@@ -47,6 +47,7 @@ tauri-plugin-store = "2.0.0"
 tauri-plugin-secure-storage = "1.5.0"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
+tauri-plugin-deep-link = "2"
 
 # Android
 [target.aarch64-linux-android.dependencies]

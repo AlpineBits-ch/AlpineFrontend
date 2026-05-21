@@ -13,6 +13,7 @@ import {EmailVerificationDialogComponent} from './features/email-verification/em
 import {environment} from "../environments/environment";
 import {AppReadyService} from './services/app-ready.service';
 import {filter, take} from 'rxjs';
+import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
 
 @Component({
     selector: "app-root",
@@ -39,8 +40,12 @@ export class AppComponent implements OnInit, OnDestroy {
     // iOS: visual viewport scrolls when keyboard opens, making position:fixed elements
     // appear to shift. Track offsetTop/height and mirror them onto CSS variables so
 
-    public ngOnInit(): void {
+    public  ngOnInit(): void {
         if (this.isPopup) return;
+
+        void onOpenUrl((urls) => {
+            console.log('deep link:', urls);
+        });
 
         window.visualViewport?.addEventListener('resize', this.viewportHandler);
         window.visualViewport?.addEventListener('scroll', this.viewportHandler);

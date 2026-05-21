@@ -87,8 +87,8 @@ pub fn setup_master_key(
     }
 
     // Derive wrap key: Argon2id(password, salt) → 32 bytes
-    let params = Params::new(ARGON2_MEM, ARGON2_ITERS, ARGON2_LANES, Some(32))
-        .map_err(|e| e.to_string())?;
+    let params =
+        Params::new(ARGON2_MEM, ARGON2_ITERS, ARGON2_LANES, Some(32)).map_err(|e| e.to_string())?;
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
     let mut wrap_key = [0u8; 32];
     argon2
@@ -118,7 +118,9 @@ pub fn decrypt_master_key(
     encrypted: EncryptedMasterKey,
     password: String,
 ) -> Result<Vec<u8>, String> {
-    let ciphertext = B64.decode(&encrypted.cipher_text).map_err(|e| e.to_string())?;
+    let ciphertext = B64
+        .decode(&encrypted.cipher_text)
+        .map_err(|e| e.to_string())?;
     let salt = B64.decode(&encrypted.salt).map_err(|e| e.to_string())?;
     let iv_bytes = B64.decode(&encrypted.iv).map_err(|e| e.to_string())?;
 
