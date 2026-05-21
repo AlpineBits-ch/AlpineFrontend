@@ -10,6 +10,8 @@ import {UpdateService} from "./services/update.service";
 import {Toast} from "primeng/toast";
 import {ScreenPickerComponent} from './features/screen-picker/screen-picker.component';
 import {EmailVerificationDialogComponent} from './features/email-verification/email-verification-dialog.component';
+import {InviteDialogComponent} from './features/invite-dialog/invite-dialog.component';
+import {InviteDialogService} from './features/invite-dialog/invite-dialog.service';
 import {environment} from "../environments/environment";
 import {AppReadyService} from './services/app-ready.service';
 import {filter, take} from 'rxjs';
@@ -17,7 +19,7 @@ import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
 
 @Component({
     selector: "app-root",
-    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent],
+    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, InviteDialogComponent],
     templateUrl: "./app.component.html",
     styleUrl: "./app.component.css",
 })
@@ -28,6 +30,7 @@ export class AppComponent implements OnInit, OnDestroy {
     private updateService = inject(UpdateService);
     private router = inject(Router);
     private appReady = inject(AppReadyService);
+    private inviteDialogService = inject(InviteDialogService);
     private updateInterval: ReturnType<typeof setInterval> | null = null;
 
     @HostListener('document:contextmenu', ['$event'])
@@ -44,7 +47,13 @@ export class AppComponent implements OnInit, OnDestroy {
         if (this.isPopup) return;
 
         void onOpenUrl((urls) => {
-            console.log('deep link:', urls);
+            for (const url of urls) {
+                const match = url.match(/invite\/([^/?#]+)/);
+                if (match) {
+                    this.inviteDialogService.open(match[1]);
+                    break;
+                }
+            }
         });
 
         window.visualViewport?.addEventListener('resize', this.viewportHandler);
