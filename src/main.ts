@@ -3,10 +3,23 @@ import { bootstrapApplication } from "@angular/platform-browser";
 import { AppComponent } from "./app/app.component";
 import { appConfig } from "./app/app.config";
 import { getSecureKey } from "./app/platform/crypto";
-
+import * as Sentry from "@sentry/angular";
+Sentry.init({
+    dsn: "https://fd38719fd718686505847669170b7da4@o4511596550946816.ingest.de.sentry.io/4511596570673232",
+    dataCollection: {
+        // To disable sending user data and HTTP bodies, uncomment the lines below. For more info visit:
+        // https://docs.sentry.io/platforms/javascript/guides/angular/configuration/options/#dataCollection
+        // userInfo: false,
+        // httpBodies: []
+    }
+});
 getSecureKey().then(res => {
     console.log('generated key: ', res, '')
 });
+
+
+
+
 
 bootstrapApplication(AppComponent, appConfig)
   .then(async (appRef) => {

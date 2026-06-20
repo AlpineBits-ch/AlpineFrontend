@@ -15,6 +15,8 @@
     "@ngx-translate/core": "^17.0.0",
     "@ngx-translate/http-loader": "^17.0.0",
     "@primeuix/themes": "^2.0.3",
+    "@sentry/angular": "^10.59.0",
+    "@sentry/cli": "2",
     "@tailwindcss/postcss": "^4.2.4",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-autostart": "~2.5.1",
@@ -75,11 +77,12 @@
   "name": "alpine",
   "private": true,
   "scripts": {
-    "build": "ng build",
+    "build": "ng build && bun run sentry:sourcemaps",
     "ng": "ng",
     "start": "ng serve",
     "tauri": "tauri",
-    "watch": "ng build --watch --configuration development"
+    "watch": "ng build --watch --configuration development",
+    "sentry:sourcemaps": "sentry-cli sourcemaps inject --org alpinebits-klg --project venta-frontend ./dist && sentry-cli sourcemaps upload --org alpinebits-klg --project venta-frontend ./dist"
   },
   "version": "3.0.96"
 }

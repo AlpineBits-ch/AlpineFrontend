@@ -39,6 +39,7 @@
           },
           "defaultConfiguration": "production",
           "options": {
+            "sourceMap": true,
             "assets": [
               {
                 "glob": "**/*",
