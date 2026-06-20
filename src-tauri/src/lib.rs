@@ -12,6 +12,43 @@ mod desktop_notifications;
 #[cfg(target_os = "windows")]
 mod windows_notifications;
 
+/// Device enumeration stubs for mobile — return sensible defaults so the
+/// same Tauri commands exist on all targets.
+#[cfg(any(target_os = "android", target_os = "ios"))]
+mod mobile_stubs {
+    use serde::Serialize;
+
+    #[derive(Serialize, Clone)]
+    #[serde(rename_all = "camelCase")]
+    struct AudioDevice {
+        id: String,
+        name: String,
+        is_default: bool,
+    }
+
+    #[derive(Serialize, Clone)]
+    #[serde(rename_all = "camelCase")]
+    struct CameraDevice {
+        id: String,
+        name: String,
+    }
+
+    #[tauri::command]
+    pub fn enumerate_audio_devices() -> Vec<AudioDevice> {
+        vec![AudioDevice { id: "default".into(), name: "Default".into(), is_default: true }]
+    }
+
+    #[tauri::command]
+    pub fn enumerate_output_devices() -> Vec<AudioDevice> {
+        vec![AudioDevice { id: "default".into(), name: "Default".into(), is_default: true }]
+    }
+
+    #[tauri::command]
+    pub fn enumerate_camera_devices() -> Vec<CameraDevice> {
+        vec![]
+    }
+}
+
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! You've been greeted from Rust!", name)
@@ -371,6 +408,8 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             crypto::mls::mls_export_state,
             crypto::mls::mls_import_state,
             media::audio::enumerate_audio_devices,
+            media::audio::enumerate_output_devices,
+            media::camera::enumerate_camera_devices,
             media::audio::start_audio_capture,
             media::audio::stop_audio_capture,
             media::audio::start_loopback_capture,
@@ -422,6 +461,9 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             crypto::mls::mls_clear_storage,
             crypto::mls::mls_export_state,
             crypto::mls::mls_import_state,
+            mobile_stubs::enumerate_audio_devices,
+            mobile_stubs::enumerate_output_devices,
+            mobile_stubs::enumerate_camera_devices,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

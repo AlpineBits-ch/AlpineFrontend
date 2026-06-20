@@ -103,11 +103,43 @@ pub fn enumerate_audio_devices() -> Vec<AudioDevice> {
 }
 
 #[tauri::command]
+pub fn enumerate_output_devices() -> Vec<AudioDevice> {
+    let host = cpal::default_host();
+    let default_name = host
+        .default_output_device()
+        .and_then(|d| d.name().ok())
+        .unwrap_or_default();
+
+    let mut devices = vec![AudioDevice {
+        id: "default".into(),
+        name: "Default".into(),
+        is_default: true,
+    }];
+
+    if let Ok(outputs) = host.output_devices() {
+        for device in outputs {
+            let name = device.name().unwrap_or_else(|_| "Unknown".into());
+            let is_default = name == default_name;
+            devices.push(AudioDevice {
+                id: name.clone(),
+                name,
+                is_default,
+            });
+        }
+    }
+
+    devices
+}
+
+#[tauri::command]
 pub async fn start_audio_capture(
     settings: AudioCaptureSettings,
     on_chunk: Channel<AudioChunk>,
     state: tauri::State<'_, AudioCaptureState>,
 ) -> Result<(), String> {
+    eprintln!("[audio] start_audio_capture — device_id={:?} noise_suppression={} agc={} vad={}",
+        settings.device_id, settings.noise_suppression, settings.auto_gain_control, settings.vad_threshold);
+
     // Stop any existing capture
     stop_audio_capture_inner(&state);
 
@@ -115,23 +147,55 @@ pub async fn start_audio_capture(
     *state.0.lock().unwrap() = Some(stop_tx);
 
     let host = cpal::default_host();
+    eprintln!("[audio] cpal host: {}", host.id().name());
+
+    // Log all available input devices for diagnostics
+    match host.input_devices() {
+        Ok(devs) => {
+            let names: Vec<String> = devs
+                .map(|d| d.name().unwrap_or_else(|_| "<err>".into()))
+                .collect();
+            eprintln!("[audio] available input devices ({}): {:?}", names.len(), names);
+        }
+        Err(e) => eprintln!("[audio] failed to list input devices: {e}"),
+    }
+
+    let default_dev_name = host
+        .default_input_device()
+        .and_then(|d| d.name().ok());
+    eprintln!("[audio] default input device: {:?}", default_dev_name);
 
     let device = if let Some(ref id) = settings.device_id {
+        eprintln!("[audio] looking up device by id={:?}", id);
         if id == "default" {
             host.default_input_device()
         } else {
-            host.input_devices()
+            let found = host.input_devices()
                 .ok()
-                .and_then(|mut iter| iter.find(|d| d.name().ok().as_deref() == Some(id.as_str())))
-                .or_else(|| host.default_input_device())
+                .and_then(|mut iter| iter.find(|d| d.name().ok().as_deref() == Some(id.as_str())));
+            if found.is_none() {
+                eprintln!("[audio] device {:?} not found by name, falling back to default", id);
+            }
+            found.or_else(|| host.default_input_device())
         }
     } else {
+        eprintln!("[audio] no device_id, using default");
         host.default_input_device()
-    }
-    .ok_or("No input device available")?;
+    };
+
+    let device = device.ok_or_else(|| {
+        eprintln!("[audio] ERROR: no input device available — check Windows Sound settings");
+        "No input device available".to_string()
+    })?;
+
+    eprintln!("[audio] selected device: {:?}", device.name());
 
     // Prefer 48 kHz mono; fall back to device config
-    let config = pick_config(&device)?;
+    let config = pick_config(&device).map_err(|e| {
+        eprintln!("[audio] pick_config failed: {e}");
+        e
+    })?;
+    eprintln!("[audio] stream config: {:?} ch={} rate={}", config.buffer_size, config.channels, config.sample_rate.0);
     let sample_rate = config.sample_rate.0;
     let channels = config.channels as usize;
 
@@ -146,14 +210,21 @@ pub async fn start_audio_capture(
                 let _ = tx.send(data.to_vec());
             },
             move |err| {
-                eprintln!("[audio] cpal error: {err}");
+                eprintln!("[audio] cpal stream error: {err}");
                 drop(tx_err.clone());
             },
             None,
         )
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            eprintln!("[audio] build_input_stream failed: {e}");
+            e.to_string()
+        })?;
 
-    stream.play().map_err(|e| e.to_string())?;
+    stream.play().map_err(|e| {
+        eprintln!("[audio] stream.play() failed: {e}");
+        e.to_string()
+    })?;
+    eprintln!("[audio] stream started successfully");
     let stream = SendStream(stream);
 
     // Spawn processing task

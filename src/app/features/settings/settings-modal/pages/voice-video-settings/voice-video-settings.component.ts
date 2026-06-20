@@ -5,7 +5,19 @@ import {Select} from 'primeng/select';
 import {ToggleSwitch} from 'primeng/toggleswitch';
 import {Slider} from 'primeng/slider';
 import {TranslateModule} from '@ngx-translate/core';
+import {invoke} from '@tauri-apps/api/core';
 import {AudioSettingsService} from '../../../../../services/audio-settings.service';
+
+interface RustAudioDevice {
+    id: string;
+    name: string;
+    isDefault: boolean;
+}
+
+interface RustCameraDevice {
+    id: string;
+    name: string;
+}
 
 interface DeviceOption {
     label: string;
@@ -198,35 +210,23 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         this.stopMic();
     }
 
+
+
     private async loadDevices(): Promise<void> {
-        if (!navigator?.mediaDevices) return;
         try {
-            const temp = await navigator.mediaDevices.getUserMedia({audio: true});
-            temp.getTracks().forEach(t => t.stop());
-            const all = await navigator.mediaDevices.enumerateDevices();
-            this.micOptions.set([
-                {label: 'Default', value: 'default'},
-                ...all.filter(d => d.kind === 'audioinput').map(d => ({
-                    label: d.label || 'Microphone',
-                    value: d.deviceId,
-                })),
+            const [mics, speakers, cameras] = await Promise.all([
+                invoke<RustAudioDevice[]>('enumerate_audio_devices'),
+                invoke<RustAudioDevice[]>('enumerate_output_devices'),
+                invoke<RustCameraDevice[]>('enumerate_camera_devices'),
             ]);
-            this.speakerOptions.set([
-                {label: 'Default', value: 'default'},
-                ...all.filter(d => d.kind === 'audiooutput').map(d => ({
-                    label: d.label || 'Speaker',
-                    value: d.deviceId,
-                })),
-            ]);
+            this.micOptions.set(mics.map(d => ({label: d.name, value: d.id})));
+            this.speakerOptions.set(speakers.map(d => ({label: d.name, value: d.id})));
             this.cameraOptions.set([
                 {label: 'None', value: ''},
-                ...all.filter(d => d.kind === 'videoinput').map(d => ({
-                    label: d.label || 'Camera',
-                    value: d.deviceId,
-                })),
+                ...cameras.map(d => ({label: d.name, value: d.id})),
             ]);
-        } catch {
-            this.permissionError.set(true);
+        } catch (e) {
+            console.error('[devices] enumeration failed', e);
         }
     }
 

@@ -185,7 +185,9 @@ export class MainPageComponent implements OnDestroy {
      * 2. Check if master key is set; show key-setup dialog if not.
      */
     private async initLaunchSequence(): Promise<void> {
+
         const deviceId = await this.mlsService.getOrCreateDeviceIdentifier();
+        console.log('Device ID:', deviceId);
         try {
             await firstValueFrom(this.mlsService.initStorage());
         } catch (storageErr) {

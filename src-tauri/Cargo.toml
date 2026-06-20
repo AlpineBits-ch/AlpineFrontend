@@ -1,6 +1,6 @@
 [package]
 name = "Venta"
-version = "3.0.95"
+version = "3.0.96"
 description = ""
 authors = ["you"]
 edition = "2021"
@@ -95,12 +95,15 @@ tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-plugin-notifications = { version = "0.4.6", default-features = false }
+nokhwa = { version = "0.10", default-features = false, features = ["input-avfoundation"] }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tauri-plugin-notifications = "0.4.6"
+nokhwa = { version = "0.10", default-features = false, features = ["input-v4l"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 tauri-plugin-notifications = "0.4.6"
+nokhwa = { version = "0.10", default-features = false, features = ["input-msmf"] }
 windows = { version = "0.58", features = [
     "implement",
     "Foundation",

@@ -182,7 +182,16 @@ export class VoiceChannelService {
                     return n;
                 });
                 this.soundSettings.playVoiceJoin();
-                await this.rtc.connect(channel.guildId, channel.id, ownId);
+                const connected = await this.rtc.connect(channel.guildId, channel.id, ownId);
+                if (!connected) {
+                    console.error('VoiceChannelService: WebRTC connect() returned false — audio setup failed');
+                    await this.doLeave(channel.guildId, channel.id, false);
+                    this.joinedChannelId.set(null);
+                    this.joinedGuildId.set(null);
+                    this.joinedChannelName.set(null);
+                    this.joinedGuildName.set(null);
+                    return;
+                }
                 this.heartbeatTimer = setInterval(() => this.guildWsSvc.invokeVoiceHeartbeat(), 30_000);
             } catch (err) {
                 console.error('VoiceChannelService: join failed', err);

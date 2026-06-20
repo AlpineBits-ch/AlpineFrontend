@@ -103,19 +103,34 @@ export class VoiceRTCService {
             let audioTrack: MediaStreamTrack;
             try {
                 const s = this.audioSettings.settings();
-                if (s.enhancedNoiseSuppression || await this.rustMedia.shouldUseRustAudio()) {
-                    audioTrack = await this.rustMedia.startMicCapture({
-                        deviceId: s.micId === 'default' ? null : s.micId,
-                        noiseSuppression: s.noiseSuppression,
-                        autoGainControl: s.autoGainControl,
-                        vadThreshold: s.vadStrength,
-                    });
+                const useRust = s.enhancedNoiseSuppression || await this.rustMedia.shouldUseRustAudio();
+                console.log(`[voice] audio path: ${useRust ? 'rust' : 'getUserMedia'} (enhancedNS=${s.enhancedNoiseSuppression} micId=${s.micId})`);
+
+                if (useRust) {
+                    try {
+                        audioTrack = await this.rustMedia.startMicCapture({
+                            deviceId: s.micId === 'default' ? null : s.micId,
+                            noiseSuppression: s.noiseSuppression,
+                            autoGainControl: s.autoGainControl,
+                            vadThreshold: s.vadStrength,
+                        });
+                        console.log('[voice] Rust mic capture started');
+                    } catch (rustErr) {
+                        console.warn('[voice] Rust audio capture failed, falling back to getUserMedia:', rustErr);
+                        const stream = await navigator.mediaDevices.getUserMedia({
+                            audio: this.audioSettings.buildAudioConstraint(),
+                            video: false,
+                        });
+                        audioTrack = stream.getAudioTracks()[0];
+                        console.log('[voice] getUserMedia fallback succeeded, track:', audioTrack.label);
+                    }
                 } else {
                     const stream = await navigator.mediaDevices.getUserMedia({
                         audio: this.audioSettings.buildAudioConstraint(),
                         video: false,
                     });
                     audioTrack = stream.getAudioTracks()[0];
+                    console.log('[voice] getUserMedia track:', audioTrack.label);
                 }
             } catch (e) {
                 console.log(e)
