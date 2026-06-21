@@ -118,7 +118,6 @@ export class ComposerComponent {
                         .map(m => ({
                             userId: m.userId,
                             userName: m.profile!.userName,
-                            hash: m.profile!.hash,
                             avatarUrl: m.profile?.avatarUrl,
                         }))
                     ),
@@ -303,7 +302,7 @@ export class ComposerComponent {
         chip.className = 'mention-chip';
         chip.contentEditable = 'false';
         chip.dataset['userId'] = candidate.userId;
-        chip.dataset['display'] = `@${candidate.userName}#${candidate.hash}`;
+        chip.dataset['display'] = `@${candidate.userName}`;
         chip.textContent = `@${candidate.userName}`;
 
         this.triggerRange.insertNode(chip);

@@ -105,7 +105,7 @@ export class ConversationComponent implements AfterViewInit {
         const ownId = this.profileService.ownProfile()?.userId;
         return this.conversation().members
             .filter(m => m.userId !== ownId)
-            .map(m => ({userId: m.userId, userName: m.cachedUserName, hash: m.cachedUserHash}));
+            .map(m => ({userId: m.userId, userName: m.cachedUserName}));
     });
     private callStateService = inject(CallStateService);
     protected isRinging = computed(() => {

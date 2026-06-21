@@ -57,7 +57,7 @@
                 <div>
                     <p class="text-sm font-semibold text-white/80 mb-1">{{ 'HOME.ADD_FRIEND_PANEL.TITLE' | translate }}</p>
                     <p class="text-xs text-white/35">{{ 'HOME.ADD_FRIEND_PANEL.HINT' | translate }} <span
-                            class="text-indigo-400/70">Sarah#1234</span></p>
+                            class="text-indigo-400/70">sarah</span></p>
                 </div>
                 <div class="flex gap-2">
                     <div class="flex-1 flex items-center gap-2 bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 focus-within:border-indigo-500/40 transition-colors">
@@ -71,7 +71,7 @@
                     </div>
                     <p-button
                             (onClick)="sendRequest()"
-                            [disabled]="!friendInput.includes('#')"
+                            [disabled]="!friendInput.trim()"
                             [label]="'HOME.ADD_FRIEND_PANEL.SEND' | translate"
                             severity="primary"
                             size="small"/>

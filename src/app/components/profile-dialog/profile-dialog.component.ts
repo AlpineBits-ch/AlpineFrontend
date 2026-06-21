@@ -1,13 +1,13 @@
 import {
     Component,
-    computed,
     EventEmitter,
     inject,
     Input,
     OnChanges,
     Output,
     signal,
-    SimpleChanges
+    SimpleChanges,
+    computed
 } from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {Dialog} from 'primeng/dialog';
@@ -32,9 +32,6 @@ export class ProfileDialogComponent implements OnChanges {
     protected profile = signal<ProfileDto | undefined>(undefined);
     protected avatarExpanded = false;
     protected avatarError = signal(false);
-    protected formattedHash = computed(() =>
-        String(this.profile()?.hash ?? 0).padStart(4, '0')
-    );
     protected avatarLabel = computed(() =>
         this.profile()?.userName?.[0]?.toUpperCase() ?? '?'
     );

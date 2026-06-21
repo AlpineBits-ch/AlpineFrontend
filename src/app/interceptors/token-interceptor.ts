@@ -4,6 +4,7 @@ import {OAuthService} from "angular-oauth2-oidc";
 import {Router} from "@angular/router";
 import {catchError, from, switchMap, throwError} from "rxjs";
 import {environment} from "../../environments/environment";
+import {ApiConfigService} from "../services/api-config.service";
 
 // Shared across all interceptor invocations. When a refresh is in-flight every
 // concurrent 401 waits on the same Promise instead of triggering its own
@@ -18,18 +19,27 @@ export function _resetInterceptorState(): void {
 }
 
 export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
-    if (req.url.includes('connect/token')) return next(req);
-    if (!req.url.startsWith(environment.apiUrl)) return next(req);
+    const apiConfig = inject(ApiConfigService);
+    const currentBase = apiConfig.baseUrl();
+
+    // Rewrite base URL for self-hosted instances
+    let request = req;
+    if (req.url.startsWith(environment.apiUrl) && currentBase !== environment.apiUrl) {
+        request = req.clone({url: currentBase + req.url.slice(environment.apiUrl.length)});
+    }
+
+    if (request.url.includes('connect/token')) return next(request);
+    if (!request.url.startsWith(currentBase)) return next(request);
 
     const oAuthService = inject(OAuthService);
     const router = inject(Router);
     const accessCode = oAuthService.getAccessToken();
 
     if (accessCode) {
-        req = req.clone({setHeaders: {Authorization: `Bearer ${accessCode}`}});
+        request = request.clone({setHeaders: {Authorization: `Bearer ${accessCode}`}});
     }
 
-    return next(req).pipe(
+    return next(request).pipe(
         catchError((err) => {
             if (!(err instanceof HttpErrorResponse) || err.status !== 401) {
                 return throwError(() => err);
@@ -55,7 +65,7 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
             // wait on the same Promise and retry with the new token once it resolves.
             return from(refreshPromise!).pipe(
                 switchMap(newToken => {
-                    const retried = req.clone({setHeaders: {Authorization: `Bearer ${newToken}`}});
+                    const retried = request.clone({setHeaders: {Authorization: `Bearer ${newToken}`}});
                     return next(retried).pipe(
                         catchError((retryErr) => {
                             if (retryErr instanceof HttpErrorResponse && retryErr.status === 401) {

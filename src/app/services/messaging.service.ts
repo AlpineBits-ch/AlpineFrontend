@@ -6,6 +6,7 @@ import {CreateMessageDto} from "../dtos/request/create-message.dto";
 import {MessageDto} from "../dtos/response/message.dto";
 import {CreateReactionDto} from "../dtos/request/create-reaction.dto";
 import {RemoveReactionDto} from "../dtos/request/remove-reaction.dto";
+import {ApiConfigService} from "./api-config.service";
 
 @Injectable({
     providedIn: 'root',
@@ -13,36 +14,39 @@ import {RemoveReactionDto} from "../dtos/request/remove-reaction.dto";
 export class MessagingService {
     readonly messageSentObservable = new Subject<MessageDto>();
     private httpClient = inject(HttpClient);
+    private apiConfig = inject(ApiConfigService);
+
+    private baseUrl = this.apiConfig.baseUrl();
 
     public createMessage(createConversationDto: CreateMessageDto): Observable<MessageDto> {
-        return this.httpClient.post<MessageDto>(environment.apiUrl + '/api/v1/messaging/messaging', createConversationDto);
+        return this.httpClient.post<MessageDto>(this.apiConfig.baseUrl() + '/api/v1/messaging/messaging', createConversationDto);
     }
 
     public getMessagesForConversation(conversationId: string, offset: number, limit: number): Observable<MessageDto[]> {
-        return this.httpClient.get<MessageDto[]>(environment.apiUrl + '/api/v1/messaging/messaging/conversations/' + conversationId + '/messages?offset=' + offset + '&limit=' + limit);
+        return this.httpClient.get<MessageDto[]>(this.apiConfig.baseUrl() + '/api/v1/messaging/messaging/conversations/' + conversationId + '/messages?offset=' + offset + '&limit=' + limit);
     }
 
     public getMessagesForChannel(channelId: string, offset: number, limit: number): Observable<MessageDto[]> {
-        return this.httpClient.get<MessageDto[]>(environment.apiUrl + '/api/v1/messaging/messaging/channels/' + channelId + '/messages?offset=' + offset + '&limit=' + limit);
+        return this.httpClient.get<MessageDto[]>(this.apiConfig.baseUrl() + '/api/v1/messaging/messaging/channels/' + channelId + '/messages?offset=' + offset + '&limit=' + limit);
     }
 
     public deleteMessage(messageId: string): Observable<void> {
-        return this.httpClient.delete<void>(environment.apiUrl + '/api/v1/messaging/messaging/' + messageId);
+        return this.httpClient.delete<void>(this.apiConfig.baseUrl() + '/api/v1/messaging/messaging/' + messageId);
     }
 
     public updateMessage(messageId: string, content: string): Observable<MessageDto> {
-        return this.httpClient.put<MessageDto>(environment.apiUrl + '/api/v1/messaging/messaging/' + messageId, {content});
+        return this.httpClient.put<MessageDto>(this.apiConfig.baseUrl() + '/api/v1/messaging/messaging/' + messageId, {content});
     }
 
     public searchMessagesForChannel(channelId: string, query: string): Observable<MessageDto[]> {
         return this.httpClient.get<MessageDto[]>(
-            `${environment.apiUrl}/api/v1/messaging/messaging/channels/${channelId}/messages/search?q=${encodeURIComponent(query)}`
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/channels/${channelId}/messages/search?q=${encodeURIComponent(query)}`
         );
     }
 
     public searchMessagesForConversation(conversationId: string, query: string): Observable<MessageDto[]> {
         return this.httpClient.get<MessageDto[]>(
-            `${environment.apiUrl}/api/v1/messaging/messaging/conversations/${conversationId}/messages/search?q=${encodeURIComponent(query)}`
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/conversations/${conversationId}/messages/search?q=${encodeURIComponent(query)}`
         );
     }
 
@@ -54,19 +58,19 @@ export class MessagingService {
         const {messageId, conversationId, channelId} = params;
         if (conversationId) {
             return this.httpClient.get<MessageDto>(
-                `${environment.apiUrl}/api/v1/messaging/messaging/conversations/${conversationId}/messages/${messageId}`
+                `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/conversations/${conversationId}/messages/${messageId}`
             );
         }
         return this.httpClient.get<MessageDto>(
-            `${environment.apiUrl}/api/v1/messaging/messaging/channels/${channelId}/messages/${messageId}`
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/channels/${channelId}/messages/${messageId}`
         );
     }
 
     public addReaction(messageId: string, dto: CreateReactionDto): Observable<void> {
-        return this.httpClient.post<void>(`${environment.apiUrl}/api/v1/messaging/messages/${messageId}/reactions`, dto);
+        return this.httpClient.post<void>(`${this.apiConfig.baseUrl()}/api/v1/messaging/messages/${messageId}/reactions`, dto);
     }
 
     public removeReaction(messageId: string, dto: RemoveReactionDto): Observable<void> {
-        return this.httpClient.delete<void>(`${environment.apiUrl}/api/v1/messaging/messages/${messageId}/reactions`, {body: dto});
+        return this.httpClient.delete<void>(`${this.apiConfig.baseUrl()}/api/v1/messaging/messages/${messageId}/reactions`, {body: dto});
     }
 }

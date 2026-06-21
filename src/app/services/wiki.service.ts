@@ -9,11 +9,14 @@ import {
     UpdateWikiCategoryDto,
     UpdateWikiPageDto,
 } from '../dtos/request/wiki.dto';
+import {ApiConfigService} from "./api-config.service";
 
 @Injectable({providedIn: 'root'})
 export class WikiService {
+    private apiConfig = inject(ApiConfigService);
+
     private readonly http = inject(HttpClient);
-    private readonly base = environment.apiUrl + '/api/v1/guild';
+    private readonly base = this.apiConfig.baseUrl() + '/api/v1/guild';
 
     getWiki(guildId: string): Observable<WikiDto> {
         return this.http.get<WikiDto>(`${this.base}/guilds/${guildId}/wiki`).pipe(

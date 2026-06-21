@@ -82,7 +82,6 @@
             <app-avatar [userId]="profileService.ownProfile()?.userId" size="large"/>
             <div class="text-center">
                 <p class="text-sm font-semibold text-white/85">{{ profileService.ownProfile()?.userName ?? '…' }}</p>
-                <p class="text-[11px] text-white/30">#{{ profileService.ownProfile()?.hash }}</p>
             </div>
         </div>
     </div>

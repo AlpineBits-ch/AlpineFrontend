@@ -2,6 +2,7 @@ import {inject, Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {environment} from '../../environments/environment';
+import {ApiConfigService} from "./api-config.service";
 
 export interface VoiceParticipantDto {
     userId: string;
@@ -57,7 +58,7 @@ export interface CfGuildRenegotiateResponse {
 @Injectable({providedIn: 'root'})
 export class GuildVoiceService {
     private client = inject(HttpClient);
-
+    private apiConfig = inject(ApiConfigService);
     join(guildId: string, channelId: string): Observable<VoiceStateDto> {
         return this.client.post<VoiceStateDto>(`${this.base(guildId, channelId)}/join`, {});
     }
@@ -105,6 +106,6 @@ export class GuildVoiceService {
     }
 
     private base(guildId: string, channelId: string): string {
-        return `${environment.apiUrl}/api/v1/guild/guilds/${guildId}/channels/${channelId}/voice`;
+        return `${this.apiConfig.baseUrl()}/api/v1/guild/guilds/${guildId}/channels/${channelId}/voice`;
     }
 }

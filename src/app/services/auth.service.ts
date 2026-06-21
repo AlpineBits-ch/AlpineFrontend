@@ -3,7 +3,7 @@ import {HttpClient} from "@angular/common/http";
 import {catchError, from, Observable, tap, throwError} from "rxjs";
 import {environment} from "../../environments/environment";
 import {OAuthService, TokenResponse} from "angular-oauth2-oidc";
-import {authConfig} from "../app.config";
+import {ApiConfigService} from "./api-config.service";
 
 @Injectable({
     providedIn: 'root',
@@ -11,11 +11,8 @@ import {authConfig} from "../app.config";
 export class AuthService {
     private http = inject(HttpClient);
     private oauthService = inject(OAuthService);
+    private apiConfig = inject(ApiConfigService);
     private _activeRefresh: Promise<string> | null = null;
-
-    constructor() {
-        this.oauthService.configure(authConfig);
-    }
 
     public register(email: string, username: string, password: string, birthdate: Date): Observable<unknown> {
         return this.http.post(`${environment.apiUrl}/api/v1/identity/authentication/register`, {
@@ -26,8 +23,10 @@ export class AuthService {
         });
     }
 
-    public login(email: string, password: string): Observable<TokenResponse> {
-        return from(this.oauthService.fetchTokenUsingPasswordFlow(email, password)).pipe(
+    /** Accepts `username` or `user@server.com`, resolves the server, then logs in. */
+    public login(input: string, password: string): Observable<TokenResponse> {
+        const username = this.apiConfig.applyLoginInput(input);
+        return from(this.oauthService.fetchTokenUsingPasswordFlow(username, password)).pipe(
             tap({
                 error: (err) => console.error('Login failed', err)
             }),
@@ -37,6 +36,7 @@ export class AuthService {
     }
 
     public logout() {
+        this.apiConfig.reset();
         this.oauthService.logOut();
     }
 

@@ -6,7 +6,6 @@ export interface ConversationMemberDto {
     updatedAt: Date;
     userId: string;
     cachedUserName: string;
-    cachedUserHash: number;
     lastReadMessageId: string | undefined;
     mentionCount: number;
 }

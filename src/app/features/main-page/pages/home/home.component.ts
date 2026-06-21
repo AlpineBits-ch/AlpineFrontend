@@ -60,12 +60,9 @@ export class HomeComponent {
     }
 
     public sendRequest(): void {
-        const parts = this.friendInput.trim().split('#');
-        if (parts.length !== 2) return;
-        const username = parts[0];
-        const hash = Number.parseInt(parts[1]);
-        if (isNaN(hash)) return;
-        this.relationshipService.createFriendRequest(username, hash).subscribe(() => {
+        const username = this.friendInput.trim();
+        if (!username) return;
+        this.relationshipService.createFriendRequest(username).subscribe(() => {
             this.friendInput = '';
             this.addFriendOpen.set(false);
             this.load();

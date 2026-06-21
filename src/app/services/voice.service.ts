@@ -4,6 +4,7 @@ import {HttpClient} from '@angular/common/http';
 import {environment} from '../../environments/environment';
 import {CallDto} from '../dtos/response/call.dto';
 import {CreateCallDto} from '../dtos/request/create-call.dto';
+import {ApiConfigService} from "./api-config.service";
 
 // ── Cloudflare Calls proxy DTOs ───────────────────────────────────────────────
 
@@ -42,8 +43,9 @@ export interface CfRenegotiateResponse {
 @Injectable({providedIn: 'root'})
 export class VoiceService {
     private client = inject(HttpClient);
+    private apiConfig = inject(ApiConfigService);
 
-    private readonly base = environment.apiUrl + '/api/v1/messaging/voice';
+    private readonly base = this.apiConfig.baseUrl() + '/api/v1/messaging/voice';
 
     // ── Existing endpoints ──────────────────────────────────────────────────
 

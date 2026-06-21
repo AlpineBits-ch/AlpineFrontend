@@ -3,6 +3,7 @@ import {HttpClient} from '@angular/common/http';
 import {catchError, EMPTY, Observable, of, tap} from 'rxjs';
 import {environment} from '../../environments/environment';
 import {OnlineStatus, ProfileDto} from '../dtos/response/profile.dto';
+import {ApiConfigService} from "./api-config.service";
 
 // ── Circuit breaker config ───────────────────────────────────────────────────
 
@@ -15,7 +16,6 @@ const FALLBACK_PROFILE: ProfileDto = {
     id: 'unknown',
     userId: 'unknown',
     userName: 'Unknown User',
-    hash: 0,
     bio: undefined,
     avatarUrl: undefined,
     createdAt: new Date(),
@@ -36,6 +36,8 @@ export class ProfileService {
     private byProfileId = signal<Record<string, ProfileDto>>({});
     private byUserId = signal<Record<string, ProfileDto>>({});
 
+    private apiConfig = inject(ApiConfigService);
+
     // ── Circuit breaker state ────────────────────────────────────────────────
 
     private circuitState: CircuitState = 'closed';
@@ -44,7 +46,7 @@ export class ProfileService {
 
     public getSelf(): Observable<ProfileDto> {
         return this.httpClient
-            .get<ProfileDto>(environment.apiUrl + '/api/v1/social/profiles/me')
+            .get<ProfileDto>(this.apiConfig.baseUrl() + '/api/v1/social/profiles/me')
             .pipe(tap(p => {
                 this.ownProfile.set(p);
                 this.store(p);
@@ -62,7 +64,7 @@ export class ProfileService {
     public fetchById(profileId: string): Observable<ProfileDto> {
         return this.protect(
             this.httpClient
-                .get<ProfileDto>(environment.apiUrl + `/api/v1/social/profiles/${profileId}`)
+                .get<ProfileDto>(this.apiConfig.baseUrl() + `/api/v1/social/profiles/${profileId}`)
                 .pipe(tap(p => this.store(p))),
         );
     }
@@ -72,7 +74,7 @@ export class ProfileService {
     public fetchByUserId(userId: string): Observable<ProfileDto> {
         return this.protect(
             this.httpClient
-                .get<ProfileDto>(environment.apiUrl + `/api/v1/social/profiles/by-user/${userId}`)
+                .get<ProfileDto>(this.apiConfig.baseUrl() + `/api/v1/social/profiles/by-user/${userId}`)
                 .pipe(tap(p => this.store(p))),
         );
     }
@@ -112,7 +114,7 @@ export class ProfileService {
         form.append('file', file, file.name);
         return this.httpClient
             .patch<ProfileDto>(
-                `${environment.apiUrl}/api/v1/social/profiles/${current.id}/avatar`,
+                `${this.apiConfig.baseUrl()}/api/v1/social/profiles/${current.id}/avatar`,
                 form,
             )
             .pipe(tap(p => {
@@ -126,7 +128,7 @@ export class ProfileService {
         if (!current) return EMPTY;
         return this.httpClient
             .delete<ProfileDto>(
-                `${environment.apiUrl}/api/v1/social/profiles/${current.id}/avatar`,
+                `${this.apiConfig.baseUrl()}/api/v1/social/profiles/${current.id}/avatar`,
             )
             .pipe(tap(p => {
                 this.ownProfile.set(p);

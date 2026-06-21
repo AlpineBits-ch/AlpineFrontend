@@ -45,11 +45,7 @@ export class ProfileSettingsComponent implements OnInit {
     protected avatarLabel = computed(() =>
         (this.ownProfile()?.userName?.[0] ?? '?').toUpperCase()
     );
-    protected usernameDisplay = computed(() => {
-        const p = this.ownProfile();
-        if (!p) return '—';
-        return `${p.userName}#${String(p.hash).padStart(4, '0')}`;
-    });
+    protected usernameDisplay = computed(() => this.ownProfile()?.userName ?? '—');
     private profileService = inject(ProfileService);
     protected ownProfile = this.profileService.ownProfile;
     private userService = inject(UserService);

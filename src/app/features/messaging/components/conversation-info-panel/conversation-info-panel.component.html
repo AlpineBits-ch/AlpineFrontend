@@ -15,7 +15,6 @@
                 <app-user-status-dot [status]="partnerStatus" size="lg"/>
             </div>
             <h2 class="text-sm font-semibold text-white/90 m-0">{{ partner.cachedUserName }}</h2>
-            <span class="text-xs text-white/40">#{{ partner.cachedUserHash }}</span>
             <span [ngClass]="partnerStatus === OnlineStatus.Online ? 'text-emerald-400/80' : 'text-white/30'"
                   class="mt-1.5 text-[11px] flex items-center gap-1">
         <span [ngClass]="partnerStatus === OnlineStatus.Online ? 'bg-emerald-400' : 'bg-white/30'"
@@ -57,7 +56,6 @@
                         </div>
                         <div class="flex flex-col min-w-0">
                             <span class="text-sm text-white/75 truncate leading-tight">{{ member.cachedUserName }}</span>
-                            <span class="text-[11px] text-white/30">#{{ member.cachedUserHash }}</span>
                         </div>
                     </div>
                 }

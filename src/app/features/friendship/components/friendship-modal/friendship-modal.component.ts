@@ -66,9 +66,9 @@ export class FriendshipModalComponent {
     }
 
     public sendFriendrequest() {
-        const id = Number.parseInt(this.friendId.split('#')[1]);
-        const username = this.friendId.split('#')[0];
-        this.relationshipService.createFriendRequest(username, id).subscribe(() => {
+        const username = this.friendId.trim();
+        if (!username) return;
+        this.relationshipService.createFriendRequest(username).subscribe(() => {
             this.friendId = '';
             this.load();
         });

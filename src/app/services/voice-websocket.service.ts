@@ -2,9 +2,11 @@ import {inject, Injectable, signal} from '@angular/core';
 import * as signalR from '@microsoft/signalr';
 import {NotificationService, NotificationSound} from './notification.service';
 import {environment} from '../../environments/environment';
-import {Subject} from 'rxjs';
+import {Observable, Subject} from 'rxjs';
 import {CallDto} from '../dtos/response/call.dto';
 import {AuthService} from './auth.service';
+import {WikiDto} from "../dtos/response/wiki.dto";
+import { ApiConfigService } from "./api-config.service";
 
 export enum ConnectionState {
     Connected,
@@ -116,10 +118,11 @@ export class VoiceWebsocketService {
     private notificationService = inject(NotificationService);
     private listenersSetUp = false;
     private reconnectNotified = false;
+    private apiConfig = inject(ApiConfigService);
 
     constructor() {
         this.hubConnection = new signalR.HubConnectionBuilder()
-            .withUrl(environment.apiUrl + '/api/v1/messaging/ws/hubs/voice', {
+            .withUrl(this.apiConfig.baseUrl() + '/api/v1/messaging/ws/hubs/voice', {
                 accessTokenFactory: () => this.authService.ensureValidToken(),
             })
             .withAutomaticReconnect({

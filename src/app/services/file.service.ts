@@ -2,6 +2,7 @@ import {inject, Injectable} from '@angular/core';
 import {EMPTY, expand, filter, Observable, switchMap, take, throwError, timer} from "rxjs";
 import {HttpClient} from "@angular/common/http";
 import {environment} from "../../environments/environment";
+import {ApiConfigService} from "./api-config.service";
 
 export interface AttachmentDto {
     id: string;
@@ -37,9 +38,10 @@ interface UploadResponse {
 export class FileService {
 
     private httpClient = inject(HttpClient);
+    private apiConfig = inject(ApiConfigService);
 
     public uploadFile(file: File): Observable<AttachmentDto> {
-        const url = `${environment.apiUrl}/api/v1/messaging/attachments`;
+        const url = `${this.apiConfig.baseUrl()}/api/v1/messaging/attachments`;
 
         // 1. Prepare FormData for [FromForm] ICollection<IFormFile>
         const formData = new FormData();
@@ -55,15 +57,15 @@ export class FileService {
     }
 
     public downloadAttachmentById(id: string) {
-        return this.httpClient.get(`${environment.apiUrl}/api/v1/messaging/attachments/${id}/download`, {responseType: 'blob'});
+        return this.httpClient.get(`${this.apiConfig.baseUrl()}/api/v1/messaging/attachments/${id}/download`, {responseType: 'blob'});
     }
 
     public getAttachmentMetadataById(id: string): Observable<AttachmentDto> {
-        return this.httpClient.get<AttachmentDto>(`${environment.apiUrl}/api/v1/messaging/attachments/${id}`);
+        return this.httpClient.get<AttachmentDto>(`${this.apiConfig.baseUrl()}/api/v1/messaging/attachments/${id}`);
     }
 
     private pollFileStatus(fileId: string): Observable<AttachmentDto> {
-        const pollUrl = `${environment.apiUrl}/api/v1/messaging/attachments/${fileId}`;
+        const pollUrl = `${this.apiConfig.baseUrl()}/api/v1/messaging/attachments/${fileId}`;
 
         return this.httpClient.get<AttachmentDto>(pollUrl).pipe(
             // expand will recursively call this logic

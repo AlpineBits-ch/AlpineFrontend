@@ -1,5 +1,5 @@
 /** Extract the plain-text message from a contenteditable element,
- *  converting mention-chip spans to their @Username#hash display value. */
+ *  converting mention-chip spans to their @Username display value. */
 export function getMessage(editor: HTMLElement): string {
     let text = '';
 
@@ -33,7 +33,6 @@ export type {EmojiSuggestion} from '../../../../../services/emoji-data.service';
 export interface MentionCandidate {
     userId: string;
     userName: string;
-    hash: number;
     avatarUrl?: string;
 }
 

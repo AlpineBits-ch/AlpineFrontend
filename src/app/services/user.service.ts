@@ -5,19 +5,21 @@ import {catchError, from, map, Observable, of} from 'rxjs';
 import {EncryptedMasterKey, UserDto} from '../dtos/response/UserDto';
 import {MlsService} from "./mls.service";
 import {switchMap} from "rxjs/operators";
+import {ApiConfigService} from "./api-config.service";
 
 @Injectable({providedIn: 'root'})
 export class UserService {
     private httpClient = inject(HttpClient);
     private mlsService = inject(MlsService);
+    private apiConfig = inject(ApiConfigService);
 
     getSelf(): Observable<UserDto> {
-        return this.httpClient.get<UserDto>(`${environment.apiUrl}/api/v1/identity/users/self`);
+        return this.httpClient.get<UserDto>(`${this.apiConfig.baseUrl()}/api/v1/identity/users/self`);
     }
 
     verifyPassword(password: string): Observable<boolean> {
         return this.httpClient.post<unknown>(
-            `${environment.apiUrl}/api/v1/identity/authentication/verify`,
+            `${this.apiConfig.baseUrl()}/api/v1/identity/authentication/verify`,
             {password}
         ).pipe(
             map(() => true),
@@ -28,7 +30,7 @@ export class UserService {
     uploadEncryptedMasterKey(_payload: EncryptedMasterKey): Observable<void> {
 
         return this.httpClient.post<void>(
-            `${environment.apiUrl}/api/v1/identity/users/master`,
+            `${this.apiConfig.baseUrl()}/api/v1/identity/users/master`,
             _payload
         );
 
@@ -41,7 +43,7 @@ export class UserService {
             switchMap(deviceId => {
                 return this.httpClient.get<{
                     count: number
-                }>(`${environment.apiUrl}/api/v1/identity/devices/client/${deviceId}/generate`
+                }>(`${this.apiConfig.baseUrl()}/api/v1/identity/devices/client/${deviceId}/generate`
                 )
             })
         )
@@ -49,7 +51,7 @@ export class UserService {
 
     changePassword(currentPassword: string, newPassword: string): Observable<{ code: number }> {
         return this.httpClient.put(
-            `${environment.apiUrl}/api/v1/identity/users/self/password`,
+            `${this.apiConfig.baseUrl()}/api/v1/identity/users/self/password`,
             {currentPassword, newPassword},
             {observe: 'response'}
         ).pipe(
@@ -60,13 +62,13 @@ export class UserService {
 
     signOutAllOtherDevices(): Observable<void> {
         return this.httpClient.post<void>(
-            `${environment.apiUrl}/api/v1/identity/sessions/revoke-others`,
+            `${this.apiConfig.baseUrl()}/api/v1/identity/sessions/revoke-others`,
             {withinSeconds: 3600}
         );
     }
 
     deleteAccount(): Observable<void> {
-        return this.httpClient.delete<void>(`${environment.apiUrl}/api/v1/identity/users/self`);
+        return this.httpClient.delete<void>(`${this.apiConfig.baseUrl()}/api/v1/identity/users/self`);
     }
 
     public replenishKeyCount(): Observable<void> {
@@ -92,7 +94,7 @@ export class UserService {
 
                                 // 4. Use the deviceId in your URL or body
                                 return this.httpClient.post<void>(
-                                    `${environment.apiUrl}/api/v1/identity/devices/client/${deviceId}/key-packages`,
+                                    `${this.apiConfig.baseUrl()}/api/v1/identity/devices/client/${deviceId}/key-packages`,
                                     body
                                 );
                             })

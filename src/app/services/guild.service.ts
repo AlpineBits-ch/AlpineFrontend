@@ -7,6 +7,8 @@ import {GuildMemberDto, RoleMemberDto, SelfGuildMemberDto} from '../dtos/respons
 import {InviteDto} from "../dtos/response/invite.dto";
 import {CreateInviteDto} from "../dtos/request/create-invite.dto";
 import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
+import {ApiConfigService} from "./api-config.service";
+import {appConfig} from "../app.config";
 
 export interface UpdateGuildDto {
     name?: string;
@@ -77,8 +79,9 @@ export interface GuildMemberWithProfileDto extends GuildMemberDto {
 export class GuildService {
     readonly guildJoined$ = new Subject<void>();
     readonly guildUpdated$ = new Subject<GuildDto>();
+    private apiConfig = inject(ApiConfigService);
     private http = inject(HttpClient);
-    private base = environment.apiUrl + '/api/v1/guild';
+    private base = this.apiConfig.baseUrl() + '/api/v1/guild';
 
     // ── Guilds ──────────────────────────────────────────────────────────────
     createGuild(name: string, description: string | undefined): Observable<GuildDto> {

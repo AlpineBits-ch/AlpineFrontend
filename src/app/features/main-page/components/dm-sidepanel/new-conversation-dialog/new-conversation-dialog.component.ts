@@ -39,7 +39,7 @@ export class NewConversationDialogComponent {
     readonly filteredFriends = computed(() => {
         const q = this.search().toLowerCase();
         return q
-            ? this.friends().filter(f => `${f.userName}#${f.hash}`.toLowerCase().includes(q))
+            ? this.friends().filter(f => f.userName.toLowerCase().includes(q))
             : this.friends();
     });
     readonly selectedFriends = computed(() =>

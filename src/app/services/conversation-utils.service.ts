@@ -32,7 +32,7 @@ export class ConversationUtilsService {
         if (!this.profileService.ownProfile()) return 'Loading…';
         const others = this.getOtherMembers(conv);
         if (others.length === 0) return 'Empty chat';
-        if (others.length === 1) return `${others[0].cachedUserName}#${others[0].cachedUserHash}`;
+        if (others.length === 1) return others[0].cachedUserName;
         return conv.name ?? others.map(m => m.cachedUserName).join(', ');
     }
 

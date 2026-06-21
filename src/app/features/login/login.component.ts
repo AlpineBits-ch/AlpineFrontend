@@ -1,21 +1,24 @@
-import {Component, inject, signal} from '@angular/core';
+import {Component, computed, DestroyRef, inject, signal} from '@angular/core';
+import {takeUntilDestroyed, toObservable} from '@angular/core/rxjs-interop';
 import {InputText} from "primeng/inputtext";
 import {PasswordDirective} from "primeng/password";
 import {Button} from "primeng/button";
 import {AuthService} from "../../services/auth.service";
-import {catchError, EMPTY, tap} from "rxjs";
+import {catchError, debounceTime, distinctUntilChanged, EMPTY, of, switchMap, tap} from "rxjs";
 import {email, form, FormField, pattern, required} from "@angular/forms/signals";
 import {Router} from "@angular/router";
 import {NgClass} from "@angular/common";
+import {FormsModule} from "@angular/forms";
 import {UserSettingsService} from "../../services/user-settings.service";
 import {ToastService} from "../../services/toast.service";
 import {TranslateModule} from '@ngx-translate/core';
 import {EmailVerificationService} from '../../services/email-verification.service';
 import {ExternalLinkService} from "../../services/external-link.service";
-
+import {ApiConfigService, ServerConfiguration} from "../../services/api-config.service";
+import {environment} from "../../../environments/environment";
 
 interface LoginModel {
-    email: string;
+    username: string;
     password: string;
 }
 
@@ -35,6 +38,7 @@ interface RegisterModel {
         Button,
         FormField,
         NgClass,
+        FormsModule,
         TranslateModule
     ],
     templateUrl: './login.component.html',
@@ -45,7 +49,24 @@ export class Login {
     protected externalLinkService = inject(ExternalLinkService);
     protected authService = inject(AuthService);
     protected router = inject(Router);
-    protected loginModel = signal<LoginModel>({email: '', password: ''});
+
+    // ── Login form ────────────────────────────────────────────────────────────
+    protected loginModel = signal<LoginModel>({username: '', password: ''});
+    protected loginForm = form(this.loginModel, (_schema) => {});
+    protected serverLabel = computed(() =>
+        ApiConfigService.serverLabel(this.loginModel().username)
+    );
+    protected isCustomServer = computed(() =>
+        this.loginModel().username.includes('@')
+    );
+    protected loginServerConfig = signal<ServerConfiguration | null>(null);
+    protected loginServerConfigLoading = signal(false);
+    protected loginServerConfigError = signal(false);
+    protected loginEnabled = computed(() =>
+        this.loginServerConfig()?.isLoginEnabled !== false
+    );
+
+    // ── Register form ─────────────────────────────────────────────────────────
     protected registerModel = signal<RegisterModel>({
         username: '',
         email: '',
@@ -54,43 +75,69 @@ export class Login {
         birthdate: ''
     });
     protected passwordMismatch = signal(false);
-    protected loginForm = form(this.loginModel, (schema) => {
-
-    });
     protected registerForm = form(this.registerModel, (schema) => {
-        required(schema.birthdate, {
-            message: 'Birthdate is required.',
-        })
-        required(schema.email, {
-            message: 'Email is required.',
-        })
-        required(schema.password, {
-            message: 'Password is required.',
-        })
-        required(schema.confirmPassword, {
-            message: 'Confirm password is required.',
-        })
-
-        email(schema.email, {
-            message: 'Please enter a valid email address.',
-        })
-
+        required(schema.birthdate, {message: 'Birthdate is required.'});
+        required(schema.email, {message: 'Email is required.'});
+        required(schema.password, {message: 'Password is required.'});
+        required(schema.confirmPassword, {message: 'Confirm password is required.'});
+        email(schema.email, {message: 'Please enter a valid email address.'});
         pattern(
             schema.birthdate,
             /^(0[1-9]|[12][0-9]|3[01])\.(0[1-9]|1[012])\.(19|20)\d\d$/,
-            { message: 'Please enter a valid date in dd.mm.yyyy format.' }
+            {message: 'Please enter a valid date in dd.mm.yyyy format.'}
         );
     });
+
+    // Register server selector
+    protected registerServerDomain = signal('venta.gg');
+    protected isEditingRegisterServer = signal(false);
+    protected registerServerInputValue = 'venta.gg';
+    protected registerServerConfig = signal<ServerConfiguration | null>(null);
+    protected registerServerConfigLoading = signal(false);
+    protected registerServerConfigError = signal(false);
+    protected registerEnabled = computed(() =>
+        this.registerServerConfig()?.isRegisterEnabled !== false
+    );
+
+    private apiConfigService = inject(ApiConfigService);
     private userSettings = inject(UserSettingsService);
     private toast = inject(ToastService);
     private emailVerification = inject(EmailVerificationService);
+    private destroyRef = inject(DestroyRef);
 
     constructor() {
         this.authService.isLoggedIn().then(r => {
-            if (r) {
-                this.router.navigate(['/overview']);
-            }
+            if (r) this.router.navigate(['/overview']);
         });
+
+        // Watch the server derived from the login username and fetch config
+        const loginServerUrl = computed(() => {
+            const u = this.loginModel().username;
+            const atIdx = u.lastIndexOf('@');
+            return atIdx > 0 ? `https://${u.slice(atIdx + 1)}` : environment.apiUrl;
+        });
+
+        toObservable(loginServerUrl).pipe(
+            debounceTime(500),
+            distinctUntilChanged(),
+            switchMap(url => {
+                this.loginServerConfigLoading.set(true);
+                this.loginServerConfigError.set(false);
+                return this.apiConfigService.getServerConfiguration(url).pipe(
+                    catchError(() => {
+                        this.loginServerConfigError.set(true);
+                        return of(null);
+                    })
+                );
+            }),
+            takeUntilDestroyed(this.destroyRef)
+        ).subscribe(config => {
+            this.loginServerConfig.set(config);
+            this.loginServerConfigLoading.set(false);
+        });
+
+        // Fetch register server config on init (default server)
+        this.fetchRegisterConfig(environment.apiUrl);
     }
 
     protected switchToMode(loginMode: boolean): void {
@@ -99,7 +146,7 @@ export class Login {
 
     protected login(): void {
         this.authService.login(
-            this.loginModel().email,
+            this.loginModel().username,
             this.loginModel().password
         ).pipe(
             tap(() => {
@@ -109,8 +156,8 @@ export class Login {
             catchError((err) => {
                 const status = err?.status ?? err?.reason?.status;
                 if (status === 403) {
-                    const {email, password} = this.loginModel();
-                    this.emailVerification.show(email, 'none', {email, password});
+                    const {username, password} = this.loginModel();
+                    this.emailVerification.show(username, 'none', {email: username, password});
                     return EMPTY;
                 }
                 this.toast.httpError('Sign in failed', err, {detail: 'Invalid username or password.'});
@@ -122,13 +169,11 @@ export class Login {
     protected register(): void {
         this.registerForm().markAsTouched();
         this.registerForm().markAsDirty();
-
         this.registerForm.birthdate().markAsTouched();
         this.registerForm.email().markAsTouched();
         this.registerForm.password().markAsTouched();
         this.registerForm.confirmPassword().markAsTouched();
         this.registerForm.username().markAsTouched();
-
         this.registerForm.birthdate().markAsDirty();
         this.registerForm.email().markAsDirty();
         this.registerForm.password().markAsDirty();
@@ -140,19 +185,19 @@ export class Login {
             this.passwordMismatch.set(true);
             return;
         }
+        if (!this.registerForm().valid()) return;
 
-
-        if(!this.registerForm().valid()) return;
+        // Apply the selected server before the API call
+        const domain = this.registerServerDomain();
+        this.apiConfigService.setServer(domain);
 
         this.passwordMismatch.set(false);
-        this.authService.register(
-            this.registerModel().email!,
-            this.registerModel().username!,
-            this.registerModel().password!,
-            this.parseBirthdate(this.registerModel().birthdate!)
-        ).pipe(
+        this.authService.register(model.email, model.username, model.password, this.parseBirthdate(model.birthdate)).pipe(
             tap(() => {
-                this.toast.success('Account created!', {detail: 'Welcome to Alpine. You can now sign in.'});
+                const hint = domain !== 'venta.gg'
+                    ? ` Sign in using ${model.username}@${domain}.`
+                    : '';
+                this.toast.success('Account created!', {detail: `Welcome to Alpine.${hint}`});
                 this.switchToMode(true);
             }),
             catchError((err) => {
@@ -162,13 +207,46 @@ export class Login {
         ).subscribe();
     }
 
+    protected startEditRegisterServer(): void {
+        this.registerServerInputValue = this.registerServerDomain();
+        this.isEditingRegisterServer.set(true);
+    }
+
+    protected confirmRegisterServer(): void {
+        const raw = this.registerServerInputValue.trim();
+        if (!raw) return;
+        // Strip any protocol prefix and trailing slash
+        const domain = raw.replace(/^https?:\/\//, '').replace(/\/$/, '');
+        this.registerServerDomain.set(domain);
+        this.isEditingRegisterServer.set(false);
+        this.fetchRegisterConfig(ApiConfigService.domainToUrl(domain));
+    }
+
+    protected cancelRegisterServerEdit(): void {
+        this.isEditingRegisterServer.set(false);
+        this.registerServerInputValue = this.registerServerDomain();
+    }
+
+    private fetchRegisterConfig(url: string): void {
+        this.registerServerConfigLoading.set(true);
+        this.registerServerConfigError.set(false);
+        this.apiConfigService.getServerConfiguration(url).pipe(
+            catchError(() => {
+                this.registerServerConfigError.set(true);
+                return of(null);
+            })
+        ).subscribe(config => {
+            this.registerServerConfig.set(config);
+            this.registerServerConfigLoading.set(false);
+        });
+    }
+
     private parseBirthdate(dateStr: string): Date {
         const [day, month, year] = dateStr.split('.').map(Number);
         return new Date(year, month - 1, day);
     }
 
     public openLink(link: string): void {
-        this.externalLinkService.openExternalLink( link);
+        this.externalLinkService.openExternalLink(link);
     }
-
 }

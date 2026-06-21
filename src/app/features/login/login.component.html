@@ -39,19 +39,50 @@
                     <h2 class="text-[16px] font-semibold text-slate-100">{{ 'LOGIN.LOGIN.TITLE' | translate }}</h2>
                     <p class="text-[12px] text-slate-500 mt-0.5">{{ 'LOGIN.LOGIN.SUBTITLE' | translate }}</p>
                 </div>
+
+                <!-- Username -->
                 <div class="flex flex-col gap-1">
-                    <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.LOGIN.EMAIL' | translate }}</label>
-                    <input (keydown.enter)="login()" [formField]="loginForm.email" [placeholder]="'LOGIN.REGISTER.EMAIL_PLACEHOLDER' | translate"
-                           autocomplete="email" inputmode="email"
-                           pInputText type="email"/>
+                    <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">Username</label>
+                    <input (keydown.enter)="login()" [formField]="loginForm.username"
+                           autocomplete="username"
+                           placeholder="username or user@selfhosted.com"
+                           pInputText type="text"/>
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                        <span [class]="loginServerConfigError() ? 'bg-rose-500/15 text-rose-400 border-rose-500/25' : isCustomServer() ? 'bg-indigo-500/15 text-indigo-400 border-indigo-500/25' : 'bg-white/[0.04] text-slate-500 border-white/[0.08]'"
+                              class="inline-flex items-center gap-1.5 text-[10px] font-medium border rounded-full px-2 py-0.5 transition-colors">
+                            @if (loginServerConfigLoading()) {
+                                <i class="pi pi-spin pi-spinner text-[9px]"></i>
+                            } @else if (loginServerConfigError()) {
+                                <i class="pi pi-exclamation-circle text-[9px]"></i>
+                            } @else {
+                                <i [class]="isCustomServer() ? 'pi pi-server' : 'pi pi-cloud'" class="text-[9px]"></i>
+                            }
+                            @if (loginServerConfigError()) {
+                                Could not reach {{ serverLabel() }}
+                            } @else {
+                                {{ serverLabel() }}
+                            }
+                        </span>
+                    </div>
                 </div>
+
+                <!-- Password -->
                 <div class="flex flex-col gap-1">
                     <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">{{ 'LOGIN.LOGIN.PASSWORD' | translate }}</label>
                     <input (keydown.enter)="login()" [formField]="loginForm.password" [placeholder]="'LOGIN.LOGIN.PASSWORD_PLACEHOLDER' | translate"
                            autocomplete="current-password"
                            pPassword type="password"/>
                 </div>
-                <p-button (onClick)="login()" [label]="'LOGIN.LOGIN.SUBMIT' | translate"/>
+
+                <!-- Login disabled warning -->
+                @if (!loginEnabled() && !loginServerConfigLoading()) {
+                    <div class="flex items-center gap-2 bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-3 py-2.5 text-[12px] text-amber-400">
+                        <i class="pi pi-exclamation-triangle text-xs shrink-0"></i>
+                        Login is not enabled on this server.
+                    </div>
+                }
+
+                <p-button (onClick)="login()" [disabled]="!loginEnabled()" [label]="'LOGIN.LOGIN.SUBMIT' | translate"/>
                 <p class="text-center text-[11px] text-slate-600 leading-relaxed mt-0.5">
                     {{ 'LOGIN.TERMS' | translate }}
                     <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors cursor-pointer"
@@ -70,6 +101,59 @@
                 <div class="text-center mb-0.5">
                     <h2 class="text-[16px] font-semibold text-slate-100">{{ 'LOGIN.REGISTER.TITLE' | translate }}</h2>
                     <p class="text-[12px] text-slate-500 mt-0.5">{{ 'LOGIN.REGISTER.SUBTITLE' | translate }}</p>
+                </div>
+
+                <!-- Server selector -->
+                <div class="flex flex-col gap-1">
+                    <label class="text-[11px] font-semibold text-slate-500 uppercase tracking-widest">Server</label>
+                    @if (!isEditingRegisterServer()) {
+                        <div class="flex items-center gap-2 bg-white/[0.04] border border-white/[0.09] rounded-xl px-3 py-2.5">
+                            @if (registerServerConfigLoading()) {
+                                <i class="pi pi-spin pi-spinner text-xs text-white/30 shrink-0"></i>
+                            } @else {
+                                <i [class]="registerServerDomain() === 'venta.gg' ? 'pi pi-cloud' : 'pi pi-server'"
+                                   class="text-sm text-white/30 shrink-0"></i>
+                            }
+                            <span class="flex-1 text-sm text-white/60">{{ registerServerDomain() }}</span>
+                            <button (click)="startEditRegisterServer()"
+                                    class="text-[11px] text-indigo-400/60 hover:text-indigo-400 bg-transparent border-0 cursor-pointer transition-colors px-0 shrink-0">
+                                Change
+                            </button>
+                        </div>
+                    } @else {
+                        <div class="flex items-center gap-1.5">
+                            <div class="flex-1 flex items-center gap-2 bg-white/[0.05] border border-indigo-500/30 rounded-xl px-3 focus-within:border-indigo-500/50 transition-colors">
+                                <i class="pi pi-globe text-sm text-white/30 shrink-0"></i>
+                                <input
+                                        [(ngModel)]="registerServerInputValue"
+                                        (keydown.enter)="confirmRegisterServer()"
+                                        (keydown.escape)="cancelRegisterServerEdit()"
+                                        autocomplete="off"
+                                        class="flex-1 bg-transparent border-0 outline-none py-2.5 text-sm text-white/80 placeholder:text-white/25"
+                                        placeholder="selfhosted.com"
+                                        type="text"/>
+                            </div>
+                            <button (click)="confirmRegisterServer()"
+                                    class="w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 border-0 cursor-pointer transition-colors shrink-0">
+                                <i class="pi pi-check text-sm"></i>
+                            </button>
+                            <button (click)="cancelRegisterServerEdit()"
+                                    class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/[0.06] text-white/40 border-0 cursor-pointer transition-colors shrink-0">
+                                <i class="pi pi-times text-sm"></i>
+                            </button>
+                        </div>
+                    }
+                    @if (registerServerConfigError() && !registerServerConfigLoading()) {
+                        <p class="text-[11px] text-rose-400/80 flex items-center gap-1 mt-0.5">
+                            <i class="pi pi-exclamation-circle text-[10px]"></i>
+                            Could not reach this server.
+                        </p>
+                    } @else if (!registerEnabled() && !registerServerConfigLoading()) {
+                        <p class="text-[11px] text-amber-400/80 flex items-center gap-1 mt-0.5">
+                            <i class="pi pi-exclamation-triangle text-[10px]"></i>
+                            Registration is not enabled on this server.
+                        </p>
+                    }
                 </div>
 
                 <!-- Username Field -->
@@ -138,7 +222,8 @@
                         <span class="text-[11px] text-rose-400">{{ 'LOGIN.REGISTER.PASSWORD_MISMATCH' | translate }}</span>
                     }
                 </div>
-                <p-button  (onClick)="register()" [label]="'LOGIN.REGISTER.SUBMIT' | translate"/>
+
+                <p-button (onClick)="register()" [disabled]="!registerEnabled() || registerServerConfigError()" [label]="'LOGIN.REGISTER.SUBMIT' | translate"/>
                 <p class="text-center text-[11px] text-slate-600 leading-relaxed mt-0.5">
                     {{ 'LOGIN.TERMS' | translate }}
                     <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors cursor-pointer"

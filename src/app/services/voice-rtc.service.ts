@@ -1,10 +1,11 @@
 import {effect, inject, Injectable, signal} from '@angular/core';
-import {firstValueFrom, Subject} from 'rxjs';
+import {firstValueFrom, Observable, Subject} from 'rxjs';
 import {GuildVoiceService} from './guild-voice.service';
 import {AudioSettingsService} from './audio-settings.service';
 import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
 import {environment} from '../../environments/environment';
+import {ApiConfigService} from "./api-config.service";
 
 export interface VoiceSpeakingChange {
     userId: string;
@@ -13,6 +14,8 @@ export interface VoiceSpeakingChange {
 
 @Injectable({providedIn: 'root'})
 export class VoiceRTCService {
+    private apiConfig = inject(ApiConfigService);
+
     readonly rtcState = signal<RTCPeerConnectionState>('new');
     readonly participantsWithAudio = signal<Set<string>>(new Set());
     readonly localVideoStream = signal<MediaStream | null>(null);

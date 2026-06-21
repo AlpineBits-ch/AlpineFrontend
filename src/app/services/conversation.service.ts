@@ -6,6 +6,7 @@ import {environment} from "../../environments/environment";
 import {ConversationDto} from "../dtos/response/conversation.dto";
 import {MlsDeviceTokenDto} from "../dtos/response/mls-device-token.dto";
 import {PendingWelcomeDto} from "../dtos/response/pending-welcome.dto";
+import {ApiConfigService} from "./api-config.service";
 
 @Injectable({
     providedIn: 'root',
@@ -13,31 +14,33 @@ import {PendingWelcomeDto} from "../dtos/response/pending-welcome.dto";
 export class ConversationService {
 
     private httpClient = inject(HttpClient);
+    private apiConfig = inject(ApiConfigService);
 
     public createConversation(createConversationDto: CreateConversationDto): Observable<ConversationDto> {
-        return this.httpClient.post<ConversationDto>(environment.apiUrl + '/api/v1/messaging/conversations', createConversationDto);
+        this.apiConfig.baseUrl();
+        return this.httpClient.post<ConversationDto>(this.apiConfig.baseUrl() + '/api/v1/messaging/conversations', createConversationDto);
     }
 
     public getPendingWelcomes(): Observable<PendingWelcomeDto[]> {
-        return this.httpClient.get<PendingWelcomeDto[]>(environment.apiUrl + '/api/v1/messaging/conversations/welcomes');
+        return this.httpClient.get<PendingWelcomeDto[]>(this.apiConfig.baseUrl() + '/api/v1/messaging/conversations/welcomes');
     }
 
     public getConversations(offset: number, limit: number): Observable<ConversationDto[]> {
-        return this.httpClient.get<ConversationDto[]>(environment.apiUrl + `/api/v1/messaging/conversations?offset=${offset}&limit=${limit}`);
+        return this.httpClient.get<ConversationDto[]>(this.apiConfig.baseUrl() + `/api/v1/messaging/conversations?offset=${offset}&limit=${limit}`);
     }
 
     public getConversationById(id: string): Observable<ConversationDto> {
-        return this.httpClient.get<ConversationDto>(environment.apiUrl + `/api/v1/messaging/conversations/${id}`);
+        return this.httpClient.get<ConversationDto>(this.apiConfig.baseUrl() + `/api/v1/messaging/conversations/${id}`);
     }
 
     public deleteConversation(id: string): Observable<void> {
-        return this.httpClient.delete<void>(environment.apiUrl + `/api/v1/messaging/conversations/${id}`);
+        return this.httpClient.delete<void>(this.apiConfig.baseUrl() + `/api/v1/messaging/conversations/${id}`);
     }
 
     public getMlsTokensForUserIds(ids: string[]): Observable<{ deviceTokens: MlsDeviceTokenDto[] }> {
         return this.httpClient.post<{
             deviceTokens: MlsDeviceTokenDto[]
-        }>(environment.apiUrl + '/api/v1/messaging/conversations/consume-tokens', {
+        }>(this.apiConfig.baseUrl() + '/api/v1/messaging/conversations/consume-tokens', {
             userIds: ids
         });
     }

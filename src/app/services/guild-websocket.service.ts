@@ -11,6 +11,7 @@ import {MessageType} from '../enums/message-type.enum';
 import {AttachmentDto} from "./file.service";
 import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
 import {ProfileService} from "./profile.service";
+import {ApiConfigService} from "./api-config.service";
 
 export interface ChannelTypingEvent {
     channelId: string;
@@ -182,9 +183,12 @@ export class GuildWebsocketService {
     private profileService = inject(ProfileService);
     private listenersSetUp = false;
 
+
+    private apiConfig = inject(ApiConfigService);
+
     constructor() {
         this.hubConnection = new signalR.HubConnectionBuilder()
-            .withUrl(environment.apiUrl + "/api/v1/guild/ws/hubs/guild", {
+            .withUrl(this.apiConfig.baseUrl() + "/api/v1/guild/ws/hubs/guild", {
                 accessTokenFactory: () => this.authService.ensureValidToken(),
             })
             .withAutomaticReconnect({
