@@ -24,7 +24,19 @@ import {provideTranslateService} from '@ngx-translate/core';
 import {provideTranslateHttpLoader} from '@ngx-translate/http-loader';
 import {AlpinePreset} from './theme/alpine-preset';
 import * as Sentry from "@sentry/angular";
+import {ApiConfigService} from "./services/api-config.service";
 
+
+export function authConfigFactory(): AuthConfig {
+    const apiService = inject(ApiConfigService);
+    const currentApiUrl = apiService.baseUrl();
+
+    return {
+        ...authConfig,
+        tokenEndpoint: `${currentApiUrl}/connect/token`,
+    };
+
+}
 export const authConfig: AuthConfig = {
     issuer: 'https://api.venta.gg',
     tokenEndpoint: `${environment.apiUrl}/connect/token`,
