@@ -27,6 +27,7 @@ export class ApiConfigService {
         });
     }
 
+
     /**
      * Parses `user` or `user@server.com`, updates the base URL, persists it,
      * re-configures OAuth, and returns the bare username.
