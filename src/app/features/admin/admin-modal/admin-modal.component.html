@@ -1,0 +1,117 @@
+<p-dialog
+        [(visible)]="isVisible"
+        [breakpoints]="{'960px': '92vw', '640px': '100vw'}"
+        [closable]="true"
+        [dismissableMask]="true"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '990px', height: '620px'}"
+        appendTo="body"
+        styleClass="admin-dialog">
+
+    <div class="flex h-full flex-col sm:flex-row">
+
+        <!-- ── Desktop sidebar ──────────────────────────────────────────────── -->
+        <nav class="hidden sm:flex sm:w-52 shrink-0 bg-sidebar border-r border-white/[0.10] flex-col py-4 overflow-y-auto thin-scrollbar">
+            <div class="flex flex-col flex-1">
+
+                <!-- Admin badge -->
+                <div class="px-3 mb-4">
+                    <div class="flex items-center gap-2 px-3 py-2">
+                        <i class="pi pi-shield text-sm text-indigo-400"></i>
+                        <span class="text-xs font-semibold text-indigo-400 uppercase tracking-widest">Admin Panel</span>
+                    </div>
+                </div>
+
+                @for (group of navGroups; track group.title) {
+                    <div class="px-3 mb-4">
+                        <p class="text-[0.625rem] font-semibold text-white/25 uppercase tracking-widest px-3 mb-1">
+                            {{ group.title }}
+                        </p>
+                        @for (item of group.items; track item.id) {
+                            <button (click)="activePage.set(item.id)"
+                                    [ngClass]="navItemClasses(item.id)"
+                                    class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left">
+                                <i [class]="item.icon" class="text-sm shrink-0"></i>
+                                {{ item.label }}
+                            </button>
+                        }
+                    </div>
+                }
+
+            </div>
+        </nav>
+
+        <!-- ── Mobile nav list ────────────────────────────────────────────── -->
+        @if (mobileView() === 'nav') {
+            <div class="flex flex-col flex-1 sm:hidden bg-app-bg overflow-hidden">
+
+                <div class="flex items-center justify-between px-4 border-b border-white/[0.10] shrink-0"
+                     style="padding-top: calc(env(safe-area-inset-top) + 1rem); padding-bottom: 1rem">
+                    <div class="flex items-center gap-2">
+                        <i class="pi pi-shield text-sm text-indigo-400"></i>
+                        <h1 class="text-base font-semibold text-white/85">Admin Panel</h1>
+                    </div>
+                    <p-button (onClick)="isVisible.set(false)" [text]="true" icon="pi pi-times" severity="secondary"
+                              size="small"/>
+                </div>
+
+                <div class="flex-1 overflow-y-auto px-4 py-4 thin-scrollbar">
+                    @for (group of navGroups; track group.title) {
+                        <p [class.mt-5]="!$first"
+                           class="text-[0.625rem] font-semibold text-white/25 uppercase tracking-widest px-1 mb-2">
+                            {{ group.title }}
+                        </p>
+                        <div class="flex flex-col gap-1 mb-2">
+                            @for (item of group.items; track item.id) {
+                                <button (click)="selectPage(item.id)"
+                                        class="flex items-center gap-3 w-full px-4 py-3.5 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left bg-white/[0.04] active:bg-white/[0.08]">
+                                    <i [class]="item.icon" class="text-base text-white/50 w-5 text-center shrink-0"></i>
+                                    <span class="flex-1 text-white/80">{{ item.label }}</span>
+                                    <i class="pi pi-angle-right text-sm text-white/25"></i>
+                                </button>
+                            }
+                        </div>
+                    }
+                </div>
+
+            </div>
+        }
+
+        <!-- ── Content area ───────────────────────────────────────────────── -->
+        <div [class]="mobileView() === 'content' ? 'flex' : 'hidden sm:flex'"
+             class="flex-1 flex-col min-w-0 overflow-hidden bg-app-bg">
+
+            <div class="flex items-center gap-2 px-4 sm:px-8 border-b border-white/[0.10] shrink-0"
+                 style="padding-top: calc(env(safe-area-inset-top) + 1rem); padding-bottom: 1rem">
+                <p-button (onClick)="mobileView.set('nav')" [text]="true" class="sm:hidden" icon="pi pi-arrow-left"
+                          severity="secondary" size="small"/>
+                <h1 class="text-base font-semibold text-white/85 flex-1">
+                    @for (group of navGroups; track group.title) {
+                        @for (item of group.items; track item.id) {
+                            @if (item.id === activePage()) {
+                                {{ item.label }}
+                            }
+                        }
+                    }
+                </h1>
+                <p-button (onClick)="isVisible.set(false)" [text]="true" class="hidden sm:flex" icon="pi pi-times"
+                          severity="secondary" size="small"/>
+            </div>
+
+            <div class="flex-1 overflow-y-auto px-4 sm:px-8 py-6 thin-scrollbar">
+                @switch (activePage()) {
+                    @case ('federation-instances') {
+                        <app-federation-instances/>
+                    }
+                    @case ('federation-policy') {
+                        <app-federation-policy/>
+                    }
+                }
+            </div>
+
+        </div>
+    </div>
+
+</p-dialog>

@@ -9,6 +9,9 @@ import {SettingsModalComponent} from "../../../../features/settings/settings-mod
 import {VoiceChannelService} from "../../../../services/voice-channel.service";
 import {ProfileDialogService} from "../../../../services/profile-dialog.service";
 import {TranslateModule} from '@ngx-translate/core';
+import {UserService} from "../../../../services/user.service";
+import {UserType} from "../../../../dtos/response/UserDto";
+import {AdminModalComponent} from "../../../../features/admin/admin-modal/admin-modal.component";
 
 @Component({
     selector: 'app-quick-settings',
@@ -17,6 +20,7 @@ import {TranslateModule} from '@ngx-translate/core';
         Button,
         ConnectionStatusComponent,
         SettingsModalComponent,
+        AdminModalComponent,
         NgClass,
         TranslateModule,
     ],
@@ -25,15 +29,21 @@ import {TranslateModule} from '@ngx-translate/core';
 })
 export class QuickSettingsComponent {
     public isSettingsOpen = signal(false);
+    public isAdminOpen = signal(false);
     protected profileService = inject(ProfileService);
+    protected userService = inject(UserService);
     protected websocketService = inject(MessagingWebsocketService);
     protected voiceSvc = inject(VoiceChannelService);
     protected profileDialogSvc = inject(ProfileDialogService);
     protected readonly ConnectionState = ConnectionState;
+    protected readonly UserType = UserType;
 
     constructor() {
         if (!this.profileService.ownProfile()) {
             this.profileService.getSelf().subscribe();
+        }
+        if (!this.userService.self()) {
+            this.userService.getSelf().subscribe();
         }
     }
 }

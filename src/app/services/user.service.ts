@@ -1,7 +1,7 @@
-import {inject, Injectable} from '@angular/core';
+import {inject, Injectable, signal} from '@angular/core';
 import {HttpClient, HttpErrorResponse} from '@angular/common/http';
 import {environment} from '../../environments/environment';
-import {catchError, from, map, Observable, of} from 'rxjs';
+import {catchError, from, map, Observable, of, tap} from 'rxjs';
 import {EncryptedMasterKey, UserDto} from '../dtos/response/UserDto';
 import {MlsService} from "./mls.service";
 import {switchMap} from "rxjs/operators";
@@ -13,8 +13,12 @@ export class UserService {
     private mlsService = inject(MlsService);
     private apiConfig = inject(ApiConfigService);
 
+    readonly self = signal<UserDto | null>(null);
+
     getSelf(): Observable<UserDto> {
-        return this.httpClient.get<UserDto>(`${this.apiConfig.baseUrl()}/api/v1/identity/users/self`);
+        return this.httpClient.get<UserDto>(`${this.apiConfig.baseUrl()}/api/v1/identity/users/self`).pipe(
+            tap(user => this.self.set(user))
+        );
     }
 
     verifyPassword(password: string): Observable<boolean> {

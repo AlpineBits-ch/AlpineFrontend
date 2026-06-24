@@ -1,4 +1,5 @@
 <app-settings-modal [(isVisible)]="isSettingsOpen"></app-settings-modal>
+<app-admin-modal [(isVisible)]="isAdminOpen"></app-admin-modal>
 
 <div class="shrink-0 bg-sidebar border-t border-white/[0.10] p-3">
     <div class="flex items-center gap-1.5">
@@ -49,6 +50,12 @@
                     class="w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer border-0 shrink-0">
                 <i class="pi pi-volume-off text-sm"></i>
             </button>
+        }
+
+        <!-- Admin (only for Admin users) -->
+        @if (userService.self()?.userType === UserType.Admin) {
+            <p-button (onClick)="isAdminOpen.set(true)" [text]="true" icon="pi pi-shield" severity="secondary"
+                      size="small" styleClass="shrink-0" title="Admin Panel"/>
         }
 
         <!-- Settings -->

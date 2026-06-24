@@ -1,4 +1,9 @@
-﻿export interface EncryptedMasterKey {
+﻿export enum UserType {
+    Standard = 'Standard',
+    Admin = 'Admin',
+}
+
+export interface EncryptedMasterKey {
     cipherText: string;
     salt: string;
     iv: string;
@@ -11,6 +16,7 @@
 export interface UserDto {
     id: string;
     email: string;
+    userType: UserType;
     createdAt: Date;
     updatedAt: Date;
     birthDate: Date;
