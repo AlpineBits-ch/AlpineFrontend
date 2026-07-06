@@ -2,7 +2,7 @@ import {Component, EventEmitter, inject, Input, Output, signal} from '@angular/c
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
-import {EMPTY, from, switchMap, tap} from 'rxjs';
+import {EMPTY, from, switchMap, tap, throwError} from 'rxjs';
 import {catchError, map} from 'rxjs/operators';
 import {UserService} from '../../../services/user.service';
 import {DeviceService} from '../../../services/device.service';
@@ -52,26 +52,40 @@ export class DeviceRegistrationModalComponent {
     private register(deviceName: string): void {
         const deviceType = this.platformService.isMobile ? DeviceType.Mobile : DeviceType.Desktop;
 
-        from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(
-            switchMap(deviceId =>
-                this.userService.getSelf().pipe(
-                    switchMap(user =>
-                        this.mlsService.generateKeyPackages(user.id, 10).pipe(
-                            switchMap(batch =>
-                                this.deviceService.registerDevice({
-                                    clientDeviceId: deviceId,
-                                    deviceName,
-                                    deviceType,
-                                    identityPublicKey: batch.signingPublicKey,
-                                }).pipe(
-                                    switchMap(() => this.mlsService.persistSigningKey(deviceId, batch, user.id)),
-                                    map(() => batch.keyHandle),
+        const attemptRegistration = () =>
+            from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(
+                switchMap(deviceId =>
+                    this.userService.getSelf().pipe(
+                        switchMap(user =>
+                            this.mlsService.generateKeyPackages(user.id, 10).pipe(
+                                switchMap(batch =>
+                                    this.deviceService.registerDevice({
+                                        clientDeviceId: deviceId,
+                                        deviceName,
+                                        deviceType,
+                                        identityPublicKey: batch.signingPublicKey,
+                                    }).pipe(
+                                        switchMap(() => this.mlsService.persistSigningKey(deviceId, batch, user.id)),
+                                        map(() => batch.keyHandle),
+                                    ),
                                 ),
                             ),
                         ),
                     ),
-                ),
-            ),
+                )
+            );
+
+        attemptRegistration().pipe(
+            catchError((firstError) => {
+                console.warn('First registration attempt failed. Retrying...', firstError);
+
+                return from(this.mlsService.deleteDeviceIdentifier()).pipe(
+                    switchMap(() => attemptRegistration()),
+                    catchError((secondError) => {
+                        return throwError(() => secondError);
+                    })
+                );
+            }),
             tap(keyHandle => {
                 this.step.set('done');
                 this.mlsService.keyHandle.set(keyHandle);

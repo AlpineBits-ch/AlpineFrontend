@@ -577,6 +577,13 @@ export class MlsService {
         return deviceId.value;
     }
 
+    async deleteDeviceIdentifier(): Promise<void> {
+        const store = new LazyStore('settings.json');
+        const KEY = 'mls_device_id';
+        await store.delete(KEY);
+        await store.save();
+    }
+
     /**
      * Serializes `op` behind any in-flight operation for `groupId`.
      * The queue continues even when a prior operation rejects.
