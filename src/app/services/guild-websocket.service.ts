@@ -1,8 +1,6 @@
-import {inject, Injectable, signal} from '@angular/core';
-import * as signalR from "@microsoft/signalr";
-import {environment} from "../../environments/environment";
-import {ConnectionState, ReactionEvent} from "./messaging-websocket.service";
-import {AuthService} from "./auth.service";
+import {inject, Injectable} from '@angular/core';
+import {RealtimeConnectionService} from "./realtime-connection.service";
+import {ReactionEvent} from "./messaging-websocket.service";
 import {NotificationService, NotificationSound} from "./notification.service";
 import {catchError, firstValueFrom, of, Subject, timeout} from "rxjs";
 import {MessageDto} from "../dtos/response/message.dto";
@@ -11,7 +9,6 @@ import {MessageType} from '../enums/message-type.enum';
 import {AttachmentDto} from "./file.service";
 import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
 import {ProfileService} from "./profile.service";
-import {ApiConfigService} from "./api-config.service";
 
 export interface ChannelTypingEvent {
     channelId: string;
@@ -146,7 +143,6 @@ export interface WsWikiCategoryDeleted {
     providedIn: 'root',
 })
 export class GuildWebsocketService {
-    public connectionState = signal(ConnectionState.Disconnected);
     public messageObservable = new Subject<MessageDto>();
     public channelReorderedObservable = new Subject<ReorderChannesDto>();
     public userTypingObservable = new Subject<ChannelTypingEvent>();
@@ -177,130 +173,98 @@ export class GuildWebsocketService {
     // ── Reactions ───────────────────────────────────────────────────────────────
     public reactionAddedObservable = new Subject<ReactionEvent>();
     public reactionRemovedObservable = new Subject<ReactionEvent>();
-    private hubConnection: signalR.HubConnection;
-    private authService = inject(AuthService);
+    private realtime = inject(RealtimeConnectionService);
     private notificationService = inject(NotificationService);
     private profileService = inject(ProfileService);
     private listenersSetUp = false;
 
-
-    private apiConfig = inject(ApiConfigService);
-
-    constructor() {
-        this.hubConnection = new signalR.HubConnectionBuilder()
-            .withUrl(this.apiConfig.baseUrl() + "/api/v1/guild/ws/hubs/guild", {
-                accessTokenFactory: () => this.authService.ensureValidToken(),
-            })
-            .withAutomaticReconnect({
-                nextRetryDelayInMilliseconds: retryContext =>
-                    Math.min(1000 * Math.pow(2, retryContext.previousRetryCount), 60_000),
-            })
-            .build();
+    /** Shared connection state — one connection now backs every feature. */
+    get connectionState() {
+        return this.realtime.connectionState;
     }
 
     async start(): Promise<void> {
-        if (this.hubConnection.state === signalR.HubConnectionState.Connected) return;
-        try {
-            await this.hubConnection.start();
-            this.connectionState.set(ConnectionState.Connected);
-            if (!this.listenersSetUp) {
-                this.listenersSetUp = true;
-                await this.setupListeners();
-            }
-        } catch (err) {
-            console.error('Error while starting connection: ', err);
+        if (!this.listenersSetUp) {
+            this.listenersSetUp = true;
+            this.setupListeners();
         }
+        await this.realtime.start();
     }
 
     invokeStartTyping(channelId: string): void {
-        if (this.hubConnection.state === signalR.HubConnectionState.Connected) {
-            this.hubConnection.invoke('StartTyping', channelId).catch(() => void 0);
-        }
+        void this.realtime.invoke('guild.StartTyping', channelId);
     }
 
     async updateLastReadMessageByChannel(id: string, channelId: string): Promise<void> {
-        if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
-        await this.hubConnection.invoke('UpdateLastReadMessageByChannel', {channelId, id})
-            .catch(err => console.error('UpdateLastReadMessageByChannel failed:', err));
+        await this.realtime.invoke('guild.UpdateLastRead', {channelId, id});
     }
 
     invokeVoiceMuteChanged(channelId: string, isMuted: boolean): void {
-        if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
-        this.hubConnection.invoke('VoiceMuteChanged', {channelId, isMuted}).catch(() => void 0);
+        void this.realtime.invoke('guild.voice.MuteChanged', {channelId, isMuted});
     }
 
     // ── Voice invoke methods (client → server) ───────────────────────────────────
 
     invokeVoiceDeafenChanged(channelId: string, isDeafened: boolean): void {
-        if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
-        this.hubConnection.invoke('VoiceDeafenChanged', {channelId, isDeafened}).catch(() => void 0);
+        void this.realtime.invoke('guild.voice.DeafenChanged', {channelId, isDeafened});
     }
 
     invokeVoiceCameraChanged(channelId: string, isCameraOn: boolean): void {
-        if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
-        this.hubConnection.invoke('VoiceCameraChanged', {channelId, isCameraOn}).catch(() => void 0);
+        void this.realtime.invoke('guild.voice.CameraChanged', {channelId, isCameraOn});
     }
 
     invokeVoiceScreenShareStarted(channelId: string, shareId: string, trackName: string): void {
-        if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
-        this.hubConnection.invoke('VoiceScreenShareStarted', {channelId, shareId, trackName}).catch(() => void 0);
+        void this.realtime.invoke('guild.voice.ScreenShareStarted', {channelId, shareId, trackName});
     }
 
     invokeVoiceScreenShareStopped(channelId: string, shareId: string): void {
-        if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
-        this.hubConnection.invoke('VoiceScreenShareStopped', {channelId, shareId}).catch(() => void 0);
+        void this.realtime.invoke('guild.voice.ScreenShareStopped', {channelId, shareId});
     }
 
     invokeVoiceHeartbeat(): void {
-        if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
-        this.hubConnection.invoke('VoiceHeartbeat').catch(() => void 0);
+        void this.realtime.invoke('guild.voice.Heartbeat');
     }
 
-    private async setupListeners(): Promise<void> {
-        this.hubConnection.on('FriendRequestAccepted', async (data: { acceptantUserName: string }) => {
-            console.log('Friend request accepted:', data);
-            await this.notificationService.createNotification({
-                title: 'Friend request accepted',
-                message: `${data.acceptantUserName} accepted your friend request`,
-                sound: NotificationSound.NewMessage,
-            });
-        });
+    private setupListeners(): void {
+        // FriendRequestAccepted is handled by MessagingWebsocketService
+        // (conversation.FriendRequestAccepted). With a single shared connection it must
+        // only be registered once, so the former duplicate handler here is removed.
 
-        this.hubConnection.on('ChannelReordered', (data: ReorderChannesDto) => {
+        this.realtime.on('guild.ChannelReordered', (data: ReorderChannesDto) => {
             this.channelReorderedObservable.next(data);
         });
 
-        this.hubConnection.on('UserTyping', (data: ChannelTypingEvent) => {
+        this.realtime.on('guild.UserTyping', (data: ChannelTypingEvent) => {
             this.userTypingObservable.next(data);
         });
 
         // ── Guild voice presence ────────────────────────────────────────────────
-        this.hubConnection.on('UserJoinedVoice', (d: WsUserJoinedVoice) => this.userJoinedVoiceObservable.next(d));
-        this.hubConnection.on('UserLeftVoice', (d: WsUserLeftVoice) => this.userLeftVoiceObservable.next(d));
-        this.hubConnection.on('ParticipantJoined', (d: WsGuildParticipantJoined) => this.guildParticipantJoinedObservable.next(d));
-        this.hubConnection.on('TrackPublished', (d: WsGuildTrackPublished) => this.guildTrackPublishedObservable.next(d));
-        this.hubConnection.on('TrackClosed', (d: WsGuildTrackClosed) => this.guildTrackClosedObservable.next(d));
-        this.hubConnection.on('MuteChanged', (d: WsVoiceMuteChanged) => this.voiceMuteChangedObservable.next(d));
-        this.hubConnection.on('DeafenChanged', (d: WsVoiceDeafenChanged) => this.voiceDeafenChangedObservable.next(d));
-        this.hubConnection.on('CameraChanged', (d: WsVoiceCameraChanged) => this.voiceCameraChangedObservable.next(d));
-        this.hubConnection.on('ScreenShareStarted', (d: WsVoiceScreenShareStarted) => this.voiceScreenShareStartedObservable.next(d));
-        this.hubConnection.on('ScreenShareStopped', (d: WsVoiceScreenShareStopped) => this.voiceScreenShareStoppedObservable.next(d));
-        this.hubConnection.on('MovedToChannel', (d: WsMovedToChannel) => this.movedToChannelObservable.next(d));
-        this.hubConnection.on('ChannelCreated', (d: WsChannelCreated) => this.channelCreatedObservable.next(d));
-        this.hubConnection.on('ChannelDeleted', (d: WsChannelDeleted) => this.channelDeletedObservable.next(d));
-        this.hubConnection.on('CategoryCreated', (d: WsCategoryCreated) => this.categoryCreatedObservable.next(d));
-        this.hubConnection.on('CategoryDeleted', (d: WsCategoryDeleted) => this.categoryDeletedObservable.next(d));
-        this.hubConnection.on('WikiPageCreated', (d: WsWikiPageCreated) => this.wikiPageCreatedObservable.next(d));
-        this.hubConnection.on('WikiPageUpdated', (d: WsWikiPageUpdated) => this.wikiPageUpdatedObservable.next(d));
-        this.hubConnection.on('WikiPageDeleted', (d: WsWikiPageDeleted) => this.wikiPageDeletedObservable.next(d));
-        this.hubConnection.on('WikiCategoryCreated', (d: WsWikiCategoryCreated) => this.wikiCategoryCreatedObservable.next(d));
-        this.hubConnection.on('WikiCategoryUpdated', (d: WsWikiCategoryUpdated) => this.wikiCategoryUpdatedObservable.next(d));
-        this.hubConnection.on('WikiCategoryDeleted', (d: WsWikiCategoryDeleted) => this.wikiCategoryDeletedObservable.next(d));
+        this.realtime.on('guild.voice.UserJoinedVoice', (d: WsUserJoinedVoice) => this.userJoinedVoiceObservable.next(d));
+        this.realtime.on('guild.voice.UserLeftVoice', (d: WsUserLeftVoice) => this.userLeftVoiceObservable.next(d));
+        this.realtime.on('guild.voice.ParticipantJoined', (d: WsGuildParticipantJoined) => this.guildParticipantJoinedObservable.next(d));
+        this.realtime.on('guild.voice.TrackPublished', (d: WsGuildTrackPublished) => this.guildTrackPublishedObservable.next(d));
+        this.realtime.on('guild.voice.TrackClosed', (d: WsGuildTrackClosed) => this.guildTrackClosedObservable.next(d));
+        this.realtime.on('guild.voice.MuteChanged', (d: WsVoiceMuteChanged) => this.voiceMuteChangedObservable.next(d));
+        this.realtime.on('guild.voice.DeafenChanged', (d: WsVoiceDeafenChanged) => this.voiceDeafenChangedObservable.next(d));
+        this.realtime.on('guild.voice.CameraChanged', (d: WsVoiceCameraChanged) => this.voiceCameraChangedObservable.next(d));
+        this.realtime.on('guild.voice.ScreenShareStarted', (d: WsVoiceScreenShareStarted) => this.voiceScreenShareStartedObservable.next(d));
+        this.realtime.on('guild.voice.ScreenShareStopped', (d: WsVoiceScreenShareStopped) => this.voiceScreenShareStoppedObservable.next(d));
+        this.realtime.on('guild.voice.MovedToChannel', (d: WsMovedToChannel) => this.movedToChannelObservable.next(d));
+        this.realtime.on('guild.ChannelCreated', (d: WsChannelCreated) => this.channelCreatedObservable.next(d));
+        this.realtime.on('guild.ChannelDeleted', (d: WsChannelDeleted) => this.channelDeletedObservable.next(d));
+        this.realtime.on('guild.CategoryCreated', (d: WsCategoryCreated) => this.categoryCreatedObservable.next(d));
+        this.realtime.on('guild.CategoryDeleted', (d: WsCategoryDeleted) => this.categoryDeletedObservable.next(d));
+        this.realtime.on('guild.WikiPageCreated', (d: WsWikiPageCreated) => this.wikiPageCreatedObservable.next(d));
+        this.realtime.on('guild.WikiPageUpdated', (d: WsWikiPageUpdated) => this.wikiPageUpdatedObservable.next(d));
+        this.realtime.on('guild.WikiPageDeleted', (d: WsWikiPageDeleted) => this.wikiPageDeletedObservable.next(d));
+        this.realtime.on('guild.WikiCategoryCreated', (d: WsWikiCategoryCreated) => this.wikiCategoryCreatedObservable.next(d));
+        this.realtime.on('guild.WikiCategoryUpdated', (d: WsWikiCategoryUpdated) => this.wikiCategoryUpdatedObservable.next(d));
+        this.realtime.on('guild.WikiCategoryDeleted', (d: WsWikiCategoryDeleted) => this.wikiCategoryDeletedObservable.next(d));
 
-        this.hubConnection.on('ReactionCreated', (d: ReactionEvent) => this.reactionAddedObservable.next(d));
-        this.hubConnection.on('ReactionRemoved', (d: ReactionEvent) => this.reactionRemovedObservable.next(d));
+        this.realtime.on('guild.ReactionCreated', (d: ReactionEvent) => this.reactionAddedObservable.next(d));
+        this.realtime.on('guild.ReactionRemoved', (d: ReactionEvent) => this.reactionRemovedObservable.next(d));
 
-        this.hubConnection.on('MessageCreated', async (data: {
+        this.realtime.on('guild.MessageCreated', async (data: {
             messageId: string;
             content: string;
             authorId: string;
@@ -356,18 +320,6 @@ export class GuildWebsocketService {
                     extra: {channelId: data.channelId},
                 });
             }
-        });
-
-        this.hubConnection.onreconnecting(() => {
-            this.connectionState.set(ConnectionState.Connecting);
-        });
-
-        this.hubConnection.onreconnected(() => {
-            this.connectionState.set(ConnectionState.Connected);
-        });
-
-        this.hubConnection.onclose(() => {
-            this.connectionState.set(ConnectionState.Disconnected);
         });
     }
 }

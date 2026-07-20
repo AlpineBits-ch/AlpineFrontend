@@ -43,7 +43,7 @@ export function registerDebugHelpers(appRef: ApplicationRef): void {
     console.log(`%c[debug] Token corrupted — firing ${n} concurrent requests`, 'color: orange');
     // Hit a lightweight authenticated endpoint; adjust if needed.
     for (let i = 0; i < n; i++) {
-      http.get('https://api.alpinebits.ch/api/v1/user/me').subscribe({
+      http.get('https://api.venta.gg/api/v1/user/me').subscribe({
         next:  () => console.log(`[debug] request ${i + 1} succeeded after refresh`),
         error: (e) => console.error(`[debug] request ${i + 1} failed`, e),
       });

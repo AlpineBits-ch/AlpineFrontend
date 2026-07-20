@@ -1,8 +1,5 @@
-import {inject, Injectable, signal} from '@angular/core';
-import * as signalR from '@microsoft/signalr';
+import {inject, Injectable} from '@angular/core';
 import {NotificationService, NotificationSound} from "./notification.service";
-import {environment} from "../../environments/environment";
-import {AuthService} from "./auth.service";
 import {catchError, concatMap, firstValueFrom, from, of, Subject, timeout} from "rxjs";
 import {MessageDto} from "../dtos/response/message.dto";
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
@@ -13,12 +10,10 @@ import {ProfileService} from "./profile.service";
 import {MlsService} from './mls.service';
 import {ConversationService} from './conversation.service';
 import {fromBase64} from "../helpers/base64.helper";
+import {ConnectionState, RealtimeConnectionService} from "./realtime-connection.service";
 
-export enum ConnectionState {
-    Connected,
-    Disconnected,
-    Connecting,
-}
+// Re-exported for existing importers (connection-status, guild-websocket, …).
+export {ConnectionState};
 
 export interface MessageUpdatedEvent {
     messageId: string;
@@ -91,63 +86,43 @@ export class MessagingWebsocketService {
     public reactionRemovedObservable = new Subject<ReactionEvent>()
     public friendRequestReceivedObservable = new Subject<void>()
     public friendRequestAcceptedObservable = new Subject<void>()
-    public connectionState = signal(ConnectionState.Disconnected)
-    private hubConnection: signalR.HubConnection;
-    private authService = inject(AuthService);
+    private realtime = inject(RealtimeConnectionService);
     private notificationService = inject(NotificationService);
     private profileService = inject(ProfileService);
     private mlsService = inject(MlsService);
     private conversationService = inject(ConversationService);
     private readonly _rawMessageCreated$ = new Subject<MessageCreatedPayload>();
     private listenersSetUp = false;
-    private reconnectNotified = false;
 
     constructor() {
         this._rawMessageCreated$.pipe(
             concatMap(data => from(this.handleMessageCreated(data))),
         ).subscribe();
+    }
 
-        this.hubConnection = new signalR.HubConnectionBuilder()
-            .withUrl(environment.apiUrl + "/api/v1/messaging/ws/hubs/messaging", {
-                accessTokenFactory: () => this.authService.ensureValidToken(),
-            })
-            .withAutomaticReconnect({
-                nextRetryDelayInMilliseconds: retryContext =>
-                    Math.min(1000 * Math.pow(2, retryContext.previousRetryCount), 60_000),
-            })
-            .build();
-
-
+    /** Shared connection state — one connection now backs every feature. */
+    get connectionState() {
+        return this.realtime.connectionState;
     }
 
     async start(): Promise<void> {
-        if (this.hubConnection.state === signalR.HubConnectionState.Connected) return;
-        try {
-            await this.hubConnection.start();
-            this.connectionState.set(ConnectionState.Connected);
-            if (!this.listenersSetUp) {
-                this.listenersSetUp = true;
-                await this.setupListeners();
-            }
-        } catch (err) {
-            console.error('Error while starting connection: ', err);
+        if (!this.listenersSetUp) {
+            this.listenersSetUp = true;
+            this.setupListeners();
         }
+        await this.realtime.start();
     }
 
     async updateLastReadMessageByConversation(id: string, conversationId: string) {
-        if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
-        await this.hubConnection.invoke('UpdateLastReadMessageByConversation', {conversationId, id})
-            .catch(err => console.error('UpdateLastReadMessageByConversation failed:', err));
+        await this.realtime.invoke('conversation.UpdateLastRead', {conversationId, id});
     }
 
     invokeStartTyping(conversationId: string): void {
-        if (this.hubConnection.state === signalR.HubConnectionState.Connected) {
-            this.hubConnection.invoke('StartTyping', conversationId).catch(() => void 0);
-        }
+        void this.realtime.invoke('conversation.StartTyping', conversationId);
     }
 
-    private async setupListeners(): Promise<void> {
-        this.hubConnection.on('FriendRequestAccepted', async (data: { acceptantUserName: string }) => {
+    private setupListeners(): void {
+        this.realtime.on('conversation.FriendRequestAccepted', async (data: { acceptantUserName: string }) => {
             console.log('Friend request accepted:', data);
             this.friendRequestAcceptedObservable.next();
             await this.notificationService.createNotification({
@@ -157,7 +132,8 @@ export class MessagingWebsocketService {
             });
         })
 
-        this.hubConnection.on('FriendRequestReceived', async (data: { senderUserName: string }) => {
+        // NOTE: not listed in the migration guide; assuming the same conversation.* prefix.
+        this.realtime.on('conversation.FriendRequestReceived', async (data: { senderUserName: string }) => {
             console.log('Friend request received:', data);
             this.friendRequestReceivedObservable.next();
             await this.notificationService.createNotification({
@@ -167,83 +143,60 @@ export class MessagingWebsocketService {
             });
         })
 
-        this.hubConnection.on('MessageUpdated', async (data: MessageUpdatedEvent) => {
+        this.realtime.on('conversation.MessageUpdated', async (data: MessageUpdatedEvent) => {
             console.log('Message updated:', data);
             this.messageUpdatedObservable.next(data);
         })
 
-        this.hubConnection.on('MessageDeleted', async (data: MessageDeletedEvent) => {
+        this.realtime.on('conversation.MessageDeleted', async (data: MessageDeletedEvent) => {
             console.log('Message deleted:', data);
             this.messageDeletedObservable.next(data);
         })
 
-        this.hubConnection.on('ConversationDeleted', async (data: ConversationRemoved) => {
+        this.realtime.on('conversation.ConversationDeleted', async (data: ConversationRemoved) => {
             console.log('Conversation removed:', data);
             this.conversationRemovedObservable.next(data);
         })
-        this.hubConnection.on('MemberLeft', async (data: ConversationMemberRemoved) => {
+        this.realtime.on('conversation.MemberLeft', async (data: ConversationMemberRemoved) => {
             console.log('Conversation member removed:', data);
             this.conversationMemberRemovedObservable.next(data);
         })
 
-        this.hubConnection.on('UserTyping', (data: UserTypingEvent) => {
+        this.realtime.on('conversation.UserTyping', (data: UserTypingEvent) => {
             this.userTypingObservable.next(data);
         })
 
-        this.hubConnection.on('UserOnline', async (str: string) => {
+        this.realtime.on('presence.UserOnline', async (str: string) => {
             this.userOnlineObservable.next(str);
             this.profileService.setOnlineStatus(str, OnlineStatus.Online);
         })
 
-        this.hubConnection.on('UserOffline', async (str: string) => {
+        this.realtime.on('presence.UserOffline', async (str: string) => {
             this.userOfflineObservable.next(str);
             this.profileService.setOnlineStatus(str, OnlineStatus.Offline);
         })
 
 
-        this.hubConnection.on('MessageCreated', (data: MessageCreatedPayload) => {
+        this.realtime.on('conversation.MessageCreated', (data: MessageCreatedPayload) => {
             this._rawMessageCreated$.next(data);
         });
 
-        this.hubConnection.on('ConversationCreated', (conversationId: string) => {
+        this.realtime.on('conversation.ConversationCreated', (conversationId: string) => {
             console.log('ConversationCreated:', conversationId);
             this.conversationCreatedObservable.next(conversationId);
         });
 
-        this.hubConnection.on('Welcome', (conversationId: string) => {
+        this.realtime.on('conversation.Welcome', (conversationId: string) => {
             console.log('Welcome for conversation:', conversationId);
             this.welcomeObservable.next(conversationId);
         });
 
-        this.hubConnection.on('ReactionCreated', (data: ReactionEvent) => {
+        this.realtime.on('conversation.ReactionCreated', (data: ReactionEvent) => {
             this.reactionAddedObservable.next(data);
         });
 
-        this.hubConnection.on('ReactionRemoved', (data: ReactionEvent) => {
+        this.realtime.on('conversation.ReactionRemoved', (data: ReactionEvent) => {
             this.reactionRemovedObservable.next(data);
-        });
-
-        this.hubConnection.onreconnecting(() => {
-            if (!this.reconnectNotified) {
-                this.reconnectNotified = true;
-                this.notificationService.createNotification({
-                    title: 'Reconnecting',
-                    message: 'Attempting to reconnect...',
-                    sound: NotificationSound.NewMessage,
-                }).catch(() => {
-                });
-            }
-            this.connectionState.set(ConnectionState.Connecting);
-        });
-
-        this.hubConnection.onreconnected(() => {
-            this.reconnectNotified = false;
-            this.connectionState.set(ConnectionState.Connected);
-        });
-
-        this.hubConnection.onclose(() => {
-            this.reconnectNotified = false;
-            this.connectionState.set(ConnectionState.Disconnected);
         });
     }
 
