@@ -24,4 +24,5 @@ export interface UserDto {
     emailVerifiedAt: Date | undefined;
     ageVerification: unknown;
     encryptedMasterKey: EncryptedMasterKey | undefined;
+    steamId: string | undefined;
 }

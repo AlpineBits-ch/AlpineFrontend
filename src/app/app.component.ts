@@ -16,6 +16,7 @@ import {environment} from "../environments/environment";
 import {AppReadyService} from './services/app-ready.service';
 import {filter, take} from 'rxjs';
 import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
+import {SteamService} from './services/steam.service';
 
 @Component({
     selector: "app-root",
@@ -31,6 +32,7 @@ export class AppComponent implements OnInit, OnDestroy {
     private router = inject(Router);
     private appReady = inject(AppReadyService);
     private inviteDialogService = inject(InviteDialogService);
+    private steamService = inject(SteamService);
     private updateInterval: ReturnType<typeof setInterval> | null = null;
 
     @HostListener('document:contextmenu', ['$event'])
@@ -51,6 +53,12 @@ export class AppComponent implements OnInit, OnDestroy {
                 const match = url.match(/invite\/([^/?#]+)/);
                 if (match) {
                     this.inviteDialogService.open(match[1]);
+                    break;
+                }
+
+                if (url.includes('steam-auth')) {
+                    const status = this.parseSteamStatus(url);
+                    this.steamService.handleLinkCallback(status);
                     break;
                 }
             }
@@ -81,6 +89,12 @@ export class AppComponent implements OnInit, OnDestroy {
             // Absolute safety net: never leave the splash up indefinitely
             setTimeout(() => this.appReady.markReady(), 8000);
         });
+    }
+
+    /** Reads the `status` query param from a `venta://steam-auth?status=...` deep link. */
+    private parseSteamStatus(url: string): string {
+        const match = url.match(/[?&]status=([^&]+)/);
+        return match ? decodeURIComponent(match[1]) : 'error';
     }
 
     @HostListener('document:keydown', ['$event'])

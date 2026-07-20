@@ -1,4 +1,5 @@
 import {Component, computed, ElementRef, inject, OnInit, signal, ViewChild} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
 import {Router} from '@angular/router';
@@ -9,6 +10,9 @@ import {ProfileService} from '../../../../../services/profile.service';
 import {UserService} from '../../../../../services/user.service';
 import {AuthService} from '../../../../../services/auth.service';
 import {MlsService} from '../../../../../services/mls.service';
+import {SteamService} from '../../../../../services/steam.service';
+import {ExternalLinkService} from '../../../../../services/external-link.service';
+import {ToastService} from '../../../../../services/toast.service';
 import {ImageCropperComponent} from '../../../../../components/image-cropper/image-cropper.component';
 import {TranslateModule} from '@ngx-translate/core';
 import {UserDto} from '../../../../../dtos/response/UserDto';
@@ -46,13 +50,30 @@ export class ProfileSettingsComponent implements OnInit {
         (this.ownProfile()?.userName?.[0] ?? '?').toUpperCase()
     );
     protected usernameDisplay = computed(() => this.ownProfile()?.userName ?? '—');
+    // Steam link
+    protected linkingSteam = signal(false);
+    protected unlinkingSteam = signal(false);
+    protected unlinkSteamVisible = signal(false);
+    protected steamId = computed(() => this.user()?.steamId);
     private profileService = inject(ProfileService);
     protected ownProfile = this.profileService.ownProfile;
     private userService = inject(UserService);
     private authService = inject(AuthService);
     private mlsService = inject(MlsService);
+    private steamService = inject(SteamService);
+    private externalLink = inject(ExternalLinkService);
+    private toast = inject(ToastService);
     private router = inject(Router);
     @ViewChild('fileInput') private fileInputRef!: ElementRef<HTMLInputElement>;
+
+    constructor() {
+        // The link flow completes asynchronously via the venta://steam-auth deep link.
+        // When it resolves, refresh the user so a freshly linked SteamID appears.
+        this.steamService.linkResult.pipe(takeUntilDestroyed()).subscribe(status => {
+            this.linkingSteam.set(false);
+            if (status === 'linked') this.refreshUser();
+        });
+    }
 
     protected get passwordMismatch(): boolean {
         return this.newPassword.length > 0 && this.confirmPassword.length > 0 && this.newPassword !== this.confirmPassword;
@@ -73,6 +94,45 @@ export class ProfileSettingsComponent implements OnInit {
                 this.userLoading.set(false);
             },
             error: () => this.userLoading.set(false),
+        });
+    }
+
+    protected linkSteam(): void {
+        if (this.linkingSteam()) return;
+        this.linkingSteam.set(true);
+        this.steamService.getLinkStartUrl().pipe(take(1)).subscribe({
+            next: ({redirectUrl}) => {
+                // Steam login opens in the browser; the result returns via the
+                // venta://steam-auth deep link handled in AppComponent/SteamService.
+                void this.externalLink.openExternalLink(redirectUrl);
+            },
+            error: err => {
+                this.linkingSteam.set(false);
+                this.toast.httpError('Could not start Steam linking', err);
+            },
+        });
+    }
+
+    protected unlinkSteam(): void {
+        if (this.unlinkingSteam()) return;
+        this.unlinkingSteam.set(true);
+        this.steamService.unlink().pipe(take(1)).subscribe({
+            next: () => {
+                this.unlinkingSteam.set(false);
+                this.unlinkSteamVisible.set(false);
+                this.toast.success('Steam account unlinked');
+                this.refreshUser();
+            },
+            error: err => {
+                this.unlinkingSteam.set(false);
+                this.toast.httpError('Could not unlink Steam', err);
+            },
+        });
+    }
+
+    private refreshUser(): void {
+        this.userService.getSelf().pipe(take(1)).subscribe({
+            next: user => this.user.set(user),
         });
     }
 
