@@ -36,7 +36,11 @@
     "dialog:allow-open",
     "fs:allow-write-text-file",
     "fs:allow-read-text-file",
-    "deep-link:default"
+    "deep-link:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister",
+    "global-shortcut:allow-unregister-all",
+    "global-shortcut:allow-is-registered"
   ],
   "windows": [
     "*",

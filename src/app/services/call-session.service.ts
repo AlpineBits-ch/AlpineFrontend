@@ -170,7 +170,7 @@ export class CallSessionService {
         // TODO(webrtc): subscribe to the remote MediaStream identified by shareId
     }
 
-    // ── Remote participant events — called by WebRTC service ─────────────────
+    // ── Remote participant events -called by WebRTC service ─────────────────
 
     onParticipantJoined(userId: string): void {
         const s = this.session();

@@ -286,7 +286,7 @@ fn serialize_welcome(welcome_msg: openmls::prelude::MlsMessageOut) -> Result<Str
 }
 
 // ---------------------------------------------------------------------------
-// Core logic (_impl functions) — callable from tests without Tauri runtime
+// Core logic (_impl functions) -callable from tests without Tauri runtime
 // ---------------------------------------------------------------------------
 
 fn load_signing_key_impl(
@@ -551,7 +551,7 @@ fn leave_group_impl(
         let proposal_bytes = proposal_msg
             .tls_serialize_detached()
             .map_err(|e| e.to_string())?;
-        // Erase local state — the leaver no longer participates.
+        // Erase local state -the leaver no longer participates.
         groups.remove(&group_id_bytes);
         MlsCommitOut {
             commit: B64.encode(&proposal_bytes),
@@ -957,7 +957,7 @@ fn import_state_impl(
 }
 
 // ---------------------------------------------------------------------------
-// Tauri commands — thin wrappers around the _impl functions above
+// Tauri commands -thin wrappers around the _impl functions above
 // ---------------------------------------------------------------------------
 
 #[tauri::command]
@@ -1176,7 +1176,7 @@ pub fn mls_init_storage(
             }
             Ok(None) => {
                 return Err(format!(
-                    "MlsError: group {} is listed in state but its data is missing from storage — state may be corrupted",
+                    "MlsError: group {} is listed in state but its data is missing from storage -state may be corrupted",
                     group_id_b64
                 ));
             }
@@ -1227,7 +1227,7 @@ pub fn mls_import_state(
 }
 
 // ---------------------------------------------------------------------------
-// Integration tests — call _impl functions directly, no Tauri runtime needed
+// Integration tests -call _impl functions directly, no Tauri runtime needed
 // ---------------------------------------------------------------------------
 //
 // Run with:  cargo test --package alpine --lib

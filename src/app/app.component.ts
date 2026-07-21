@@ -17,10 +17,11 @@ import {AppReadyService} from './services/app-ready.service';
 import {filter, take} from 'rxjs';
 import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
 import {SteamService} from './services/steam.service';
+import {IsleProximityBarComponent} from './features/isle-proximity/isle-proximity-bar.component';
 
 @Component({
     selector: "app-root",
-    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, InviteDialogComponent],
+    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, InviteDialogComponent, IsleProximityBarComponent],
     templateUrl: "./app.component.html",
     styleUrl: "./app.component.css",
 })
@@ -103,6 +104,14 @@ export class AppComponent implements OnInit, OnDestroy {
         if (event.ctrlKey && event.altKey && event.key.toLowerCase() === 'u') {
             this.updateService.openDebugDialog();
         }
+    }
+
+    // Mouse back/forward (buttons 3/4) otherwise trigger WebView history navigation,
+    // which is jarring in an app shell -and interferes with binding them to push-to-talk.
+    @HostListener('document:mousedown', ['$event'])
+    @HostListener('document:auxclick', ['$event'])
+    onAuxMouse(event: MouseEvent): void {
+        if (event.button === 3 || event.button === 4) event.preventDefault();
     }
 
     public ngOnDestroy(): void {

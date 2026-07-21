@@ -27,7 +27,7 @@ export class ActivityFeedComponent {
     protected profileService = inject(ProfileService);
     protected profileDialogSvc = inject(ProfileDialogService);
     protected relationships = signal<RelationshipModel[]>([]);
-    // Keyed by friend's userId — empty by default until activity data arrives
+    // Keyed by friend's userId -empty by default until activity data arrives
     protected activityStatuses = signal<Record<string, ActivityStatus>>({});
     protected friends = computed(() =>
         this.relationships().filter(r => r.status === RelationshipStatus.Friends)

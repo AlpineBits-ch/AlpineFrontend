@@ -55,7 +55,7 @@ export class AuthService {
     /**
      * Force a token refresh. All callers share the same in-flight promise so
      * concurrent calls (interceptor 401, WS reconnect, token_expires event)
-     * hit the token endpoint exactly once — no racing over a single-use refresh token.
+     * hit the token endpoint exactly once -no racing over a single-use refresh token.
      */
     public refresh(): Promise<string> {
         if (!this._activeRefresh) {

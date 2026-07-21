@@ -21,7 +21,7 @@ export interface CallStats {
  * Manages the full WebRTC lifecycle for a Cloudflare Calls SFU session.
  *
  * Architecture:
- *   - One RTCPeerConnection per call (SFU model — all media goes through CF).
+ *   - One RTCPeerConnection per call (SFU model -all media goes through CF).
  *   - CallSessionService owns the UI state; this service owns the WebRTC plumbing.
  *   - Effects watch the session signal to connect/disconnect and apply local state
  *     changes (mute, camera, screen share) to the peer connection.
@@ -57,19 +57,19 @@ export class CallWebRtcService {
     private screenSender: RTCRtpSender | null = null;
     private screenTrackName: string | null = null;
     private screenShareId: string | null = null;
-    // MID → { userId, kind, shareId } — used to route ontrack events
+    // MID → { userId, kind, shareId } -used to route ontrack events
     private readonly midMap = new Map<string, {
         userId: string;
         kind: 'audio' | 'video' | 'screen';
         shareId?: string
     }>();
-    // Audio elements for remote participants — WebView2/Tauri requires explicit <audio> elements
+    // Audio elements for remote participants -WebView2/Tauri requires explicit <audio> elements
     private readonly remoteAudio = new Map<string, HTMLAudioElement>();
     // Local senders stored for on-the-fly bitrate updates
     private audioSender: RTCRtpSender | null = null;
     // Per-user volume overrides (0–1.0), persisted for the call duration
     private readonly userVolumes = new Map<string, number>();
-    // ontrack events that arrived before their midMap entry was written — replayed after subscribe completes
+    // ontrack events that arrived before their midMap entry was written -replayed after subscribe completes
     private readonly pendingTracks: RTCTrackEvent[] = [];
     // ── Speaking detection ───────────────────────────────────────────────────
     private audioCtx: AudioContext | null = null;
@@ -173,7 +173,7 @@ export class CallWebRtcService {
     private async connect(callId: string): Promise<void> {
         this.callId = callId; // Set immediately so re-entry is prevented
 
-        // CF Calls SFU has a publicly routable server — no STUN/TURN needed.
+        // CF Calls SFU has a publicly routable server -no STUN/TURN needed.
         // bundlePolicy: 'max-bundle' is required by Cloudflare Calls.
         this.pc = new RTCPeerConnection({bundlePolicy: 'max-bundle'});
         (window as any).__pc = this.pc;  // ← add this line
@@ -190,17 +190,17 @@ export class CallWebRtcService {
         //   3. Respond to the client with: { cfSessionId: string }
         //   4. Emit 'ParticipantJoined' via SignalR to all OTHER call members with:
         //        { userId, cfSessionId, audioTrackName: 'audio' }
-        //      (you'll need to emit this AFTER the client publishes their audio track — see cfTracksNew)
+        //      (you'll need to emit this AFTER the client publishes their audio track -see cfTracksNew)
         const {cfSessionId} = await firstValueFrom(this.voiceService.cfCreateSession(callId));
         if (!this.callId) return;
         this.cfSessionId = cfSessionId;
 
-        // Set up WS listeners NOW — cfSessionId is ready and we need to be subscribed before
+        // Set up WS listeners NOW -cfSessionId is ready and we need to be subscribed before
         // publishAudioTrack triggers ExchangeParticipantJoined on the server, which sends
         // ParticipantJoined back to us for any already-connected participants.
         this.setupWsListeners();
 
-        // Acquire microphone — use Rust pipeline when enhanced NS is on
+        // Acquire microphone -use Rust pipeline when enhanced NS is on
         let audioTrack: MediaStreamTrack;
         try {
             const s = this.audioSettings.settings();
@@ -219,7 +219,7 @@ export class CallWebRtcService {
                 audioTrack = stream.getAudioTracks()[0];
             }
         } catch {
-            console.warn('[WebRTC] Microphone access denied — joining without audio');
+            console.warn('[WebRTC] Microphone access denied -joining without audio');
             return;
         }
         if (!this.callId) {
@@ -395,7 +395,7 @@ export class CallWebRtcService {
         if (!track) return;
         const transceiver = this.pc.addTransceiver(track, {direction: 'sendonly'});
 
-        // Prefer VP9 for screen sharing — better quality-per-bit means higher effective fps
+        // Prefer VP9 for screen sharing -better quality-per-bit means higher effective fps
         // at the same bitrate compared to VP8.
         const caps = RTCRtpSender.getCapabilities('video')?.codecs ?? [];
         const ordered = [

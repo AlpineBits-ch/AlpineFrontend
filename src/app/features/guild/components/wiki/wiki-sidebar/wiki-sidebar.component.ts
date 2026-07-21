@@ -403,7 +403,7 @@ export class WikiSidebarComponent {
         const visited = new Set<string>();
         let current: string | undefined = newParentId;
         while (current) {
-            if (visited.has(current)) break; // existing cycle in data — stop
+            if (visited.has(current)) break; // existing cycle in data -stop
             visited.add(current);
             const parent = parentMap.get(current);
             if (!parent) break;

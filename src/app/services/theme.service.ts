@@ -146,7 +146,7 @@ export class ThemeService {
     }
 
     private saveThemes(): void {
-        // Don't persist the built-in theme — it's always loaded from DEFAULT_THEME
+        // Don't persist the built-in theme -it's always loaded from DEFAULT_THEME
         const custom = this.themes().filter(t => t.id !== BUILT_IN_THEME_ID);
         localStorage.setItem(THEMES_KEY, JSON.stringify(custom));
     }

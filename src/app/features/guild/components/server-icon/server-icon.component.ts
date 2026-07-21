@@ -54,7 +54,7 @@ export class ServerIconComponent implements OnDestroy {
             const timer = setTimeout(() => {
                 const sep = base.includes('?') ? '&' : '?';
                 const url = `${base}${sep}_t=${Date.now()}`;
-                // Probe silently — only swap back to image if the retry actually loads.
+                // Probe silently -only swap back to image if the retry actually loads.
                 // This prevents the fallback letter from flickering on each retry attempt.
                 const probe = new Image();
                 probe.onload = () => {

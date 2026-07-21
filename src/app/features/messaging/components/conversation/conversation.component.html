@@ -64,11 +64,11 @@
         </div>
     </header>
 
-    <!-- Active call panel — shown only when this conversation has an ongoing call -->
+    <!-- Active call panel -shown only when this conversation has an ongoing call -->
     @if (activeCall()) {
         <app-call-panel/>
     } @else if (isRinging(); as ringing) {
-        <!-- Ringing banner — visible to the caller while waiting for the other side to accept -->
+        <!-- Ringing banner -visible to the caller while waiting for the other side to accept -->
         <div class="ringing-banner shrink-0">
             <div class="ringing-pulse">
                 <div class="ringing-ring"></div>
@@ -229,7 +229,7 @@
                         Loading older messages…
                     </div>
                 } @else if (!hasMore()) {
-                    <!-- Conversation start — only show when all history is loaded -->
+                    <!-- Conversation start -only show when all history is loaded -->
                     <div class="py-8 flex flex-col items-start gap-2">
                         <app-avatar [label]="chatAvatarLabel()"
                                     [userId]="convUtils.getPartnerMember(conversation())?.userId" styleClass="!w-16 !h-16 !text-2xl"/>

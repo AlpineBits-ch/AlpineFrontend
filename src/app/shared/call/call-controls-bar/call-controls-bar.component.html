@@ -45,7 +45,7 @@
         <i class="pi pi-desktop text-base"></i>
     </button>
 
-    <!-- Mute stream audio — only shown when sharing and screen has audio -->
+    <!-- Mute stream audio -only shown when sharing and screen has audio -->
     @if (isScreenSharing() && screenHasAudio()) {
         <button
                 (click)="screenAudioToggle.emit()"
@@ -59,7 +59,7 @@
         </button>
     }
 
-    <!-- FPS + Resolution selectors — visible only while sharing -->
+    <!-- FPS + Resolution selectors -visible only while sharing -->
     @if (isScreenSharing()) {
         <div class="flex items-center gap-0.5 bg-white/[0.05] rounded-lg px-1 py-1 border border-white/[0.08]">
             @for (fps of fpsList(); track fps) {

@@ -77,7 +77,7 @@ export class ConversationComponent implements AfterViewInit {
     protected chatAvatarLabel = computed(() => this.convUtils.getChatAvatarLabel(this.conversation()));
     protected partnerStatus = computed(() => this.convUtils.getPartnerStatus(this.conversation()));
     protected typingText = computed(() => this.convUtils.getTypingLabel(this.conversation()));
-    // The most recent confirmed message — watch this to react to incoming messages.
+    // The most recent confirmed message -watch this to react to incoming messages.
     protected latestMessage = computed(() => {
         const confirmed = this.messages().filter(m => !m.isPending && !m.isFailed);
         return confirmed.at(-1) ?? null;
@@ -462,7 +462,7 @@ export class ConversationComponent implements AfterViewInit {
                 )
             ),
             tap(confirmed => {
-                // Keep the plaintext content for display — the server stores ciphertext,
+                // Keep the plaintext content for display -the server stores ciphertext,
                 // but we already have the plaintext and don't need to re-decrypt our own message.
                 // Cache it so it survives app restarts (MLS forward secrecy makes re-decryption impossible).
                 void this.mlsService.cacheMessage(confirmed.id, b64Content);

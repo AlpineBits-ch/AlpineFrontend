@@ -1,0 +1,257 @@
+import {computed, effect, inject, Injectable, signal} from '@angular/core';
+import {firstValueFrom} from 'rxjs';
+import {HttpErrorResponse} from '@angular/common/http';
+import {IsleVoiceApiService} from './isle-voice-api.service';
+import {IsleVoiceWebsocketService} from './isle-voice-websocket.service';
+import {IsleVoiceRtcService} from './isle-voice-rtc.service';
+import {SpatialAudioService} from './spatial-audio.service';
+import {HotkeyService} from './hotkey.service';
+import {NativePttService} from './native-ptt.service';
+import {AudioSettingsService} from './audio-settings.service';
+import {UserService} from './user.service';
+import {ToastService} from './toast.service';
+import {RealtimeConnectionService, ConnectionState} from './realtime-connection.service';
+
+/**
+ * Public surface for Isle proximity voice -the UI binds to this.
+ *
+ * Owns detection (game-connected state), the join/leave flow, push-to-talk wiring,
+ * and hub-reconnect resilience. Composes the REST, signalling, WebRTC and spatial
+ * services. Runs entirely app-wide and independently of guild voice.
+ */
+
+/** Logical id for the push-to-talk global hotkey binding. */
+const PTT_BINDING = 'isle-ptt';
+/** How often to reconcile game/voice state against the backend. */
+const STATUS_POLL_MS = 60_000;
+
+@Injectable({providedIn: 'root'})
+export class IsleProximityService {
+    private api = inject(IsleVoiceApiService);
+    private ws = inject(IsleVoiceWebsocketService);
+    private rtc = inject(IsleVoiceRtcService);
+    private spatial = inject(SpatialAudioService);
+    private hotkey = inject(HotkeyService);
+    private nativePtt = inject(NativePttService);
+    private audioSettings = inject(AudioSettingsService);
+    private userService = inject(UserService);
+    private toast = inject(ToastService);
+    private realtime = inject(RealtimeConnectionService);
+
+    // ── State the UI reads ──────────────────────────────────────────────────
+    readonly isGameConnected = signal(false);
+    readonly isVoiceActive = signal(false);
+    readonly isConnecting = signal(false);
+    readonly isTransmitting = signal(false);
+    readonly connectedSince = signal<number | null>(null);
+
+    readonly isLinked = computed(() => !!this.userService.self()?.steamId);
+    readonly rtcState = this.rtc.rtcState;
+    readonly peerCount = computed(() => this.rtc.peers().size);
+
+    private detectionStarted = false;
+    private pttWired = false;
+    private pollHandle: ReturnType<typeof setInterval> | null = null;
+    private lastConnState = ConnectionState.Disconnected;
+
+    constructor() {
+        // Begin detection once the user is loaded (auth available for WS + REST).
+        effect(() => {
+            if (this.userService.self() && !this.detectionStarted) {
+                this.startDetection();
+            }
+        });
+
+        // Keep the live spatial graph in sync with settings while connected.
+        effect(() => {
+            const s = this.audioSettings.settings();
+            if (this.isVoiceActive()) {
+                this.spatial.setMasterVolume(s.proximityVolume);
+                this.spatial.setSpatialEnabled(s.proximitySpatialEnabled);
+            }
+        });
+
+        // Hub lifecycle resilience while connected.
+        effect(() => {
+            const state = this.realtime.connectionState();
+            const prev = this.lastConnState;
+            this.lastConnState = state;
+            if (!this.isVoiceActive()) return;
+            if (state === ConnectionState.Connected && prev !== ConnectionState.Connected) {
+                // Reconnected -backend may have forgotten state, so re-publish.
+                void this.republish();
+            } else if (state !== ConnectionState.Connected && prev === ConnectionState.Connected) {
+                // Dropped -no isle.PeerLeft can arrive while offline, so clear stale peers.
+                this.rtc.tearDownAllRemotePeers();
+            }
+        });
+    }
+
+    // ── Public actions ────────────────────────────────────────────────────────
+
+    async join(): Promise<void> {
+        if (this.isConnecting() || this.isVoiceActive()) return;
+        this.isConnecting.set(true);
+        try {
+            try {
+                await firstValueFrom(this.api.join());
+            } catch (err) {
+                if (err instanceof HttpErrorResponse && err.status === 400) {
+                    this.toast.error('Link your Steam account to use proximity chat');
+                } else {
+                    this.toast.httpError('Could not join Isle proximity chat', err);
+                }
+                return;
+            }
+
+            const published = await this.rtc.connect();
+            if (!published) {
+                this.toast.error('Microphone unavailable -check your audio settings');
+                await firstValueFrom(this.api.leave()).catch(() => void 0);
+                return;
+            }
+
+            this.spatial.setMasterVolume(this.audioSettings.settings().proximityVolume);
+            this.spatial.setSpatialEnabled(this.audioSettings.settings().proximitySpatialEnabled);
+            await this.registerPtt();
+
+            this.isVoiceActive.set(true);
+            this.connectedSince.set(Date.now());
+        } finally {
+            this.isConnecting.set(false);
+        }
+    }
+
+    async leave(): Promise<void> {
+        if (!this.isVoiceActive() && !this.isConnecting()) return;
+        await this.unregisterPtt();
+        await this.rtc.disconnect();
+        await firstValueFrom(this.api.leave()).catch(() => void 0);
+        this.isVoiceActive.set(false);
+        this.isTransmitting.set(false);
+        this.connectedSince.set(null);
+    }
+
+    /** Live-apply the master volume slider (also persists via settings). */
+    setVolume(volume: number): void {
+        this.audioSettings.update({proximityVolume: volume});
+        this.spatial.setMasterVolume(volume);
+    }
+
+    /** Toggle HRTF panning vs distance-only (also persists via settings). */
+    setSpatialEnabled(enabled: boolean): void {
+        this.audioSettings.update({proximitySpatialEnabled: enabled});
+        this.spatial.setSpatialEnabled(enabled);
+    }
+
+    /** Re-register the PTT hotkey with the current accelerator (after a rebind). */
+    async reapplyPtt(): Promise<void> {
+        if (this.isVoiceActive() && this.hotkey.supported) {
+            await this.registerPtt();
+        }
+    }
+
+    // ── Detection ──────────────────────────────────────────────────────────────
+
+    private startDetection(): void {
+        this.detectionStarted = true;
+        void this.ws.start();
+
+        this.ws.playerJoined$.subscribe(() => this.isGameConnected.set(true));
+        this.ws.playerDisconnected$.subscribe(() => {
+            this.isGameConnected.set(false);
+            if (this.isVoiceActive()) void this.leave();
+        });
+
+        this.ws.subscribeMutual$.subscribe(p => {
+            if (this.isVoiceActive()) void this.rtc.subscribeToPeer(p.targetUserId, p.cfSessionId, p.trackName);
+        });
+        this.ws.selfPosition$.subscribe(p => this.spatial.updateSelf(p.x, p.y, p.z, p.yaw));
+        this.ws.playerPosition$.subscribe(p => this.spatial.updatePeer(p.userId, p.x, p.y, p.z));
+        this.ws.peerLeft$.subscribe(p => this.rtc.tearDownPeer(p.userId));
+
+        // Check a few times on start, then reconcile on a slow poll.
+        this.refreshStatus();
+        setTimeout(() => this.refreshStatus(), 1_500);
+        setTimeout(() => this.refreshStatus(), 4_000);
+        this.pollHandle = setInterval(() => this.refreshStatus(), STATUS_POLL_MS);
+    }
+
+    private refreshStatus(): void {
+        if (!this.userService.self()) return;
+        firstValueFrom(this.api.getStatus())
+            .then(status => {
+                this.isGameConnected.set(status.isGameConnected);
+                if (!status.isGameConnected && this.isVoiceActive()) void this.leave();
+            })
+            .catch(() => void 0);
+    }
+
+    // ── Push-to-talk ────────────────────────────────────────────────────────────
+
+    private async registerPtt(): Promise<void> {
+        const key = this.audioSettings.settings().proximityPttKey;
+
+        // Preferred: native low-level hook (Windows) -supports bare modifiers + mouse.
+        await this.nativePtt.whenReady();
+        if (this.nativePtt.supported()) {
+            if (!this.pttWired) {
+                this.pttWired = true;
+                this.nativePtt.transmit$.subscribe(down => {
+                    this.rtc.setMicEnabled(down);
+                    this.isTransmitting.set(down);
+                });
+            }
+            try {
+                await this.nativePtt.setBinding(key);
+                await this.nativePtt.arm();
+                return;
+            } catch (e) {
+                console.error('[isle-voice] native PTT arm failed, falling back', e);
+            }
+        }
+
+        // Fallback: global-shortcut plugin (macOS/Linux) -keyboard accelerators only.
+        if (this.hotkey.supported) {
+            await this.hotkey.bind(PTT_BINDING, key, {
+                onDown: () => {
+                    this.rtc.setMicEnabled(true);
+                    this.isTransmitting.set(true);
+                },
+                onUp: () => {
+                    this.rtc.setMicEnabled(false);
+                    this.isTransmitting.set(false);
+                },
+            });
+            return;
+        }
+
+        // No hotkey mechanism (e.g. browser dev) -open mic.
+        this.rtc.setMicEnabled(true);
+        this.isTransmitting.set(true);
+    }
+
+    private async unregisterPtt(): Promise<void> {
+        if (this.nativePtt.supported()) await this.nativePtt.disarm().catch(() => void 0);
+        await this.hotkey.unbind(PTT_BINDING);
+    }
+
+    // ── Resilience ─────────────────────────────────────────────────────────────
+
+    private async republish(): Promise<void> {
+        try {
+            await this.rtc.disconnect();
+            await firstValueFrom(this.api.join()).catch(() => void 0);
+            const ok = await this.rtc.connect();
+            if (ok) {
+                this.spatial.setMasterVolume(this.audioSettings.settings().proximityVolume);
+                this.spatial.setSpatialEnabled(this.audioSettings.settings().proximitySpatialEnabled);
+                await this.registerPtt();
+            } else {
+                await this.leave();
+            }
+        } catch {
+            await this.leave();
+        }
+    }
+}

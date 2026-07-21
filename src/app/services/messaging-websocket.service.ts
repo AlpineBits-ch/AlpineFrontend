@@ -100,7 +100,7 @@ export class MessagingWebsocketService {
         ).subscribe();
     }
 
-    /** Shared connection state — one connection now backs every feature. */
+    /** Shared connection state -one connection now backs every feature. */
     get connectionState() {
         return this.realtime.connectionState;
     }
@@ -209,12 +209,12 @@ export class MessagingWebsocketService {
         if (encryptionState === MessageEncryptionState.Encrypted && data.conversationId) {
             const ownDeviceId = await this.mlsService.getOrCreateDeviceIdentifier();
             if (data.senderDeviceId === ownDeviceId) {
-                // Our own message — plaintext already in store from send flow, skip WS upsert.
+                // Our own message -plaintext already in store from send flow, skip WS upsert.
                 return;
             }
             let groupId = await this.mlsService.getGroupIdForConversation(data.conversationId);
 
-            // Group not registered yet — may be a new encrypted conversation created while we were
+            // Group not registered yet -may be a new encrypted conversation created while we were
             // online. Fetch pending welcomes and try to join before decrypting.
             if (!groupId) {
                 console.log('group id not found')

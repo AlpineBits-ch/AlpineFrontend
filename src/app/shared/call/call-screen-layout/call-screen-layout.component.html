@@ -38,7 +38,7 @@
                     </button>
                 </div>
 
-                <!-- Audio toggle — local stream -->
+                <!-- Audio toggle -local stream -->
                 @if (share.isLocal && share.hasAudio) {
                     <button
                             (click)="localAudioToggle.emit()"
@@ -49,7 +49,7 @@
                     </button>
                 }
 
-                <!-- Audio toggle — remote stream -->
+                <!-- Audio toggle -remote stream -->
                 @if (!share.isLocal) {
                     <button
                             (click)="remoteAudioToggle.emit(share.userId)"

@@ -1,6 +1,6 @@
 [package]
 name = "Venta"
-version = "3.0.104"
+version = "3.0.105"
 description = ""
 authors = ["you"]
 edition = "2021"
@@ -85,6 +85,7 @@ reqwest = { version = "0.12", default-features = false, features = ["native-tls"
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-window-state = "2"
+tauri-plugin-global-shortcut = "2"
 cpal = "0.15"
 xcap = "0.9"
 nnnoiseless = "0.3"
@@ -118,5 +119,7 @@ windows = { version = "0.58", features = [
     "Win32_System_Threading",
     "Win32_System_Variant",
     "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
 ] }
 windows-core = "0.58"

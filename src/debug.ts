@@ -4,13 +4,13 @@
  * production builds (tree-shaken because the call site is guarded by isDevMode()).
  *
  * Available in the devtools console:
- *   __expireToken()          — corrupts the stored access token so the NEXT api
+ *   __expireToken()          -corrupts the stored access token so the NEXT api
  *                              call returns 401 and triggers the interceptor refresh
- *   __expireTokenConcurrent(n) — does the same but fires n parallel API requests
+ *   __expireTokenConcurrent(n) -does the same but fires n parallel API requests
  *                              immediately so you can observe the concurrent-401 fix
- *   __fireTokenExpiresEvent() — fires the OAuth library's token_expires event
+ *   __fireTokenExpiresEvent() -fires the OAuth library's token_expires event
  *                              to test the setupAutomaticSilentRefresh() path
- *   __showTokenState()       — prints current token expiry info to console
+ *   __showTokenState()       -prints current token expiry info to console
  */
 
 import { ApplicationRef } from '@angular/core';
@@ -31,7 +31,7 @@ export function registerDebugHelpers(appRef: ApplicationRef): void {
   (window as any).__expireToken = (): void => {
     localStorage.setItem(TOKEN_KEY, 'debug.expired.token');
     console.log(
-      '%c[debug] access_token corrupted — next API call will return 401 and trigger interceptor refresh',
+      '%c[debug] access_token corrupted -next API call will return 401 and trigger interceptor refresh',
       'color: orange',
     );
   };
@@ -40,7 +40,7 @@ export function registerDebugHelpers(appRef: ApplicationRef): void {
   // watch the concurrent-401 → single-refresh → all-retry flow in the network tab.
   (window as any).__expireTokenConcurrent = (n = 3): void => {
     localStorage.setItem(TOKEN_KEY, 'debug.expired.token');
-    console.log(`%c[debug] Token corrupted — firing ${n} concurrent requests`, 'color: orange');
+    console.log(`%c[debug] Token corrupted -firing ${n} concurrent requests`, 'color: orange');
     // Hit a lightweight authenticated endpoint; adjust if needed.
     for (let i = 0; i < n; i++) {
       http.get('https://api.venta.gg/api/v1/user/me').subscribe({
@@ -50,13 +50,13 @@ export function registerDebugHelpers(appRef: ApplicationRef): void {
     }
   };
 
-  // Fire the library's internal token_expires event — exercises the
+  // Fire the library's internal token_expires event -exercises the
   // setupAutomaticSilentRefresh() code path without waiting for the real timer.
   (window as any).__fireTokenExpiresEvent = (): void => {
     // eventsSubject is protected in the library but accessible at runtime.
     const subject = (oAuth as any)['eventsSubject'];
     if (!subject) {
-      console.error('[debug] eventsSubject not found on OAuthService — library version mismatch?');
+      console.error('[debug] eventsSubject not found on OAuthService -library version mismatch?');
       return;
     }
     subject.next({ type: 'token_expires' });
@@ -83,10 +83,10 @@ export function registerDebugHelpers(appRef: ApplicationRef): void {
 
   console.log(
     '%c[debug] Token helpers loaded:\n' +
-    '  __showTokenState()           — print token timing\n' +
-    '  __expireToken()              — corrupt token → next call 401s\n' +
-    '  __expireTokenConcurrent(n)   — corrupt + fire n parallel requests\n' +
-    '  __fireTokenExpiresEvent()    — fire token_expires event directly',
+    '  __showTokenState()           -print token timing\n' +
+    '  __expireToken()              -corrupt token → next call 401s\n' +
+    '  __expireTokenConcurrent(n)   -corrupt + fire n parallel requests\n' +
+    '  __fireTokenExpiresEvent()    -fire token_expires event directly',
     'color: cyan',
   );
 }

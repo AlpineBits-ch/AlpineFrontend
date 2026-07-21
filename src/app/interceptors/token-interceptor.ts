@@ -8,7 +8,7 @@ import {ApiConfigService} from "../services/api-config.service";
 
 // Shared across all interceptor invocations. When a refresh is in-flight every
 // concurrent 401 waits on the same Promise instead of triggering its own
-// softLogout() — the previous source of the "app freeze" when tokens expired.
+// softLogout() -the previous source of the "app freeze" when tokens expired.
 let isRefreshing = false;
 let refreshPromise: Promise<string> | null = null;
 
@@ -61,7 +61,7 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
                     });
             }
 
-            // All concurrent 401s — including the one that started the refresh —
+            // All concurrent 401s -including the one that started the refresh —
             // wait on the same Promise and retry with the new token once it resolves.
             return from(refreshPromise!).pipe(
                 switchMap(newToken => {

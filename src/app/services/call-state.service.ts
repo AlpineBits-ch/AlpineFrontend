@@ -215,7 +215,7 @@ export class CallStateService implements OnDestroy {
         this.soundSettings.playIncomingRing();
     }
 
-    // Outgoing ringback: classic dual-tone (440+480 Hz), 2 pulses then silence — repeats every 6s
+    // Outgoing ringback: classic dual-tone (440+480 Hz), 2 pulses then silence -repeats every 6s
     private ringbackCycle(): void {
         if (!this.outgoingCall()) return;
         this.playRingback();

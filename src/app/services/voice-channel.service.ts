@@ -184,7 +184,7 @@ export class VoiceChannelService {
                 this.soundSettings.playVoiceJoin();
                 const connected = await this.rtc.connect(channel.guildId, channel.id, ownId);
                 if (!connected) {
-                    console.error('VoiceChannelService: WebRTC connect() returned false — audio setup failed');
+                    console.error('VoiceChannelService: WebRTC connect() returned false -audio setup failed');
                     await this.doLeave(channel.guildId, channel.id, false);
                     this.joinedChannelId.set(null);
                     this.joinedGuildId.set(null);

@@ -33,9 +33,9 @@ const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/
     providers: [ComposerAttachmentsService],
 })
 export class ComposerComponent {
-    /** Set when composing in a guild channel — drives async member search. */
+    /** Set when composing in a guild channel -drives async member search. */
     guildId = input<string | null>(null);
-    /** Set when composing in a DM/group conversation — filtered synchronously. */
+    /** Set when composing in a DM/group conversation -filtered synchronously. */
     conversationMembers = input<MentionCandidate[]>([]);
     replyTo = input<MessageDto | null>(null);
     message = output<{ content: string; attachments: string[]; inReplyTo?: string; mentions: string[] }>();
@@ -77,7 +77,7 @@ export class ComposerComponent {
         const cmd = this.activeCommand();
         if (!cmd) return 'Message';
         const paramHints = cmd.params.map(p => p.required ? `<${p.label}>` : `[${p.label}]`).join(' ');
-        return paramHints ? `/${cmd.name} ${paramHints} — press Enter to send` : `/${cmd.name} — press Enter to send`;
+        return paramHints ? `/${cmd.name} ${paramHints} -press Enter to send` : `/${cmd.name} -press Enter to send`;
     });
     protected readonly attachments = inject(ComposerAttachmentsService);
     private readonly emojiData = inject(EmojiDataService);

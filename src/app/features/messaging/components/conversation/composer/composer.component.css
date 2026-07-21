@@ -118,7 +118,7 @@
 }
 
 /* ── Mention chip ─────────────────────────────────────────────────────────── */
-/* Chips are created via document.createElement — Angular's scoped attribute
+/* Chips are created via document.createElement -Angular's scoped attribute
    is never added, so ::ng-deep is required to reach them. */
 :host ::ng-deep .mention-chip {
     display: inline-flex;

@@ -30,7 +30,7 @@ import {
 } from './mls.service';
 
 // ---------------------------------------------------------------------------
-// Module mock — must be a top-level call so Vitest hoists it before imports
+// Module mock -must be a top-level call so Vitest hoists it before imports
 // ---------------------------------------------------------------------------
 
 const invokeStub = vi.mocked(invoke);
@@ -1369,7 +1369,7 @@ describe('MlsService', () => {
         it('skips roster check for commit messages', async () => {
             mockInvoke(COMMIT_MESSAGE);
             const result = await firstValueFrom(service.processAndVerifyMessage(GID, MSG));
-            // Only 1 invoke call — no getMembers for commits
+            // Only 1 invoke call -no getMembers for commits
             expect(invokeStub).toHaveBeenCalledTimes(1);
             expect(result.kind).toBe('commit');
         });
@@ -1612,7 +1612,7 @@ describe('MlsService', () => {
     });
 
     // ─────────────────────────────────────────────────────────────────────────
-    // IPC contract — all command names verified
+    // IPC contract -all command names verified
     // ─────────────────────────────────────────────────────────────────────────
 
     describe('IPC contract: command names are snake_case', () => {
@@ -2164,7 +2164,7 @@ describe('MlsService', () => {
             expect(createdGroup.ownLeafIndex).toBe(0);
             expect(createdGroup.members.length).toBe(1);
 
-            // Step 5: Alice adds Bob — produces a commit and a welcome
+            // Step 5: Alice adds Bob -produces a commit and a welcome
             invokeStub.mockResolvedValueOnce(ADD_COMMIT as never);
             const addOut = await firstValueFrom(
                 service.addMembers(GID, ALICE_HANDLE, [bobBatch.keyPackages[0].keyPackage]),
@@ -2174,7 +2174,7 @@ describe('MlsService', () => {
             expect(addOut.welcome).not.toBeNull();
             expect(addOut.epoch).toBe(1);
 
-            // Step 6: Bob joins via the welcome — sees both members in the roster
+            // Step 6: Bob joins via the welcome -sees both members in the roster
             invokeStub.mockResolvedValueOnce(JOINED_GROUP as never);
             const joinedGroup = await firstValueFrom(service.joinGroup(addOut.welcome!, BOB_HANDLE));
             expect(callCmd(5)).toBe('mls_join_group');
@@ -2225,7 +2225,7 @@ describe('MlsService', () => {
             expect(leaveOut.welcome).toBeNull();
             expect(leaveOut.epoch).toBe(3);
 
-            // Step 12: Alice deletes the local group state — queue entry is cleaned up
+            // Step 12: Alice deletes the local group state -queue entry is cleaned up
             invokeStub.mockResolvedValueOnce(undefined as never);
             const queues = (service as unknown as { _groupQueues: Map<string, Promise<unknown>> })
                 ._groupQueues;

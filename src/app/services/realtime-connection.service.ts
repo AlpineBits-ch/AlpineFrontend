@@ -58,7 +58,7 @@ export class RealtimeConnectionService {
 
     /**
      * Fire a client → server invocation. No-op when disconnected and never rejects
-     * — errors are logged so callers can treat it as fire-and-forget.
+     * -errors are logged so callers can treat it as fire-and-forget.
      */
     async invoke(method: string, ...args: unknown[]): Promise<void> {
         if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;

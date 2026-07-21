@@ -178,7 +178,7 @@ export class GuildWebsocketService {
     private profileService = inject(ProfileService);
     private listenersSetUp = false;
 
-    /** Shared connection state — one connection now backs every feature. */
+    /** Shared connection state -one connection now backs every feature. */
     get connectionState() {
         return this.realtime.connectionState;
     }

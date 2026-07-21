@@ -59,7 +59,7 @@ export class VoiceRTCService {
     // Maps a remote transceiver MID → { userId, kind }
     private midMeta = new Map<string, { userId: string; kind: 'audio' | 'video' | 'screen' | 'screenAudio' }>();
 
-    // Audio playback elements — WebView2/Tauri requires explicit <audio> elements
+    // Audio playback elements -WebView2/Tauri requires explicit <audio> elements
     private remoteAudioEls = new Map<string, HTMLAudioElement>();
     private remoteScreenAudioEls = new Map<string, HTMLAudioElement>();
 
@@ -102,7 +102,7 @@ export class VoiceRTCService {
         });
 
         try {
-            // Get audio first — if mic is unavailable there's no point creating a PC.
+            // Get audio first -if mic is unavailable there's no point creating a PC.
             let audioTrack: MediaStreamTrack;
             try {
                 const s = this.audioSettings.settings();

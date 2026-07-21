@@ -89,7 +89,7 @@ export class NotificationService {
         } else {
             if (!await this.ensurePermission()) return;
 
-            // macOS native backend requires a local file:// URI — download avatar to temp first
+            // macOS native backend requires a local file:// URI -download avatar to temp first
             let icon: string | undefined = params.profile?.avatarUrl;
             if (this.platformName === 'macos' && icon) {
                 const local = await invoke<string | null>('prepare_notification_icon', {url: icon}).catch(() => null);

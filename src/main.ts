@@ -40,7 +40,7 @@ bootstrapApplication(AppComponent, appConfig)
       } catch {}
       await win.show();
     } catch {
-      // Running in a browser (non-Tauri) — no-op
+      // Running in a browser (non-Tauri) -no-op
     }
 
     if (isDevMode()) {

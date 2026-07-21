@@ -43,7 +43,7 @@ use windows::{
 //   - Previous code called CoInitializeEx(COINIT_MULTITHREADED) on the capture
 //     thread and CoUninitialize on exit.
 //   - CoUninitialize can drop the last MTA reference for the process, which
-//     causes Windows to unload all COM DLLs — including the WGC runtime that
+//     causes Windows to unload all COM DLLs -including the WGC runtime that
 //     xcap still has live pointers into. Next WGC call = heap corruption.
 //
 // Fix: call CoIncrementMTAUsage once and never decrement it.
@@ -61,10 +61,10 @@ fn ensure_mta_alive() -> Result<()> {
         return Ok(());
     }
     // Safety: CoIncrementMTAUsage is safe to call from any thread at any time.
-    // The returned CO_MTA_USAGE_COOKIE is intentionally discarded — we never
+    // The returned CO_MTA_USAGE_COOKIE is intentionally discarded -we never
     // want to call CoDecrementMTAUsage, so leaking it is correct.
     unsafe { CoIncrementMTAUsage() }?;
-    // If two threads race here both called CoIncrementMTAUsage — harmless,
+    // If two threads race here both called CoIncrementMTAUsage -harmless,
     // the MTA just has an extra permanent reference.
     let _ = MTA_ALIVE.set(());
     Ok(())
@@ -77,7 +77,7 @@ fn ensure_mta_alive() -> Result<()> {
 // raw-pointer approach (bare usize) that caused heap corruption when the pointer
 // was reconstructed in a different COM apartment.
 struct AgileClient(AgileReference<IAudioClient>);
-// Safety: AgileReference<T> is itself Send — it holds an IGlobalInterfaceTable
+// Safety: AgileReference<T> is itself Send -it holds an IGlobalInterfaceTable
 // cookie kept alive by the OS until we resolve or drop it.
 unsafe impl Send for AgileClient {}
 
@@ -116,7 +116,7 @@ impl IActivateAudioInterfaceCompletionHandler_Impl for CompletionHandler_Impl {
 /// messages via `on_chunk` until `stop` is set.
 ///
 /// Returns `Err` if process-excluded activation is unsupported (pre-2004
-/// Windows) or if the mix format is not 32-bit float — the caller should
+/// Windows) or if the mix format is not 32-bit float -the caller should
 /// fall back to the device-loopback path.
 pub fn capture_excluded(on_chunk: Channel<AudioChunk>, stop: Arc<AtomicBool>) -> Result<()> {
     // Pin the MTA before touching any COM/WASAPI/WGC API.
@@ -163,7 +163,7 @@ pub fn capture_excluded(on_chunk: Channel<AudioChunk>, stop: Arc<AtomicBool>) ->
                 Anonymous: windows_core::imp::PROPVARIANT_0_0_0 {
                     blob: windows_core::imp::BLOB {
                         cbSize: std::mem::size_of::<AUDIOCLIENT_ACTIVATION_PARAMS>() as u32,
-                        // pBlobData now points to CoTaskMem heap — PropVariantClear
+                        // pBlobData now points to CoTaskMem heap -PropVariantClear
                         // can safely free this when ActivateAudioInterfaceAsync cleans up.
                         pBlobData: params_ptr as *mut u8,
                     },
@@ -195,7 +195,7 @@ pub fn capture_excluded(on_chunk: Channel<AudioChunk>, stop: Arc<AtomicBool>) ->
     // Block until the COM callback fires (typically < 1 ms on Win 10 2004+).
     let agile_client = rx.recv().map_err(|_| Error::from(E_FAIL))??;
 
-    // Resolve on this thread — safe because the permanent MTA means every
+    // Resolve on this thread -safe because the permanent MTA means every
     // thread is in the MTA, so AgileReference resolves without marshalling overhead.
     let client = agile_client.0.resolve()?;
 
@@ -244,7 +244,7 @@ pub fn capture_excluded(on_chunk: Channel<AudioChunk>, stop: Arc<AtomicBool>) ->
         // Safety: ready_event is a valid kernel event HANDLE.
         unsafe {
             WaitForSingleObject(ready_event, 10);
-        } // 10 ms — lets us check stop flag
+        } // 10 ms -lets us check stop flag
 
         if stop.load(Ordering::Relaxed) {
             break;

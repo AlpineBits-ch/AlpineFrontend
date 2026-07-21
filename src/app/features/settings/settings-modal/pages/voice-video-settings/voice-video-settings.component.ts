@@ -7,6 +7,8 @@ import {Slider} from 'primeng/slider';
 import {TranslateModule} from '@ngx-translate/core';
 import {invoke} from '@tauri-apps/api/core';
 import {AudioSettingsService} from '../../../../../services/audio-settings.service';
+import {IsleProximityService} from '../../../../../services/isle-proximity.service';
+import {NativePttService} from '../../../../../services/native-ptt.service';
 
 interface RustAudioDevice {
     id: string;
@@ -68,12 +70,18 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     readonly micLevel = signal(0);
     readonly isMicActive = signal(false);
 
-    // ── Persisted settings — setters write through to AudioSettingsService ───
+    // ── Persisted settings -setters write through to AudioSettingsService ───
     readonly isVoiceTesting = signal(false);
     readonly permissionError = signal(false);
     readonly micBars = Array.from({length: 24}, (_, i) => i);
+    readonly capturingPtt = signal(false);
+    /** Display label for the current PTT binding (native tokens are formatted in Rust). */
+    readonly pttLabel = signal('');
     private audioSettings = inject(AudioSettingsService);
+    private proximity = inject(IsleProximityService);
+    private nativePtt = inject(NativePttService);
     private zone = inject(NgZone);
+    private pttCaptureHandler: ((e: KeyboardEvent) => void) | null = null;
     private audioCtx: AudioContext | null = null;
     private analyser: AnalyserNode | null = null;
     private gainNode: GainNode | null = null;
@@ -83,6 +91,14 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
 
     constructor() {
         void this.loadDevices();
+        void this.loadPttLabel();
+    }
+
+    private async loadPttLabel(): Promise<void> {
+        await this.nativePtt.whenReady();
+        if (this.nativePtt.supported()) {
+            this.pttLabel.set(await this.nativePtt.label(this.audioSettings.settings().proximityPttKey));
+        }
     }
 
     get selectedMicId(): string {
@@ -183,6 +199,116 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         this.audioSettings.update({vadStrength: v / 100});
     }
 
+    // ── Isle proximity voice ───────────────────────────────────────────────
+
+    get proximityVolume(): number {
+        return Math.round(this.audioSettings.settings().proximityVolume * 100);
+    }
+
+    set proximityVolume(v: number) {
+        this.proximity.setVolume(Math.max(0, Math.min(1, v / 100)));
+    }
+
+    get proximitySpatial(): boolean {
+        return this.audioSettings.settings().proximitySpatialEnabled;
+    }
+
+    set proximitySpatial(v: boolean) {
+        this.proximity.setSpatialEnabled(v);
+    }
+
+    /** Human-readable form of the stored push-to-talk binding. */
+    get pttKeyLabel(): string {
+        if (this.nativePtt.supported()) return this.pttLabel() || '—';
+        return this.formatAccelerator(this.audioSettings.settings().proximityPttKey);
+    }
+
+    /** Capture a new push-to-talk binding -natively on Windows (keys/modifiers/mouse), else keyboard-only. */
+    startPttCapture(): void {
+        if (this.capturingPtt()) return;
+
+        if (this.nativePtt.supported()) {
+            void this.captureNative();
+            return;
+        }
+
+        this.capturingPtt.set(true);
+        this.pttCaptureHandler = (e: KeyboardEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.code === 'Escape') {
+                this.endPttCapture();
+                return;
+            }
+            // Wait for a non-modifier key so "Ctrl+…" style combos can be built.
+            if (this.isModifierCode(e.code)) return;
+            this.audioSettings.update({proximityPttKey: this.buildAccelerator(e)});
+            void this.proximity.reapplyPtt();
+            this.endPttCapture();
+        };
+        window.addEventListener('keydown', this.pttCaptureHandler, true);
+    }
+
+    private endPttCapture(): void {
+        if (this.pttCaptureHandler) {
+            window.removeEventListener('keydown', this.pttCaptureHandler, true);
+            this.pttCaptureHandler = null;
+        }
+        this.capturingPtt.set(false);
+    }
+
+    /** Windows capture: the native hook reports the next key, modifier, or mouse button (Esc cancels). */
+    private async captureNative(): Promise<void> {
+        this.capturingPtt.set(true);
+        try {
+            const res = await this.nativePtt.beginCapture();
+            if (!res.cancelled) {
+                this.audioSettings.update({proximityPttKey: res.token});
+                this.pttLabel.set(res.label);
+                void this.proximity.reapplyPtt();
+            }
+        } catch (e) {
+            console.error('[ptt] native capture failed', e);
+        } finally {
+            this.capturingPtt.set(false);
+        }
+    }
+
+    private isModifierCode(code: string): boolean {
+        return code === 'ControlLeft' || code === 'ControlRight'
+            || code === 'AltLeft' || code === 'AltRight'
+            || code === 'ShiftLeft' || code === 'ShiftRight'
+            || code === 'MetaLeft' || code === 'MetaRight';
+    }
+
+    /** Builds a Tauri global-shortcut accelerator (e.g. "Control+Shift+KeyV") from a keydown. */
+    private buildAccelerator(e: KeyboardEvent): string {
+        const parts: string[] = [];
+        if (e.ctrlKey) parts.push('Control');
+        if (e.altKey) parts.push('Alt');
+        if (e.shiftKey) parts.push('Shift');
+        if (e.metaKey) parts.push('Super');
+        parts.push(e.code);
+        return parts.join('+');
+    }
+
+    private formatAccelerator(accel: string): string {
+        return accel.split('+').map(part => {
+            switch (part) {
+                case 'Control':
+                    return 'Ctrl';
+                case 'Super':
+                    return 'Win';
+                case 'Backquote':
+                    return '`';
+                default:
+                    if (part.startsWith('Key')) return part.slice(3);
+                    if (part.startsWith('Digit')) return part.slice(5);
+                    return part;
+            }
+        }).join(' + ');
+    }
+
     async toggleMicTest(): Promise<void> {
         if (this.isMicActive()) {
             this.stopMic();
@@ -208,6 +334,8 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
 
     ngOnDestroy(): void {
         this.stopMic();
+        this.endPttCapture();
+        if (this.capturingPtt() && this.nativePtt.supported()) void this.nativePtt.cancelCapture();
     }
 
 

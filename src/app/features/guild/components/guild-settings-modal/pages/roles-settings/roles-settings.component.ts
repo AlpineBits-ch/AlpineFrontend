@@ -78,7 +78,7 @@ export class RolesSettingsComponent implements OnInit {
         })
     );
     private toastService = inject(ToastService);
-    // Members tab — raw list; profiles resolved from store
+    // Members tab -raw list; profiles resolved from store
     private readonly TAKE = 30;
     private memberNextSkip = 0;
     private memberSearchTimer?: ReturnType<typeof setTimeout>;

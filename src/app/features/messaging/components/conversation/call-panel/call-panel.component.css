@@ -305,7 +305,7 @@
 }
 
 .avatar-video--mirror {
-    transform: scaleX(-1); /* Mirror local camera — feels natural for selfie view */
+    transform: scaleX(-1); /* Mirror local camera -feels natural for selfie view */
 }
 
 .avatar-fallback {

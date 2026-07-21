@@ -72,7 +72,7 @@ async function decryptMessages(messages: MessageDto[], mlsService: MlsService): 
 
         console.log('decrypting message', msg)
 
-        // Check local plaintext cache first — MLS keys are ephemeral and deleted
+        // Check local plaintext cache first -MLS keys are ephemeral and deleted
         // after use, so re-decryption from server ciphertext isn't possible.
         const cached = await mlsService.getCachedMessage(msg.id);
         if (cached) {
@@ -110,7 +110,7 @@ export const MessageStore = signalStore(
 
     withMethods((store, messagingService = inject(MessagingService), mlsService = inject(MlsService)) => ({
         loadForConversation(conversationId: string): void {
-            // Already fetched — no-op
+            // Already fetched -no-op
             if (store.conversationMeta()[conversationId]) return;
 
             // Optimistically mark as loading so concurrent calls don't double-fetch

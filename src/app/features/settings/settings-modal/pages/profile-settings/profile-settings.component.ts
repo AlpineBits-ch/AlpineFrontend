@@ -218,7 +218,7 @@ export class ProfileSettingsComponent implements OnInit {
         if (code >= 200 && code < 300) return 'Password changed successfully.';
         if (code === 401) return 'Current password is incorrect.';
         if (code === 422 || code === 400) return 'New password does not meet requirements.';
-        if (code === 429) return 'Too many attempts — please wait before trying again.';
+        if (code === 429) return 'Too many attempts -please wait before trying again.';
         return `Something went wrong (${code}).`;
     }
 

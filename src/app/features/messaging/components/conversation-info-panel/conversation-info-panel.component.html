@@ -41,7 +41,7 @@
         <!-- Members list (group chat) -->
         <div class="px-4 py-4">
             <p class="text-[10px] font-semibold uppercase tracking-widest text-white/25 mb-2 px-1">
-                Members — {{ others().length }}
+                Members -{{ others().length }}
             </p>
             <div class="flex flex-col gap-0.5">
                 @for (member of others(); track member.id) {

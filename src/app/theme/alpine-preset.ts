@@ -2,7 +2,7 @@ import { definePreset } from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
 
 /**
- * Alpine Design System — refined dark messenger preset
+ * Alpine Design System -refined dark messenger preset
  *
  * Design goals:
  * - Neutral-first UI

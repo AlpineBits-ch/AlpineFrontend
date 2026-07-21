@@ -67,7 +67,7 @@ export function buildHighlightedFragment(segments: EditorSegment[]): DocumentFra
  * Convert raw markdown text to highlighted HTML.
  * Handles fenced code blocks (``` ... ```) as block-level segments so their
  * contents are never mangled by the inline-pattern pass.
- * The input is HTML-escaped before any processing — this function is XSS-safe.
+ * The input is HTML-escaped before any processing -this function is XSS-safe.
  */
 export function highlightInlineMarkdown(text: string): string {
     const codeBlockRe = /```(\w*)\n([\s\S]*?)```/g;
@@ -205,7 +205,7 @@ export function getTextCursorOffset(editor: HTMLElement): number {
             }
             if (node === startContainer) {
                 // Cursor is at child index startOffset inside this element node
-                // (e.g. after setStartAfter(<br>) — startContainer becomes the parent element).
+                // (e.g. after setStartAfter(<br>) -startContainer becomes the parent element).
                 for (let i = 0; i < startOffset && i < node.childNodes.length; i++) {
                     countAll(node.childNodes[i]);
                 }

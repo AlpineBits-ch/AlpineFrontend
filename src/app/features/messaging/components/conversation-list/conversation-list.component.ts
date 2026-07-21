@@ -103,7 +103,7 @@ export class ConversationListComponent {
         return view.type === 'conversation' ? view.conversation.id : null;
     });
     private profileService = inject(ProfileService);
-    // Does NOT read from MessageStore — that was the source of the UI freeze.
+    // Does NOT read from MessageStore -that was the source of the UI freeze.
     readonly unreadCounts = computed(() => {
         const ownId = this.profileService.ownProfile()?.userId;
         const prevMap = this.previewMessages();
@@ -135,7 +135,7 @@ export class ConversationListComponent {
     // Used for the last-message preview text, timestamp, and unread count.
     // Intentionally separate from MessageStore to avoid the list recomputing
     private messageStore = inject(MessageStore);
-    // Decrypted plaintext per message id — populated async from MLS cache for HTTP-loaded
+    // Decrypted plaintext per message id -populated async from MLS cache for HTTP-loaded
     private toast = inject(ToastService);
 
     // Unread count per conversation.
@@ -212,7 +212,7 @@ export class ConversationListComponent {
             // HTTP-loaded messages resolved from MLS cache (async populated).
             const cached = this.decryptedPreviews().get(msg.id);
             if (cached) return {sender, text: cached};
-            // WS-received messages already have decrypted content — ciphertext is binary
+            // WS-received messages already have decrypted content -ciphertext is binary
             // and won't survive a strict UTF-8 decode, so use that as the gate.
             try {
                 const bytes = Uint8Array.from(atob(msg.content), c => c.charCodeAt(0));

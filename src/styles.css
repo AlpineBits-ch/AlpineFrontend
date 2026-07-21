@@ -27,7 +27,7 @@ html, body {
   overflow: hidden;
 }
 
-/* Reusable thin scrollbar — replace repeated inline scrollbar style= attributes */
+/* Reusable thin scrollbar -replace repeated inline scrollbar style= attributes */
 .thin-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
@@ -56,7 +56,7 @@ button, a, [role="button"], input, select, textarea, label {
   touch-action: manipulation;
 }
 
-/* ── Toast — mobile fix ──────────────────────────────────────────────────── */
+/* ── Toast -mobile fix ──────────────────────────────────────────────────── */
 /* Override PrimeNG's default top-center position on narrow screens.
    transform:none removes the translateX(-50%) that causes the "halfway" shift. */
 @media (max-width: 576px) {
@@ -98,7 +98,7 @@ button, a, [role="button"], input, select, textarea, label {
 }
 
 /**
- * Alpine Design System — Tailwind v4 theme tokens
+ * Alpine Design System -Tailwind v4 theme tokens
  *
  * Usage examples:
  *   bg-app-bg          → #0d1117  (main app background)
@@ -116,7 +116,7 @@ button, a, [role="button"], input, select, textarea, label {
  *   bg-connecting      → #fbbf24  (amber-400, connecting)
  *   bg-offline         → #f43f5e  (rose-500, disconnected)
  */
-/* ── PrimeNG Select — guaranteed dark override ──────────────────────────
+/* ── PrimeNG Select -guaranteed dark override ──────────────────────────
    PrimeNG appends overlays directly to <body class="dark">. If the token
    CSS variables aren't resolving through the dark colorScheme, these
    direct overrides take over. They're scoped to .dark so light mode (if
@@ -369,7 +369,7 @@ button, a, [role="button"], input, select, textarea, label {
 .wiki-wysiwyg li[data-type="taskItem"] > div > p { margin: 0; }
 .wiki-wysiwyg li[data-type="taskItem"][data-checked="true"] > div { opacity: 0.55; text-decoration: line-through; text-decoration-color: rgba(255,255,255,0.25); }
 
-/* Image uploading placeholder — blob: src = still uploading */
+/* Image uploading placeholder -blob: src = still uploading */
 .wiki-wysiwyg img[src^="blob:"] {
   opacity: 0.4;
   outline: 2px solid rgba(129, 140, 248, 0.5);

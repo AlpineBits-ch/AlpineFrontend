@@ -7,12 +7,15 @@ mod media;
 mod rich_presence;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod ptt_hook;
+
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod desktop_notifications;
 
 #[cfg(target_os = "windows")]
 mod windows_notifications;
 
-/// Device enumeration stubs for mobile — return sensible defaults so the
+/// Device enumeration stubs for mobile -return sensible defaults so the
 /// same Tauri commands exist on all targets.
 #[cfg(any(target_os = "android", target_os = "ios"))]
 mod mobile_stubs {
@@ -172,7 +175,7 @@ mod win32 {
                     let w = info.rc_work;
                     // Only constrain the maximized SIZE to the work area so the
                     // window doesn't cover the taskbar.  ptMaxPosition is left
-                    // at the default — Windows places the window correctly on
+                    // at the default -Windows places the window correctly on
                     // any monitor, and overriding it breaks multi-monitor
                     // maximize by sending the window to the wrong position.
                     (*mmi).pt_max_size.x = w.right - w.left;
@@ -338,6 +341,7 @@ pub fn run() {
     // Desktop-only plugins
     #[cfg(desktop)]
     let builder = builder
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_single_instance::Builder::new().build())
         .plugin(tauri_plugin_window_state::Builder::new().build())
         .plugin(tauri_plugin_autostart::Builder::new().build())
@@ -349,6 +353,7 @@ pub fn run() {
            #[cfg(desktop)]
            use tauri_plugin_deep_link::DeepLinkExt;
            app.deep_link().register("venta")?;
+           ptt_hook::init(app.handle());
            Ok(())
           })
         .plugin(tauri_plugin_notifications::init());
@@ -420,6 +425,13 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             media::screen::set_screen_capture_fps,
             media::screen::set_screen_capture_resolution,
             rich_presence::scan_game_process,
+            ptt_hook::ptt_supported,
+            ptt_hook::ptt_set_binding,
+            ptt_hook::ptt_arm,
+            ptt_hook::ptt_disarm,
+            ptt_hook::ptt_begin_capture,
+            ptt_hook::ptt_cancel_capture,
+            ptt_hook::ptt_label,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

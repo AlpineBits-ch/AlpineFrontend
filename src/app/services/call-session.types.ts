@@ -8,7 +8,7 @@ export interface CallParticipantUi {
     isSpeaking: boolean;
     isCameraOn: boolean;
     videoStream: MediaStream | undefined;   // local = getUserMedia; remote = WebRTC (set via onCameraChanged)
-    // WebRTC — add when implementing:
+    // WebRTC -add when implementing:
     // audioStream?: MediaStream;
 }
 

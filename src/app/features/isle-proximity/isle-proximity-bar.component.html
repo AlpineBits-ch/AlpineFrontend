@@ -1,0 +1,125 @@
+@if (visible()) {
+    <div class="shrink-0 bg-sidebar border-b border-white/[0.10] px-3 py-2 select-none">
+        @switch (mode()) {
+
+            @case ('linkSteam') {
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full shrink-0"
+                         style="background:#fbbf24; box-shadow:0 0 5px rgba(251,191,36,0.5)"></div>
+                    <p class="flex-1 min-w-0 text-xs font-semibold text-white/80 truncate">
+                        {{ 'PROX_CHAT.LINK_STEAM' | translate }}
+                    </p>
+                    <button
+                        (click)="linkSteam()"
+                        [disabled]="linkingSteam()"
+                        class="h-7 px-3 flex items-center gap-1.5 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer border-0 shrink-0 disabled:opacity-60"
+                        style="background: var(--color-brand)">
+                        <i class="pi pi-link text-xs"></i>
+                        {{ 'PROX_CHAT.LINK_STEAM_ACTION' | translate }}
+                    </button>
+                </div>
+            }
+
+            @case ('available') {
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full shrink-0"
+                         style="background: var(--color-brand); box-shadow:0 0 6px var(--color-brand); animation: prox-pulse 1.6s ease-in-out infinite"></div>
+                    <p class="flex-1 min-w-0 text-xs font-semibold text-white/85 truncate">
+                        {{ 'PROX_CHAT.CONNECT' | translate }}
+                    </p>
+                    <button
+                        (click)="connect()"
+                        class="h-7 px-3 flex items-center gap-1.5 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer border-0 shrink-0"
+                        style="background: var(--color-brand)">
+                        <i class="pi pi-microphone text-xs"></i>
+                        {{ 'PROX_CHAT.CONNECT_ACTION' | translate }}
+                    </button>
+                </div>
+            }
+
+            @case ('connecting') {
+                <div class="flex items-center gap-2">
+                    <div class="w-2 h-2 rounded-full shrink-0"
+                         style="background:#fbbf24; box-shadow:0 0 5px rgba(251,191,36,0.5); animation: prox-pulse 1s ease-in-out infinite"></div>
+                    <p class="flex-1 min-w-0 text-xs font-semibold truncate" style="color:#fbbf24">
+                        {{ 'PROX_CHAT.CONNECTING' | translate }}
+                    </p>
+                </div>
+            }
+
+            @case ('connected') {
+                @let talking = prox.isTransmitting();
+                <div class="flex items-center gap-3">
+
+                    <!-- Status + label -->
+                    <div class="flex items-center gap-2 min-w-0">
+                        <div class="w-2 h-2 rounded-full shrink-0"
+                             style="background:#34d399; box-shadow:0 0 6px rgba(52,211,153,0.6)"></div>
+                        <div class="min-w-0">
+                            <p class="text-xs font-semibold leading-tight truncate" style="color:#34d399">
+                                {{ 'PROX_CHAT.CONNECTED_LABEL' | translate }}
+                            </p>
+                            <p class="text-[11px] text-white/55 truncate leading-tight mt-0.5">
+                                {{ 'PROX_CHAT.PEERS_NEARBY' | translate:{ count: prox.peerCount() } }}
+                                <span class="text-white/35"> · {{ elapsed() }}</span>
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Mic / PTT indicator -->
+                    <div class="flex items-center gap-1.5 px-2 py-1 rounded-md shrink-0"
+                         [style.background]="talking ? 'rgba(52,211,153,0.15)' : 'rgba(255,255,255,0.06)'"
+                         [style.color]="talking ? '#34d399' : 'rgba(255,255,255,0.5)'">
+                        <i class="text-xs" [class]="talking ? 'pi pi-microphone' : 'pi pi-ban'"></i>
+                        <span class="text-[10px] font-semibold uppercase tracking-wide">
+                            {{ (talking ? 'PROX_CHAT.TALKING' : 'PROX_CHAT.MUTED') | translate }}
+                        </span>
+                    </div>
+
+                    @if (pttSupported) {
+                        <span class="text-[10px] text-white/40 shrink-0 hidden sm:inline">
+                            {{ 'PROX_CHAT.PTT_HINT' | translate:{ key: pttKey() } }}
+                        </span>
+                    } @else {
+                        <span class="text-[10px] text-white/40 shrink-0 hidden sm:inline">
+                            {{ 'PROX_CHAT.OPEN_MIC' | translate }}
+                        </span>
+                    }
+
+                    <div class="flex-1"></div>
+
+                    <!-- Volume -->
+                    <div class="flex items-center gap-2 shrink-0" [title]="'PROX_CHAT.VOLUME' | translate">
+                        <i class="pi pi-volume-up text-xs text-white/50"></i>
+                        <p-slider [(ngModel)]="volumePct" [min]="0" [max]="100" styleClass="w-24"/>
+                    </div>
+
+                    <!-- Spatial toggle -->
+                    <div class="flex items-center gap-1.5 shrink-0" [title]="'PROX_CHAT.SPATIAL' | translate">
+                        <i class="pi pi-compass text-xs text-white/50"></i>
+                        <p-toggleswitch [(ngModel)]="spatialEnabled"/>
+                    </div>
+
+                    <!-- Disconnect -->
+                    <button
+                        (click)="disconnect()"
+                        [title]="'PROX_CHAT.DISCONNECT' | translate"
+                        class="w-7 h-7 flex items-center justify-center rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 transition-colors cursor-pointer border-0 shrink-0">
+                        <i class="pi pi-phone text-xs" style="transform: rotate(135deg); display: inline-block;"></i>
+                    </button>
+                </div>
+            }
+        }
+    </div>
+
+    <style>
+        @keyframes prox-pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.4;
+            }
+        }
+    </style>
+}

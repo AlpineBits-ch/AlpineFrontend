@@ -11,7 +11,7 @@ use tauri::ipc::Channel;
 use xcap::{Monitor, Window};
 
 // Global serialisation lock for all xcap/WGC calls.
-// WGC is not safe to initialise concurrently — even on separate threads —
+// WGC is not safe to initialise concurrently -even on separate threads —
 // on Windows 10/11. All Monitor::all() and Window::all() calls must be
 // serialised through this lock. Without it, concurrent WGC initialisations
 // (e.g. enumerate_screen_sources + start_screen_capture called close together
@@ -64,7 +64,7 @@ impl Default for ScreenCaptureState {
 }
 
 /// Owns a live WGC capture session for the duration of a streaming session.
-/// Created once per session — recreating it each frame causes heap corruption.
+/// Created once per session -recreating it each frame causes heap corruption.
 enum CaptureHandle {
     Monitor(Monitor),
     Window(Window),
@@ -107,7 +107,7 @@ fn find_capture_source(source_id: &str) -> Option<CaptureHandle> {
 
 #[tauri::command]
 pub async fn enumerate_screen_sources() -> Result<Vec<ScreenSource>, String> {
-    // Phase 1: enumerate metadata — no WGC, just Win32 API calls.
+    // Phase 1: enumerate metadata -no WGC, just Win32 API calls.
     // The WGC lock is held for the entire blocking closure so Monitor::all()
     // and Window::all() cannot race with a concurrent find_capture_source call.
     type MonitorMeta = (usize, String, u32, u32);
@@ -146,7 +146,7 @@ pub async fn enumerate_screen_sources() -> Result<Vec<ScreenSource>, String> {
                 .collect();
 
             Ok((monitors, windows))
-            // _guard dropped here — lock released before Phase 2
+            // _guard dropped here -lock released before Phase 2
         })
         .await
         .map_err(|e| e.to_string())??;
@@ -160,7 +160,7 @@ pub async fn enumerate_screen_sources() -> Result<Vec<ScreenSource>, String> {
     let monitor_sources: Vec<Option<ScreenSource>> = tokio::task::spawn_blocking(move || {
         let _guard = wgc_lock().lock().unwrap();
 
-        // Single Monitor::all() call — one WGC initialisation for the whole phase.
+        // Single Monitor::all() call -one WGC initialisation for the whole phase.
         let all_monitors = match Monitor::all() {
             Ok(m) => m,
             Err(_) => return monitor_meta.iter().map(|_| None).collect(),
@@ -187,7 +187,7 @@ pub async fn enumerate_screen_sources() -> Result<Vec<ScreenSource>, String> {
 
     let mut sources: Vec<ScreenSource> = monitor_sources.into_iter().flatten().collect();
 
-    // Windows: skip live thumbnail — the picker renders a 1fps preview instead.
+    // Windows: skip live thumbnail -the picker renders a 1fps preview instead.
     for (hwnd_id, title, w, h) in window_meta {
         sources.push(ScreenSource {
             id: format!("window:{hwnd_id}"),
@@ -226,13 +226,13 @@ pub async fn start_screen_capture(
     //
     // With the pipeline and a 33 ms interval (30 fps):
     //   - Capture thread fires every 33 ms and hands raw RGBA to the encoder.
-    //   - Encode thread finishes in ~23 ms — always before the next frame
-    //     arrives — so every captured frame is encoded and sent.
+    //   - Encode thread finishes in ~23 ms -always before the next frame
+    //     arrives -so every captured frame is encoded and sent.
     //   - Result: one completed frame every 33 ms = 30 fps.
     //
     // Channel capacity 1: if the encoder hasn't finished by the time the next
     // frame is ready (e.g. on a slow machine), try_send drops the frame rather
-    // than buffering it — this keeps latency low at the cost of an occasional
+    // than buffering it -this keeps latency low at the cost of an occasional
     // dropped frame instead of growing lag.
     std::thread::Builder::new()
         .name("sc-capture".into())
@@ -255,7 +255,7 @@ pub async fn start_screen_capture(
                         let max_h = max_h_arc.load(Ordering::Relaxed);
                         let dyn_img = if w > max_w || h > max_h {
                             // Triangle (bilinear) is ~5–8× faster than CatmullRom for real-time
-                            // streaming — the difference is imperceptible at video frame rates and
+                            // streaming -the difference is imperceptible at video frame rates and
                             // is lost in JPEG compression anyway.
                             dyn_img.resize(max_w, max_h, image::imageops::FilterType::Triangle)
                         } else {
@@ -285,7 +285,7 @@ pub async fn start_screen_capture(
                             break;
                         }
                     }
-                    // encode_rx exhausted or on_frame closed — thread exits cleanly.
+                    // encode_rx exhausted or on_frame closed -thread exits cleanly.
                 });
 
             // Capture loop: reads fps each iteration so set_screen_capture_fps takes effect
@@ -304,7 +304,7 @@ pub async fn start_screen_capture(
                 let Some((rgba, w, h)) = source.capture() else {
                     continue;
                 };
-                // Drop frame if encoder is still busy — freshness over buffering.
+                // Drop frame if encoder is still busy -freshness over buffering.
                 let _ = encode_tx.try_send((rgba, w, h));
             }
             // Dropping encode_tx signals the encode thread to exit cleanly.
@@ -327,7 +327,7 @@ pub fn set_screen_capture_fps(fps: u32, state: tauri::State<'_, ScreenCaptureSta
 }
 
 /// Set the maximum output resolution for the encode thread.
-/// Takes effect within one frame interval — the encode thread reads these atomics each frame.
+/// Takes effect within one frame interval -the encode thread reads these atomics each frame.
 #[tauri::command]
 pub fn set_screen_capture_resolution(
     width: u32,

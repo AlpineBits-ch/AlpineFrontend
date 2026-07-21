@@ -15,6 +15,12 @@ export interface AudioSettings {
     enhancedNoiseSuppression: boolean;
     /** VAD gating strength when enhanced NS is active (0 = off, 1 = aggressive) */
     vadStrength: number;
+    /** Master output volume for Isle proximity voice (0–1). */
+    proximityVolume: number;
+    /** Whether Isle proximity voice uses HRTF directional panning (false = distance-only). */
+    proximitySpatialEnabled: boolean;
+    /** Global push-to-talk accelerator for Isle proximity voice (Tauri global-shortcut syntax). */
+    proximityPttKey: string;
 }
 
 const DEFAULTS: AudioSettings = {
@@ -30,6 +36,9 @@ const DEFAULTS: AudioSettings = {
     screenVideoBitrate: 4000,
     enhancedNoiseSuppression: false,
     vadStrength: 0,
+    proximityVolume: 1,
+    proximitySpatialEnabled: true,
+    proximityPttKey: 'Backquote',
 };
 
 const STORAGE_KEY = 'alpine_audio_settings';

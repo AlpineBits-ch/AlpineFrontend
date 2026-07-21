@@ -53,7 +53,7 @@
                 <div class="flex items-center justify-between pt-3 border-t border-white/[0.05]">
                     <div>
                         <p class="text-sm text-white/70">Hear yourself</p>
-                        <p class="text-xs text-white/30 mt-0.5">Routes your mic through the speakers — watch for
+                        <p class="text-xs text-white/30 mt-0.5">Routes your mic through the speakers -watch for
                             feedback</p>
                     </div>
                     <p-toggleswitch (ngModelChange)="onVoiceTestChange($event)" [ngModel]="isVoiceTesting()"/>
@@ -138,7 +138,7 @@
                         <span class="px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide
                          bg-indigo-500/20 text-indigo-400 border border-indigo-500/30">RNNoise</span>
                     </div>
-                    <p class="text-xs text-white/35 mt-0.5">AI-grade denoising via Rust — replaces the browser's basic
+                    <p class="text-xs text-white/35 mt-0.5">AI-grade denoising via Rust -replaces the browser's basic
                         filter</p>
                 </div>
                 <p-toggleswitch [(ngModel)]="enhancedNoiseSuppression"/>
@@ -195,6 +195,58 @@
         <p class="text-[11px] text-white/25 pt-1">
             Bitrate changes take effect the next time you start sharing or join a call. Higher bitrates improve quality
             but use more bandwidth.
+        </p>
+    </section>
+
+    <!-- ── Isle Proximity Voice ──────────────────────────────────────────── -->
+    <section class="flex flex-col gap-3">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Isle Proximity Voice
+        </h2>
+
+        <!-- Push-to-talk key -->
+        <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+            <div>
+                <p class="text-sm text-white/75">Push-to-Talk Key</p>
+                <p class="text-xs text-white/35 mt-0.5">Hold to transmit -a key, a single modifier, or a mouse
+                    button. Works even while The Isle is focused.</p>
+            </div>
+            <button (click)="startPttCapture()"
+                    [ngClass]="capturingPtt()
+            ? 'bg-amber-400/15 border-amber-400/30 text-amber-400'
+            : 'bg-white/[0.05] border-white/[0.12] text-white/70 hover:bg-white/[0.08]'"
+                    class="shrink-0 min-w-[132px] flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg
+                 text-xs font-medium border cursor-pointer transition-all whitespace-nowrap">
+                @if (capturingPtt()) {
+                    Press a key / button… (Esc to cancel)
+                } @else {
+                    <i class="pi pi-bolt text-[11px]"></i>
+                    {{ pttKeyLabel }}
+                }
+            </button>
+        </div>
+
+        <!-- Spatial audio -->
+        <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+            <div>
+                <p class="text-sm text-white/75">Spatial Audio</p>
+                <p class="text-xs text-white/35 mt-0.5">Position voices in 3D by in-game location. Off = distance-only
+                    volume.</p>
+            </div>
+            <p-toggleswitch [(ngModel)]="proximitySpatial"/>
+        </div>
+
+        <!-- Proximity volume -->
+        <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+            <div class="flex items-center justify-between">
+                <p class="text-sm text-white/75">Proximity Volume</p>
+                <span class="text-xs text-white/40 tabular-nums">{{ proximityVolume }}%</span>
+            </div>
+            <p-slider [(ngModel)]="proximityVolume" [max]="100" [min]="0" styleClass="w-full mt-1"/>
+        </div>
+
+        <p class="text-[11px] text-white/25 pt-1">
+            Push-to-talk requires the desktop app; in the browser the mic stays open while connected.
         </p>
     </section>
 

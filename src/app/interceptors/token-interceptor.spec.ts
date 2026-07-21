@@ -1,5 +1,5 @@
 /**
- * Tests for tokenInterceptor — focuses on the concurrent-401 scenario that
+ * Tests for tokenInterceptor -focuses on the concurrent-401 scenario that
  * previously caused the app to freeze/logout prematurely.
  *
  * Bug (before fix):

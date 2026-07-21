@@ -50,7 +50,7 @@ export class ConversationScrollService {
         });
     }
 
-    /** Call whenever the message list updates — marks a pending scroll-to-bottom if near the bottom. */
+    /** Call whenever the message list updates -marks a pending scroll-to-bottom if near the bottom. */
     markNewMessages(): void {
         if (this.isNearBottom) this.pendingScrollToBottom = true;
     }
@@ -73,7 +73,7 @@ export class ConversationScrollService {
     /** Call from afterEveryRender. Handles scroll restoration and keeps the ResizeObserver current.
      *  Pass scrollEl to keep the container reference current after conditional re-renders. */
     onRender(messageListEl?: HTMLDivElement, scrollEl?: HTMLDivElement): void {
-        // Keep reference current — the @else block recreates the element after error→retry.
+        // Keep reference current -the @else block recreates the element after error→retry.
         if (scrollEl) this.scrollEl = scrollEl;
 
         const el = this.scrollEl;
@@ -89,7 +89,7 @@ export class ConversationScrollService {
             this.pendingScrollToBottom = false;
         }
 
-        // Keep observer pointed at the current message list element — it
+        // Keep observer pointed at the current message list element -it
         // appears/disappears as search mode and error states are toggled.
         if (messageListEl !== this.observedListEl) {
             this.contentObserver.disconnect();

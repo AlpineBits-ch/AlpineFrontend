@@ -34,7 +34,7 @@ export class EmojiDataService {
     }
 
     /** Replace all :shortcode: patterns in text with their native emoji character.
-     *  Reactive — reads the data signal, so callers inside computed() will re-run
+     *  Reactive -reads the data signal, so callers inside computed() will re-run
      *  once the data finishes loading. */
     resolveShortcodes(text: string): string {
         const data = this._data();

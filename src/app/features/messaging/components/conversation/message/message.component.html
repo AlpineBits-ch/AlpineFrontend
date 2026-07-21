@@ -58,7 +58,7 @@
             }
         </div>
 
-        <!-- Hover action toolbar — desktop only (mobile uses long-press menu) -->
+        <!-- Hover action toolbar -desktop only (mobile uses long-press menu) -->
         @if (!message().isPending && !message().isFailed && !isEditing()) {
             <app-message-hover-toolbar
                     (delete)="confirmDelete()"

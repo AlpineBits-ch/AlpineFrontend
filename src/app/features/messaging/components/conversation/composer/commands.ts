@@ -11,8 +11,8 @@ export interface CommandResult {
 export interface CommandDef {
     name: string;
     description: string;
-    /** `inline` — works anywhere mid-message, replaces the trigger text in-place.
-     *  `global` — only available at the start of the editor; operates on the whole message. */
+    /** `inline` -works anywhere mid-message, replaces the trigger text in-place.
+     *  `global` -only available at the start of the editor; operates on the whole message. */
     scope: CommandScope;
     params: { label: string; required: boolean }[];
     execute: (params: string) => CommandResult;

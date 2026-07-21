@@ -257,7 +257,7 @@ fn main() {
     // Enumerate monitors
     let monitors = Monitor::all().expect("Failed to enumerate monitors");
     if monitors.is_empty() {
-        eprintln!("No monitors found — cannot benchmark screen capture.");
+        eprintln!("No monitors found -cannot benchmark screen capture.");
         std::process::exit(1);
     }
 

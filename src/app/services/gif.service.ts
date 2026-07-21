@@ -6,9 +6,9 @@ import {environment} from '../../environments/environment';
 export interface GifResult {
     id: number;
     title: string;
-    /** Full animated GIF URL — sent as the message */
+    /** Full animated GIF URL -sent as the message */
     url: string;
-    /** Static JPEG thumbnail — used for grid preview */
+    /** Static JPEG thumbnail -used for grid preview */
     previewUrl: string;
 }
 

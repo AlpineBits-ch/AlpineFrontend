@@ -13,7 +13,7 @@ export class GlobalErrorHandler implements ErrorHandler {
     handleError(error: unknown): void {
         console.error('[App]', error);
 
-        // HTTP/network errors are handled per-request — don't count them toward the crash threshold.
+        // HTTP/network errors are handled per-request -don't count them toward the crash threshold.
         if (this.isRoutineError(error)) return;
 
         const now = Date.now();
@@ -27,12 +27,12 @@ export class GlobalErrorHandler implements ErrorHandler {
             // don't reload again. sessionStorage survives reloads within the same tab session.
             const lastReload = Number(sessionStorage.getItem(LAST_RELOAD_KEY) ?? 0);
             if (now - lastReload < MIN_RELOAD_INTERVAL_MS) {
-                console.error('[App] Suppressing reload — reloaded too recently');
+                console.error('[App] Suppressing reload -reloaded too recently');
                 return;
             }
             this.reloadScheduled = true;
             sessionStorage.setItem(LAST_RELOAD_KEY, String(now));
-            console.error('[App] Repeated errors — reloading in 3 s');
+            console.error('[App] Repeated errors -reloading in 3 s');
             setTimeout(() => window.location.reload(), 3_000);
         }
     }

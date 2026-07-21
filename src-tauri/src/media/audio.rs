@@ -52,7 +52,7 @@ impl Default for LoopbackCaptureState {
     }
 }
 
-/// PCM audio chunk sent to JS — base64-encoded f32 LE bytes, mono 48 kHz.
+/// PCM audio chunk sent to JS -base64-encoded f32 LE bytes, mono 48 kHz.
 #[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct AudioChunk {
@@ -62,7 +62,7 @@ pub struct AudioChunk {
     pub channels: u32,
 }
 
-const RNNOISE_FRAME: usize = 480; // 10 ms @ 48 kHz — nnnoiseless::FRAME_SIZE
+const RNNOISE_FRAME: usize = 480; // 10 ms @ 48 kHz -nnnoiseless::FRAME_SIZE
 /// Number of RNNoise frames batched per IPC send (4 × 10 ms = 40 ms latency)
 const BATCH_FRAMES: usize = 4;
 pub(super) const BATCH_SAMPLES: usize = RNNOISE_FRAME * BATCH_FRAMES;
@@ -137,7 +137,7 @@ pub async fn start_audio_capture(
     on_chunk: Channel<AudioChunk>,
     state: tauri::State<'_, AudioCaptureState>,
 ) -> Result<(), String> {
-    eprintln!("[audio] start_audio_capture — device_id={:?} noise_suppression={} agc={} vad={}",
+    eprintln!("[audio] start_audio_capture -device_id={:?} noise_suppression={} agc={} vad={}",
         settings.device_id, settings.noise_suppression, settings.auto_gain_control, settings.vad_threshold);
 
     // Stop any existing capture
@@ -184,7 +184,7 @@ pub async fn start_audio_capture(
     };
 
     let device = device.ok_or_else(|| {
-        eprintln!("[audio] ERROR: no input device available — check Windows Sound settings");
+        eprintln!("[audio] ERROR: no input device available -check Windows Sound settings");
         "No input device available".to_string()
     })?;
 
@@ -235,7 +235,7 @@ pub async fn start_audio_capture(
         let mut agc_gain: f32 = 1.0;
         let mut gate_gain: f32 = 1.0;
         let mut hold_frames: u32 = 0;
-        // Pre/de-emphasis state — last input sample and last output sample.
+        // Pre/de-emphasis state -last input sample and last output sample.
         let mut pre_emph_prev: f32 = 0.0;
         let mut de_emph_prev: f32 = 0.0;
         let mut input_buf: Vec<f32> = Vec::with_capacity(BATCH_SAMPLES * 2);
@@ -427,7 +427,7 @@ fn pick_config(device: &cpal::Device) -> Result<cpal::StreamConfig, String> {
         .map_err(|e| e.to_string())
 }
 
-/// Linear resampling — adequate quality for voice.
+/// Linear resampling -adequate quality for voice.
 pub(super) fn resample_linear(input: &[f32], from_rate: u32, to_rate: u32) -> Vec<f32> {
     if from_rate == to_rate || input.is_empty() {
         return input.to_vec();
@@ -445,7 +445,7 @@ pub(super) fn resample_linear(input: &[f32], from_rate: u32, to_rate: u32) -> Ve
     out
 }
 
-/// Levelling AGC — targets −16 dBFS RMS with fast gain reduction and slow
+/// Levelling AGC -targets −16 dBFS RMS with fast gain reduction and slow
 /// gain increase to prevent pumping and overgain bursts.
 fn apply_agc(mut samples: Vec<f32>, gain: &mut f32) -> Vec<f32> {
     const TARGET_RMS: f32 = 0.15; // −16 dBFS
@@ -454,7 +454,7 @@ fn apply_agc(mut samples: Vec<f32>, gain: &mut f32) -> Vec<f32> {
     const ATTACK: f32 = 0.25;
     // Slow release: increases gain gradually when signal drops (~300 frames = 3 s).
     const RELEASE: f32 = 0.003;
-    // Below this RMS the signal is silence/noise — freeze gain rather than
+    // Below this RMS the signal is silence/noise -freeze gain rather than
     // boosting aggressively, which would cause an overgain burst on re-entry.
     const NOISE_FLOOR: f32 = 0.008; // −42 dBFS
 

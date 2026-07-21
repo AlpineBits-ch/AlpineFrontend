@@ -94,7 +94,7 @@ export class LogoutDialogComponent {
             }),
         ).subscribe({
             next: blob => {
-                // TODO: Dominic — cloud backup / additional export targets
+                // TODO: Dominic -cloud backup / additional export targets
                 const a = document.createElement('a');
                 a.href = `data:application/octet-stream;base64,${blob}`;
                 a.download = `alpine-keys-${new Date().toISOString().slice(0, 10)}.enc`;

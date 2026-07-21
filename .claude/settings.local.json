@@ -107,7 +107,9 @@
       "Bash(node -e \"const c=require\\('./angular.json'\\); console.log\\(Object.keys\\(c.projects\\)\\)\")",
       "Bash(node -e \"const c=require\\('./angular.json'\\); const t=c.projects.alpine.architect.test; console.log\\(JSON.stringify\\(t,null,2\\)\\)\")",
       "Bash(grep -A 2 '^name = \"tauri\"$' \"C:\\\\Users\\\\Domin\\\\WebstormProjects\\\\Alpine\\\\src-tauri\\\\Cargo.lock\")",
-      "WebFetch(domain:jonaskruckenberg.github.io)"
+      "WebFetch(domain:jonaskruckenberg.github.io)",
+      "Bash(bun install *)",
+      "Bash(bun run *)"
     ]
   }
 }

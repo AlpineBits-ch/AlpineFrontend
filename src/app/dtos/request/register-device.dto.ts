@@ -1,7 +1,7 @@
 import {DeviceType} from '../response/user-device.dto';
 
 export interface RegisterDeviceDto {
-    /** Stable UUID persisted in local settings — used as an idempotency key. */
+    /** Stable UUID persisted in local settings -used as an idempotency key. */
     clientDeviceId: string;
     deviceName: string;
     deviceType: DeviceType;

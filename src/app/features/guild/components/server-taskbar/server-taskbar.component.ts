@@ -133,21 +133,21 @@ export class ServerTaskbarComponent implements OnInit {
                 label: 'Mute Server',
                 icon: 'pi pi-volume-off',
                 command: () => {
-                    // TODO: Dominic — no per-guild mute API yet; needs backend support for mute state
+                    // TODO: Dominic -no per-guild mute API yet; needs backend support for mute state
                 },
             },
             {
                 label: 'Notification Settings',
                 icon: 'pi pi-bell',
                 command: () => {
-                    // TODO: Dominic — per-guild notification override (all / @mentions / nothing) not yet in API
+                    // TODO: Dominic -per-guild notification override (all / @mentions / nothing) not yet in API
                 },
             },
             {
                 label: 'Hide Muted Channels',
                 icon: 'pi pi-eye-slash',
                 command: () => {
-                    // TODO: Dominic — requires muted-channel state stored per member in backend or client-side prefs
+                    // TODO: Dominic -requires muted-channel state stored per member in backend or client-side prefs
                 },
             },
             {separator: true},
@@ -160,14 +160,14 @@ export class ServerTaskbarComponent implements OnInit {
                 label: 'Privacy Settings',
                 icon: 'pi pi-lock',
                 command: () => {
-                    // TODO: Dominic — privacy settings page/modal not yet implemented
+                    // TODO: Dominic -privacy settings page/modal not yet implemented
                 },
             },
             {
                 label: 'Edit Per-server Profile',
                 icon: 'pi pi-user-edit',
                 command: () => {
-                    // TODO: Dominic — per-guild profile overrides (nickname, avatar) not yet implemented
+                    // TODO: Dominic -per-guild profile overrides (nickname, avatar) not yet implemented
                 },
             },
             {separator: true},
@@ -185,7 +185,7 @@ export class ServerTaskbarComponent implements OnInit {
                 label: 'Create Event',
                 icon: 'pi pi-calendar-plus',
                 command: () => {
-                    // TODO: Dominic — events feature not yet implemented
+                    // TODO: Dominic -events feature not yet implemented
                 },
             },
             {separator: true},

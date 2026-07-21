@@ -32,7 +32,7 @@ export class ProfileService {
     /** The authenticated user's own profile */
     public ownProfile = signal<ProfileDto | undefined>(undefined);
     private httpClient = inject(HttpClient);
-    // Two indexes into the same profiles — whichever key you have, you can look up
+    // Two indexes into the same profiles -whichever key you have, you can look up
     private byProfileId = signal<Record<string, ProfileDto>>({});
     private byUserId = signal<Record<string, ProfileDto>>({});
 
@@ -91,7 +91,7 @@ export class ProfileService {
         return cached ? of(cached) : this.fetchByUserId(userId);
     }
 
-    // ── Fetches — circuit-breaker protected ─────────────────────────────────
+    // ── Fetches -circuit-breaker protected ─────────────────────────────────
 
     public resolveById(profileId: string): void {
         if (!this.byProfileId()[profileId]) {
@@ -152,7 +152,7 @@ export class ProfileService {
 
     private isAvailable(): boolean {
         if (this.circuitState === 'closed' || this.circuitState === 'half-open') return true;
-        // Open — check if recovery window has elapsed
+        // Open -check if recovery window has elapsed
         if (Date.now() - this.openedAt >= RECOVERY_TIMEOUT) {
             this.circuitState = 'half-open';
             return true;
@@ -172,7 +172,7 @@ export class ProfileService {
         if (this.failureCount >= FAILURE_THRESHOLD) {
             this.circuitState = 'open';
             this.openedAt = Date.now();
-            console.warn('[ProfileService] Circuit breaker tripped — returning fallback profiles');
+            console.warn('[ProfileService] Circuit breaker tripped -returning fallback profiles');
         }
     }
 

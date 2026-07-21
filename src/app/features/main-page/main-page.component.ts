@@ -73,7 +73,7 @@ export class MainPageComponent implements OnDestroy {
     protected router = inject(Router);
     protected showDeviceRegistration = signal(false);
     protected showKeySetup = signal(false);
-    /** Opaque handle for the session-loaded signing key — set after device unlock. */
+    /** Opaque handle for the session-loaded signing key -set after device unlock. */
     protected keyHandle = signal<string | null>(null);
     private websocketService = inject(MessagingWebsocketService);
     private voiceWebsocketService = inject(VoiceWebsocketService);
@@ -191,7 +191,7 @@ export class MainPageComponent implements OnDestroy {
         try {
             await firstValueFrom(this.mlsService.initStorage());
         } catch (storageErr) {
-            console.error('MLS state corrupted — wiping and starting fresh:', storageErr);
+            console.error('MLS state corrupted -wiping and starting fresh:', storageErr);
             await firstValueFrom(this.mlsService.clearStorage());
             await this.mlsService.clearGroupRegistry();
         }

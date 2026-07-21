@@ -41,9 +41,9 @@ export function parseMlsError(raw: unknown): MlsTypedError {
 // ---------------------------------------------------------------------------
 
 export interface KeyPackageResult {
-    /** TLS-serialized KeyPackage (base64) — upload to server */
+    /** TLS-serialized KeyPackage (base64) -upload to server */
     keyPackage: string;
-    /** HPKE init private key (base64) — store encrypted under the master key */
+    /** HPKE init private key (base64) -store encrypted under the master key */
     initPrivateKey: string;
 }
 
@@ -51,14 +51,14 @@ export interface MlsKeyPackageBatch {
     /** Ed25519 public key (base64) */
     signingPublicKey: string;
     /**
-     * Ed25519 private key (base64) — store encrypted under the master key.
+     * Ed25519 private key (base64) -store encrypted under the master key.
      * On each session unlock pass this to `loadSigningKey` to get a `keyHandle`,
      * then discard from JS memory. Never pass to group operations directly.
      */
     signingPrivateKey: string;
     keyPackages: KeyPackageResult[];
     /**
-     * Opaque session handle — use this for all group operations this session
+     * Opaque session handle -use this for all group operations this session
      * without re-loading the private key bytes over IPC.
      */
     keyHandle: string;
@@ -99,7 +99,7 @@ export interface MlsCommitOut {
  */
 export interface MlsRejoinOut {
     groupInfo: MlsGroupInfo;
-    /** Base64 TLS-serialized external commit — broadcast to all group members */
+    /** Base64 TLS-serialized external commit -broadcast to all group members */
     externalCommit: string;
 }
 
@@ -107,10 +107,10 @@ export interface MlsRejoinOut {
  * Result of `processMessage`.
  *
  * Check `kind` first:
- * - `"application"` — `plaintext` contains the decrypted bytes (base64).
- * - `"commit"` — the group state has been advanced; inspect `removedLeafIndices`
+ * - `"application"` -`plaintext` contains the decrypted bytes (base64).
+ * - `"commit"` -the group state has been advanced; inspect `removedLeafIndices`
  *   and `addedMembers` for membership changes. `epoch` reflects the new epoch.
- * - `"proposal"` — a pending proposal has been queued; a commit is needed next.
+ * - `"proposal"` -a pending proposal has been queued; a commit is needed next.
  */
 export interface MlsProcessedMessage {
     kind: 'application' | 'commit' | 'proposal';
@@ -140,7 +140,7 @@ export class MlsService {
     private readonly _messageCache = new LazyStore('mls-message-cache.json');
 
     // -------------------------------------------------------------------------
-    // Group registry — maps conversationId → MLS groupId (persisted)
+    // Group registry -maps conversationId → MLS groupId (persisted)
     // -------------------------------------------------------------------------
 
     async registerGroupForConversation(conversationId: string, mlsGroupId: string): Promise<void> {
@@ -158,7 +158,7 @@ export class MlsService {
     }
 
     // -------------------------------------------------------------------------
-    // Plaintext message cache — MLS keys are ephemeral; cache decrypted content
+    // Plaintext message cache -MLS keys are ephemeral; cache decrypted content
     // so history can be displayed after restart without re-decryption.
     // -------------------------------------------------------------------------
 
@@ -175,7 +175,7 @@ export class MlsService {
      * Load a signing key into the Rust session store and return an opaque handle.
      *
      * Call this once per session unlock. All subsequent group operations should
-     * use the returned handle — the private key bytes never cross IPC again.
+     * use the returned handle -the private key bytes never cross IPC again.
      */
     loadSigningKey(
         signingPublicKeyB64: string,
@@ -254,8 +254,8 @@ export class MlsService {
      *
      * @param keyPackagesB64  List of base64 TLS-serialized KeyPackages from the
      *                        invitees' `generateKeyPackages` call.
-     * @returns  `commit` — broadcast to all current members.
-     *           `welcome` — send only to the newly added members.
+     * @returns  `commit` -broadcast to all current members.
+     *           `welcome` -send only to the newly added members.
      */
     addMembers(
         groupIdB64: string,
@@ -420,7 +420,7 @@ export class MlsService {
      * Remove members from the group by leaf index.
      *
      * @param leafIndices  Leaf indices of the members to remove (from `MlsMemberInfo.leafIndex`).
-     * @returns  `commit` — broadcast to all remaining members.
+     * @returns  `commit` -broadcast to all remaining members.
      */
     removeMembers(
         groupIdB64: string,
@@ -536,7 +536,7 @@ export class MlsService {
                 if (!pub || !priv || !identity) {
                     const err: MlsTypedError = {
                         kind: 'KeyNotFound',
-                        message: 'No signing key in secure storage — device not registered'
+                        message: 'No signing key in secure storage -device not registered'
                     };
                     throw err;
                 }

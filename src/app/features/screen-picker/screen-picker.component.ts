@@ -60,7 +60,7 @@ export class ScreenPickerComponent implements OnDestroy {
     confirm(): void {
         const id = this.selectedId();
         if (!id) return;
-        // Don't stop the capture here — startScreenCapture called by the caller
+        // Don't stop the capture here -startScreenCapture called by the caller
         // will call stopScreenCapture internally before starting at full fps.
         this.previewStream.set(null);
         this.picker.select(id);

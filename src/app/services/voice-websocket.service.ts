@@ -32,7 +32,7 @@ export interface ConversationRemoved {
 
 // ── WebRTC call signaling events (server → client) ────────────────────────────
 
-/** Someone joined the call. cfSessionId is their CF Calls session — needed to subscribe to their tracks. */
+/** Someone joined the call. cfSessionId is their CF Calls session -needed to subscribe to their tracks. */
 export interface WsParticipantJoined {
     userId: string;
     cfSessionId: string;
@@ -107,7 +107,7 @@ export class VoiceWebsocketService {
     private realtime = inject(RealtimeConnectionService);
     private listenersSetUp = false;
 
-    /** Shared connection state — one connection now backs every feature. */
+    /** Shared connection state -one connection now backs every feature. */
     get connectionState() {
         return this.realtime.connectionState;
     }
