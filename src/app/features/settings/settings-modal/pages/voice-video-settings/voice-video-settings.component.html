@@ -245,6 +245,20 @@
             <p-slider [(ngModel)]="proximityVolume" [max]="100" [min]="0" styleClass="w-full mt-1"/>
         </div>
 
+        <!-- Microphone boost -->
+        <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+            <div class="flex items-center justify-between">
+                <p class="text-sm text-white/75">Microphone Boost</p>
+                <span class="text-xs tabular-nums"
+                      [ngClass]="proximityMicBoost > 100 ? 'text-amber-400' : 'text-white/40'">
+                    {{ proximityMicBoost }}%
+                </span>
+            </div>
+            <p class="text-xs text-white/35 -mt-1">How loud others hear you. Above 100% amplifies your mic —
+                raise it if you're too quiet, but very high levels can clip.</p>
+            <p-slider [(ngModel)]="proximityMicBoost" [max]="200" [min]="0" [step]="5" styleClass="w-full mt-1"/>
+        </div>
+
         <p class="text-[11px] text-white/25 pt-1">
             Push-to-talk requires the desktop app; in the browser the mic stays open while connected.
         </p>

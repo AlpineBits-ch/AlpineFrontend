@@ -30,7 +30,7 @@ export const environment = {
         /** Web Audio panning model: 'HRTF' (binaural) or 'equalpower' (cheaper, softer). */
         panningModel: 'HRTF',
         /** Full-volume radius in Unreal units (cm). */
-        refDistance: 300,
+        refDistance: 500,
         /** Inaudible beyond this (cm) -keep coupled to backend CellSize (30 m). */
         maxDistance: 3000,
         /** Distance attenuation steepness (inverse model). */

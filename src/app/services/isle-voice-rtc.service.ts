@@ -13,6 +13,8 @@ import {SpatialAudioService} from './spatial-audio.service';
  *  - it goes through {@link IsleVoiceApiService} (no guild/channel ids);
  *  - it acquires its OWN `getUserMedia` mic track (not the shared Rust pipeline),
  *    so push-to-talk toggling here never affects guild voice's mic;
+ *  - the mic is routed through a Web Audio gain stage before being published, so
+ *    the proximity mic volume (including >100% boost) is adjustable live;
  *  - incoming audio is routed into {@link SpatialAudioService} instead of a plain
  *    <audio> element.
  */
@@ -30,6 +32,15 @@ export class IsleVoiceRtcService {
     private cfSessionId: string | null = null;
     private localAudioTrack: MediaStreamTrack | null = null;
     private cfAudioTrackName: string | null = null;
+
+    // Mic gain stage: raw mic → source → gain → destination → published track.
+    private rawMicStream: MediaStream | null = null;
+    private micCtx: AudioContext | null = null;
+    private micSource: MediaStreamAudioSourceNode | null = null;
+    private micGain: GainNode | null = null;
+    private micDest: MediaStreamAudioDestinationNode | null = null;
+    /** Current outgoing mic gain (1 = unity); retained so it survives reconnects. */
+    private micGainValue = 1;
 
     // Maps a remote transceiver MID → peer userId.
     private readonly midToUser = new Map<string, string>();
@@ -50,15 +61,19 @@ export class IsleVoiceRtcService {
         // that arrives immediately can't negotiate before the offer/answer is done.
         let releaseQueue!: () => void;
         this.negotiationChain = new Promise<void>(resolve => (releaseQueue = resolve));
+        this.micGainValue = this.audioSettings.settings().proximityMicGain;
 
         try {
-            let audioTrack: MediaStreamTrack;
+            let localStream: MediaStream;
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({
+                const raw = await navigator.mediaDevices.getUserMedia({
                     audio: this.audioSettings.buildAudioConstraint(),
                     video: false,
                 });
-                audioTrack = stream.getAudioTracks()[0];
+                // Route the raw mic through a gain node so proximity mic volume
+                // (incl. Discord-style >100% boost) can be tuned live without
+                // renegotiation; the published track is the gain stage's output.
+                localStream = this.buildMicPipeline(raw);
             } catch (e) {
                 console.error('[isle-voice] mic acquisition failed', e);
                 return false;
@@ -70,7 +85,6 @@ export class IsleVoiceRtcService {
                 if (this.pc) this.rtcState.set(this.pc.connectionState);
             };
 
-            const localStream = new MediaStream([audioTrack]);
             this.localAudioTrack = localStream.getAudioTracks()[0];
             // Start muted -push-to-talk unmutes only while the key is held.
             this.localAudioTrack.enabled = false;
@@ -140,6 +154,17 @@ export class IsleVoiceRtcService {
         if (this.localAudioTrack) this.localAudioTrack.enabled = enabled;
     }
 
+    /**
+     * Set the outgoing mic gain (1 = unity, >1 boosts past source level). Applies
+     * live via the gain node -no renegotiation, no track replacement.
+     */
+    setMicGain(gain: number): void {
+        this.micGainValue = Math.max(0, gain);
+        if (this.micGain && this.micCtx) {
+            this.micGain.gain.setTargetAtTime(this.micGainValue, this.micCtx.currentTime, 0.02);
+        }
+    }
+
     // ── Teardown ─────────────────────────────────────────────────────────────
 
     /** Tear down a single peer (on isle.PeerLeft): stop rendering + drop their mapping. */
@@ -173,6 +198,7 @@ export class IsleVoiceRtcService {
         this.tearDownAllRemotePeers();
         this.localAudioTrack?.stop();
         this.localAudioTrack = null;
+        this.teardownMicPipeline();
         this.pc?.close();
         this.pc = null;
         this.cfSessionId = null;
@@ -183,6 +209,51 @@ export class IsleVoiceRtcService {
     }
 
     // ── Internals ────────────────────────────────────────────────────────────
+
+    /**
+     * Wrap the raw mic in `source → gain → destination` and return the stream
+     * carrying the gain-staged track. If Web Audio is unavailable for any reason,
+     * fall back to publishing the raw stream (gain fixed at unity).
+     */
+    private buildMicPipeline(raw: MediaStream): MediaStream {
+        this.rawMicStream = raw;
+        try {
+            const ctx = new AudioContext();
+            const source = ctx.createMediaStreamSource(raw);
+            const gain = ctx.createGain();
+            gain.gain.value = this.micGainValue;
+            const dest = ctx.createMediaStreamDestination();
+            source.connect(gain).connect(dest);
+
+            this.micCtx = ctx;
+            this.micSource = source;
+            this.micGain = gain;
+            this.micDest = dest;
+            void ctx.resume().catch(() => void 0);
+            return dest.stream;
+        } catch (e) {
+            console.error('[isle-voice] mic gain stage unavailable, publishing raw', e);
+            this.teardownMicPipeline(false);
+            return raw;
+        }
+    }
+
+    /** Disconnect the gain graph and stop the raw capture. */
+    private teardownMicPipeline(stopRaw = true): void {
+        try {
+            this.micSource?.disconnect();
+            this.micGain?.disconnect();
+        } catch { /* already detached */ }
+        this.micSource = null;
+        this.micGain = null;
+        this.micDest = null;
+        void this.micCtx?.close().catch(() => void 0);
+        this.micCtx = null;
+        if (stopRaw) {
+            this.rawMicStream?.getTracks().forEach(t => t.stop());
+            this.rawMicStream = null;
+        }
+    }
 
     private handleRemoteTrack(event: RTCTrackEvent): void {
         const mid = event.transceiver.mid;

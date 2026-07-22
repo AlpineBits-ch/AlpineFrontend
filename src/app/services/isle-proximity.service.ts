@@ -73,6 +73,7 @@ export class IsleProximityService {
                 this.spatial.setMasterVolume(s.proximityVolume);
                 this.spatial.setSpatialEnabled(s.proximitySpatialEnabled);
                 void this.spatial.setOutputDevice(s.speakerId);
+                this.rtc.setMicGain(s.proximityMicGain);
             }
         });
 
@@ -151,6 +152,12 @@ export class IsleProximityService {
     setVolume(volume: number): void {
         this.audioSettings.update({proximityVolume: volume});
         this.spatial.setMasterVolume(volume);
+    }
+
+    /** Live-apply the outgoing mic gain (1 = 100%, >1 boosts; also persists). */
+    setMicGain(gain: number): void {
+        this.audioSettings.update({proximityMicGain: gain});
+        this.rtc.setMicGain(gain);
     }
 
     /** Toggle HRTF panning vs distance-only (also persists via settings). */

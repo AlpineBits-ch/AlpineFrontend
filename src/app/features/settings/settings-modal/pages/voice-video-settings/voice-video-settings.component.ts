@@ -209,6 +209,15 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         this.proximity.setVolume(Math.max(0, Math.min(1, v / 100)));
     }
 
+    /** Outgoing mic boost as a percentage (100 = unity, up to 200). */
+    get proximityMicBoost(): number {
+        return Math.round(this.audioSettings.settings().proximityMicGain * 100);
+    }
+
+    set proximityMicBoost(v: number) {
+        this.proximity.setMicGain(Math.max(0, Math.min(2, v / 100)));
+    }
+
     get proximitySpatial(): boolean {
         return this.audioSettings.settings().proximitySpatialEnabled;
     }

@@ -65,6 +65,14 @@ export class IsleProximityBarComponent implements OnInit, OnDestroy {
         this.prox.setVolume(Math.max(0, Math.min(1, v / 100)));
     }
 
+    protected get micBoostPct(): number {
+        return Math.round(this.audioSettings.settings().proximityMicGain * 100);
+    }
+
+    protected set micBoostPct(v: number) {
+        this.prox.setMicGain(Math.max(0, Math.min(2, v / 100)));
+    }
+
     protected get spatialEnabled(): boolean {
         return this.audioSettings.settings().proximitySpatialEnabled;
     }

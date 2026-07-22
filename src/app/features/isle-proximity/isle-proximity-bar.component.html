@@ -88,6 +88,13 @@
 
                     <div class="flex-1"></div>
 
+                    <!-- Mic boost -->
+                    <div class="flex items-center gap-2 shrink-0" [title]="'PROX_CHAT.MIC_BOOST' | translate">
+                        <i class="pi pi-microphone text-xs"
+                           [class]="micBoostPct > 100 ? 'text-amber-400' : 'text-white/50'"></i>
+                        <p-slider [(ngModel)]="micBoostPct" [min]="0" [max]="200" [step]="5" styleClass="w-20"/>
+                    </div>
+
                     <!-- Volume -->
                     <div class="flex items-center gap-2 shrink-0" [title]="'PROX_CHAT.VOLUME' | translate">
                         <i class="pi pi-volume-up text-xs text-white/50"></i>

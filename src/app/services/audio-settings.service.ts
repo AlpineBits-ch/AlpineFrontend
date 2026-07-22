@@ -17,6 +17,11 @@ export interface AudioSettings {
     vadStrength: number;
     /** Master output volume for Isle proximity voice (0–1). */
     proximityVolume: number;
+    /**
+     * Outgoing microphone gain for Isle proximity voice. 1 = 100% (unity); values
+     * above 1 boost past the source level (Discord-style, up to 2 = 200%).
+     */
+    proximityMicGain: number;
     /** Whether Isle proximity voice uses HRTF directional panning (false = distance-only). */
     proximitySpatialEnabled: boolean;
     /** Global push-to-talk accelerator for Isle proximity voice (Tauri global-shortcut syntax). */
@@ -37,6 +42,7 @@ const DEFAULTS: AudioSettings = {
     enhancedNoiseSuppression: false,
     vadStrength: 0,
     proximityVolume: 1,
+    proximityMicGain: 1,
     proximitySpatialEnabled: true,
     proximityPttKey: 'Backquote',
 };
