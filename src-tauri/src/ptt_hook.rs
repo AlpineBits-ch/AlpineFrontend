@@ -19,6 +19,7 @@
 
 #[cfg(target_os = "windows")]
 mod imp {
+    use std::sync::mpsc::{self, Sender};
     use std::sync::{Mutex, OnceLock};
     use std::thread;
 
@@ -67,7 +68,7 @@ mod imp {
     }
 
     struct State {
-        app: Option<AppHandle>,
+        initialised: bool,
         armed: bool,
         pressed: bool,
         capturing: bool,
@@ -83,12 +84,24 @@ mod imp {
         cancelled: bool,
     }
 
+    /// Events produced by the hook procedures. They are pushed onto a channel and
+    /// drained by a dedicated worker thread that owns the `AppHandle` -so the hook
+    /// procedures themselves NEVER touch Tauri.
+    enum PttEvent {
+        Down,
+        Up,
+        Capture(CaptureResult),
+    }
+
     static STATE: OnceLock<Mutex<State>> = OnceLock::new();
+    /// Channel to the emit worker. Lock-free to read, so the hook procedures can
+    /// hand off an event without ever blocking on the state mutex.
+    static SENDER: OnceLock<Sender<PttEvent>> = OnceLock::new();
 
     fn state() -> &'static Mutex<State> {
         STATE.get_or_init(|| {
             Mutex::new(State {
-                app: None,
+                initialised: false,
                 armed: false,
                 pressed: false,
                 capturing: false,
@@ -97,6 +110,24 @@ mod imp {
                 binding: None,
             })
         })
+    }
+
+    /// Poison-tolerant lock. A low-level hook procedure runs on the raw-input path;
+    /// a panic there would unwind across the `extern "system"` FFI boundary (UB) and
+    /// can freeze all system input. `Mutex::lock().unwrap()` panics on a poisoned
+    /// lock, so we recover the guard instead of ever unwrapping.
+    fn state_lock() -> std::sync::MutexGuard<'static, State> {
+        match state().lock() {
+            Ok(g) => g,
+            Err(poisoned) => poisoned.into_inner(),
+        }
+    }
+
+    /// Hand an event to the emit worker. Never blocks; safe to call from a hook.
+    fn send_event(ev: PttEvent) {
+        if let Some(tx) = SENDER.get() {
+            let _ = tx.send(ev);
+        }
     }
 
     fn key_down(vk: i32) -> bool {
@@ -123,10 +154,6 @@ mod imp {
         }
     }
 
-    fn emit(app: &AppHandle, event: &str) {
-        let _ = app.emit(event, ());
-    }
-
     // ── Public surface (called from the Tauri commands) ─────────────────────
 
     pub fn supported() -> bool {
@@ -135,12 +162,35 @@ mod imp {
 
     pub fn init(app: &AppHandle) {
         {
-            let mut s = state().lock().unwrap();
-            if s.app.is_some() {
+            let mut s = state_lock();
+            if s.initialised {
                 return; // already initialised
             }
-            s.app = Some(app.clone());
+            s.initialised = true;
         }
+
+        // Emit worker: owns the AppHandle and is the ONLY place `emit` is called.
+        // Keeping Tauri off the hook thread means a slow/busy webview can never
+        // stall the low-level hook procedure (and therefore never freezes input).
+        let (tx, rx) = mpsc::channel::<PttEvent>();
+        let _ = SENDER.set(tx);
+        let app = app.clone();
+        thread::spawn(move || {
+            while let Ok(ev) = rx.recv() {
+                match ev {
+                    PttEvent::Down => {
+                        let _ = app.emit("ptt-down", ());
+                    }
+                    PttEvent::Up => {
+                        let _ = app.emit("ptt-up", ());
+                    }
+                    PttEvent::Capture(res) => {
+                        let _ = app.emit("ptt-capture", res);
+                    }
+                }
+            }
+        });
+
         // Low-level hooks must be installed on a thread that pumps messages.
         thread::spawn(|| unsafe {
             let _kb = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), None, 0);
@@ -154,14 +204,14 @@ mod imp {
 
     pub fn set_binding(token: String) -> Result<(), String> {
         let binding = parse_token(&token).ok_or_else(|| format!("invalid binding: {token}"))?;
-        let mut s = state().lock().unwrap();
+        let mut s = state_lock();
         s.binding = Some(binding);
         s.pressed = false;
         Ok(())
     }
 
     pub fn arm() -> Result<(), String> {
-        let mut s = state().lock().unwrap();
+        let mut s = state_lock();
         if s.binding.is_none() {
             return Err("no binding set".into());
         }
@@ -171,23 +221,21 @@ mod imp {
     }
 
     pub fn disarm() -> Result<(), String> {
-        let (app, was_pressed) = {
-            let mut s = state().lock().unwrap();
+        let was_pressed = {
+            let mut s = state_lock();
             s.armed = false;
             let was = s.pressed;
             s.pressed = false;
-            (s.app.clone(), was)
+            was
         };
         if was_pressed {
-            if let Some(app) = app {
-                emit(&app, "ptt-up");
-            }
+            send_event(PttEvent::Up);
         }
         Ok(())
     }
 
     pub fn begin_capture() -> Result<(), String> {
-        let mut s = state().lock().unwrap();
+        let mut s = state_lock();
         s.capturing = true;
         s.capture_mod = None;
         s.capture_combo_used = false;
@@ -195,18 +243,16 @@ mod imp {
     }
 
     pub fn cancel_capture() -> Result<(), String> {
-        let app = {
-            let mut s = state().lock().unwrap();
+        {
+            let mut s = state_lock();
             s.capturing = false;
             s.capture_mod = None;
-            s.app.clone()
-        };
-        if let Some(app) = app {
-            let _ = app.emit(
-                "ptt-capture",
-                CaptureResult { token: String::new(), label: String::new(), cancelled: true },
-            );
         }
+        send_event(PttEvent::Capture(CaptureResult {
+            token: String::new(),
+            label: String::new(),
+            cancelled: true,
+        }));
         Ok(())
     }
 
@@ -225,7 +271,11 @@ mod imp {
             let msg = wparam.0 as u32;
             let is_down = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
             let is_up = msg == WM_KEYUP || msg == WM_SYSKEYUP;
-            handle_key(kb.vkCode, is_down, is_up);
+            // While capturing, keys are consumed here and must NOT reach any other
+            // window (otherwise Esc closes dialogs, letters type into inputs, etc.).
+            if handle_key(kb.vkCode, is_down, is_up) {
+                return LRESULT(1);
+            }
         }
         CallNextHookEx(HHOOK::default(), code, wparam, lparam)
     }
@@ -250,7 +300,10 @@ mod imp {
             };
             if let Some(main) = main {
                 let is_down = msg == WM_XBUTTONDOWN || msg == WM_MBUTTONDOWN;
-                handle_mouse(main, is_down);
+                // Swallow the click that is being bound so it doesn't also act.
+                if handle_mouse(main, is_down) {
+                    return LRESULT(1);
+                }
             }
 
             // Swallow the mouse back/forward buttons while OUR window is focused, so
@@ -275,72 +328,84 @@ mod imp {
 
     // ── Event handling ─────────────────────────────────────────────────────
 
-    fn handle_key(vk: u32, is_down: bool, is_up: bool) {
+    /// Handles a keyboard transition. Returns true if the event should be swallowed
+    /// (i.e. we are capturing a new binding and must not let the key reach any app).
+    fn handle_key(vk: u32, is_down: bool, is_up: bool) -> bool {
         let modk = is_modifier_vk(vk);
 
         // Capture mode: build a new binding from the next input.
-        let capture_action = {
-            let mut s = state().lock().unwrap();
+        let (capture_action, was_capturing) = {
+            let mut s = state_lock();
             if s.capturing {
-                capture_key(&mut s, vk, modk, is_down, is_up)
+                (capture_key(&mut s, vk, modk, is_down, is_up), true)
             } else {
-                CaptureAction::None
+                (CaptureAction::None, false)
             }
         };
-        if finalize(capture_action) {
-            return;
+        finalize(capture_action);
+        if was_capturing {
+            return true;
         }
 
         // Armed matching.
         let (down, up) = {
-            let mut s = state().lock().unwrap();
+            let mut s = state_lock();
             if !s.armed {
-                return;
+                return false;
             }
-            let Some(b) = s.binding else { return };
+            let Some(b) = s.binding else { return false };
             let matched_main = match b.main {
                 Main::Key(k) => k == vk,
                 Main::Modifier(m) => modk == Some(m),
                 _ => false,
             };
             if !matched_main {
-                return;
+                return false;
             }
-            let (down, up) = edge(&mut s, &b, is_down, is_up);
-            (down, up)
+            edge(&mut s, &b, is_down, is_up)
         };
         emit_edges(down, up);
+        false
     }
 
-    fn handle_mouse(main: Main, is_down: bool) {
-        let capture_action = {
-            let mut s = state().lock().unwrap();
-            if s.capturing && is_down {
-                let (c, a, sh, w) = mods_now();
-                let binding = Binding { ctrl: c, alt: a, shift: sh, win: w, main };
-                s.capturing = false;
-                s.capture_mod = None;
-                CaptureAction::Finalize(binding)
+    /// Handles a mouse-button transition. Returns true if the event should be
+    /// swallowed (we are capturing a new binding via this button).
+    fn handle_mouse(main: Main, is_down: bool) -> bool {
+        let (capture_action, was_capturing) = {
+            let mut s = state_lock();
+            if s.capturing {
+                if is_down {
+                    let (c, a, sh, w) = mods_now();
+                    let binding = Binding { ctrl: c, alt: a, shift: sh, win: w, main };
+                    s.capturing = false;
+                    s.capture_mod = None;
+                    (CaptureAction::Finalize(binding), true)
+                } else {
+                    // Button-up that completes the bound click: consume it too.
+                    (CaptureAction::None, true)
+                }
             } else {
-                CaptureAction::None
+                (CaptureAction::None, false)
             }
         };
-        if finalize(capture_action) {
-            return;
+        finalize(capture_action);
+        if was_capturing {
+            return true;
         }
 
         let (down, up) = {
-            let mut s = state().lock().unwrap();
+            let mut s = state_lock();
             if !s.armed {
-                return;
+                return false;
             }
-            let Some(b) = s.binding else { return };
+            let Some(b) = s.binding else { return false };
             if b.main != main {
-                return;
+                return false;
             }
             edge(&mut s, &b, is_down, !is_down)
         };
         emit_edges(down, up);
+        false
     }
 
     enum CaptureAction {
@@ -397,31 +462,25 @@ mod imp {
         }
     }
 
-    /// Applies a finalised capture (store + emit). Returns true if it consumed the event.
-    fn finalize(action: CaptureAction) -> bool {
+    /// Applies a finalised capture (store the binding + notify the frontend).
+    fn finalize(action: CaptureAction) {
         match action {
-            CaptureAction::None => false,
+            CaptureAction::None => {}
             CaptureAction::Cancel => {
-                let app = state().lock().unwrap().app.clone();
-                if let Some(app) = app {
-                    let _ = app.emit(
-                        "ptt-capture",
-                        CaptureResult { token: String::new(), label: String::new(), cancelled: true },
-                    );
-                }
-                true
+                send_event(PttEvent::Capture(CaptureResult {
+                    token: String::new(),
+                    label: String::new(),
+                    cancelled: true,
+                }));
             }
             CaptureAction::Finalize(binding) => {
-                let (app, token, label) = {
-                    let mut s = state().lock().unwrap();
+                let (token, label) = {
+                    let mut s = state_lock();
                     s.binding = Some(binding);
                     s.pressed = false;
-                    (s.app.clone(), token_of(&binding), format_binding(&binding))
+                    (token_of(&binding), format_binding(&binding))
                 };
-                if let Some(app) = app {
-                    let _ = app.emit("ptt-capture", CaptureResult { token, label, cancelled: false });
-                }
-                true
+                send_event(PttEvent::Capture(CaptureResult { token, label, cancelled: false }));
             }
         }
     }
@@ -444,17 +503,11 @@ mod imp {
     }
 
     fn emit_edges(down: bool, up: bool) {
-        if !down && !up {
-            return;
+        if down {
+            send_event(PttEvent::Down);
         }
-        let app = state().lock().unwrap().app.clone();
-        if let Some(app) = app {
-            if down {
-                emit(&app, "ptt-down");
-            }
-            if up {
-                emit(&app, "ptt-up");
-            }
+        if up {
+            send_event(PttEvent::Up);
         }
     }
 

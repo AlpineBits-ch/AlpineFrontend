@@ -82,6 +82,8 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     private nativePtt = inject(NativePttService);
     private zone = inject(NgZone);
     private pttCaptureHandler: ((e: KeyboardEvent) => void) | null = null;
+    /** Removes the DOM keyboard listeners installed during a native PTT capture. */
+    private nativeCaptureTeardown: (() => void) | null = null;
     private audioCtx: AudioContext | null = null;
     private analyser: AnalyserNode | null = null;
     private gainNode: GainNode | null = null;
@@ -266,21 +268,117 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         this.capturingPtt.set(false);
     }
 
-    /** Windows capture: the native hook reports the next key, modifier, or mouse button (Esc cancels). */
+    /**
+     * Windows capture: keyboard bindings are read from the DOM, mouse buttons from
+     * the native hook.
+     *
+     * The native low-level keyboard hook does NOT see key presses while our own
+     * WebView2 window is focused -Chromium consumes keyboard input through its own
+     * out-of-process path -so key/modifier/Escape events never reach it during
+     * setup (the game, a separate process, is a different story: the hook works
+     * there, which is why armed in-game PTT is fine). While the settings window is
+     * focused the DOM *does* receive those key events, so we capture keyboard binds
+     * there and let the native hook handle only mouse buttons (which the DOM can't
+     * cleanly grab, and which we want swallowed so the bound click doesn't also act).
+     * The two race: whichever produces a binding first wins and tears down the other.
+     */
     private async captureNative(): Promise<void> {
         this.capturingPtt.set(true);
+
+        let done = false;
+        let modCandidate: string | null = null;
+        let comboUsed = false;
+
+        // Finish a keyboard-side capture: stop the native (mouse) capture too, then
+        // apply the binding. Passing null cancels without binding (Escape).
+        const finishKeyboard = (token: string | null): void => {
+            if (done) return;
+            done = true;
+            teardown();
+            void this.nativePtt.cancelCapture(); // resets the Rust capturing flag
+            if (token) {
+                this.audioSettings.update({proximityPttKey: token});
+                void this.nativePtt.label(token).then(l => this.pttLabel.set(l));
+                void this.proximity.reapplyPtt();
+            }
+            this.capturingPtt.set(false);
+        };
+
+        const onKeyDown = (e: KeyboardEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (e.code === 'Escape') {
+                finishKeyboard(null);
+                return;
+            }
+            if (this.isModifierCode(e.code)) {
+                // Remember it as a bare-modifier candidate; a following key builds a combo.
+                modCandidate = e.code;
+                comboUsed = false;
+                return;
+            }
+            // Ignore keys the native token format can't represent -keep capturing
+            // rather than storing a binding that will never arm.
+            if (!this.isBindableKeyCode(e.code)) return;
+            // Non-modifier key -bind it together with whatever modifiers are held.
+            comboUsed = true;
+            finishKeyboard(this.buildAccelerator(e));
+        };
+
+        const onKeyUp = (e: KeyboardEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            // Bare modifier: released the candidate with no other key pressed during the hold.
+            if (this.isModifierCode(e.code) && e.code === modCandidate && !comboUsed) {
+                finishKeyboard(this.modifierToken(e.code));
+            }
+        };
+
+        const teardown = () => {
+            window.removeEventListener('keydown', onKeyDown, true);
+            window.removeEventListener('keyup', onKeyUp, true);
+            this.nativeCaptureTeardown = null;
+        };
+        this.nativeCaptureTeardown = teardown;
+        window.addEventListener('keydown', onKeyDown, true);
+        window.addEventListener('keyup', onKeyUp, true);
+
         try {
+            // Native hook resolves on a mouse button (or on the cancel we emit above).
             const res = await this.nativePtt.beginCapture();
+            if (done) return; // keyboard already won (its cancel resolved this promise)
+            done = true;
+            teardown();
             if (!res.cancelled) {
                 this.audioSettings.update({proximityPttKey: res.token});
                 this.pttLabel.set(res.label);
                 void this.proximity.reapplyPtt();
             }
+            this.capturingPtt.set(false);
         } catch (e) {
             console.error('[ptt] native capture failed', e);
-        } finally {
-            this.capturingPtt.set(false);
+            if (!done) {
+                done = true;
+                teardown();
+                this.capturingPtt.set(false);
+            }
         }
+    }
+
+    /** True for `KeyboardEvent.code` values the native `code_name_to_vk` can map. */
+    private isBindableKeyCode(code: string): boolean {
+        return /^Key[A-Z]$/.test(code)
+            || /^Digit[0-9]$/.test(code)
+            || /^F([1-9]|1[0-9]|2[0-4])$/.test(code)
+            || code === 'Backquote' || code === 'Space' || code === 'Tab';
+    }
+
+    /** Bare-modifier token for the native hook (matches Rust `parse_token`). */
+    private modifierToken(code: string): string {
+        if (code.startsWith('Control')) return 'Ctrl';
+        if (code.startsWith('Alt')) return 'Alt';
+        if (code.startsWith('Shift')) return 'Shift';
+        return 'Win'; // MetaLeft / MetaRight
     }
 
     private isModifierCode(code: string): boolean {
@@ -344,6 +442,7 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     ngOnDestroy(): void {
         this.stopMic();
         this.endPttCapture();
+        this.nativeCaptureTeardown?.();
         if (this.capturingPtt() && this.nativePtt.supported()) void this.nativePtt.cancelCapture();
     }
 
