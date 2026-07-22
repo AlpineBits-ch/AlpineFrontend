@@ -150,7 +150,7 @@
                         <p class="text-sm text-white/75">Voice Gate Strength</p>
                         <span class="text-xs text-white/40 tabular-nums">{{ vadStrength }}%</span>
                     </div>
-                    <p class="text-xs text-white/35 -mt-1">Suppress audio frames below this voice activity threshold —
+                    <p class="text-xs text-white/35 -mt-1">Suppress audio frames below this voice activity threshold -
                         raise to cut ambient sound between words</p>
                     <p-slider [(ngModel)]="vadStrength" [max]="100" [min]="0" [step]="5" styleClass="w-full mt-1"/>
                 </div>
@@ -254,7 +254,7 @@
                     {{ proximityMicBoost }}%
                 </span>
             </div>
-            <p class="text-xs text-white/35 -mt-1">How loud others hear you. Above 100% amplifies your mic —
+            <p class="text-xs text-white/35 -mt-1">How loud others hear you. Above 100% amplifies your mic -
                 raise it if you're too quiet, but very high levels can clip.</p>
             <p-slider [(ngModel)]="proximityMicBoost" [max]="200" [min]="0" [step]="5" styleClass="w-full mt-1"/>
         </div>

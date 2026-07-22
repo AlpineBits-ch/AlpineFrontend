@@ -11,7 +11,7 @@ use tauri::ipc::Channel;
 use xcap::{Monitor, Window};
 
 // Global serialisation lock for all xcap/WGC calls.
-// WGC is not safe to initialise concurrently -even on separate threads —
+// WGC is not safe to initialise concurrently -even on separate threads -
 // on Windows 10/11. All Monitor::all() and Window::all() calls must be
 // serialised through this lock. Without it, concurrent WGC initialisations
 // (e.g. enumerate_screen_sources + start_screen_capture called close together

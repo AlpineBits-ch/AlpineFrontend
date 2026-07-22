@@ -230,7 +230,7 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
 
     /** Human-readable form of the stored push-to-talk binding. */
     get pttKeyLabel(): string {
-        if (this.nativePtt.supported()) return this.pttLabel() || '—';
+        if (this.nativePtt.supported()) return this.pttLabel() || '-';
         return this.formatAccelerator(this.audioSettings.settings().proximityPttKey);
     }
 

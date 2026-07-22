@@ -61,7 +61,7 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
                     });
             }
 
-            // All concurrent 401s -including the one that started the refresh —
+            // All concurrent 401s -including the one that started the refresh -
             // wait on the same Promise and retry with the new token once it resolves.
             return from(refreshPromise!).pipe(
                 switchMap(newToken => {

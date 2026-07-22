@@ -219,7 +219,7 @@ export class MlsService {
     /**
      * Generate additional key packages using an existing signing key handle.
      *
-     * Unlike `generateKeyPackages`, this does not create a new Ed25519 keypair —
+     * Unlike `generateKeyPackages`, this does not create a new Ed25519 keypair -
      * it reuses the key already loaded under `keyHandle`. Use this to replenish
      * the server's key package supply without rotating the signing key.
      *
@@ -356,7 +356,7 @@ export class MlsService {
      *
      * Commits are merged immediately and the group state advances.
      * Proposals are queued; a subsequent commit (from any member) applies them.
-     * Returns a `WrongEpoch` error when the message is from a future epoch —
+     * Returns a `WrongEpoch` error when the message is from a future epoch -
      * buffer it and retry after receiving the missing commit.
      *
      * @param messageB64  Base64 TLS-serialized MlsMessage from the server.

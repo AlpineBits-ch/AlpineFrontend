@@ -145,7 +145,7 @@
                     @if (userLoading()) {
                         <div class="h-4 w-40 bg-white/[0.06] rounded animate-pulse mt-0.5"></div>
                     } @else {
-                        <p class="text-sm text-white/70">{{ user()?.email ?? '—' }}</p>
+                        <p class="text-sm text-white/70">{{ user()?.email ?? '-' }}</p>
                     }
                 </div>
                 <p-button [disabled]="true" [text]="true" label="Edit" severity="secondary" size="small"/>

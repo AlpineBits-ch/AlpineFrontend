@@ -49,7 +49,7 @@ export class ProfileSettingsComponent implements OnInit {
     protected avatarLabel = computed(() =>
         (this.ownProfile()?.userName?.[0] ?? '?').toUpperCase()
     );
-    protected usernameDisplay = computed(() => this.ownProfile()?.userName ?? '—');
+    protected usernameDisplay = computed(() => this.ownProfile()?.userName ?? '-');
     // Steam link
     protected linkingSteam = signal(false);
     protected unlinkingSteam = signal(false);
