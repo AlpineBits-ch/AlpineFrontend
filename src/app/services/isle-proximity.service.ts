@@ -10,6 +10,7 @@ import {NativePttService} from './native-ptt.service';
 import {AudioSettingsService} from './audio-settings.service';
 import {UserService} from './user.service';
 import {ToastService} from './toast.service';
+import {SoundSettingsService} from './sound-settings.service';
 import {RealtimeConnectionService, ConnectionState} from './realtime-connection.service';
 
 /**
@@ -36,6 +37,7 @@ export class IsleProximityService {
     private audioSettings = inject(AudioSettingsService);
     private userService = inject(UserService);
     private toast = inject(ToastService);
+    private sounds = inject(SoundSettingsService);
     private realtime = inject(RealtimeConnectionService);
 
     // ── State the UI reads ──────────────────────────────────────────────────
@@ -122,8 +124,16 @@ export class IsleProximityService {
         }
     }
 
-    async leave(): Promise<void> {
+    /**
+     * Tear down the proximity-voice session.
+     *
+     * @param playLeaveSound emit the voice-leave cue -used when the game
+     *   disconnects out from under us so the drop is audible, rather than a
+     *   deliberate user-initiated leave (which is silent).
+     */
+    async leave(playLeaveSound = false): Promise<void> {
         if (!this.isVoiceActive() && !this.isConnecting()) return;
+        if (playLeaveSound) this.sounds.playVoiceLeave();
         await this.unregisterPtt();
         await this.rtc.disconnect();
         await firstValueFrom(this.api.leave()).catch(() => void 0);
@@ -160,7 +170,7 @@ export class IsleProximityService {
         this.ws.playerJoined$.subscribe(() => this.isGameConnected.set(true));
         this.ws.playerDisconnected$.subscribe(() => {
             this.isGameConnected.set(false);
-            if (this.isVoiceActive()) void this.leave();
+            if (this.isVoiceActive()) void this.leave(true);
         });
 
         this.ws.subscribeMutual$.subscribe(p => {
@@ -182,7 +192,7 @@ export class IsleProximityService {
         firstValueFrom(this.api.getStatus())
             .then(status => {
                 this.isGameConnected.set(status.isGameConnected);
-                if (!status.isGameConnected && this.isVoiceActive()) void this.leave();
+                if (!status.isGameConnected && this.isVoiceActive()) void this.leave(true);
             })
             .catch(() => void 0);
     }
