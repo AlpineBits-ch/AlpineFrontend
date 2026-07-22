@@ -35,22 +35,37 @@ export interface IsleSubscribeMutual {
     trackName: string;
 }
 
-/** The caller's own position + facing -the listener origin. */
+/**
+ * The caller's own position + facing -the listener origin.
+ *
+ * Telemetry arrives at ~1 Hz; the velocity vector lets the client extrapolate
+ * between samples so motion is smooth instead of a 1 s stutter.
+ */
 export interface IsleSelfPosition {
     x: number;
     y: number;
     z: number;
     /** Degrees, Unreal convention (0 = +X). May be 0 if the plugin omits rotation. */
     yaw: number;
+    /** Velocity, UE units/second, same axes as position. Absent on old servers → treat as 0. */
+    vx?: number;
+    vy?: number;
+    vz?: number;
+    /** Server unix-ms sample time. Ordering/dedupe ONLY -not a wall clock (server↔client skew). */
+    timestampMs?: number;
 }
 
-/** A peer in the caller's cell moved/turned. */
+/** A peer in the caller's cell moved/turned. Velocity fields as per {@link IsleSelfPosition}. */
 export interface IslePlayerPosition {
     userId: string;
     x: number;
     y: number;
     z: number;
     yaw: number;
+    vx?: number;
+    vy?: number;
+    vz?: number;
+    timestampMs?: number;
 }
 
 /** A single peer left the caller's earshot (walked out of the 3×3 block, or left voice). */

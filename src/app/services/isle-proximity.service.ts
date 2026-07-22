@@ -65,11 +65,14 @@ export class IsleProximityService {
         });
 
         // Keep the live spatial graph in sync with settings while connected.
+        // Output-device changes apply instantly via AudioContext.setSinkId -no
+        // reconnect, no dropped peers.
         effect(() => {
             const s = this.audioSettings.settings();
             if (this.isVoiceActive()) {
                 this.spatial.setMasterVolume(s.proximityVolume);
                 this.spatial.setSpatialEnabled(s.proximitySpatialEnabled);
+                void this.spatial.setOutputDevice(s.speakerId);
             }
         });
 
@@ -113,8 +116,10 @@ export class IsleProximityService {
                 return;
             }
 
-            this.spatial.setMasterVolume(this.audioSettings.settings().proximityVolume);
-            this.spatial.setSpatialEnabled(this.audioSettings.settings().proximitySpatialEnabled);
+            const settings = this.audioSettings.settings();
+            this.spatial.setMasterVolume(settings.proximityVolume);
+            this.spatial.setSpatialEnabled(settings.proximitySpatialEnabled);
+            void this.spatial.setOutputDevice(settings.speakerId);
             await this.registerPtt();
 
             this.isVoiceActive.set(true);
@@ -176,8 +181,10 @@ export class IsleProximityService {
         this.ws.subscribeMutual$.subscribe(p => {
             if (this.isVoiceActive()) void this.rtc.subscribeToPeer(p.targetUserId, p.cfSessionId, p.trackName);
         });
-        this.ws.selfPosition$.subscribe(p => this.spatial.updateSelf(p.x, p.y, p.z, p.yaw));
-        this.ws.playerPosition$.subscribe(p => this.spatial.updatePeer(p.userId, p.x, p.y, p.z));
+        this.ws.selfPosition$.subscribe(p =>
+            this.spatial.updateSelf(p.x, p.y, p.z, p.yaw, p.vx ?? 0, p.vy ?? 0, p.vz ?? 0));
+        this.ws.playerPosition$.subscribe(p =>
+            this.spatial.updatePeer(p.userId, p.x, p.y, p.z, p.vx ?? 0, p.vy ?? 0, p.vz ?? 0));
         this.ws.peerLeft$.subscribe(p => this.rtc.tearDownPeer(p.userId));
 
         // Check a few times on start, then reconcile on a slow poll.
@@ -254,8 +261,10 @@ export class IsleProximityService {
             await firstValueFrom(this.api.join()).catch(() => void 0);
             const ok = await this.rtc.connect();
             if (ok) {
-                this.spatial.setMasterVolume(this.audioSettings.settings().proximityVolume);
-                this.spatial.setSpatialEnabled(this.audioSettings.settings().proximitySpatialEnabled);
+                const settings = this.audioSettings.settings();
+                this.spatial.setMasterVolume(settings.proximityVolume);
+                this.spatial.setSpatialEnabled(settings.proximitySpatialEnabled);
+                void this.spatial.setOutputDevice(settings.speakerId);
                 await this.registerPtt();
             } else {
                 await this.leave();
