@@ -55,6 +55,7 @@ export class IsleProximityService {
     private pttWired = false;
     private pollHandle: ReturnType<typeof setInterval> | null = null;
     private lastConnState = ConnectionState.Disconnected;
+    private republishing = false;
 
     constructor() {
         // Begin detection once the user is loaded (auth available for WS + REST).
@@ -194,6 +195,13 @@ export class IsleProximityService {
             this.spatial.updatePeer(p.userId, p.x, p.y, p.z, p.vx ?? 0, p.vy ?? 0, p.vz ?? 0));
         this.ws.peerLeft$.subscribe(p => this.rtc.tearDownPeer(p.userId));
 
+        // Isle restarted and forgot our published track. The hub socket never
+        // dropped, so the reconnect path below cannot cover this -re-publish now,
+        // otherwise we stay audible to nobody while still hearing everyone.
+        this.ws.republishVoice$.subscribe(() => {
+            if (this.isVoiceActive()) void this.republish();
+        });
+
         // Check a few times on start, then reconcile on a slow poll.
         this.refreshStatus();
         setTimeout(() => this.refreshStatus(), 1_500);
@@ -262,7 +270,16 @@ export class IsleProximityService {
 
     // ── Resilience ─────────────────────────────────────────────────────────────
 
+    /**
+     * Re-run the full publish flow (join → cf session → local "audio" track).
+     *
+     * Triggered by a hub reconnect or an `isle.RepublishVoice` nudge; both can
+     * fire close together (or repeatedly) for one server restart, so the guard
+     * keeps concurrent runs from tearing down each other's fresh session.
+     */
     private async republish(): Promise<void> {
+        if (this.republishing) return;
+        this.republishing = true;
         try {
             await this.rtc.disconnect();
             await firstValueFrom(this.api.join()).catch(() => void 0);
@@ -278,6 +295,8 @@ export class IsleProximityService {
             }
         } catch {
             await this.leave();
+        } finally {
+            this.republishing = false;
         }
     }
 }

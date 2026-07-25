@@ -73,6 +73,16 @@ export interface IslePeerLeft {
     userId: string;
 }
 
+/**
+ * The server no longer knows where our published track lives -re-publish it.
+ *
+ * Sent when Isle restarts and loses its in-memory publish registry. The hub
+ * connection is terminated at the gateway rather than on Isle, so the socket
+ * survives the restart and no reconnect (and therefore no re-publish) is
+ * triggered client-side: we would keep hearing peers while nobody could pull
+ * our audio. Payload-free -it is purely a nudge.
+ */
+
 @Injectable({providedIn: 'root'})
 export class IsleVoiceWebsocketService {
     public readonly playerJoined$ = new Subject<IslePlayerJoined>();
@@ -81,6 +91,7 @@ export class IsleVoiceWebsocketService {
     public readonly selfPosition$ = new Subject<IsleSelfPosition>();
     public readonly playerPosition$ = new Subject<IslePlayerPosition>();
     public readonly peerLeft$ = new Subject<IslePeerLeft>();
+    public readonly republishVoice$ = new Subject<void>();
 
     private realtime = inject(RealtimeConnectionService);
     private listenersSetUp = false;
@@ -105,5 +116,6 @@ export class IsleVoiceWebsocketService {
         this.realtime.on('isle.SelfPosition', (d: IsleSelfPosition) => this.selfPosition$.next(d));
         this.realtime.on('isle.PlayerPosition', (d: IslePlayerPosition) => this.playerPosition$.next(d));
         this.realtime.on('isle.PeerLeft', (d: IslePeerLeft) => this.peerLeft$.next(d));
+        this.realtime.on('isle.RepublishVoice', () => this.republishVoice$.next());
     }
 }
