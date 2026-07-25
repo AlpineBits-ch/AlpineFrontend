@@ -1,0 +1,30 @@
+import {Component, inject, input, output} from '@angular/core';
+import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto';
+import {ChannelListDragService} from '../../channel-list-drag.service';
+import {ChannelMenuRequest, ParticipantMenuRequest} from '../channel-item.types';
+import {ChannelDropIndicatorComponent} from '../channel-drop-indicator/channel-drop-indicator.component';
+import {TextChannelItemComponent} from '../text-channel-item/text-channel-item.component';
+import {VoiceChannelItemComponent} from '../voice-channel-item/voice-channel-item.component';
+
+/**
+ * Renders an ordered run of channel rows (uncategorized section or the body of a
+ * category) together with the drag-and-drop insertion indicators.
+ */
+@Component({
+    selector: 'app-channel-list-items',
+    host: {class: 'contents'},
+    imports: [ChannelDropIndicatorComponent, TextChannelItemComponent, VoiceChannelItemComponent],
+    templateUrl: './channel-list-items.component.html',
+})
+export class ChannelListItemsComponent {
+    channels = input.required<ChannelDto[]>();
+    canReorder = input.required<boolean>();
+
+    readonly openTextChannel = output<ChannelDto>();
+    readonly openVoiceChannel = output<ChannelDto>();
+    readonly openChannelMenu = output<ChannelMenuRequest>();
+    readonly openParticipantMenu = output<ParticipantMenuRequest>();
+
+    protected readonly ChannelType = ChannelType;
+    protected drag = inject(ChannelListDragService);
+}

@@ -1,0 +1,24 @@
+@for (channel of channels(); track channel.id) {
+    @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'before') {
+        <app-channel-drop-indicator/>
+    }
+
+    @if (channel.type === ChannelType.Voice) {
+        <app-voice-channel-item
+                (open)="openVoiceChannel.emit(channel)"
+                (openMenu)="openChannelMenu.emit({event: $event, channel})"
+                (openParticipantMenu)="openParticipantMenu.emit($event)"
+                [canReorder]="canReorder()"
+                [channel]="channel"/>
+    } @else {
+        <app-text-channel-item
+                (open)="openTextChannel.emit(channel)"
+                (openMenu)="openChannelMenu.emit({event: $event, channel})"
+                [canReorder]="canReorder()"
+                [channel]="channel"/>
+    }
+
+    @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'after') {
+        <app-channel-drop-indicator/>
+    }
+}

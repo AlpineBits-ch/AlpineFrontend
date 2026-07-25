@@ -1,0 +1,17 @@
+@let p = participant();
+
+<div (click)="open.emit()"
+     (contextmenu)="openMenu.emit($event)"
+     class="flex items-center gap-2 pl-7 pr-2 py-0.5 rounded-md hover:bg-white/[0.04] cursor-pointer transition-colors">
+    <app-avatar [label]="p.avatarLabel" [userId]="p.userId"
+                class="flex shrink-0" styleClass="!w-5 !h-5 !text-[9px]"/>
+    <span [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/55'"
+          class="text-[13px] flex-1 truncate">
+        {{ p.displayName }}
+    </span>
+    @if (p.isScreenSharing) {
+        <span class="text-[9px] font-bold text-red-400 bg-red-500/15 px-1 py-0.5 rounded leading-none shrink-0">LIVE</span>
+    } @else if (p.isMuted) {
+        <i class="pi pi-microphone-slash text-[9px] text-white/35 shrink-0"></i>
+    }
+</div>

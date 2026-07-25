@@ -16,7 +16,6 @@ import {CallContextMenuComponent} from '../../../../shared/call/call-context-men
 import {CallParticipantMenuData} from '../../../../shared/call/call.types';
 import {ProfileService} from '../../../../services/profile.service';
 import {GuildReadStateService} from '../../../../services/guild-read-state.service';
-import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
 import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-settings-modal.component';
 import {ChannelSettingsModalComponent} from '../channel-settings-modal/channel-settings-modal.component';
 import {CategorySettingsModalComponent} from '../category-settings-modal/category-settings-modal.component';
@@ -36,6 +35,10 @@ import {TranslateModule} from '@ngx-translate/core';
 import {ChannelListDragService} from './channel-list-drag.service';
 import {CreateChannelModalComponent} from './components/create-channel-modal/create-channel-modal.component';
 import {CreateCategoryModalComponent} from './components/create-category-modal/create-category-modal.component';
+import {ChannelListItemsComponent} from './components/channel-list-items/channel-list-items.component';
+import {
+  ChannelDropIndicatorComponent
+} from './components/channel-drop-indicator/channel-drop-indicator.component';
 
 @Component({
     selector: 'app-channel-list',
@@ -47,7 +50,8 @@ import {CreateCategoryModalComponent} from './components/create-category-modal/c
         Button,
         Dialog,
         InputText,
-        AppAvatarComponent,
+        ChannelListItemsComponent,
+        ChannelDropIndicatorComponent,
         GuildSettingsModalComponent,
         ChannelSettingsModalComponent,
         CategorySettingsModalComponent,
@@ -72,10 +76,10 @@ export class ChannelListComponent {
     @ViewChild(CreateCategoryModalComponent) createCategoryModal?: CreateCategoryModalComponent;
     protected readonly ChannelType = ChannelType;
     protected navService = inject(NavigationService);
-    protected voiceChannelSvc = inject(VoiceChannelService);
-    protected profileService = inject(ProfileService);
-    protected readStateService = inject(GuildReadStateService);
     protected drag = inject(ChannelListDragService);
+    private voiceChannelSvc = inject(VoiceChannelService);
+    private profileService = inject(ProfileService);
+    private readStateService = inject(GuildReadStateService);
     // ── Local mutable copies for optimistic updates ───────────────────────────
     protected localChannels = signal<ChannelDto[]>([]);
     protected localCategories = signal<CategoryDto[]>([]);
@@ -225,8 +229,7 @@ export class ChannelListComponent {
                     void this.voiceChannelSvc.leaveChannel();
                 }
                 this.localChannels.update(chs => chs.filter(c => c.id !== e.channelId));
-                const view = this.navService.mainView();
-                if (view.type === 'channel' && view.channel.id === e.channelId) {
+                if (this.navService.isChannelActive(e.channelId)) {
                     const firstText = this.localChannels().find(c => c.type === ChannelType.Text);
                     if (firstText) {
                         this.navService.openChannel(firstText);
@@ -267,10 +270,6 @@ export class ChannelListComponent {
             .subscribe(() => this.openCreateCategory());
     }
 
-    protected avatarUrl(userId: string): string | undefined {
-        return this.profileService.getCachedByUserId(userId)?.avatarUrl;
-    }
-
     protected onGuildUpdated(updated: GuildDto): void {
         this.navService.updateCurrentGuild(updated);
     }
@@ -281,17 +280,8 @@ export class ChannelListComponent {
             .sort((a, b) => a.position - b.position);
     }
 
-    protected isActive(channel: ChannelDto): boolean {
-        const view = this.navService.mainView();
-        return view.type === 'channel' && view.channel.id === channel.id;
-    }
-
     protected openWiki(): void {
         this.navService.openWiki(this.guild().id);
-    }
-
-    protected isJoinedVoice(channel: ChannelDto): boolean {
-        return this.voiceChannelSvc.joinedChannelId() === channel.id;
     }
 
     protected onChannelClick(channel: ChannelDto): void {

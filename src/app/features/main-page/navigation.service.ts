@@ -120,6 +120,12 @@ export class NavigationService {
         this.saveNav();
     }
 
+    /** True when the given channel is the one currently shown in the main view. */
+    isChannelActive(channelId: string): boolean {
+        const view = this.mainView();
+        return view.type === 'channel' && view.channel.id === channelId;
+    }
+
     openWiki(guildId: string): void {
         this.wikiPanelGuildId.set(guildId);
         const current = this.mainView();

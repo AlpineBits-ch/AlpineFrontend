@@ -1,0 +1,31 @@
+<div (dragend)="drag.onDragEnd($event)"
+     (dragover)="drag.onItemDragOver($event, channel().id)"
+     (dragstart)="drag.onChannelDragStart($event, channel())"
+     [attr.draggable]="canReorder() ? 'true' : null">
+    <button
+            (click)="open.emit()"
+            (contextmenu)="openMenu.emit($event)"
+            [class.cursor-grab]="canReorder()"
+            [ngClass]="isJoined()
+                ? 'bg-online/10 text-online/80'
+                : isActive()
+                    ? 'bg-white/[0.08] text-white/90'
+                    : 'bg-transparent text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
+            class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer">
+        <i [ngClass]="isJoined() ? 'text-online/60' : 'text-white/35'"
+           class="pi pi-volume-up text-[13px] shrink-0"></i>
+        <span class="text-[15px] font-medium truncate">{{ channel().name }}</span>
+        @if (channel().isPrivate) {
+            <i class="pi pi-lock text-[11px] text-white/35 ml-auto shrink-0"></i>
+        } @else if (participants().length > 0) {
+            <span class="ml-auto text-[11px] text-white/40 shrink-0">{{ participants().length }}</span>
+        }
+    </button>
+
+    @for (p of participants(); track p.userId) {
+        <app-voice-participant-row
+                (open)="open.emit()"
+                (openMenu)="onParticipantMenu($event, p)"
+                [participant]="p"/>
+    }
+</div>
