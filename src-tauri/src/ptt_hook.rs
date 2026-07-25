@@ -16,30 +16,67 @@
 //!   main:      `VK<code>` (virtual-key), `MouseX1` `MouseX2` `MouseMid`,
 //!              or -for a bare modifier -just the single modifier name.
 //!   examples:  `Ctrl+VK86` (Ctrl+V), `VK118` (F7), `MouseX2`, `Ctrl`
+//!
+//! ## The load-bearing invariant: the hook procedure never blocks
+//!
+//! A low-level hook procedure runs *inline on the system raw-input path*. Until
+//! it returns, NO process on the machine receives keyboard or mouse input, and
+//! if it overruns `LowLevelHooksTimeout` (300 ms by default) Windows silently
+//! rips the hook out. So the hook procs below must never do anything that can
+//! block or take unbounded time:
+//!
+//!   * no mutexes -all shared state lives in atomics,
+//!   * no allocation -events go through a fixed-size lock-free ring,
+//!   * no Tauri/IPC -a worker thread owns the `AppHandle` and does all emitting,
+//!   * no unwinding -the body is wrapped in `catch_unwind`,
+//!   * no unbounded syscalls -the foreground-window lookup is HWND-cached.
+//!
+//! Everything that *can* take time (emitting, timeouts, watchdogs) runs on the
+//! worker thread instead. A worker stall then costs voice latency, never input.
 
 #[cfg(target_os = "windows")]
 mod imp {
-    use std::sync::mpsc::{self, Sender};
-    use std::sync::{Mutex, OnceLock};
+    use std::panic::{catch_unwind, AssertUnwindSafe};
+    use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
+    use std::sync::OnceLock;
     use std::thread;
+    use std::time::{Duration, Instant};
 
     use serde::Serialize;
     use tauri::{AppHandle, Emitter};
 
     use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
-    use windows::Win32::System::Threading::GetCurrentProcessId;
+    use windows::Win32::System::Threading::{
+        GetCurrentProcessId, GetCurrentThread, GetCurrentThreadId, SetThreadPriority,
+        THREAD_PRIORITY_TIME_CRITICAL,
+    };
     use windows::Win32::UI::Input::KeyboardAndMouse::{
-        GetAsyncKeyState, VK_CONTROL, VK_LWIN, VK_MENU, VK_RWIN, VK_SHIFT,
+        GetAsyncKeyState, GetLastInputInfo, LASTINPUTINFO, VK_CONTROL, VK_LWIN, VK_MBUTTON,
+        VK_MENU, VK_RWIN, VK_SHIFT, VK_XBUTTON1, VK_XBUTTON2,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         CallNextHookEx, GetForegroundWindow, GetMessageW, GetWindowThreadProcessId,
-        SetWindowsHookExW, HHOOK, KBDLLHOOKSTRUCT, MSG, MSLLHOOKSTRUCT, WH_KEYBOARD_LL,
-        WH_MOUSE_LL, WM_KEYDOWN, WM_KEYUP, WM_MBUTTONDOWN, WM_MBUTTONUP, WM_SYSKEYDOWN,
-        WM_SYSKEYUP, WM_XBUTTONDOWN, WM_XBUTTONUP,
+        SetWindowsHookExW, UnhookWindowsHookEx, HHOOK, KBDLLHOOKSTRUCT, MSG, MSLLHOOKSTRUCT,
+        WH_KEYBOARD_LL, WH_MOUSE_LL, WM_APP, WM_KEYDOWN, WM_KEYUP, WM_MBUTTONDOWN, WM_MBUTTONUP,
+        WM_SYSKEYDOWN, WM_SYSKEYUP, WM_XBUTTONDOWN, WM_XBUTTONUP,
     };
 
     const XBUTTON1: u16 = 0x0001;
     const XBUTTON2: u16 = 0x0002;
+
+    /// Capture mode swallows every keystroke system-wide, so it must be able to
+    /// end on its own -a frontend that closes, crashes or reloads mid-capture
+    /// must not leave the machine eating input forever.
+    const CAPTURE_TIMEOUT: Duration = Duration::from_secs(15);
+    /// Worker tick. Doubles as the resolution of the stuck-press watchdog.
+    const TICK: Duration = Duration::from_millis(50);
+    /// How often to check that the hooks are still alive.
+    const HEALTH_INTERVAL: Duration = Duration::from_secs(1);
+    /// Consecutive health checks that must disagree before reinstalling. Guards
+    /// against a single sample racing an input event.
+    const HEALTH_STRIKES: u32 = 3;
+    /// Posted to the hook thread to make it reinstall its hooks.
+    const WM_PTT_REHOOK: u32 = WM_APP + 1;
 
     #[derive(Clone, Copy, PartialEq)]
     enum ModKey {
@@ -67,16 +104,6 @@ mod imp {
         main: Main,
     }
 
-    struct State {
-        initialised: bool,
-        armed: bool,
-        pressed: bool,
-        capturing: bool,
-        capture_mod: Option<ModKey>,
-        capture_combo_used: bool,
-        binding: Option<Binding>,
-    }
-
     #[derive(Serialize, Clone)]
     struct CaptureResult {
         token: String,
@@ -84,51 +111,188 @@ mod imp {
         cancelled: bool,
     }
 
-    /// Events produced by the hook procedures. They are pushed onto a channel and
-    /// drained by a dedicated worker thread that owns the `AppHandle` -so the hook
-    /// procedures themselves NEVER touch Tauri.
-    enum PttEvent {
-        Down,
-        Up,
-        Capture(CaptureResult),
+    // ── Shared state ────────────────────────────────────────────────────────
+    //
+    // Atomics only. The hook procedures read/write these with plain loads and
+    // stores, so an input event can never wait on another thread.
+
+    static INITIALISED: AtomicBool = AtomicBool::new(false);
+    static ARMED: AtomicBool = AtomicBool::new(false);
+    static PRESSED: AtomicBool = AtomicBool::new(false);
+    static CAPTURING: AtomicBool = AtomicBool::new(false);
+    /// The active binding, packed by [`pack`]. 0 = no binding.
+    static BINDING: AtomicU64 = AtomicU64::new(0);
+    /// Bare-modifier candidate during capture ([`mod_code`], 0 = none).
+    static CAPTURE_MOD: AtomicU32 = AtomicU32::new(0);
+    /// Capture deadline, ms since [`START`]. 0 = not capturing.
+    static CAPTURE_DEADLINE: AtomicU64 = AtomicU64::new(0);
+
+    /// Per-button record of whether we swallowed the *press*, so the matching
+    /// *release* is swallowed with it. Without this, a focus change between down
+    /// and up leaks a half-transition and leaves the other app convinced the
+    /// button is still held -the "stuck mouse button" bug.
+    static ATE_X1: AtomicBool = AtomicBool::new(false);
+    static ATE_X2: AtomicBool = AtomicBool::new(false);
+    static ATE_MID: AtomicBool = AtomicBool::new(false);
+
+    /// Foreground-window cache: `GetWindowThreadProcessId` is a kernel call, so
+    /// only make it when the foreground HWND actually changed. Only the hook
+    /// thread touches these.
+    static FG_HWND: AtomicUsize = AtomicUsize::new(0);
+    static FG_SELF: AtomicBool = AtomicBool::new(false);
+
+    /// Bumped by every hook callback; the worker uses it to notice that Windows
+    /// has silently unhooked us.
+    static HOOK_CALLS: AtomicU32 = AtomicU32::new(0);
+    /// Thread id of the live hook thread; 0 once its message loop has exited.
+    static HOOK_THREAD_ID: AtomicU32 = AtomicU32::new(0);
+    /// Set while a hook thread is starting, so the watchdog can't spawn two.
+    static HOOK_STARTING: AtomicBool = AtomicBool::new(false);
+
+    static START: OnceLock<Instant> = OnceLock::new();
+    static WORKER: OnceLock<thread::Thread> = OnceLock::new();
+
+    fn now_ms() -> u64 {
+        START.get().map(|s| s.elapsed().as_millis() as u64).unwrap_or(0)
     }
 
-    static STATE: OnceLock<Mutex<State>> = OnceLock::new();
-    /// Channel to the emit worker. Lock-free to read, so the hook procedures can
-    /// hand off an event without ever blocking on the state mutex.
-    static SENDER: OnceLock<Sender<PttEvent>> = OnceLock::new();
+    // ── Event ring (hook → worker) ──────────────────────────────────────────
 
-    fn state() -> &'static Mutex<State> {
-        STATE.get_or_init(|| {
-            Mutex::new(State {
-                initialised: false,
-                armed: false,
-                pressed: false,
-                capturing: false,
-                capture_mod: None,
-                capture_combo_used: false,
-                binding: None,
-            })
+    const EV_DOWN: u64 = 1;
+    const EV_UP: u64 = 2;
+    const EV_CAPTURE: u64 = 3;
+    const EV_CAPTURE_CANCEL: u64 = 4;
+
+    const RING_CAP: usize = 128;
+
+    /// Bounded lock-free queue. Multi-producer (hook thread + command threads),
+    /// single-consumer (the worker). Push is wait-free and allocation-free; a
+    /// full ring drops the event rather than ever blocking a producer -losing a
+    /// PTT edge is recoverable (the watchdog re-syncs), stalling input is not.
+    struct Ring {
+        data: [AtomicU64; RING_CAP],
+        ready: [AtomicBool; RING_CAP],
+        head: AtomicUsize,
+        tail: AtomicUsize,
+    }
+
+    static RING: Ring = Ring {
+        data: [const { AtomicU64::new(0) }; RING_CAP],
+        ready: [const { AtomicBool::new(false) }; RING_CAP],
+        head: AtomicUsize::new(0),
+        tail: AtomicUsize::new(0),
+    };
+
+    impl Ring {
+        fn push(&self, ev: u64) {
+            let tail = self.tail.load(Ordering::Acquire);
+            if self.head.load(Ordering::Relaxed).wrapping_sub(tail) >= RING_CAP {
+                return; // backlogged worker: drop, never wait
+            }
+            // Every claimed slot is always published, so the consumer can never
+            // be stranded on a half-written slot.
+            let slot = self.head.fetch_add(1, Ordering::Relaxed) % RING_CAP;
+            self.data[slot].store(ev, Ordering::Relaxed);
+            self.ready[slot].store(true, Ordering::Release);
+        }
+
+        fn pop(&self) -> Option<u64> {
+            let tail = self.tail.load(Ordering::Relaxed);
+            if tail == self.head.load(Ordering::Acquire) {
+                return None;
+            }
+            let slot = tail % RING_CAP;
+            if !self.ready[slot].load(Ordering::Acquire) {
+                return None; // claimed but not published yet; next tick will get it
+            }
+            let ev = self.data[slot].load(Ordering::Relaxed);
+            self.ready[slot].store(false, Ordering::Relaxed);
+            self.tail.store(tail.wrapping_add(1), Ordering::Release);
+            Some(ev)
+        }
+    }
+
+    /// Queue an event and nudge the worker. Safe to call from a hook procedure.
+    fn emit_event(tag: u64, payload: u64) {
+        RING.push(tag | (payload << 8));
+        if let Some(worker) = WORKER.get() {
+            worker.unpark();
+        }
+    }
+
+    // ── Binding packing ─────────────────────────────────────────────────────
+    //
+    // A `Binding` fits in a u64 so the hook can read it with one relaxed load
+    // instead of locking.
+
+    const MAIN_KEY: u64 = 1;
+    const MAIN_X1: u64 = 2;
+    const MAIN_X2: u64 = 3;
+    const MAIN_MID: u64 = 4;
+    const MAIN_MOD: u64 = 5;
+
+    fn mod_code(m: ModKey) -> u32 {
+        match m {
+            ModKey::Ctrl => 1,
+            ModKey::Alt => 2,
+            ModKey::Shift => 3,
+            ModKey::Win => 4,
+        }
+    }
+
+    fn mod_from_code(code: u32) -> Option<ModKey> {
+        match code {
+            1 => Some(ModKey::Ctrl),
+            2 => Some(ModKey::Alt),
+            3 => Some(ModKey::Shift),
+            4 => Some(ModKey::Win),
+            _ => None,
+        }
+    }
+
+    fn pack(b: &Binding) -> u64 {
+        let (kind, payload) = match b.main {
+            Main::Key(k) => (MAIN_KEY, k as u64),
+            Main::MouseX1 => (MAIN_X1, 0),
+            Main::MouseX2 => (MAIN_X2, 0),
+            Main::MouseMid => (MAIN_MID, 0),
+            Main::Modifier(m) => (MAIN_MOD, mod_code(m) as u64),
+        };
+        1 | (b.ctrl as u64) << 1
+            | (b.alt as u64) << 2
+            | (b.shift as u64) << 3
+            | (b.win as u64) << 4
+            | kind << 8
+            | payload << 16
+    }
+
+    fn unpack(v: u64) -> Option<Binding> {
+        if v & 1 == 0 {
+            return None;
+        }
+        let payload = (v >> 16) as u32;
+        let main = match (v >> 8) & 0xF {
+            MAIN_KEY => Main::Key(payload),
+            MAIN_X1 => Main::MouseX1,
+            MAIN_X2 => Main::MouseX2,
+            MAIN_MID => Main::MouseMid,
+            MAIN_MOD => Main::Modifier(mod_from_code(payload)?),
+            _ => return None,
+        };
+        Some(Binding {
+            ctrl: v >> 1 & 1 != 0,
+            alt: v >> 2 & 1 != 0,
+            shift: v >> 3 & 1 != 0,
+            win: v >> 4 & 1 != 0,
+            main,
         })
     }
 
-    /// Poison-tolerant lock. A low-level hook procedure runs on the raw-input path;
-    /// a panic there would unwind across the `extern "system"` FFI boundary (UB) and
-    /// can freeze all system input. `Mutex::lock().unwrap()` panics on a poisoned
-    /// lock, so we recover the guard instead of ever unwrapping.
-    fn state_lock() -> std::sync::MutexGuard<'static, State> {
-        match state().lock() {
-            Ok(g) => g,
-            Err(poisoned) => poisoned.into_inner(),
-        }
+    fn binding_now() -> Option<Binding> {
+        unpack(BINDING.load(Ordering::Relaxed))
     }
 
-    /// Hand an event to the emit worker. Never blocks; safe to call from a hook.
-    fn send_event(ev: PttEvent) {
-        if let Some(tx) = SENDER.get() {
-            let _ = tx.send(ev);
-        }
-    }
+    // ── Key state helpers ───────────────────────────────────────────────────
 
     fn key_down(vk: i32) -> bool {
         // High-order bit of GetAsyncKeyState marks the key as currently down.
@@ -154,6 +318,23 @@ mod imp {
         }
     }
 
+    /// Is the binding's main input physically held right now? Used by the
+    /// watchdog to unstick a latched press.
+    fn main_is_held(b: &Binding) -> bool {
+        match b.main {
+            Main::Key(k) => key_down(k as i32),
+            Main::MouseX1 => key_down(VK_XBUTTON1.0 as i32),
+            Main::MouseX2 => key_down(VK_XBUTTON2.0 as i32),
+            Main::MouseMid => key_down(VK_MBUTTON.0 as i32),
+            Main::Modifier(ModKey::Ctrl) => key_down(VK_CONTROL.0 as i32),
+            Main::Modifier(ModKey::Alt) => key_down(VK_MENU.0 as i32),
+            Main::Modifier(ModKey::Shift) => key_down(VK_SHIFT.0 as i32),
+            Main::Modifier(ModKey::Win) => {
+                key_down(VK_LWIN.0 as i32) || key_down(VK_RWIN.0 as i32)
+            }
+        }
+    }
+
     // ── Public surface (called from the Tauri commands) ─────────────────────
 
     pub fn supported() -> bool {
@@ -161,98 +342,50 @@ mod imp {
     }
 
     pub fn init(app: &AppHandle) {
-        {
-            let mut s = state_lock();
-            if s.initialised {
-                return; // already initialised
-            }
-            s.initialised = true;
+        if INITIALISED.swap(true, Ordering::AcqRel) {
+            return; // already initialised
         }
+        let _ = START.set(Instant::now());
 
-        // Emit worker: owns the AppHandle and is the ONLY place `emit` is called.
-        // Keeping Tauri off the hook thread means a slow/busy webview can never
-        // stall the low-level hook procedure (and therefore never freezes input).
-        let (tx, rx) = mpsc::channel::<PttEvent>();
-        let _ = SENDER.set(tx);
-        let app = app.clone();
-        thread::spawn(move || {
-            while let Ok(ev) = rx.recv() {
-                match ev {
-                    PttEvent::Down => {
-                        let _ = app.emit("ptt-down", ());
-                    }
-                    PttEvent::Up => {
-                        let _ = app.emit("ptt-up", ());
-                    }
-                    PttEvent::Capture(res) => {
-                        let _ = app.emit("ptt-capture", res);
-                    }
-                }
-            }
-        });
-
-        // Low-level hooks must be installed on a thread that pumps messages.
-        thread::spawn(|| unsafe {
-            let _kb = SetWindowsHookExW(WH_KEYBOARD_LL, Some(keyboard_proc), None, 0);
-            let _ms = SetWindowsHookExW(WH_MOUSE_LL, Some(mouse_proc), None, 0);
-            let mut msg = MSG::default();
-            while GetMessageW(&mut msg, None, 0, 0).as_bool() {
-                // No dispatch needed -the hooks fire on this thread directly.
-            }
-        });
+        spawn_worker(app.clone());
+        spawn_hook_thread();
     }
 
     pub fn set_binding(token: String) -> Result<(), String> {
         let binding = parse_token(&token).ok_or_else(|| format!("invalid binding: {token}"))?;
-        let mut s = state_lock();
-        s.binding = Some(binding);
-        s.pressed = false;
+        BINDING.store(pack(&binding), Ordering::Relaxed);
+        release_if_pressed();
         Ok(())
     }
 
     pub fn arm() -> Result<(), String> {
-        let mut s = state_lock();
-        if s.binding.is_none() {
+        if BINDING.load(Ordering::Relaxed) == 0 {
             return Err("no binding set".into());
         }
-        s.armed = true;
-        s.pressed = false;
+        release_if_pressed();
+        ARMED.store(true, Ordering::Relaxed);
         Ok(())
     }
 
     pub fn disarm() -> Result<(), String> {
-        let was_pressed = {
-            let mut s = state_lock();
-            s.armed = false;
-            let was = s.pressed;
-            s.pressed = false;
-            was
-        };
-        if was_pressed {
-            send_event(PttEvent::Up);
-        }
+        ARMED.store(false, Ordering::Relaxed);
+        release_if_pressed();
         Ok(())
     }
 
     pub fn begin_capture() -> Result<(), String> {
-        let mut s = state_lock();
-        s.capturing = true;
-        s.capture_mod = None;
-        s.capture_combo_used = false;
+        CAPTURE_MOD.store(0, Ordering::Relaxed);
+        CAPTURE_DEADLINE.store(now_ms() + CAPTURE_TIMEOUT.as_millis() as u64, Ordering::Relaxed);
+        CAPTURING.store(true, Ordering::Release);
+        if let Some(worker) = WORKER.get() {
+            worker.unpark(); // so the timeout is armed promptly
+        }
         Ok(())
     }
 
     pub fn cancel_capture() -> Result<(), String> {
-        {
-            let mut s = state_lock();
-            s.capturing = false;
-            s.capture_mod = None;
-        }
-        send_event(PttEvent::Capture(CaptureResult {
-            token: String::new(),
-            label: String::new(),
-            cancelled: true,
-        }));
+        end_capture();
+        emit_event(EV_CAPTURE_CANCEL, 0);
         Ok(())
     }
 
@@ -263,17 +396,245 @@ mod imp {
         }
     }
 
-    // ── Hook procedures ──────────────────────────────────────────────────────
+    /// Drop a held press and tell the frontend, so the mic can never latch open
+    /// across a rebind/disarm.
+    fn release_if_pressed() {
+        if PRESSED.swap(false, Ordering::AcqRel) {
+            emit_event(EV_UP, 0);
+        }
+    }
+
+    fn end_capture() {
+        CAPTURING.store(false, Ordering::Release);
+        CAPTURE_MOD.store(0, Ordering::Relaxed);
+        CAPTURE_DEADLINE.store(0, Ordering::Relaxed);
+    }
+
+    // ── Worker thread (owns the AppHandle; the only place `emit` happens) ────
+
+    fn spawn_worker(app: AppHandle) {
+        thread::spawn(move || {
+            let _ = WORKER.set(thread::current());
+            let mut health_due = Instant::now() + HEALTH_INTERVAL;
+            let mut last_input = 0u32;
+            let mut last_calls = 0u32;
+            let mut strikes = 0u32;
+            let mut stuck_misses = 0u32;
+
+            loop {
+                // Anything queued by a hook is drained here, off the input path.
+                while let Some(ev) = RING.pop() {
+                    match ev & 0xFF {
+                        EV_DOWN => {
+                            let _ = app.emit("ptt-down", ());
+                        }
+                        EV_UP => {
+                            let _ = app.emit("ptt-up", ());
+                        }
+                        EV_CAPTURE => {
+                            if let Some(b) = unpack(ev >> 8) {
+                                let _ = app.emit(
+                                    "ptt-capture",
+                                    CaptureResult {
+                                        token: token_of(&b),
+                                        label: format_binding(&b),
+                                        cancelled: false,
+                                    },
+                                );
+                            }
+                        }
+                        EV_CAPTURE_CANCEL => {
+                            let _ = app.emit(
+                                "ptt-capture",
+                                CaptureResult {
+                                    token: String::new(),
+                                    label: String::new(),
+                                    cancelled: true,
+                                },
+                            );
+                        }
+                        _ => {} // unknown tag: ignore
+                    }
+                }
+
+                unstick_press(&mut stuck_misses);
+                expire_capture();
+
+                if Instant::now() >= health_due {
+                    health_due = Instant::now() + HEALTH_INTERVAL;
+                    check_hook_health(&mut last_input, &mut last_calls, &mut strikes);
+                }
+
+                thread::park_timeout(TICK);
+            }
+        });
+    }
+
+    /// A press can latch if its release never reaches us -the key was let go
+    /// while the hook was being reinstalled, over a session switch, or under a
+    /// UAC prompt (which blocks hooks entirely). Poll the physical key state and
+    /// force the release, so a stuck button can never hold the mic open.
+    ///
+    /// Two consecutive "not held" samples are required: a hook procedure runs
+    /// *before* the press reaches the async key-state table, so a tick landing in
+    /// that window would otherwise cut a legitimate press short.
+    fn unstick_press(misses: &mut u32) {
+        if !PRESSED.load(Ordering::Relaxed) {
+            *misses = 0;
+            return;
+        }
+        if binding_now().map(|b| main_is_held(&b)).unwrap_or(false) {
+            *misses = 0;
+            return;
+        }
+        *misses += 1;
+        if *misses >= 2 {
+            *misses = 0;
+            if PRESSED.swap(false, Ordering::AcqRel) {
+                emit_event(EV_UP, 0);
+            }
+        }
+    }
+
+    /// Capture mode eats all keyboard input, so it is hard-bounded in time.
+    fn expire_capture() {
+        if !CAPTURING.load(Ordering::Acquire) {
+            return;
+        }
+        let deadline = CAPTURE_DEADLINE.load(Ordering::Relaxed);
+        if deadline != 0 && now_ms() >= deadline {
+            end_capture();
+            emit_event(EV_CAPTURE_CANCEL, 0);
+        }
+    }
+
+    /// Windows removes a low-level hook that overruns `LowLevelHooksTimeout`,
+    /// silently and permanently. Detect it by comparing "the system saw input"
+    /// against "our hook ran", and reinstall.
+    ///
+    /// `GetLastInputInfo` is sampled *before* the callback counter: if input
+    /// lands between the two reads the counter is already fresh, so the pair can
+    /// only ever miss a real stall for one interval -never invent one.
+    fn check_hook_health(last_input: &mut u32, last_calls: &mut u32, strikes: &mut u32) {
+        let mut lii = LASTINPUTINFO {
+            cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32,
+            dwTime: 0,
+        };
+        if !unsafe { GetLastInputInfo(&mut lii) }.as_bool() {
+            return;
+        }
+        let input_now = lii.dwTime;
+        let calls_now = HOOK_CALLS.load(Ordering::Relaxed);
+
+        let input_moved = input_now != *last_input && *last_input != 0;
+        let hook_silent = calls_now == *last_calls;
+        *last_input = input_now;
+        *last_calls = calls_now;
+
+        if input_moved && hook_silent {
+            *strikes += 1;
+            if *strikes >= HEALTH_STRIKES {
+                *strikes = 0;
+                match HOOK_THREAD_ID.load(Ordering::Acquire) {
+                    // Message loop still alive: ask it to reinstall in place.
+                    tid if tid != 0 => {
+                        let _ = unsafe {
+                            windows::Win32::UI::WindowsAndMessaging::PostThreadMessageW(
+                                tid,
+                                WM_PTT_REHOOK,
+                                WPARAM(0),
+                                LPARAM(0),
+                            )
+                        };
+                    }
+                    // Loop is gone (WM_QUIT or a GetMessage error): start a new one
+                    // rather than leaving PTT dead until the app restarts.
+                    _ => spawn_hook_thread(),
+                }
+            }
+        } else {
+            *strikes = 0;
+        }
+    }
+
+    // ── Hook thread ─────────────────────────────────────────────────────────
+
+    fn spawn_hook_thread() {
+        if HOOK_STARTING.swap(true, Ordering::AcqRel) {
+            return; // one already coming up
+        }
+        thread::spawn(|| unsafe {
+            // The hook procs run on this thread, and every keystroke on the
+            // machine waits behind them. Keeping the thread above game/render
+            // threads is what stops a loaded system from pushing us past
+            // LowLevelHooksTimeout (which shows up as system-wide input hitching
+            // and then a dead hook). It only ever sits in GetMessageW.
+            let _ = SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL);
+            HOOK_THREAD_ID.store(GetCurrentThreadId(), Ordering::Release);
+            HOOK_STARTING.store(false, Ordering::Release);
+
+            let mut kb = install(WH_KEYBOARD_LL, Some(keyboard_proc));
+            let mut ms = install(WH_MOUSE_LL, Some(mouse_proc));
+
+            let mut msg = MSG::default();
+            loop {
+                let r = GetMessageW(&mut msg, None, 0, 0);
+                if r.0 <= 0 {
+                    break; // 0 = WM_QUIT, -1 = error; either way stop (never spin)
+                }
+                if msg.message == WM_PTT_REHOOK {
+                    if let Some(h) = kb.take() {
+                        let _ = UnhookWindowsHookEx(h);
+                    }
+                    if let Some(h) = ms.take() {
+                        let _ = UnhookWindowsHookEx(h);
+                    }
+                    kb = install(WH_KEYBOARD_LL, Some(keyboard_proc));
+                    ms = install(WH_MOUSE_LL, Some(mouse_proc));
+                }
+                // No dispatch needed -the hooks fire on this thread directly.
+            }
+
+            // Leaving the loop means the hooks are about to die with the thread;
+            // publish that so the watchdog can start a replacement.
+            HOOK_THREAD_ID.store(0, Ordering::Release);
+            if let Some(h) = kb {
+                let _ = UnhookWindowsHookEx(h);
+            }
+            if let Some(h) = ms {
+                let _ = UnhookWindowsHookEx(h);
+            }
+        });
+    }
+
+    unsafe fn install(
+        id: windows::Win32::UI::WindowsAndMessaging::WINDOWS_HOOK_ID,
+        proc: windows::Win32::UI::WindowsAndMessaging::HOOKPROC,
+    ) -> Option<HHOOK> {
+        SetWindowsHookExW(id, proc, None, 0).ok()
+    }
+
+    // ── Hook procedures ─────────────────────────────────────────────────────
+    //
+    // Wait-free and allocation-free by construction; see the module docs. The
+    // `catch_unwind` guards exist because unwinding out of `extern "system"`
+    // aborts the process from the raw-input path.
 
     unsafe extern "system" fn keyboard_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        HOOK_CALLS.fetch_add(1, Ordering::Relaxed);
         if code >= 0 {
-            let kb = &*(lparam.0 as *const KBDLLHOOKSTRUCT);
-            let msg = wparam.0 as u32;
-            let is_down = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
-            let is_up = msg == WM_KEYUP || msg == WM_SYSKEYUP;
-            // While capturing, keys are consumed here and must NOT reach any other
-            // window (otherwise Esc closes dialogs, letters type into inputs, etc.).
-            if handle_key(kb.vkCode, is_down, is_up) {
+            let swallow = catch_unwind(AssertUnwindSafe(|| {
+                let kb = &*(lparam.0 as *const KBDLLHOOKSTRUCT);
+                let msg = wparam.0 as u32;
+                let is_down = msg == WM_KEYDOWN || msg == WM_SYSKEYDOWN;
+                let is_up = msg == WM_KEYUP || msg == WM_SYSKEYUP;
+                handle_key(kb.vkCode, is_down, is_up)
+            }))
+            .unwrap_or(false);
+            // While capturing, keys are consumed here and must NOT reach any
+            // other window (otherwise Esc closes dialogs, letters type into
+            // inputs, etc.).
+            if swallow {
                 return LRESULT(1);
             }
         }
@@ -281,233 +642,195 @@ mod imp {
     }
 
     unsafe extern "system" fn mouse_proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        HOOK_CALLS.fetch_add(1, Ordering::Relaxed);
         if code >= 0 {
-            let ms = &*(lparam.0 as *const MSLLHOOKSTRUCT);
-            let msg = wparam.0 as u32;
-            let xbtn = ((ms.mouseData >> 16) & 0xFFFF) as u16;
-            let main = match msg {
-                WM_XBUTTONDOWN | WM_XBUTTONUP => {
-                    if xbtn == XBUTTON1 {
-                        Some(Main::MouseX1)
-                    } else if xbtn == XBUTTON2 {
-                        Some(Main::MouseX2)
-                    } else {
-                        None
+            let swallow = catch_unwind(AssertUnwindSafe(|| {
+                let msg = wparam.0 as u32;
+                // Bail before touching anything else for moves/wheel/left/right,
+                // which are the overwhelming majority of callbacks.
+                let is_down = match msg {
+                    WM_XBUTTONDOWN | WM_MBUTTONDOWN => true,
+                    WM_XBUTTONUP | WM_MBUTTONUP => false,
+                    _ => return false,
+                };
+                let ms = &*(lparam.0 as *const MSLLHOOKSTRUCT);
+                let main = match msg {
+                    WM_XBUTTONDOWN | WM_XBUTTONUP => {
+                        match ((ms.mouseData >> 16) & 0xFFFF) as u16 {
+                            XBUTTON1 => Main::MouseX1,
+                            XBUTTON2 => Main::MouseX2,
+                            _ => return false,
+                        }
                     }
-                }
-                WM_MBUTTONDOWN | WM_MBUTTONUP => Some(Main::MouseMid),
-                _ => None,
-            };
-            if let Some(main) = main {
-                let is_down = msg == WM_XBUTTONDOWN || msg == WM_MBUTTONDOWN;
-                // Swallow the click that is being bound so it doesn't also act.
-                if handle_mouse(main, is_down) {
-                    return LRESULT(1);
-                }
-            }
-
-            // Swallow the mouse back/forward buttons while OUR window is focused, so
-            // WebView2 doesn't perform history navigation. When the game is focused we
-            // pass them through (so the game -and PTT bound to them -still works).
-            if (msg == WM_XBUTTONDOWN || msg == WM_XBUTTONUP) && foreground_is_self() {
+                    _ => Main::MouseMid,
+                };
+                handle_mouse(main, is_down)
+            }))
+            .unwrap_or(false);
+            if swallow {
                 return LRESULT(1);
             }
         }
         CallNextHookEx(HHOOK::default(), code, wparam, lparam)
     }
 
+    /// Cached "is the foreground window ours?". `GetForegroundWindow` is a cheap
+    /// shared-state read; the pid lookup behind it is not, so it only runs when
+    /// the window actually changed.
     unsafe fn foreground_is_self() -> bool {
         let hwnd = GetForegroundWindow();
-        if hwnd.0.is_null() {
+        let key = hwnd.0 as usize;
+        if key == 0 {
             return false;
+        }
+        if FG_HWND.load(Ordering::Relaxed) == key {
+            return FG_SELF.load(Ordering::Relaxed);
         }
         let mut pid: u32 = 0;
         GetWindowThreadProcessId(hwnd, Some(&mut pid));
-        pid != 0 && pid == GetCurrentProcessId()
+        let is_self = pid != 0 && pid == GetCurrentProcessId();
+        FG_SELF.store(is_self, Ordering::Relaxed);
+        FG_HWND.store(key, Ordering::Relaxed);
+        is_self
     }
 
-    // ── Event handling ─────────────────────────────────────────────────────
+    // ── Event handling ──────────────────────────────────────────────────────
 
-    /// Handles a keyboard transition. Returns true if the event should be swallowed
-    /// (i.e. we are capturing a new binding and must not let the key reach any app).
+    /// Handles a keyboard transition. Returns true if the event should be
+    /// swallowed (i.e. we are capturing a new binding and must not let the key
+    /// reach any app).
     fn handle_key(vk: u32, is_down: bool, is_up: bool) -> bool {
         let modk = is_modifier_vk(vk);
 
-        // Capture mode: build a new binding from the next input.
-        let (capture_action, was_capturing) = {
-            let mut s = state_lock();
-            if s.capturing {
-                (capture_key(&mut s, vk, modk, is_down, is_up), true)
-            } else {
-                (CaptureAction::None, false)
-            }
-        };
-        finalize(capture_action);
-        if was_capturing {
+        if CAPTURING.load(Ordering::Acquire) {
+            capture_key(vk, modk, is_down, is_up);
             return true;
         }
 
-        // Armed matching.
-        let (down, up) = {
-            let mut s = state_lock();
-            if !s.armed {
-                return false;
-            }
-            let Some(b) = s.binding else { return false };
-            let matched_main = match b.main {
-                Main::Key(k) => k == vk,
-                Main::Modifier(m) => modk == Some(m),
-                _ => false,
-            };
-            if !matched_main {
-                return false;
-            }
-            edge(&mut s, &b, is_down, is_up)
+        if !ARMED.load(Ordering::Relaxed) {
+            return false;
+        }
+        let Some(b) = binding_now() else { return false };
+        let matched_main = match b.main {
+            Main::Key(k) => k == vk,
+            Main::Modifier(m) => modk == Some(m),
+            _ => false,
         };
-        emit_edges(down, up);
+        if matched_main {
+            edge(&b, is_down, is_up);
+        }
         false
     }
 
     /// Handles a mouse-button transition. Returns true if the event should be
-    /// swallowed (we are capturing a new binding via this button).
+    /// swallowed.
+    ///
+    /// Presses and releases are swallowed *as a pair*: whatever we decide for the
+    /// press is recorded and replayed for the release. Deciding per-transition
+    /// (as the foreground check alone did) means alt-tabbing mid-click leaks a
+    /// press without its release, and the app that got the press keeps the button
+    /// down forever.
     fn handle_mouse(main: Main, is_down: bool) -> bool {
-        let (capture_action, was_capturing) = {
-            let mut s = state_lock();
-            if s.capturing {
-                if is_down {
-                    let (c, a, sh, w) = mods_now();
-                    let binding = Binding { ctrl: c, alt: a, shift: sh, win: w, main };
-                    s.capturing = false;
-                    s.capture_mod = None;
-                    (CaptureAction::Finalize(binding), true)
-                } else {
-                    // Button-up that completes the bound click: consume it too.
-                    (CaptureAction::None, true)
-                }
-            } else {
-                (CaptureAction::None, false)
-            }
+        let ate = match main {
+            Main::MouseX1 => &ATE_X1,
+            Main::MouseX2 => &ATE_X2,
+            _ => &ATE_MID,
         };
-        finalize(capture_action);
-        if was_capturing {
-            return true;
+
+        if !is_down {
+            // Always process the release, even when we hide it from other apps.
+            if ARMED.load(Ordering::Relaxed) {
+                if let Some(b) = binding_now() {
+                    if b.main == main {
+                        edge(&b, false, true);
+                    }
+                }
+            }
+            return ate.swap(false, Ordering::Relaxed);
         }
 
-        let (down, up) = {
-            let mut s = state_lock();
-            if !s.armed {
-                return false;
+        let mut swallow = false;
+        if CAPTURING.load(Ordering::Acquire) {
+            let (c, a, sh, w) = mods_now();
+            finish_capture(Binding { ctrl: c, alt: a, shift: sh, win: w, main });
+            swallow = true; // don't let the click being bound also act
+        } else {
+            if ARMED.load(Ordering::Relaxed) {
+                if let Some(b) = binding_now() {
+                    if b.main == main {
+                        edge(&b, true, false);
+                    }
+                }
             }
-            let Some(b) = s.binding else { return false };
-            if b.main != main {
-                return false;
+            // Swallow the mouse back/forward buttons while OUR window is focused,
+            // so WebView2 doesn't perform history navigation. When the game is
+            // focused we pass them through (so the game -and PTT bound to them
+            // -still works).
+            if matches!(main, Main::MouseX1 | Main::MouseX2) && unsafe { foreground_is_self() } {
+                swallow = true;
             }
-            edge(&mut s, &b, is_down, !is_down)
-        };
-        emit_edges(down, up);
-        false
+        }
+        ate.store(swallow, Ordering::Relaxed);
+        swallow
     }
 
-    enum CaptureAction {
-        None,
-        Finalize(Binding),
-        Cancel,
-    }
-
-    /// Returns a capture action; must be called while holding the state lock.
-    fn capture_key(
-        s: &mut State,
-        vk: u32,
-        modk: Option<ModKey>,
-        is_down: bool,
-        is_up: bool,
-    ) -> CaptureAction {
+    /// Builds a binding from captured input. `capture_combo_used` from the old
+    /// mutex-based version is gone: a non-modifier press finalises immediately,
+    /// so a modifier release can only be seen while the candidate is still the
+    /// only thing held.
+    fn capture_key(vk: u32, modk: Option<ModKey>, is_down: bool, is_up: bool) {
         // Escape cancels the capture instead of binding to it.
         if is_down && vk == 0x1B {
-            s.capturing = false;
-            s.capture_mod = None;
-            return CaptureAction::Cancel;
+            end_capture();
+            emit_event(EV_CAPTURE_CANCEL, 0);
+            return;
         }
         match modk {
             // A non-modifier key press finalises as Key + whatever mods are held.
             None if is_down => {
                 let (c, a, sh, w) = mods_now();
-                s.capturing = false;
-                s.capture_mod = None;
-                CaptureAction::Finalize(Binding { ctrl: c, alt: a, shift: sh, win: w, main: Main::Key(vk) })
+                finish_capture(Binding { ctrl: c, alt: a, shift: sh, win: w, main: Main::Key(vk) });
             }
             // Modifier down: remember it as a bare-modifier candidate.
-            Some(m) if is_down => {
-                s.capture_mod = Some(m);
-                s.capture_combo_used = false;
-                CaptureAction::None
-            }
-            // Modifier up with no other key pressed during the hold → bare modifier.
+            Some(m) if is_down => CAPTURE_MOD.store(mod_code(m), Ordering::Relaxed),
+            // Modifier up with nothing else pressed during the hold → bare modifier.
             Some(m) if is_up => {
-                if s.capture_mod == Some(m) && !s.capture_combo_used {
-                    s.capturing = false;
-                    s.capture_mod = None;
-                    CaptureAction::Finalize(Binding {
+                if CAPTURE_MOD.load(Ordering::Relaxed) == mod_code(m) {
+                    finish_capture(Binding {
                         ctrl: false,
                         alt: false,
                         shift: false,
                         win: false,
                         main: Main::Modifier(m),
-                    })
-                } else {
-                    CaptureAction::None
+                    });
                 }
             }
-            _ => CaptureAction::None,
+            _ => {}
         }
     }
 
-    /// Applies a finalised capture (store the binding + notify the frontend).
-    fn finalize(action: CaptureAction) {
-        match action {
-            CaptureAction::None => {}
-            CaptureAction::Cancel => {
-                send_event(PttEvent::Capture(CaptureResult {
-                    token: String::new(),
-                    label: String::new(),
-                    cancelled: true,
-                }));
-            }
-            CaptureAction::Finalize(binding) => {
-                let (token, label) = {
-                    let mut s = state_lock();
-                    s.binding = Some(binding);
-                    s.pressed = false;
-                    (token_of(&binding), format_binding(&binding))
-                };
-                send_event(PttEvent::Capture(CaptureResult { token, label, cancelled: false }));
-            }
-        }
+    /// Stores a finalised capture and notifies the frontend. Token/label are
+    /// formatted on the worker thread so no string work happens in a hook.
+    fn finish_capture(binding: Binding) {
+        let packed = pack(&binding);
+        end_capture();
+        BINDING.store(packed, Ordering::Relaxed);
+        PRESSED.store(false, Ordering::Relaxed);
+        emit_event(EV_CAPTURE, packed);
     }
 
-    /// Computes down/up edges for a matched main input. Holds the state lock.
-    fn edge(s: &mut State, b: &Binding, is_down: bool, is_up: bool) -> (bool, bool) {
+    /// Computes and emits the down/up edge for a matched main input.
+    fn edge(b: &Binding, is_down: bool, is_up: bool) {
         if is_down {
             // Required modifiers must be held (extras are ignored).
             let (c, a, sh, w) = mods_now();
             let mods_ok = (!b.ctrl || c) && (!b.alt || a) && (!b.shift || sh) && (!b.win || w);
-            if mods_ok && !s.pressed {
-                s.pressed = true;
-                return (true, false);
+            // The swap is the de-dup: only the thread that flips false→true emits.
+            if mods_ok && !PRESSED.swap(true, Ordering::AcqRel) {
+                emit_event(EV_DOWN, 0);
             }
-        } else if is_up && s.pressed {
-            s.pressed = false;
-            return (false, true);
-        }
-        (false, false)
-    }
-
-    fn emit_edges(down: bool, up: bool) {
-        if down {
-            send_event(PttEvent::Down);
-        }
-        if up {
-            send_event(PttEvent::Up);
+        } else if is_up && PRESSED.swap(false, Ordering::AcqRel) {
+            emit_event(EV_UP, 0);
         }
     }
 
