@@ -2,7 +2,6 @@ import {Component, computed, DestroyRef, effect, HostListener, inject, input, si
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {firstValueFrom} from 'rxjs';
 import {NgClass} from '@angular/common';
-import {FormsModule} from '@angular/forms';
 import {Menu} from 'primeng/menu';
 import {ContextMenu} from 'primeng/contextmenu';
 import {Button} from 'primeng/button';
@@ -35,13 +34,14 @@ import {GuildVoiceService} from '../../../../services/guild-voice.service';
 import {GuildUiActionsService} from '../../../../services/guild-ui-actions.service';
 import {TranslateModule} from '@ngx-translate/core';
 import {ChannelListDragService} from './channel-list-drag.service';
+import {CreateChannelModalComponent} from './components/create-channel-modal/create-channel-modal.component';
+import {CreateCategoryModalComponent} from './components/create-category-modal/create-category-modal.component';
 
 @Component({
     selector: 'app-channel-list',
     providers: [ChannelListDragService],
     imports: [
         NgClass,
-        FormsModule,
         Menu,
         ContextMenu,
         Button,
@@ -51,6 +51,8 @@ import {ChannelListDragService} from './channel-list-drag.service';
         GuildSettingsModalComponent,
         ChannelSettingsModalComponent,
         CategorySettingsModalComponent,
+        CreateChannelModalComponent,
+        CreateCategoryModalComponent,
         PrimeTemplate,
         CallContextMenuComponent,
         TranslateModule,
@@ -66,6 +68,8 @@ export class ChannelListComponent {
     @ViewChild('listMenu') listMenu!: ContextMenu;
     @ViewChild(ChannelSettingsModalComponent) channelSettingsModal?: ChannelSettingsModalComponent;
     @ViewChild(CategorySettingsModalComponent) categorySettingsModal?: CategorySettingsModalComponent;
+    @ViewChild(CreateChannelModalComponent) createChannelModal?: CreateChannelModalComponent;
+    @ViewChild(CreateCategoryModalComponent) createCategoryModal?: CreateCategoryModalComponent;
     protected readonly ChannelType = ChannelType;
     protected navService = inject(NavigationService);
     protected voiceChannelSvc = inject(VoiceChannelService);
@@ -94,16 +98,9 @@ export class ChannelListComponent {
     protected inviteLink = signal('');
     protected inviteLoading = signal(false);
     protected inviteCopied = signal(false);
-    // ── Create channel dialog ─────────────────────────────────────────────────
+    // ── Create channel / category dialogs ─────────────────────────────────────
     protected showCreateChannel = signal(false);
-    protected createChannelName = signal('');
-    protected createChannelType = signal<ChannelType>(ChannelType.Text);
-    protected createChannelCategory = signal<string | undefined>(undefined);
-    protected createChannelCreating = signal(false);
-    // ── Create category dialog ────────────────────────────────────────────────
     protected showCreateCategory = signal(false);
-    protected createCategoryName = signal('');
-    protected createCategoryCreating = signal(false);
 
     // ── Drag delegates (HostListener must stay in component) ──────────────────
     protected contextChannel = signal<ChannelDto | null>(null);
@@ -485,55 +482,15 @@ export class ChannelListComponent {
         });
     }
 
-    // ── Create channel ────────────────────────────────────────────────────────
+    // ── Create channel / category ─────────────────────────────────────────────
     protected openCreateChannel(categoryId: string | undefined): void {
-        this.createChannelName.set('');
-        this.createChannelType.set(ChannelType.Text);
-        this.createChannelCategory.set(categoryId);
-        this.showCreateChannel.set(true);
-    }
-
-    protected submitCreateChannel(): void {
-        if (this.createChannelCreating() || !this.createChannelName().trim()) return;
-        this.createChannelCreating.set(true);
-        const categoryId = this.createChannelCategory();
         const position = categoryId
             ? this.categoryChannels(categoryId).length
             : this.localChannels().filter(c => !c.categoryId).length;
-        this.guildService.createChannel({
-            guildId: this.guild().id,
-            name: this.createChannelName().trim(),
-            type: this.createChannelType(),
-            categoryId,
-            position,
-        }).subscribe({
-            next: () => {
-                this.showCreateChannel.set(false);
-                this.createChannelCreating.set(false);
-            },
-            error: () => this.createChannelCreating.set(false),
-        });
+        this.createChannelModal?.open(categoryId, position);
     }
 
-    // ── Create category ───────────────────────────────────────────────────────
     protected openCreateCategory(): void {
-        this.createCategoryName.set('');
-        this.showCreateCategory.set(true);
-    }
-
-    protected submitCreateCategory(): void {
-        if (this.createCategoryCreating() || !this.createCategoryName().trim()) return;
-        this.createCategoryCreating.set(true);
-        this.guildService.createCategory({
-            guildId: this.guild().id,
-            name: this.createCategoryName().trim(),
-            position: this.localCategories().length,
-        }).subscribe({
-            next: () => {
-                this.showCreateCategory.set(false);
-                this.createCategoryCreating.set(false);
-            },
-            error: () => this.createCategoryCreating.set(false),
-        });
+        this.createCategoryModal?.open(this.localCategories().length);
     }
 }
