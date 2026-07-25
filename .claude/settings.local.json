@@ -110,7 +110,9 @@
       "WebFetch(domain:jonaskruckenberg.github.io)",
       "Bash(bun install *)",
       "Bash(bun run *)",
-      "PowerShell(cargo check --lib 2>&1)"
+      "PowerShell(cargo check --lib 2>&1)",
+      "Bash(git --no-pager status)",
+      "Bash(git --no-pager diff --stat)"
     ]
   }
 }
