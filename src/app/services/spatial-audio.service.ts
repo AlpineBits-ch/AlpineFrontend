@@ -42,9 +42,9 @@ import {environment} from '../../environments/environment';
 const TUNING_DEFAULTS = {
     spatialIntensity: 0.6,
     panningModel: 'HRTF' as PanningModelType,
-    refDistance: 300,
-    maxDistance: 3000,
-    rolloffFactor: 1,
+    refDistance: 1500,
+    maxDistance: 8000,
+    rolloffFactor: 1.6,
 };
 const envTuning = (environment as { isleVoice?: Partial<typeof TUNING_DEFAULTS> }).isleVoice ?? {};
 const TUNING = {
@@ -54,12 +54,33 @@ const TUNING = {
     panningModel: (envTuning.panningModel ?? TUNING_DEFAULTS.panningModel) as PanningModelType,
 };
 
-/** Voice cell size in Unreal units (cm) = 30 m -audio is inaudible beyond this. */
-const CELL_UNITS = TUNING.maxDistance;
-/** Full volume within this distance (cm). */
+/**
+ * Backend `VoiceGridConfig.CellSize` in Unreal units (cm) = 80 m. Audibility is a
+ * coarse 3x3 cell subscription plus client distance attenuation as the real edge,
+ * which stays cliff-free only while our range never exceeds one cell -otherwise
+ * two players a metre apart across a cell border hear nothing. Bump only when the
+ * backend does.
+ */
+const BACKEND_CELL_SIZE = 8000;
+/** Audible range in Unreal units (cm) = 80 m -audio is inaudible beyond this. */
+const CELL_UNITS = Math.min(TUNING.maxDistance, BACKEND_CELL_SIZE);
+if (TUNING.maxDistance > BACKEND_CELL_SIZE) {
+    console.warn(`[isle-voice] maxDistance ${TUNING.maxDistance} exceeds backend CellSize ` +
+        `${BACKEND_CELL_SIZE}; clamping to avoid the cell-border cliff.`);
+}
+/** Full volume within this distance (cm) = 15 m. */
 const REF_DISTANCE = TUNING.refDistance;
 /** Distance attenuation steepness. */
 const ROLLOFF = TUNING.rolloffFactor;
+/**
+ * Raw inverse-curve gain at {@link CELL_UNITS}. The curve never reaches 0 on its
+ * own (at 80 m with rolloff 1.6 it is still ~0.13, i.e. -18 dB), and the 3x3 cell
+ * subscription block hands us peers well past 80 m, so that residual would leave
+ * a whole neighbourhood faintly audible. {@link distanceGainFor} subtracts it and
+ * renormalizes, which keeps the curve's shape but lands exactly on silence at the
+ * range edge.
+ */
+const EDGE_GAIN = REF_DISTANCE / (REF_DISTANCE + ROLLOFF * (CELL_UNITS - REF_DISTANCE));
 
 /** How far past the last sample we coast before holding position (ms). */
 const MAX_EXTRAP_MS = 1500;
@@ -341,11 +362,10 @@ export class SpatialAudioService {
         const dRight = them.y - me.y;
         const dUp = them.z - me.z;
 
-        // Distance attenuation (inverse model, matching the classic PannerNode
-        // curve) applied once, before the wet/dry split, so both modes fade alike.
+        // Distance attenuation applied once, before the wet/dry split, so both
+        // modes fade alike.
         const dist = Math.hypot(dFwd, dRight, dUp);
-        const clamped = Math.min(Math.max(dist, REF_DISTANCE), CELL_UNITS);
-        const g = REF_DISTANCE / (REF_DISTANCE + ROLLOFF * (clamped - REF_DISTANCE));
+        const g = distanceGainFor(dist);
         const t = this.ctx.currentTime;
         peer.distanceGain.gain.setTargetAtTime(g, t, SMOOTH_TAU);
 
@@ -401,4 +421,18 @@ export class SpatialAudioService {
 
 function clamp01(v: number): number {
     return Math.max(0, Math.min(1, v));
+}
+
+/**
+ * Distance attenuation for a peer `dist` centimetres away: flat 1 out to
+ * {@link REF_DISTANCE} (15 m), then the inverse-distance curve the PannerNode
+ * would apply, shifted so it reaches exactly 0 at {@link CELL_UNITS} (80 m)
+ * instead of bottoming out at {@link EDGE_GAIN}.
+ */
+function distanceGainFor(dist: number): number {
+    if (dist <= REF_DISTANCE) return 1;
+    if (dist >= CELL_UNITS) return 0;
+    const raw = REF_DISTANCE / (REF_DISTANCE + ROLLOFF * (dist - REF_DISTANCE));
+    // ROLLOFF 0 (flat, dev knob) makes EDGE_GAIN 1 and the shift undefined.
+    return EDGE_GAIN >= 1 ? raw : (raw - EDGE_GAIN) / (1 - EDGE_GAIN);
 }

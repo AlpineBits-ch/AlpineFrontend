@@ -29,11 +29,15 @@ export const environment = {
         spatialIntensity: 0.6,
         /** Web Audio panning model: 'HRTF' (binaural) or 'equalpower' (cheaper, softer). */
         panningModel: 'HRTF',
-        /** Full-volume radius in Unreal units (cm). */
-        refDistance: 300,
-        /** Inaudible beyond this (cm) -keep coupled to backend CellSize (30 m). */
-        maxDistance: 3000,
-        /** Distance attenuation steepness (inverse model). */
-        rolloffFactor: 1,
+        /** Full-volume radius in Unreal units (cm) = 15 m; fades gradually past it. */
+        refDistance: 1500,
+        /** Inaudible beyond this (cm) -must stay <= backend CellSize (80 m). */
+        maxDistance: 8000,
+        /**
+         * Distance attenuation steepness (inverse model). Raised above 1 because
+         * the inverse tail is long over 80 m -a flatter curve leaves a crowd of
+         * distant peers audible at once and the mix turns muddy.
+         */
+        rolloffFactor: 1.6,
     },
 };
