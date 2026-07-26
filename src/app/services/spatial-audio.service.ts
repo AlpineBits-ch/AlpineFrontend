@@ -1,5 +1,6 @@
-import {Injectable} from '@angular/core';
+import {inject, Injectable} from '@angular/core';
 import {environment} from '../../environments/environment';
+import {MediaDeviceResolverService} from './media-device-resolver.service';
 
 /**
  * Web Audio spatializer for Isle proximity voice.
@@ -123,14 +124,17 @@ interface PeerNode {
 
 @Injectable({providedIn: 'root'})
 export class SpatialAudioService {
+    private readonly devices = inject(MediaDeviceResolverService);
     private ctx: AudioContext | null = null;
     private masterGain: GainNode | null = null;
     private spatialEnabled = true;
     private masterVolume = 1;
     /** Directional share of the mix when spatial is enabled (0–1). */
     private spatialIntensity = clamp01(TUNING.spatialIntensity);
-    /** Selected output device; '' means the system default sink. */
+    /** Selected output device as a web sink id; '' means the system default sink. */
     private sinkId = '';
+    /** Bumped per {@link setOutputDevice} call so a slow resolve can't clobber a newer pick. */
+    private sinkGen = 0;
 
     private self: MotionState | null = null;
     private selfYaw = 0;
@@ -161,15 +165,19 @@ export class SpatialAudioService {
      * Select the output device for the proximity mix and apply it live.
      *
      * Uses `AudioContext.setSinkId`, so switching devices takes effect instantly
-     * without tearing down the session. `'default'`/empty map to the system sink.
+     * without tearing down the session.
+     *
+     * @param deviceName the stored `speakerId` -a platform device name, which is
+     *   resolved to a web sink id here. `'default'`/empty (or an unknown device)
+     *   map to the system sink.
      */
-    async setOutputDevice(deviceId: string): Promise<void> {
-        const next = (!deviceId || deviceId === 'default') ? '' : deviceId;
-        if (next === this.sinkId && this.ctx) {
-            // Already applied; nothing to do (unless the context isn't up yet).
-            await this.applySink();
-            return;
-        }
+    async setOutputDevice(deviceName: string): Promise<void> {
+        const gen = ++this.sinkGen;
+        const next = await this.devices.toWebDeviceId('audiooutput', deviceName);
+        // A newer selection landed while we were resolving -let it win.
+        if (gen !== this.sinkGen) return;
+
+        // Re-apply even when unchanged: the context may not have existed yet.
         this.sinkId = next;
         await this.applySink();
     }
@@ -345,7 +353,13 @@ export class SpatialAudioService {
         try {
             await ctx.setSinkId(this.sinkId);
         } catch (e) {
-            console.error('[isle-voice] setSinkId failed', e);
+            // The device went away between enumeration and here (headset unplugged,
+            // dock detached). Fall back to the system sink so the mix keeps playing
+            // instead of stranding it on a dead device.
+            console.warn('[isle-voice] setSinkId failed; falling back to the default output', e);
+            if (this.sinkId === '') return;
+            this.sinkId = '';
+            await ctx.setSinkId('').catch(() => void 0);
         }
     }
 

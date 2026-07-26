@@ -1,8 +1,17 @@
-import {Injectable, signal} from '@angular/core';
+import {inject, Injectable, signal} from '@angular/core';
+import {MediaDeviceResolverService} from './media-device-resolver.service';
 
 export interface AudioSettings {
+    /**
+     * Selected microphone. Holds the platform device *name* (as returned by the
+     * Tauri `enumerate_audio_devices` command) because the Rust capture pipeline
+     * looks devices up by cpal name. Web APIs need an id from
+     * `enumerateDevices()` instead -go through {@link MediaDeviceResolverService}.
+     */
     micId: string;
+    /** Selected speaker; same name-vs-web-id caveat as {@link micId}. */
     speakerId: string;
+    /** Selected camera ('' = none); same name-vs-web-id caveat as {@link micId}. */
     cameraId: string;
     noiseSuppression: boolean;
     echoCancellation: boolean;
@@ -53,6 +62,8 @@ const STORAGE_KEY = 'alpine_audio_settings';
 export class AudioSettingsService {
     readonly settings = signal<AudioSettings>(this.load());
 
+    private readonly devices = inject(MediaDeviceResolverService);
+
     update(patch: Partial<AudioSettings>): void {
         this.settings.update(s => {
             const next = {...s, ...patch};
@@ -61,11 +72,19 @@ export class AudioSettingsService {
         });
     }
 
-    /** Build getUserMedia audio constraints (used when enhanced NS is off). */
-    buildAudioConstraint(): MediaTrackConstraints {
+    /**
+     * Build getUserMedia audio constraints (used when enhanced NS is off).
+     *
+     * Async because {@link micId} is a platform device name, which has to be
+     * resolved against `enumerateDevices()` before getUserMedia will honour it.
+     */
+    async buildAudioConstraint(): Promise<MediaTrackConstraints> {
         const s = this.settings();
+        const deviceId = await this.devices.toWebDeviceId('audioinput', s.micId);
         return {
-            deviceId: s.micId !== 'default' ? {ideal: s.micId} : undefined,
+            // `ideal`, not `exact`: if the mic vanished between resolution and
+            // capture we'd rather get the default than fail the whole call.
+            deviceId: deviceId ? {ideal: deviceId} : undefined,
             noiseSuppression: s.noiseSuppression,
             echoCancellation: s.echoCancellation,
             autoGainControl: s.autoGainControl,
@@ -73,9 +92,17 @@ export class AudioSettingsService {
     }
 
     /** Build getUserMedia video constraint from current settings. */
-    buildVideoConstraint(): MediaTrackConstraints {
-        const s = this.settings();
-        return s.cameraId ? {deviceId: {ideal: s.cameraId}} : {};
+    async buildVideoConstraint(): Promise<MediaTrackConstraints> {
+        const deviceId = await this.devices.toWebDeviceId('videoinput', this.settings().cameraId);
+        return deviceId ? {deviceId: {ideal: deviceId}} : {};
+    }
+
+    /**
+     * Web sink id for the selected speaker, for `setSinkId` on an `<audio>`
+     * element or an `AudioContext`. `''` means the system default sink.
+     */
+    resolveSpeakerSinkId(): Promise<string> {
+        return this.devices.toWebDeviceId('audiooutput', this.settings().speakerId);
     }
 
     private load(): AudioSettings {

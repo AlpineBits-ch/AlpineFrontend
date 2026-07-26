@@ -67,7 +67,7 @@ export class IsleVoiceRtcService {
             let localStream: MediaStream;
             try {
                 const raw = await navigator.mediaDevices.getUserMedia({
-                    audio: this.audioSettings.buildAudioConstraint(),
+                    audio: await this.audioSettings.buildAudioConstraint(),
                     video: false,
                 });
                 // Route the raw mic through a gain node so proximity mic volume

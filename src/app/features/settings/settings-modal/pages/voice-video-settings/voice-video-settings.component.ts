@@ -470,7 +470,7 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         if (!navigator?.mediaDevices) return;
         try {
             this.micStream = await navigator.mediaDevices.getUserMedia({
-                audio: this.audioSettings.buildAudioConstraint(),
+                audio: await this.audioSettings.buildAudioConstraint(),
             });
             this.audioCtx = new AudioContext();
             const source = this.audioCtx.createMediaStreamSource(this.micStream);
@@ -478,11 +478,29 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
             this.analyser.fftSize = 256;
             this.analyser.smoothingTimeConstant = 0.72;
             source.connect(this.analyser);
+            // Monitor through the selected speaker, so the voice test actually
+            // exercises the device the user just picked.
+            void this.routeTestToSelectedSpeaker(this.audioCtx);
             this.isMicActive.set(true);
             this.permissionError.set(false);
             this.poll();
         } catch {
             this.permissionError.set(true);
+        }
+    }
+
+    /** Best-effort: send the mic-test monitor to the selected speaker. */
+    private async routeTestToSelectedSpeaker(ctx: AudioContext): Promise<void> {
+        const withSink = ctx as AudioContext & { setSinkId?: (id: string) => Promise<void> };
+        if (typeof withSink.setSinkId !== 'function') return;
+
+        const sinkId = await this.audioSettings.resolveSpeakerSinkId();
+        // Bail if the test was stopped (or restarted) while we were resolving.
+        if (!sinkId || this.audioCtx !== ctx) return;
+        try {
+            await withSink.setSinkId(sinkId);
+        } catch (e) {
+            console.warn('[devices] mic-test setSinkId failed; using the default output', e);
         }
     }
 

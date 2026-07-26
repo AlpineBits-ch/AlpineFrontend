@@ -121,7 +121,7 @@ export class VoiceRTCService {
                     } catch (rustErr) {
                         console.warn('[voice] Rust audio capture failed, falling back to getUserMedia:', rustErr);
                         const stream = await navigator.mediaDevices.getUserMedia({
-                            audio: this.audioSettings.buildAudioConstraint(),
+                            audio: await this.audioSettings.buildAudioConstraint(),
                             video: false,
                         });
                         audioTrack = stream.getAudioTracks()[0];
@@ -129,7 +129,7 @@ export class VoiceRTCService {
                     }
                 } else {
                     const stream = await navigator.mediaDevices.getUserMedia({
-                        audio: this.audioSettings.buildAudioConstraint(),
+                        audio: await this.audioSettings.buildAudioConstraint(),
                         video: false,
                     });
                     audioTrack = stream.getAudioTracks()[0];
@@ -661,10 +661,7 @@ export class VoiceRTCService {
                 ? (this._isDeafened ? 0 : (this.userVolumes.get(meta.userId) ?? 1))
                 : (this.screenAudioMutedSignal().has(meta.userId) ? 0 : 1);
 
-            const speakerId = this.audioSettings.settings().speakerId;
-            if (speakerId && speakerId !== 'default' && typeof (audio as any).setSinkId === 'function') {
-                (audio as any).setSinkId(speakerId).catch(() => void 0);
-            }
+            void this.routeToSelectedSpeaker(audio);
             void audio.play().catch(() => {
             });
 
@@ -688,6 +685,29 @@ export class VoiceRTCService {
                 n.set(meta.userId, stream);
                 return n;
             });
+        }
+    }
+
+    /**
+     * Point a remote-audio element at the selected speaker (best-effort).
+     *
+     * The stored `speakerId` is a platform device name, so it has to be resolved
+     * to a web sink id first -handing the raw name to `setSinkId` throws
+     * `NotFoundError`. An unresolvable or dead device just leaves the element on
+     * the system default.
+     */
+    private async routeToSelectedSpeaker(el: HTMLAudioElement): Promise<void> {
+        const setSinkId = (el as HTMLAudioElement & {
+            setSinkId?: (id: string) => Promise<void>
+        }).setSinkId;
+        if (typeof setSinkId !== 'function') return;
+
+        const sinkId = await this.audioSettings.resolveSpeakerSinkId();
+        if (!sinkId) return;
+        try {
+            await setSinkId.call(el, sinkId);
+        } catch (e) {
+            console.warn('[voice] setSinkId failed; using the default output', e);
         }
     }
 

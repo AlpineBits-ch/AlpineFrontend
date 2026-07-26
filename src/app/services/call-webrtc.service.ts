@@ -213,7 +213,7 @@ export class CallWebRtcService {
                 });
             } else {
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: this.audioSettings.buildAudioConstraint(),
+                    audio: await this.audioSettings.buildAudioConstraint(),
                     video: false,
                 });
                 audioTrack = stream.getAudioTracks()[0];
@@ -524,10 +524,7 @@ export class CallWebRtcService {
             element.srcObject = stream;
             element.autoplay = true;
             element.volume = this.userVolumes.get(info.userId) ?? 1;
-            const speakerId = this.audioSettings.settings().speakerId;
-            if (speakerId && speakerId !== 'default' && typeof (element as any).setSinkId === 'function') {
-                (element as any).setSinkId(speakerId).catch(() => void 0);
-            }
+            void this.routeToSelectedSpeaker(element);
             void element.play().catch(() => {
             });
 
@@ -557,6 +554,29 @@ export class CallWebRtcService {
         } else if (info.kind === 'screen' && info.shareId) {
             this.callSession.onScreenShareStarted(info.shareId, info.userId, stream);
             event.track.onended = () => this.callSession.onScreenShareStopped(info.shareId!);
+        }
+    }
+
+    /**
+     * Point a remote-audio element at the selected speaker (best-effort).
+     *
+     * The stored `speakerId` is a platform device name, so it has to be resolved
+     * to a web sink id first -handing the raw name to `setSinkId` throws
+     * `NotFoundError`. An unresolvable or dead device just leaves the element on
+     * the system default.
+     */
+    private async routeToSelectedSpeaker(el: HTMLAudioElement): Promise<void> {
+        const setSinkId = (el as HTMLAudioElement & {
+            setSinkId?: (id: string) => Promise<void>
+        }).setSinkId;
+        if (typeof setSinkId !== 'function') return;
+
+        const sinkId = await this.audioSettings.resolveSpeakerSinkId();
+        if (!sinkId) return;
+        try {
+            await setSinkId.call(el, sinkId);
+        } catch (e) {
+            console.warn('[call] setSinkId failed; using the default output', e);
         }
     }
 
