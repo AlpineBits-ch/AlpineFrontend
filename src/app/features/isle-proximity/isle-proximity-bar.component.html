@@ -48,6 +48,7 @@
             }
 
             @case ('connected') {
+                @let muted = prox.isMuted();
                 @let talking = prox.isTransmitting();
                 <div class="flex items-center gap-3">
 
@@ -66,25 +67,31 @@
                         </div>
                     </div>
 
-                    <!-- Mic / PTT indicator -->
-                    <div class="flex items-center gap-1.5 px-2 py-1 rounded-md shrink-0"
-                         [style.background]="talking ? 'rgba(52,211,153,0.15)' : 'rgba(255,255,255,0.06)'"
-                         [style.color]="talking ? '#34d399' : 'rgba(255,255,255,0.5)'">
-                        <i class="text-xs" [class]="talking ? 'pi pi-microphone' : 'pi pi-ban'"></i>
+                    <!-- Mic state -click to mute / unmute -->
+                    <button
+                        (click)="prox.toggleMute()"
+                        [title]="(muted ? 'PROX_CHAT.UNMUTE' : 'PROX_CHAT.MUTE') | translate"
+                        [ngClass]="muted
+                            ? 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25'
+                            : talking
+                                ? 'bg-emerald-400/15 text-emerald-400 hover:bg-emerald-400/25'
+                                : 'bg-white/[0.06] text-white/50 hover:bg-white/[0.10] hover:text-white/75'"
+                        class="flex items-center gap-1.5 px-2 py-1 rounded-md shrink-0 border-0 cursor-pointer transition-colors">
+                        <i class="pi text-xs" [ngClass]="muted ? 'pi-microphone-slash' : 'pi-microphone'"></i>
                         <span class="text-[10px] font-semibold uppercase tracking-wide">
-                            {{ (talking ? 'PROX_CHAT.TALKING' : 'PROX_CHAT.MUTED') | translate }}
+                            {{ (muted ? 'PROX_CHAT.MUTED' : talking ? 'PROX_CHAT.TALKING' : 'PROX_CHAT.READY') | translate }}
                         </span>
-                    </div>
+                    </button>
 
-                    @if (pttSupported) {
-                        <span class="text-[10px] text-white/40 shrink-0 hidden sm:inline">
-                            {{ 'PROX_CHAT.PTT_HINT' | translate:{ key: pttKey() } }}
-                        </span>
-                    } @else {
-                        <span class="text-[10px] text-white/40 shrink-0 hidden sm:inline">
+                    <span class="text-[10px] text-white/40 shrink-0 hidden sm:inline">
+                        @if (!pttSupported) {
                             {{ 'PROX_CHAT.OPEN_MIC' | translate }}
-                        </span>
-                    }
+                        } @else if (isToggleMode()) {
+                            {{ 'PROX_CHAT.TOGGLE_HINT' | translate:{ key: pttKey() } }}
+                        } @else {
+                            {{ 'PROX_CHAT.PTT_HINT' | translate:{ key: pttKey() } }}
+                        }
+                    </span>
 
                     <div class="flex-1"></div>
 

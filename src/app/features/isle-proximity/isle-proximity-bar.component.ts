@@ -1,4 +1,5 @@
-import {Component, computed, inject, OnDestroy, OnInit, signal} from '@angular/core';
+import {Component, computed, effect, inject, OnDestroy, OnInit, signal} from '@angular/core';
+import {NgClass} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule} from '@ngx-translate/core';
 import {Slider} from 'primeng/slider';
@@ -7,6 +8,7 @@ import {take} from 'rxjs';
 import {IsleProximityService} from '../../services/isle-proximity.service';
 import {AudioSettingsService} from '../../services/audio-settings.service';
 import {HotkeyService} from '../../services/hotkey.service';
+import {NativePttService} from '../../services/native-ptt.service';
 import {SteamService} from '../../services/steam.service';
 import {ExternalLinkService} from '../../services/external-link.service';
 import {ToastService} from '../../services/toast.service';
@@ -20,13 +22,14 @@ type BarMode = 'linkSteam' | 'available' | 'connecting' | 'connected';
  */
 @Component({
     selector: 'app-isle-proximity-bar',
-    imports: [FormsModule, TranslateModule, Slider, ToggleSwitch],
+    imports: [NgClass, FormsModule, TranslateModule, Slider, ToggleSwitch],
     templateUrl: './isle-proximity-bar.component.html',
 })
 export class IsleProximityBarComponent implements OnInit, OnDestroy {
     protected prox = inject(IsleProximityService);
     private audioSettings = inject(AudioSettingsService);
     private hotkey = inject(HotkeyService);
+    private nativePtt = inject(NativePttService);
     private steamService = inject(SteamService);
     private externalLink = inject(ExternalLinkService);
     private toast = inject(ToastService);
@@ -54,8 +57,10 @@ export class IsleProximityBarComponent implements OnInit, OnDestroy {
         return `${m}:${s}`;
     });
 
-    protected pttKey = computed(() => this.audioSettings.settings().proximityPttKey);
+    /** Display label for the bound key; resolved asynchronously, see the effect below. */
+    protected pttKey = signal('');
     protected pttSupported = this.hotkey.supported;
+    protected isToggleMode = computed(() => this.prox.inputMode() === 'toggle');
 
     protected get volumePct(): number {
         return Math.round(this.audioSettings.settings().proximityVolume * 100);
@@ -79,6 +84,15 @@ export class IsleProximityBarComponent implements OnInit, OnDestroy {
 
     protected set spatialEnabled(v: boolean) {
         this.prox.setSpatialEnabled(v);
+    }
+
+    constructor() {
+        // Keep the hint in sync with rebinds; the native hook is the only thing
+        // that can turn its own tokens (VK86, MouseX2) into something readable.
+        effect(() => {
+            const token = this.audioSettings.settings().proximityPttKey;
+            void this.nativePtt.labelFor(token).then(label => this.pttKey.set(label));
+        });
     }
 
     ngOnInit(): void {

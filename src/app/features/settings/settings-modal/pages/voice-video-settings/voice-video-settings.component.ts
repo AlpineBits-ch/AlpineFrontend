@@ -6,9 +6,9 @@ import {ToggleSwitch} from 'primeng/toggleswitch';
 import {Slider} from 'primeng/slider';
 import {TranslateModule} from '@ngx-translate/core';
 import {invoke} from '@tauri-apps/api/core';
-import {AudioSettingsService} from '../../../../../services/audio-settings.service';
+import {AudioSettingsService, ProximityInputMode} from '../../../../../services/audio-settings.service';
 import {IsleProximityService} from '../../../../../services/isle-proximity.service';
-import {NativePttService} from '../../../../../services/native-ptt.service';
+import {formatAccelerator, NativePttService} from '../../../../../services/native-ptt.service';
 
 interface RustAudioDevice {
     id: string;
@@ -29,6 +29,12 @@ interface DeviceOption {
 interface BitrateOption {
     label: string;
     value: number;
+}
+
+interface InputModeOption {
+    label: string;
+    value: ProximityInputMode;
+    icon: string;
 }
 
 @Component({
@@ -66,6 +72,10 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         {label: 'Normal · 4 Mbps', value: 4000},
         {label: 'High · 8 Mbps', value: 8000},
         {label: 'Ultra · 15 Mbps', value: 15000},
+    ];
+    readonly inputModes: InputModeOption[] = [
+        {label: 'Push-to-Talk', value: 'ptt', icon: 'pi-bolt'},
+        {label: 'Toggle Mute', value: 'toggle', icon: 'pi-microphone'},
     ];
     readonly micLevel = signal(0);
     readonly isMicActive = signal(false);
@@ -228,10 +238,19 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         this.proximity.setSpatialEnabled(v);
     }
 
+    /** Whether the hotkey holds to transmit or toggles mute. */
+    get proximityInputMode(): ProximityInputMode {
+        return this.audioSettings.settings().proximityInputMode;
+    }
+
+    set proximityInputMode(v: ProximityInputMode) {
+        this.proximity.setInputMode(v);
+    }
+
     /** Human-readable form of the stored push-to-talk binding. */
     get pttKeyLabel(): string {
         if (this.nativePtt.supported()) return this.pttLabel() || '-';
-        return this.formatAccelerator(this.audioSettings.settings().proximityPttKey);
+        return formatAccelerator(this.audioSettings.settings().proximityPttKey);
     }
 
     /** Capture a new push-to-talk binding -natively on Windows (keys/modifiers/mouse), else keyboard-only. */
@@ -397,23 +416,6 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         if (e.metaKey) parts.push('Super');
         parts.push(e.code);
         return parts.join('+');
-    }
-
-    private formatAccelerator(accel: string): string {
-        return accel.split('+').map(part => {
-            switch (part) {
-                case 'Control':
-                    return 'Ctrl';
-                case 'Super':
-                    return 'Win';
-                case 'Backquote':
-                    return '`';
-                default:
-                    if (part.startsWith('Key')) return part.slice(3);
-                    if (part.startsWith('Digit')) return part.slice(5);
-                    return part;
-            }
-        }).join(' + ');
     }
 
     async toggleMicTest(): Promise<void> {

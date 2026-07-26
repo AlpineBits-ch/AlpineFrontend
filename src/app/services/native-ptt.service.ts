@@ -17,6 +17,28 @@ export interface PttCaptureResult {
     cancelled: boolean;
 }
 
+/**
+ * Human-readable form of a Tauri global-shortcut accelerator (e.g.
+ * `Control+Shift+KeyV` → `Ctrl + Shift + V`). Only for the non-native fallback:
+ * native tokens (`VK86`, `MouseX2`) are formatted in Rust by `ptt_label`.
+ */
+export function formatAccelerator(accelerator: string): string {
+    return accelerator.split('+').map(part => {
+        switch (part) {
+            case 'Control':
+                return 'Ctrl';
+            case 'Super':
+                return 'Win';
+            case 'Backquote':
+                return '`';
+            default:
+                if (part.startsWith('Key')) return part.slice(3);
+                if (part.startsWith('Digit')) return part.slice(5);
+                return part;
+        }
+    }).join(' + ');
+}
+
 @Injectable({providedIn: 'root'})
 export class NativePttService {
     /** Emits true on key-down (transmit) and false on key-up. */
@@ -54,6 +76,22 @@ export class NativePttService {
 
     async label(token: string): Promise<string> {
         return this.invoke<string>('ptt_label', {token});
+    }
+
+    /**
+     * Display label for a stored binding, whichever mechanism is in play: the
+     * native hook formats its own tokens, everything else is an accelerator.
+     */
+    async labelFor(token: string): Promise<string> {
+        await this.whenReady();
+        if (this.supportedSig()) {
+            try {
+                return await this.label(token);
+            } catch {
+                // Fall through -a formatted accelerator beats showing a raw token.
+            }
+        }
+        return formatAccelerator(token);
     }
 
     /** Enter capture mode; resolves with the next bound input (or a cancelled result). */

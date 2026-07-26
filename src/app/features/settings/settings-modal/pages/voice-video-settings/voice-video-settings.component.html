@@ -204,12 +204,38 @@
             Isle Proximity Voice
         </h2>
 
-        <!-- Push-to-talk key -->
+        <!-- Input mode -->
+        <div class="flex items-center justify-between gap-4 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+            <div>
+                <p class="text-sm text-white/75">Input Mode</p>
+                <p class="text-xs text-white/35 mt-0.5">What the key below does. Push-to-Talk transmits only while it
+                    is held; Toggle Mute keeps the mic open and each press mutes or unmutes it.</p>
+            </div>
+            <div class="shrink-0 flex gap-1 p-1 rounded-lg bg-white/[0.04] border border-white/[0.10]">
+                @for (mode of inputModes; track mode.value) {
+                    <button (click)="proximityInputMode = mode.value"
+                            [ngClass]="proximityInputMode === mode.value
+                    ? 'bg-white/[0.10] text-white/85'
+                    : 'text-white/45 hover:text-white/70'"
+                            class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium
+                   border-0 bg-transparent cursor-pointer transition-colors whitespace-nowrap">
+                        <i class="pi text-[11px]" [ngClass]="mode.icon"></i>
+                        {{ mode.label }}
+                    </button>
+                }
+            </div>
+        </div>
+
+        <!-- Hotkey binding -->
         <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
             <div>
-                <p class="text-sm text-white/75">Push-to-Talk Key</p>
-                <p class="text-xs text-white/35 mt-0.5">Hold to transmit -a key, a single modifier, or a mouse
-                    button. Works even while The Isle is focused.</p>
+                <p class="text-sm text-white/75">
+                    {{ proximityInputMode === 'toggle' ? 'Mute Toggle Key' : 'Push-to-Talk Key' }}
+                </p>
+                <p class="text-xs text-white/35 mt-0.5">
+                    {{ proximityInputMode === 'toggle' ? 'Press to mute or unmute' : 'Hold to transmit' }}
+                    -a key, a single modifier, or a mouse button.
+                </p>
             </div>
             <button (click)="startPttCapture()"
                     [ngClass]="capturingPtt()
@@ -260,7 +286,8 @@
         </div>
 
         <p class="text-[11px] text-white/25 pt-1">
-            Push-to-talk requires the desktop app; in the browser the mic stays open while connected.
+            The voice hotkey requires the desktop app; in the browser the mic stays open while connected and can
+            only be muted from the proximity bar.
         </p>
     </section>
 

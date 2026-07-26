@@ -1,6 +1,12 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {MediaDeviceResolverService} from './media-device-resolver.service';
 
+/**
+ * What the proximity voice hotkey does: `ptt` transmits while it is held,
+ * `toggle` flips mute on each press and otherwise leaves the mic open.
+ */
+export type ProximityInputMode = 'ptt' | 'toggle';
+
 export interface AudioSettings {
     /**
      * Selected microphone. Holds the platform device *name* (as returned by the
@@ -35,6 +41,8 @@ export interface AudioSettings {
     proximitySpatialEnabled: boolean;
     /** Global push-to-talk accelerator for Isle proximity voice (Tauri global-shortcut syntax). */
     proximityPttKey: string;
+    /** Whether {@link proximityPttKey} is hold-to-talk or a press-to-toggle mute. */
+    proximityInputMode: ProximityInputMode;
 }
 
 const DEFAULTS: AudioSettings = {
@@ -54,6 +62,7 @@ const DEFAULTS: AudioSettings = {
     proximityMicGain: 1,
     proximitySpatialEnabled: true,
     proximityPttKey: 'Backquote',
+    proximityInputMode: 'ptt',
 };
 
 const STORAGE_KEY = 'alpine_audio_settings';
