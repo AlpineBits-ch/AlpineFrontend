@@ -9,6 +9,7 @@ import {GuildService, UpdateGuildDto} from '../../../../../../services/guild.ser
 import {ImageCropperComponent} from '../../../../../../components/image-cropper/image-cropper.component';
 import {environment} from '../../../../../../../environments/environment';
 import {TranslateModule} from '@ngx-translate/core';
+import {ToastService} from '../../../../../../services/toast.service';
 
 @Component({
     selector: 'app-overview-settings',
@@ -31,6 +32,7 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
     showDeleteDialog = signal(false);
     deleting = signal(false);
     private guildService = inject(GuildService);
+    private toastService = inject(ToastService);
     private previewObjectUrl: string | null = null;
 
     ngOnInit(): void {
@@ -139,7 +141,10 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
                 this.showDeleteDialog.set(false);
                 this.deleting.set(false);
             },
-            error: () => this.deleting.set(false),
+            error: err => {
+                this.deleting.set(false);
+                this.toastService.httpError('Failed to delete server', err);
+            },
         });
     }
 
