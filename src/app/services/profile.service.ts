@@ -53,6 +53,15 @@ export class ProfileService {
             }));
     }
 
+    public setSelfStatus(status: OnlineStatus): Observable<ProfileDto> {
+        return this.httpClient
+            .patch<ProfileDto>(`${this.apiConfig.baseUrl()}/api/v1/social/profiles/me/status`, {status})
+            .pipe(tap(p => {
+                this.ownProfile.set(p);
+                this.store(p);
+            }));
+    }
+
     public getCachedById(profileId: string): ProfileDto | undefined {
         return this.byProfileId()[profileId];
     }

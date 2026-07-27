@@ -10,6 +10,7 @@ import {AttachmentDto} from "./file.service";
 import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
 import {ReorderRolesDto} from "../dtos/request/reorder-roles.dto";
 import {ProfileService} from "./profile.service";
+import {OnlineStatus} from "../dtos/response/profile.dto";
 
 export interface ChannelTypingEvent {
     channelId: string;
@@ -186,6 +187,12 @@ export interface WsThreadCreated {
     guildId: string;
 }
 
+export interface WsPresenceChanged {
+    userId: string;
+    guildId: string;
+    status: OnlineStatus;
+}
+
 @Injectable({
     providedIn: 'root',
 })
@@ -233,6 +240,8 @@ export class GuildWebsocketService {
     public rolesReorderedObservable = new Subject<ReorderRolesDto>();
     public channelUpdatedObservable = new Subject<WsChannelUpdated>();
     public threadCreatedObservable = new Subject<WsThreadCreated>();
+    // ── Presence ────────────────────────────────────────────────────────────────
+    public presenceChangedObservable = new Subject<WsPresenceChanged>();
     private realtime = inject(RealtimeConnectionService);
     private notificationService = inject(NotificationService);
     private profileService = inject(ProfileService);
@@ -330,6 +339,11 @@ export class GuildWebsocketService {
         this.realtime.on('guild.RolesReordered', (d: ReorderRolesDto) => this.rolesReorderedObservable.next(d));
         this.realtime.on('guild.ChannelUpdated', (d: WsChannelUpdated) => this.channelUpdatedObservable.next(d));
         this.realtime.on('guild.ThreadCreated', (d: WsThreadCreated) => this.threadCreatedObservable.next(d));
+
+        this.realtime.on('guild.PresenceChanged', (d: WsPresenceChanged) => {
+            this.presenceChangedObservable.next(d);
+            this.profileService.setOnlineStatus(d.userId, d.status);
+        });
 
         this.realtime.on('guild.ReactionCreated', (d: ReactionEvent) => this.reactionAddedObservable.next(d));
         this.realtime.on('guild.ReactionRemoved', (d: ReactionEvent) => this.reactionRemovedObservable.next(d));
