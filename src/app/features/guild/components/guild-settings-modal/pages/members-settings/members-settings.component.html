@@ -42,7 +42,7 @@
 
                     <!-- Info -->
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium text-white/85 truncate">{{ displayName(row) }}</p>
+                        <p [appUserNameStyle]="row.profile" class="text-sm font-medium text-white/85 truncate">{{ displayName(row) }}</p>
                         @if (row.roleNames.length > 0) {
                             <p class="text-[11px] text-white/35 truncate">{{ row.roleNames.join(', ') }}</p>
                         }

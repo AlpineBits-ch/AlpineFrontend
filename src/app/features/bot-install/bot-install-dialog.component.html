@@ -1,0 +1,62 @@
+<p-dialog
+        (visibleChange)="$event === false && dismiss()"
+        [breakpoints]="{'640px': '95vw'}"
+        [closable]="true"
+        [dismissableMask]="true"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '440px'}"
+        [visible]="visible()"
+        appendTo="body">
+
+    <ng-template pTemplate="header">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                 style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)">
+                <i class="pi pi-bolt text-sm" style="color: var(--color-brand-dim)"></i>
+            </div>
+            <span class="text-base font-semibold" style="color: var(--color-text-primary)">
+                {{ step() === 'picker' ? 'Install Bot' : 'Review Permissions' }}
+            </span>
+        </div>
+    </ng-template>
+
+    <div class="py-2">
+        @if (dialogService.request(); as request) {
+            @if (step() === 'picker') {
+                <app-bot-install-guild-picker
+                        #picker
+                        [clientId]="request.clientId"
+                        (guildSelected)="onGuildSelected($event, picker.guilds())"/>
+            } @else if (selectedGuildId(); as guildId) {
+                <app-bot-install-consent
+                        [clientId]="request.clientId"
+                        [permissions]="request.permissions"
+                        [guildId]="guildId"
+                        [guildName]="selectedGuildName()"
+                        [redirectUri]="request.redirectUri"
+                        (installed)="onInstalled($event)"/>
+            }
+        }
+    </div>
+
+    <ng-template pTemplate="footer">
+        <div class="flex gap-2 justify-end">
+            @if (canGoBack()) {
+                <p-button (onClick)="onBack()" [text]="true" label="Back" severity="secondary" size="small"/>
+            }
+            <p-button (onClick)="dismiss()" [text]="true" label="Cancel" severity="secondary" size="small"/>
+            @if (step() === 'consent') {
+                <p-button
+                        (onClick)="confirmInstall()"
+                        [disabled]="consentComponent()?.state() !== 'ready'"
+                        [loading]="consentComponent()?.state() === 'installing'"
+                        label="Add to Server"
+                        severity="primary"
+                        size="small"/>
+            }
+        </div>
+    </ng-template>
+
+</p-dialog>

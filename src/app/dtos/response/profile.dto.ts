@@ -6,6 +6,9 @@
     bio: string | undefined;
     userId: string;
     avatarUrl: string | undefined;
+    bannerUrl: string | undefined;
+    accentColor: string | null;
+    font: ProfileFont;
     onlineStatus: OnlineStatus;
 }
 
@@ -15,4 +18,13 @@ export enum OnlineStatus {
     Online = 'Online',
     Idle = 'Idle',
     DoNotDisturb = 'DoNotDisturb',
+}
+
+export enum ProfileFont {
+    Default = 'Default',
+    Serif = 'Serif',
+    Monospace = 'Monospace',
+    Rounded = 'Rounded',
+    Display = 'Display',
+    Handwritten = 'Handwritten',
 }

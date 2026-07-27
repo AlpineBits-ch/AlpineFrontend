@@ -1,40 +1,25 @@
-import {
-    Component,
-    EventEmitter,
-    inject,
-    Input,
-    OnChanges,
-    Output,
-    signal,
-    SimpleChanges,
-    computed
-} from '@angular/core';
-import {DatePipe} from '@angular/common';
+import {Component, inject, Input, OnChanges, Output, EventEmitter, signal, SimpleChanges} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {ProfileDto} from '../../dtos/response/profile.dto';
 import {ProfileService} from '../../services/profile.service';
-import {UserStatusDotComponent} from '../user-status-dot/user-status-dot.component';
+import {ProfileCardComponent} from '../profile-card/profile-card.component';
 import {TranslateModule} from '@ngx-translate/core';
 
 @Component({
     selector: 'app-profile-dialog',
     standalone: true,
-    imports: [Dialog, DatePipe, UserStatusDotComponent, TranslateModule],
+    imports: [Dialog, ProfileCardComponent, TranslateModule],
     templateUrl: './profile-dialog.component.html',
     styleUrl: './profile-dialog.component.css',
 })
 export class ProfileDialogComponent implements OnChanges {
     @Input() userId: string | null = null;
     @Input() friendsSince: Date | null = null;
-    @Input() bannerUrl: string | null = null;
     @Output() visibleChange = new EventEmitter<boolean>();
     protected dialogVisible = false;
     protected profile = signal<ProfileDto | undefined>(undefined);
     protected avatarExpanded = false;
     protected avatarError = signal(false);
-    protected avatarLabel = computed(() =>
-        this.profile()?.userName?.[0]?.toUpperCase() ?? '?'
-    );
     private profileService = inject(ProfileService);
 
     ngOnChanges(changes: SimpleChanges): void {

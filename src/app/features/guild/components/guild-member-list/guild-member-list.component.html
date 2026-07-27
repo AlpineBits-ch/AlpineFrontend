@@ -26,9 +26,12 @@
                                     <span class="text-xs font-semibold text-white/40">{{ displayName(member).charAt(0).toUpperCase() }}</span>
                                 }
                             </div>
-                            <app-user-status-dot [status]="member.status" size="md" borderColor="border-sidebar"/>
+                            <app-user-status-dot [status]="effectiveStatus(member)" size="md" borderColor="border-sidebar"/>
                         </div>
-                        <span class="text-sm font-medium text-white/80 truncate">{{ displayName(member) }}</span>
+                        <span [appUserNameStyle]="member.profile" class="text-sm font-medium text-white/80 truncate min-w-0">{{ displayName(member) }}</span>
+                        @if (isBot(member)) {
+                            <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim">Bot</span>
+                        }
                     </div>
                 }
             }
@@ -49,9 +52,12 @@
                                     <span class="text-xs font-semibold text-white/40">{{ displayName(member).charAt(0).toUpperCase() }}</span>
                                 }
                             </div>
-                            <app-user-status-dot [status]="member.status" size="md" borderColor="border-sidebar"/>
+                            <app-user-status-dot [status]="effectiveStatus(member)" size="md" borderColor="border-sidebar"/>
                         </div>
-                        <span class="text-sm font-medium text-white/35 truncate">{{ displayName(member) }}</span>
+                        <span [appUserNameStyle]="member.profile" class="text-sm font-medium text-white/35 truncate min-w-0">{{ displayName(member) }}</span>
+                        @if (isBot(member)) {
+                            <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim">Bot</span>
+                        }
                     </div>
                 }
             }

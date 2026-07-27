@@ -5,24 +5,29 @@ import {CommandDef} from '../commands';
 import {EmojiSuggestion} from '../../../../../../services/emoji-data.service';
 import {MentionCandidate, mentionCandidateId} from '../composer-utils';
 import {TwemojiComponent} from '../../../../../../components/twemoji/twemoji.component';
+import {UserNameStyleDirective} from '../../../../../../directives/user-name-style.directive';
+import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto';
 
 @Component({
     selector: 'app-suggestion-overlay',
-    imports: [NgClass, Avatar, TwemojiComponent],
+    imports: [NgClass, Avatar, TwemojiComponent, UserNameStyleDirective],
     templateUrl: './suggestion-overlay.component.html',
     styleUrl: './suggestion-overlay.component.css',
 })
 export class SuggestionOverlayComponent {
-    overlayType = input<'mention' | 'command' | 'emoji' | null>(null);
+    overlayType = input<'mention' | 'command' | 'emoji' | 'channel' | null>(null);
     filteredMentions = input<MentionCandidate[]>([]);
     filteredCommands = input<CommandDef[]>([]);
     filteredEmojis = input<EmojiSuggestion[]>([]);
+    filteredChannels = input<ChannelDto[]>([]);
     selectedIndex = input<number>(0);
     query = input<string>('');
 
     mentionSelected = output<MentionCandidate>();
     commandSelected = output<CommandDef>();
     emojiSelected = output<EmojiSuggestion>();
+    channelSelected = output<ChannelDto>();
 
     protected readonly mentionCandidateId = mentionCandidateId;
+    protected readonly ChannelType = ChannelType;
 }

@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {hasPermission, Permissions, PermissionKey, stringifyPermissions} from './permissions.enum';
+import {diffPermissions, hasPermission, permissionLabel, PERM_GROUPS, Permissions, PermissionKey, stringifyPermissions} from './permissions.enum';
 
 describe('Permissions moderation bits', () => {
     it('defines KickMembers at bit 32', () => {
@@ -38,5 +38,47 @@ describe('Permissions moderation bits', () => {
         const serialized = stringifyPermissions(mask);
         expect(serialized).toContain('BanMembers');
         expect(hasPermission(mask, Permissions.BanMembers)).toBe(true);
+    });
+});
+
+describe('PERM_GROUPS', () => {
+    it('places every PermissionKey except None in exactly one group', () => {
+        const allKeys = (Object.keys(Permissions) as PermissionKey[]).filter(k => k !== 'None');
+        const grouped = PERM_GROUPS.flatMap(g => g.perms);
+
+        for (const key of allKeys) {
+            const occurrences = grouped.filter(k => k === key).length;
+            expect(occurrences, `${key} should appear in exactly one group`).toBe(1);
+        }
+        expect(grouped.length).toBe(allKeys.length);
+    });
+});
+
+describe('permissionLabel', () => {
+    it('inserts spaces before capital letters', () => {
+        expect(permissionLabel('SendMessages')).toBe('Send Messages');
+    });
+
+    it('leaves a single-word key unchanged', () => {
+        expect(permissionLabel('Connect')).toBe('Connect');
+    });
+});
+
+describe('diffPermissions', () => {
+    it('returns keys present in requested but not in grantable', () => {
+        const requested = Permissions.ViewChannel | Permissions.BanMembers;
+        const grantable = Permissions.ViewChannel;
+        expect(diffPermissions(requested, grantable)).toEqual(['BanMembers']);
+    });
+
+    it('returns an empty array when grantable covers all of requested', () => {
+        const requested = Permissions.ViewChannel;
+        const grantable = Permissions.ViewChannel | Permissions.BanMembers;
+        expect(diffPermissions(requested, grantable)).toEqual([]);
+    });
+
+    it('returns an empty array for equal masks', () => {
+        const mask = Permissions.SendMessages | Permissions.Connect;
+        expect(diffPermissions(mask, mask)).toEqual([]);
     });
 });

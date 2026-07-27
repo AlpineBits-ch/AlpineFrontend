@@ -66,6 +66,59 @@ export const Permissions = {
 export type PermissionKey = keyof typeof Permissions;
 export type PermissionValue = bigint;
 
+export interface PermGroup {
+    label: string;
+    perms: PermissionKey[];
+}
+
+export const PERM_GROUPS: PermGroup[] = [
+    {
+        label: 'General',
+        perms: ['ViewChannel', 'CreateInvite'],
+    },
+    {
+        label: 'Messages',
+        perms: ['SendMessages', 'EditOwnMessages', 'EditAnyMessage', 'DeleteOwnMessages', 'DeleteAnyMessage', 'PinMessages'],
+    },
+    {
+        label: 'Attachments & Embeds',
+        perms: ['AttachFiles', 'EmbedLinks', 'AddReactions'],
+    },
+    {
+        label: 'Voice',
+        perms: ['Connect', 'Speak', 'Stream', 'MuteMembers', 'DeafenMembers', 'MoveMembers'],
+    },
+    {
+        label: 'Threads',
+        perms: ['CreateThreads', 'SendMessagesInThreads', 'ManageOwnThreads', 'ManageAnyThread'],
+    },
+    {
+        label: 'Moderation',
+        perms: ['ManageChannel', 'ManagePermissions', 'ManageGuild', 'KickMembers', 'BanMembers', 'ModerateMembers', 'ViewAuditLog'],
+    },
+    {
+        label: 'Wiki',
+        perms: ['ViewWiki', 'CreateWikiPages', 'EditOwnWikiPages', 'EditAnyWikiPage', 'DeleteWikiPages', 'ManageWikiRevisions', 'ManageWikiStructure', 'ModerateWikiComments', 'PublishWikiPublicly'],
+    },
+    {
+        label: 'Admin',
+        perms: ['Superadmin'],
+    },
+];
+
+export function permissionLabel(key: PermissionKey): string {
+    return key.replace(/([A-Z])/g, ' $1').trim();
+}
+
+/** Keys present in `requested` but absent from `grantable`. */
+export function diffPermissions(requested: PermissionValue, grantable: PermissionValue): PermissionKey[] {
+    return (Object.keys(Permissions) as PermissionKey[]).filter(key => {
+        if (key === 'None') return false;
+        const val = Permissions[key];
+        return (requested & val) === val && (grantable & val) !== val;
+    });
+}
+
 /**
  * Parses the text-serialized Permissions string (from C# .NET) into a bigint bitmask.
  */

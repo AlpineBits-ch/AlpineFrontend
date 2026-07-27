@@ -11,9 +11,11 @@
 
     <!-- Suggestion overlay (mentions + commands) -->
     <app-suggestion-overlay
+            (channelSelected)="onChannelSelected($event)"
             (commandSelected)="onCommandSelected($event)"
             (emojiSelected)="onEmojiShortcodeSelected($event)"
             (mentionSelected)="onMentionSelected($event)"
+            [filteredChannels]="filteredChannels()"
             [filteredCommands]="filteredCommands()"
             [filteredEmojis]="filteredEmojis()"
             [filteredMentions]="filteredMentions()"

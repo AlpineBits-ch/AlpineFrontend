@@ -4,8 +4,8 @@
 <div class="shrink-0 bg-sidebar border-t border-white/[0.10] p-3">
     <div class="flex items-center gap-1.5">
 
-        <!-- Avatar + name (clickable -opens own profile) -->
-        <button (click)="profileDialogSvc.open(profileService.ownProfile()!.userId)"
+        <!-- Avatar + name (clickable -opens self-profile popover) -->
+        <button (click)="openSelfProfilePopover($event)"
                 class="flex items-center gap-1.5 flex-1 min-w-0 rounded-lg p-1 -m-1 hover:bg-white/[0.06] transition-colors cursor-pointer border-0 text-left">
 
             <!-- Avatar + status dot -->
@@ -26,6 +26,7 @@
             </div>
 
         </button>
+        <app-self-profile-popover (editProfile)="openProfileSettings()"/>
 
         <!-- Mute (only when in voice) -->
         @if (voiceSvc.isInVoice()) {

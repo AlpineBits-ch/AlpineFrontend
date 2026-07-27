@@ -1,0 +1,10 @@
+<p-popover #popover appendTo="body" styleClass="self-profile-popover" [style]="{width: '320px', padding: '0'}">
+    <div class="flex flex-col">
+        <app-profile-card (avatarErrorChange)="onAvatarError()" [avatarError]="avatarError()" [profile]="profileService.ownProfile()"/>
+        <div class="flex items-center gap-2 px-4 pb-4 pt-1">
+            <app-status-picker/>
+            <p-button (onClick)="onEditProfile()" icon="pi pi-pencil" label="Edit Profile"
+                      severity="primary" size="small" styleClass="flex-1 justify-center"/>
+        </div>
+    </div>
+</p-popover>

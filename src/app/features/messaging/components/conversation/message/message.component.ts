@@ -19,7 +19,7 @@ import {AsyncPipe, DatePipe, NgClass} from "@angular/common";
 import {ProfileService} from "../../../../../services/profile.service";
 import {Observable, of, switchMap} from "rxjs";
 import {ProfileDto} from "../../../../../dtos/response/profile.dto";
-import {ChannelDto, ChannelType} from "../../../../../dtos/response/guild.dto";
+import {ChannelDto, ChannelType, RoleDto} from "../../../../../dtos/response/guild.dto";
 import {NavigationService} from "../../../../main-page/navigation.service";
 import {isKlipyGifUrl} from '../../../../../services/gif.service';
 import {EmojiDataService, getFlagCode, isRegionalIndicator} from '../../../../../services/emoji-data.service';
@@ -38,6 +38,7 @@ import {Button} from 'primeng/button';
 import {CreateReactionDto} from '../../../../../dtos/request/create-reaction.dto';
 import {RemoveReactionDto} from '../../../../../dtos/request/remove-reaction.dto';
 import {TranslateModule} from '@ngx-translate/core';
+import {UserNameStyleDirective} from '../../../../../directives/user-name-style.directive';
 
 @Component({
     selector: 'app-message',
@@ -54,6 +55,7 @@ import {TranslateModule} from '@ngx-translate/core';
         Dialog,
         Button,
         TranslateModule,
+        UserNameStyleDirective,
     ],
     templateUrl: './message.component.html',
     styleUrl: './message.component.css',
@@ -66,6 +68,7 @@ export class MessageComponent {
     lightbox = signal<{ loading: boolean; att: AttachmentDto | null; name: string } | null>(null);
     public message = input.required<MessageDto>();
     public guildChannels = input<ChannelDto[]>([]);
+    public guildRoles = input<RoleDto[]>([]);
     public reply = output<MessageDto>();
     public jumpTo = output<string>();
 
@@ -89,7 +92,7 @@ export class MessageComponent {
     public contentSegments = computed(() => {
         const text = this.content();
         const msg = this.message();
-        let segments: { type: 'text' | 'mention' | 'everyone' | 'here' | 'channel' | 'gif' | 'emoji' | 'flag' | 'invite'; value: string; refId?: string }[] = [];
+        let segments: { type: 'text' | 'mention' | 'role' | 'everyone' | 'here' | 'channel' | 'gif' | 'emoji' | 'flag' | 'invite'; value: string; refId?: string }[] = [];
 
         // If the entire message is a GIF URL, render it as a single GIF segment
         if (isKlipyGifUrl(text)) {
@@ -108,8 +111,24 @@ export class MessageComponent {
             .map(id => this.profileService.getCachedByUserId(id))
             .filter((p): p is ProfileDto => !!p);
         const channels = this.guildChannels();
+        const mentionedRoles = (msg.roleMentions ?? [])
+            .map(id => this.guildRoles().find(r => r.id === id))
+            .filter((r): r is RoleDto => !!r);
 
-        const regex = /@[\w\-.]+#\w+|@everyone\b|@here\b|@[\w\-.]+|#[\w-]+/g;
+        // Role (and user) names can contain spaces/punctuation that the generic
+        // single-word @pattern below can't capture as one unit (e.g. "@The Isle").
+        // Match every known mentioned name explicitly, longest first, before falling
+        // back to the generic single-word pattern.
+        const knownNames = [...mentionedProfiles.map(p => p.userName), ...mentionedRoles.map(r => r.name)]
+            .sort((a, b) => b.length - a.length);
+        const escapeRegex = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const knownNamePattern = knownNames.length > 0
+            ? knownNames.map(n => `@${escapeRegex(n)}\\b`).join('|') + '|'
+            : '';
+        const regex = new RegExp(
+            knownNamePattern + '@[\\w\\-.]+#\\w+|@everyone\\b|@here\\b|@[\\w\\-.]+|#[\\w-]+',
+            'g'
+        );
         let last = 0;
         let match;
 
@@ -132,12 +151,17 @@ export class MessageComponent {
                 segments.push({type: 'text', value: raw});
             } else if (raw.startsWith('@')) {
                 // Only a real mention if it matches one of the message's actual mentioned
-                // users -otherwise it's just someone typing an @-prefixed word.
+                // users or roles -otherwise it's just someone typing an @-prefixed word.
                 const name = raw.slice(1);
                 const profile = mentionedProfiles.find(p => p.userName === name);
-                segments.push(profile
-                    ? {type: 'mention', value: raw, refId: profile.userId}
-                    : {type: 'text', value: raw});
+                if (profile) {
+                    segments.push({type: 'mention', value: raw, refId: profile.userId});
+                } else {
+                    const role = mentionedRoles.find(r => r.name === name);
+                    segments.push(role
+                        ? {type: 'role', value: raw, refId: role.id}
+                        : {type: 'text', value: raw});
+                }
             } else {
                 // Channel link -only if it resolves against a channel actually in this guild.
                 // Prefer a text channel over a same-named voice channel: "#general" should
@@ -156,7 +180,7 @@ export class MessageComponent {
         }
 
         // 2. Process text segments to separate single emojis
-        const emojiSegments: { type: 'text' | 'mention' | 'everyone' | 'here' | 'channel' | 'gif' | 'emoji' | 'flag' | 'invite'; value: string; refId?: string }[] = [];
+        const emojiSegments: { type: 'text' | 'mention' | 'role' | 'everyone' | 'here' | 'channel' | 'gif' | 'emoji' | 'flag' | 'invite'; value: string; refId?: string }[] = [];
 
         const emojiRegex = /^(?=\p{Emoji})(?!\p{Number}).$/u;
 
@@ -240,6 +264,11 @@ export class MessageComponent {
         if (!msg) return '';
         if (msg.authorId === this.profileService.ownProfile()?.userId) return 'You';
         return this.profileService.getCachedByUserId(msg.authorId)?.userName ?? 'Unknown';
+    });
+    protected readonly replyAuthorProfile = computed(() => {
+        const msg = this.replyMessage();
+        if (!msg) return undefined;
+        return this.profileService.getCachedByUserId(msg.authorId);
     });
     protected readonly replySnippet = computed(() => {
         const msg = this.replyMessage();
@@ -441,6 +470,14 @@ export class MessageComponent {
 
     public getProfile(): Observable<ProfileDto> {
         return this.profileService.getByUserId(this.message().authorId);
+    }
+
+    public mentionedProfile(userId: string): ProfileDto | undefined {
+        return this.profileService.getCachedByUserId(userId);
+    }
+
+    public mentionedRole(roleId: string): RoleDto | undefined {
+        return this.guildRoles().find(r => r.id === roleId);
     }
 
     hasOwnReaction(emoji: string): boolean {

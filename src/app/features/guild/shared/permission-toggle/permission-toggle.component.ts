@@ -1,47 +1,7 @@
 import {Component, input, output} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {ToggleSwitch} from 'primeng/toggleswitch';
-import {PermissionKey, Permissions} from '../../../../enums/permissions.enum';
-
-interface PermGroup {
-    label: string;
-    perms: PermissionKey[];
-}
-
-const PERM_GROUPS: PermGroup[] = [
-    {
-        label: 'General',
-        perms: ['ViewChannel', 'CreateInvite'],
-    },
-    {
-        label: 'Messages',
-        perms: ['SendMessages', 'EditOwnMessages', 'EditAnyMessage', 'DeleteOwnMessages', 'DeleteAnyMessage', 'PinMessages'],
-    },
-    {
-        label: 'Attachments & Embeds',
-        perms: ['AttachFiles', 'EmbedLinks', 'AddReactions'],
-    },
-    {
-        label: 'Voice',
-        perms: ['Connect', 'Speak', 'Stream', 'MuteMembers', 'DeafenMembers', 'MoveMembers'],
-    },
-    {
-        label: 'Threads',
-        perms: ['CreateThreads', 'SendMessagesInThreads', 'ManageOwnThreads', 'ManageAnyThread'],
-    },
-    {
-        label: 'Moderation',
-        perms: ['ManageChannel', 'ManagePermissions', 'ManageGuild', 'KickMembers', 'BanMembers', 'ModerateMembers', 'ViewAuditLog'],
-    },
-    {
-        label: 'Wiki',
-        perms: ['ViewWiki', 'CreateWikiPages', 'EditOwnWikiPages', 'EditAnyWikiPage', 'DeleteWikiPages', 'ManageWikiRevisions', 'ManageWikiStructure', 'ModerateWikiComments', 'PublishWikiPublicly'],
-    },
-    {
-        label: 'Admin',
-        perms: ['Superadmin'],
-    },
-];
+import {PERM_GROUPS, PermissionKey, Permissions, permissionLabel} from '../../../../enums/permissions.enum';
 
 @Component({
     selector: 'app-permission-toggle',
@@ -68,6 +28,6 @@ export class PermissionToggleComponent {
     }
 
     label(key: PermissionKey): string {
-        return key.replace(/([A-Z])/g, ' $1').trim();
+        return permissionLabel(key);
     }
 }

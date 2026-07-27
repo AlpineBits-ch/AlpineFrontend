@@ -1,4 +1,4 @@
-import {AfterViewInit, Component, ElementRef, input, OnDestroy, output, ViewChild,} from '@angular/core';
+import {AfterViewInit, Component, ElementRef, input, OnDestroy, output, signal, ViewChild,} from '@angular/core';
 import {Button} from 'primeng/button';
 
 @Component({
@@ -9,7 +9,8 @@ import {Button} from 'primeng/button';
 export class ImageCropperComponent implements AfterViewInit, OnDestroy {
     imageSrc = input.required<string>();
     circular = input(false);
-    outputSize = input(400);
+    outputWidth = input(400);
+    outputHeight = input(400);
 
     confirmed = output<File>();
     cancelled = output<void>();
@@ -17,8 +18,20 @@ export class ImageCropperComponent implements AfterViewInit, OnDestroy {
     @ViewChild('cropCanvas') private canvasRef!: ElementRef<HTMLCanvasElement>;
 
     private readonly SIZE = 320;
-    private readonly CROP = 240;
+    private readonly MAX_CROP = 240;
     private readonly PAD = 40;
+
+    private get cropWidth(): number {
+        const ratio = this.outputWidth() / this.outputHeight();
+        return ratio >= 1 ? this.MAX_CROP : this.MAX_CROP * ratio;
+    }
+
+    private get cropHeight(): number {
+        const ratio = this.outputWidth() / this.outputHeight();
+        return ratio >= 1 ? this.MAX_CROP / ratio : this.MAX_CROP;
+    }
+
+    protected confirming = signal(false);
 
     private img!: HTMLImageElement;
     private scale = 1;
@@ -68,8 +81,8 @@ export class ImageCropperComponent implements AfterViewInit, OnDestroy {
         this.img.onerror = () => this.cancelled.emit();
         this.img.onload = () => {
             this.scale = Math.max(
-                this.CROP / this.img.naturalWidth,
-                this.CROP / this.img.naturalHeight,
+                this.cropWidth / this.img.naturalWidth,
+                this.cropHeight / this.img.naturalHeight,
             );
             this.offsetX = 0;
             this.offsetY = 0;
@@ -123,10 +136,14 @@ export class ImageCropperComponent implements AfterViewInit, OnDestroy {
     }
 
     protected confirmCrop(): void {
-        const size = this.outputSize();
+        if (this.confirming()) return;
+        this.confirming.set(true);
+
+        const outW = this.outputWidth();
+        const outH = this.outputHeight();
         const out = document.createElement('canvas');
-        out.width = size;
-        out.height = size;
+        out.width = outW;
+        out.height = outH;
         const ctx = out.getContext('2d')!;
 
         const w = this.img.naturalWidth * this.scale;
@@ -134,20 +151,26 @@ export class ImageCropperComponent implements AfterViewInit, OnDestroy {
         const imgLeft = this.SIZE / 2 + this.offsetX - w / 2;
         const imgTop = this.SIZE / 2 + this.offsetY - h / 2;
 
-        const srcX = (this.PAD - imgLeft) / this.scale;
-        const srcY = (this.PAD - imgTop) / this.scale;
-        const srcSize = this.CROP / this.scale;
+        const left = (this.SIZE - this.cropWidth) / 2;
+        const top = (this.SIZE - this.cropHeight) / 2;
+        const srcX = (left - imgLeft) / this.scale;
+        const srcY = (top - imgTop) / this.scale;
+        const srcW = this.cropWidth / this.scale;
+        const srcH = this.cropHeight / this.scale;
 
         if (this.circular()) {
             ctx.beginPath();
-            ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+            ctx.ellipse(outW / 2, outH / 2, outW / 2, outH / 2, 0, 0, Math.PI * 2);
             ctx.clip();
         }
 
-        ctx.drawImage(this.img, srcX, srcY, srcSize, srcSize, 0, 0, size, size);
+        ctx.drawImage(this.img, srcX, srcY, srcW, srcH, 0, 0, outW, outH);
 
         out.toBlob(blob => {
-            if (!blob) return;
+            if (!blob) {
+                this.confirming.set(false);
+                return;
+            }
             this.confirmed.emit(new File([blob], 'cropped.png', {type: 'image/png'}));
         }, 'image/png');
     }
@@ -156,8 +179,6 @@ export class ImageCropperComponent implements AfterViewInit, OnDestroy {
         const canvas = this.canvasRef.nativeElement;
         const ctx = canvas.getContext('2d')!;
         const S = this.SIZE;
-        const C = this.CROP;
-        const P = this.PAD;
         const w = this.img.naturalWidth * this.scale;
         const h = this.img.naturalHeight * this.scale;
 
@@ -165,14 +186,19 @@ export class ImageCropperComponent implements AfterViewInit, OnDestroy {
 
         ctx.drawImage(this.img, S / 2 + this.offsetX - w / 2, S / 2 + this.offsetY - h / 2, w, h);
 
+        const cw = this.cropWidth;
+        const ch = this.cropHeight;
+        const left = (S - cw) / 2;
+        const top = (S - ch) / 2;
+
         // Dark overlay with crop hole via even-odd fill rule
         ctx.save();
         ctx.beginPath();
         ctx.rect(0, 0, S, S);
         if (this.circular()) {
-            ctx.arc(S / 2, S / 2, C / 2, 0, Math.PI * 2, true);
+            ctx.arc(S / 2, S / 2, cw / 2, 0, Math.PI * 2, true);
         } else {
-            ctx.rect(P, P, C, C);
+            ctx.rect(left, top, cw, ch);
         }
         ctx.fillStyle = 'rgba(0,0,0,0.65)';
         ctx.fill('evenodd');
@@ -183,19 +209,19 @@ export class ImageCropperComponent implements AfterViewInit, OnDestroy {
         ctx.lineWidth = 1.5;
         if (this.circular()) {
             ctx.beginPath();
-            ctx.arc(S / 2, S / 2, C / 2, 0, Math.PI * 2);
+            ctx.arc(S / 2, S / 2, cw / 2, 0, Math.PI * 2);
             ctx.stroke();
         } else {
-            ctx.strokeRect(P, P, C, C);
+            ctx.strokeRect(left, top, cw, ch);
             // Rule-of-thirds guides
             ctx.strokeStyle = 'rgba(255,255,255,0.18)';
             ctx.lineWidth = 0.75;
             ctx.beginPath();
             for (let i = 1; i < 3; i++) {
-                ctx.moveTo(P + (C / 3) * i, P);
-                ctx.lineTo(P + (C / 3) * i, P + C);
-                ctx.moveTo(P, P + (C / 3) * i);
-                ctx.lineTo(P + C, P + (C / 3) * i);
+                ctx.moveTo(left + (cw / 3) * i, top);
+                ctx.lineTo(left + (cw / 3) * i, top + ch);
+                ctx.moveTo(left, top + (ch / 3) * i);
+                ctx.lineTo(left + cw, top + (ch / 3) * i);
             }
             ctx.stroke();
         }
@@ -209,12 +235,12 @@ export class ImageCropperComponent implements AfterViewInit, OnDestroy {
     }
 
     private minScale(): number {
-        return Math.max(this.CROP / this.img.naturalWidth, this.CROP / this.img.naturalHeight);
+        return Math.max(this.cropWidth / this.img.naturalWidth, this.cropHeight / this.img.naturalHeight);
     }
 
     private clamp(): void {
-        const maxX = (this.img.naturalWidth * this.scale - this.CROP) / 2;
-        const maxY = (this.img.naturalHeight * this.scale - this.CROP) / 2;
+        const maxX = (this.img.naturalWidth * this.scale - this.cropWidth) / 2;
+        const maxY = (this.img.naturalHeight * this.scale - this.cropHeight) / 2;
         this.offsetX = Math.max(-maxX, Math.min(maxX, this.offsetX));
         this.offsetY = Math.max(-maxY, Math.min(maxY, this.offsetY));
     }

@@ -4,7 +4,7 @@ import {toObservable, toSignal} from '@angular/core/rxjs-interop';
 import {catchError, debounceTime, map, of, switchMap} from 'rxjs';
 import {Button} from 'primeng/button';
 import {MessageDto} from '../../../../../dtos/response/message.dto';
-import {RoleDto, RoleType} from '../../../../../dtos/response/guild.dto';
+import {ChannelDto, RoleDto, RoleType} from '../../../../../dtos/response/guild.dto';
 import {CommandDef, COMMANDS} from './commands';
 import {
     detectTrigger,
@@ -29,6 +29,7 @@ import {AttachmentPreviewsComponent} from './attachment-previews/attachment-prev
 import {GuildService} from '../../../../../services/guild.service';
 import {ProfileService} from "../../../../../services/profile.service";
 import {TranslateModule} from '@ngx-translate/core';
+import {userNameStyle} from '../../../../../models/profile-font.model';
 
 const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/';
 
@@ -46,6 +47,8 @@ export class ComposerComponent {
     conversationMembers = input<MentionCandidate[]>([]);
     /** Set when composing in a guild channel -feeds @role suggestions. */
     guildRoles = input<RoleDto[]>([]);
+    /** Set when composing in a guild channel -feeds # channel suggestions. */
+    guildChannels = input<ChannelDto[]>([]);
     replyTo = input<MessageDto | null>(null);
     message = output<{
         content: string;
@@ -75,7 +78,7 @@ export class ComposerComponent {
     fileInputRef = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
     gifPickerRef = viewChild(GifPickerButtonComponent);
     isEmpty = signal(true);
-    overlayType = signal<'mention' | 'command' | 'emoji' | null>(null);
+    overlayType = signal<'mention' | 'command' | 'emoji' | 'channel' | null>(null);
     query = signal('');
 
     // ── View ─────────────────────────────────────────────────────────────────
@@ -88,6 +91,7 @@ export class ComposerComponent {
         if (this.overlayType() === 'mention') return this.filteredMentions();
         if (this.overlayType() === 'command') return this.filteredCommands();
         if (this.overlayType() === 'emoji') return this.filteredEmojis();
+        if (this.overlayType() === 'channel') return this.filteredChannels();
         return [];
     });
     placeholder = computed(() => {
@@ -137,6 +141,8 @@ export class ComposerComponent {
                             userId: m.userId,
                             userName: m.profile!.userName,
                             avatarUrl: m.profile?.avatarUrl,
+                            accentColor: m.profile?.accentColor,
+                            font: m.profile?.font,
                         }))
                     ),
                     catchError(() => of<MentionCandidate[]>([]))
@@ -164,6 +170,13 @@ export class ComposerComponent {
             : this.conversationMembers().filter(m => mentionCandidateMatches(m, q));
         const staticMatches = this.staticGuildCandidates().filter(c => mentionCandidateMatches(c, q));
         return [...staticMatches, ...userCandidates].slice(0, 8);
+    });
+    filteredChannels = computed<ChannelDto[]>(() => {
+        if (this.overlayType() !== 'channel') return [];
+        const q = this.query().toLowerCase();
+        return this.guildChannels()
+            .filter(c => c.name.toLowerCase().includes(q))
+            .slice(0, 8);
     });
 
     // ── Typing throttle ───────────────────────────────────────────────────────
@@ -334,6 +347,7 @@ export class ComposerComponent {
             chip.dataset['userId'] = candidate.userId;
             chip.dataset['display'] = `@${candidate.userName}`;
             chip.textContent = `@${candidate.userName}`;
+            Object.assign(chip.style, userNameStyle(candidate));
         } else if (candidate.kind === 'role') {
             chip.className = 'mention-chip mention-chip-role';
             chip.dataset['roleId'] = candidate.roleId;
@@ -366,6 +380,27 @@ export class ComposerComponent {
         }
 
         this.closeOverlay();
+        this.editorRef().nativeElement.focus();
+    }
+
+    onChannelSelected(channel: ChannelDto): void {
+        if (!this.triggerRange) return;
+
+        this.triggerRange.deleteContents();
+        const textNode = document.createTextNode(`#${channel.name} `);
+        this.triggerRange.insertNode(textNode);
+
+        const sel = window.getSelection();
+        if (sel) {
+            const r = document.createRange();
+            r.setStartAfter(textNode);
+            r.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(r);
+        }
+
+        this.closeOverlay();
+        this.isEmpty.set(false);
         this.editorRef().nativeElement.focus();
     }
 
@@ -550,6 +585,9 @@ export class ComposerComponent {
         } else if (this.overlayType() === 'emoji') {
             const e = this.filteredEmojis()[idx];
             if (e) this.onEmojiShortcodeSelected(e);
+        } else if (this.overlayType() === 'channel') {
+            const ch = this.filteredChannels()[idx];
+            if (ch) this.onChannelSelected(ch);
         }
     }
 

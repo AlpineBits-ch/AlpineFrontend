@@ -1,3 +1,5 @@
+import {ProfileFont} from '../../../../../dtos/response/profile.dto';
+
 /** Extract the plain-text message from a contenteditable element,
  *  converting mention-chip spans to their @Username display value. */
 export function getMessage(editor: HTMLElement): string {
@@ -35,6 +37,8 @@ export interface UserMentionCandidate {
     userId: string;
     userName: string;
     avatarUrl?: string;
+    accentColor?: string | null;
+    font?: ProfileFont;
 }
 
 export interface RoleMentionCandidate {
@@ -80,6 +84,7 @@ export type TriggerDetection =
     | { type: 'mention'; query: string; range: Range }
     | { type: 'command'; query: string; range: Range; atStart: boolean }
     | { type: 'emoji'; query: string; range: Range }
+    | { type: 'channel'; query: string; range: Range }
     | null;
 
 /** Inspect the current selection to detect an active @ mention, / command, or : emoji trigger. */
@@ -100,6 +105,15 @@ export function detectTrigger(editor: HTMLElement): TriggerDetection {
         r.setStart(node as Text, atPos);
         r.setEnd(node as Text, range.startOffset);
         return {type: 'mention', query: mentionMatch[1], range: r};
+    }
+
+    const channelMatch = textBefore.match(/(?:^|[\s ])#([\w-]*)$/);
+    if (channelMatch) {
+        const hashPos = textBefore.lastIndexOf('#');
+        const r = document.createRange();
+        r.setStart(node as Text, hashPos);
+        r.setEnd(node as Text, range.startOffset);
+        return {type: 'channel', query: channelMatch[1], range: r};
     }
 
     const commandMatch = textBefore.match(/(?:^|[\s\u00a0])\/(\w*)$/);

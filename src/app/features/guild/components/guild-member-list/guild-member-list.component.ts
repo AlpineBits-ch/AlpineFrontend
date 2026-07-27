@@ -3,6 +3,7 @@ import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {GuildDto} from '../../../../dtos/response/guild.dto';
 import {GuildMemberDto, SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {OnlineStatus} from '../../../../dtos/response/profile.dto';
+import {MemberType} from '../../../../enums/member-type.enum';
 import {GuildService} from '../../../../services/guild.service';
 import {environment} from '../../../../../environments/environment';
 import {TranslateModule} from '@ngx-translate/core';
@@ -20,10 +21,11 @@ import {
     WsPresenceChanged,
 } from '../../../../services/guild-websocket.service';
 import {UserStatusDotComponent} from '../../../../components/user-status-dot/user-status-dot.component';
+import {UserNameStyleDirective} from '../../../../directives/user-name-style.directive';
 
 @Component({
     selector: 'app-guild-member-list',
-    imports: [TranslateModule, Menu, UserStatusDotComponent],
+    imports: [TranslateModule, Menu, UserStatusDotComponent, UserNameStyleDirective],
     templateUrl: './guild-member-list.component.html',
 })
 export class GuildMemberListComponent implements OnChanges {
@@ -32,8 +34,8 @@ export class GuildMemberListComponent implements OnChanges {
     loading = signal(true);
     loadingMore = signal(false);
     hasMore = signal(true);
-    onlineRows = computed(() => this.rows().filter(m => m.status !== OnlineStatus.Offline && m.status !== OnlineStatus.Hidden));
-    offlineRows = computed(() => this.rows().filter(m => m.status === OnlineStatus.Offline || m.status === OnlineStatus.Hidden));
+    onlineRows = computed(() => this.rows().filter(m => this.isBot(m) || (m.status !== OnlineStatus.Offline && m.status !== OnlineStatus.Hidden)));
+    offlineRows = computed(() => this.rows().filter(m => !this.isBot(m) && (m.status === OnlineStatus.Offline || m.status === OnlineStatus.Hidden)));
     @ViewChild('memberMenu') memberMenu!: Menu;
     protected contextMember = signal<GuildMemberDto | null>(null);
     private ownMember = signal<SelfGuildMemberDto | null>(null);
@@ -90,6 +92,14 @@ export class GuildMemberListComponent implements OnChanges {
     avatarUrl(member: GuildMemberDto): string | undefined {
         if (!member.profile) return undefined;
         return `${environment.apiUrl}/api/v1/social/profiles/${member.profile.id}/avatar`;
+    }
+
+    isBot(member: GuildMemberDto): boolean {
+        return member.type === MemberType.Bot;
+    }
+
+    effectiveStatus(member: GuildMemberDto): OnlineStatus {
+        return this.isBot(member) ? OnlineStatus.Online : member.status;
     }
 
     private reset(): void {

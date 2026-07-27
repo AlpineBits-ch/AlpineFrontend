@@ -1,0 +1,8 @@
+/* ── Banner ───────────────────────────────────────────────────────────── */
+.profile-banner {
+    height: 100px;
+    background: var(--color-hover);
+    background-size: cover;
+    background-position: center top;
+    position: relative;
+}

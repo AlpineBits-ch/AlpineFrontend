@@ -13,15 +13,6 @@
     border-radius: 0 !important;
 }
 
-/* ── Banner ───────────────────────────────────────────────────────────── */
-.profile-banner {
-    height: 100px;
-    background: linear-gradient(135deg, var(--color-brand-dark) 0%, var(--color-brand) 65%, var(--color-brand-dim) 100%);
-    background-size: cover;
-    background-position: center top;
-    position: relative;
-}
-
 /* ── Close button ─────────────────────────────────────────────────────── */
 .close-btn {
     position: absolute;
@@ -38,6 +29,7 @@
     align-items: center;
     justify-content: center;
     font-size: 11px;
+    z-index: 20;
     transition: background 0.15s ease, color 0.15s ease;
 }
 

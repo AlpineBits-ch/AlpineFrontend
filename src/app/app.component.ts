@@ -1,4 +1,5 @@
-import {Component, HostListener, inject, OnDestroy, OnInit} from "@angular/core";
+import {Component, DestroyRef, HostListener, inject, OnDestroy, OnInit} from "@angular/core";
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {NavigationEnd, Router, RouterOutlet} from "@angular/router";
 import {ProfileService} from "./services/profile.service";
 import {CallOverlayComponent} from "./features/call/call-overlay/call-overlay.component";
@@ -19,10 +20,13 @@ import {filter, take} from 'rxjs';
 import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
 import {SteamService} from './services/steam.service';
 import {IsleProximityBarComponent} from './features/isle-proximity/isle-proximity-bar.component';
+import {BotInstallDialogComponent} from './features/bot-install/bot-install-dialog.component';
+import {BotInstallDialogService} from './features/bot-install/bot-install-dialog.service';
+import {parseInstallBotLink} from './features/bot-install/bot-install-link.util';
 
 @Component({
     selector: "app-root",
-    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, InviteDialogComponent, IsleProximityBarComponent],
+    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent],
     templateUrl: "./app.component.html",
     styleUrl: "./app.component.css",
 })
@@ -36,6 +40,8 @@ export class AppComponent implements OnInit, OnDestroy {
     private appReady = inject(AppReadyService);
     private inviteDialogService = inject(InviteDialogService);
     private steamService = inject(SteamService);
+    private botInstallDialogService = inject(BotInstallDialogService);
+    private destroyRef = inject(DestroyRef);
     private updateInterval: ReturnType<typeof setInterval> | null = null;
 
     @HostListener('document:contextmenu', ['$event'])
@@ -52,20 +58,21 @@ export class AppComponent implements OnInit, OnDestroy {
         if (this.isPopup) return;
 
         void onOpenUrl((urls) => {
-            for (const url of urls) {
-                const match = url.match(/invite\/([^/?#]+)/);
-                if (match) {
-                    this.inviteDialogService.open(match[1]);
-                    break;
-                }
-
-                if (url.includes('steam-auth')) {
-                    const status = this.parseSteamStatus(url);
-                    this.steamService.handleLinkCallback(status);
-                    break;
-                }
-            }
+            for (const url of urls) this.handleDeepLink(url);
         });
+        // Cold start: the OS may have launched the app fresh via a deep link, in which case
+        // onOpenUrl's live listener misses it entirely - getCurrent() returns that initial URL.
+        void getCurrent().then(urls => {
+            for (const url of urls ?? []) this.handleDeepLink(url);
+        });
+
+        // Resumes an install-bot modal that was stashed because the user was logged out when
+        // the deep link arrived (see BotInstallDialogService.requestOpen).
+        this.router.events.pipe(
+            filter(e => e instanceof NavigationEnd),
+            filter(() => this.router.url.startsWith('/overview')),
+            takeUntilDestroyed(this.destroyRef),
+        ).subscribe(() => this.botInstallDialogService.resumeIfPending());
 
         window.visualViewport?.addEventListener('resize', this.viewportHandler);
         window.visualViewport?.addEventListener('scroll', this.viewportHandler);
@@ -92,6 +99,25 @@ export class AppComponent implements OnInit, OnDestroy {
             // Absolute safety net: never leave the splash up indefinitely
             setTimeout(() => this.appReady.markReady(), 8000);
         });
+    }
+
+    private handleDeepLink(url: string): void {
+        const inviteMatch = url.match(/invite\/([^/?#]+)/);
+        if (inviteMatch) {
+            this.inviteDialogService.open(inviteMatch[1]);
+            return;
+        }
+
+        if (url.includes('steam-auth')) {
+            this.steamService.handleLinkCallback(this.parseSteamStatus(url));
+            return;
+        }
+
+        if (url.includes('install-bot')) {
+            const params = parseInstallBotLink(url);
+            if (params) void this.botInstallDialogService.requestOpen(params);
+            return;
+        }
     }
 
     /** Reads the `status` query param from a `venta://steam-auth?status=...` deep link. */

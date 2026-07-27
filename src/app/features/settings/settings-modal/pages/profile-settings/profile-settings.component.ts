@@ -1,9 +1,10 @@
-import {Component, computed, ElementRef, inject, OnInit, signal, ViewChild} from '@angular/core';
+import {Component, computed, effect, ElementRef, inject, OnInit, signal, ViewChild} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
+import {Select} from 'primeng/select';
 import {Router} from '@angular/router';
-import {from, of, switchMap, take} from 'rxjs';
+import {finalize, from, of, switchMap, take} from 'rxjs';
 import {FormsModule} from '@angular/forms';
 import {DatePipe} from '@angular/common';
 import {ProfileService} from '../../../../../services/profile.service';
@@ -16,10 +17,13 @@ import {ToastService} from '../../../../../services/toast.service';
 import {ImageCropperComponent} from '../../../../../components/image-cropper/image-cropper.component';
 import {TranslateModule} from '@ngx-translate/core';
 import {UserDto} from '../../../../../dtos/response/UserDto';
+import {FONT_LABELS, FONT_STACKS, safeAccentColor} from '../../../../../models/profile-font.model';
+import {cacheBustedUrl} from '../../../../../models/profile-image.model';
+import {ProfileFont} from '../../../../../dtos/response/profile.dto';
 
 @Component({
     selector: 'app-profile-settings',
-    imports: [Button, Dialog, ImageCropperComponent, TranslateModule, FormsModule, DatePipe],
+    imports: [Button, Dialog, ImageCropperComponent, TranslateModule, FormsModule, DatePipe, Select],
     templateUrl: './profile-settings.component.html',
     styleUrl: './profile-settings.component.css',
 })
@@ -31,6 +35,18 @@ export class ProfileSettingsComponent implements OnInit {
     protected avatarError = signal(false);
     protected cropVisible = signal(false);
     protected cropSrc = signal('');
+    protected uploadingBanner = signal(false);
+    protected bannerCropVisible = signal(false);
+    protected bannerCropSrc = signal('');
+    protected readonly fontOptions = (Object.entries(FONT_LABELS) as [ProfileFont, string][])
+        .map(([value, label]) => ({value, label}));
+    protected readonly FONT_STACKS = FONT_STACKS;
+    protected readonly safeAccentColor = safeAccentColor;
+    protected readonly cacheBustedUrl = cacheBustedUrl;
+    protected bioEdit = signal('');
+    protected accentColorEdit = signal('');
+    protected fontEdit = signal<ProfileFont>(ProfileFont.Default);
+    protected savingDetails = signal(false);
     protected confirmDeleteVisible = signal(false);
     protected deleting = signal(false);
     // Password change
@@ -65,6 +81,8 @@ export class ProfileSettingsComponent implements OnInit {
     private toast = inject(ToastService);
     private router = inject(Router);
     @ViewChild('fileInput') private fileInputRef!: ElementRef<HTMLInputElement>;
+    @ViewChild('bannerFileInput') private bannerFileInputRef!: ElementRef<HTMLInputElement>;
+    private detailsSynced = false;
 
     constructor() {
         // The link flow completes asynchronously via the venta://steam-auth deep link.
@@ -72,6 +90,19 @@ export class ProfileSettingsComponent implements OnInit {
         this.steamService.linkResult.pipe(takeUntilDestroyed()).subscribe(status => {
             this.linkingSteam.set(false);
             if (status === 'linked') this.refreshUser();
+        });
+
+        // ownProfile may not be populated yet when this page mounts; sync the edit
+        // signals only the first time it becomes available so we don't stomp
+        // in-progress edits on later profile updates (e.g. right after a save).
+        effect(() => {
+            const profile = this.ownProfile();
+            if (profile && !this.detailsSynced) {
+                this.detailsSynced = true;
+                this.bioEdit.set(profile.bio ?? '');
+                this.accentColorEdit.set(profile.accentColor ?? '');
+                this.fontEdit.set(profile.font ?? ProfileFont.Default);
+            }
         });
     }
 
@@ -157,12 +188,11 @@ export class ProfileSettingsComponent implements OnInit {
     protected onCropConfirmed(file: File): void {
         this.cropVisible.set(false);
         this.uploading.set(true);
-        this.profileService.uploadAvatar(file).subscribe({
-            next: () => {
-                this.uploading.set(false);
-                this.avatarError.set(false);
-            },
-            error: () => this.uploading.set(false),
+        this.profileService.uploadAvatar(file).pipe(
+            finalize(() => this.uploading.set(false)),
+        ).subscribe({
+            next: () => this.avatarError.set(false),
+            error: err => this.toast.httpError('Could not upload avatar', err),
         });
     }
 
@@ -172,6 +202,57 @@ export class ProfileSettingsComponent implements OnInit {
 
     protected removeAvatar(): void {
         this.profileService.removeAvatar().subscribe();
+    }
+
+    protected detailsDirty = computed(() => {
+        const p = this.ownProfile();
+        return this.bioEdit() !== (p?.bio ?? '')
+            || this.accentColorEdit() !== (p?.accentColor ?? '')
+            || this.fontEdit() !== (p?.font ?? ProfileFont.Default);
+    });
+
+    protected fontStackPreview = computed(() => FONT_STACKS[this.fontEdit()]);
+
+    protected saveDetails(): void {
+        if (!this.detailsDirty() || this.savingDetails()) return;
+        this.savingDetails.set(true);
+        this.profileService.updateProfile({
+            bio: this.bioEdit(),
+            accentColor: this.accentColorEdit(),
+            font: this.fontEdit(),
+        }).pipe(
+            finalize(() => this.savingDetails.set(false)),
+        ).subscribe({
+            error: err => this.toast.httpError('Could not save profile changes', err),
+        });
+    }
+
+    protected pickBannerFile(): void {
+        this.bannerFileInputRef.nativeElement.click();
+    }
+
+    protected onBannerFileSelected(event: Event): void {
+        const input = event.target as HTMLInputElement;
+        const file = input.files?.[0];
+        input.value = '';
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            this.bannerCropSrc.set(reader.result as string);
+            this.bannerCropVisible.set(true);
+        };
+        reader.readAsDataURL(file);
+    }
+
+    protected onBannerCropConfirmed(file: File): void {
+        this.bannerCropVisible.set(false);
+        this.uploadingBanner.set(true);
+        this.profileService.uploadBanner(file).pipe(
+            finalize(() => this.uploadingBanner.set(false)),
+        ).subscribe({
+            error: err => this.toast.httpError('Could not upload banner', err),
+        });
     }
 
     protected submitPasswordChange(): void {

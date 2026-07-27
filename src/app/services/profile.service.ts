@@ -1,8 +1,8 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
-import {catchError, EMPTY, Observable, of, tap} from 'rxjs';
+import {catchError, EMPTY, Observable, of, switchMap, tap} from 'rxjs';
 import {environment} from '../../environments/environment';
-import {OnlineStatus, ProfileDto} from '../dtos/response/profile.dto';
+import {OnlineStatus, ProfileDto, ProfileFont} from '../dtos/response/profile.dto';
 import {ApiConfigService} from "./api-config.service";
 
 // ── Circuit breaker config ───────────────────────────────────────────────────
@@ -18,6 +18,9 @@ const FALLBACK_PROFILE: ProfileDto = {
     userName: 'Unknown User',
     bio: undefined,
     avatarUrl: undefined,
+    bannerUrl: undefined,
+    accentColor: null,
+    font: ProfileFont.Default,
     createdAt: new Date(),
     updatedAt: new Date(),
     onlineStatus: OnlineStatus.Offline,
@@ -56,6 +59,15 @@ export class ProfileService {
     public setSelfStatus(status: OnlineStatus): Observable<ProfileDto> {
         return this.httpClient
             .patch<ProfileDto>(`${this.apiConfig.baseUrl()}/api/v1/social/profiles/me/status`, {status})
+            .pipe(tap(p => {
+                this.ownProfile.set(p);
+                this.store(p);
+            }));
+    }
+
+    public updateProfile(patch: { bio?: string; accentColor?: string; font?: ProfileFont }): Observable<ProfileDto> {
+        return this.httpClient
+            .patch<ProfileDto>(`${this.apiConfig.baseUrl()}/api/v1/social/profiles/me`, patch)
             .pipe(tap(p => {
                 this.ownProfile.set(p);
                 this.store(p);
@@ -122,27 +134,37 @@ export class ProfileService {
         const form = new FormData();
         form.append('file', file, file.name);
         return this.httpClient
-            .patch<ProfileDto>(
+            .patch(
                 `${this.apiConfig.baseUrl()}/api/v1/social/profiles/${current.id}/avatar`,
                 form,
+                {responseType: 'text'},
             )
-            .pipe(tap(p => {
-                this.ownProfile.set(p);
-                this.store(p);
-            }));
+            .pipe(switchMap(() => this.getSelf()));
+    }
+
+    public uploadBanner(file: File): Observable<ProfileDto> {
+        const current = this.ownProfile();
+        if (!current) return EMPTY;
+        const form = new FormData();
+        form.append('file', file, file.name);
+        return this.httpClient
+            .patch(
+                `${this.apiConfig.baseUrl()}/api/v1/social/profiles/${current.id}/banner`,
+                form,
+                {responseType: 'text'},
+            )
+            .pipe(switchMap(() => this.getSelf()));
     }
 
     public removeAvatar(): Observable<ProfileDto> {
         const current = this.ownProfile();
         if (!current) return EMPTY;
         return this.httpClient
-            .delete<ProfileDto>(
+            .delete(
                 `${this.apiConfig.baseUrl()}/api/v1/social/profiles/${current.id}/avatar`,
+                {responseType: 'text'},
             )
-            .pipe(tap(p => {
-                this.ownProfile.set(p);
-                this.store(p);
-            }));
+            .pipe(switchMap(() => this.getSelf()));
     }
 
     // ── Fire-and-forget resolvers ────────────────────────────────────────────
