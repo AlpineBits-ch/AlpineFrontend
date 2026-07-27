@@ -45,3 +45,6 @@ Thumbs.db
 
 # Sentry Config File
 .sentryclirc
+
+# Superpowers subagent-driven-development scratch workspace
+.superpowers/
