@@ -20,6 +20,7 @@ export class ChannelOverviewComponent implements OnInit {
     description = signal('');
     isPrivate = signal(false);
     isAgeRestricted = signal(false);
+    slowModeSeconds = signal(0);
     saving = signal(false);
     dirty = signal(false);
     protected readonly ChannelType = ChannelType;
@@ -31,6 +32,7 @@ export class ChannelOverviewComponent implements OnInit {
         this.description.set(c.description ?? '');
         this.isPrivate.set(c.isPrivate);
         this.isAgeRestricted.set(c.isAgeRestricted);
+        this.slowModeSeconds.set(c.slowModeSeconds);
         this.dirty.set(false);
     }
 
@@ -40,7 +42,8 @@ export class ChannelOverviewComponent implements OnInit {
             this.name() !== c.name ||
             this.description() !== (c.description ?? '') ||
             this.isPrivate() !== c.isPrivate ||
-            this.isAgeRestricted() !== c.isAgeRestricted
+            this.isAgeRestricted() !== c.isAgeRestricted ||
+            this.slowModeSeconds() !== c.slowModeSeconds
         );
     }
 
@@ -52,6 +55,7 @@ export class ChannelOverviewComponent implements OnInit {
             description: this.description(),
             isPrivate: this.isPrivate(),
             isAgeRestricted: this.isAgeRestricted(),
+            slowModeSeconds: this.slowModeSeconds(),
         };
         this.guildService.updateChannel(this.channel().id, dto).subscribe({
             next: updated => {

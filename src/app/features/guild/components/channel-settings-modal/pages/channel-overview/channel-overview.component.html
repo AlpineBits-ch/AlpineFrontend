@@ -64,6 +64,15 @@
         </div>
     </div>
 
+    @if (channel().type === ChannelType.Text) {
+        <div class="mb-5">
+            <label class="block text-xs font-semibold text-white/50 mb-1.5" for="slowmode">Slow Mode (seconds)</label>
+            <input (ngModelChange)="onChange()" [(ngModel)]="slowModeSeconds" [min]="0" [max]="21600"
+                   id="slowmode" pInputText type="number"/>
+            <p class="text-[11px] text-white/30 mt-1">Members must wait this long between messages. Not yet enforced by the server.</p>
+        </div>
+    }
+
     <!-- Save -->
     @if (dirty()) {
         <div class="flex items-center gap-3 pt-1">
