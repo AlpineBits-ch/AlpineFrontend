@@ -1,0 +1,9 @@
+@let text = (variantKey() | translate);
+@let parts = text.split(userToken);
+<div class="flex justify-center px-4 py-1">
+    <span class="text-xs text-white/40 text-center">
+        {{ parts[0] }}<span (click)="openProfile()"
+              [appUserNameStyle]="userProfile()"
+              class="mention-chip cursor-pointer">{{ userDisplayName() }}</span>{{ parts[1] }}
+    </span>
+</div>
