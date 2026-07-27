@@ -52,6 +52,7 @@
 
 @if (contextGuild()) {
     <app-guild-settings-modal
+            (guildDeleted)="onGuildDeleted($event)"
             (guildUpdated)="onGuildSettingsUpdated($event)"
             [(isVisible)]="showGuildSettings"
             [guild]="contextGuild()!"/>

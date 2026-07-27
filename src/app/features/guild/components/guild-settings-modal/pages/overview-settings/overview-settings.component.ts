@@ -18,6 +18,7 @@ import {TranslateModule} from '@ngx-translate/core';
 export class OverviewSettingsComponent implements OnInit, OnDestroy {
     guild = input.required<GuildDto>();
     guildUpdated = output<GuildDto>();
+    guildDeleted = output<string>();
     name = signal('');
     description = signal('');
     saving = signal(false);
@@ -27,6 +28,8 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
     iconRemoved = signal(false);
     cropVisible = signal(false);
     cropSrc = signal('');
+    showDeleteDialog = signal(false);
+    deleting = signal(false);
     private guildService = inject(GuildService);
     private previewObjectUrl: string | null = null;
 
@@ -125,6 +128,19 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
         } else {
             doUpdate(this.guild());
         }
+    }
+
+    deleteGuild(): void {
+        if (this.deleting()) return;
+        this.deleting.set(true);
+        this.guildService.deleteGuild(this.guild().id).subscribe({
+            next: () => {
+                this.guildDeleted.emit(this.guild().id);
+                this.showDeleteDialog.set(false);
+                this.deleting.set(false);
+            },
+            error: () => this.deleting.set(false),
+        });
     }
 
     private iconUrl(guildId: string): string {

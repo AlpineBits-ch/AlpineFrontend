@@ -43,6 +43,7 @@ export class GuildSettingsModalComponent {
     isVisible = model.required<boolean>();
     guild = input.required<GuildDto>();
     guildUpdated = output<GuildDto>();
+    guildDeleted = output<string>();
 
     activePage = signal('overview');
     headerIconFailed = signal(false);

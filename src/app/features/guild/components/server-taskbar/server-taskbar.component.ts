@@ -24,6 +24,7 @@ import {MenuItem} from 'primeng/api';
 import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-settings-modal.component';
 import {InviteType} from '../../../../dtos/response/invite.dto';
 import {ToastService} from '../../../../services/toast.service';
+import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 
 @Component({
     selector: 'app-server-taskbar',
@@ -65,6 +66,7 @@ export class ServerTaskbarComponent implements OnInit {
     });
     private guildUiActions = inject(GuildUiActionsService);
     private toastService = inject(ToastService);
+    private guildWsService = inject(GuildWebsocketService);
     private destroyRef = inject(DestroyRef);
     @ViewChild('guildContextMenu') private guildContextMenu!: ContextMenu;
 
@@ -84,6 +86,22 @@ export class ServerTaskbarComponent implements OnInit {
         ).subscribe(updated => {
             this.guilds.update(gs => gs.map(g => g.id === updated.id ? updated : g));
         });
+
+        this.guildWsService.guildDeletedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(e => this.onGuildDeleted(e.guildId));
+
+        this.guildWsService.guildUpdatedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(e => {
+                this.guildService.getGuild(e.guildId).subscribe(updated => {
+                    this.guilds.update(gs => gs.map(g => g.id === updated.id ? updated : g));
+                    const ws = this.navService.workspace();
+                    if (ws.type === 'server' && ws.guild.id === updated.id) {
+                        this.navService.updateCurrentGuild(updated);
+                    }
+                });
+            });
     }
 
     protected getPillHeight(server: ServerData): string {
@@ -113,6 +131,15 @@ export class ServerTaskbarComponent implements OnInit {
 
     protected onGuildSettingsUpdated(updated: GuildDto): void {
         this.guilds.update(gs => gs.map(g => g.id === updated.id ? updated : g));
+    }
+
+    protected onGuildDeleted(guildId: string): void {
+        this.showGuildSettings.set(false);
+        this.guilds.update(gs => gs.filter(g => g.id !== guildId));
+        const ws = this.navService.workspace();
+        if (ws.type === 'server' && ws.guild.id === guildId) {
+            this.navService.selectDMs();
+        }
     }
 
     private buildGuildMenuItems(guild: GuildDto): MenuItem[] {

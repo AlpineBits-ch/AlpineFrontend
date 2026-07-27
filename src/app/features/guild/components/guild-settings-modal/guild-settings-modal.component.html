@@ -83,7 +83,7 @@
                  style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
                 @switch (activePage()) {
                     @case ('overview') {
-                        <app-overview-settings (guildUpdated)="onGuildUpdated($event)" [guild]="guild()"/>
+                        <app-overview-settings (guildDeleted)="guildDeleted.emit($event)" (guildUpdated)="onGuildUpdated($event)" [guild]="guild()"/>
                     }
                     @case ('members') {
                         <app-members-settings [guild]="guild()"/>
