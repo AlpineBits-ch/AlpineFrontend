@@ -452,7 +452,7 @@ export class ChannelListComponent {
         if (!menu) return;
         this.participantMenu.set(null);
         await firstValueFrom(
-            this.guildService.banMemberByUserId(this.guild().id, menu.participant.userId)
+            this.guildService.banMember(this.guild().id, {userId: menu.participant.userId})
         ).catch(() => {
         });
     }

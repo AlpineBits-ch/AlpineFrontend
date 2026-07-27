@@ -142,7 +142,7 @@ export class VoiceChannelComponent {
         if (!menu) return;
         this.participantMenu.set(null);
         await firstValueFrom(
-            this.guildSvc.banMemberByUserId(this.channel().guildId, menu.participant.userId)
+            this.guildSvc.banMember(this.channel().guildId, {userId: menu.participant.userId})
         ).catch(() => {
         });
     }

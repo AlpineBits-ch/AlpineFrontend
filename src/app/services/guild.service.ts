@@ -8,7 +8,7 @@ import {InviteDto} from "../dtos/response/invite.dto";
 import {CreateInviteDto} from "../dtos/request/create-invite.dto";
 import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
 import {ApiConfigService} from "./api-config.service";
-import {appConfig} from "../app.config";
+import {BanDto} from "../dtos/response/ban.dto";
 
 export interface UpdateGuildDto {
     name?: string;
@@ -127,15 +127,23 @@ export class GuildService {
     }
 
     kickMember(guildId: string, memberId: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/guild/${guildId}/member/${memberId}`);
+        return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/${memberId}`);
     }
 
     kickMemberByUserId(guildId: string, userId: string): Observable<void> {
         return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/by-user/${userId}`);
     }
 
-    banMemberByUserId(guildId: string, userId: string): Observable<void> {
-        return this.http.post<void>(`${this.base}/guilds/${guildId}/bans/${userId}`, {});
+    banMember(guildId: string, dto: {userId: string; reason?: string}): Observable<void> {
+        return this.http.post<void>(`${this.base}/guilds/${guildId}/bans`, dto);
+    }
+
+    getBans(guildId: string): Observable<BanDto[]> {
+        return this.http.get<BanDto[]>(`${this.base}/guilds/${guildId}/bans`);
+    }
+
+    unbanMember(guildId: string, userId: string): Observable<void> {
+        return this.http.delete<void>(`${this.base}/guilds/${guildId}/bans/${userId}`);
     }
 
     // ── Roles ────────────────────────────────────────────────────────────────
