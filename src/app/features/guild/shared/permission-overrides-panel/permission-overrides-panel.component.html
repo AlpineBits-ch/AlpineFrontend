@@ -1,0 +1,114 @@
+@if (loading()) {
+    <div class="h-[400px] flex items-center justify-center">
+        <i class="pi pi-spin pi-spinner text-white/30 text-xl"></i>
+    </div>
+} @else {
+    <div class="flex gap-4 h-[400px]">
+
+        <!-- Sidebar -->
+        <div class="w-44 shrink-0 flex flex-col gap-2">
+            <div class="flex items-center justify-between px-1">
+                <p class="text-[10px] font-semibold text-white/30 uppercase tracking-widest">
+                    {{ kind() === 'role' ? 'Roles' : 'Members' }}
+                </p>
+                <button
+                        (click)="toggleAddPopover($event)"
+                        class="w-5 h-5 rounded-full flex items-center justify-center text-white/40 hover:text-white/70 hover:bg-white/[0.08] transition-colors cursor-pointer border-0"
+                        title="Add override">
+                    <i class="pi pi-plus text-[10px]"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar space-y-0.5">
+                @for (entry of entries(); track entry.id; let i = $index) {
+                    @if (entry.pinned && i > 0) {
+                        <div class="my-1 border-t border-white/[0.08]"></div>
+                    }
+                    <button
+                            (click)="select(entry.id)"
+                            [ngClass]="selected()?.id === entry.id ? 'bg-white/[0.08] text-white/90' : 'text-white/50 hover:bg-white/[0.04] hover:text-white/75'"
+                            class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer border-0 text-left">
+                        @if (kind() === 'role') {
+                            <span [style.background]="entry.color || '#6366f1'" class="w-2.5 h-2.5 rounded-full shrink-0"></span>
+                        } @else {
+                            <div class="w-5 h-5 rounded-full bg-card shrink-0 flex items-center justify-center overflow-hidden">
+                                @if (entry.avatarUrl) {
+                                    <img [alt]="entry.name" [src]="entry.avatarUrl" class="w-full h-full object-cover"/>
+                                } @else {
+                                    <span class="text-[9px] font-semibold text-white/40">{{ initial(entry.name) }}</span>
+                                }
+                            </div>
+                        }
+                        <span class="truncate">{{ entry.name }}</span>
+                    </button>
+                }
+                @if (entries().length === 0) {
+                    <p class="text-xs text-white/25 text-center py-4">{{ sidebarEmptyText() }}</p>
+                }
+            </div>
+        </div>
+
+        <!-- Detail panel -->
+        <div class="flex-1 min-w-0 border border-white/[0.10] rounded-2xl overflow-hidden flex flex-col">
+            @if (selected(); as entry) {
+                <div class="flex items-center gap-3 px-4 py-3 bg-white/[0.02] shrink-0">
+                    @if (kind() === 'role') {
+                        <span [style.background]="entry.color || '#6366f1'" class="w-3 h-3 rounded-full shrink-0"></span>
+                    } @else {
+                        <div class="w-7 h-7 rounded-full bg-card shrink-0 flex items-center justify-center overflow-hidden">
+                            @if (entry.avatarUrl) {
+                                <img [alt]="entry.name" [src]="entry.avatarUrl" class="w-full h-full object-cover"/>
+                            } @else {
+                                <span class="text-xs font-semibold text-white/40">{{ initial(entry.name) }}</span>
+                            }
+                        </div>
+                    }
+                    <span class="text-sm font-semibold text-white/80 flex-1 truncate">{{ entry.name }}</span>
+                    @if (entry.hasOverride) {
+                        <p-button (onClick)="delete.emit(entry.id)" [text]="true" icon="pi pi-trash" pTooltip="Remove override"
+                                  severity="danger" size="small" tooltipPosition="top"/>
+                    }
+                    @if (entry.dirty) {
+                        <p-button (onClick)="save.emit(entry.id)" [loading]="entry.saving" icon="pi pi-save" label="Save"
+                                  severity="primary" size="small"/>
+                    }
+                </div>
+                <div class="flex-1 overflow-y-auto thin-scrollbar px-4 py-3">
+                    <app-permission-override-editor
+                            (overrideChange)="change.emit({id: entry.id, override: $event})"
+                            [override]="entry.override"/>
+                </div>
+            } @else {
+                <div class="flex-1 flex items-center justify-center px-4">
+                    <p class="text-sm text-white/25 text-center">{{ detailPlaceholderText() }}</p>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<p-popover #addPopover [style]="{width: '220px', padding: '0'}" appendTo="body" styleClass="permission-overrides-add-popover">
+    <div class="max-h-64 overflow-y-auto thin-scrollbar py-1">
+        @for (entry of addable(); track entry.id) {
+            <button
+                    (click)="onAdd(entry.id)"
+                    class="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-white/[0.06] transition-colors cursor-pointer border-0 text-left">
+                @if (kind() === 'role') {
+                    <span [style.background]="entry.color || '#6366f1'" class="w-2.5 h-2.5 rounded-full shrink-0"></span>
+                } @else {
+                    <div class="w-6 h-6 rounded-full bg-card shrink-0 flex items-center justify-center overflow-hidden">
+                        @if (entry.avatarUrl) {
+                            <img [alt]="entry.name" [src]="entry.avatarUrl" class="w-full h-full object-cover"/>
+                        } @else {
+                            <span class="text-[10px] font-semibold text-white/40">{{ initial(entry.name) }}</span>
+                        }
+                    </div>
+                }
+                <span class="text-sm text-white/70 truncate">{{ entry.name }}</span>
+            </button>
+        }
+        @if (addable().length === 0) {
+            <p class="text-xs text-white/25 text-center py-3 px-3">{{ addableEmptyText() }}</p>
+        }
+    </div>
+</p-popover>
