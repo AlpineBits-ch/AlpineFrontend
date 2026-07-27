@@ -41,6 +41,7 @@ export interface RoleDto {
     userId: string;
     permissions: string;
     type: RoleType;
+    position: number;
 }
 
 export interface CategoryDto {
