@@ -405,7 +405,7 @@ export class ChannelListComponent {
         this.showInviteDialog.set(true);
         this.guildService.createInvite({type: InviteType.Permanent}, this.guild().id).subscribe({
             next: invite => {
-                this.inviteLink.set(`https://venta.gg/invite/${invite.id}`);
+                this.inviteLink.set(`https://venta.gg/invite/${invite.code}`);
                 this.inviteLoading.set(false);
             },
             error: () => this.inviteLoading.set(false),

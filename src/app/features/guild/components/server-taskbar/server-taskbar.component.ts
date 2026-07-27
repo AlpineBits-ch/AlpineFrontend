@@ -233,7 +233,7 @@ export class ServerTaskbarComponent implements OnInit {
 
     private inviteToServer(guild: GuildDto): void {
         this.guildService.createInvite({type: InviteType.Permanent}, guild.id).subscribe({
-            next: invite => navigator.clipboard.writeText(`https://venta.gg/invite/${invite.id}`),
+            next: invite => navigator.clipboard.writeText(`https://venta.gg/invite/${invite.code}`),
         });
     }
 

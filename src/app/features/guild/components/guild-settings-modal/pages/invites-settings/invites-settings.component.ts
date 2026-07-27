@@ -1,6 +1,8 @@
 import {Component, inject, input, OnInit, signal} from '@angular/core';
-import {NgClass} from '@angular/common';
+import {DatePipe, NgClass} from '@angular/common';
+import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
+import {InputText} from 'primeng/inputtext';
 import {Tooltip} from 'primeng/tooltip';
 import {GuildDto} from '../../../../../../dtos/response/guild.dto';
 import {GuildService} from '../../../../../../services/guild.service';
@@ -9,7 +11,7 @@ import {TranslateModule} from '@ngx-translate/core';
 
 @Component({
     selector: 'app-invites-settings',
-    imports: [NgClass, Button, Tooltip, TranslateModule],
+    imports: [NgClass, Button, InputText, Tooltip, TranslateModule, DatePipe, FormsModule],
     templateUrl: './invites-settings.component.html',
 })
 export class InvitesSettingsComponent implements OnInit {
@@ -19,6 +21,7 @@ export class InvitesSettingsComponent implements OnInit {
     creating = signal(false);
     deletingId = signal<string | null>(null);
     copiedId = signal<string | null>(null);
+    createExpiryHours = signal<number | null>(null);
     protected InviteType = InviteType;
     protected InviteState = InviteState;
     private guildService = inject(GuildService);
@@ -67,7 +70,7 @@ export class InvitesSettingsComponent implements OnInit {
     }
 
     inviteLink(invite: InviteDto): string {
-        return `https://venta.gg/invite/${invite.id}`;
+        return `https://venta.gg/invite/${invite.code}`;
     }
 
     formatDate(d: Date): string {
@@ -77,7 +80,9 @@ export class InvitesSettingsComponent implements OnInit {
     private createInvite(type: InviteType): void {
         if (this.creating()) return;
         this.creating.set(true);
-        this.guildService.createInvite({type}, this.guild().id,).subscribe({
+        const hours = this.createExpiryHours();
+        const expiresAt = hours ? new Date(Date.now() + hours * 3600_000).toISOString() : undefined;
+        this.guildService.createInvite({type, expiresAt}, this.guild().id).subscribe({
             next: invite => {
                 this.invites.update(list => [invite, ...list]);
                 this.creating.set(false);

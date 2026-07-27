@@ -8,6 +8,7 @@
         <p-button (onClick)="createOneTimeInvite()" [label]="'GUILD_SETTINGS.INVITES.ONE_TIME' | translate" [loading]="creating()"
                   icon="pi pi-plus"
                   severity="secondary" size="small"/>
+        <input [(ngModel)]="createExpiryHours" class="w-40" min="1" placeholder="Expires in hours" pInputText type="number"/>
     </div>
 
     <p class="text-xs text-white/30">
@@ -52,6 +53,12 @@
                                     date: formatDate(invite.createdAt)
                                 }
                             }} </p>
+                        <div class="flex items-center gap-2 mt-0.5">
+                            <span class="text-[11px] text-white/30">{{ invite.useCount }} use{{ invite.useCount === 1 ? '' : 's' }}@if (invite.maxUses) { / {{ invite.maxUses }} }</span>
+                            @if (invite.expiresAt) {
+                                <span class="text-[11px] text-white/30">Expires {{ invite.expiresAt | date:'short' }}</span>
+                            }
+                        </div>
                     </div>
 
                     <!-- Actions -->
