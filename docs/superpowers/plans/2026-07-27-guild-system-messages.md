@@ -673,7 +673,9 @@ git commit -m "feat: add SystemMessageComponent for guild join/leave messages"
 **Interfaces:**
 - Consumes: `app-system-message` / `SystemMessageComponent` (Task 5), `MessageType.GuildMemberJoin` / `.GuildMemberLeave` (Task 1).
 
-No new test: `ChannelComponent` has no existing spec (it depends on `NavigationService`, `BotCommandService`, `GuildWebsocketService`'s live SignalR connection, and more — building a first-ever harness for it is out of scope for a one-line template branch). Verified via `ng test` (compile correctness) and the plan doc's manual verification steps.
+No new test: `ChannelComponent` has no existing spec (it depends on `NavigationService`, `GuildWebsocketService`'s live SignalR connection, and more — building a first-ever harness for it is out of scope for a one-line template branch). Verified via `ng test` (compile correctness) and the plan doc's manual verification steps.
+
+Note: this worktree's committed `ChannelComponent`/`MessageComponent` predate an in-progress, uncommitted bot-command feature — there is no `botCommandService` or `guildBots` input in this codebase's committed history. The `<app-message>` element below only takes `guildChannels`, `guildRoles`, and `message` (plus the `jumpTo`/`reply` outputs) — do not add a `guildBots` binding.
 
 - [ ] **Step 1: Expose `MessageType` to the template**
 
@@ -712,7 +714,6 @@ In `src/app/features/guild/components/channel/channel.component.html`, replace t
                             } @else {
                                 <app-message (jumpTo)="jumpToMessage($event)"
                                              (reply)="onReply($event)"
-                                             [guildBots]="botCommandService.currentGuildBots()"
                                              [guildChannels]="guildChannels()"
                                              [guildRoles]="guildRoles()"
                                              [message]="msg"></app-message>
