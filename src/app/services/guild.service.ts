@@ -11,6 +11,7 @@ import {ApiConfigService} from "./api-config.service";
 import {BanDto} from "../dtos/response/ban.dto";
 import {AuditLogEntryDto} from "../dtos/response/audit-log-entry.dto";
 import {ReorderRolesDto} from "../dtos/request/reorder-roles.dto";
+import {CreateThreadDto} from "../dtos/request/create-thread.dto";
 
 export interface UpdateGuildDto {
     name?: string;
@@ -291,5 +292,22 @@ export class GuildService {
 
     reorderRoles(guildId: string, dto: ReorderRolesDto): Observable<void> {
         return this.http.patch<void>(`${this.base}/guilds/${guildId}/roles/reorder`, dto);
+    }
+
+    // ── Threads ──────────────────────────────────────────────────────────────
+    createThread(channelId: string, dto: CreateThreadDto): Observable<ChannelDto> {
+        return this.http.post<ChannelDto>(`${this.base}/channels/${channelId}/threads`, dto);
+    }
+
+    getThreads(channelId: string): Observable<ChannelDto[]> {
+        return this.http.get<ChannelDto[]>(`${this.base}/channels/${channelId}/threads`);
+    }
+
+    archiveThread(threadId: string): Observable<void> {
+        return this.http.patch<void>(`${this.base}/threads/${threadId}/archive`, {});
+    }
+
+    getInviteByCode(code: string): Observable<InviteDto> {
+        return this.http.get<InviteDto>(`${this.base}/invites/code/${code}`);
     }
 }

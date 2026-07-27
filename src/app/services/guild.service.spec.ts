@@ -179,3 +179,40 @@ describe('GuildService channel/category updates and permission overwrites', () =
         req.flush(null);
     });
 });
+
+describe('GuildService threads and invite-by-code', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('createThread POSTs to /channels/{channelId}/threads', () => {
+        const {service, ctrl} = setup();
+        service.createThread('c1', {name: 'bug-123'}).subscribe();
+        const req = ctrl.expectOne(`${BASE}/channels/c1/threads`);
+        expect(req.request.method).toBe('POST');
+        expect(req.request.body).toEqual({name: 'bug-123'});
+        req.flush({});
+    });
+
+    it('getThreads GETs /channels/{channelId}/threads', () => {
+        const {service, ctrl} = setup();
+        service.getThreads('c1').subscribe();
+        const req = ctrl.expectOne(`${BASE}/channels/c1/threads`);
+        expect(req.request.method).toBe('GET');
+        req.flush([]);
+    });
+
+    it('archiveThread PATCHes /threads/{threadId}/archive', () => {
+        const {service, ctrl} = setup();
+        service.archiveThread('t1').subscribe();
+        const req = ctrl.expectOne(`${BASE}/threads/t1/archive`);
+        expect(req.request.method).toBe('PATCH');
+        req.flush(null);
+    });
+
+    it('getInviteByCode GETs /invites/code/{code}', () => {
+        const {service, ctrl} = setup();
+        service.getInviteByCode('ab12cd34').subscribe();
+        const req = ctrl.expectOne(`${BASE}/invites/code/ab12cd34`);
+        expect(req.request.method).toBe('GET');
+        req.flush({});
+    });
+});
