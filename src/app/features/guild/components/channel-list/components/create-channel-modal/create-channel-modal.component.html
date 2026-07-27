@@ -43,6 +43,7 @@
           }
         </span>
                 <input (input)="onNameInput($event)"
+                       (keydown.enter)="submit()"
                        [value]="name()"
                        [placeholder]="'GUILD.CHANNEL_NAME_PLACEHOLDER' | translate"
                        class="w-full !pl-8"
