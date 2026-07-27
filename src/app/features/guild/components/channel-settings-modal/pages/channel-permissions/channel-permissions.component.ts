@@ -1,16 +1,15 @@
-import {Component, inject, input, OnInit, signal} from '@angular/core';
+import {Component, computed, inject, input, OnInit, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
-import {Button} from 'primeng/button';
-import {Tooltip} from 'primeng/tooltip';
-import {ChannelDto, ChannelPermission, GuildDto, RoleDto,} from '../../../../../../dtos/response/guild.dto';
+import {ChannelDto, ChannelPermission, GuildDto, RoleDto, RoleType,} from '../../../../../../dtos/response/guild.dto';
 import {GuildMemberDto} from '../../../../../../dtos/response/member.dto';
 import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
 import {
-    PermissionOverrideEditorComponent,
-    PermOverride,
-} from '../../../../shared/permission-override-editor/permission-override-editor.component';
+    OverrideEntry,
+    PermissionOverridesPanelComponent,
+} from '../../../../shared/permission-overrides-panel/permission-overrides-panel.component';
+import {PermOverride} from '../../../../shared/permission-override-editor/permission-override-editor.component';
 import {parsePermissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
 import {TranslateModule} from '@ngx-translate/core';
 
@@ -33,7 +32,7 @@ interface MemberOverride {
 
 @Component({
     selector: 'app-channel-permissions',
-    imports: [NgClass, Button, Tooltip, PermissionOverrideEditorComponent, TranslateModule],
+    imports: [NgClass, PermissionOverridesPanelComponent, TranslateModule],
     templateUrl: './channel-permissions.component.html',
 })
 export class ChannelPermissionsComponent implements OnInit {
@@ -43,12 +42,38 @@ export class ChannelPermissionsComponent implements OnInit {
     roleOverrides = signal<RoleOverride[]>([]);
     memberOverrides = signal<MemberOverride[]>([]);
     membersLoading = signal(false);
-    addRoleDialog = signal(false);
-    addMemberDialog = signal(false);
-    members = signal<GuildMemberDto[]>([]);
     readonly emptyOverride: PermOverride = {allow: 0n, deny: 0n};
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
+
+    protected roleEntries = computed<OverrideEntry[]>(() => {
+        const everyoneId = this.everyoneRoleId();
+        const rows = this.roleOverrides();
+        const overridden = rows
+            .filter(r => (r.perm !== null || r.dirty) && r.role.id !== everyoneId)
+            .map(r => this.toRoleEntry(r, false));
+        const everyone = rows.find(r => r.role.id === everyoneId);
+        return everyone ? [...overridden, this.toRoleEntry(everyone, true)] : overridden;
+    });
+
+    protected addableRoles = computed<OverrideEntry[]>(() => {
+        const everyoneId = this.everyoneRoleId();
+        return this.roleOverrides()
+            .filter(r => r.perm === null && !r.dirty && r.role.id !== everyoneId)
+            .map(r => this.toRoleEntry(r, false));
+    });
+
+    protected memberEntries = computed<OverrideEntry[]>(() =>
+        this.memberOverrides()
+            .filter(r => r.perm !== null || r.dirty)
+            .map(r => this.toMemberEntry(r))
+    );
+
+    protected addableMembers = computed<OverrideEntry[]>(() =>
+        this.memberOverrides()
+            .filter(r => r.perm === null && !r.dirty)
+            .map(r => this.toMemberEntry(r))
+    );
 
     ngOnInit(): void {
         this.buildRoleOverrides();
@@ -70,30 +95,36 @@ export class ChannelPermissionsComponent implements OnInit {
         );
     }
 
-    saveRoleOverride(row: RoleOverride): void {
-        if (row.saving) return;
-        this.roleOverrides.update(list => list.map(r => r.role.id === row.role.id ? {...r, saving: true} : r));
-        this.guildService.upsertChannelRolePermission(this.channel().id, row.role.id, {
+    onAddRoleOverride(roleId: string): void {
+        this.onRoleOverrideChange(roleId, this.emptyOverride);
+    }
+
+    saveRoleOverride(roleId: string): void {
+        const row = this.roleOverrides().find(r => r.role.id === roleId);
+        if (!row || row.saving) return;
+        this.roleOverrides.update(list => list.map(r => r.role.id === roleId ? {...r, saving: true} : r));
+        this.guildService.upsertChannelRolePermission(this.channel().id, roleId, {
             allowPermissions: stringifyPermissions(row.override.allow),
             denyPermissions: stringifyPermissions(row.override.deny),
         }).subscribe({
             next: perm => {
                 this.roleOverrides.update(list =>
-                    list.map(r => r.role.id === row.role.id ? {...r, perm, dirty: false, saving: false} : r)
+                    list.map(r => r.role.id === roleId ? {...r, perm, dirty: false, saving: false} : r)
                 );
             },
             error: () => {
-                this.roleOverrides.update(list => list.map(r => r.role.id === row.role.id ? {...r, saving: false} : r));
+                this.roleOverrides.update(list => list.map(r => r.role.id === roleId ? {...r, saving: false} : r));
             },
         });
     }
 
-    deleteRoleOverride(row: RoleOverride): void {
-        if (!row.perm) return;
-        this.guildService.deleteChannelRolePermission(this.channel().id, row.role.id).subscribe({
+    deleteRoleOverride(roleId: string): void {
+        const row = this.roleOverrides().find(r => r.role.id === roleId);
+        if (!row?.perm) return;
+        this.guildService.deleteChannelRolePermission(this.channel().id, roleId).subscribe({
             next: () => {
                 this.roleOverrides.update(list =>
-                    list.map(r => r.role.id === row.role.id
+                    list.map(r => r.role.id === roleId
                         ? {...r, perm: null, override: {allow: 0n, deny: 0n}, dirty: false}
                         : r
                     )
@@ -108,20 +139,25 @@ export class ChannelPermissionsComponent implements OnInit {
         );
     }
 
-    saveMemberOverride(row: MemberOverride): void {
-        if (row.saving) return;
-        this.memberOverrides.update(list => list.map(r => r.member.id === row.member.id ? {...r, saving: true} : r));
-        this.guildService.upsertChannelMemberPermission(this.channel().id, row.member.id, {
+    onAddMemberOverride(memberId: string): void {
+        this.onMemberOverrideChange(memberId, this.emptyOverride);
+    }
+
+    saveMemberOverride(memberId: string): void {
+        const row = this.memberOverrides().find(r => r.member.id === memberId);
+        if (!row || row.saving) return;
+        this.memberOverrides.update(list => list.map(r => r.member.id === memberId ? {...r, saving: true} : r));
+        this.guildService.upsertChannelMemberPermission(this.channel().id, memberId, {
             allowPermissions: stringifyPermissions(row.override.allow),
             denyPermissions: stringifyPermissions(row.override.deny),
         }).subscribe({
             next: perm => {
                 this.memberOverrides.update(list =>
-                    list.map(r => r.member.id === row.member.id ? {...r, perm, dirty: false, saving: false} : r)
+                    list.map(r => r.member.id === memberId ? {...r, perm, dirty: false, saving: false} : r)
                 );
             },
             error: () => {
-                this.memberOverrides.update(list => list.map(r => r.member.id === row.member.id ? {
+                this.memberOverrides.update(list => list.map(r => r.member.id === memberId ? {
                     ...r,
                     saving: false
                 } : r));
@@ -129,12 +165,13 @@ export class ChannelPermissionsComponent implements OnInit {
         });
     }
 
-    deleteMemberOverride(row: MemberOverride): void {
-        if (!row.perm) return;
-        this.guildService.deleteChannelMemberPermission(this.channel().id, row.member.id).subscribe({
+    deleteMemberOverride(memberId: string): void {
+        const row = this.memberOverrides().find(r => r.member.id === memberId);
+        if (!row?.perm) return;
+        this.guildService.deleteChannelMemberPermission(this.channel().id, memberId).subscribe({
             next: () => {
                 this.memberOverrides.update(list =>
-                    list.map(r => r.member.id === row.member.id
+                    list.map(r => r.member.id === memberId
                         ? {...r, perm: null, override: {allow: 0n, deny: 0n}, dirty: false}
                         : r
                     )
@@ -143,7 +180,36 @@ export class ChannelPermissionsComponent implements OnInit {
         });
     }
 
-    memberDisplayName(row: MemberOverride): string {
+    private everyoneRoleId(): string | undefined {
+        return this.guild().roles.find(r => r.type === RoleType.Everyone)?.id;
+    }
+
+    private toRoleEntry(row: RoleOverride, pinned: boolean): OverrideEntry {
+        return {
+            id: row.role.id,
+            name: row.role.name,
+            color: row.role.color,
+            hasOverride: row.perm !== null,
+            dirty: row.dirty,
+            saving: row.saving,
+            pinned,
+            override: row.override,
+        };
+    }
+
+    private toMemberEntry(row: MemberOverride): OverrideEntry {
+        return {
+            id: row.member.id,
+            name: this.memberDisplayName(row),
+            avatarUrl: row.profile?.avatarUrl ?? null,
+            hasOverride: row.perm !== null,
+            dirty: row.dirty,
+            saving: row.saving,
+            override: row.override,
+        };
+    }
+
+    private memberDisplayName(row: MemberOverride): string {
         return row.profile?.userName ?? row.member.userId.slice(0, 8) + '…';
     }
 
