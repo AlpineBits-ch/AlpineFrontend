@@ -9,6 +9,7 @@ import {MembersSettingsComponent} from './pages/members-settings/members-setting
 import {RolesSettingsComponent} from './pages/roles-settings/roles-settings.component';
 import {InvitesSettingsComponent} from './pages/invites-settings/invites-settings.component';
 import {BansSettingsComponent} from './pages/bans-settings/bans-settings.component';
+import {AuditLogSettingsComponent} from './pages/audit-log-settings/audit-log-settings.component';
 import {TranslateModule} from '@ngx-translate/core';
 
 interface NavItem {
@@ -33,6 +34,7 @@ interface NavGroup {
         RolesSettingsComponent,
         InvitesSettingsComponent,
         BansSettingsComponent,
+        AuditLogSettingsComponent,
         TranslateModule,
     ],
     templateUrl: './guild-settings-modal.component.html',
@@ -56,6 +58,7 @@ export class GuildSettingsModalComponent {
                 {id: 'members', label: 'Members', icon: 'pi pi-users'},
                 {id: 'roles', label: 'Roles', icon: 'pi pi-shield'},
                 {id: 'bans', label: 'Bans', icon: 'pi pi-ban'},
+                {id: 'audit-log', label: 'Audit Log', icon: 'pi pi-history'},
             ],
         },
         {

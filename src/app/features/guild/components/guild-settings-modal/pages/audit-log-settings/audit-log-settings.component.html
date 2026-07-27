@@ -1,0 +1,22 @@
+<!-- audit-log-settings.component.html -->
+<div (scroll)="onScroll($event)" class="flex flex-col gap-1 max-h-full overflow-y-auto">
+    @if (loading()) {
+        <p class="text-sm text-white/25 text-center py-6">Loading…</p>
+    } @else if (rows().length === 0) {
+        <p class="text-sm text-white/25 text-center py-6">No audit log entries yet</p>
+    } @else {
+        @for (row of rows(); track row.entry.id) {
+            <div class="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/[0.03]">
+                <div class="flex-1 min-w-0">
+                    <p class="text-sm text-white/80">
+                        <span class="font-medium">{{ actorName(row) }}</span> {{ describe(row.entry) }}
+                    </p>
+                    <p class="text-[11px] text-white/30">{{ row.entry.createdAt | date:'medium' }}</p>
+                </div>
+            </div>
+        }
+        @if (loadingMore()) {
+            <p class="text-xs text-white/25 text-center py-3">Loading more…</p>
+        }
+    }
+</div>
