@@ -16,7 +16,7 @@ import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {DatePipe} from '@angular/common';
 import {catchError, debounceTime, EMPTY, Subject, tap} from 'rxjs';
 
-import {ChannelDto} from '../../../../dtos/response/guild.dto';
+import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 import {MessageAttachment, MessageDto} from '../../../../dtos/response/message.dto';
 import {MessageEncryptionState} from '../../../../enums/message-encryption-state.enum';
 import {MessageType} from '../../../../enums/message-type.enum';
@@ -35,6 +35,7 @@ import {NavigationService} from '../../../main-page/navigation.service';
 import {MessageComponent} from '../../../messaging/components/conversation/message/message.component';
 import {HighlightPipe} from '../../../../pipes/highlight.pipe';
 import {TypingDotsComponent} from '../../../../components/typing-dots/typing-dots.component';
+import {ThreadPanelComponent} from './thread-panel/thread-panel.component';
 
 const SCROLL_BOTTOM_THRESHOLD = 100;
 const LOAD_MORE_THRESHOLD = 400;
@@ -52,7 +53,7 @@ function decodeContent(encoded: string): string {
     selector: 'app-channel',
     imports: [
         ComposerComponent, MessageComponent, Button,
-        DatePipe, HighlightPipe, TypingDotsComponent,
+        DatePipe, HighlightPipe, TypingDotsComponent, ThreadPanelComponent,
     ],
     templateUrl: './channel.component.html',
     styleUrl: './channel.component.css',
@@ -63,6 +64,8 @@ export class ChannelComponent implements AfterViewInit {
     protected navService = inject(NavigationService);
     protected guildId = computed(() => this.channel().guildId);
     protected replyingTo = signal<MessageDto | null>(null);
+    protected showThreadPanel = signal(false);
+    protected readonly ChannelType = ChannelType;
     protected searchQuery = signal('');
     protected isSearchActive = computed(() => this.searchQuery().trim().length > 0);
     protected isSearching = computed(() => this.searchEntry()?.searching ?? false);

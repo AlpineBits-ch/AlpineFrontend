@@ -1,4 +1,5 @@
-<div class="flex flex-col h-full bg-app-bg overflow-hidden">
+<div class="flex h-full overflow-hidden">
+<div class="flex flex-col h-full bg-app-bg overflow-hidden flex-1 min-w-0">
 
     <!-- Header -->
     <header class="flex items-center px-3 sm:px-5 border-b border-white/[0.10] shrink-0 bg-app-bg"
@@ -32,6 +33,10 @@
                     </button>
                 }
             </div>
+            @if (channel().type === ChannelType.Text) {
+                <p-button (onClick)="showThreadPanel.set(!showThreadPanel())" icon="pi pi-comments" [text]="true"
+                          severity="secondary" size="small"/>
+            }
             <p-button [text]="true" icon="pi pi-ellipsis-v" severity="secondary" size="small"/>
         </div>
     </header>
@@ -225,4 +230,9 @@
                       class="block"></app-composer>
     </footer>
 
+</div>
+    @if (showThreadPanel()) {
+        <app-thread-panel (threadSelected)="navService.openChannel($event)" [parentChannelId]="channel().id"
+                           class="w-64 shrink-0 border-l border-white/[0.08]"/>
+    }
 </div>
