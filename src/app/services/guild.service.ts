@@ -9,6 +9,8 @@ import {CreateInviteDto} from "../dtos/request/create-invite.dto";
 import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
 import {ApiConfigService} from "./api-config.service";
 import {BanDto} from "../dtos/response/ban.dto";
+import {AuditLogEntryDto} from "../dtos/response/audit-log-entry.dto";
+import {ReorderRolesDto} from "../dtos/request/reorder-roles.dto";
 
 export interface UpdateGuildDto {
     name?: string;
@@ -266,5 +268,14 @@ export class GuildService {
 
     getOwnMember(guildId: string): Observable<SelfGuildMemberDto> {
         return this.http.get<SelfGuildMemberDto>(`${this.base}/guilds/${guildId}/me`);
+    }
+
+    // ── Audit log ────────────────────────────────────────────────────────────
+    getAuditLog(guildId: string, skip: number, take: number): Observable<AuditLogEntryDto[]> {
+        return this.http.get<AuditLogEntryDto[]>(`${this.base}/guilds/${guildId}/audit-log?skip=${skip}&take=${take}`);
+    }
+
+    reorderRoles(guildId: string, dto: ReorderRolesDto): Observable<void> {
+        return this.http.patch<void>(`${this.base}/guilds/${guildId}/roles/reorder`, dto);
     }
 }

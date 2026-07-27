@@ -93,3 +93,25 @@ describe('GuildService timeouts and leave', () => {
         req.flush(null);
     });
 });
+
+describe('GuildService audit log and role reorder', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('getAuditLog GETs with skip/take query params', () => {
+        const {service, ctrl} = setup();
+        service.getAuditLog('g1', 0, 50).subscribe();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1/audit-log?skip=0&take=50`);
+        expect(req.request.method).toBe('GET');
+        req.flush([]);
+    });
+
+    it('reorderRoles PATCHes the roles array', () => {
+        const {service, ctrl} = setup();
+        const dto = {roles: [{roleId: 'r1', position: 0}, {roleId: 'r2', position: 1}]};
+        service.reorderRoles('g1', dto).subscribe();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1/roles/reorder`);
+        expect(req.request.method).toBe('PATCH');
+        expect(req.request.body).toEqual(dto);
+        req.flush(null);
+    });
+});
