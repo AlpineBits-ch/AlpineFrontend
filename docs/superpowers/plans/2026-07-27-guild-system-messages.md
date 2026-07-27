@@ -65,10 +65,10 @@ export enum MessageType {
 }
 ```
 
-Add the new field to `MessageDto` (right after `embedsJson?: string;` at the end of the interface in `src/app/dtos/response/message.dto.ts`):
+Add the new field to `MessageDto` (right after `reactions?: MessageReaction[];` at the end of the interface in `src/app/dtos/response/message.dto.ts` — this worktree's committed `message.dto.ts` does not have an `embedsJson` field; that belongs to unrelated uncommitted work in the original checkout and is out of scope here):
 
 ```ts
-    embedsJson?: string;
+    reactions?: MessageReaction[];
     systemMessageVariant?: number;
 }
 ```
@@ -97,7 +97,7 @@ git commit -m "feat: add Invite/GuildMemberJoin/GuildMemberLeave message types"
 - Consumes: `MessageType` (Task 1), `MessageDto` (Task 1), `MessageEncryptionState.Plain`, `AttachmentDto` (already imported in this file).
 - Produces: exported `GuildMessageCreatedPayload` interface and exported `mapGuildMessageCreatedPayload(data: GuildMessageCreatedPayload): MessageDto` function, both from `guild-websocket.service.ts`.
 
-The current `guild.MessageCreated` handler (lines ~367–399) builds a `MessageDto` inline and hardcodes `type: MessageType.Message` regardless of what the server actually sent — this silently mis-renders every system message that arrives live. Extracting the mapping into a pure function makes the bug fixable and testable without needing a real SignalR connection.
+The current `guild.MessageCreated` handler (lines ~351–408) builds a `MessageDto` inline and hardcodes `type: MessageType.Message` regardless of what the server actually sent — this silently mis-renders every system message that arrives live. Extracting the mapping into a pure function makes the bug fixable and testable without needing a real SignalR connection.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -117,7 +117,6 @@ const BASE_PAYLOAD: GuildMessageCreatedPayload = {
     attachments: [],
     inReplyTo: undefined,
     mentions: undefined,
-    embedsJson: undefined,
     type: 'Message',
     systemMessageVariant: undefined,
 };
@@ -170,7 +169,6 @@ export interface GuildMessageCreatedPayload {
     attachments: AttachmentDto[];
     inReplyTo: string | undefined;
     mentions: string[] | undefined;
-    embedsJson: string | undefined;
     type: string;
     systemMessageVariant: number | undefined;
 }
@@ -194,7 +192,6 @@ export function mapGuildMessageCreatedPayload(data: GuildMessageCreatedPayload):
         mlsSequenceNumber: undefined,
         senderDeviceId: undefined,
         type: data.type as MessageType,
-        embedsJson: data.embedsJson,
         systemMessageVariant: data.systemMessageVariant,
     };
 }
