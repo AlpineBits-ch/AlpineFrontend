@@ -1,7 +1,7 @@
 import {Component, input, output} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Avatar} from 'primeng/avatar';
-import {CommandDef} from '../commands';
+import {ComposerCommandItem} from '../commands';
 import {EmojiSuggestion} from '../../../../../../services/emoji-data.service';
 import {MentionCandidate, mentionCandidateId} from '../composer-utils';
 import {TwemojiComponent} from '../../../../../../components/twemoji/twemoji.component';
@@ -17,14 +17,14 @@ import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto
 export class SuggestionOverlayComponent {
     overlayType = input<'mention' | 'command' | 'emoji' | 'channel' | null>(null);
     filteredMentions = input<MentionCandidate[]>([]);
-    filteredCommands = input<CommandDef[]>([]);
+    filteredCommands = input<ComposerCommandItem[]>([]);
     filteredEmojis = input<EmojiSuggestion[]>([]);
     filteredChannels = input<ChannelDto[]>([]);
     selectedIndex = input<number>(0);
     query = input<string>('');
 
     mentionSelected = output<MentionCandidate>();
-    commandSelected = output<CommandDef>();
+    commandSelected = output<ComposerCommandItem>();
     emojiSelected = output<EmojiSuggestion>();
     channelSelected = output<ChannelDto>();
 

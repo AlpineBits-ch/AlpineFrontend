@@ -19,6 +19,30 @@ export interface MessageReaction {
     channelId: string | null;
 }
 
+export interface MessageEmbedField {
+    name: string;
+    value: string;
+    inline: boolean;
+}
+
+export interface MessageEmbedAuthor {
+    name: string;
+}
+
+export interface MessageEmbedFooter {
+    text: string;
+}
+
+export interface MessageEmbed {
+    title?: string;
+    description?: string;
+    url?: string;
+    color?: string;
+    author?: MessageEmbedAuthor;
+    fields: MessageEmbedField[];
+    footer?: MessageEmbedFooter;
+}
+
 export interface MessageDto {
     id: string;
     createdAt: Date;
@@ -41,4 +65,7 @@ export interface MessageDto {
     senderDeviceId: string | undefined;
     type: MessageType;
     reactions?: MessageReaction[];
+    /** Client-only: marks this entity as a synthetic placeholder for an in-flight/failed bot command invocation, not a real persisted message. */
+    isBotCommandPlaceholder?: boolean;
+    embedsJson?: string;
 }

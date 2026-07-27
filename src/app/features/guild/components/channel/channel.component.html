@@ -205,6 +205,7 @@
                         <div [attr.data-message-id]="msg.id">
                             <app-message (jumpTo)="jumpToMessage($event)"
                                          (reply)="onReply($event)"
+                                         [guildBots]="botCommandService.currentGuildBots()"
                                          [guildChannels]="guildChannels()"
                                          [guildRoles]="guildRoles()"
                                          [message]="msg"></app-message>
@@ -228,6 +229,7 @@
     <!-- Composer -->
     <footer class="shrink-0">
         <app-composer (cancelReply)="onCancelReply()" (message)="createMessage($event)" (typing)="onTyping()" [guildId]="guildId()"
+                      [channelId]="channel().id"
                       [guildChannels]="guildChannels()"
                       [guildRoles]="guildRoles()"
                       [replyTo]="replyingTo()" autofocus

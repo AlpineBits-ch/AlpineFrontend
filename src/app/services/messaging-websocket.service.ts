@@ -66,6 +66,7 @@ interface MessageCreatedPayload {
     mlsEpoch: number | undefined;
     mlsSequenceNumber: number | undefined;
     senderDeviceId: string | undefined;
+    embedsJson: string | undefined;
 }
 
 @Injectable({
@@ -285,6 +286,7 @@ export class MessagingWebsocketService {
             mlsSequenceNumber: data.mlsSequenceNumber,
             senderDeviceId: data.senderDeviceId,
             type: MessageType.Message,
+            embedsJson: data.embedsJson,
         });
 
         const sender = await firstValueFrom(

@@ -193,6 +193,16 @@ export interface WsPresenceChanged {
     status: OnlineStatus;
 }
 
+export interface WsBotInstalled {
+    guildId: string;
+    userId: string; // the bot's user id
+}
+
+export interface WsBotUninstalled {
+    guildId: string;
+    userId: string;
+}
+
 @Injectable({
     providedIn: 'root',
 })
@@ -242,6 +252,9 @@ export class GuildWebsocketService {
     public threadCreatedObservable = new Subject<WsThreadCreated>();
     // ── Presence ────────────────────────────────────────────────────────────────
     public presenceChangedObservable = new Subject<WsPresenceChanged>();
+    // ── Bot lifecycle ──────────────────────────────────────────────────────────
+    public botInstalledObservable = new Subject<WsBotInstalled>();
+    public botUninstalledObservable = new Subject<WsBotUninstalled>();
     private realtime = inject(RealtimeConnectionService);
     private notificationService = inject(NotificationService);
     private profileService = inject(ProfileService);
@@ -348,6 +361,9 @@ export class GuildWebsocketService {
         this.realtime.on('guild.ReactionCreated', (d: ReactionEvent) => this.reactionAddedObservable.next(d));
         this.realtime.on('guild.ReactionRemoved', (d: ReactionEvent) => this.reactionRemovedObservable.next(d));
 
+        this.realtime.on('guild.BotInstalled', (d: WsBotInstalled) => this.botInstalledObservable.next(d));
+        this.realtime.on('guild.BotUninstalled', (d: WsBotUninstalled) => this.botUninstalledObservable.next(d));
+
         this.realtime.on('guild.MessageCreated', async (data: {
             messageId: string;
             content: string;
@@ -357,6 +373,7 @@ export class GuildWebsocketService {
             attachments: AttachmentDto[];
             inReplyTo: string | undefined;
             mentions: string[] | undefined;
+            embedsJson: string | undefined;
         }) => {
             console.log('Guild MessageCreated:', data);
             const mentions = data.mentions ?? [];
@@ -378,6 +395,7 @@ export class GuildWebsocketService {
                 mlsSequenceNumber: undefined,
                 senderDeviceId: undefined,
                 type: MessageType.Message,
+                embedsJson: data.embedsJson,
             });
 
             const ownId = this.profileService.ownProfile()?.userId;

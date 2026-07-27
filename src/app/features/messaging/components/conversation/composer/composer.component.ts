@@ -1,11 +1,16 @@
-import {Component, computed, ElementRef, inject, input, output, signal, viewChild} from '@angular/core';
+import {Component, DestroyRef, computed, effect, ElementRef, inject, input, output, signal, viewChild} from '@angular/core';
 import twemoji from 'twemoji';
-import {toObservable, toSignal} from '@angular/core/rxjs-interop';
+import {takeUntilDestroyed, toObservable, toSignal} from '@angular/core/rxjs-interop';
 import {catchError, debounceTime, map, of, switchMap} from 'rxjs';
 import {Button} from 'primeng/button';
 import {MessageDto} from '../../../../../dtos/response/message.dto';
+import {MessageEncryptionState} from '../../../../../enums/message-encryption-state.enum';
+import {MessageType} from '../../../../../enums/message-type.enum';
+import {MessageStore} from '../../../../../stores/message.store';
 import {ChannelDto, RoleDto, RoleType} from '../../../../../dtos/response/guild.dto';
-import {CommandDef, COMMANDS} from './commands';
+import {BotCommandDto} from '../../../../../dtos/response/bot-command.dto';
+import {InvokeBotCommandOptionDto} from '../../../../../dtos/request/invoke-bot-command.dto';
+import {CommandDef, COMMANDS, ComposerCommandItem} from './commands';
 import {
     detectTrigger,
     EmojiSuggestion,
@@ -30,6 +35,9 @@ import {GuildService} from '../../../../../services/guild.service';
 import {ProfileService} from "../../../../../services/profile.service";
 import {TranslateModule} from '@ngx-translate/core';
 import {userNameStyle} from '../../../../../models/profile-font.model';
+import {BotCommandService} from '../../../../../services/bot-command.service';
+import {GuildWebsocketService} from '../../../../../services/guild-websocket.service';
+import {BotCommandDialogService} from '../../../../../features/bot-command/bot-command-dialog.service';
 
 const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/';
 
@@ -43,6 +51,8 @@ const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/
 export class ComposerComponent {
     /** Set when composing in a guild channel -drives async member search. */
     guildId = input<string | null>(null);
+    /** Set when composing in a guild channel -required to invoke a bot slash command. */
+    channelId = input<string | null>(null);
     /** Set when composing in a DM/group conversation -filtered synchronously. */
     conversationMembers = input<MentionCandidate[]>([]);
     /** Set when composing in a guild channel -feeds @role suggestions. */
@@ -116,15 +126,53 @@ export class ComposerComponent {
     });
     private readonly guildService = inject(GuildService);
 
+    // ── Bot slash commands (per-guild, fetched once per guild transition) ────────
+    private readonly botCommandService = inject(BotCommandService);
+    private readonly botCommandDialogService = inject(BotCommandDialogService);
+    private readonly guildWsService = inject(GuildWebsocketService);
+    private readonly messageStore = inject(MessageStore);
+    private readonly destroyRef = inject(DestroyRef);
+    private readonly botCommands = signal<BotCommandDto[]>([]);
+
+    constructor() {
+        effect(() => {
+            const gid = this.guildId();
+            if (!gid) {
+                this.botCommands.set([]);
+                return;
+            }
+            this.botCommandService.getCommands(gid).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+                next: cmds => this.botCommands.set(cmds),
+                error: () => this.botCommands.set([]),
+            });
+        });
+
+        this.guildWsService.botInstalledObservable.pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(e => {
+                if (e.guildId === this.guildId()) this.refetchBotCommands();
+            });
+        this.guildWsService.botUninstalledObservable.pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(e => {
+                if (e.guildId === this.guildId()) this.refetchBotCommands();
+            });
+    }
+
     // ── Filtered suggestions ──────────────────────────────────────────────────
     private commandAtStart = signal(false);
-    filteredCommands = computed(() => {
+    filteredCommands = computed<ComposerCommandItem[]>(() => {
         if (this.overlayType() !== 'command') return [];
         const q = this.query().toLowerCase();
         const atStart = this.commandAtStart();
-        return COMMANDS
+        const local: ComposerCommandItem[] = COMMANDS
             .filter(c => atStart || c.scope === 'inline')
-            .filter(c => c.name.startsWith(q));
+            .filter(c => c.name.startsWith(q))
+            .map(def => ({kind: 'local' as const, def}));
+        // Bot commands always consume the whole message (like local 'global'-scope commands),
+        // so only surface them at the start of the editor - never mid-sentence.
+        const bot: ComposerCommandItem[] = atStart
+            ? this.botCommands().filter(c => c.name.startsWith(q)).map(def => ({kind: 'bot' as const, def}))
+            : [];
+        return [...local, ...bot];
     });
     private readonly _queryStream = toObservable(this.query);
     private readonly guildSearchResults = toSignal(
@@ -404,7 +452,12 @@ export class ComposerComponent {
         this.editorRef().nativeElement.focus();
     }
 
-    onCommandSelected(cmd: CommandDef): void {
+    onCommandSelected(item: ComposerCommandItem): void {
+        if (item.kind === 'bot') {
+            this.onBotCommandSelected(item.def);
+            return;
+        }
+        const cmd = item.def;
         const editor = this.editorRef().nativeElement;
         const isInline = !this.commandAtStart() || cmd.scope === 'inline';
 
@@ -440,6 +493,74 @@ export class ComposerComponent {
             this.closeOverlay();
             editor.focus();
         }
+    }
+
+    private onBotCommandSelected(cmd: BotCommandDto): void {
+        const editor = this.editorRef().nativeElement;
+        editor.innerHTML = '';
+        this.isEmpty.set(true);
+        this.closeOverlay();
+        editor.focus();
+
+        if (cmd.options.length === 0) {
+            this.runBotCommand(cmd, []);
+            return;
+        }
+        const guildId = this.guildId();
+        const channelId = this.channelId();
+        if (!guildId || !channelId) return;
+        this.botCommandDialogService.open({guildId, channelId, command: cmd});
+    }
+
+    private runBotCommand(cmd: BotCommandDto, options: InvokeBotCommandOptionDto[]): void {
+        const guildId = this.guildId();
+        const channelId = this.channelId();
+        if (!guildId || !channelId) return;
+
+        const tempId = crypto.randomUUID();
+        const now = new Date();
+        this.messageStore.addMessage({
+            id: tempId,
+            content: '',
+            channelId,
+            conversationId: undefined,
+            authorId: cmd.botUserId,
+            createdAt: now,
+            updatedAt: now,
+            isPending: true,
+            isFailed: false,
+            isBotCommandPlaceholder: true,
+            attachments: [],
+            inReplyTo: undefined,
+            mentions: [],
+            encryptionState: MessageEncryptionState.Plain,
+            mlsEpoch: undefined,
+            mlsSequenceNumber: undefined,
+            senderDeviceId: undefined,
+            type: MessageType.Message,
+        });
+
+        this.botCommandService.invokeCommandWithRetry(
+            guildId,
+            channelId,
+            {botUserId: cmd.botUserId, commandName: cmd.name, options},
+            cmds => this.botCommands.set(cmds),
+        ).pipe(
+            switchMap(() => this.botCommandService.awaitBotResponse(channelId, cmd.botUserId)),
+            takeUntilDestroyed(this.destroyRef),
+        ).subscribe({
+            next: () => this.messageStore.removeMessage(tempId),
+            error: () => this.messageStore.failMessage(tempId),
+        });
+    }
+
+    private refetchBotCommands(): void {
+        const gid = this.guildId();
+        if (!gid) return;
+        this.botCommandService.getCommands(gid).subscribe({
+            next: cmds => this.botCommands.set(cmds),
+            error: () => {},
+        });
     }
 
     onEmojiShortcodeSelected(emoji: EmojiSuggestion): void {

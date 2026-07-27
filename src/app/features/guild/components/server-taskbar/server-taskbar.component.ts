@@ -184,6 +184,11 @@ export class ServerTaskbarComponent implements OnInit {
                 command: () => this.showGuildSettings.set(true),
             },
             {
+                label: 'Copy Server ID',
+                icon: 'pi pi-copy',
+                command: () => this.copyGuildId(guild),
+            },
+            {
                 label: 'Privacy Settings',
                 icon: 'pi pi-lock',
                 command: () => {
@@ -235,6 +240,11 @@ export class ServerTaskbarComponent implements OnInit {
         this.guildService.createInvite({type: InviteType.Permanent}, guild.id).subscribe({
             next: invite => navigator.clipboard.writeText(`https://venta.gg/invite/${invite.code}`),
         });
+    }
+
+    private copyGuildId(guild: GuildDto): void {
+        navigator.clipboard.writeText(guild.id);
+        this.toastService.success('Server ID copied to clipboard');
     }
 
     private triggerCreateChannel(guild: GuildDto): void {

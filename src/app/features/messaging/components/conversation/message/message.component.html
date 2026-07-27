@@ -33,12 +33,20 @@
         }
 
         <div class="flex items-center gap-2 mb-1">
-            @let user = (getProfile() | async);
-            <span (click)="profileDialogSvc.open(message().authorId)"
-                  [appUserNameStyle]="user"
-                  class="text-sm font-semibold text-white/85 cursor-pointer hover:text-white transition-colors">
-        {{ user ? user.userName : message().authorId }}
-      </span>
+            @if (botName(message().authorId); as bName) {
+                <span (click)="profileDialogSvc.open(message().authorId)"
+                      class="text-sm font-semibold text-white/85 cursor-pointer hover:text-white transition-colors">
+          {{ bName }}
+        </span>
+                <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim">Bot</span>
+            } @else {
+                @let user = (getProfile() | async);
+                <span (click)="profileDialogSvc.open(message().authorId)"
+                      [appUserNameStyle]="user"
+                      class="text-sm font-semibold text-white/85 cursor-pointer hover:text-white transition-colors">
+          {{ user ? user.userName : message().authorId }}
+        </span>
+            }
             <span class="text-[11px] text-white/25">{{ message().createdAt | date: 'shortTime' }}</span>
             @if (message().encryptionState === 'Encrypted') {
                 <span class="flex items-center gap-0.5 text-emerald-400/70" title="End-to-end encrypted">
@@ -54,7 +62,7 @@
             }
             @if (message().isFailed) {
                 <span class="text-[11px] text-rose-400 flex items-center gap-1">
-          <i class="pi pi-exclamation-circle"></i> Failed to send
+          <i class="pi pi-exclamation-circle"></i> {{ message().isBotCommandPlaceholder ? "Didn't respond" : 'Failed to send' }}
         </span>
             }
         </div>
@@ -103,7 +111,18 @@
                     </div>
                 </div>
             </div>
-        } @else {
+        } @else if (message().isBotCommandPlaceholder && message().isPending) {
+            <!-- Bot command awaiting a reply -->
+            <div class="flex items-center py-1">
+                <app-typing-dots/>
+            </div>
+        } @else if (message().isBotCommandPlaceholder && message().isFailed) {
+            <!-- Bot command that never got a reply -->
+            <div class="flex items-center gap-1.5 text-[15px] text-rose-300">
+                <i class="pi pi-exclamation-circle text-[13px]"></i>
+                <span>Didn't respond</span>
+            </div>
+        } @else if (!embeds().length) {
             <!-- Normal message content -->
             <div (click)="onLinkClick($event)"
                  [ngClass]="message().isFailed ? 'text-rose-300' : message().isPending ? 'text-white/40' : 'text-white/70'"
@@ -179,6 +198,14 @@
                             </button>
                         </div>
                     }
+                }
+            </div>
+        }
+
+        @if (embeds().length) {
+            <div class="flex flex-col gap-2 mt-2">
+                @for (embed of embeds(); track $index) {
+                    <app-embed-card [embed]="embed"/>
                 }
             </div>
         }

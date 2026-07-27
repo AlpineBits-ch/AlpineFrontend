@@ -29,6 +29,7 @@ import {ProfileService} from '../../../../services/profile.service';
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {GuildReadStateService} from '../../../../services/guild-read-state.service';
 import {TypingService} from '../../../../services/typing.service';
+import {BotCommandService} from '../../../../services/bot-command.service';
 
 import {ComposerComponent} from '../../../messaging/components/conversation/composer/composer.component';
 import {NavigationService} from '../../../main-page/navigation.service';
@@ -62,6 +63,7 @@ export class ChannelComponent implements AfterViewInit {
     public channel = input.required<ChannelDto>();
     public back = output();
     protected navService = inject(NavigationService);
+    protected botCommandService = inject(BotCommandService);
     protected guildId = computed(() => this.channel().guildId);
     protected guildRoles = computed(() => {
         const ws = this.navService.workspace();

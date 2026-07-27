@@ -13,7 +13,8 @@ import {
     ViewChild
 } from '@angular/core';
 import {takeUntilDestroyed, toObservable, toSignal} from '@angular/core/rxjs-interop';
-import {MessageAttachment, MessageDto} from "../../../../../dtos/response/message.dto";
+import {MessageAttachment, MessageDto, MessageEmbed} from "../../../../../dtos/response/message.dto";
+import {BotCommandDto} from '../../../../../dtos/response/bot-command.dto';
 import {AppAvatarComponent} from "../../../../../components/avatar/avatar.component";
 import {AsyncPipe, DatePipe, NgClass} from "@angular/common";
 import {ProfileService} from "../../../../../services/profile.service";
@@ -30,9 +31,11 @@ import {MessageStore} from '../../../../../stores/message.store';
 import {ProfileDialogService} from '../../../../../services/profile-dialog.service';
 import {openUrl} from '@tauri-apps/plugin-opener';
 import {InviteCardComponent} from './invite-card/invite-card.component';
+import {EmbedCardComponent} from './embed-card/embed-card.component';
 import {MessageHoverToolbarComponent} from './hover-toolbar/message-hover-toolbar.component';
 import {MessageReactionBarComponent} from './reaction-bar/message-reaction-bar.component';
 import {TwemojiComponent} from '../../../../../components/twemoji/twemoji.component';
+import {TypingDotsComponent} from '../../../../../components/typing-dots/typing-dots.component';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {CreateReactionDto} from '../../../../../dtos/request/create-reaction.dto';
@@ -49,9 +52,11 @@ import {UserNameStyleDirective} from '../../../../../directives/user-name-style.
         NgClass,
         MarkdownPipe,
         InviteCardComponent,
+        EmbedCardComponent,
         MessageHoverToolbarComponent,
         MessageReactionBarComponent,
         TwemojiComponent,
+        TypingDotsComponent,
         Dialog,
         Button,
         TranslateModule,
@@ -69,6 +74,7 @@ export class MessageComponent {
     public message = input.required<MessageDto>();
     public guildChannels = input<ChannelDto[]>([]);
     public guildRoles = input<RoleDto[]>([]);
+    public guildBots = input<BotCommandDto[]>([]);
     public reply = output<MessageDto>();
     public jumpTo = output<string>();
 
@@ -263,7 +269,7 @@ export class MessageComponent {
         const msg = this.replyMessage();
         if (!msg) return '';
         if (msg.authorId === this.profileService.ownProfile()?.userId) return 'You';
-        return this.profileService.getCachedByUserId(msg.authorId)?.userName ?? 'Unknown';
+        return this.botName(msg.authorId) ?? this.profileService.getCachedByUserId(msg.authorId)?.userName ?? 'Unknown';
     });
     protected readonly replyAuthorProfile = computed(() => {
         const msg = this.replyMessage();
@@ -285,6 +291,15 @@ export class MessageComponent {
         const bytes = Uint8Array.from(atob(this.message().content), c => c.charCodeAt(0));
         const decoded = new TextDecoder().decode(bytes);
         return this.emojiDataService.resolveShortcodes(decoded);
+    });
+    public embeds = computed<MessageEmbed[]>(() => {
+        const json = this.message().embedsJson;
+        if (!json) return [];
+        try {
+            return JSON.parse(json);
+        } catch {
+            return [];
+        }
     });
     private fileService = inject(FileService);
     private messagingService = inject(MessagingService);
@@ -470,6 +485,10 @@ export class MessageComponent {
 
     public getProfile(): Observable<ProfileDto> {
         return this.profileService.getByUserId(this.message().authorId);
+    }
+
+    public botName(authorId: string | undefined): string | undefined {
+        return authorId ? this.guildBots().find(b => b.botUserId === authorId)?.botName : undefined;
     }
 
     public mentionedProfile(userId: string): ProfileDto | undefined {

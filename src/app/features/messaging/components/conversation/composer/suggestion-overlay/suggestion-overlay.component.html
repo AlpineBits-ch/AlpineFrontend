@@ -49,23 +49,38 @@
         }
 
         @if (overlayType() === 'command') {
-            @for (cmd of filteredCommands(); track cmd.name; let i = $index) {
+            @for (item of filteredCommands(); track item.kind + ':' + item.def.name; let i = $index) {
                 <div
-                        (mousedown)="commandSelected.emit(cmd)"
+                        (mousedown)="commandSelected.emit(item)"
                         [ngClass]="selectedIndex() === i ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]'"
                         class="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors">
-                    <span class="text-sm font-bold text-indigo-400 shrink-0">/{{ cmd.name }}</span>
-                    <span class="text-xs text-white/40 flex-1">{{ cmd.description }}</span>
-                    <span [ngClass]="cmd.scope === 'inline' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-indigo-500/15 text-indigo-400'"
-                          class="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0">
-            {{ cmd.scope }}
-          </span>
-                    @if (cmd.params.length > 0) {
-                        <span class="text-[11px] text-white/20 font-mono shrink-0">
-              @for (p of cmd.params; track p.label) {
-                  {{ p.required ? '<' + p.label + '>' : '[' + p.label + ']' }}
-              }
-            </span>
+                    @if (item.kind === 'local') {
+                        <span class="text-sm font-bold text-indigo-400 shrink-0">/{{ item.def.name }}</span>
+                        <span class="text-xs text-white/40 flex-1">{{ item.def.description }}</span>
+                        <span [ngClass]="item.def.scope === 'inline' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-indigo-500/15 text-indigo-400'"
+                              class="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0">
+                {{ item.def.scope }}
+              </span>
+                        @if (item.def.params.length > 0) {
+                            <span class="text-[11px] text-white/20 font-mono shrink-0">
+                  @for (p of item.def.params; track p.label) {
+                      {{ p.required ? '<' + p.label + '>' : '[' + p.label + ']' }}
+                  }
+                </span>
+                        }
+                    } @else {
+                        <span class="text-sm font-bold text-indigo-400 shrink-0">/{{ item.def.name }}</span>
+                        <span class="text-xs text-white/40 flex-1">{{ item.def.description }}</span>
+                        <span class="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 bg-white/[0.08] text-white/50">
+                {{ item.def.botName }}
+              </span>
+                        @if (item.def.options.length > 0) {
+                            <span class="text-[11px] text-white/20 font-mono shrink-0">
+                  @for (o of item.def.options; track o.name) {
+                      {{ o.required ? '<' + o.name + '>' : '[' + o.name + ']' }}
+                  }
+                </span>
+                        }
                     }
                 </div>
             }

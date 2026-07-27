@@ -116,6 +116,11 @@ export class ChannelListComponent {
             icon: 'pi pi-cog',
             command: () => this.showGuildSettings.set(true),
         },
+        {
+            label: 'Copy Server ID',
+            icon: 'pi pi-copy',
+            command: () => navigator.clipboard.writeText(this.guild().id),
+        },
         {separator: true},
         {
             label: 'Create Channel',

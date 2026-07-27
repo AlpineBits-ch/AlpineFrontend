@@ -1,3 +1,5 @@
+import {BotCommandDto} from '../../../../../dtos/response/bot-command.dto';
+
 export type CommandScope = 'global' | 'inline';
 
 export interface CommandResult {
@@ -17,6 +19,15 @@ export interface CommandDef {
     params: { label: string; required: boolean }[];
     execute: (params: string) => CommandResult;
 }
+
+/** Unifies the local (client-only) `/` commands below with server-provided bot slash commands
+ *  fetched per-guild, so the overlay's keyboard nav / selection can operate over one flat,
+ *  indexable list regardless of where a candidate command came from. `kind` (not `scope`) is the
+ *  discriminant deliberately: `CommandDef.scope` ('inline'/'global') and `BotCommandDto.scope`
+ *  ('global'/'guild') share a field name but mean different things. */
+export type ComposerCommandItem =
+    | { kind: 'local'; def: CommandDef }
+    | { kind: 'bot'; def: BotCommandDto };
 
 export const COMMANDS: CommandDef[] = [
     {
