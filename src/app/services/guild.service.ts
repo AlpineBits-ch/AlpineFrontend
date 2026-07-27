@@ -146,6 +146,18 @@ export class GuildService {
         return this.http.delete<void>(`${this.base}/guilds/${guildId}/bans/${userId}`);
     }
 
+    muteMember(guildId: string, memberId: string, durationMinutes: number): Observable<void> {
+        return this.http.post<void>(`${this.base}/guilds/${guildId}/members/${memberId}/mute`, {durationMinutes});
+    }
+
+    unmuteMember(guildId: string, memberId: string): Observable<void> {
+        return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/${memberId}/mute`);
+    }
+
+    leaveGuild(guildId: string): Observable<void> {
+        return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/me`);
+    }
+
     // ── Roles ────────────────────────────────────────────────────────────────
     createRole(dto: CreateRoleDto): Observable<RoleDto> {
         return this.http.post<RoleDto>(`${this.base}/guilds/${dto.guildId}/roles`, dto);

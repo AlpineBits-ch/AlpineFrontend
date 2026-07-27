@@ -23,7 +23,7 @@ import {ContextMenu} from 'primeng/contextmenu';
 import {MenuItem} from 'primeng/api';
 import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-settings-modal.component';
 import {InviteType} from '../../../../dtos/response/invite.dto';
-import {ProfileService} from '../../../../services/profile.service';
+import {ToastService} from '../../../../services/toast.service';
 
 @Component({
     selector: 'app-server-taskbar',
@@ -64,7 +64,7 @@ export class ServerTaskbarComponent implements OnInit {
         });
     });
     private guildUiActions = inject(GuildUiActionsService);
-    private profileService = inject(ProfileService);
+    private toastService = inject(ToastService);
     private destroyRef = inject(DestroyRef);
     @ViewChild('guildContextMenu') private guildContextMenu!: ContextMenu;
 
@@ -221,14 +221,19 @@ export class ServerTaskbarComponent implements OnInit {
     }
 
     private leaveServer(guild: GuildDto): void {
-        const ownUserId = this.profileService.ownProfile()?.userId;
-        if (!ownUserId) return;
-        this.guildService.kickMemberByUserId(guild.id, ownUserId).subscribe({
+        this.guildService.leaveGuild(guild.id).subscribe({
             next: () => {
                 this.guilds.update(gs => gs.filter(g => g.id !== guild.id));
                 const ws = this.navService.workspace();
                 if (ws.type === 'server' && ws.guild.id === guild.id) {
                     this.navService.selectDMs();
+                }
+            },
+            error: err => {
+                if (err.status === 400) {
+                    this.toastService.error('You must delete the server instead of leaving, since you own it.');
+                } else {
+                    this.toastService.httpError('Failed to leave server', err);
                 }
             },
         });

@@ -64,3 +64,32 @@ describe('GuildService bans', () => {
         req.flush(null);
     });
 });
+
+describe('GuildService timeouts and leave', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('muteMember POSTs durationMinutes to the mute route', () => {
+        const {service, ctrl} = setup();
+        service.muteMember('g1', 'm1', 60).subscribe();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1/members/m1/mute`);
+        expect(req.request.method).toBe('POST');
+        expect(req.request.body).toEqual({durationMinutes: 60});
+        req.flush(null);
+    });
+
+    it('unmuteMember DELETEs the mute route', () => {
+        const {service, ctrl} = setup();
+        service.unmuteMember('g1', 'm1').subscribe();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1/members/m1/mute`);
+        expect(req.request.method).toBe('DELETE');
+        req.flush(null);
+    });
+
+    it('leaveGuild DELETEs /guilds/{guildId}/members/me', () => {
+        const {service, ctrl} = setup();
+        service.leaveGuild('g1').subscribe();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1/members/me`);
+        expect(req.request.method).toBe('DELETE');
+        req.flush(null);
+    });
+});
