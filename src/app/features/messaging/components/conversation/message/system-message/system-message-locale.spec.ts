@@ -14,6 +14,7 @@ describe('system message locale keys', () => {
                 it(`${localeName} defines ${key} with a %USER% placeholder`, () => {
                     expect(locale[key]).toBeTruthy();
                     expect(locale[key]).toContain('%USER%');
+                    expect(locale[key].split('%USER%')).toHaveLength(2);
                 });
             }
         }

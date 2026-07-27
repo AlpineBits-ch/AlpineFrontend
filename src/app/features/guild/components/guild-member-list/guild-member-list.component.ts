@@ -68,6 +68,7 @@ export class GuildMemberListComponent implements OnChanges {
         this.guildWsService.memberJoinedObservable.pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsMemberJoined) => {
                 if (e.guildId !== this.guild().id) return;
+                if (this.nextSkip > this.TAKE) return;
                 this.reset();
                 this.fetchPage(this.guild().id);
             });
