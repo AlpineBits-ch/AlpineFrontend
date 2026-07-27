@@ -16,6 +16,7 @@ import {CreateThreadDto} from "../dtos/request/create-thread.dto";
 export interface UpdateGuildDto {
     name?: string;
     description?: string;
+    systemChannelId?: string;
 }
 
 export interface CreateRoleDto {

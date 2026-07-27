@@ -69,6 +69,7 @@ export interface GuildDto {
     channels: ChannelDto[];
     roles: RoleDto[];
     bannerUrl?: string;
+    systemChannelId: string | null;
 }
 
 export enum RoleType {

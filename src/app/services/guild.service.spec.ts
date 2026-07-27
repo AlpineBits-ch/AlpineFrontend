@@ -216,3 +216,25 @@ describe('GuildService threads and invite-by-code', () => {
         req.flush({});
     });
 });
+
+describe('GuildService systemChannelId', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('updateGuild PATCHes systemChannelId when provided', () => {
+        const {service, ctrl} = setup();
+        service.updateGuild('g1', {systemChannelId: 'chan_1'}).subscribe();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        expect(req.request.method).toBe('PATCH');
+        expect(req.request.body).toEqual({systemChannelId: 'chan_1'});
+        req.flush({});
+    });
+
+    it('updateGuild omits systemChannelId when not provided, leaving it unchanged', () => {
+        const {service, ctrl} = setup();
+        service.updateGuild('g1', {name: 'New Name'}).subscribe();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        expect(req.request.body).toEqual({name: 'New Name'});
+        expect(req.request.body.systemChannelId).toBeUndefined();
+        req.flush({});
+    });
+});
