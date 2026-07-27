@@ -1,4 +1,4 @@
 export enum MemberType {
-    User = 'User',
+    Default = 'Default',
     Bot = 'Bot',
 }

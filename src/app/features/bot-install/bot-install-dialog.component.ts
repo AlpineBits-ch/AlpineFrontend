@@ -64,6 +64,7 @@ export class BotInstallDialogComponent {
         const request = this.dialogService.request();
         this.dialogService.close();
         this.toastService.success('Bot installed');
+        this.dialogService.installedIntoGuild.next(result.guildId);
 
         if (request?.redirectUri) {
             const url = new URL(request.redirectUri);

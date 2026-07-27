@@ -10,6 +10,7 @@ export interface GuildMemberDto {
     permissions: string;
     status: OnlineStatus;
     type: MemberType;
+    nickname: string | null;
     profile: ProfileDto | undefined;
     readState: ReadStateDto[]
 }

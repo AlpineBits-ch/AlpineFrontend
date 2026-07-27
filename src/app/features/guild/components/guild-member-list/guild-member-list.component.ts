@@ -22,6 +22,7 @@ import {
 } from '../../../../services/guild-websocket.service';
 import {UserStatusDotComponent} from '../../../../components/user-status-dot/user-status-dot.component';
 import {UserNameStyleDirective} from '../../../../directives/user-name-style.directive';
+import {BotInstallDialogService} from '../../../bot-install/bot-install-dialog.service';
 
 @Component({
     selector: 'app-guild-member-list',
@@ -41,6 +42,7 @@ export class GuildMemberListComponent implements OnChanges {
     private ownMember = signal<SelfGuildMemberDto | null>(null);
     private guildService = inject(GuildService);
     private guildWsService = inject(GuildWebsocketService);
+    private botInstallDialogService = inject(BotInstallDialogService);
     private toastService = inject(ToastService);
     private destroyRef = inject(DestroyRef);
     private readonly TAKE = 50;
@@ -61,6 +63,13 @@ export class GuildMemberListComponent implements OnChanges {
             .subscribe((e: WsPresenceChanged) => {
                 if (e.guildId !== this.guild().id) return;
                 this.rows.update(list => list.map(m => m.userId === e.userId ? {...m, status: e.status} : m));
+            });
+        // Stopgap until there's a MemberJoined websocket event - see BotInstallDialogService.
+        this.botInstallDialogService.installedIntoGuild.pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(guildId => {
+                if (guildId !== this.guild().id) return;
+                this.reset();
+                this.fetchPage(this.guild().id);
             });
     }
 
@@ -86,6 +95,9 @@ export class GuildMemberListComponent implements OnChanges {
     }
 
     displayName(member: GuildMemberDto): string {
+        if (this.isBot(member)) {
+            return member.nickname ?? member.userId.slice(0, 8) + '…';
+        }
         return member.profile?.userName ?? member.userId.slice(0, 8) + '…';
     }
 

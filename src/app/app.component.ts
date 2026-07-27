@@ -31,6 +31,7 @@ import {parseInstallBotLink} from './features/bot-install/bot-install-link.util'
     styleUrl: "./app.component.css",
 })
 export class AppComponent implements OnInit, OnDestroy {
+    private static readonly COLD_START_DEEP_LINK_CONSUMED_KEY = 'alpine.coldStartDeepLinkConsumed';
     protected readonly isPopup = window.location.pathname === '/toast-popup';
     private profileService = inject(ProfileService);
     private callWebRtc = inject(CallWebRtcService);
@@ -62,9 +63,17 @@ export class AppComponent implements OnInit, OnDestroy {
         });
         // Cold start: the OS may have launched the app fresh via a deep link, in which case
         // onOpenUrl's live listener misses it entirely - getCurrent() returns that initial URL.
-        void getCurrent().then(urls => {
-            for (const url of urls ?? []) this.handleDeepLink(url);
-        });
+        // getCurrent() keeps returning that same URL for the lifetime of the OS process though,
+        // so a plain reload (Ctrl+F5) re-runs this and would reopen the same dialog every time.
+        // sessionStorage survives a reload but not a full app relaunch, so it's used here to
+        // consume the cold-start URL exactly once per process.
+        // TODO: replace with a proper "deep link consumed" signal from Tauri if one appears.
+        if (!sessionStorage.getItem(AppComponent.COLD_START_DEEP_LINK_CONSUMED_KEY)) {
+            sessionStorage.setItem(AppComponent.COLD_START_DEEP_LINK_CONSUMED_KEY, '1');
+            void getCurrent().then(urls => {
+                for (const url of urls ?? []) this.handleDeepLink(url);
+            });
+        }
 
         // Resumes an install-bot modal that was stashed because the user was logged out when
         // the deep link arrived (see BotInstallDialogService.requestOpen).

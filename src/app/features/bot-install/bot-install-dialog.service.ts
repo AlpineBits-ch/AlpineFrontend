@@ -1,5 +1,6 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {Router} from '@angular/router';
+import {Subject} from 'rxjs';
 import {AuthService} from '../../services/auth.service';
 import {InstallBotLinkParams} from './bot-install-link.util';
 
@@ -12,6 +13,11 @@ export class BotInstallDialogService {
 
     /** Non-null while the Install Bot modal should be visible. */
     readonly request = signal<PendingInstallRequest | null>(null);
+
+    // Stopgap so open member lists can refresh themselves after a bot is installed into their
+    // guild - there's no MemberJoined websocket event yet, so we broadcast this locally instead.
+    // TODO: replace with a guild.MemberJoined websocket event once the backend sends one.
+    readonly installedIntoGuild = new Subject<string>();
 
     /** Stashed when a link arrives while logged out; drained by resumeIfPending(). */
     private pendingLink: PendingInstallRequest | null = null;
