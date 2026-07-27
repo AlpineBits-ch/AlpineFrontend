@@ -56,6 +56,12 @@ export class VoiceChannelService {
         isScreenSharing: false
     });
     readonly isInVoice = computed(() => this.joinedChannelId() !== null);
+    /**
+     * Push-to-talk gate, independent of the deliberate mute toggle - true means
+     * "allowed to transmit". Driven by {@link CallHotkeyService}; stays true when
+     * no push-to-talk key is bound, so the mic is open by default.
+     */
+    readonly pttGateOpen = signal(true);
     // Pass-through signals from VoiceRTCService for template consumption
     readonly rtcState = this.rtc.rtcState;
     readonly participantsWithAudio = this.rtc.participantsWithAudio;
@@ -215,10 +221,16 @@ export class VoiceChannelService {
 
     toggleMute(): void {
         this.localState.update(s => ({...s, isMuted: !s.isMuted}));
-        this.rtc.setMicEnabled(!this.localState().isMuted);
+        this.syncMic();
         const channelId = this.joinedChannelId();
         if (channelId) this.guildWsSvc.invokeVoiceMuteChanged(channelId, this.localState().isMuted);
         this.syncLocal();
+    }
+
+    /** Push-to-talk gate, set by {@link CallHotkeyService} as the key is held/released. */
+    setPttGateOpen(open: boolean): void {
+        this.pttGateOpen.set(open);
+        this.syncMic();
     }
 
     // ── Local controls ─────────────────────────────────────────────────────────
@@ -229,7 +241,7 @@ export class VoiceChannelService {
             return {...s, isDeafened: d, isMuted: d || s.isMuted};
         });
         const {isDeafened, isMuted} = this.localState();
-        this.rtc.setMicEnabled(!isMuted);
+        this.syncMic();
         this.rtc.setDeafened(isDeafened);
         const channelId = this.joinedChannelId();
         if (channelId) {
@@ -237,6 +249,12 @@ export class VoiceChannelService {
             this.guildWsSvc.invokeVoiceMuteChanged(channelId, isMuted);
         }
         this.syncLocal();
+    }
+
+    /** The one place that gates the outgoing mic: deliberate mute + the PTT key. */
+    private syncMic(): void {
+        const {isMuted} = this.localState();
+        this.rtc.setMicEnabled(!isMuted && this.pttGateOpen());
     }
 
     async toggleCamera(): Promise<void> {

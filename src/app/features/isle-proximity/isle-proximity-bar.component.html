@@ -84,9 +84,9 @@
                     </button>
 
                     <span class="text-[10px] text-white/40 shrink-0 hidden sm:inline">
-                        @if (!pttSupported) {
+                        @if (!pttSupported || hintKind() === 'none') {
                             {{ 'PROX_CHAT.OPEN_MIC' | translate }}
-                        } @else if (isToggleMode()) {
+                        } @else if (hintKind() === 'mute') {
                             {{ 'PROX_CHAT.TOGGLE_HINT' | translate:{ key: pttKey() } }}
                         } @else {
                             {{ 'PROX_CHAT.PTT_HINT' | translate:{ key: pttKey() } }}

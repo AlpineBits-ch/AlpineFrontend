@@ -1,6 +1,6 @@
 import {Injectable, signal} from '@angular/core';
 import {isTauri} from '@tauri-apps/api/core';
-import {firstValueFrom, Subject} from 'rxjs';
+import {filter, firstValueFrom, map, Observable, Subject} from 'rxjs';
 
 /**
  * Frontend bridge to the native low-level push-to-talk hook (Windows).
@@ -9,12 +9,23 @@ import {firstValueFrom, Subject} from 'rxjs';
  * (Ctrl) or a mouse button and works while the game -not Echo -is focused.
  * On non-Windows targets `supported()` is false and callers fall back to
  * {@link HotkeyService}.
+ *
+ * The hook holds a fixed number of independent slots (see `ptt_hook.rs`), so
+ * more than one native binding can be armed at once - e.g. a hold-to-talk key
+ * and a separate push-to-mute key. Every method below takes the slot it
+ * addresses; callers own the mapping from a {@link KeybindActionId} to a slot.
  */
 
 export interface PttCaptureResult {
+    slot: number;
     token: string;
     label: string;
     cancelled: boolean;
+}
+
+export interface PttEdge {
+    slot: number;
+    down: boolean;
 }
 
 /**
@@ -41,8 +52,8 @@ export function formatAccelerator(accelerator: string): string {
 
 @Injectable({providedIn: 'root'})
 export class NativePttService {
-    /** Emits true on key-down (transmit) and false on key-up. */
-    readonly transmit$ = new Subject<boolean>();
+    /** Emits every down/up edge, tagged with the slot that fired. */
+    readonly transmit$ = new Subject<PttEdge>();
 
     private readonly capture$ = new Subject<PttCaptureResult>();
     private readonly supportedSig = signal(false);
@@ -58,16 +69,21 @@ export class NativePttService {
         if (this.ready) await this.ready;
     }
 
-    async setBinding(token: string): Promise<void> {
-        await this.invoke('ptt_set_binding', {token});
+    /** Edges for one slot only - what most callers actually want. */
+    edgesFor(slot: number): Observable<boolean> {
+        return this.transmit$.pipe(filter(e => e.slot === slot), map(e => e.down));
     }
 
-    async arm(): Promise<void> {
-        await this.invoke('ptt_arm');
+    async setBinding(slot: number, token: string): Promise<void> {
+        await this.invoke('ptt_set_binding', {slot, token});
     }
 
-    async disarm(): Promise<void> {
-        await this.invoke('ptt_disarm');
+    async arm(slot: number): Promise<void> {
+        await this.invoke('ptt_arm', {slot});
+    }
+
+    async disarm(slot: number): Promise<void> {
+        await this.invoke('ptt_disarm', {slot});
     }
 
     async cancelCapture(): Promise<void> {
@@ -94,10 +110,10 @@ export class NativePttService {
         return formatAccelerator(token);
     }
 
-    /** Enter capture mode; resolves with the next bound input (or a cancelled result). */
-    async beginCapture(): Promise<PttCaptureResult> {
+    /** Enter capture mode for a slot; resolves with the next bound input (or a cancelled result). */
+    async beginCapture(slot: number): Promise<PttCaptureResult> {
         const result = firstValueFrom(this.capture$);
-        await this.invoke('ptt_begin_capture');
+        await this.invoke('ptt_begin_capture', {slot});
         return result;
     }
 
@@ -107,8 +123,8 @@ export class NativePttService {
             this.supportedSig.set(ok);
             if (!ok) return;
             const {listen} = await import('@tauri-apps/api/event');
-            await listen('ptt-down', () => this.transmit$.next(true));
-            await listen('ptt-up', () => this.transmit$.next(false));
+            await listen<{ slot: number }>('ptt-down', e => this.transmit$.next({slot: e.payload.slot, down: true}));
+            await listen<{ slot: number }>('ptt-up', e => this.transmit$.next({slot: e.payload.slot, down: false}));
             await listen<PttCaptureResult>('ptt-capture', e => this.capture$.next(e.payload));
         } catch (err) {
             console.error('[native-ptt] init failed', err);

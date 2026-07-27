@@ -8,7 +8,7 @@ import {take} from 'rxjs';
 import {IsleProximityService} from '../../services/isle-proximity.service';
 import {AudioSettingsService} from '../../services/audio-settings.service';
 import {HotkeyService} from '../../services/hotkey.service';
-import {NativePttService} from '../../services/native-ptt.service';
+import {KeybindsService} from '../../services/keybinds.service';
 import {SteamService} from '../../services/steam.service';
 import {ExternalLinkService} from '../../services/external-link.service';
 import {ToastService} from '../../services/toast.service';
@@ -29,7 +29,7 @@ export class IsleProximityBarComponent implements OnInit, OnDestroy {
     protected prox = inject(IsleProximityService);
     private audioSettings = inject(AudioSettingsService);
     private hotkey = inject(HotkeyService);
-    private nativePtt = inject(NativePttService);
+    private keybinds = inject(KeybindsService);
     private steamService = inject(SteamService);
     private externalLink = inject(ExternalLinkService);
     private toast = inject(ToastService);
@@ -60,7 +60,12 @@ export class IsleProximityBarComponent implements OnInit, OnDestroy {
     /** Display label for the bound key; resolved asynchronously, see the effect below. */
     protected pttKey = signal('');
     protected pttSupported = this.hotkey.supported;
-    protected isToggleMode = computed(() => this.prox.inputMode() === 'toggle');
+    /** Push-to-talk takes priority over toggle-mute for this single-line hint if both are bound. */
+    protected hintKind = computed<'none' | 'ptt' | 'mute'>(() => {
+        if (this.keybinds.getBinding('isle-ptt')) return 'ptt';
+        if (this.keybinds.getBinding('isle-toggle-mute')) return 'mute';
+        return 'none';
+    });
 
     protected get volumePct(): number {
         return Math.round(this.audioSettings.settings().proximityVolume * 100);
@@ -90,8 +95,13 @@ export class IsleProximityBarComponent implements OnInit, OnDestroy {
         // Keep the hint in sync with rebinds; the native hook is the only thing
         // that can turn its own tokens (VK86, MouseX2) into something readable.
         effect(() => {
-            const token = this.audioSettings.settings().proximityPttKey;
-            void this.nativePtt.labelFor(token).then(label => this.pttKey.set(label));
+            const kind = this.hintKind();
+            const id = kind === 'ptt' ? 'isle-ptt' : kind === 'mute' ? 'isle-toggle-mute' : null;
+            if (!id) {
+                this.pttKey.set('');
+                return;
+            }
+            void this.keybinds.labelFor(id).then(label => this.pttKey.set(label));
         });
     }
 

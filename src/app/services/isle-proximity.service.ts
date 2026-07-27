@@ -7,7 +7,9 @@ import {IsleVoiceRtcService} from './isle-voice-rtc.service';
 import {SpatialAudioService} from './spatial-audio.service';
 import {HotkeyService} from './hotkey.service';
 import {NativePttService} from './native-ptt.service';
-import {AudioSettingsService, ProximityInputMode} from './audio-settings.service';
+import {AudioSettingsService} from './audio-settings.service';
+import {KeybindsService} from './keybinds.service';
+import {findKeybindAction, KeybindActionId} from '../models/keybind-action.model';
 import {UserService} from './user.service';
 import {ToastService} from './toast.service';
 import {SoundSettingsService} from './sound-settings.service';
@@ -20,13 +22,15 @@ import {RealtimeConnectionService, ConnectionState} from './realtime-connection.
  * hub-reconnect resilience. Composes the REST, signalling, WebRTC and spatial
  * services. Runs entirely app-wide and independently of guild voice.
  *
- * The outgoing mic has exactly one gate, {@link syncMic}: the hotkey (held in
- * push-to-talk mode, a mute toggle otherwise), the mute state and the connection
- * state all feed into it, and nothing else touches `rtc.setMicEnabled`.
+ * The outgoing mic has exactly one gate, {@link syncMic}: push-to-talk,
+ * toggle-mute and push-to-mute (each independent, each optional) - see
+ * `keybind-action.model.ts` - the mute state and the connection state all feed
+ * into it, and nothing else touches `rtc.setMicEnabled`.
  */
 
-/** Logical id for the push-to-talk global hotkey binding. */
-const PTT_BINDING = 'isle-ptt';
+const PTT_ACTION = findKeybindAction('isle-ptt');
+const TOGGLE_MUTE_ACTION = findKeybindAction('isle-toggle-mute');
+const PUSH_TO_MUTE_ACTION = findKeybindAction('isle-push-to-mute');
 /** How often to reconcile game/voice state against the backend. */
 const STATUS_POLL_MS = 60_000;
 
@@ -39,6 +43,7 @@ export class IsleProximityService {
     private hotkey = inject(HotkeyService);
     private nativePtt = inject(NativePttService);
     private audioSettings = inject(AudioSettingsService);
+    private keybinds = inject(KeybindsService);
     private userService = inject(UserService);
     private toast = inject(ToastService);
     private sounds = inject(SoundSettingsService);
@@ -50,21 +55,23 @@ export class IsleProximityService {
     readonly isConnecting = signal(false);
     /** Mic is open right now -derived by {@link syncMic}, never set directly. */
     readonly isTransmitting = signal(false);
-    /** Mute toggle. Overrides the hotkey in both input modes. */
+    /** Mute toggle. Overrides both keys below. */
     readonly isMuted = signal(false);
     readonly connectedSince = signal<number | null>(null);
 
     readonly isLinked = computed(() => !!this.userService.self()?.steamId);
     readonly rtcState = this.rtc.rtcState;
     readonly peerCount = computed(() => this.rtc.peers().size);
-    readonly inputMode = computed<ProximityInputMode>(() => this.audioSettings.settings().proximityInputMode);
 
     private detectionStarted = false;
-    private pttWired = false;
-    /** Hotkey physically held. Only meaningful in push-to-talk mode. */
+    /** Which native hook slots already have a live edge subscription. */
+    private readonly wiredSlots = new Set<number>();
+    /** Push-to-talk is bound to something (any mechanism); without it the mic stays open. */
+    private pttBound = false;
+    /** Push-to-talk key physically held right now. */
     private pttHeld = false;
-    /** A hotkey mechanism is armed; without one (browser) the mic stays open. */
-    private hotkeyArmed = false;
+    /** Push-to-mute key physically held right now - forces the mic closed while true. */
+    private pushMuteHeld = false;
     private pollHandle: ReturnType<typeof setInterval> | null = null;
     private lastConnState = ConnectionState.Disconnected;
     private republishing = false;
@@ -74,6 +81,15 @@ export class IsleProximityService {
         effect(() => {
             if (this.userService.self() && !this.detectionStarted) {
                 this.startDetection();
+            }
+        });
+
+        // Rebind live: a key changed in the Keybinds settings page while
+        // proximity voice is already connected.
+        this.keybinds.rebind$.subscribe(id => {
+            const isOurs = id === PTT_ACTION.id || id === TOGGLE_MUTE_ACTION.id || id === PUSH_TO_MUTE_ACTION.id;
+            if (isOurs && this.isVoiceActive()) {
+                void this.registerPtt();
             }
         });
 
@@ -175,16 +191,6 @@ export class IsleProximityService {
         this.syncMic();
     }
 
-    /** Switch between hold-to-talk and press-to-toggle-mute. */
-    setInputMode(mode: ProximityInputMode): void {
-        if (mode === this.inputMode()) return;
-        // A key held across the switch would otherwise latch the mic open once
-        // push-to-talk comes back, with no release left to clear it.
-        this.pttHeld = false;
-        this.audioSettings.update({proximityInputMode: mode});
-        this.syncMic();
-    }
-
     /** Live-apply the master volume slider (also persists via settings). */
     setVolume(volume: number): void {
         this.audioSettings.update({proximityVolume: volume});
@@ -201,13 +207,6 @@ export class IsleProximityService {
     setSpatialEnabled(enabled: boolean): void {
         this.audioSettings.update({proximitySpatialEnabled: enabled});
         this.spatial.setSpatialEnabled(enabled);
-    }
-
-    /** Re-register the PTT hotkey with the current accelerator (after a rebind). */
-    async reapplyPtt(): Promise<void> {
-        if (this.isVoiceActive() && this.hotkey.supported) {
-            await this.registerPtt();
-        }
     }
 
     // ── Detection ──────────────────────────────────────────────────────────────
@@ -255,63 +254,73 @@ export class IsleProximityService {
             .catch(() => void 0);
     }
 
-    // ── Hotkey (push-to-talk / mute toggle) ─────────────────────────────────────
+    // ── Hotkeys (push-to-talk, toggle-mute, push-to-mute - independent) ─────────
 
     private async registerPtt(): Promise<void> {
-        const key = this.audioSettings.settings().proximityPttKey;
+        this.pttBound = await this.armAction(PTT_ACTION.id, PTT_ACTION.nativeSlot!, down => {
+            this.pttHeld = down;
+            this.syncMic();
+        });
+        await this.armAction(TOGGLE_MUTE_ACTION.id, TOGGLE_MUTE_ACTION.nativeSlot!, down => {
+            if (down) this.toggleMute();
+        });
+        await this.armAction(PUSH_TO_MUTE_ACTION.id, PUSH_TO_MUTE_ACTION.nativeSlot!, down => {
+            this.pushMuteHeld = down;
+            this.syncMic();
+        });
+        this.syncMic();
+    }
 
-        // Preferred: native low-level hook (Windows) -supports bare modifiers + mouse.
+    private async unregisterPtt(): Promise<void> {
+        if (this.nativePtt.supported()) {
+            await this.nativePtt.disarm(PTT_ACTION.nativeSlot!).catch(() => void 0);
+            await this.nativePtt.disarm(TOGGLE_MUTE_ACTION.nativeSlot!).catch(() => void 0);
+            await this.nativePtt.disarm(PUSH_TO_MUTE_ACTION.nativeSlot!).catch(() => void 0);
+        }
+        await this.hotkey.unbind(PTT_ACTION.id);
+        await this.hotkey.unbind(TOGGLE_MUTE_ACTION.id);
+        await this.hotkey.unbind(PUSH_TO_MUTE_ACTION.id);
+        this.pttBound = false;
+        this.pttHeld = false;
+        this.pushMuteHeld = false;
+    }
+
+    /**
+     * Arm one action's current binding, native hook first (bare modifiers +
+     * mouse buttons, and keeps working while a game has focus), falling back to
+     * the OS global-shortcut plugin (keyboard only). Returns whether *some*
+     * mechanism ended up armed - callers use this to know whether the action is
+     * meaningfully "bound" at all.
+     */
+    private async armAction(id: KeybindActionId, slot: number, onEdge: (down: boolean) => void): Promise<boolean> {
+        const token = this.keybinds.getBinding(id);
+        if (!token) return false;
+
         await this.nativePtt.whenReady();
         if (this.nativePtt.supported()) {
-            if (!this.pttWired) {
-                this.pttWired = true;
-                this.nativePtt.transmit$.subscribe(down => this.onHotkeyEdge(down));
+            if (!this.wiredSlots.has(slot)) {
+                this.wiredSlots.add(slot);
+                this.nativePtt.edgesFor(slot).subscribe(onEdge);
             }
             try {
-                await this.nativePtt.setBinding(key);
-                await this.nativePtt.arm();
-                this.hotkeyArmed = true;
-                this.syncMic();
-                return;
+                await this.nativePtt.setBinding(slot, token);
+                await this.nativePtt.arm(slot);
+                return true;
             } catch (e) {
-                console.error('[isle-voice] native PTT arm failed, falling back', e);
+                console.error(`[isle-voice] native arm failed for ${id}, falling back`, e);
             }
         }
 
         // Fallback: global-shortcut plugin (macOS/Linux) -keyboard accelerators only.
         if (this.hotkey.supported) {
-            await this.hotkey.bind(PTT_BINDING, key, {
-                onDown: () => this.onHotkeyEdge(true),
-                onUp: () => this.onHotkeyEdge(false),
+            await this.hotkey.bind(id, token, {
+                onDown: () => onEdge(true),
+                onUp: () => onEdge(false),
             });
-            this.hotkeyArmed = true;
-            this.syncMic();
-            return;
+            return true;
         }
 
-        // No hotkey mechanism (e.g. browser dev) -open mic, gated only by mute.
-        this.hotkeyArmed = false;
-        this.syncMic();
-    }
-
-    private async unregisterPtt(): Promise<void> {
-        if (this.nativePtt.supported()) await this.nativePtt.disarm().catch(() => void 0);
-        await this.hotkey.unbind(PTT_BINDING);
-        this.hotkeyArmed = false;
-        this.pttHeld = false;
-    }
-
-    /**
-     * One hotkey transition. Push-to-talk follows the key; toggle mode acts on
-     * the press and ignores the release (so holding it doesn't flap the mute).
-     */
-    private onHotkeyEdge(down: boolean): void {
-        if (this.inputMode() === 'toggle') {
-            if (down) this.toggleMute();
-            return;
-        }
-        this.pttHeld = down;
-        this.syncMic();
+        return false; // no hotkey mechanism (e.g. browser dev)
     }
 
     /**
@@ -322,7 +331,8 @@ export class IsleProximityService {
     private syncMic(): void {
         const open = this.isVoiceActive()
             && !this.isMuted()
-            && (!this.hotkeyArmed || this.inputMode() === 'toggle' || this.pttHeld);
+            && !this.pushMuteHeld
+            && (!this.pttBound || this.pttHeld);
         this.rtc.setMicEnabled(open);
         this.isTransmitting.set(open);
     }

@@ -114,5 +114,8 @@
       "Bash(git --no-pager status)",
       "Bash(git --no-pager diff --stat)"
     ]
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true
   }
 }

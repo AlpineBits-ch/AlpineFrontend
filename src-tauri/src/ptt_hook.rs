@@ -11,6 +11,16 @@
 //! the commands here are compiled as no-ops there so the command set is uniform
 //! and Linux/macOS keep building.
 //!
+//! ## Slots
+//!
+//! The hook holds [`SLOT_COUNT`] independent bindings (currently: push-to-talk,
+//! toggle-mute, and push-to-mute/hold-to-mute), each armed/bound separately by
+//! the frontend and identified by a small integer `slot`. This is what lets a
+//! user bind all three at once rather than picking one mode for a single
+//! shared key. Every piece of per-binding state below is a fixed-size array
+//! indexed by slot instead of a scalar, but the concurrency story is
+//! unchanged - still plain atomics, still no locking on the input path.
+//!
 //! Binding token format (stored in settings, `+`-joined):
 //!   modifiers: `Ctrl` `Alt` `Shift` `Win`
 //!   main:      `VK<code>` (virtual-key), `MouseX1` `MouseX2` `MouseMid`,
@@ -37,7 +47,7 @@
 #[cfg(target_os = "windows")]
 mod imp {
     use std::panic::{catch_unwind, AssertUnwindSafe};
-    use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicU8, AtomicUsize, Ordering};
     use std::sync::OnceLock;
     use std::thread;
     use std::time::{Duration, Instant};
@@ -106,22 +116,36 @@ mod imp {
 
     #[derive(Serialize, Clone)]
     struct CaptureResult {
+        slot: u8,
         token: String,
         label: String,
         cancelled: bool,
     }
 
+    #[derive(Serialize, Clone)]
+    struct EdgeEvent {
+        slot: u8,
+    }
+
+    /// Number of independent bindings the hook tracks (currently push-to-talk,
+    /// toggle-mute, and push-to-mute). Bump this to add another - every other
+    /// piece of per-slot state is a `[T; SLOT_COUNT]` array already.
+    const SLOT_COUNT: usize = 3;
+
     // ── Shared state ────────────────────────────────────────────────────────
     //
     // Atomics only. The hook procedures read/write these with plain loads and
-    // stores, so an input event can never wait on another thread.
+    // stores, so an input event can never wait on another thread. One element
+    // per slot, indexed by the `slot` argument the frontend passes in.
 
     static INITIALISED: AtomicBool = AtomicBool::new(false);
-    static ARMED: AtomicBool = AtomicBool::new(false);
-    static PRESSED: AtomicBool = AtomicBool::new(false);
+    static ARMED: [AtomicBool; SLOT_COUNT] = [const { AtomicBool::new(false) }; SLOT_COUNT];
+    static PRESSED: [AtomicBool; SLOT_COUNT] = [const { AtomicBool::new(false) }; SLOT_COUNT];
     static CAPTURING: AtomicBool = AtomicBool::new(false);
-    /// The active binding, packed by [`pack`]. 0 = no binding.
-    static BINDING: AtomicU64 = AtomicU64::new(0);
+    /// Which slot a capture-in-progress will write its result into.
+    static CAPTURE_SLOT: AtomicU8 = AtomicU8::new(0);
+    /// The active binding per slot, packed by [`pack`]. 0 = no binding.
+    static BINDING: [AtomicU64; SLOT_COUNT] = [const { AtomicU64::new(0) }; SLOT_COUNT];
     /// Bare-modifier candidate during capture ([`mod_code`], 0 = none).
     static CAPTURE_MOD: AtomicU32 = AtomicU32::new(0);
     /// Capture deadline, ms since [`START`]. 0 = not capturing.
@@ -288,8 +312,8 @@ mod imp {
         })
     }
 
-    fn binding_now() -> Option<Binding> {
-        unpack(BINDING.load(Ordering::Relaxed))
+    fn binding_now(slot: usize) -> Option<Binding> {
+        unpack(BINDING[slot].load(Ordering::Relaxed))
     }
 
     // ── Key state helpers ───────────────────────────────────────────────────
@@ -351,29 +375,42 @@ mod imp {
         spawn_hook_thread();
     }
 
-    pub fn set_binding(token: String) -> Result<(), String> {
+    fn valid_slot(slot: u8) -> Result<usize, String> {
+        let slot = slot as usize;
+        if slot >= SLOT_COUNT {
+            return Err(format!("invalid slot: {slot}"));
+        }
+        Ok(slot)
+    }
+
+    pub fn set_binding(slot: u8, token: String) -> Result<(), String> {
+        let slot = valid_slot(slot)?;
         let binding = parse_token(&token).ok_or_else(|| format!("invalid binding: {token}"))?;
-        BINDING.store(pack(&binding), Ordering::Relaxed);
-        release_if_pressed();
+        BINDING[slot].store(pack(&binding), Ordering::Relaxed);
+        release_if_pressed(slot);
         Ok(())
     }
 
-    pub fn arm() -> Result<(), String> {
-        if BINDING.load(Ordering::Relaxed) == 0 {
+    pub fn arm(slot: u8) -> Result<(), String> {
+        let slot = valid_slot(slot)?;
+        if BINDING[slot].load(Ordering::Relaxed) == 0 {
             return Err("no binding set".into());
         }
-        release_if_pressed();
-        ARMED.store(true, Ordering::Relaxed);
+        release_if_pressed(slot);
+        ARMED[slot].store(true, Ordering::Relaxed);
         Ok(())
     }
 
-    pub fn disarm() -> Result<(), String> {
-        ARMED.store(false, Ordering::Relaxed);
-        release_if_pressed();
+    pub fn disarm(slot: u8) -> Result<(), String> {
+        let slot = valid_slot(slot)?;
+        ARMED[slot].store(false, Ordering::Relaxed);
+        release_if_pressed(slot);
         Ok(())
     }
 
-    pub fn begin_capture() -> Result<(), String> {
+    pub fn begin_capture(slot: u8) -> Result<(), String> {
+        let slot = valid_slot(slot)?;
+        CAPTURE_SLOT.store(slot as u8, Ordering::Relaxed);
         CAPTURE_MOD.store(0, Ordering::Relaxed);
         CAPTURE_DEADLINE.store(now_ms() + CAPTURE_TIMEOUT.as_millis() as u64, Ordering::Relaxed);
         CAPTURING.store(true, Ordering::Release);
@@ -384,8 +421,9 @@ mod imp {
     }
 
     pub fn cancel_capture() -> Result<(), String> {
+        let slot = CAPTURE_SLOT.load(Ordering::Relaxed);
         end_capture();
-        emit_event(EV_CAPTURE_CANCEL, 0);
+        emit_event(EV_CAPTURE_CANCEL, slot as u64);
         Ok(())
     }
 
@@ -398,9 +436,9 @@ mod imp {
 
     /// Drop a held press and tell the frontend, so the mic can never latch open
     /// across a rebind/disarm.
-    fn release_if_pressed() {
-        if PRESSED.swap(false, Ordering::AcqRel) {
-            emit_event(EV_UP, 0);
+    fn release_if_pressed(slot: usize) {
+        if PRESSED[slot].swap(false, Ordering::AcqRel) {
+            emit_event(EV_UP, slot as u64);
         }
     }
 
@@ -419,23 +457,27 @@ mod imp {
             let mut last_input = 0u32;
             let mut last_calls = 0u32;
             let mut strikes = 0u32;
-            let mut stuck_misses = 0u32;
+            let mut stuck_misses = [0u32; SLOT_COUNT];
 
             loop {
                 // Anything queued by a hook is drained here, off the input path.
                 while let Some(ev) = RING.pop() {
                     match ev & 0xFF {
                         EV_DOWN => {
-                            let _ = app.emit("ptt-down", ());
+                            let slot = ((ev >> 8) & 0xFF) as u8;
+                            let _ = app.emit("ptt-down", EdgeEvent { slot });
                         }
                         EV_UP => {
-                            let _ = app.emit("ptt-up", ());
+                            let slot = ((ev >> 8) & 0xFF) as u8;
+                            let _ = app.emit("ptt-up", EdgeEvent { slot });
                         }
                         EV_CAPTURE => {
-                            if let Some(b) = unpack(ev >> 8) {
+                            let slot = ((ev >> 8) & 0xFF) as u8;
+                            if let Some(b) = unpack(ev >> 16) {
                                 let _ = app.emit(
                                     "ptt-capture",
                                     CaptureResult {
+                                        slot,
                                         token: token_of(&b),
                                         label: format_binding(&b),
                                         cancelled: false,
@@ -444,9 +486,11 @@ mod imp {
                             }
                         }
                         EV_CAPTURE_CANCEL => {
+                            let slot = ((ev >> 8) & 0xFF) as u8;
                             let _ = app.emit(
                                 "ptt-capture",
                                 CaptureResult {
+                                    slot,
                                     token: String::new(),
                                     label: String::new(),
                                     cancelled: true,
@@ -478,20 +522,22 @@ mod imp {
     /// Two consecutive "not held" samples are required: a hook procedure runs
     /// *before* the press reaches the async key-state table, so a tick landing in
     /// that window would otherwise cut a legitimate press short.
-    fn unstick_press(misses: &mut u32) {
-        if !PRESSED.load(Ordering::Relaxed) {
-            *misses = 0;
-            return;
-        }
-        if binding_now().map(|b| main_is_held(&b)).unwrap_or(false) {
-            *misses = 0;
-            return;
-        }
-        *misses += 1;
-        if *misses >= 2 {
-            *misses = 0;
-            if PRESSED.swap(false, Ordering::AcqRel) {
-                emit_event(EV_UP, 0);
+    fn unstick_press(misses: &mut [u32; SLOT_COUNT]) {
+        for slot in 0..SLOT_COUNT {
+            if !PRESSED[slot].load(Ordering::Relaxed) {
+                misses[slot] = 0;
+                continue;
+            }
+            if binding_now(slot).map(|b| main_is_held(&b)).unwrap_or(false) {
+                misses[slot] = 0;
+                continue;
+            }
+            misses[slot] += 1;
+            if misses[slot] >= 2 {
+                misses[slot] = 0;
+                if PRESSED[slot].swap(false, Ordering::AcqRel) {
+                    emit_event(EV_UP, slot as u64);
+                }
             }
         }
     }
@@ -503,8 +549,9 @@ mod imp {
         }
         let deadline = CAPTURE_DEADLINE.load(Ordering::Relaxed);
         if deadline != 0 && now_ms() >= deadline {
+            let slot = CAPTURE_SLOT.load(Ordering::Relaxed);
             end_capture();
-            emit_event(EV_CAPTURE_CANCEL, 0);
+            emit_event(EV_CAPTURE_CANCEL, slot as u64);
         }
     }
 
@@ -707,17 +754,19 @@ mod imp {
             return true;
         }
 
-        if !ARMED.load(Ordering::Relaxed) {
-            return false;
-        }
-        let Some(b) = binding_now() else { return false };
-        let matched_main = match b.main {
-            Main::Key(k) => k == vk,
-            Main::Modifier(m) => modk == Some(m),
-            _ => false,
-        };
-        if matched_main {
-            edge(&b, is_down, is_up);
+        for slot in 0..SLOT_COUNT {
+            if !ARMED[slot].load(Ordering::Relaxed) {
+                continue;
+            }
+            let Some(b) = binding_now(slot) else { continue };
+            let matched_main = match b.main {
+                Main::Key(k) => k == vk,
+                Main::Modifier(m) => modk == Some(m),
+                _ => false,
+            };
+            if matched_main {
+                edge(slot, &b, is_down, is_up);
+            }
         }
         false
     }
@@ -739,10 +788,12 @@ mod imp {
 
         if !is_down {
             // Always process the release, even when we hide it from other apps.
-            if ARMED.load(Ordering::Relaxed) {
-                if let Some(b) = binding_now() {
-                    if b.main == main {
-                        edge(&b, false, true);
+            for slot in 0..SLOT_COUNT {
+                if ARMED[slot].load(Ordering::Relaxed) {
+                    if let Some(b) = binding_now(slot) {
+                        if b.main == main {
+                            edge(slot, &b, false, true);
+                        }
                     }
                 }
             }
@@ -752,13 +803,16 @@ mod imp {
         let mut swallow = false;
         if CAPTURING.load(Ordering::Acquire) {
             let (c, a, sh, w) = mods_now();
-            finish_capture(Binding { ctrl: c, alt: a, shift: sh, win: w, main });
+            let slot = CAPTURE_SLOT.load(Ordering::Relaxed) as usize;
+            finish_capture(slot, Binding { ctrl: c, alt: a, shift: sh, win: w, main });
             swallow = true; // don't let the click being bound also act
         } else {
-            if ARMED.load(Ordering::Relaxed) {
-                if let Some(b) = binding_now() {
-                    if b.main == main {
-                        edge(&b, true, false);
+            for slot in 0..SLOT_COUNT {
+                if ARMED[slot].load(Ordering::Relaxed) {
+                    if let Some(b) = binding_now(slot) {
+                        if b.main == main {
+                            edge(slot, &b, true, false);
+                        }
                     }
                 }
             }
@@ -781,22 +835,24 @@ mod imp {
     fn capture_key(vk: u32, modk: Option<ModKey>, is_down: bool, is_up: bool) {
         // Escape cancels the capture instead of binding to it.
         if is_down && vk == 0x1B {
+            let slot = CAPTURE_SLOT.load(Ordering::Relaxed);
             end_capture();
-            emit_event(EV_CAPTURE_CANCEL, 0);
+            emit_event(EV_CAPTURE_CANCEL, slot as u64);
             return;
         }
+        let slot = CAPTURE_SLOT.load(Ordering::Relaxed) as usize;
         match modk {
             // A non-modifier key press finalises as Key + whatever mods are held.
             None if is_down => {
                 let (c, a, sh, w) = mods_now();
-                finish_capture(Binding { ctrl: c, alt: a, shift: sh, win: w, main: Main::Key(vk) });
+                finish_capture(slot, Binding { ctrl: c, alt: a, shift: sh, win: w, main: Main::Key(vk) });
             }
             // Modifier down: remember it as a bare-modifier candidate.
             Some(m) if is_down => CAPTURE_MOD.store(mod_code(m), Ordering::Relaxed),
             // Modifier up with nothing else pressed during the hold → bare modifier.
             Some(m) if is_up => {
                 if CAPTURE_MOD.load(Ordering::Relaxed) == mod_code(m) {
-                    finish_capture(Binding {
+                    finish_capture(slot, Binding {
                         ctrl: false,
                         alt: false,
                         shift: false,
@@ -811,26 +867,26 @@ mod imp {
 
     /// Stores a finalised capture and notifies the frontend. Token/label are
     /// formatted on the worker thread so no string work happens in a hook.
-    fn finish_capture(binding: Binding) {
+    fn finish_capture(slot: usize, binding: Binding) {
         let packed = pack(&binding);
         end_capture();
-        BINDING.store(packed, Ordering::Relaxed);
-        PRESSED.store(false, Ordering::Relaxed);
-        emit_event(EV_CAPTURE, packed);
+        BINDING[slot].store(packed, Ordering::Relaxed);
+        PRESSED[slot].store(false, Ordering::Relaxed);
+        emit_event(EV_CAPTURE, (packed << 8) | slot as u64);
     }
 
     /// Computes and emits the down/up edge for a matched main input.
-    fn edge(b: &Binding, is_down: bool, is_up: bool) {
+    fn edge(slot: usize, b: &Binding, is_down: bool, is_up: bool) {
         if is_down {
             // Required modifiers must be held (extras are ignored).
             let (c, a, sh, w) = mods_now();
             let mods_ok = (!b.ctrl || c) && (!b.alt || a) && (!b.shift || sh) && (!b.win || w);
             // The swap is the de-dup: only the thread that flips false→true emits.
-            if mods_ok && !PRESSED.swap(true, Ordering::AcqRel) {
-                emit_event(EV_DOWN, 0);
+            if mods_ok && !PRESSED[slot].swap(true, Ordering::AcqRel) {
+                emit_event(EV_DOWN, slot as u64);
             }
-        } else if is_up && PRESSED.swap(false, Ordering::AcqRel) {
-            emit_event(EV_UP, 0);
+        } else if is_up && PRESSED[slot].swap(false, Ordering::AcqRel) {
+            emit_event(EV_UP, slot as u64);
         }
     }
 
@@ -1019,19 +1075,19 @@ mod imp {
 
     pub fn init(_app: &AppHandle) {}
 
-    pub fn set_binding(_token: String) -> Result<(), String> {
+    pub fn set_binding(_slot: u8, _token: String) -> Result<(), String> {
         Err("native push-to-talk is only supported on Windows".into())
     }
 
-    pub fn arm() -> Result<(), String> {
+    pub fn arm(_slot: u8) -> Result<(), String> {
         Err("unsupported".into())
     }
 
-    pub fn disarm() -> Result<(), String> {
+    pub fn disarm(_slot: u8) -> Result<(), String> {
         Ok(())
     }
 
-    pub fn begin_capture() -> Result<(), String> {
+    pub fn begin_capture(_slot: u8) -> Result<(), String> {
         Err("unsupported".into())
     }
 
@@ -1055,23 +1111,23 @@ pub fn ptt_supported() -> bool {
 }
 
 #[tauri::command]
-pub fn ptt_set_binding(token: String) -> Result<(), String> {
-    imp::set_binding(token)
+pub fn ptt_set_binding(slot: u8, token: String) -> Result<(), String> {
+    imp::set_binding(slot, token)
 }
 
 #[tauri::command]
-pub fn ptt_arm() -> Result<(), String> {
-    imp::arm()
+pub fn ptt_arm(slot: u8) -> Result<(), String> {
+    imp::arm(slot)
 }
 
 #[tauri::command]
-pub fn ptt_disarm() -> Result<(), String> {
-    imp::disarm()
+pub fn ptt_disarm(slot: u8) -> Result<(), String> {
+    imp::disarm(slot)
 }
 
 #[tauri::command]
-pub fn ptt_begin_capture() -> Result<(), String> {
-    imp::begin_capture()
+pub fn ptt_begin_capture(slot: u8) -> Result<(), String> {
+    imp::begin_capture(slot)
 }
 
 #[tauri::command]

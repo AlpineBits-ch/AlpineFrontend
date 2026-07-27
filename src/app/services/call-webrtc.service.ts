@@ -111,14 +111,17 @@ export class CallWebRtcService {
             }
         });
 
-        // Apply local mute state to the audio track and notify peers.
+        // Apply local mute state + push-to-talk gate to the audio track. Only the
+        // deliberate mute toggle is broadcast to peers -the PTT gate is a purely
+        // local transmit gate, same as Isle proximity's syncMic.
         effect(() => {
             const s = this.callSession.session();
             if (!s) return;
             const isMuted = s.local.isMuted;
+            const gateOpen = this.callSession.pttGateOpen();
+            if (this.audioTrack) this.audioTrack.enabled = !isMuted && gateOpen;
             if (isMuted === this.prevMuted) return;
             this.prevMuted = isMuted;
-            if (this.audioTrack) this.audioTrack.enabled = !isMuted;
             if (this.callId) this.voiceWs.invokeMuteChange(this.callId, isMuted);
         });
 
@@ -230,7 +233,7 @@ export class CallWebRtcService {
         this.audioTrack = audioTrack;
         // Apply current mute state immediately (user may have muted before connecting)
         const isMuted = this.callSession.session()?.local.isMuted ?? false;
-        this.audioTrack.enabled = !isMuted;
+        this.audioTrack.enabled = !isMuted && this.callSession.pttGateOpen();
         this.prevMuted = isMuted;
 
         await this.publishAudioTrack(this.audioTrack);

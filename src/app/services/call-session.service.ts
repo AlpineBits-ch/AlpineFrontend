@@ -11,6 +11,12 @@ import type {ActiveCallSession, CallParticipantUi, ScreenShareUi,} from './call-
 @Injectable({providedIn: 'root'})
 export class CallSessionService {
     readonly session = signal<ActiveCallSession | null>(null);
+    /**
+     * Push-to-talk gate for this call, independent of the deliberate mute
+     * toggle - true means "allowed to transmit". Driven by {@link CallHotkeyService};
+     * stays true when no push-to-talk key is bound, so the mic is open by default.
+     */
+    readonly pttGateOpen = signal(true);
     private profileService = inject(ProfileService);
     private conversationStore = inject(ConversationStore);
     private voiceService = inject(VoiceService);
@@ -71,6 +77,11 @@ export class CallSessionService {
             return {...s, local: {...s.local, isMuted: !s.local.isMuted}};
         });
         // TODO(webrtc): mute/unmute local audio track
+    }
+
+    /** Push-to-talk gate, set by {@link CallHotkeyService} as the key is held/released. */
+    setPttGateOpen(open: boolean): void {
+        this.pttGateOpen.set(open);
     }
 
     toggleDeafen(): void {

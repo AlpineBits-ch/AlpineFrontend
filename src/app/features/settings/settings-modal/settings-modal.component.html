@@ -119,7 +119,10 @@
                         <app-notification-settings/>
                     }
                     @case ('voice-video') {
-                        <app-voice-video-settings/>
+                        <app-voice-video-settings (openKeybinds)="activePage.set('keybinds')"/>
+                    }
+                    @case ('keybinds') {
+                        <app-keybinds-settings/>
                     }
                     @case ('appearance') {
                         <app-appearance-settings/>

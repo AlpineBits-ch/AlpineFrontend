@@ -5,6 +5,7 @@ import {CallOverlayComponent} from "./features/call/call-overlay/call-overlay.co
 import {TitlebarComponent} from "./titlebar/titlebar.component";
 import {ResizeHandlesComponent} from "./titlebar/resize-handles.component";
 import {CallWebRtcService} from "./services/call-webrtc.service";
+import {CallHotkeyService} from "./services/call-hotkey.service";
 import {UpdateDialogComponent} from "./features/update-dialog/update-dialog.component";
 import {UpdateService} from "./services/update.service";
 import {Toast} from "primeng/toast";
@@ -29,6 +30,7 @@ export class AppComponent implements OnInit, OnDestroy {
     protected readonly isPopup = window.location.pathname === '/toast-popup';
     private profileService = inject(ProfileService);
     private callWebRtc = inject(CallWebRtcService);
+    private callHotkey = inject(CallHotkeyService);
     private updateService = inject(UpdateService);
     private router = inject(Router);
     private appReady = inject(AppReadyService);
