@@ -1,6 +1,9 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {provideHttpClient} from '@angular/common/http';
+import {provideHttpClientTesting} from '@angular/common/http/testing';
 
 import {ComposerComponent} from './composer.component';
+import {ApiConfigService} from '../../../../../services/api-config.service';
 
 describe('ComposerComponent', () => {
     let component: ComposerComponent;
@@ -8,7 +11,12 @@ describe('ComposerComponent', () => {
 
     beforeEach(async () => {
         await TestBed.configureTestingModule({
-            imports: [ComposerComponent]
+            imports: [ComposerComponent],
+            providers: [
+                provideHttpClient(),
+                provideHttpClientTesting(),
+                {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test.example'}},
+            ],
         })
             .compileComponents();
 

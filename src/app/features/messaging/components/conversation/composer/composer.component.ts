@@ -4,8 +4,15 @@ import {toObservable, toSignal} from '@angular/core/rxjs-interop';
 import {catchError, debounceTime, map, of, switchMap} from 'rxjs';
 import {Button} from 'primeng/button';
 import {MessageDto} from '../../../../../dtos/response/message.dto';
+import {RoleDto, RoleType} from '../../../../../dtos/response/guild.dto';
 import {CommandDef, COMMANDS} from './commands';
-import {detectTrigger, EmojiSuggestion, getMessage, MentionCandidate} from './composer-utils';
+import {
+    detectTrigger,
+    EmojiSuggestion,
+    getMessage,
+    MentionCandidate,
+    mentionCandidateMatches,
+} from './composer-utils';
 import {
     buildHighlightedFragment,
     getEditorSegments,
@@ -37,8 +44,18 @@ export class ComposerComponent {
     guildId = input<string | null>(null);
     /** Set when composing in a DM/group conversation -filtered synchronously. */
     conversationMembers = input<MentionCandidate[]>([]);
+    /** Set when composing in a guild channel -feeds @role suggestions. */
+    guildRoles = input<RoleDto[]>([]);
     replyTo = input<MessageDto | null>(null);
-    message = output<{ content: string; attachments: string[]; inReplyTo?: string; mentions: string[] }>();
+    message = output<{
+        content: string;
+        attachments: string[];
+        inReplyTo?: string;
+        mentions: string[];
+        roleMentions: string[];
+        mentionsEveryone: boolean;
+        mentionsHere: boolean;
+    }>();
     cancelReply = output<void>();
 
     // ── Inputs / Outputs ─────────────────────────────────────────────────────
@@ -115,7 +132,8 @@ export class ComposerComponent {
                 return this.guildService.searchMembers(gid, q).pipe(
                     map(members => members
                         .filter(m => m.profile)
-                        .map(m => ({
+                        .map((m): MentionCandidate => ({
+                            kind: 'user',
                             userId: m.userId,
                             userName: m.profile!.userName,
                             avatarUrl: m.profile?.avatarUrl,
@@ -127,15 +145,25 @@ export class ComposerComponent {
         ),
         {initialValue: [] as MentionCandidate[]}
     );
+    private readonly staticGuildCandidates = computed<MentionCandidate[]>(() => {
+        if (!this.guildId()) return [];
+        const roleCandidates: MentionCandidate[] = this.guildRoles()
+            .filter(r => r.type !== RoleType.Everyone)
+            .map(r => ({kind: 'role', roleId: r.id, name: r.name, color: r.color}));
+        return [
+            {kind: 'everyone'},
+            {kind: 'here'},
+            ...roleCandidates,
+        ];
+    });
     filteredMentions = computed<MentionCandidate[]>(() => {
         if (this.overlayType() !== 'mention') return [];
         const q = this.query().toLowerCase();
-        if (this.guildId()) {
-            return this.guildSearchResults();
-        }
-        return this.conversationMembers()
-            .filter(m => m.userName.toLowerCase().includes(q))
-            .slice(0, 8);
+        const userCandidates: MentionCandidate[] = this.guildId()
+            ? this.guildSearchResults()
+            : this.conversationMembers().filter(m => mentionCandidateMatches(m, q));
+        const staticMatches = this.staticGuildCandidates().filter(c => mentionCandidateMatches(c, q));
+        return [...staticMatches, ...userCandidates].slice(0, 8);
     });
 
     // ── Typing throttle ───────────────────────────────────────────────────────
@@ -299,11 +327,30 @@ export class ComposerComponent {
         this.triggerRange.deleteContents();
 
         const chip = document.createElement('span');
-        chip.className = 'mention-chip';
         chip.contentEditable = 'false';
-        chip.dataset['userId'] = candidate.userId;
-        chip.dataset['display'] = `@${candidate.userName}`;
-        chip.textContent = `@${candidate.userName}`;
+
+        if (candidate.kind === 'user') {
+            chip.className = 'mention-chip';
+            chip.dataset['userId'] = candidate.userId;
+            chip.dataset['display'] = `@${candidate.userName}`;
+            chip.textContent = `@${candidate.userName}`;
+        } else if (candidate.kind === 'role') {
+            chip.className = 'mention-chip mention-chip-role';
+            chip.dataset['roleId'] = candidate.roleId;
+            chip.dataset['display'] = `@${candidate.name}`;
+            chip.textContent = `@${candidate.name}`;
+            chip.style.color = candidate.color;
+        } else if (candidate.kind === 'everyone') {
+            chip.className = 'mention-chip mention-chip-special';
+            chip.dataset['everyone'] = 'true';
+            chip.dataset['display'] = '@everyone';
+            chip.textContent = '@everyone';
+        } else {
+            chip.className = 'mention-chip mention-chip-special';
+            chip.dataset['here'] = 'true';
+            chip.dataset['display'] = '@here';
+            chip.textContent = '@here';
+        }
 
         this.triggerRange.insertNode(chip);
         const space = document.createTextNode(' ');
@@ -350,7 +397,7 @@ export class ComposerComponent {
             editor.innerHTML = '';
             if (cmd.params.length === 0) {
                 const result = cmd.execute('');
-                if (result.text) this.message.emit({content: result.text, attachments: [], mentions: []});
+                if (result.text) this.message.emit({content: result.text, attachments: [], mentions: [], roleMentions: [], mentionsEveryone: false, mentionsHere: false});
                 if (result.action) this.dispatchAction(result.action);
             } else {
                 this.activeCommand.set(cmd);
@@ -384,7 +431,7 @@ export class ComposerComponent {
     // ── Mention handling ──────────────────────────────────────────────────────
 
     onGifSelected(url: string): void {
-        this.message.emit({content: url, attachments: [], mentions: []});
+        this.message.emit({content: url, attachments: [], mentions: [], roleMentions: [], mentionsEveryone: false, mentionsHere: false});
     }
 
     // ── Command handling ──────────────────────────────────────────────────────
@@ -427,12 +474,14 @@ export class ComposerComponent {
         }
 
         const attachments = this.attachments.flushAndClear();
-        const mentions = Array.from(editor.querySelectorAll<HTMLElement>('.mention-chip'))
-            .map(c => c.dataset['userId'] ?? '')
-            .filter(Boolean);
+        const chips = Array.from(editor.querySelectorAll<HTMLElement>('.mention-chip'));
+        const mentions = chips.map(c => c.dataset['userId'] ?? '').filter(Boolean);
+        const roleMentions = chips.map(c => c.dataset['roleId'] ?? '').filter(Boolean);
+        const mentionsEveryone = chips.some(c => c.dataset['everyone'] === 'true');
+        const mentionsHere = chips.some(c => c.dataset['here'] === 'true');
 
         if (text || attachments.length > 0) {
-            this.message.emit({content: text, attachments, inReplyTo: this.replyTo()?.id, mentions});
+            this.message.emit({content: text, attachments, inReplyTo: this.replyTo()?.id, mentions, roleMentions, mentionsEveryone, mentionsHere});
         }
 
         editor.innerHTML = '';

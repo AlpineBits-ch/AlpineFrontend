@@ -3,7 +3,7 @@ import {NgClass} from '@angular/common';
 import {Avatar} from 'primeng/avatar';
 import {CommandDef} from '../commands';
 import {EmojiSuggestion} from '../../../../../../services/emoji-data.service';
-import {MentionCandidate} from '../composer-utils';
+import {MentionCandidate, mentionCandidateId} from '../composer-utils';
 import {TwemojiComponent} from '../../../../../../components/twemoji/twemoji.component';
 
 @Component({
@@ -23,4 +23,6 @@ export class SuggestionOverlayComponent {
     mentionSelected = output<MentionCandidate>();
     commandSelected = output<CommandDef>();
     emojiSelected = output<EmojiSuggestion>();
+
+    protected readonly mentionCandidateId = mentionCandidateId;
 }

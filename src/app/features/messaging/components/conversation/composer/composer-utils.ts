@@ -30,10 +30,50 @@ export function getMessage(editor: HTMLElement): string {
 
 export type {EmojiSuggestion} from '../../../../../services/emoji-data.service';
 
-export interface MentionCandidate {
+export interface UserMentionCandidate {
+    kind: 'user';
     userId: string;
     userName: string;
     avatarUrl?: string;
+}
+
+export interface RoleMentionCandidate {
+    kind: 'role';
+    roleId: string;
+    name: string;
+    color: string;
+}
+
+export interface EveryoneMentionCandidate {
+    kind: 'everyone';
+}
+
+export interface HereMentionCandidate {
+    kind: 'here';
+}
+
+export type MentionCandidate = UserMentionCandidate | RoleMentionCandidate | EveryoneMentionCandidate | HereMentionCandidate;
+
+export function mentionCandidateId(c: MentionCandidate): string {
+    switch (c.kind) {
+        case 'user': return `user:${c.userId}`;
+        case 'role': return `role:${c.roleId}`;
+        case 'everyone': return 'everyone';
+        case 'here': return 'here';
+    }
+}
+
+export function mentionCandidateLabel(c: MentionCandidate): string {
+    switch (c.kind) {
+        case 'user': return c.userName;
+        case 'role': return c.name;
+        case 'everyone': return 'everyone';
+        case 'here': return 'here';
+    }
+}
+
+export function mentionCandidateMatches(c: MentionCandidate, query: string): boolean {
+    return mentionCandidateLabel(c).toLowerCase().includes(query.toLowerCase());
 }
 
 export type TriggerDetection =

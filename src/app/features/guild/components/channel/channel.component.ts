@@ -63,6 +63,10 @@ export class ChannelComponent implements AfterViewInit {
     public back = output();
     protected navService = inject(NavigationService);
     protected guildId = computed(() => this.channel().guildId);
+    protected guildRoles = computed(() => {
+        const ws = this.navService.workspace();
+        return ws.type === 'server' ? ws.guild.roles : [];
+    });
     protected replyingTo = signal<MessageDto | null>(null);
     protected showThreadPanel = signal(false);
     protected readonly ChannelType = ChannelType;
@@ -236,9 +240,12 @@ export class ChannelComponent implements AfterViewInit {
         content: string;
         attachments: string[];
         inReplyTo?: string;
-        mentions: string[]
+        mentions: string[];
+        roleMentions: string[];
+        mentionsEveryone: boolean;
+        mentionsHere: boolean;
     }): void {
-        const {content, attachments, inReplyTo, mentions} = event;
+        const {content, attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere} = event;
         const tempId = crypto.randomUUID();
         const now = new Date();
 
@@ -257,6 +264,9 @@ export class ChannelComponent implements AfterViewInit {
             attachments: [],
             inReplyTo,
             mentions,
+            roleMentions,
+            mentionsEveryone,
+            mentionsHere,
             encryptionState: MessageEncryptionState.Plain,
             mlsEpoch: undefined,
             mlsSequenceNumber: undefined,
@@ -273,6 +283,9 @@ export class ChannelComponent implements AfterViewInit {
             attachments,
             inReplyTo,
             mentions,
+            roleMentions,
+            mentionsEveryone,
+            mentionsHere,
         }).pipe(
             tap(confirmed => {
                 this.messageStore.confirmMessage(tempId, confirmed);

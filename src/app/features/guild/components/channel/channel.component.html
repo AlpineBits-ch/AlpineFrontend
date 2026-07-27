@@ -226,6 +226,7 @@
     <!-- Composer -->
     <footer class="shrink-0">
         <app-composer (cancelReply)="onCancelReply()" (message)="createMessage($event)" (typing)="onTyping()" [guildId]="guildId()"
+                      [guildRoles]="guildRoles()"
                       [replyTo]="replyingTo()" autofocus
                       class="block"></app-composer>
     </footer>

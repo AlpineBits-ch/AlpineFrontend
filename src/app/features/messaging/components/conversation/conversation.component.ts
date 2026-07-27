@@ -105,7 +105,7 @@ export class ConversationComponent implements AfterViewInit {
         const ownId = this.profileService.ownProfile()?.userId;
         return this.conversation().members
             .filter(m => m.userId !== ownId)
-            .map(m => ({userId: m.userId, userName: m.cachedUserName}));
+            .map((m): MentionCandidate => ({kind: 'user', userId: m.userId, userName: m.cachedUserName}));
     });
     private callStateService = inject(CallStateService);
     protected isRinging = computed(() => {
@@ -166,7 +166,10 @@ export class ConversationComponent implements AfterViewInit {
         content: string;
         attachments: string[];
         inReplyTo?: string;
-        mentions: string[]
+        mentions: string[];
+        roleMentions: string[];
+        mentionsEveryone: boolean;
+        mentionsHere: boolean;
     }): void {
         if (this.conversation().encryptionState === ConversationEncryption.Encrypted) {
             this.createEncryptedMessage(event);
@@ -346,9 +349,12 @@ export class ConversationComponent implements AfterViewInit {
         content: string;
         attachments: string[];
         inReplyTo?: string;
-        mentions: string[]
+        mentions: string[];
+        roleMentions: string[];
+        mentionsEveryone: boolean;
+        mentionsHere: boolean;
     }): void {
-        const {content, attachments, inReplyTo, mentions} = event;
+        const {content, attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere} = event;
         const tempId = crypto.randomUUID();
         const now = new Date();
 
@@ -367,6 +373,9 @@ export class ConversationComponent implements AfterViewInit {
             attachments: [],
             inReplyTo,
             mentions,
+            roleMentions,
+            mentionsEveryone,
+            mentionsHere,
             encryptionState: MessageEncryptionState.Plain,
             mlsEpoch: undefined,
             mlsSequenceNumber: undefined,
@@ -383,6 +392,9 @@ export class ConversationComponent implements AfterViewInit {
             attachments,
             inReplyTo,
             mentions,
+            roleMentions,
+            mentionsEveryone,
+            mentionsHere,
         }).pipe(
             tap(confirmed => {
                 this.messageStore.confirmMessage(tempId, confirmed);
@@ -399,9 +411,12 @@ export class ConversationComponent implements AfterViewInit {
         content: string;
         attachments: string[];
         inReplyTo?: string;
-        mentions: string[]
+        mentions: string[];
+        roleMentions: string[];
+        mentionsEveryone: boolean;
+        mentionsHere: boolean;
     }): void {
-        const {content, attachments, inReplyTo, mentions} = event;
+        const {content, attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere} = event;
         const tempId = crypto.randomUUID();
         const now = new Date();
         const b64Content = toBase64(content);
@@ -422,6 +437,9 @@ export class ConversationComponent implements AfterViewInit {
             attachments: [],
             inReplyTo,
             mentions,
+            roleMentions,
+            mentionsEveryone,
+            mentionsHere,
             encryptionState: MessageEncryptionState.Encrypted,
             mlsEpoch: undefined,
             mlsSequenceNumber: undefined,
@@ -454,6 +472,9 @@ export class ConversationComponent implements AfterViewInit {
                             attachments,
                             inReplyTo,
                             mentions,
+                            roleMentions,
+                            mentionsEveryone,
+                            mentionsHere,
                             encryptionState: MessageEncryptionState.Encrypted,
                             mlsEpoch: epoch,
                             senderDeviceId: deviceId,
