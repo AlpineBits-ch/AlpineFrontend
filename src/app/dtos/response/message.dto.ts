@@ -32,6 +32,9 @@ export interface MessageDto {
     attachments: MessageAttachment[];
     inReplyTo: string | undefined;
     mentions: string[];
+    roleMentions?: string[];
+    mentionsEveryone?: boolean;
+    mentionsHere?: boolean;
     encryptionState: MessageEncryptionState;
     mlsEpoch: number | undefined;
     mlsSequenceNumber: number | undefined;

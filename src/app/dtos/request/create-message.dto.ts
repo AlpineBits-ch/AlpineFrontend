@@ -7,6 +7,9 @@ export interface CreateMessageDto {
     attachments: string[];
     inReplyTo: string | undefined;
     mentions: string[];
+    roleMentions?: string[];
+    mentionsEveryone?: boolean;
+    mentionsHere?: boolean;
     encryptionState?: MessageEncryptionState;
     mlsEpoch?: number;
     senderDeviceId?: string;
