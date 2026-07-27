@@ -42,11 +42,11 @@ export interface CreateChannelDto {
 }
 
 export interface UpdateChannelDto {
-    name?: string;
+    name: string;
     description?: string;
-    isPrivate?: boolean;
-    isAgeRestricted?: boolean;
-    categoryId?: string | null;
+    isAgeRestricted: boolean;
+    isPrivate: boolean;
+    slowModeSeconds: number;
 }
 
 export interface CreateCategoryDto {

@@ -1,6 +1,7 @@
 export enum ChannelType {
     Text = 'Text',
     Voice = 'Voice',
+    Thread = 'Thread',
 }
 
 export interface ChannelDto {
@@ -16,6 +17,8 @@ export interface ChannelDto {
     categoryId: string | undefined;
     permissions: ChannelPermission[];
     position: number;
+    slowModeSeconds: number;
+    parentChannelId: string | undefined;
 }
 
 export interface ChannelPermission {
