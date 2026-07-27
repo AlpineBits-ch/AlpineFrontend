@@ -139,6 +139,41 @@ export interface WsWikiCategoryDeleted {
     guildId: string;
 }
 
+export interface WsMemberBanned {
+    guildId: string;
+    userId: string;
+    reason?: string;
+}
+
+export interface WsMemberKicked {
+    guildId: string;
+    userId: string;
+}
+
+export interface WsMemberMuted {
+    guildId: string;
+    userId: string;
+    mutedUntil: string;
+}
+
+export interface WsMemberUnmuted {
+    guildId: string;
+    userId: string;
+}
+
+export interface WsMemberLeft {
+    guildId: string;
+    userId: string;
+}
+
+export interface WsGuildDeleted {
+    guildId: string;
+}
+
+export interface WsGuildUpdated {
+    guildId: string;
+}
+
 @Injectable({
     providedIn: 'root',
 })
@@ -170,6 +205,15 @@ export class GuildWebsocketService {
     public wikiCategoryCreatedObservable = new Subject<WsWikiCategoryCreated>();
     public wikiCategoryUpdatedObservable = new Subject<WsWikiCategoryUpdated>();
     public wikiCategoryDeletedObservable = new Subject<WsWikiCategoryDeleted>();
+    // ── Member moderation ──────────────────────────────────────────────────────────
+    public memberBannedObservable = new Subject<WsMemberBanned>();
+    public memberKickedObservable = new Subject<WsMemberKicked>();
+    public memberMutedObservable = new Subject<WsMemberMuted>();
+    public memberUnmutedObservable = new Subject<WsMemberUnmuted>();
+    public memberLeftObservable = new Subject<WsMemberLeft>();
+    // ── Guild lifecycle ────────────────────────────────────────────────────────────
+    public guildDeletedObservable = new Subject<WsGuildDeleted>();
+    public guildUpdatedObservable = new Subject<WsGuildUpdated>();
     // ── Reactions ───────────────────────────────────────────────────────────────
     public reactionAddedObservable = new Subject<ReactionEvent>();
     public reactionRemovedObservable = new Subject<ReactionEvent>();
@@ -260,6 +304,13 @@ export class GuildWebsocketService {
         this.realtime.on('guild.WikiCategoryCreated', (d: WsWikiCategoryCreated) => this.wikiCategoryCreatedObservable.next(d));
         this.realtime.on('guild.WikiCategoryUpdated', (d: WsWikiCategoryUpdated) => this.wikiCategoryUpdatedObservable.next(d));
         this.realtime.on('guild.WikiCategoryDeleted', (d: WsWikiCategoryDeleted) => this.wikiCategoryDeletedObservable.next(d));
+        this.realtime.on('guild.MemberBanned', (d: WsMemberBanned) => this.memberBannedObservable.next(d));
+        this.realtime.on('guild.MemberKicked', (d: WsMemberKicked) => this.memberKickedObservable.next(d));
+        this.realtime.on('guild.MemberMuted', (d: WsMemberMuted) => this.memberMutedObservable.next(d));
+        this.realtime.on('guild.MemberUnmuted', (d: WsMemberUnmuted) => this.memberUnmutedObservable.next(d));
+        this.realtime.on('guild.MemberLeft', (d: WsMemberLeft) => this.memberLeftObservable.next(d));
+        this.realtime.on('guild.GuildDeleted', (d: WsGuildDeleted) => this.guildDeletedObservable.next(d));
+        this.realtime.on('guild.GuildUpdated', (d: WsGuildUpdated) => this.guildUpdatedObservable.next(d));
 
         this.realtime.on('guild.ReactionCreated', (d: ReactionEvent) => this.reactionAddedObservable.next(d));
         this.realtime.on('guild.ReactionRemoved', (d: ReactionEvent) => this.reactionRemovedObservable.next(d));
