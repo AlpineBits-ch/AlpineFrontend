@@ -1,4 +1,5 @@
 <div class="flex flex-col w-60 bg-sidebar border-l border-white/[0.08] h-full shrink-0">
+    <p-menu #memberMenu [popup]="true" appendTo="body"/>
 
     @if (loading()) {
         <div class="flex items-center justify-center flex-1">
@@ -14,7 +15,8 @@
                     Online &mdash; {{ onlineRows().length }}
                 </p>
                 @for (member of onlineRows(); track member.id) {
-                    <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors cursor-pointer">
+                    <div (contextmenu)="onMemberContextMenu($event, member)"
+                         class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors cursor-pointer">
                         <div class="relative shrink-0">
                             <div class="w-8 h-8 rounded-full overflow-hidden bg-card flex items-center justify-center">
                                 @if (avatarUrl(member)) {
@@ -36,7 +38,8 @@
                     Offline &mdash; {{ offlineRows().length }}
                 </p>
                 @for (member of offlineRows(); track member.id) {
-                    <div class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors cursor-pointer">
+                    <div (contextmenu)="onMemberContextMenu($event, member)"
+                         class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors cursor-pointer">
                         <div class="relative shrink-0">
                             <div class="w-8 h-8 rounded-full overflow-hidden bg-card flex items-center justify-center">
                                 @if (avatarUrl(member)) {
