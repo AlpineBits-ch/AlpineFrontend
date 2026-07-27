@@ -41,4 +41,6 @@ export interface MessageDto {
     senderDeviceId: string | undefined;
     type: MessageType;
     reactions?: MessageReaction[];
+    embedsJson?: string;
+    systemMessageVariant?: number;
 }
