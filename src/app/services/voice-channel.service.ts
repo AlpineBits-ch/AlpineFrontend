@@ -454,6 +454,7 @@ export class VoiceChannelService {
             type: ChannelType.Voice, createdAt: new Date(), updatedAt: new Date(),
             description: '', isAgeRestricted: false, isPrivate: false,
             categoryId: undefined, permissions: [], position: 0,
+            slowModeSeconds: 0, parentChannelId: undefined,
         };
         await this.joinChannel(pseudo, this.joinedGuildName() ?? '');
     }
