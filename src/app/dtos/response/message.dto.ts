@@ -68,4 +68,5 @@ export interface MessageDto {
     /** Client-only: marks this entity as a synthetic placeholder for an in-flight/failed bot command invocation, not a real persisted message. */
     isBotCommandPlaceholder?: boolean;
     embedsJson?: string;
+    systemMessageVariant?: number;
 }

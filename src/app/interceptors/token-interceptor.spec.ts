@@ -20,6 +20,7 @@ import {TestBed} from '@angular/core/testing';
 import {OAuthService} from 'angular-oauth2-oidc';
 import {Router} from '@angular/router';
 import {_resetInterceptorState, tokenInterceptor} from './token-interceptor';
+import {ApiConfigService} from '../services/api-config.service';
 
 const API = 'https://api.venta.gg/test';
 
@@ -38,6 +39,7 @@ function setup() {
             provideHttpClientTesting(),
             {provide: OAuthService, useValue: oAuth},
             {provide: Router, useValue: router},
+            {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.venta.gg'}},
         ],
     });
 

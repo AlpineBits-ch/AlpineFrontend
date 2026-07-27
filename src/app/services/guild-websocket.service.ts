@@ -168,6 +168,11 @@ export interface WsMemberLeft {
     userId: string;
 }
 
+export interface WsMemberJoined {
+    guildId: string;
+    userId: string;
+}
+
 export interface WsGuildDeleted {
     guildId: string;
 }
@@ -201,6 +206,44 @@ export interface WsBotInstalled {
 export interface WsBotUninstalled {
     guildId: string;
     userId: string;
+}
+
+export interface GuildMessageCreatedPayload {
+    messageId: string;
+    content: string;
+    authorId: string;
+    conversationId: string | undefined;
+    channelId: string;
+    attachments: AttachmentDto[];
+    inReplyTo: string | undefined;
+    mentions: string[] | undefined;
+    embedsJson: string | undefined;
+    type: string;
+    systemMessageVariant: number | undefined;
+}
+
+export function mapGuildMessageCreatedPayload(data: GuildMessageCreatedPayload): MessageDto {
+    return {
+        id: data.messageId,
+        content: data.content,
+        authorId: data.authorId,
+        conversationId: data.conversationId,
+        channelId: data.channelId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isPending: false,
+        isFailed: false,
+        attachments: data.attachments,
+        inReplyTo: data.inReplyTo,
+        mentions: data.mentions ?? [],
+        encryptionState: MessageEncryptionState.Plain,
+        mlsEpoch: undefined,
+        mlsSequenceNumber: undefined,
+        senderDeviceId: undefined,
+        type: data.type as MessageType,
+        embedsJson: data.embedsJson,
+        systemMessageVariant: data.systemMessageVariant,
+    };
 }
 
 @Injectable({
@@ -240,6 +283,7 @@ export class GuildWebsocketService {
     public memberMutedObservable = new Subject<WsMemberMuted>();
     public memberUnmutedObservable = new Subject<WsMemberUnmuted>();
     public memberLeftObservable = new Subject<WsMemberLeft>();
+    public memberJoinedObservable = new Subject<WsMemberJoined>();
     // ── Guild lifecycle ────────────────────────────────────────────────────────────
     public guildDeletedObservable = new Subject<WsGuildDeleted>();
     public guildUpdatedObservable = new Subject<WsGuildUpdated>();
@@ -347,6 +391,7 @@ export class GuildWebsocketService {
         this.realtime.on('guild.MemberMuted', (d: WsMemberMuted) => this.memberMutedObservable.next(d));
         this.realtime.on('guild.MemberUnmuted', (d: WsMemberUnmuted) => this.memberUnmutedObservable.next(d));
         this.realtime.on('guild.MemberLeft', (d: WsMemberLeft) => this.memberLeftObservable.next(d));
+        this.realtime.on('guild.MemberJoined', (d: WsMemberJoined) => this.memberJoinedObservable.next(d));
         this.realtime.on('guild.GuildDeleted', (d: WsGuildDeleted) => this.guildDeletedObservable.next(d));
         this.realtime.on('guild.GuildUpdated', (d: WsGuildUpdated) => this.guildUpdatedObservable.next(d));
         this.realtime.on('guild.RolesReordered', (d: ReorderRolesDto) => this.rolesReorderedObservable.next(d));
@@ -364,41 +409,13 @@ export class GuildWebsocketService {
         this.realtime.on('guild.BotInstalled', (d: WsBotInstalled) => this.botInstalledObservable.next(d));
         this.realtime.on('guild.BotUninstalled', (d: WsBotUninstalled) => this.botUninstalledObservable.next(d));
 
-        this.realtime.on('guild.MessageCreated', async (data: {
-            messageId: string;
-            content: string;
-            authorId: string;
-            conversationId: string | undefined;
-            channelId: string;
-            attachments: AttachmentDto[];
-            inReplyTo: string | undefined;
-            mentions: string[] | undefined;
-            embedsJson: string | undefined;
-        }) => {
+        this.realtime.on('guild.MessageCreated', async (data: GuildMessageCreatedPayload) => {
             console.log('Guild MessageCreated:', data);
-            const mentions = data.mentions ?? [];
-            this.messageObservable.next({
-                id: data.messageId,
-                content: data.content,
-                authorId: data.authorId,
-                conversationId: data.conversationId,
-                channelId: data.channelId,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                isPending: false,
-                isFailed: false,
-                attachments: data.attachments,
-                inReplyTo: data.inReplyTo,
-                mentions,
-                encryptionState: MessageEncryptionState.Plain,
-                mlsEpoch: undefined,
-                mlsSequenceNumber: undefined,
-                senderDeviceId: undefined,
-                type: MessageType.Message,
-                embedsJson: data.embedsJson,
-            });
+            const message = mapGuildMessageCreatedPayload(data);
+            this.messageObservable.next(message);
 
             const ownId = this.profileService.ownProfile()?.userId;
+            const mentions = data.mentions ?? [];
             if (ownId && mentions.includes(ownId)) {
                 let body: string;
                 try {

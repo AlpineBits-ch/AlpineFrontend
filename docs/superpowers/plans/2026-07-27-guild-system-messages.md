@@ -65,10 +65,10 @@ export enum MessageType {
 }
 ```
 
-Add the new field to `MessageDto` (right after `embedsJson?: string;` at the end of the interface in `src/app/dtos/response/message.dto.ts`):
+Add the new field to `MessageDto` (right after `reactions?: MessageReaction[];` at the end of the interface in `src/app/dtos/response/message.dto.ts` — this worktree's committed `message.dto.ts` does not have an `embedsJson` field; that belongs to unrelated uncommitted work in the original checkout and is out of scope here):
 
 ```ts
-    embedsJson?: string;
+    reactions?: MessageReaction[];
     systemMessageVariant?: number;
 }
 ```
@@ -97,7 +97,7 @@ git commit -m "feat: add Invite/GuildMemberJoin/GuildMemberLeave message types"
 - Consumes: `MessageType` (Task 1), `MessageDto` (Task 1), `MessageEncryptionState.Plain`, `AttachmentDto` (already imported in this file).
 - Produces: exported `GuildMessageCreatedPayload` interface and exported `mapGuildMessageCreatedPayload(data: GuildMessageCreatedPayload): MessageDto` function, both from `guild-websocket.service.ts`.
 
-The current `guild.MessageCreated` handler (lines ~367–399) builds a `MessageDto` inline and hardcodes `type: MessageType.Message` regardless of what the server actually sent — this silently mis-renders every system message that arrives live. Extracting the mapping into a pure function makes the bug fixable and testable without needing a real SignalR connection.
+The current `guild.MessageCreated` handler (lines ~351–408) builds a `MessageDto` inline and hardcodes `type: MessageType.Message` regardless of what the server actually sent — this silently mis-renders every system message that arrives live. Extracting the mapping into a pure function makes the bug fixable and testable without needing a real SignalR connection.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -117,7 +117,6 @@ const BASE_PAYLOAD: GuildMessageCreatedPayload = {
     attachments: [],
     inReplyTo: undefined,
     mentions: undefined,
-    embedsJson: undefined,
     type: 'Message',
     systemMessageVariant: undefined,
 };
@@ -170,7 +169,6 @@ export interface GuildMessageCreatedPayload {
     attachments: AttachmentDto[];
     inReplyTo: string | undefined;
     mentions: string[] | undefined;
-    embedsJson: string | undefined;
     type: string;
     systemMessageVariant: number | undefined;
 }
@@ -194,7 +192,6 @@ export function mapGuildMessageCreatedPayload(data: GuildMessageCreatedPayload):
         mlsSequenceNumber: undefined,
         senderDeviceId: undefined,
         type: data.type as MessageType,
-        embedsJson: data.embedsJson,
         systemMessageVariant: data.systemMessageVariant,
     };
 }
@@ -676,7 +673,9 @@ git commit -m "feat: add SystemMessageComponent for guild join/leave messages"
 **Interfaces:**
 - Consumes: `app-system-message` / `SystemMessageComponent` (Task 5), `MessageType.GuildMemberJoin` / `.GuildMemberLeave` (Task 1).
 
-No new test: `ChannelComponent` has no existing spec (it depends on `NavigationService`, `BotCommandService`, `GuildWebsocketService`'s live SignalR connection, and more — building a first-ever harness for it is out of scope for a one-line template branch). Verified via `ng test` (compile correctness) and the plan doc's manual verification steps.
+No new test: `ChannelComponent` has no existing spec (it depends on `NavigationService`, `GuildWebsocketService`'s live SignalR connection, and more — building a first-ever harness for it is out of scope for a one-line template branch). Verified via `ng test` (compile correctness) and the plan doc's manual verification steps.
+
+Note: this worktree's committed `ChannelComponent`/`MessageComponent` predate an in-progress, uncommitted bot-command feature — there is no `botCommandService` or `guildBots` input in this codebase's committed history. The `<app-message>` element below only takes `guildChannels`, `guildRoles`, and `message` (plus the `jumpTo`/`reply` outputs) — do not add a `guildBots` binding.
 
 - [ ] **Step 1: Expose `MessageType` to the template**
 
@@ -715,7 +714,6 @@ In `src/app/features/guild/components/channel/channel.component.html`, replace t
                             } @else {
                                 <app-message (jumpTo)="jumpToMessage($event)"
                                              (reply)="onReply($event)"
-                                             [guildBots]="botCommandService.currentGuildBots()"
                                              [guildChannels]="guildChannels()"
                                              [guildRoles]="guildRoles()"
                                              [message]="msg"></app-message>

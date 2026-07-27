@@ -1,10 +1,11 @@
-import {Component, inject, input, OnDestroy, OnInit, output, signal} from '@angular/core';
+import {Component, computed, inject, input, OnDestroy, OnInit, output, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
 import {Textarea} from 'primeng/textarea';
 import {Dialog} from 'primeng/dialog';
-import {GuildDto} from '../../../../../../dtos/response/guild.dto';
+import {Select} from 'primeng/select';
+import {ChannelType, GuildDto} from '../../../../../../dtos/response/guild.dto';
 import {GuildService, UpdateGuildDto} from '../../../../../../services/guild.service';
 import {ImageCropperComponent} from '../../../../../../components/image-cropper/image-cropper.component';
 import {environment} from '../../../../../../../environments/environment';
@@ -14,7 +15,7 @@ import {PrimeTemplate} from "primeng/api";
 
 @Component({
     selector: 'app-overview-settings',
-    imports: [FormsModule, Button, InputText, Textarea, Dialog, ImageCropperComponent, TranslateModule, PrimeTemplate],
+    imports: [FormsModule, Button, InputText, Textarea, Dialog, Select, ImageCropperComponent, TranslateModule, PrimeTemplate],
     templateUrl: './overview-settings.component.html',
 })
 export class OverviewSettingsComponent implements OnInit, OnDestroy {
@@ -23,6 +24,12 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
     guildDeleted = output<string>();
     name = signal('');
     description = signal('');
+    systemChannelId = signal<string | null>(null);
+    channelOptions = computed(() =>
+        this.guild().channels
+            .filter(c => c.type === ChannelType.Text)
+            .map(c => ({label: c.name, value: c.id}))
+    );
     saving = signal(false);
     dirty = signal(false);
     iconPreview = signal<string | null>(null);
@@ -39,6 +46,7 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
     ngOnInit(): void {
         this.name.set(this.guild().name);
         this.description.set(this.guild().description ?? '');
+        this.systemChannelId.set(this.guild().systemChannelId);
         if (this.previewObjectUrl) {
             URL.revokeObjectURL(this.previewObjectUrl);
             this.previewObjectUrl = null;
@@ -55,7 +63,9 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
     onFieldChange(): void {
         const g = this.guild();
         this.dirty.set(
-            this.name() !== g.name || this.description() !== (g.description ?? '')
+            this.name() !== g.name
+            || this.description() !== (g.description ?? '')
+            || this.systemChannelId() !== g.systemChannelId
         );
     }
 
@@ -104,6 +114,9 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
 
         const doUpdate = (g: GuildDto) => {
             const dto: UpdateGuildDto = {name: this.name(), description: this.description()};
+            if (this.systemChannelId() !== g.systemChannelId && this.systemChannelId()) {
+                dto.systemChannelId = this.systemChannelId()!;
+            }
             this.guildService.updateGuild(g.id, dto).subscribe({
                 next: updated => {
                     this.guildService.guildUpdated$.next(updated);

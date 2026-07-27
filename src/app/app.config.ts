@@ -15,7 +15,6 @@ import {routes} from "./app.routes";
 import {providePrimeNG} from "primeng/config";
 import {MessageService} from 'primeng/api';
 import {provideHttpClient, withInterceptors} from "@angular/common/http";
-import {environment} from "../environments/environment";
 import {tokenInterceptor} from "./interceptors/token-interceptor";
 import {timeoutInterceptor} from "./interceptors/timeout.interceptor";
 import {GlobalErrorHandler} from "./core/global-error-handler";
@@ -25,6 +24,7 @@ import {provideTranslateHttpLoader} from '@ngx-translate/http-loader';
 import {AlpinePreset} from './theme/alpine-preset';
 import * as Sentry from "@sentry/angular";
 import {ApiConfigService} from "./services/api-config.service";
+import {authConfig} from './auth.config';
 
 
 export function authConfigFactory(): AuthConfig {
@@ -37,16 +37,6 @@ export function authConfigFactory(): AuthConfig {
     };
 
 }
-export const authConfig: AuthConfig = {
-    issuer: 'https://api.venta.gg',
-    tokenEndpoint: `${environment.apiUrl}/connect/token`,
-    clientId: 'echo',
-    scope: 'openid offline_access',
-    dummyClientSecret: '',
-    oidc: false,
-    disablePKCE: true,
-    useSilentRefresh: false,
-};
 
 export function storageFactory(): OAuthStorage {
     return localStorage;

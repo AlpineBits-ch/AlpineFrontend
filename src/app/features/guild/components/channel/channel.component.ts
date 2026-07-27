@@ -34,6 +34,7 @@ import {BotCommandService} from '../../../../services/bot-command.service';
 import {ComposerComponent} from '../../../messaging/components/conversation/composer/composer.component';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {MessageComponent} from '../../../messaging/components/conversation/message/message.component';
+import {SystemMessageComponent} from '../../../messaging/components/conversation/message/system-message/system-message.component';
 import {HighlightPipe} from '../../../../pipes/highlight.pipe';
 import {TypingDotsComponent} from '../../../../components/typing-dots/typing-dots.component';
 import {ThreadPanelComponent} from './thread-panel/thread-panel.component';
@@ -53,7 +54,7 @@ function decodeContent(encoded: string): string {
 @Component({
     selector: 'app-channel',
     imports: [
-        ComposerComponent, MessageComponent, Button,
+        ComposerComponent, MessageComponent, SystemMessageComponent, Button,
         DatePipe, HighlightPipe, TypingDotsComponent, ThreadPanelComponent,
     ],
     templateUrl: './channel.component.html',
@@ -76,6 +77,7 @@ export class ChannelComponent implements AfterViewInit {
     protected replyingTo = signal<MessageDto | null>(null);
     protected showThreadPanel = signal(false);
     protected readonly ChannelType = ChannelType;
+    protected readonly MessageType = MessageType;
     protected searchQuery = signal('');
     protected isSearchActive = computed(() => this.searchQuery().trim().length > 0);
     protected isSearching = computed(() => this.searchEntry()?.searching ?? false);

@@ -14,6 +14,7 @@ import {ToastService} from '../../../../services/toast.service';
 import {
     GuildWebsocketService,
     WsMemberBanned,
+    WsMemberJoined,
     WsMemberKicked,
     WsMemberLeft,
     WsMemberMuted,
@@ -64,7 +65,16 @@ export class GuildMemberListComponent implements OnChanges {
                 if (e.guildId !== this.guild().id) return;
                 this.rows.update(list => list.map(m => m.userId === e.userId ? {...m, status: e.status} : m));
             });
-        // Stopgap until there's a MemberJoined websocket event - see BotInstallDialogService.
+        this.guildWsService.memberJoinedObservable.pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((e: WsMemberJoined) => {
+                if (e.guildId !== this.guild().id) return;
+                if (this.nextSkip > this.TAKE) return;
+                this.reset();
+                this.fetchPage(this.guild().id);
+            });
+        // Stopgap so open member lists refresh after a bot install specifically -
+        // guild.MemberJoined (subscribed above) isn't confirmed to also fire for bot
+        // installs, so this stays until that's verified. See BotInstallDialogService.
         this.botInstallDialogService.installedIntoGuild.pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(guildId => {
                 if (guildId !== this.guild().id) return;

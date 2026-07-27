@@ -1,7 +1,7 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {OAuthService} from 'angular-oauth2-oidc';
 import {environment} from '../../environments/environment';
-import {authConfig} from '../app.config';
+import {authConfig} from '../auth.config';
 import {Observable} from "rxjs";
 import {HttpClient} from "@angular/common/http";
 
