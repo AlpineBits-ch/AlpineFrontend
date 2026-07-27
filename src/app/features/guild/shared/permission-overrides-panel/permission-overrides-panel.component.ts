@@ -24,6 +24,7 @@ export interface OverrideEntry {
     selector: 'app-permission-overrides-panel',
     imports: [NgClass, Popover, Button, Tooltip, PermissionOverrideEditorComponent],
     templateUrl: './permission-overrides-panel.component.html',
+    styleUrl: './permission-overrides-panel.component.css',
 })
 export class PermissionOverridesPanelComponent {
     entries = input.required<OverrideEntry[]>();
