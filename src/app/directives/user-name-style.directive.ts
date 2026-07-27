@@ -16,4 +16,9 @@ export class UserNameStyleDirective {
     protected get fontFamily(): string | undefined {
         return userNameStyle(this.appUserNameStyle()).fontFamily;
     }
+
+    @HostBinding('style.fontSizeAdjust')
+    protected get fontSizeAdjust(): string | undefined {
+        return userNameStyle(this.appUserNameStyle()).fontSizeAdjust;
+    }
 }

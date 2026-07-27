@@ -8,10 +8,11 @@ import {ChannelDto} from '../../../../../dtos/response/guild.dto';
 import {GuildService} from '../../../../../services/guild.service';
 import {GuildWebsocketService} from '../../../../../services/guild-websocket.service';
 import {ToastService} from '../../../../../services/toast.service';
+import {PrimeTemplate} from "primeng/api";
 
 @Component({
     selector: 'app-thread-panel',
-    imports: [Button, InputText, Dialog, FormsModule],
+    imports: [Button, InputText, Dialog, FormsModule, PrimeTemplate],
     templateUrl: './thread-panel.component.html',
 })
 export class ThreadPanelComponent implements OnInit {

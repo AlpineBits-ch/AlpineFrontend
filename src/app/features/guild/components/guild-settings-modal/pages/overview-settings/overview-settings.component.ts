@@ -10,10 +10,11 @@ import {ImageCropperComponent} from '../../../../../../components/image-cropper/
 import {environment} from '../../../../../../../environments/environment';
 import {TranslateModule} from '@ngx-translate/core';
 import {ToastService} from '../../../../../../services/toast.service';
+import {PrimeTemplate} from "primeng/api";
 
 @Component({
     selector: 'app-overview-settings',
-    imports: [FormsModule, Button, InputText, Textarea, Dialog, ImageCropperComponent, TranslateModule],
+    imports: [FormsModule, Button, InputText, Textarea, Dialog, ImageCropperComponent, TranslateModule, PrimeTemplate],
     templateUrl: './overview-settings.component.html',
 })
 export class OverviewSettingsComponent implements OnInit, OnDestroy {

@@ -1,5 +1,5 @@
 import {ProfileFont} from '../dtos/response/profile.dto';
-import {FONT_STACKS, safeAccentColor, userNameStyle} from './profile-font.model';
+import {FONT_SIZE_ADJUST, FONT_STACKS, safeAccentColor, userNameStyle} from './profile-font.model';
 
 describe('userNameStyle', () => {
     it('returns an empty object for null/undefined input', () => {
@@ -32,6 +32,18 @@ describe('userNameStyle', () => {
 
     it('rejects an invalid accentColor rather than passing it through as CSS', () => {
         expect(userNameStyle({accentColor: 'url(javascript:alert(1))', font: ProfileFont.Default})).toEqual({});
+    });
+
+    it('adds fontSizeAdjust for fonts with a small x-height relative to the default font', () => {
+        expect(userNameStyle({accentColor: null, font: ProfileFont.Handwritten})).toEqual({
+            fontFamily: FONT_STACKS[ProfileFont.Handwritten],
+            fontSizeAdjust: String(FONT_SIZE_ADJUST[ProfileFont.Handwritten]),
+        });
+    });
+
+    it('omits fontSizeAdjust for fonts that do not need size correction', () => {
+        expect(userNameStyle({accentColor: null, font: ProfileFont.Serif}))
+            .toEqual({fontFamily: FONT_STACKS[ProfileFont.Serif]});
     });
 });
 

@@ -34,5 +34,13 @@ describe('UserNameStyleDirective', () => {
         fixture.detectChanges();
         expect(span().style.color).toBe('rgb(255, 0, 0)');
         expect(span().style.fontFamily).toContain('Lora Variable');
+        expect(span().style.fontSizeAdjust).toBe('');
+    });
+
+    it('applies fontSizeAdjust for the handwritten font so it does not render too small', () => {
+        fixture.componentInstance.profile = {accentColor: null, font: ProfileFont.Handwritten};
+        fixture.detectChanges();
+        expect(span().style.fontFamily).toContain('Caveat Variable');
+        expect(span().style.fontSizeAdjust).toBe('0.5');
     });
 });
