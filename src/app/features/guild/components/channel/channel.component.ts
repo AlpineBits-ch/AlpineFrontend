@@ -182,6 +182,7 @@ export class ChannelComponent implements AfterViewInit {
         effect(() => {
             this.channel().id;
             this.searchQuery.set('');
+            this.showThreadPanel.set(false);
         });
 
         afterEveryRender(() => {

@@ -19,10 +19,11 @@ import {
     WsMemberUnmuted,
     WsPresenceChanged,
 } from '../../../../services/guild-websocket.service';
+import {UserStatusDotComponent} from '../../../../components/user-status-dot/user-status-dot.component';
 
 @Component({
     selector: 'app-guild-member-list',
-    imports: [TranslateModule, Menu],
+    imports: [TranslateModule, Menu, UserStatusDotComponent],
     templateUrl: './guild-member-list.component.html',
 })
 export class GuildMemberListComponent implements OnChanges {
@@ -31,8 +32,8 @@ export class GuildMemberListComponent implements OnChanges {
     loading = signal(true);
     loadingMore = signal(false);
     hasMore = signal(true);
-    onlineRows = computed(() => this.rows().filter(m => m.status === OnlineStatus.Online));
-    offlineRows = computed(() => this.rows().filter(m => m.status !== OnlineStatus.Online));
+    onlineRows = computed(() => this.rows().filter(m => m.status !== OnlineStatus.Offline && m.status !== OnlineStatus.Hidden));
+    offlineRows = computed(() => this.rows().filter(m => m.status === OnlineStatus.Offline || m.status === OnlineStatus.Hidden));
     @ViewChild('memberMenu') memberMenu!: Menu;
     protected contextMember = signal<GuildMemberDto | null>(null);
     private ownMember = signal<SelfGuildMemberDto | null>(null);
@@ -127,9 +128,7 @@ export class GuildMemberListComponent implements OnChanges {
         if (member.userId === this.guild().ownerId) return false;
         const own = this.ownMember();
         if (!own || own.userId === member.userId) return false;
-        const ownPos = this.highestRolePosition({...member, userId: own.userId});
-        const targetPos = this.highestRolePosition(member);
-        return targetPos < ownPos;
+        return true;
     }
 
     protected onMemberContextMenu(event: MouseEvent, member: GuildMemberDto): void {
@@ -191,11 +190,5 @@ export class GuildMemberListComponent implements OnChanges {
         const ownUserId = this.ownMember()?.userId;
         if (userId !== ownUserId) return;
         this.toastService.info(mutedUntil ? `You have been muted until ${new Date(mutedUntil).toLocaleTimeString()}` : 'Your timeout has been lifted');
-    }
-
-    private highestRolePosition(member: GuildMemberDto): number {
-        const myRoles = this.guild().roles.filter(r => r.userId === member.userId);
-        if (myRoles.length === 0) return -1;
-        return Math.max(...myRoles.map(r => r.position));
     }
 }

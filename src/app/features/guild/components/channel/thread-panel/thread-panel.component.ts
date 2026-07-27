@@ -1,4 +1,4 @@
-import {Component, DestroyRef, inject, input, output, OnInit, signal} from '@angular/core';
+import {Component, DestroyRef, effect, inject, input, output, OnInit, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
@@ -28,8 +28,14 @@ export class ThreadPanelComponent implements OnInit {
     private toastService = inject(ToastService);
     private destroyRef = inject(DestroyRef);
 
+    constructor() {
+        effect(() => {
+            this.parentChannelId();
+            this.load();
+        });
+    }
+
     ngOnInit(): void {
-        this.load();
         this.guildWsService.threadCreatedObservable
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(e => {
