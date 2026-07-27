@@ -10,6 +10,9 @@
 }
 
 export enum OnlineStatus {
-    Online = 'Online',
     Offline = 'Offline',
+    Hidden = 'Hidden',
+    Online = 'Online',
+    Idle = 'Idle',
+    DoNotDisturb = 'DoNotDisturb',
 }

@@ -18,4 +18,8 @@ export interface InviteDto {
     state: InviteState;
     guildId: string;
     guild?: GuildDto;
+    code: string;
+    expiresAt?: string;
+    maxUses?: number;
+    useCount: number;
 }
