@@ -73,8 +73,7 @@ export class ChannelPermissionsComponent implements OnInit {
     saveRoleOverride(row: RoleOverride): void {
         if (row.saving) return;
         this.roleOverrides.update(list => list.map(r => r.role.id === row.role.id ? {...r, saving: true} : r));
-        this.guildService.upsertChannelPermission(this.channel().id, {
-            roleId: row.role.id,
+        this.guildService.upsertChannelRolePermission(this.channel().id, row.role.id, {
             allowPermissions: stringifyPermissions(row.override.allow),
             denyPermissions: stringifyPermissions(row.override.deny),
         }).subscribe({
@@ -91,7 +90,7 @@ export class ChannelPermissionsComponent implements OnInit {
 
     deleteRoleOverride(row: RoleOverride): void {
         if (!row.perm) return;
-        this.guildService.deleteChannelPermission(this.channel().id, row.perm.id).subscribe({
+        this.guildService.deleteChannelRolePermission(this.channel().id, row.role.id).subscribe({
             next: () => {
                 this.roleOverrides.update(list =>
                     list.map(r => r.role.id === row.role.id
@@ -112,8 +111,7 @@ export class ChannelPermissionsComponent implements OnInit {
     saveMemberOverride(row: MemberOverride): void {
         if (row.saving) return;
         this.memberOverrides.update(list => list.map(r => r.member.id === row.member.id ? {...r, saving: true} : r));
-        this.guildService.upsertChannelPermission(this.channel().id, {
-            memberId: row.member.id,
+        this.guildService.upsertChannelMemberPermission(this.channel().id, row.member.id, {
             allowPermissions: stringifyPermissions(row.override.allow),
             denyPermissions: stringifyPermissions(row.override.deny),
         }).subscribe({
@@ -133,7 +131,7 @@ export class ChannelPermissionsComponent implements OnInit {
 
     deleteMemberOverride(row: MemberOverride): void {
         if (!row.perm) return;
-        this.guildService.deleteChannelPermission(this.channel().id, row.perm.id).subscribe({
+        this.guildService.deleteChannelMemberPermission(this.channel().id, row.member.id).subscribe({
             next: () => {
                 this.memberOverrides.update(list =>
                     list.map(r => r.member.id === row.member.id

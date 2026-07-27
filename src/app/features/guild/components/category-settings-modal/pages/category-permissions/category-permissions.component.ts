@@ -66,8 +66,7 @@ export class CategoryPermissionsComponent implements OnInit {
     saveRole(row: RoleOverride): void {
         if (row.saving) return;
         this.roleOverrides.update(list => list.map(r => r.role.id === row.role.id ? {...r, saving: true} : r));
-        this.guildService.upsertCategoryPermission(this.category().id, {
-            roleId: row.role.id,
+        this.guildService.upsertCategoryRolePermission(this.category().id, row.role.id, {
             allowPermissions: stringifyPermissions(row.override.allow),
             denyPermissions: stringifyPermissions(row.override.deny),
         }).subscribe({
@@ -85,7 +84,7 @@ export class CategoryPermissionsComponent implements OnInit {
 
     deleteRole(row: RoleOverride): void {
         if (!row.perm) return;
-        this.guildService.deleteCategoryPermission(this.category().id, row.perm.id).subscribe({
+        this.guildService.deleteCategoryRolePermission(this.category().id, row.role.id).subscribe({
             next: () => {
                 this.roleOverrides.update(list =>
                     list.map(r => r.role.id === row.role.id ? {
@@ -108,8 +107,7 @@ export class CategoryPermissionsComponent implements OnInit {
     saveMember(row: MemberOverride): void {
         if (row.saving) return;
         this.memberOverrides.update(list => list.map(r => r.member.id === row.member.id ? {...r, saving: true} : r));
-        this.guildService.upsertCategoryPermission(this.category().id, {
-            memberId: row.member.id,
+        this.guildService.upsertCategoryMemberPermission(this.category().id, row.member.id, {
             allowPermissions: stringifyPermissions(row.override.allow),
             denyPermissions: stringifyPermissions(row.override.deny),
         }).subscribe({
@@ -127,7 +125,7 @@ export class CategoryPermissionsComponent implements OnInit {
 
     deleteMember(row: MemberOverride): void {
         if (!row.perm) return;
-        this.guildService.deleteCategoryPermission(this.category().id, row.perm.id).subscribe({
+        this.guildService.deleteCategoryMemberPermission(this.category().id, row.member.id).subscribe({
             next: () => {
                 this.memberOverrides.update(list =>
                     list.map(r => r.member.id === row.member.id ? {
