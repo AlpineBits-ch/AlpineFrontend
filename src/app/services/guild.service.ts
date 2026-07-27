@@ -63,9 +63,7 @@ export interface UpdateCategoryDto {
     description?: string;
 }
 
-export interface UpsertPermissionOverrideDto {
-    roleId?: string;
-    memberId?: string;
+export interface OverridePermissionsDto {
     allowPermissions: string;
     denyPermissions: string;
 }
@@ -197,19 +195,27 @@ export class GuildService {
     }
 
     updateChannel(id: string, dto: UpdateChannelDto): Observable<ChannelDto> {
-        return this.http.patch<ChannelDto>(`${this.base}/channel/${id}`, dto);
+        return this.http.patch<ChannelDto>(`${this.base}/channels/${id}`, dto);
     }
 
     deleteChannel(id: string): Observable<void> {
         return this.http.delete<void>(`${this.base}/channels/${id}`);
     }
 
-    upsertChannelPermission(channelId: string, dto: UpsertPermissionOverrideDto): Observable<ChannelPermission> {
-        return this.http.put<ChannelPermission>(`${this.base}/channel/${channelId}/permission`, dto);
+    upsertChannelRolePermission(channelId: string, roleId: string, dto: OverridePermissionsDto): Observable<ChannelPermission> {
+        return this.http.put<ChannelPermission>(`${this.base}/channels/${channelId}/permissions/roles/${roleId}`, dto);
     }
 
-    deleteChannelPermission(channelId: string, permissionId: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/channel/${channelId}/permission/${permissionId}`);
+    upsertChannelMemberPermission(channelId: string, memberId: string, dto: OverridePermissionsDto): Observable<ChannelPermission> {
+        return this.http.put<ChannelPermission>(`${this.base}/channels/${channelId}/permissions/members/${memberId}`, dto);
+    }
+
+    deleteChannelRolePermission(channelId: string, roleId: string): Observable<void> {
+        return this.http.delete<void>(`${this.base}/channels/${channelId}/permissions/roles/${roleId}`);
+    }
+
+    deleteChannelMemberPermission(channelId: string, memberId: string): Observable<void> {
+        return this.http.delete<void>(`${this.base}/channels/${channelId}/permissions/members/${memberId}`);
     }
 
     // ── Categories ───────────────────────────────────────────────────────────
@@ -225,12 +231,20 @@ export class GuildService {
         return this.http.delete<void>(`${this.base}/categories/${id}`);
     }
 
-    upsertCategoryPermission(categoryId: string, dto: UpsertPermissionOverrideDto): Observable<ChannelPermission> {
-        return this.http.put<ChannelPermission>(`${this.base}/category/${categoryId}/permission`, dto);
+    upsertCategoryRolePermission(categoryId: string, roleId: string, dto: OverridePermissionsDto): Observable<ChannelPermission> {
+        return this.http.put<ChannelPermission>(`${this.base}/categories/${categoryId}/permissions/roles/${roleId}`, dto);
     }
 
-    deleteCategoryPermission(categoryId: string, permissionId: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/category/${categoryId}/permission/${permissionId}`);
+    upsertCategoryMemberPermission(categoryId: string, memberId: string, dto: OverridePermissionsDto): Observable<ChannelPermission> {
+        return this.http.put<ChannelPermission>(`${this.base}/categories/${categoryId}/permissions/members/${memberId}`, dto);
+    }
+
+    deleteCategoryRolePermission(categoryId: string, roleId: string): Observable<void> {
+        return this.http.delete<void>(`${this.base}/categories/${categoryId}/permissions/roles/${roleId}`);
+    }
+
+    deleteCategoryMemberPermission(categoryId: string, memberId: string): Observable<void> {
+        return this.http.delete<void>(`${this.base}/categories/${categoryId}/permissions/members/${memberId}`);
     }
 
     // ── Invites ──────────────────────────────────────────────────────────────

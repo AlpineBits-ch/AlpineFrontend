@@ -115,3 +115,67 @@ describe('GuildService audit log and role reorder', () => {
         req.flush(null);
     });
 });
+
+describe('GuildService channel/category updates and permission overwrites', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('updateChannel PATCHes the plural /channels/{id} route with the full-replace body', () => {
+        const {service, ctrl} = setup();
+        const dto = {name: 'general', isAgeRestricted: false, isPrivate: false, slowModeSeconds: 5};
+        service.updateChannel('c1', dto).subscribe();
+        const req = ctrl.expectOne(`${BASE}/channels/c1`);
+        expect(req.request.method).toBe('PATCH');
+        expect(req.request.body).toEqual(dto);
+        req.flush({});
+    });
+
+    it('upsertChannelRolePermission PUTs to /channels/{channelId}/permissions/roles/{roleId}', () => {
+        const {service, ctrl} = setup();
+        const dto = {allowPermissions: 'ViewChannel', denyPermissions: 'None'};
+        service.upsertChannelRolePermission('c1', 'r1', dto).subscribe();
+        const req = ctrl.expectOne(`${BASE}/channels/c1/permissions/roles/r1`);
+        expect(req.request.method).toBe('PUT');
+        expect(req.request.body).toEqual(dto);
+        req.flush({});
+    });
+
+    it('upsertChannelMemberPermission PUTs to /channels/{channelId}/permissions/members/{memberId}', () => {
+        const {service, ctrl} = setup();
+        service.upsertChannelMemberPermission('c1', 'm1', {allowPermissions: 'None', denyPermissions: 'None'}).subscribe();
+        const req = ctrl.expectOne(`${BASE}/channels/c1/permissions/members/m1`);
+        expect(req.request.method).toBe('PUT');
+        req.flush({});
+    });
+
+    it('deleteChannelRolePermission DELETEs by roleId', () => {
+        const {service, ctrl} = setup();
+        service.deleteChannelRolePermission('c1', 'r1').subscribe();
+        const req = ctrl.expectOne(`${BASE}/channels/c1/permissions/roles/r1`);
+        expect(req.request.method).toBe('DELETE');
+        req.flush(null);
+    });
+
+    it('deleteChannelMemberPermission DELETEs by memberId', () => {
+        const {service, ctrl} = setup();
+        service.deleteChannelMemberPermission('c1', 'm1').subscribe();
+        const req = ctrl.expectOne(`${BASE}/channels/c1/permissions/members/m1`);
+        expect(req.request.method).toBe('DELETE');
+        req.flush(null);
+    });
+
+    it('upsertCategoryRolePermission PUTs to /categories/{categoryId}/permissions/roles/{roleId}', () => {
+        const {service, ctrl} = setup();
+        service.upsertCategoryRolePermission('cat1', 'r1', {allowPermissions: 'None', denyPermissions: 'None'}).subscribe();
+        const req = ctrl.expectOne(`${BASE}/categories/cat1/permissions/roles/r1`);
+        expect(req.request.method).toBe('PUT');
+        req.flush({});
+    });
+
+    it('deleteCategoryMemberPermission DELETEs by memberId', () => {
+        const {service, ctrl} = setup();
+        service.deleteCategoryMemberPermission('cat1', 'm1').subscribe();
+        const req = ctrl.expectOne(`${BASE}/categories/cat1/permissions/members/m1`);
+        expect(req.request.method).toBe('DELETE');
+        req.flush(null);
+    });
+});
