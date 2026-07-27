@@ -31,7 +31,7 @@ const PERM_GROUPS: PermGroup[] = [
     },
     {
         label: 'Moderation',
-        perms: ['ManageChannel', 'ManagePermissions'],
+        perms: ['ManageChannel', 'ManagePermissions', 'ManageGuild', 'KickMembers', 'BanMembers', 'ModerateMembers', 'ViewAuditLog'],
     },
     {
         label: 'Wiki',

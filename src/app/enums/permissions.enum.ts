@@ -52,6 +52,13 @@ export const Permissions = {
     ModerateWikiComments: 1n << 30n,
     PublishWikiPublicly: 1n << 31n,
 
+    // ── Guild moderation permissions ─────────────────────────────────────────
+    KickMembers: 1n << 32n,
+    BanMembers: 1n << 33n,
+    ModerateMembers: 1n << 34n,
+    ManageGuild: 1n << 35n,
+    ViewAuditLog: 1n << 36n,
+
     // ── Catch-all ────────────────────────────────────────────────────────────
     Superadmin: 1n << 63n,
 } as const;
