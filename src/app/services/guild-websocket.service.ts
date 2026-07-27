@@ -8,6 +8,7 @@ import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
 import {MessageType} from '../enums/message-type.enum';
 import {AttachmentDto} from "./file.service";
 import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
+import {ReorderRolesDto} from "../dtos/request/reorder-roles.dto";
 import {ProfileService} from "./profile.service";
 
 export interface ChannelTypingEvent {
@@ -174,6 +175,17 @@ export interface WsGuildUpdated {
     guildId: string;
 }
 
+export interface WsChannelUpdated {
+    channelId: string;
+    guildId: string;
+}
+
+export interface WsThreadCreated {
+    channelId: string;
+    parentChannelId: string;
+    guildId: string;
+}
+
 @Injectable({
     providedIn: 'root',
 })
@@ -217,6 +229,10 @@ export class GuildWebsocketService {
     // ── Reactions ───────────────────────────────────────────────────────────────
     public reactionAddedObservable = new Subject<ReactionEvent>();
     public reactionRemovedObservable = new Subject<ReactionEvent>();
+    // ── Roles/channels/threads ────────────────────────────────────────────────────
+    public rolesReorderedObservable = new Subject<ReorderRolesDto>();
+    public channelUpdatedObservable = new Subject<WsChannelUpdated>();
+    public threadCreatedObservable = new Subject<WsThreadCreated>();
     private realtime = inject(RealtimeConnectionService);
     private notificationService = inject(NotificationService);
     private profileService = inject(ProfileService);
@@ -311,6 +327,9 @@ export class GuildWebsocketService {
         this.realtime.on('guild.MemberLeft', (d: WsMemberLeft) => this.memberLeftObservable.next(d));
         this.realtime.on('guild.GuildDeleted', (d: WsGuildDeleted) => this.guildDeletedObservable.next(d));
         this.realtime.on('guild.GuildUpdated', (d: WsGuildUpdated) => this.guildUpdatedObservable.next(d));
+        this.realtime.on('guild.RolesReordered', (d: ReorderRolesDto) => this.rolesReorderedObservable.next(d));
+        this.realtime.on('guild.ChannelUpdated', (d: WsChannelUpdated) => this.channelUpdatedObservable.next(d));
+        this.realtime.on('guild.ThreadCreated', (d: WsThreadCreated) => this.threadCreatedObservable.next(d));
 
         this.realtime.on('guild.ReactionCreated', (d: ReactionEvent) => this.reactionAddedObservable.next(d));
         this.realtime.on('guild.ReactionRemoved', (d: ReactionEvent) => this.reactionRemovedObservable.next(d));
