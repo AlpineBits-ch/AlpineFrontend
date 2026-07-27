@@ -246,6 +246,45 @@ No frontend changes. Confirmed: `guild.PresenceChanged` payload shape is unchang
 handled; the "fires on connect/disconnect too" behavior is transparent to the client — it's the
 same event, just fired more often.
 
+## 9. Self-profile popover (bottom-left user bar)
+
+**Problem:** clicking the bottom-left user bar (`quick-settings.component.html:8`,
+`profileDialogSvc.open(profileService.ownProfile()!.userId)`) currently opens the same centered
+`ProfileDialogComponent` used for viewing *other* users — a full-screen-feeling modal that's a
+poor fit for checking/editing your own profile. Discord-style apps anchor a small popover above
+the clicked bar instead.
+
+**Change:** clicking the bottom-left bar no longer calls `profileDialogSvc.open(...)`. Instead
+it toggles a new anchored popover, built with PrimeNG `Popover` (`primeng/popover`, not currently
+used anywhere in the codebase but bundled with the installed PrimeNG version — same
+`myPopover.toggle($event)` anchoring idiom already used by `StatusPickerComponent`'s `p-menu
+[popup]="true"`).
+
+**Shared card extraction:** `ProfileDialogComponent`'s inner markup (banner, avatar + status
+dot, username, bio, member-since/friends-since block) is presentational and would otherwise be
+duplicated between the centered dialog (other users) and the new anchored popover (self).
+Extract it into a new presentational `ProfileCardComponent` (`app-profile-card`) taking
+`profile: ProfileDto | undefined`, `friendsSince: Date | null` (optional, other-users only), and
+avatar-click/error outputs — reused by both:
+
+- `ProfileDialogComponent` keeps its centered `p-dialog` shell, now just wrapping
+  `<app-profile-card>` — behavior for viewing *other* users is unchanged.
+- New `SelfProfilePopoverComponent` (`app-self-profile-popover`) wraps the same
+  `<app-profile-card>` inside a `p-popover`, anchored to the bottom-left bar, and adds
+  self-only actions below the card: the existing `app-status-picker` (reused as-is, not
+  duplicated) and an "Edit Profile" button.
+
+**Edit Profile button:** emits an event the parent `QuickSettingsComponent` handles by calling
+its existing `@ViewChild(SettingsModalComponent)` reference's public `selectPage('profile')`
+method, then `isSettingsOpen.set(true)`. `activePage` defaults to `'profile'` on first load, but
+since `app-settings-modal` stays permanently mounted (only visibility toggles), it retains
+whatever page the user last had open — calling `selectPage('profile')` explicitly avoids landing
+on a stale page.
+
+**Positioning/sizing:** popover width ~320px (slightly narrower than the 360px centered dialog,
+since it's anchored rather than centered), appears above the bottom-left bar
+(PrimeNG `Popover` handles flipping if there's insufficient space).
+
 ## Out of scope
 
 - Removing a previously-uploaded banner (no backend endpoint for it yet).
