@@ -1,4 +1,5 @@
-import {Component, computed, inject, input, OnInit, output, signal} from '@angular/core';
+import {Component, computed, DestroyRef, inject, input, OnInit, output, signal} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {NgClass} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
@@ -11,6 +12,7 @@ import {GuildDto, RoleDto, RoleType} from '../../../../../../dtos/response/guild
 import {GuildMemberDto, RoleMemberDto} from '../../../../../../dtos/response/member.dto';
 import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
 import {CreateRoleDto, GuildService, UpdateRoleDto} from '../../../../../../services/guild.service';
+import {GuildWebsocketService} from '../../../../../../services/guild-websocket.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {ToastService} from '../../../../../../services/toast.service';
 import {parsePermissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
@@ -66,6 +68,8 @@ export class RolesSettingsComponent implements OnInit {
     adding = signal<string | null>(null);
     protected readonly RoleType = RoleType;
     private guildService = inject(GuildService);
+    private guildWsService = inject(GuildWebsocketService);
+    private destroyRef = inject(DestroyRef);
     private profileService = inject(ProfileService);
     roleMembersDisplay = computed<RoleMemberDisplay[]>(() =>
         this.roleMembers().map(rm => {
@@ -85,7 +89,47 @@ export class RolesSettingsComponent implements OnInit {
     private addSearchTimer?: ReturnType<typeof setTimeout>;
 
     ngOnInit(): void {
-        this.roles.set([...this.guild().roles]);
+        this.roles.set([...this.guild().roles].sort((a, b) => a.position - b.position));
+        this.guildWsService.rolesReorderedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(dto => {
+                const posMap = new Map(dto.roles.map(r => [r.roleId, r.position]));
+                this.roles.update(list =>
+                    list.map(r => posMap.has(r.id) ? {...r, position: posMap.get(r.id)!} : r)
+                        .sort((a, b) => a.position - b.position)
+                );
+            });
+    }
+
+    private dragIndex = signal<number | null>(null);
+
+    onDragStart(index: number): void {
+        this.dragIndex.set(index);
+    }
+
+    onDragOver(event: DragEvent): void {
+        event.preventDefault();
+    }
+
+    onDrop(targetIndex: number): void {
+        const fromIndex = this.dragIndex();
+        this.dragIndex.set(null);
+        if (fromIndex === null || fromIndex === targetIndex) return;
+
+        const reordered = [...this.roles()];
+        const [moved] = reordered.splice(fromIndex, 1);
+        reordered.splice(targetIndex, 0, moved);
+        const withPositions = reordered.map((r, i) => ({...r, position: i}));
+        this.roles.set(withPositions);
+
+        this.guildService.reorderRoles(this.guild().id, {
+            roles: withPositions.map(r => ({roleId: r.id, position: r.position})),
+        }).subscribe({
+            error: err => {
+                this.toastService.httpError('Failed to reorder roles', err);
+                this.roles.set([...this.guild().roles].sort((a, b) => a.position - b.position));
+            },
+        });
     }
 
     selectRole(role: RoleDto): void {
@@ -145,7 +189,11 @@ export class RolesSettingsComponent implements OnInit {
             },
             error: err => {
                 this.editSaving.set(false);
-                this.toastService.httpError('Failed to save role', err);
+                if (err.status === 403) {
+                    this.toastService.error('You can only grant permissions you already have yourself.');
+                } else {
+                    this.toastService.httpError('Failed to save role', err);
+                }
             },
         });
     }
@@ -168,7 +216,14 @@ export class RolesSettingsComponent implements OnInit {
                 this.selectRole(role);
                 this.rolesChanged.emit(this.roles());
             },
-            error: () => this.creating.set(false),
+            error: err => {
+                this.creating.set(false);
+                if (err.status === 403) {
+                    this.toastService.error('You can only grant permissions you already have yourself.');
+                } else {
+                    this.toastService.httpError('Failed to create role', err);
+                }
+            },
         });
     }
 
