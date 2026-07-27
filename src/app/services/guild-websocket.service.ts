@@ -168,6 +168,11 @@ export interface WsMemberLeft {
     userId: string;
 }
 
+export interface WsMemberJoined {
+    guildId: string;
+    userId: string;
+}
+
 export interface WsGuildDeleted {
     guildId: string;
 }
@@ -266,6 +271,7 @@ export class GuildWebsocketService {
     public memberMutedObservable = new Subject<WsMemberMuted>();
     public memberUnmutedObservable = new Subject<WsMemberUnmuted>();
     public memberLeftObservable = new Subject<WsMemberLeft>();
+    public memberJoinedObservable = new Subject<WsMemberJoined>();
     // ── Guild lifecycle ────────────────────────────────────────────────────────────
     public guildDeletedObservable = new Subject<WsGuildDeleted>();
     public guildUpdatedObservable = new Subject<WsGuildUpdated>();
@@ -370,6 +376,7 @@ export class GuildWebsocketService {
         this.realtime.on('guild.MemberMuted', (d: WsMemberMuted) => this.memberMutedObservable.next(d));
         this.realtime.on('guild.MemberUnmuted', (d: WsMemberUnmuted) => this.memberUnmutedObservable.next(d));
         this.realtime.on('guild.MemberLeft', (d: WsMemberLeft) => this.memberLeftObservable.next(d));
+        this.realtime.on('guild.MemberJoined', (d: WsMemberJoined) => this.memberJoinedObservable.next(d));
         this.realtime.on('guild.GuildDeleted', (d: WsGuildDeleted) => this.guildDeletedObservable.next(d));
         this.realtime.on('guild.GuildUpdated', (d: WsGuildUpdated) => this.guildUpdatedObservable.next(d));
         this.realtime.on('guild.RolesReordered', (d: ReorderRolesDto) => this.rolesReorderedObservable.next(d));
