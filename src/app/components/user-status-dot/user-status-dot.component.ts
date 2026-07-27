@@ -31,6 +31,15 @@ export class UserStatusDotComponent {
     protected classes = computed(() => [
         SIZE_CLASSES[this.size()],
         this.borderColor(),
-        this.status() === OnlineStatus.Online ? 'bg-emerald-400' : 'bg-white/20',
+        this.colorClass(),
     ]);
+
+    private colorClass(): string {
+        switch (this.status()) {
+            case OnlineStatus.Online: return 'bg-emerald-400';
+            case OnlineStatus.Idle: return 'bg-amber-400';
+            case OnlineStatus.DoNotDisturb: return 'bg-rose-500';
+            default: return 'bg-white/20';
+        }
+    }
 }

@@ -12,6 +12,7 @@ import {TranslateModule} from '@ngx-translate/core';
 import {UserService} from "../../../../services/user.service";
 import {UserType} from "../../../../dtos/response/UserDto";
 import {AdminModalComponent} from "../../../../features/admin/admin-modal/admin-modal.component";
+import {StatusPickerComponent} from "../status-picker/status-picker.component";
 
 @Component({
     selector: 'app-quick-settings',
@@ -21,6 +22,7 @@ import {AdminModalComponent} from "../../../../features/admin/admin-modal/admin-
         ConnectionStatusComponent,
         SettingsModalComponent,
         AdminModalComponent,
+        StatusPickerComponent,
         NgClass,
         TranslateModule,
     ],
