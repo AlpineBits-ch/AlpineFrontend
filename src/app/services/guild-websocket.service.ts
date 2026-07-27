@@ -193,6 +193,42 @@ export interface WsPresenceChanged {
     status: OnlineStatus;
 }
 
+export interface GuildMessageCreatedPayload {
+    messageId: string;
+    content: string;
+    authorId: string;
+    conversationId: string | undefined;
+    channelId: string;
+    attachments: AttachmentDto[];
+    inReplyTo: string | undefined;
+    mentions: string[] | undefined;
+    type: string;
+    systemMessageVariant: number | undefined;
+}
+
+export function mapGuildMessageCreatedPayload(data: GuildMessageCreatedPayload): MessageDto {
+    return {
+        id: data.messageId,
+        content: data.content,
+        authorId: data.authorId,
+        conversationId: data.conversationId,
+        channelId: data.channelId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        isPending: false,
+        isFailed: false,
+        attachments: data.attachments,
+        inReplyTo: data.inReplyTo,
+        mentions: data.mentions ?? [],
+        encryptionState: MessageEncryptionState.Plain,
+        mlsEpoch: undefined,
+        mlsSequenceNumber: undefined,
+        senderDeviceId: undefined,
+        type: data.type as MessageType,
+        systemMessageVariant: data.systemMessageVariant,
+    };
+}
+
 @Injectable({
     providedIn: 'root',
 })
@@ -348,39 +384,13 @@ export class GuildWebsocketService {
         this.realtime.on('guild.ReactionCreated', (d: ReactionEvent) => this.reactionAddedObservable.next(d));
         this.realtime.on('guild.ReactionRemoved', (d: ReactionEvent) => this.reactionRemovedObservable.next(d));
 
-        this.realtime.on('guild.MessageCreated', async (data: {
-            messageId: string;
-            content: string;
-            authorId: string;
-            conversationId: string | undefined;
-            channelId: string;
-            attachments: AttachmentDto[];
-            inReplyTo: string | undefined;
-            mentions: string[] | undefined;
-        }) => {
+        this.realtime.on('guild.MessageCreated', async (data: GuildMessageCreatedPayload) => {
             console.log('Guild MessageCreated:', data);
-            const mentions = data.mentions ?? [];
-            this.messageObservable.next({
-                id: data.messageId,
-                content: data.content,
-                authorId: data.authorId,
-                conversationId: data.conversationId,
-                channelId: data.channelId,
-                createdAt: new Date(),
-                updatedAt: new Date(),
-                isPending: false,
-                isFailed: false,
-                attachments: data.attachments,
-                inReplyTo: data.inReplyTo,
-                mentions,
-                encryptionState: MessageEncryptionState.Plain,
-                mlsEpoch: undefined,
-                mlsSequenceNumber: undefined,
-                senderDeviceId: undefined,
-                type: MessageType.Message,
-            });
+            const message = mapGuildMessageCreatedPayload(data);
+            this.messageObservable.next(message);
 
             const ownId = this.profileService.ownProfile()?.userId;
+            const mentions = data.mentions ?? [];
             if (ownId && mentions.includes(ownId)) {
                 let body: string;
                 try {
