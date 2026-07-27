@@ -59,7 +59,8 @@
             ],
             "styles": [
               "src/styles.css",
-              "node_modules/primeicons/primeicons.css"
+              "node_modules/primeicons/primeicons.css",
+              "node_modules/@fontsource-variable/inter/index.css"
             ],
             "tsConfig": "tsconfig.app.json"
           }

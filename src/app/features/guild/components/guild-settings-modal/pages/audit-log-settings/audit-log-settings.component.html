@@ -9,8 +9,11 @@
             <div class="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/[0.03]">
                 <div class="flex-1 min-w-0">
                     <p class="text-sm text-white/80">
-                        <span class="font-medium">{{ actorName(row) }}</span> {{ describe(row.entry) }}
+                        <span class="font-medium">{{ actorName(row) }}</span> {{ describe(row) }}
                     </p>
+                    @if (metadataSummary(row); as summary) {
+                        <p class="text-[11px] text-white/40 font-mono truncate">{{ summary }}</p>
+                    }
                     <p class="text-[11px] text-white/30">{{ row.entry.createdAt | date:'medium' }}</p>
                 </div>
             </div>

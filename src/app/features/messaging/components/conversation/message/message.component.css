@@ -157,3 +157,20 @@
     line-height: 1.5;
     vertical-align: baseline;
 }
+
+.mention-chip-special,
+:host ::ng-deep .mention-chip-special {
+    background: rgba(251, 191, 36, 0.18);
+    color: rgb(251, 191, 36);
+}
+
+.mention-chip-channel,
+:host ::ng-deep .mention-chip-channel {
+    background: rgba(129, 140, 248, 0.10);
+    color: var(--color-brand-dim);
+}
+
+.mention-chip-channel:hover,
+:host ::ng-deep .mention-chip-channel:hover {
+    text-decoration: underline;
+}

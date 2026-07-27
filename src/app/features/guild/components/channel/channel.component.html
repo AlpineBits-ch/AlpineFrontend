@@ -35,7 +35,7 @@
             </div>
             @if (channel().type === ChannelType.Text) {
                 <p-button (onClick)="showThreadPanel.set(!showThreadPanel())" icon="pi pi-comments" [text]="true"
-                          severity="secondary" size="small"/>
+                          [title]="showThreadPanel() ? 'Hide threads' : 'Threads'" severity="secondary" size="small"/>
             }
             <p-button [text]="true" icon="pi pi-ellipsis-v" severity="secondary" size="small"/>
         </div>
@@ -205,6 +205,7 @@
                         <div [attr.data-message-id]="msg.id">
                             <app-message (jumpTo)="jumpToMessage($event)"
                                          (reply)="onReply($event)"
+                                         [guildChannels]="guildChannels()"
                                          [message]="msg"></app-message>
                         </div>
                     }

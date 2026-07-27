@@ -118,7 +118,14 @@
                                  class="gif-message rounded-xl mt-1 max-w-xs max-h-48 object-contain block"
                                  loading="lazy"/>
                         } @else if (seg.type === 'mention') {
-                            <span class="mention-chip">{{ seg.value }}</span>
+                            <span (click)="seg.refId && profileDialogSvc.open(seg.refId)"
+                                  [class.cursor-pointer]="seg.refId"
+                                  class="mention-chip">{{ seg.value }}</span>
+                        } @else if (seg.type === 'everyone' || seg.type === 'here') {
+                            <span class="mention-chip mention-chip-special">{{ seg.value }}</span>
+                        } @else if (seg.type === 'channel') {
+                            <span (click)="onChannelMentionClick(seg.refId!)"
+                                  class="mention-chip mention-chip-channel cursor-pointer">{{ seg.value }}</span>
                         } @else if (seg.type === 'flag') {
                             <app-twemoji [emoji]="seg.value" size="1.25em"/>
                         } @else if (seg.type === 'emoji') {

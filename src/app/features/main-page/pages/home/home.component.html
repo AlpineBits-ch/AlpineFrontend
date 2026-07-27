@@ -105,14 +105,13 @@
                             <div class="relative shrink-0">
                                 <app-avatar [label]="rel.target.userName[0].toUpperCase()" [userId]="rel.target.userId"
                                             size="normal"/>
-                                <div [ngClass]="getOnlineStatus(rel.target.userId) === OnlineStatus.Online ? 'bg-emerald-400' : 'bg-white/20'"
-                                     class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-app-bg"></div>
+                                <app-user-status-dot [status]="getOnlineStatus(rel.target.userId)" borderColor="border-app-bg" size="md"/>
                             </div>
                             <div class="flex-1 min-w-0">
                                 <p class="text-sm font-semibold text-white/80">{{ rel.target.userName }}</p>
-                                <p [ngClass]="getOnlineStatus(rel.target.userId) === OnlineStatus.Online ? 'text-emerald-400/80' : 'text-white/35'"
+                                <p [ngClass]="statusTextClass(getOnlineStatus(rel.target.userId))"
                                    class="text-xs">
-                                    {{ getOnlineStatus(rel.target.userId) === OnlineStatus.Online ? ('HOME.STATUS.ONLINE' | translate) : ('HOME.STATUS.OFFLINE' | translate) }}
+                                    {{ statusLabelKey(getOnlineStatus(rel.target.userId)) | translate }}
                                 </p>
                             </div>
                             <div (click)="$event.stopPropagation()"

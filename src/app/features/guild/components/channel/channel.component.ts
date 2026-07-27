@@ -67,6 +67,10 @@ export class ChannelComponent implements AfterViewInit {
         const ws = this.navService.workspace();
         return ws.type === 'server' ? ws.guild.roles : [];
     });
+    protected guildChannels = computed(() => {
+        const ws = this.navService.workspace();
+        return ws.type === 'server' ? ws.guild.channels : [];
+    });
     protected replyingTo = signal<MessageDto | null>(null);
     protected showThreadPanel = signal(false);
     protected readonly ChannelType = ChannelType;

@@ -6,17 +6,21 @@ import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
 import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {ToastService} from '../../../../../../services/toast.service';
-import {Button} from 'primeng/button';
 
 interface AuditRow {
     entry: AuditLogEntryDto;
     actorProfile: ProfileDto | null;
+    targetProfile: ProfileDto | null;
     metadata: Record<string, unknown> | null;
 }
 
+const USER_TARGET_ACTIONS = new Set([
+    'MemberBanned', 'MemberUnbanned', 'MemberKicked', 'MemberMuted', 'MemberUnmuted',
+]);
+
 @Component({
     selector: 'app-audit-log-settings',
-    imports: [Button, DatePipe],
+    imports: [DatePipe],
     templateUrl: './audit-log-settings.component.html',
 })
 export class AuditLogSettingsComponent implements OnInit {
@@ -58,20 +62,67 @@ export class AuditLogSettingsComponent implements OnInit {
         return row.actorProfile?.userName ?? row.entry.actorUserId.slice(0, 8) + '…';
     }
 
-    describe(entry: AuditLogEntryDto): string {
-        const map: Record<string, string> = {
-            MemberBanned: 'banned a member', MemberUnbanned: 'unbanned a member',
-            MemberKicked: 'kicked a member', MemberMuted: 'timed out a member',
-            MemberUnmuted: 'removed a timeout', MemberLeft: 'left the server',
-            RoleCreated: 'created a role', RoleUpdated: 'updated a role', RoleDeleted: 'deleted a role',
-            RolePositionsChanged: 'reordered roles',
-            ChannelCreated: 'created a channel', ChannelDeleted: 'deleted a channel',
-            ChannelUpdated: 'updated a channel', ChannelPermissionChanged: 'changed channel permissions',
-            CategoryCreated: 'created a category', CategoryDeleted: 'deleted a category',
-            GuildUpdated: 'updated server settings', GuildDeleted: 'deleted the server',
-            InviteCreated: 'created an invite', InviteDeleted: 'deleted an invite',
-        };
-        return map[entry.actionType] ?? entry.actionType;
+    describe(row: AuditRow): string {
+        const entry = row.entry;
+        const target = this.targetLabel(row);
+        switch (entry.actionType) {
+            case 'MemberBanned': return target ? `banned ${target}` : 'banned a member';
+            case 'MemberUnbanned': return target ? `unbanned ${target}` : 'unbanned a member';
+            case 'MemberKicked': return target ? `kicked ${target}` : 'kicked a member';
+            case 'MemberMuted': return target ? `timed out ${target}` : 'timed out a member';
+            case 'MemberUnmuted': return target ? `removed a timeout from ${target}` : 'removed a timeout';
+            case 'MemberLeft': return 'left the server';
+            case 'RoleCreated': return target ? `created the role "${target}"` : 'created a role';
+            case 'RoleUpdated': return target ? `updated the role "${target}"` : 'updated a role';
+            case 'RoleDeleted': return target ? `deleted the role "${target}"` : 'deleted a role';
+            case 'RolePositionsChanged': return 'reordered roles';
+            case 'ChannelCreated': return target ? `created the channel #${target}` : 'created a channel';
+            case 'ChannelDeleted': return target ? `deleted the channel #${target}` : 'deleted a channel';
+            case 'ChannelUpdated': return target ? `updated the channel #${target}` : 'updated a channel';
+            case 'ChannelPermissionChanged': return target ? `changed permissions for #${target}` : 'changed channel permissions';
+            case 'CategoryCreated': return target ? `created the category "${target}"` : 'created a category';
+            case 'CategoryDeleted': return target ? `deleted the category "${target}"` : 'deleted a category';
+            case 'GuildUpdated': return 'updated server settings';
+            case 'GuildDeleted': return 'deleted the server';
+            case 'InviteCreated': return 'created an invite';
+            case 'InviteDeleted': return 'deleted an invite';
+            default: return entry.actionType;
+        }
+    }
+
+    /** Compact "key: value" summary of the entry's metadata, or null if empty/absent. */
+    metadataSummary(row: AuditRow): string | null {
+        if (!row.metadata) return null;
+        const entries = Object.entries(row.metadata).filter(([, v]) => v !== null && v !== undefined);
+        if (entries.length === 0) return null;
+        return entries.map(([k, v]) => `${k}: ${v}`).join(' · ');
+    }
+
+    private targetLabel(row: AuditRow): string | null {
+        const entry = row.entry;
+        if (!entry.targetId) return null;
+        switch (entry.actionType) {
+            case 'RoleCreated':
+            case 'RoleUpdated':
+            case 'RoleDeleted':
+                return this.guild().roles.find(r => r.id === entry.targetId)?.name ?? null;
+            case 'ChannelCreated':
+            case 'ChannelUpdated':
+            case 'ChannelDeleted':
+            case 'ChannelPermissionChanged':
+                return this.guild().channels.find(c => c.id === entry.targetId)?.name ?? null;
+            case 'CategoryCreated':
+            case 'CategoryDeleted':
+                return this.guild().categories.find(c => c.id === entry.targetId)?.name ?? null;
+            case 'MemberBanned':
+            case 'MemberUnbanned':
+            case 'MemberKicked':
+            case 'MemberMuted':
+            case 'MemberUnmuted':
+                return row.targetProfile?.userName ?? null;
+            default:
+                return null;
+        }
     }
 
     private fetchPage(): void {
@@ -81,6 +132,7 @@ export class AuditLogSettingsComponent implements OnInit {
                 const rows: AuditRow[] = entries.map(entry => ({
                     entry,
                     actorProfile: null,
+                    targetProfile: null,
                     metadata: this.parseMetadata(entry.metadata),
                 }));
                 if (skip === 0) {
@@ -103,6 +155,16 @@ export class AuditLogSettingsComponent implements OnInit {
                             return next;
                         }),
                     });
+                    if (row.entry.targetId && USER_TARGET_ACTIONS.has(row.entry.actionType)) {
+                        this.profileService.fetchByUserId(row.entry.targetId).subscribe({
+                            next: p => this.rows.update(list => {
+                                const next = [...list];
+                                const idx = baseIdx + i;
+                                if (next[idx]) next[idx] = {...next[idx], targetProfile: p};
+                                return next;
+                            }),
+                        });
+                    }
                 });
             },
             error: err => {

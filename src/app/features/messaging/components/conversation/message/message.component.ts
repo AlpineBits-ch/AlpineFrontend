@@ -3,6 +3,7 @@ import {
     Component,
     computed,
     DestroyRef,
+    effect,
     ElementRef,
     HostListener,
     inject,
@@ -18,6 +19,8 @@ import {AsyncPipe, DatePipe, NgClass} from "@angular/common";
 import {ProfileService} from "../../../../../services/profile.service";
 import {Observable, of, switchMap} from "rxjs";
 import {ProfileDto} from "../../../../../dtos/response/profile.dto";
+import {ChannelDto, ChannelType} from "../../../../../dtos/response/guild.dto";
+import {NavigationService} from "../../../../main-page/navigation.service";
 import {isKlipyGifUrl} from '../../../../../services/gif.service';
 import {EmojiDataService, getFlagCode, isRegionalIndicator} from '../../../../../services/emoji-data.service';
 import {MarkdownPipe} from '../../../../../pipes/markdown.pipe';
@@ -59,10 +62,20 @@ import {TranslateModule} from '@ngx-translate/core';
 export class MessageComponent {
     private static readonly INVITE_URL_RE = /https:\/\/venta\.gg\/invite\/([A-Za-z0-9_-]+)/g;
     public profileService = inject(ProfileService);
+    protected navService = inject(NavigationService);
     lightbox = signal<{ loading: boolean; att: AttachmentDto | null; name: string } | null>(null);
     public message = input.required<MessageDto>();
+    public guildChannels = input<ChannelDto[]>([]);
     public reply = output<MessageDto>();
     public jumpTo = output<string>();
+
+    constructor() {
+        effect(() => {
+            for (const userId of this.message().mentions ?? []) {
+                this.profileService.resolveByUserId(userId);
+            }
+        });
+    }
     public isOnlyEmoji = computed(() => {
         const content = this.content().trim().replace(/ /g, '')
 
@@ -75,7 +88,8 @@ export class MessageComponent {
     });
     public contentSegments = computed(() => {
         const text = this.content();
-        let segments: { type: 'text' | 'mention' | 'gif' | 'emoji' | 'flag' | 'invite'; value: string }[] = [];
+        const msg = this.message();
+        let segments: { type: 'text' | 'mention' | 'everyone' | 'here' | 'channel' | 'gif' | 'emoji' | 'flag' | 'invite'; value: string; refId?: string }[] = [];
 
         // If the entire message is a GIF URL, render it as a single GIF segment
         if (isKlipyGifUrl(text)) {
@@ -88,24 +102,61 @@ export class MessageComponent {
             return [{type: 'invite' as const, value: singleInvite[1]}];
         }
 
-        const regex = /@[\w\-.]+#\w+/g;
+        // Reads the profile cache reactively -this computed reruns once a mentioned
+        // user's profile resolves (see the constructor's resolution effect below).
+        const mentionedProfiles = (msg.mentions ?? [])
+            .map(id => this.profileService.getCachedByUserId(id))
+            .filter((p): p is ProfileDto => !!p);
+        const channels = this.guildChannels();
+
+        const regex = /@[\w\-.]+#\w+|@everyone\b|@here\b|@[\w\-.]+|#[\w-]+/g;
         let last = 0;
         let match;
 
-        // 1. Extract mentions and text
+        // 1. Extract mentions, channel links, and text
         while ((match = regex.exec(text)) !== null) {
             if (match.index > last) {
                 segments.push({type: 'text', value: text.slice(last, match.index)});
             }
-            segments.push({type: 'mention', value: match[0]});
-            last = match.index + match[0].length;
+            const raw = match[0];
+            if (/^@[\w\-.]+#\w+$/.test(raw)) {
+                // Legacy discriminator-style mention -kept for compatibility, no click target.
+                segments.push({type: 'mention', value: raw});
+            } else if (raw === '@everyone' && msg.mentionsEveryone) {
+                segments.push({type: 'everyone', value: raw});
+            } else if (raw === '@here' && msg.mentionsHere) {
+                segments.push({type: 'here', value: raw});
+            } else if (raw === '@everyone' || raw === '@here') {
+                // Literal text that happens to look like a broadcast mention, but the
+                // message doesn't actually carry the corresponding flag -render as plain text.
+                segments.push({type: 'text', value: raw});
+            } else if (raw.startsWith('@')) {
+                // Only a real mention if it matches one of the message's actual mentioned
+                // users -otherwise it's just someone typing an @-prefixed word.
+                const name = raw.slice(1);
+                const profile = mentionedProfiles.find(p => p.userName === name);
+                segments.push(profile
+                    ? {type: 'mention', value: raw, refId: profile.userId}
+                    : {type: 'text', value: raw});
+            } else {
+                // Channel link -only if it resolves against a channel actually in this guild.
+                // Prefer a text channel over a same-named voice channel: "#general" should
+                // point at somewhere you can read, not the voice room that happens to share a name.
+                const name = raw.slice(1);
+                const channel = channels.find(c => c.name === name && c.type === ChannelType.Text)
+                    ?? channels.find(c => c.name === name);
+                segments.push(channel
+                    ? {type: 'channel', value: raw, refId: channel.id}
+                    : {type: 'text', value: raw});
+            }
+            last = match.index + raw.length;
         }
         if (last < text.length) {
             segments.push({type: 'text', value: text.slice(last)});
         }
 
         // 2. Process text segments to separate single emojis
-        const emojiSegments: { type: 'text' | 'mention' | 'gif' | 'emoji' | 'flag' | 'invite'; value: string }[] = [];
+        const emojiSegments: { type: 'text' | 'mention' | 'everyone' | 'here' | 'channel' | 'gif' | 'emoji' | 'flag' | 'invite'; value: string; refId?: string }[] = [];
 
         const emojiRegex = /^(?=\p{Emoji})(?!\p{Number}).$/u;
 
@@ -372,6 +423,11 @@ export class MessageComponent {
     autoResize(el: HTMLTextAreaElement): void {
         el.style.height = 'auto';
         el.style.height = Math.min(el.scrollHeight, 240) + 'px';
+    }
+
+    onChannelMentionClick(channelId: string): void {
+        const channel = this.guildChannels().find(c => c.id === channelId);
+        if (channel) this.navService.openChannel(channel);
     }
 
     onLinkClick(event: MouseEvent): void {

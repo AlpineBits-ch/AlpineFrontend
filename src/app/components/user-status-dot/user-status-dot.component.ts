@@ -9,16 +9,18 @@ const SIZE_CLASSES: Record<'sm' | 'md' | 'lg', string> = {
 };
 
 /**
- * Avatar overlay dot indicating a user's online status.
- * Place inside a `relative`-positioned container; renders nothing when status is null (group chats).
+ * Status dot indicating a user's online status.
+ * By default an avatar corner-overlay badge -place inside a `relative`-positioned
+ * container larger than the dot itself (e.g. an avatar). Set `standalone` to render
+ * as a plain centered dot instead (e.g. inside a same-sized wrapper). Renders nothing
+ * when status is null (group chats).
  */
 @Component({
     selector: 'app-user-status-dot',
     imports: [NgClass],
     template: `
     @if (status() !== null) {
-      <div class="absolute -bottom-0.5 -right-0.5 rounded-full border-2"
-           [ngClass]="classes()">
+      <div [ngClass]="classes()">
       </div>
     }
   `,
@@ -27,12 +29,14 @@ export class UserStatusDotComponent {
     status = input.required<OnlineStatus | null>();
     size = input<'sm' | 'md' | 'lg'>('sm');
     borderColor = input<string>('border-sidebar');
+    standalone = input<boolean>(false);
 
-    protected classes = computed(() => [
-        SIZE_CLASSES[this.size()],
-        this.borderColor(),
-        this.colorClass(),
-    ]);
+    protected classes = computed(() => {
+        if (this.standalone()) {
+            return ['rounded-full', SIZE_CLASSES[this.size()], this.colorClass()];
+        }
+        return ['absolute', '-bottom-0.5', '-right-0.5', 'rounded-full', 'border-2', SIZE_CLASSES[this.size()], this.borderColor(), this.colorClass()];
+    });
 
     private colorClass(): string {
         switch (this.status()) {

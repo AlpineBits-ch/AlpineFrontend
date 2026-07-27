@@ -2,6 +2,7 @@ import {Component, computed, DestroyRef, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {NgClass} from "@angular/common";
 import {AppAvatarComponent} from "../../../../components/avatar/avatar.component";
+import {UserStatusDotComponent} from "../../../../components/user-status-dot/user-status-dot.component";
 import {Button} from "primeng/button";
 import {FormsModule} from "@angular/forms";
 import {RelationshipService} from "../../../../services/relationship.service";
@@ -23,7 +24,7 @@ type FriendsTab = 'online' | 'all' | 'pending' | 'blocked';
 
 @Component({
     selector: 'app-home',
-    imports: [AppAvatarComponent, Button, FormsModule, NgClass, TranslateModule],
+    imports: [AppAvatarComponent, Button, FormsModule, NgClass, TranslateModule, UserStatusDotComponent],
     templateUrl: './home.component.html',
     styleUrl: './home.component.css',
 })
@@ -44,7 +45,7 @@ export class HomeComponent {
     protected readonly RelationshipStatus = RelationshipStatus;
     private relationshipService = inject(RelationshipService);
     private profileService = inject(ProfileService);
-    public onlineFriends = computed(() => this.friends().filter(r => this.profileService.getOnlineStatus(r.target.userId) === OnlineStatus.Online));
+    public onlineFriends = computed(() => this.friends().filter(r => this.isActiveStatus(this.profileService.getOnlineStatus(r.target.userId))));
     private wsService = inject(MessagingWebsocketService);
     private destroyRef = inject(DestroyRef);
     private conversationStore = inject(ConversationStore);
@@ -57,6 +58,29 @@ export class HomeComponent {
 
     public getOnlineStatus(userId: string): OnlineStatus {
         return this.profileService.getOnlineStatus(userId);
+    }
+
+    public isActiveStatus(status: OnlineStatus): boolean {
+        return status === OnlineStatus.Online || status === OnlineStatus.Idle || status === OnlineStatus.DoNotDisturb;
+    }
+
+    public statusTextClass(status: OnlineStatus): string {
+        switch (status) {
+            case OnlineStatus.Online: return 'text-emerald-400/80';
+            case OnlineStatus.Idle: return 'text-amber-400/80';
+            case OnlineStatus.DoNotDisturb: return 'text-rose-400/80';
+            default: return 'text-white/35';
+        }
+    }
+
+    public statusLabelKey(status: OnlineStatus): string {
+        switch (status) {
+            case OnlineStatus.Online: return 'HOME.STATUS.ONLINE';
+            case OnlineStatus.Idle: return 'HOME.STATUS.IDLE';
+            case OnlineStatus.DoNotDisturb: return 'HOME.STATUS.DND';
+            case OnlineStatus.Hidden: return 'HOME.STATUS.HIDDEN';
+            default: return 'HOME.STATUS.OFFLINE';
+        }
     }
 
     public sendRequest(): void {

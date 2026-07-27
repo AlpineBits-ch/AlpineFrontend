@@ -14,6 +14,7 @@
    All Tailwind rem utilities (text-sm, text-xs, etc.) scale with this. */
 html {
   font-size: var(--base-font-size, 16px);
+  font-family: var(--font-sans);
 }
 
 /* Prevent rubber-band scroll and font inflation.
@@ -158,6 +159,11 @@ button, a, [role="button"], input, select, textarea, label {
 .dark .p-select-empty-message { color: rgba(255, 255, 255, 0.40); }
 
 @theme {
+  /* ── Typography ───────────────────────────────────────────
+     'Inter Variable' is bundled locally via @fontsource-variable/inter
+     (see angular.json `styles`) so no network font request is made. */
+  --font-sans: 'Inter Variable', 'Inter', system-ui, sans-serif;
+
   /* ── Surfaces ──────────────────────────────────────────── */
   --color-login-bg: #06090f;   /* login page bg (slightly deeper than app-bg) */
   --color-app-bg:  #0d1117;

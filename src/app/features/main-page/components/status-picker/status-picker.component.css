@@ -1,0 +1,21 @@
+/*
+ * PrimeNG's Menu injects its own hover/focus icon-color rule at runtime (design-token
+ * driven), which lands in the document after this stylesheet and wins on source order
+ * even though our selector is no less specific. !important is the correct tool here:
+ * these are fixed, semantic status-indicator colors that must never shift on hover/focus.
+ */
+::ng-deep .status-online .p-menu-item-icon {
+    color: var(--color-online) !important;
+}
+
+::ng-deep .status-idle .p-menu-item-icon {
+    color: var(--color-connecting) !important;
+}
+
+::ng-deep .status-dnd .p-menu-item-icon {
+    color: var(--color-offline) !important;
+}
+
+::ng-deep .status-hidden .p-menu-item-icon {
+    color: rgba(255, 255, 255, 0.35) !important;
+}

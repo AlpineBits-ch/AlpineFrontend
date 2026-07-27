@@ -9,6 +9,7 @@ import {UserStatusDotComponent} from '../../../../components/user-status-dot/use
     selector: 'app-status-picker',
     imports: [Menu, UserStatusDotComponent],
     templateUrl: './status-picker.component.html',
+    styleUrl: './status-picker.component.css',
 })
 export class StatusPickerComponent {
     protected profileService = inject(ProfileService);
