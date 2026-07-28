@@ -201,17 +201,18 @@
 
                 <!-- Messages list -->
                 <div class="flex flex-col gap-0.5 pb-4">
-                    @for (msg of messages(); track msg.id) {
-                        <div [attr.data-message-id]="msg.id">
-                            @if (msg.type === MessageType.GuildMemberJoin || msg.type === MessageType.GuildMemberLeave) {
-                                <app-system-message [message]="msg"/>
+                    @for (row of messageRows(); track row.message.id) {
+                        <div [attr.data-message-id]="row.message.id">
+                            @if (row.message.type === MessageType.GuildMemberJoin || row.message.type === MessageType.GuildMemberLeave) {
+                                <app-system-message [message]="row.message"/>
                             } @else {
                                 <app-message (jumpTo)="jumpToMessage($event)"
                                              (reply)="onReply($event)"
                                              [guildBots]="botCommandService.currentGuildBots()"
                                              [guildChannels]="guildChannels()"
                                              [guildRoles]="guildRoles()"
-                                             [message]="msg"></app-message>
+                                             [isGrouped]="row.isGrouped"
+                                             [message]="row.message"></app-message>
                             }
                         </div>
                     }

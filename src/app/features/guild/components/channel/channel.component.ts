@@ -20,6 +20,7 @@ import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 import {MessageAttachment, MessageDto} from '../../../../dtos/response/message.dto';
 import {MessageEncryptionState} from '../../../../enums/message-encryption-state.enum';
 import {MessageType} from '../../../../enums/message-type.enum';
+import {isGroupedWithPrevious} from '../../../messaging/components/conversation/message-utils';
 
 import {Button} from 'primeng/button';
 
@@ -106,6 +107,13 @@ export class ChannelComponent implements AfterViewInit {
             .filter(m => m.channelId === this.channel().id)
             .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
     );
+    protected messageRows = computed(() => {
+        const msgs = this.messages();
+        return msgs.map((message, i) => ({
+            message,
+            isGrouped: isGroupedWithPrevious(message, msgs[i - 1]),
+        }));
+    });
 
     // ── Messages ─────────────────────────────────────────────────────────────
     protected hasMore = computed(() =>
