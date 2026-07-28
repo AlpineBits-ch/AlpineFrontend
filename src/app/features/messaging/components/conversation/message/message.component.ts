@@ -75,6 +75,7 @@ export class MessageComponent {
     public guildChannels = input<ChannelDto[]>([]);
     public guildRoles = input<RoleDto[]>([]);
     public guildBots = input<BotCommandDto[]>([]);
+    public isGrouped = input<boolean>(false);
     public reply = output<MessageDto>();
     public jumpTo = output<string>();
 
