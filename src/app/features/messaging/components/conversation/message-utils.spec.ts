@@ -62,4 +62,16 @@ describe('isGroupedWithPrevious', () => {
         const current = makeMessage({id: 'm2', createdAt: new Date('2026-07-28T10:00:05.000Z')});
         expect(isGroupedWithPrevious(current, previous)).toBe(false);
     });
+
+    it('returns true at the exact 20s boundary', () => {
+        const previous = makeMessage({id: 'm1', createdAt: new Date('2026-07-28T10:00:00.000Z')});
+        const current = makeMessage({id: 'm2', createdAt: new Date('2026-07-28T10:00:20.000Z')});
+        expect(isGroupedWithPrevious(current, previous)).toBe(true);
+    });
+
+    it('returns false when the current message is earlier than the previous one (out of order)', () => {
+        const previous = makeMessage({id: 'm1', createdAt: new Date('2026-07-28T10:00:10.000Z')});
+        const current = makeMessage({id: 'm2', createdAt: new Date('2026-07-28T10:00:05.000Z')});
+        expect(isGroupedWithPrevious(current, previous)).toBe(false);
+    });
 });

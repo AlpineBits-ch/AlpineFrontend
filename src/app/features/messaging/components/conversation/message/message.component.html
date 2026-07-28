@@ -40,23 +40,25 @@
             </div>
         }
 
-        @if (!isGrouped()) {
+        @if (!isGrouped() || message().isPending || message().isFailed || message().encryptionState === 'Encrypted') {
             <div class="flex items-center gap-2 mb-1">
-                @if (botName(message().authorId); as bName) {
-                    <span (click)="profileDialogSvc.open(message().authorId)"
-                          class="text-sm font-semibold text-white/85 cursor-pointer hover:text-white transition-colors">
-          {{ bName }}
-        </span>
-                    <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim">Bot</span>
-                } @else {
-                    @let user = (getProfile() | async);
-                    <span (click)="profileDialogSvc.open(message().authorId)"
-                          [appUserNameStyle]="user"
-                          class="text-sm font-semibold text-white/85 cursor-pointer hover:text-white transition-colors">
-          {{ user ? user.userName : message().authorId }}
-        </span>
+                @if (!isGrouped()) {
+                    @if (botName(message().authorId); as bName) {
+                        <span (click)="profileDialogSvc.open(message().authorId)"
+                              class="text-sm font-semibold text-white/85 cursor-pointer hover:text-white transition-colors">
+              {{ bName }}
+            </span>
+                        <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim">Bot</span>
+                    } @else {
+                        @let user = (getProfile() | async);
+                        <span (click)="profileDialogSvc.open(message().authorId)"
+                              [appUserNameStyle]="user"
+                              class="text-sm font-semibold text-white/85 cursor-pointer hover:text-white transition-colors">
+              {{ user ? user.userName : message().authorId }}
+            </span>
+                    }
+                    <span class="text-[11px] text-white/25">{{ message().createdAt | date: 'shortTime' }}</span>
                 }
-                <span class="text-[11px] text-white/25">{{ message().createdAt | date: 'shortTime' }}</span>
                 @if (message().encryptionState === 'Encrypted') {
                     <span class="flex items-center gap-0.5 text-emerald-400/70" title="End-to-end encrypted">
           <svg fill="none" height="12" viewBox="0 0 16 16" width="12" xmlns="http://www.w3.org/2000/svg">
