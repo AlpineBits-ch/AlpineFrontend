@@ -73,13 +73,13 @@
               border border-white/[0.08] shadow-2xl" style="z-index:1800; background: var(--color-sidebar)">
 
         <!-- Indigo accent line -->
-        <div class="h-[2px] bg-gradient-to-r from-indigo-500/70 via-indigo-400/30 to-transparent"></div>
+        <div class="h-[2px] bg-gradient-to-r from-[color-mix(in_srgb,var(--color-brand)_70%,transparent)] via-[color-mix(in_srgb,var(--color-brand-dim)_30%,transparent)] to-transparent"></div>
 
         <div class="px-4 py-4 flex items-center gap-3">
 
             <!-- Avatar with soft pulse halo -->
             <div class="relative shrink-0">
-                <div class="absolute inset-0 rounded-full bg-indigo-500/20 scale-[1.35] animate-pulse"></div>
+                <div class="absolute inset-0 rounded-full bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)] scale-[1.35] animate-pulse"></div>
                 <p-avatar [label]="out.avatarLabel" shape="circle" size="large" styleClass="relative z-10"/>
             </div>
 

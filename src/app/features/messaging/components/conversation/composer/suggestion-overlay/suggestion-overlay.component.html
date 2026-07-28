@@ -55,9 +55,9 @@
                         [ngClass]="selectedIndex() === i ? 'bg-white/[0.07]' : 'hover:bg-white/[0.04]'"
                         class="flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors">
                     @if (item.kind === 'local') {
-                        <span class="text-sm font-bold text-indigo-400 shrink-0">/{{ item.def.name }}</span>
+                        <span class="text-sm font-bold text-[var(--color-brand-dim)] shrink-0">/{{ item.def.name }}</span>
                         <span class="text-xs text-white/40 flex-1">{{ item.def.description }}</span>
-                        <span [ngClass]="item.def.scope === 'inline' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-indigo-500/15 text-indigo-400'"
+                        <span [ngClass]="item.def.scope === 'inline' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]'"
                               class="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0">
                 {{ item.def.scope }}
               </span>
@@ -69,7 +69,7 @@
                 </span>
                         }
                     } @else {
-                        <span class="text-sm font-bold text-indigo-400 shrink-0">/{{ item.def.name }}</span>
+                        <span class="text-sm font-bold text-[var(--color-brand-dim)] shrink-0">/{{ item.def.name }}</span>
                         <span class="text-xs text-white/40 flex-1">{{ item.def.description }}</span>
                         <span class="text-[10px] px-1.5 py-0.5 rounded font-medium shrink-0 bg-white/[0.08] text-white/50">
                 {{ item.def.botName }}

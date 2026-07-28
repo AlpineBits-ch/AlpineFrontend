@@ -33,7 +33,7 @@ export class CreateChannelModalComponent {
         this.isVisible.set(true);
     }
 
-    /** Channel names carry no whitespace — every space becomes a dash as the user types. */
+    /** Channel names carry no whitespace - every space becomes a dash as the user types. */
     protected onNameInput(event: Event): void {
         const el = event.target as HTMLInputElement;
         const sanitized = el.value.replace(/\s/g, '-');

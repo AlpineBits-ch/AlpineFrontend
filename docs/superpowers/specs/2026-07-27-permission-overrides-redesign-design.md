@@ -5,14 +5,14 @@
 Channel and category "Advanced permissions" pages currently render every role
 (roles tab) or every overridden member (members tab) as a fully expanded
 permission-editor card, stacked vertically. With more than a couple of roles
-this becomes a very long scroll of repeated permission lists — bad UX.
+this becomes a very long scroll of repeated permission lists - bad UX.
 
 Discord instead uses a master-detail layout: a compact list of roles/members
 on the left, and a single detail panel on the right showing only the
 currently selected entry's permissions.
 
 Separately: the create-channel and create-category modals don't submit on
-Enter in the name field — only clicking the Create button works.
+Enter in the name field - only clicking the Create button works.
 
 ## Goals
 
@@ -24,15 +24,15 @@ Enter in the name field — only clicking the Create button works.
 ## Non-goals
 
 - Merging the Roles/Members tabs into a single combined list (kept as
-  separate tabs — members are lazy-loaded on tab switch today, and merging
+  separate tabs - members are lazy-loaded on tab switch today, and merging
   would require eagerly loading members whenever the permissions page opens).
 - Changing the permission grouping/labels inside `permission-override-editor`
   (General / Messages / Attachments & Embeds / Voice / Threads / Moderation)
-  — that part already matches Discord's grouped-list pattern and is unchanged.
+  - that part already matches Discord's grouped-list pattern and is unchanged.
 - Adding inline per-row delete in the sidebar (Discord doesn't have this
   either; deletion happens via the Delete button in the detail panel for the
   selected row).
-- New automated tests — no existing `.spec.ts` coverage exists for any
+- New automated tests - no existing `.spec.ts` coverage exists for any
   sibling component in this feature area (only one `.spec.ts` exists in the
   whole `guild` feature), so this stays consistent with that and is verified
   manually via the dev server instead.
@@ -55,24 +55,24 @@ export interface OverrideEntry {
   hasOverride: boolean;  // an override row already exists on the server
   dirty: boolean;        // local unsaved changes
   saving: boolean;
-  pinned?: boolean;      // @everyone — always in `entries`, never in `addable`
+  pinned?: boolean;      // @everyone - always in `entries`, never in `addable`
   override: PermOverride;
 }
 ```
 
 Inputs:
-- `entries: OverrideEntry[]` — rows shown in the sidebar today (has an
+- `entries: OverrideEntry[]` - rows shown in the sidebar today (has an
   override, is dirty/draft, or is pinned).
-- `addable: OverrideEntry[]` — remaining candidates offered in the "+"
+- `addable: OverrideEntry[]` - remaining candidates offered in the "+"
   popover.
-- `kind: 'role' | 'member'` — toggles dot-vs-avatar rendering and copy
+- `kind: 'role' | 'member'` - toggles dot-vs-avatar rendering and copy
   ("No roles in this server" / member empty state).
-- `loading` (default false) — spinner state for the Members tab while
+- `loading` (default false) - spinner state for the Members tab while
   members load.
 
 Outputs (all carry the entry id):
-- `add(id)` — user picked an addable entry from the popover.
-- `change({id, override})` — the embedded `permission-override-editor`
+- `add(id)` - user picked an addable entry from the popover.
+- `change({id, override})` - the embedded `permission-override-editor`
   emitted a change for the selected entry.
 - `save(id)`
 - `delete(id)`
@@ -89,7 +89,7 @@ Structure:
   the scrollable list of `entries` as compact rows (dot/avatar + truncated
   name), highlighted when selected, `thin-scrollbar` class per project
   convention.
-- Right column (flex-1): detail panel for the selected entry — header with
+- Right column (flex-1): detail panel for the selected entry - header with
   dot/avatar + name + Delete button (if `hasOverride`) + Save button (if
   `dirty`), then the existing `<app-permission-override-editor>` unchanged,
   scrollable if needed.
@@ -100,7 +100,7 @@ Structure:
 
 `channel-permissions.component.ts` / `category-permissions.component.ts`
 keep their existing `RoleOverride[]` / `MemberOverride[]` state and all
-save/delete API calls (`guildService.upsert*/delete*`) untouched — only the
+save/delete API calls (`guildService.upsert*/delete*`) untouched - only the
 template changes, swapping the stacked-cards markup for
 `<app-permission-overrides-panel>` per tab. Each gets two small computed
 signals mapping existing state to `OverrideEntry[]`:
@@ -119,14 +119,14 @@ an id instead of a full row where needed):
 - `delete` → existing `deleteRoleOverride` / `deleteMemberOverride`.
 
 Also removing the two unused `addRoleDialog` / `addMemberDialog` signals in
-`channel-permissions.component.ts` — dead code, not referenced in the
+`channel-permissions.component.ts` - dead code, not referenced in the
 template.
 
 ### Enter-to-submit fix
 
 `create-channel-modal.component.html` and `create-category-modal.component.html`:
 add `(keydown.enter)="submit()"` on the name `<input>`. `submit()` already
-guards on empty/creating state, so this is a minimal, safe addition — no
+guards on empty/creating state, so this is a minimal, safe addition - no
 `<form>` wrapper needed.
 
 ## Testing

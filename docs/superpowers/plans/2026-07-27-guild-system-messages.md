@@ -11,8 +11,8 @@
 ## Global Constraints
 
 - `MessageType` string values are case-sensitive and must match the backend exactly: `Message`, `Invite`, `GuildMemberJoin`, `GuildMemberLeave` (plus the existing `System`).
-- Never send `systemChannelId: null` to the backend — omit the field entirely when unchanged (explicit clearing isn't supported server-side yet).
-- The system-channel picker only lists channels where `type === ChannelType.Text` — this codebase has no `Announcement` channel type.
+- Never send `systemChannelId: null` to the backend - omit the field entirely when unchanged (explicit clearing isn't supported server-side yet).
+- The system-channel picker only lists channels where `type === ChannelType.Text` - this codebase has no `Announcement` channel type.
 - No "None"/clear option in the system-channel picker.
 - System-message variant copy uses the literal placeholder token `%USER%` (not ngx-translate's own `{{ }}` interpolation syntax) so the mention can be rendered as a real clickable element rather than plain interpolated text.
 - Follow existing conventions: standalone components with `imports: [...]`, `input.required<T>()` / `input<T>()` for component inputs, `inject()` for DI, flat dotted-key i18n (`SECTION.SUBSECTION.KEY`), vitest specs colocated as `*.spec.ts`.
@@ -50,7 +50,7 @@ describe('MessageType', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `ng test`
-Expected: FAIL — `MessageType.Invite` (and `GuildMemberJoin`/`GuildMemberLeave`) is `undefined`.
+Expected: FAIL - `MessageType.Invite` (and `GuildMemberJoin`/`GuildMemberLeave`) is `undefined`.
 
 - [ ] **Step 3: Implement**
 
@@ -65,7 +65,7 @@ export enum MessageType {
 }
 ```
 
-Add the new field to `MessageDto` (right after `reactions?: MessageReaction[];` at the end of the interface in `src/app/dtos/response/message.dto.ts` — this worktree's committed `message.dto.ts` does not have an `embedsJson` field; that belongs to unrelated uncommitted work in the original checkout and is out of scope here):
+Add the new field to `MessageDto` (right after `reactions?: MessageReaction[];` at the end of the interface in `src/app/dtos/response/message.dto.ts` - this worktree's committed `message.dto.ts` does not have an `embedsJson` field; that belongs to unrelated uncommitted work in the original checkout and is out of scope here):
 
 ```ts
     reactions?: MessageReaction[];
@@ -97,7 +97,7 @@ git commit -m "feat: add Invite/GuildMemberJoin/GuildMemberLeave message types"
 - Consumes: `MessageType` (Task 1), `MessageDto` (Task 1), `MessageEncryptionState.Plain`, `AttachmentDto` (already imported in this file).
 - Produces: exported `GuildMessageCreatedPayload` interface and exported `mapGuildMessageCreatedPayload(data: GuildMessageCreatedPayload): MessageDto` function, both from `guild-websocket.service.ts`.
 
-The current `guild.MessageCreated` handler (lines ~351–408) builds a `MessageDto` inline and hardcodes `type: MessageType.Message` regardless of what the server actually sent — this silently mis-renders every system message that arrives live. Extracting the mapping into a pure function makes the bug fixable and testable without needing a real SignalR connection.
+The current `guild.MessageCreated` handler (lines ~351–408) builds a `MessageDto` inline and hardcodes `type: MessageType.Message` regardless of what the server actually sent - this silently mis-renders every system message that arrives live. Extracting the mapping into a pure function makes the bug fixable and testable without needing a real SignalR connection.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -153,7 +153,7 @@ describe('mapGuildMessageCreatedPayload', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `ng test`
-Expected: FAIL — `mapGuildMessageCreatedPayload` is not exported from `guild-websocket.service.ts`.
+Expected: FAIL - `mapGuildMessageCreatedPayload` is not exported from `guild-websocket.service.ts`.
 
 - [ ] **Step 3: Implement**
 
@@ -256,7 +256,7 @@ git commit -m "fix: stop hardcoding MessageType.Message on incoming guild.Messag
 **Interfaces:**
 - Produces: `WsMemberJoined { guildId: string; userId: string }`, `GuildWebsocketService.memberJoinedObservable: Subject<WsMemberJoined>`.
 
-This event is confirmed genuinely missing (not stale) — `guild-websocket.service.ts` has no `guild.MemberJoined` registration today (only `MemberBanned`/`MemberKicked`/`MemberMuted`/`MemberUnmuted`/`MemberLeft`). It directly replaces the TODO in `guild-member-list.component.ts` for real member joins. The bot-install roster-refresh stopgap (`BotInstallDialogService.installedIntoGuild`) is left as-is, since bot installs aren't confirmed to also fire `guild.MemberJoined` (see the plan's spec doc, "Open questions").
+This event is confirmed genuinely missing (not stale) - `guild-websocket.service.ts` has no `guild.MemberJoined` registration today (only `MemberBanned`/`MemberKicked`/`MemberMuted`/`MemberUnmuted`/`MemberLeft`). It directly replaces the TODO in `guild-member-list.component.ts` for real member joins. The bot-install roster-refresh stopgap (`BotInstallDialogService.installedIntoGuild`) is left as-is, since bot installs aren't confirmed to also fire `guild.MemberJoined` (see the plan's spec doc, "Open questions").
 
 No dedicated unit test: this is a one-line `Subject.next()` pass-through, identical in shape to the ~15 other untested `realtime.on(...)` registrations already in this file (e.g. `guild.MemberLeft`), and `GuildWebsocketService`/`GuildMemberListComponent` have no existing test harness (both require mocking a live SignalR `HubConnectionBuilder`, which no spec in this codebase currently does). Verified via `ng test` (compile correctness) and manual verification (see plan doc).
 
@@ -358,7 +358,7 @@ git commit -m "feat: wire up guild.MemberJoined to refresh the member list on re
 
 - [ ] **Step 1: Write the failing test**
 
-Append a new `describe` block to `src/app/services/guild.service.spec.ts` (it already has a `setup()` helper and `BASE` constant at the top — reuse them):
+Append a new `describe` block to `src/app/services/guild.service.spec.ts` (it already has a `setup()` helper and `BASE` constant at the top - reuse them):
 
 ```ts
 describe('GuildService systemChannelId', () => {
@@ -387,7 +387,7 @@ describe('GuildService systemChannelId', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `ng test`
-Expected: FAIL — TypeScript error, `systemChannelId` does not exist on type `UpdateGuildDto`.
+Expected: FAIL - TypeScript error, `systemChannelId` does not exist on type `UpdateGuildDto`.
 
 - [ ] **Step 3: Implement**
 
@@ -568,7 +568,7 @@ describe('SystemMessageComponent rendering', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `ng test`
-Expected: FAIL — `Cannot find module './system-message.component'`.
+Expected: FAIL - `Cannot find module './system-message.component'`.
 
 - [ ] **Step 3: Implement the component**
 
@@ -673,9 +673,9 @@ git commit -m "feat: add SystemMessageComponent for guild join/leave messages"
 **Interfaces:**
 - Consumes: `app-system-message` / `SystemMessageComponent` (Task 5), `MessageType.GuildMemberJoin` / `.GuildMemberLeave` (Task 1).
 
-No new test: `ChannelComponent` has no existing spec (it depends on `NavigationService`, `GuildWebsocketService`'s live SignalR connection, and more — building a first-ever harness for it is out of scope for a one-line template branch). Verified via `ng test` (compile correctness) and the plan doc's manual verification steps.
+No new test: `ChannelComponent` has no existing spec (it depends on `NavigationService`, `GuildWebsocketService`'s live SignalR connection, and more - building a first-ever harness for it is out of scope for a one-line template branch). Verified via `ng test` (compile correctness) and the plan doc's manual verification steps.
 
-Note: this worktree's committed `ChannelComponent`/`MessageComponent` predate an in-progress, uncommitted bot-command feature — there is no `botCommandService` or `guildBots` input in this codebase's committed history. The `<app-message>` element below only takes `guildChannels`, `guildRoles`, and `message` (plus the `jumpTo`/`reply` outputs) — do not add a `guildBots` binding.
+Note: this worktree's committed `ChannelComponent`/`MessageComponent` predate an in-progress, uncommitted bot-command feature - there is no `botCommandService` or `guildBots` input in this codebase's committed history. The `<app-message>` element below only takes `guildChannels`, `guildRoles`, and `message` (plus the `jumpTo`/`reply` outputs) - do not add a `guildBots` binding.
 
 - [ ] **Step 1: Expose `MessageType` to the template**
 
@@ -780,13 +780,13 @@ describe('system message locale keys', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `ng test`
-Expected: FAIL — all 60 assertions fail (`undefined` is falsy) since the keys don't exist yet.
+Expected: FAIL - all 60 assertions fail (`undefined` is falsy) since the keys don't exist yet.
 
 - [ ] **Step 3: Add the locale keys**
 
 In `src/assets/i18n/locales/en.json`, insert after the `"GUILD_SETTINGS.OVERVIEW.CROP_ICON"` line (keep the trailing comma on the line above):
 
-*(this is handled together with Task 8's `SYSTEM_CHANNEL` keys at the same anchor point — see Task 8, Step 1, if doing both tasks; if doing this task alone, insert just these two keys)*
+*(this is handled together with Task 8's `SYSTEM_CHANNEL` keys at the same anchor point - see Task 8, Step 1, if doing both tasks; if doing this task alone, insert just these two keys)*
 
 In `src/assets/i18n/locales/en.json`, insert after the `"MESSAGE.ADD_REACTION"` line:
 
@@ -1025,7 +1025,7 @@ describe('OverviewSettingsComponent system channel picker', () => {
 - [ ] **Step 3: Run test to verify it fails**
 
 Run: `ng test`
-Expected: FAIL — `component.channelOptions` / `component.systemChannelId` are not functions (don't exist yet), and `GuildDto`'s fixture won't compile against `save()`'s current PATCH body shape once run.
+Expected: FAIL - `component.channelOptions` / `component.systemChannelId` are not functions (don't exist yet), and `GuildDto`'s fixture won't compile against `save()`'s current PATCH body shape once run.
 
 - [ ] **Step 4: Implement**
 

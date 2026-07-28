@@ -1,4 +1,4 @@
-# Profile Cosmetics (Banner, Accent Color, Font) — Design
+# Profile Cosmetics (Banner, Accent Color, Font) - Design
 
 ## Context
 
@@ -19,7 +19,7 @@ relevant below.
 
 - Font/accent color apply to the **profile popover card** *and* to the **username label**
   everywhere it renders (member list, message author header, mention chips, mention
-  autocomplete) — not to message body text.
+  autocomplete) - not to message body text.
 - The `font` enum maps to **real bundled webfonts** (via `@fontsource`), not generic system
   font stacks.
 - Banner upload gets a **real rectangular crop** (extending `ImageCropperComponent`), not a
@@ -47,8 +47,8 @@ export interface ProfileDto {
     bio: string | undefined;
     userId: string;
     avatarUrl: string | undefined;
-    bannerUrl: string | undefined;      // new — always present, may 404 like avatar
-    accentColor: string | null;         // new — hex string or null
+    bannerUrl: string | undefined;      // new - always present, may 404 like avatar
+    accentColor: string | null;         // new - hex string or null
     font: ProfileFont;                  // new
     onlineStatus: OnlineStatus;
 }
@@ -57,7 +57,7 @@ export interface ProfileDto {
 `FALLBACK_PROFILE` in `profile.service.ts` gets `bannerUrl: undefined, accentColor: null,
 font: ProfileFont.Default` added so the circuit-breaker fallback stays a valid `ProfileDto`.
 
-No changes needed to `GuildMemberDto`/`SelfGuildMemberDto` — they embed `ProfileDto` directly,
+No changes needed to `GuildMemberDto`/`SelfGuildMemberDto` - they embed `ProfileDto` directly,
 so the new fields flow through automatically.
 
 ## 2. Font/color infrastructure
@@ -96,7 +96,7 @@ export function userNameStyle(
 }
 ```
 
-Webfont bundling — same mechanism as the existing `@fontsource-variable/inter` setup
+Webfont bundling - same mechanism as the existing `@fontsource-variable/inter` setup
 (`angular.json` → `styles`, `package.json` → dependency):
 
 | Enum value | Package |
@@ -107,7 +107,7 @@ Webfont bundling — same mechanism as the existing `@fontsource-variable/inter`
 | Display | `@fontsource/bebas-neue` (single weight, not variable) |
 | Handwritten | `@fontsource-variable/caveat` |
 
-`Default` needs no package — it resolves to the app's existing `--font-sans` (Inter).
+`Default` needs no package - it resolves to the app's existing `--font-sans` (Inter).
 
 ## 3. Service layer
 
@@ -131,20 +131,20 @@ public uploadBanner(file: File): Observable<ProfileDto> {
 }
 ```
 
-No `removeBanner()` — the backend spec defines no DELETE endpoint for banner (unlike avatar),
+No `removeBanner()` - the backend spec defines no DELETE endpoint for banner (unlike avatar),
 so there is no remove action to wire up.
 
 `profile.service.spec.ts` gets test cases for both new methods (success + the `EMPTY` guard
 when there's no current profile), matching the existing avatar-upload test shape.
 
-## 4. `ImageCropperComponent` — rectangular crop
+## 4. `ImageCropperComponent` - rectangular crop
 
 Currently the component has a hardcoded square crop box (`CROP = 240`) and a single
 `outputSize` input, used only for circular avatars. Banners need a wide rectangle.
 
 Change: replace `outputSize: input(400)` with `outputWidth: input(400)` /
 `outputHeight: input(400)`. The crop box aspect ratio is derived from
-`outputWidth() / outputHeight()` rather than being a separate input — avatar call sites keep
+`outputWidth() / outputHeight()` rather than being a separate input - avatar call sites keep
 passing equal width/height (still square), so `circular=true` continues to work unchanged.
 
 Internals: `CROP` (a single number) becomes `cropWidth`/`cropHeight`, computed once from the
@@ -166,7 +166,7 @@ as Avatar, reusing the (now rectangular) cropper. No remove button (see §3). Re
 in `profile-dialog.component.css` (reused/shared, not duplicated).
 
 **Accent Color control** (new, in the Display section): reuses the exact swatch + native
-`<input type="color">` pattern from `appearance-settings.component.html`'s color grid — a
+`<input type="color">` pattern from `appearance-settings.component.html`'s color grid - a
 small preview square plus the native picker overlaid on it. A "Clear" text button next to it
 sets the pending value to `''` (spec: empty string clears).
 
@@ -176,25 +176,25 @@ the 6 `FONT_LABELS` entries, with a live preview line below it rendered in
 Appearance settings.
 
 **Bio field**: currently rendered `disabled` with a "Coming soon" placeholder despite the DTO
-already having a `bio` field — there was no save endpoint. Now there is
+already having a `bio` field - there was no save endpoint. Now there is
 (`PATCH .../profiles/me`). Un-disable it. Bio + Accent Color + Font are batched behind one
 "Save Changes" button (dirty-tracking against `ownProfile()`, single `updateProfile()` call on
-click) rather than saving per-keystroke or per-field — consistent with how the existing
+click) rather than saving per-keystroke or per-field - consistent with how the existing
 Change Password section batches its three fields behind one submit action.
 
-**Display Name stays disabled** — the spec explicitly excludes username from this endpoint;
+**Display Name stays disabled** - the spec explicitly excludes username from this endpoint;
 no change to that field's current "Coming soon" treatment.
 
 ## 6. Profile popover (`ProfileDialogComponent`)
 
 The component already fetches the full `ProfileDto` into a `profile` signal and has a
-`.profile-banner` CSS class — but its `@Input() bannerUrl` is dead code (grepped: no caller
+`.profile-banner` CSS class - but its `@Input() bannerUrl` is dead code (grepped: no caller
 passes it; `main-page.component.html` only binds `[userId]`). Remove the `@Input()` and read
 `profile()?.bannerUrl` directly instead.
 
 - Banner: `background-image` from `profile()?.bannerUrl` when present; when absent, fall back
   to a solid `background` using `profile()?.accentColor` instead of the current always-null
-  background. If both are absent, keep today's default (no image, no color — existing
+  background. If both are absent, keep today's default (no image, no color - existing
   `.profile-banner` base styling).
 - Avatar-initials fallback circle: currently hardcoded `bg-brand`. When `accentColor` is set,
   override via `[style.background]` with the accent color; otherwise keep `bg-brand`.
@@ -202,7 +202,7 @@ passes it; `main-page.component.html` only binds `[userId]`). Remove the `@Input
 
 ## 7. Shared username styling directive
 
-No existing helper computes a display name's visual style — five render sites each read
+No existing helper computes a display name's visual style - five render sites each read
 `userName` independently. Introduce one shared, narrow attribute directive rather than
 duplicating the same `[style.color]`/`[style.fontFamily]` bindings five times:
 
@@ -225,14 +225,14 @@ Applied at:
 | Message author header | `message.component.html` | `user` (from `getProfile()`) |
 | Reply-reference author name | `message.component.ts`/`.html` | `profileService.getCachedByUserId(...)` (already a full cached `ProfileDto`) |
 | Resolved `@mention` chip (sent messages) | `message.component.html` | matched entry in `mentionedProfiles` |
-| Mention-autocomplete dropdown row | `suggestion-overlay.component.html` | `m` (`UserMentionCandidate`, extended — see below) |
+| Mention-autocomplete dropdown row | `suggestion-overlay.component.html` | `m` (`UserMentionCandidate`, extended - see below) |
 
 `UserMentionCandidate` (`composer-utils.ts`) gets two new optional fields:
 `accentColor?: string | null; font?: ProfileFont`. Populated only where a full profile is
-already available — the guild-member-search candidate builder in `composer.component.ts`
+already available - the guild-member-search candidate builder in `composer.component.ts`
 (`m.profile?.accentColor`, `m.profile?.font`). The DM/conversation-member candidate builder in
 `conversation.component.ts` only has a cached username string (`cachedUserName`), not a full
-profile, so those candidates leave the new fields `undefined` — the directive/helper already
+profile, so those candidates leave the new fields `undefined` - the directive/helper already
 treats `undefined` as "use defaults," so this degrades gracefully rather than breaking.
 
 **Composer live-typing chip** (`composer.component.ts`'s `onMentionSelected`, which builds a
@@ -243,20 +243,20 @@ applies the same `userNameStyle()` pure function directly:
 ## 8. Presence
 
 No frontend changes. Confirmed: `guild.PresenceChanged` payload shape is unchanged and already
-handled; the "fires on connect/disconnect too" behavior is transparent to the client — it's the
+handled; the "fires on connect/disconnect too" behavior is transparent to the client - it's the
 same event, just fired more often.
 
 ## 9. Self-profile popover (bottom-left user bar)
 
 **Problem:** clicking the bottom-left user bar (`quick-settings.component.html:8`,
 `profileDialogSvc.open(profileService.ownProfile()!.userId)`) currently opens the same centered
-`ProfileDialogComponent` used for viewing *other* users — a full-screen-feeling modal that's a
+`ProfileDialogComponent` used for viewing *other* users - a full-screen-feeling modal that's a
 poor fit for checking/editing your own profile. Discord-style apps anchor a small popover above
 the clicked bar instead.
 
 **Change:** clicking the bottom-left bar no longer calls `profileDialogSvc.open(...)`. Instead
 it toggles a new anchored popover, built with PrimeNG `Popover` (`primeng/popover`, not currently
-used anywhere in the codebase but bundled with the installed PrimeNG version — same
+used anywhere in the codebase but bundled with the installed PrimeNG version - same
 `myPopover.toggle($event)` anchoring idiom already used by `StatusPickerComponent`'s `p-menu
 [popup]="true"`).
 
@@ -265,10 +265,10 @@ dot, username, bio, member-since/friends-since block) is presentational and woul
 duplicated between the centered dialog (other users) and the new anchored popover (self).
 Extract it into a new presentational `ProfileCardComponent` (`app-profile-card`) taking
 `profile: ProfileDto | undefined`, `friendsSince: Date | null` (optional, other-users only), and
-avatar-click/error outputs — reused by both:
+avatar-click/error outputs - reused by both:
 
 - `ProfileDialogComponent` keeps its centered `p-dialog` shell, now just wrapping
-  `<app-profile-card>` — behavior for viewing *other* users is unchanged.
+  `<app-profile-card>` - behavior for viewing *other* users is unchanged.
 - New `SelfProfilePopoverComponent` (`app-self-profile-popover`) wraps the same
   `<app-profile-card>` inside a `p-popover`, anchored to the bottom-left bar, and adds
   self-only actions below the card: the existing `app-status-picker` (reused as-is, not
@@ -278,7 +278,7 @@ avatar-click/error outputs — reused by both:
 its existing `@ViewChild(SettingsModalComponent)` reference's public `selectPage('profile')`
 method, then `isSettingsOpen.set(true)`. `activePage` defaults to `'profile'` on first load, but
 since `app-settings-modal` stays permanently mounted (only visibility toggles), it retains
-whatever page the user last had open — calling `selectPage('profile')` explicitly avoids landing
+whatever page the user last had open - calling `selectPage('profile')` explicitly avoids landing
 on a stale page.
 
 **Positioning/sizing:** popover width ~320px (slightly narrower than the 360px centered dialog,

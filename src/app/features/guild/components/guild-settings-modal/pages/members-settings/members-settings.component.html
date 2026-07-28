@@ -13,9 +13,9 @@
     <!-- Count -->
     <p class="text-xs text-white/30">
         {{
-            members().length !== 1 ? ('GUILD_SETTINGS.MEMBERS.COUNT_PLURAL' | translate: {
+            (members().length !== 1 ? 'GUILD_SETTINGS.MEMBERS.COUNT_PLURAL' : 'GUILD_SETTINGS.MEMBERS.COUNT_SINGLE') | translate: {
                 count: members().length
-            }) : ('GUILD_SETTINGS.MEMBERS.COUNT_SINGLE' | translate)
+            }
         }}
     </p>
 

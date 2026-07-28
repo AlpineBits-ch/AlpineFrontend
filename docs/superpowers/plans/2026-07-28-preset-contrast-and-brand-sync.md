@@ -4,7 +4,7 @@
 
 **Goal:** Make the app's dark UI read as crisp, layered, and visually consistent by (1) raising border/shadow/focus contrast and widening surface elevation steps in the PrimeNG preset, (2) eliminating the dead/drifted accent-color scale so the preset and runtime theme can never diverge, and (3) sweeping every hardcoded old-indigo (`#6366f1` family) and Tailwind built-in `indigo-*` utility class in the codebase to reference the app's actual brand color (`#7c72ff` purple) via CSS custom properties.
 
-**Architecture:** No new architecture — this is a token-layer correction. `alpine-preset.ts` (PrimeNG) and `styles.css` (`@theme`, Tailwind v4) are the two existing token systems; every other file change is a mechanical substitution driven by the table below, applied file-by-file.
+**Architecture:** No new architecture - this is a token-layer correction. `alpine-preset.ts` (PrimeNG) and `styles.css` (`@theme`, Tailwind v4) are the two existing token systems; every other file change is a mechanical substitution driven by the table below, applied file-by-file.
 
 **Tech Stack:** Angular 21, PrimeNG 21 (`@primeuix/themes`), Tailwind CSS v4 (`@tailwindcss/postcss`), TypeScript.
 
@@ -35,14 +35,14 @@
 
 ---
 
-### Task 1: `alpine-preset.ts` — border/shadow/focus contrast + accent drift fix
+### Task 1: `alpine-preset.ts` - border/shadow/focus contrast + accent drift fix
 
 **Files:**
 - Modify: `src/app/theme/alpine-preset.ts`
 
 **Interfaces:**
 - Consumes: `DEFAULT_THEME` from `src/app/models/theme.model.ts` (already exists, exports `colors.brand`/`brandHover`/`brandDim`/`brandDark` as hex strings), `palette` from `@primeuix/themes` (already used identically in `src/app/services/theme.service.ts:119-129`).
-- Produces: nothing new consumed elsewhere — this file is the terminal PrimeNG preset passed to `providePrimeNG` in `app.config.ts`.
+- Produces: nothing new consumed elsewhere - this file is the terminal PrimeNG preset passed to `providePrimeNG` in `app.config.ts`.
 
 - [ ] **Step 1: Add imports and shared border constants**
 
@@ -123,7 +123,7 @@ with:
             950: '#0a0c10',
 ```
 
-- [ ] **Step 4: `formField` — use `BORDER_SUBTLE`**
+- [ ] **Step 4: `formField` - use `BORDER_SUBTLE`**
 
 Replace:
 
@@ -145,7 +145,7 @@ with:
                 },
 ```
 
-- [ ] **Step 5: `overlay` (select/popover/navigation/modal) — crisper borders and hairline shadows**
+- [ ] **Step 5: `overlay` (select/popover/navigation/modal) - crisper borders and hairline shadows**
 
 Replace the entire `overlay` block:
 
@@ -239,7 +239,7 @@ with:
                 },
 ```
 
-- [ ] **Step 6: `button.secondary` — border ramp + slightly stronger background deltas**
+- [ ] **Step 6: `button.secondary` - border ramp + slightly stronger background deltas**
 
 Replace:
 
@@ -273,7 +273,7 @@ with:
                         },
 ```
 
-- [ ] **Step 7: `inputtext` — border ramp + stronger focus ring**
+- [ ] **Step 7: `inputtext` - border ramp + stronger focus ring**
 
 Replace:
 
@@ -333,7 +333,7 @@ with:
         },
 ```
 
-- [ ] **Step 8: `textarea` — identical fix to Step 7**
+- [ ] **Step 8: `textarea` - identical fix to Step 7**
 
 Replace:
 
@@ -393,7 +393,7 @@ with:
         },
 ```
 
-- [ ] **Step 9: `dialog` — border + hairline shadow**
+- [ ] **Step 9: `dialog` - border + hairline shadow**
 
 Replace:
 
@@ -437,7 +437,7 @@ with:
         },
 ```
 
-- [ ] **Step 10: `menu` — border, hairline shadow, separator, focus background**
+- [ ] **Step 10: `menu` - border, hairline shadow, separator, focus background**
 
 Replace:
 
@@ -521,7 +521,7 @@ with:
         },
 ```
 
-- [ ] **Step 11: `contextmenu` — identical fix to Step 10 (no `submenuLabel`)**
+- [ ] **Step 11: `contextmenu` - identical fix to Step 10 (no `submenuLabel`)**
 
 Replace:
 
@@ -611,14 +611,14 @@ git commit -m "fix: raise preset border/shadow/focus contrast and fix accent-sca
 
 ---
 
-### Task 2: `styles.css` — brand token sync + hardcoded override fixes
+### Task 2: `styles.css` - brand token sync + hardcoded override fixes
 
 **Files:**
 - Modify: `src/styles.css`
 
 **Interfaces:**
-- Consumes: same brand hex values as Task 1 (`#7c72ff`/`#695df2`/`#9a84ff`/`#584ad9`), now duplicated here as plain CSS (Tailwind `@theme` can't import a TS constant) — keep this block's values byte-identical to `DEFAULT_THEME.colors` if either ever changes.
-- Produces: `var(--color-brand)`, `var(--color-brand-hover)`, `var(--color-brand-dim)`, `var(--color-brand-dark)`, `var(--color-border-subtle)`, `var(--color-border-default)` — consumed by every later task in this plan.
+- Consumes: same brand hex values as Task 1 (`#7c72ff`/`#695df2`/`#9a84ff`/`#584ad9`), now duplicated here as plain CSS (Tailwind `@theme` can't import a TS constant) - keep this block's values byte-identical to `DEFAULT_THEME.colors` if either ever changes.
+- Produces: `var(--color-brand)`, `var(--color-brand-hover)`, `var(--color-brand-dim)`, `var(--color-brand-dark)`, `var(--color-border-subtle)`, `var(--color-border-default)` - consumed by every later task in this plan.
 
 - [ ] **Step 1: Sync `@theme` brand tokens and border tokens**
 
@@ -635,7 +635,7 @@ Replace:
 with:
 
 ```css
-  /* ── Brand — must stay byte-identical to DEFAULT_THEME.colors in
+  /* ── Brand - must stay byte-identical to DEFAULT_THEME.colors in
      src/app/models/theme.model.ts, which ThemeService applies at runtime. ── */
   --color-brand:       #7c72ff;
   --color-brand-hover: #695df2;
@@ -786,7 +786,7 @@ git commit -m "fix: sync styles.css brand tokens with DEFAULT_THEME, fix hardcod
 
 ---
 
-### Task 3: Decorative CSS sweep, batch A — titlebar, login
+### Task 3: Decorative CSS sweep, batch A - titlebar, login
 
 **Files:**
 - Modify: `src/app/titlebar/titlebar.component.css`
@@ -810,7 +810,7 @@ with:
     background: linear-gradient(135deg, var(--color-brand-dim) 0%, var(--color-brand-dark) 100%);
 ```
 
-- [ ] **Step 2: `login.component.html` — logo gradient + shadow (line 14)**
+- [ ] **Step 2: `login.component.html` - logo gradient + shadow (line 14)**
 
 Replace:
 
@@ -824,7 +824,7 @@ with:
             <div class="w-11 h-11 rounded-[13px] bg-gradient-to-br from-[var(--color-brand-dim)] to-[var(--color-brand-dark)] flex items-center justify-center text-[20px] font-black text-white shadow-[0_4px_18px_color-mix(in_srgb,var(--color-brand-dark)_45%,transparent)]">
 ```
 
-- [ ] **Step 3: `login.component.html` — remaining `indigo-*` utility classes**
+- [ ] **Step 3: `login.component.html` - remaining `indigo-*` utility classes**
 
 Replace (line 51):
 
@@ -838,7 +838,7 @@ with:
                         <span [class]="loginServerConfigError() ? 'bg-rose-500/15 text-rose-400 border-rose-500/25' : isCustomServer() ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)] border-[color-mix(in_srgb,var(--color-brand)_25%,transparent)]' : 'bg-white/[0.04] text-slate-500 border-white/[0.08]'"
 ```
 
-Replace (identical text appears twice, at lines 88-95 and 229-236 — use `replace_all: true`):
+Replace (identical text appears twice, at lines 88-95 and 229-236 - use `replace_all: true`):
 
 ```html
                     <a class="text-indigo-400/60 hover:text-indigo-400 no-underline transition-colors cursor-pointer"
@@ -866,7 +866,7 @@ with:
                     </a>
 ```
 
-(This text block appears twice, once around line 88 and once around line 229 — identical text, so use `replace_all: true` if using the Edit tool, since both instances get the same fix.)
+(This text block appears twice, once around line 88 and once around line 229 - identical text, so use `replace_all: true` if using the Edit tool, since both instances get the same fix.)
 
 Replace (line 119):
 
@@ -937,7 +937,7 @@ git commit -m "fix: replace hardcoded old-indigo colors with brand tokens in tit
 
 ---
 
-### Task 4: Decorative CSS sweep, batch B — channel, call-panel, conversation
+### Task 4: Decorative CSS sweep, batch B - channel, call-panel, conversation
 
 **Files:**
 - Modify: `src/app/features/guild/components/channel/channel.component.css`
@@ -961,7 +961,7 @@ with:
         background: color-mix(in srgb, var(--color-brand) 15%, transparent);
 ```
 
-- [ ] **Step 2: `call-panel.component.css` — 5 instances**
+- [ ] **Step 2: `call-panel.component.css` - 5 instances**
 
 Replace:
 
@@ -1041,7 +1041,7 @@ with:
 }
 ```
 
-- [ ] **Step 3: `conversation.component.css` — 4 instances**
+- [ ] **Step 3: `conversation.component.css` - 4 instances**
 
 Replace:
 
@@ -1100,7 +1100,7 @@ git commit -m "fix: replace hardcoded old-indigo colors with brand tokens in cha
 
 ---
 
-### Task 5: Decorative CSS sweep, batch C — mention-chip components
+### Task 5: Decorative CSS sweep, batch C - mention-chip components
 
 **Files:**
 - Modify: `src/app/features/messaging/components/conversation/message/system-message/system-message.component.css`
@@ -1166,7 +1166,7 @@ with:
     font-size: 0.875rem;
 ```
 
-- [ ] **Step 3: `message.component.css` — mention chip + channel-mention variant**
+- [ ] **Step 3: `message.component.css` - mention chip + channel-mention variant**
 
 Replace:
 
@@ -1243,7 +1243,7 @@ git commit -m "fix: replace hardcoded old-indigo mention-chip colors with brand 
 
 **Interfaces:**
 - Consumes: `var(--color-brand)`, `var(--color-brand-dim)` (from Task 2).
-- Note: `roles-settings.*` also gets a **plain literal** default-swatch update (`#6366f1` → `#7c72ff`) — this is a role-color data default, not a live theme reference (see design doc's "Role-color swatch defaults" section), so it stays a hardcoded hex, not a CSS var.
+- Note: `roles-settings.*` also gets a **plain literal** default-swatch update (`#6366f1` → `#7c72ff`) - this is a role-color data default, not a live theme reference (see design doc's "Role-color swatch defaults" section), so it stays a hardcoded hex, not a CSS var.
 
 - [ ] **Step 1: `wiki-history.component.html`**
 
@@ -1261,7 +1261,7 @@ with:
 
 (The non-expanded branch's border also moves from `0.06` to `0.10` to match Task 1/2's new `BORDER_SUBTLE` baseline.)
 
-- [ ] **Step 2: `permission-overrides-panel.component.html` — 3 identical fallbacks**
+- [ ] **Step 2: `permission-overrides-panel.component.html` - 3 identical fallbacks**
 
 Replace all 3 occurrences of:
 
@@ -1275,9 +1275,9 @@ with:
 <span [style.background]="entry.color || 'var(--color-brand)'"
 ```
 
-(Use `replace_all: true` — all three are the same replacement, at lines 32, 56, 97.)
+(Use `replace_all: true` - all three are the same replacement, at lines 32, 56, 97.)
 
-- [ ] **Step 3: `roles-settings.component.ts` — default-swatch literal (4 occurrences)**
+- [ ] **Step 3: `roles-settings.component.ts` - default-swatch literal (4 occurrences)**
 
 Replace:
 
@@ -1327,7 +1327,7 @@ with:
             this.editColor() !== (r.color ?? '#7c72ff') ||
 ```
 
-- [ ] **Step 4: `roles-settings.component.html` — fallback literal + placeholder + 3 `indigo-*` tab/row highlights**
+- [ ] **Step 4: `roles-settings.component.html` - fallback literal + placeholder + 3 `indigo-*` tab/row highlights**
 
 Replace:
 
@@ -1353,7 +1353,7 @@ with:
                                        placeholder="#7c72ff"/>
 ```
 
-Replace all 3 occurrences of the pattern `'bg-indigo-500/15 text-indigo-400' : 'text-white/50 hover:bg-white/[0.05]'` (lines 18, 51, 56 — each has different leading condition text, so match each full line individually):
+Replace all 3 occurrences of the pattern `'bg-indigo-500/15 text-indigo-400' : 'text-white/50 hover:bg-white/[0.05]'` (lines 18, 51, 56 - each has different leading condition text, so match each full line individually):
 
 ```html
                         [ngClass]="selectedRole()?.id === role.id ? 'bg-indigo-500/15 text-indigo-400' : 'text-white/50 hover:bg-white/[0.05]'"
@@ -1408,14 +1408,14 @@ git commit -m "fix: sync wiki-history/permission-overrides/roles-settings colors
 
 ---
 
-### Task 7: `entropy-modal.component.ts` — theme-aware canvas colors
+### Task 7: `entropy-modal.component.ts` - theme-aware canvas colors
 
 **Files:**
 - Modify: `src/app/features/key-setup/entropy-modal/entropy-modal.component.ts`
 
 **Interfaces:**
 - Consumes: `--color-brand`, `--color-brand-dim` CSS custom properties (resolved via `getComputedStyle`, since a `<canvas>` 2D context cannot consume `var(...)` directly).
-- Produces: `private brandRgb: string`, `private brandDimRgb: string` — resolved once in `ngAfterViewInit`, consumed by `renderLoop()`.
+- Produces: `private brandRgb: string`, `private brandDimRgb: string` - resolved once in `ngAfterViewInit`, consumed by `renderLoop()`.
 
 - [ ] **Step 1: Add RGB-resolution fields and a `hexToRgb` helper**
 
@@ -1466,7 +1466,7 @@ Replace with:
 
 - [ ] **Step 3: Add the `hexToRgb` helper method**
 
-Add after `private finish(): void {` — actually, add it as a new private method anywhere in the class body, e.g. right before `private renderLoop(): void {`:
+Add after `private finish(): void {` - actually, add it as a new private method anywhere in the class body, e.g. right before `private renderLoop(): void {`:
 
 ```ts
     private hexToRgb(hex: string): string | null {
@@ -1540,7 +1540,7 @@ git commit -m "fix: make entropy-modal canvas colors track the live brand theme"
 
 ---
 
-### Task 8: Indigo-utility sweep, batch A — settings/admin page-nav active states
+### Task 8: Indigo-utility sweep, batch A - settings/admin page-nav active states
 
 **Files:**
 - Modify: `src/app/features/guild/components/guild-settings-modal/guild-settings-modal.component.ts`
@@ -1653,7 +1653,7 @@ git commit -m "fix: replace indigo-* Tailwind utilities with brand tokens in set
 
 ---
 
-### Task 9: Indigo-utility sweep, batch B — settings page templates
+### Task 9: Indigo-utility sweep, batch B - settings page templates
 
 **Files:**
 - Modify: `src/app/features/settings/settings-modal/pages/profile-settings/profile-settings.component.html`
@@ -1663,9 +1663,9 @@ git commit -m "fix: replace indigo-* Tailwind utilities with brand tokens in set
 **Interfaces:**
 - Consumes: `var(--color-brand)`, `var(--color-brand-dim)` (from Task 2).
 
-- [ ] **Step 1: `profile-settings.component.html` — 3 identical avatar-placeholder blocks**
+- [ ] **Step 1: `profile-settings.component.html` - 3 identical avatar-placeholder blocks**
 
-Replace (occurs at 3 different sizes — apply to each of the 3 occurrences individually, since surrounding context differs):
+Replace (occurs at 3 different sizes - apply to each of the 3 occurrences individually, since surrounding context differs):
 
 ```html
                     <div class="w-16 h-16 rounded-full bg-indigo-500/20 border-2 border-white/10
@@ -1776,7 +1776,7 @@ git commit -m "fix: replace indigo-* Tailwind utilities with brand tokens in set
 
 ---
 
-### Task 10: Indigo-utility sweep, batch C — messaging composer/suggestions
+### Task 10: Indigo-utility sweep, batch C - messaging composer/suggestions
 
 **Files:**
 - Modify: `src/app/features/messaging/components/conversation/message/message.component.html`
@@ -1801,7 +1801,7 @@ with:
                   class="w-full bg-white/[0.05] border border-white/[0.12] focus:border-[color-mix(in_srgb,var(--color-brand-dim)_60%,transparent)]
 ```
 
-- [ ] **Step 2: `suggestion-overlay.component.html` — 3 instances**
+- [ ] **Step 2: `suggestion-overlay.component.html` - 3 instances**
 
 Replace both occurrences of:
 
@@ -1809,7 +1809,7 @@ Replace both occurrences of:
                         <span class="text-sm font-bold text-indigo-400 shrink-0">/{{ item.def.name }}</span>
 ```
 
-with (use `replace_all: true` — identical text at lines 58 and 72):
+with (use `replace_all: true` - identical text at lines 58 and 72):
 
 ```html
                         <span class="text-sm font-bold text-[var(--color-brand-dim)] shrink-0">/{{ item.def.name }}</span>
@@ -1896,7 +1896,7 @@ git commit -m "fix: replace indigo-* Tailwind utilities with brand tokens in com
 
 ---
 
-### Task 11: Indigo-utility sweep, batch D — admin, call-overlay, avatar
+### Task 11: Indigo-utility sweep, batch D - admin, call-overlay, avatar
 
 **Files:**
 - Modify: `src/app/features/admin/admin-modal/pages/federation-policy/federation-policy.component.html`
@@ -1907,7 +1907,7 @@ git commit -m "fix: replace indigo-* Tailwind utilities with brand tokens in com
 **Interfaces:**
 - Consumes: `var(--color-brand)`, `var(--color-brand-dim)` (from Task 2).
 
-- [ ] **Step 1: `federation-policy.component.html` — refactor 3 `[class.X]` bindings into one `[ngClass]` ternary**
+- [ ] **Step 1: `federation-policy.component.html` - refactor 3 `[class.X]` bindings into one `[ngClass]` ternary**
 
 The 3 separate `[class.indigo-*]` bindings need to become arbitrary-value Tailwind classes, which is unwieldy to express as individual `[class.foo-[var(...)]]` binding keys (the brackets clash with Angular's own binding syntax). Consolidate into `[ngClass]`, matching the ternary pattern already used elsewhere in this codebase (e.g. `roles-settings.component.html`).
 
@@ -1937,7 +1937,7 @@ with:
                          class="w-4 h-4 rounded-full border-2 shrink-0 transition-colors flex items-center justify-center">
 ```
 
-- [ ] **Step 2: `admin-modal.component.html` — 2 identical shield-icon/label instances**
+- [ ] **Step 2: `admin-modal.component.html` - 2 identical shield-icon/label instances**
 
 Replace both occurrences of:
 
@@ -1945,7 +1945,7 @@ Replace both occurrences of:
                         <i class="pi pi-shield text-sm text-indigo-400"></i>
 ```
 
-with (use `replace_all: true` — identical text at lines 22 and 53):
+with (use `replace_all: true` - identical text at lines 22 and 53):
 
 ```html
                         <i class="pi pi-shield text-sm text-[var(--color-brand-dim)]"></i>
@@ -2034,7 +2034,7 @@ Run:
 grep -rnE '6366f1|4f46e5|818cf8|4338ca|99, ?102, ?241|129, ?140, ?248|67, ?56, ?202|indigo-(400|500|600|700)' src
 ```
 
-Expected: **zero matches**, except the two intentional role-swatch-default literals in `roles-settings.component.ts`/`.html`, which are now `#7c72ff` (not matched by this pattern — verify by eye that only `#7c72ff` appears there, not `#6366f1`).
+Expected: **zero matches**, except the two intentional role-swatch-default literals in `roles-settings.component.ts`/`.html`, which are now `#7c72ff` (not matched by this pattern - verify by eye that only `#7c72ff` appears there, not `#6366f1`).
 
 - [ ] **Step 2: Full build**
 
@@ -2046,9 +2046,9 @@ Expected: succeeds with no errors or warnings introduced by this work.
 Use the `run` skill to launch the app. Confirm:
 - Panels, menus, dropdowns, and dialogs read as visually distinct layered surfaces (not flat/blended).
 - Borders and focus rings are clearly visible, not near-invisible.
-- The accent purple renders identically across: buttons, PrimeNG dropdowns (`.p-select`), mention pills in messages, the login screen logo/links, the titlebar icon, and any settings-modal active-nav-item highlight — no mismatched indigo/purple anywhere.
+- The accent purple renders identically across: buttons, PrimeNG dropdowns (`.p-select`), mention pills in messages, the login screen logo/links, the titlebar icon, and any settings-modal active-nav-item highlight - no mismatched indigo/purple anywhere.
 - The entropy-modal (key-setup flow) draws in the same brand purple as the rest of the app.
 
 - [ ] **Step 4: Report findings**
 
-If any visual issue is found in Step 3, note the specific component and file, then fix inline (small follow-up edit + commit) before considering this plan complete. If everything matches, the plan is done — no further commit needed for this task.
+If any visual issue is found in Step 3, note the specific component and file, then fix inline (small follow-up edit + commit) before considering this plan complete. If everything matches, the plan is done - no further commit needed for this task.

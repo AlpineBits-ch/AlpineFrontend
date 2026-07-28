@@ -43,7 +43,7 @@
     <!-- Active command hint bar -->
     @if (activeCommand()) {
         <div class="flex items-center gap-2 mb-2 px-1">
-            <span class="text-[11px] font-bold text-indigo-400">/ {{ activeCommand()!.name }}</span>
+            <span class="text-[11px] font-bold text-[var(--color-brand-dim)]">/ {{ activeCommand()!.name }}</span>
             <span class="text-[11px] text-white/30">-</span>
             <span class="text-[11px] text-white/30">{{ activeCommand()!.description }}</span>
             <button
@@ -59,10 +59,10 @@
 
         <!-- Drop overlay -->
         @if (attachments.isDraggingOver()) {
-            <div class="absolute inset-0 rounded-2xl bg-indigo-500/10 border-2 border-dashed border-indigo-500/40 flex items-center justify-center z-10 pointer-events-none">
+            <div class="absolute inset-0 rounded-2xl bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)] border-2 border-dashed border-[color-mix(in_srgb,var(--color-brand)_40%,transparent)] flex items-center justify-center z-10 pointer-events-none">
                 <div class="flex flex-col items-center gap-1.5">
-                    <i class="pi pi-upload text-indigo-400 text-lg"></i>
-                    <p class="text-xs text-indigo-400/70">Drop files here</p>
+                    <i class="pi pi-upload text-[var(--color-brand-dim)] text-lg"></i>
+                    <p class="text-xs text-[color-mix(in_srgb,var(--color-brand-dim)_70%,transparent)]">Drop files here</p>
                 </div>
             </div>
         }

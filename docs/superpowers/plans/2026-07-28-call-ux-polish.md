@@ -4,19 +4,19 @@
 
 **Goal:** Close the visual/functional gap between Alpine's call experience (DM calls + guild voice channels + voice/video settings) and Discord's, based on a prior audit, without touching sound/SFX or anything outside the call surfaces.
 
-**Architecture:** Alpine runs two parallel Cloudflare-Calls-SFU-backed call stacks — DM calls (`CallSessionService` + `CallWebRtcService`) and guild voice channels (`VoiceChannelService` + `VoiceRTCService`) — that share a UI component library under `src/app/shared/call/`. Most fixes are template/CSS polish in that shared library and its two consumers; two fixes (voice-activity gating, DM deafen) require small, symmetric additions to both RTC services, each reusing detection/mute plumbing that already exists in that service.
+**Architecture:** Alpine runs two parallel Cloudflare-Calls-SFU-backed call stacks - DM calls (`CallSessionService` + `CallWebRtcService`) and guild voice channels (`VoiceChannelService` + `VoiceRTCService`) - that share a UI component library under `src/app/shared/call/`. Most fixes are template/CSS polish in that shared library and its two consumers; two fixes (voice-activity gating, DM deafen) require small, symmetric additions to both RTC services, each reusing detection/mute plumbing that already exists in that service.
 
 **Tech Stack:** Angular 21 (standalone components, signals), PrimeNG 21, Tailwind CSS v4, TypeScript, Web Audio API (AnalyserNode-based level detection already in use).
 
 ## Global Constraints
 
-- **Scope is call-only.** Touch only: `src/app/features/call/`, `src/app/features/messaging/components/conversation/call-panel/`, `src/app/features/guild/components/voice-channel/`, `src/app/features/guild/components/channel-list/components/voice-channel-item/` and `voice-participant-row/`, `src/app/shared/call/`, `src/app/features/settings/settings-modal/pages/voice-video-settings/`, `src/app/features/main-page/components/voice-status-bar/`, `src/app/services/call-session.service.ts`, `call-webrtc.service.ts`, `call-hotkey.service.ts`, `voice-channel.service.ts`, `voice-rtc.service.ts`, `audio-settings.service.ts`, `src/styles.css` (additive only). A separate agent is reworking the main page and general guild page (member list, invites, navigation) in parallel — do **not** touch `guild-member-list`, guild invite features, or main-page layout, even where a call component has a dead button that looks related.
+- **Scope is call-only.** Touch only: `src/app/features/call/`, `src/app/features/messaging/components/conversation/call-panel/`, `src/app/features/guild/components/voice-channel/`, `src/app/features/guild/components/channel-list/components/voice-channel-item/` and `voice-participant-row/`, `src/app/shared/call/`, `src/app/features/settings/settings-modal/pages/voice-video-settings/`, `src/app/features/main-page/components/voice-status-bar/`, `src/app/services/call-session.service.ts`, `call-webrtc.service.ts`, `call-hotkey.service.ts`, `voice-channel.service.ts`, `voice-rtc.service.ts`, `audio-settings.service.ts`, `src/styles.css` (additive only). A separate agent is reworking the main page and general guild page (member list, invites, navigation) in parallel - do **not** touch `guild-member-list`, guild invite features, or main-page layout, even where a call component has a dead button that looks related.
 - **Sound/SFX is explicitly out of scope.** Do not touch `sound-settings.service.ts` or `notification-settings.component.*`.
-- **No existing unit tests cover these components** (verified: no `.spec.ts` files exist under `shared/call/`, `features/call/`, or the voice-channel/voice-participant-row directories). Don't introduce a testing pattern the codebase doesn't already use here. Verify each task with `npx ng build` (must compile with zero new errors) plus the manual check described in the task. Only add `.spec.ts` where a task introduces real branching logic with no visual proxy (Task 6, Task 7's settings math) — see those tasks for what to test and how.
-- **Follow existing conventions:** Tailwind utility classes directly in templates; a component gets a `.css` file only if it already has one (`call-panel`, `call-context-menu` gets one **new** in Task 1 because it currently has none and needs one — see Task 1); PrimeNG components (`p-select`, `p-toggleswitch`, `p-slider`, `p-radiobutton`, `p-button`) exactly as already used in `voice-video-settings.component.html` / `privacy-settings.component.html`; `var(--color-*)` tokens from `src/styles.css`; shared keyframes that multiple components need go in `src/styles.css` (matching the existing `.typing-dot` / `@keyframes typing-bounce` pattern), not duplicated per-component.
-- **Two real functional bugs were found during research** (not just visual polish) and are fixed in this plan because leaving them would undercut the polish work: (1) `vc-rtc-pulse`, the animation name used by the guild voice channel's connecting/failed status dot, is referenced in `voice-channel.component.html` but never defined anywhere — the dot never actually pulses. (2) `.vc-volume-slider`, the class on the per-participant volume `<input type=range>` in `call-context-menu.component.html`, is referenced but never defined anywhere — it renders as a completely unstyled native slider. Both are fixed in Task 1.
-- **A third real bug was found:** DM call "Deafen" (`CallSessionService.toggleDeafen`) only flips a local UI flag — it never actually silences incoming remote audio (contrast with the guild voice channel path, where `VoiceRTCService.setDeafened` correctly zeroes each remote `<audio>` element's volume). Fixed in Task 6.
-- **Voice-Activity mode is a real, functional feature addition** (Task 7), not cosmetic: today the mic transmits continuously with no gating at all unless the user manually binds a Push-to-Talk key on the Keybinds page. This task adds an actual level-based transmit gate, reusing the AnalyserNode-based speaking-detection loops that already run in both `CallWebRtcService` (DM) and `VoiceRTCService` (guild) for the speaking-indicator ring — no new audio pipeline is introduced. **Behavior change to flag to the user:** after this task, a fresh install defaults to Voice-Activity mode with sensitivity 60 (roughly matching today's fixed internal speaking-detection thresholds), so a mic that was previously always-open will now gate between words. Users can switch to Push-to-Talk or crank sensitivity to 100 (effectively always-open) in Settings.
+- **No existing unit tests cover these components** (verified: no `.spec.ts` files exist under `shared/call/`, `features/call/`, or the voice-channel/voice-participant-row directories). Don't introduce a testing pattern the codebase doesn't already use here. Verify each task with `npx ng build` (must compile with zero new errors) plus the manual check described in the task. Only add `.spec.ts` where a task introduces real branching logic with no visual proxy (Task 6, Task 7's settings math) - see those tasks for what to test and how.
+- **Follow existing conventions:** Tailwind utility classes directly in templates; a component gets a `.css` file only if it already has one (`call-panel`, `call-context-menu` gets one **new** in Task 1 because it currently has none and needs one - see Task 1); PrimeNG components (`p-select`, `p-toggleswitch`, `p-slider`, `p-radiobutton`, `p-button`) exactly as already used in `voice-video-settings.component.html` / `privacy-settings.component.html`; `var(--color-*)` tokens from `src/styles.css`; shared keyframes that multiple components need go in `src/styles.css` (matching the existing `.typing-dot` / `@keyframes typing-bounce` pattern), not duplicated per-component.
+- **Two real functional bugs were found during research** (not just visual polish) and are fixed in this plan because leaving them would undercut the polish work: (1) `vc-rtc-pulse`, the animation name used by the guild voice channel's connecting/failed status dot, is referenced in `voice-channel.component.html` but never defined anywhere - the dot never actually pulses. (2) `.vc-volume-slider`, the class on the per-participant volume `<input type=range>` in `call-context-menu.component.html`, is referenced but never defined anywhere - it renders as a completely unstyled native slider. Both are fixed in Task 1.
+- **A third real bug was found:** DM call "Deafen" (`CallSessionService.toggleDeafen`) only flips a local UI flag - it never actually silences incoming remote audio (contrast with the guild voice channel path, where `VoiceRTCService.setDeafened` correctly zeroes each remote `<audio>` element's volume). Fixed in Task 6.
+- **Voice-Activity mode is a real, functional feature addition** (Task 7), not cosmetic: today the mic transmits continuously with no gating at all unless the user manually binds a Push-to-Talk key on the Keybinds page. This task adds an actual level-based transmit gate, reusing the AnalyserNode-based speaking-detection loops that already run in both `CallWebRtcService` (DM) and `VoiceRTCService` (guild) for the speaking-indicator ring - no new audio pipeline is introduced. **Behavior change to flag to the user:** after this task, a fresh install defaults to Voice-Activity mode with sensitivity 60 (roughly matching today's fixed internal speaking-detection thresholds), so a mic that was previously always-open will now gate between words. Users can switch to Push-to-Talk or crank sensitivity to 100 (effectively always-open) in Settings.
 
 ---
 
@@ -25,7 +25,7 @@
 **Files:**
 - Modify: `src/styles.css` (add a shared keyframe + utility class)
 - Modify: `src/app/features/guild/components/voice-channel/voice-channel.component.html:47-48,56-57` (fix `vc-rtc-pulse` reference)
-- Create: `src/app/shared/call/call-context-menu/call-context-menu.component.css` (new file — component currently has none)
+- Create: `src/app/shared/call/call-context-menu/call-context-menu.component.css` (new file - component currently has none)
 - Modify: `src/app/shared/call/call-context-menu/call-context-menu.component.ts` (wire up the new `styleUrl`)
 
 **Interfaces:**
@@ -67,7 +67,7 @@ Run `npm start`, join (or simulate joining) a guild voice channel while the conn
 
 - [ ] **Step 4: Create the missing `call-context-menu.component.css`**
 
-`call-context-menu.component.html:28` already has `class="vc-volume-slider w-full"` on the volume `<input type=range>`, but no CSS anywhere defines `.vc-volume-slider`, so it renders as a bare unstyled native slider inside an otherwise fully custom-styled context menu — the single worst "cheap" visual moment in the right-click menu. Reuse the exact thumb-styling pattern already proven in the (soon to be deleted, see Task 10) `call-panel.component.css` `.vol-slider` rules:
+`call-context-menu.component.html:28` already has `class="vc-volume-slider w-full"` on the volume `<input type=range>`, but no CSS anywhere defines `.vc-volume-slider`, so it renders as a bare unstyled native slider inside an otherwise fully custom-styled context menu - the single worst "cheap" visual moment in the right-click menu. Reuse the exact thumb-styling pattern already proven in the (soon to be deleted, see Task 10) `call-panel.component.css` `.vol-slider` rules:
 
 ```css
 .vc-volume-slider {
@@ -129,10 +129,10 @@ git commit -m "fix: repair dead vc-rtc-pulse and vc-volume-slider style referenc
 - Modify: `src/app/features/guild/components/channel-list/components/voice-participant-row/voice-participant-row.component.html`
 
 **Interfaces:**
-- Consumes: `rtc-status-pulse`-adjacent shared keyframe convention from Task 1 (this task adds its own dedicated `speaking-ring` keyframe to `src/styles.css` in Step 1, since the visual effect — a growing/fading ring shadow, not an opacity pulse — is different from `rtc-status-pulse`).
+- Consumes: `rtc-status-pulse`-adjacent shared keyframe convention from Task 1 (this task adds its own dedicated `speaking-ring` keyframe to `src/styles.css` in Step 1, since the visual effect - a growing/fading ring shadow, not an opacity pulse - is different from `rtc-status-pulse`).
 - Consumes: `VoiceChannelParticipant.isSpeaking` (existing, `voice-channel.service.ts:28`).
 
-This is the single most-visible gap from the audit: the sidebar list under a voice channel (the most-viewed "who's talking" UI in the app) only changes text color when someone speaks — no ring, no glow, no animation — even though the in-call tile already has a ring treatment for the same concept.
+This is the single most-visible gap from the audit: the sidebar list under a voice channel (the most-viewed "who's talking" UI in the app) only changes text color when someone speaks - no ring, no glow, no animation - even though the in-call tile already has a ring treatment for the same concept.
 
 - [ ] **Step 1: Add a shared `speaking-ring` keyframe to `src/styles.css`**
 
@@ -167,7 +167,7 @@ In `voice-participant-row.component.html`, the avatar is currently:
 
 - [ ] **Step 3: Build and visually verify**
 
-Run `npx ng build`. Then `npm start`, join a guild voice channel from a second account/session (or use the existing dev call-simulation hotkeys if they cover guild voice — otherwise verify with two real clients), and confirm the sidebar avatar now shows a pulsing green ring while that participant is speaking, matching the in-call tile's visual language.
+Run `npx ng build`. Then `npm start`, join a guild voice channel from a second account/session (or use the existing dev call-simulation hotkeys if they cover guild voice - otherwise verify with two real clients), and confirm the sidebar avatar now shows a pulsing green ring while that participant is speaking, matching the in-call tile's visual language.
 
 - [ ] **Step 4: Commit**
 
@@ -184,9 +184,9 @@ git commit -m "feat: animate speaking indicator on sidebar voice channel partici
 - Modify: `src/app/shared/call/call-controls-bar/call-controls-bar.component.html`
 
 **Interfaces:**
-- No signature changes — pure template/class changes to the existing `CallControlsBarComponent`.
+- No signature changes - pure template/class changes to the existing `CallControlsBarComponent`.
 
-The mute/deafen/camera/share/disconnect buttons — the most-clicked controls in the whole call UI — currently only change background opacity on hover, with zero press feedback. The incoming-call overlay already has the exact pattern to copy (`active:scale-95` + icon `group-hover:scale-110`, `call-overlay.component.html:43-49`).
+The mute/deafen/camera/share/disconnect buttons - the most-clicked controls in the whole call UI - currently only change background opacity on hover, with zero press feedback. The incoming-call overlay already has the exact pattern to copy (`active:scale-95` + icon `group-hover:scale-110`, `call-overlay.component.html:43-49`).
 
 - [ ] **Step 1: Add press/hover polish to every button in the bar**
 
@@ -216,7 +216,7 @@ Apply `group active:scale-95` to each `<button>` and `group-hover:scale-110 tran
 </button>
 ```
 
-For the FPS/resolution pill buttons (which already have their own `bg-brand`/transparent active states), only add `active:scale-95 transition-transform` — skip the icon-scale treatment since they're text, not icons:
+For the FPS/resolution pill buttons (which already have their own `bg-brand`/transparent active states), only add `active:scale-95 transition-transform` - skip the icon-scale treatment since they're text, not icons:
 
 ```html
 <button
@@ -233,7 +233,7 @@ For the FPS/resolution pill buttons (which already have their own `bg-brand`/tra
 
 - [ ] **Step 2: Build and visually verify**
 
-Run `npx ng build`. Then `npm start`, join any call, and click each control button — confirm a visible quick scale-down-then-back on press and a slight icon scale-up on hover, in both the DM call panel and the guild voice channel (same shared component, so fixing once covers both).
+Run `npx ng build`. Then `npm start`, join any call, and click each control button - confirm a visible quick scale-down-then-back on press and a slight icon scale-up on hover, in both the DM call panel and the guild voice channel (same shared component, so fixing once covers both).
 
 - [ ] **Step 3: Commit**
 
@@ -252,7 +252,7 @@ git commit -m "feat: add press/hover feedback to call controls bar buttons"
 **Interfaces:**
 - Consumes: `speaking-ring` keyframe added in Task 2, Step 1.
 
-The in-call tile's speaking indicator is currently a **static** ring (`ring-2 ring-online/40`, no animation), even though a more polished animated version of this exact idea (`@keyframes speaking-ring` inside `call-panel.component.css:790-797`) exists in the codebase — just never wired to the current template. Task 10 deletes that dead copy; this task makes the live tile actually use the (now-shared) animated version.
+The in-call tile's speaking indicator is currently a **static** ring (`ring-2 ring-online/40`, no animation), even though a more polished animated version of this exact idea (`@keyframes speaking-ring` inside `call-panel.component.css:790-797`) exists in the codebase - just never wired to the current template. Task 10 deletes that dead copy; this task makes the live tile actually use the (now-shared) animated version.
 
 - [ ] **Step 1: Animate the speaking glow ring**
 
@@ -293,9 +293,9 @@ git commit -m "feat: animate the speaking ring on in-call participant tiles"
 **Files:**
 - Modify: `src/app/features/guild/components/voice-channel/voice-channel.component.html:17-24`
 
-**Interfaces:** None — pure template deletion.
+**Interfaces:** None - pure template deletion.
 
-`voice-channel.component.html:18-23` has member-list (`pi-users`) and invite-link (`pi-link`) icon buttons with **no click handler at all** — they look actionable but silently do nothing, which reads as broken. Building real member-list/invite-link functionality here would duplicate guild-page-wide features (member list drawer, invite generation) that are explicitly owned by the other agent working on the main/guild pages in parallel — so the correct in-scope fix is to remove the dead chrome rather than half-build a cross-cutting feature.
+`voice-channel.component.html:18-23` has member-list (`pi-users`) and invite-link (`pi-link`) icon buttons with **no click handler at all** - they look actionable but silently do nothing, which reads as broken. Building real member-list/invite-link functionality here would duplicate guild-page-wide features (member list drawer, invite generation) that are explicitly owned by the other agent working on the main/guild pages in parallel - so the correct in-scope fix is to remove the dead chrome rather than half-build a cross-cutting feature.
 
 - [ ] **Step 1: Delete the two dead buttons**
 
@@ -312,7 +312,7 @@ In `voice-channel.component.html`, remove this whole block (lines 17-24):
 </div>
 ```
 
-Leave the rest of the header (`<header>` element, mobile nav toggle, channel name + connected count on lines 4-16) exactly as-is — just delete the dead trailing block. If a member-list/invite affordance is wanted here later, it should be added once the other agent's member-list/invite work lands, so it can be reused instead of duplicated.
+Leave the rest of the header (`<header>` element, mobile nav toggle, channel name + connected count on lines 4-16) exactly as-is - just delete the dead trailing block. If a member-list/invite affordance is wanted here later, it should be added once the other agent's member-list/invite work lands, so it can be reused instead of duplicated.
 
 - [ ] **Step 2: Build and visually verify**
 
@@ -327,23 +327,23 @@ git commit -m "fix: remove non-functional member-list/invite-link buttons from v
 
 ---
 
-## Task 6: Fix DM call Deafen — it currently does not mute remote audio
+## Task 6: Fix DM call Deafen - it currently does not mute remote audio
 
 **Files:**
 - Modify: `src/app/services/call-webrtc.service.ts`
 
 **Interfaces:**
-- Consumes: `CallSessionService.session().local.isDeafened` (existing field, already toggled correctly by `CallSessionService.toggleDeafen()` — only the WebRTC-side effect is missing).
-- Produces: no new public API — the fix lives entirely inside `CallWebRtcService`'s existing `remoteAudio` map and `userVolumes` map (both already private fields on this service, used identically to the working guild implementation in `voice-rtc.service.ts:383-388`'s `setDeafened`).
+- Consumes: `CallSessionService.session().local.isDeafened` (existing field, already toggled correctly by `CallSessionService.toggleDeafen()` - only the WebRTC-side effect is missing).
+- Produces: no new public API - the fix lives entirely inside `CallWebRtcService`'s existing `remoteAudio` map and `userVolumes` map (both already private fields on this service, used identically to the working guild implementation in `voice-rtc.service.ts:383-388`'s `setDeafened`).
 
-Verified during research: `CallSessionService.toggleDeafen()` (`call-session.service.ts:87-94`) only flips `s.local.isDeafened` in the UI signal — nothing in `CallWebRtcService` ever reads it. Contrast with the guild voice channel path, where `VoiceRTCService.setDeafened()` correctly zeroes every remote `<audio>` element's volume. Today, clicking Deafen on a DM call visually shows the deafened icon state but you keep hearing everyone.
+Verified during research: `CallSessionService.toggleDeafen()` (`call-session.service.ts:87-94`) only flips `s.local.isDeafened` in the UI signal - nothing in `CallWebRtcService` ever reads it. Contrast with the guild voice channel path, where `VoiceRTCService.setDeafened()` correctly zeroes every remote `<audio>` element's volume. Today, clicking Deafen on a DM call visually shows the deafened icon state but you keep hearing everyone.
 
 - [ ] **Step 1: Add a deafen-effect to `CallWebRtcService`**
 
 In `call-webrtc.service.ts`, the constructor already has three effects watching `this.callSession.session()` for mute/camera/sharing (lines 114-156, see the file). Add a fourth effect immediately after the mute effect (after line 126, before the camera effect), mirroring `VoiceRTCService.setDeafened`'s logic exactly but driven reactively instead of via an imperative setter:
 
 ```ts
-// Apply local deafen state to every remote audio element's volume — mirrors
+// Apply local deafen state to every remote audio element's volume - mirrors
 // VoiceRTCService.setDeafened (voice-rtc.service.ts:383-388) for the guild path.
 effect(() => {
     const s = this.callSession.session();
@@ -378,7 +378,7 @@ element.volume = isDeafened ? 0 : (this.userVolumes.get(info.userId) ?? 1);
 
 - [ ] **Step 3: Verify `setUserVolume` still respects deafen (no regression)**
 
-Read `setUserVolume` (`call-webrtc.service.ts:161-166`) — it unconditionally sets `audio.volume = clamped`, so adjusting a per-user volume slider while deafened would currently un-deafen that one user as a side effect. Guard it the same way the guild path implicitly does (guild's `setUserVolume`, `voice-rtc.service.ts:564`, already checks `!this._isDeafened` before applying volume — match that):
+Read `setUserVolume` (`call-webrtc.service.ts:161-166`) - it unconditionally sets `audio.volume = clamped`, so adjusting a per-user volume slider while deafened would currently un-deafen that one user as a side effect. Guard it the same way the guild path implicitly does (guild's `setUserVolume`, `voice-rtc.service.ts:564`, already checks `!this._isDeafened` before applying volume - match that):
 
 ```ts
 setUserVolume(userId: string, volume: number): void {
@@ -415,10 +415,10 @@ git commit -m "fix: DM call Deafen now actually mutes remote audio (previously U
 
 **Interfaces:**
 - Produces: `AudioSettings.inputMode: 'voice-activity' | 'push-to-talk'` (default `'voice-activity'`) and `AudioSettings.inputSensitivity: number` (0–100, default `60`), both persisted the same way as every other field in `AudioSettingsService` (via `.update()`/`localStorage`).
-- Consumes (DM path): the existing local-speaking `tick()` loop in `CallWebRtcService` (`call-webrtc.service.ts:661-686`), which already computes `rms` every animation frame — extended to also gate `this.audioTrack.enabled`.
+- Consumes (DM path): the existing local-speaking `tick()` loop in `CallWebRtcService` (`call-webrtc.service.ts:661-686`), which already computes `rms` every animation frame - extended to also gate `this.audioTrack.enabled`.
 - Consumes (guild path): the existing `VoiceRTCService.speakingChanges$` stream (already subscribed to in `VoiceChannelService`'s constructor at `voice-channel.service.ts:92`) and `VoiceRTCService.setupVAD` (`voice-rtc.service.ts:730-751`), whose fixed `avg > 20` threshold becomes sensitivity-driven for the local handle only.
 
-Today the mic transmits continuously with no gating — Voice-Activity mode doesn't exist, only an optional manually-bound Push-to-Talk key (which most users won't have set). This task makes "Voice Activity" a real, working default by reusing the AnalyserNode-based level detection both RTC services already run for the speaking-indicator ring, instead of building a new audio pipeline.
+Today the mic transmits continuously with no gating - Voice-Activity mode doesn't exist, only an optional manually-bound Push-to-Talk key (which most users won't have set). This task makes "Voice Activity" a real, working default by reusing the AnalyserNode-based level detection both RTC services already run for the speaking-indicator ring, instead of building a new audio pipeline.
 
 - [ ] **Step 1: Add the two settings fields**
 
@@ -472,7 +472,7 @@ Add the new method near `setUserVolume` (this service already injects `AudioSett
  * Continuously re-applies the voice-activity transmit gate. Runs every
  * animation frame from the local speaking-detection tick() loop above, so it
  * needs no separate polling loop. No-ops outside voice-activity mode or while
- * deliberately muted — the mute effect (below) already forced enabled=false
+ * deliberately muted - the mute effect (below) already forced enabled=false
  * in that case and this must not override it.
  */
 private applyVadGate(rms: number): void {
@@ -489,7 +489,7 @@ private applyVadGate(rms: number): void {
 
 - [ ] **Step 3: Gate the guild voice channel audio track by voice level in `VoiceRTCService`**
 
-In `voice-rtc.service.ts`, `setupVAD` currently hardcodes the threshold at `avg > 20` (line 742) for every handle, local and remote alike. Make the threshold dynamic **only** for the local handle (remote participants' speaking indicators must stay on the fixed threshold — a local sensitivity setting has no bearing on detecting whether someone else is talking):
+In `voice-rtc.service.ts`, `setupVAD` currently hardcodes the threshold at `avg > 20` (line 742) for every handle, local and remote alike. Make the threshold dynamic **only** for the local handle (remote participants' speaking indicators must stay on the fixed threshold - a local sensitivity setting has no bearing on detecting whether someone else is talking):
 
 ```ts
 private setupVAD(handle: string, userId: string, stream: MediaStream): void {
@@ -521,7 +521,7 @@ private setupVAD(handle: string, userId: string, stream: MediaStream): void {
 }
 ```
 
-(`this.audioSettings` is already injected in this service — confirmed via its existing `audioBitrate` usage in the publish path.)
+(`this.audioSettings` is already injected in this service - confirmed via its existing `audioBitrate` usage in the publish path.)
 
 - [ ] **Step 4: Wire the guild path's gate through `VoiceChannelService`**
 
@@ -597,7 +597,7 @@ Add a readonly options array for the radio rows, next to the other readonly opti
 ```ts
 readonly inputModeOptions: {value: 'voice-activity' | 'push-to-talk'; label: string; desc: string}[] = [
     {value: 'voice-activity', label: 'Voice Activity', desc: 'Transmit automatically when your mic level crosses the sensitivity threshold below'},
-    {value: 'push-to-talk', label: 'Push to Talk', desc: 'Only transmit while your bound key is held — bind it on the Keybinds page'},
+    {value: 'push-to-talk', label: 'Push to Talk', desc: 'Only transmit while your bound key is held - bind it on the Keybinds page'},
 ];
 ```
 
@@ -658,7 +658,7 @@ git commit -m "feat: add real Voice Activity / Push-to-Talk input mode with sens
 - Modify: `src/app/features/settings/settings-modal/pages/voice-video-settings/voice-video-settings.component.html`
 
 **Interfaces:**
-- No new public API — self-contained addition to `VoiceVideoSettingsComponent`, following the exact same `getUserMedia`/cleanup lifecycle pattern already used by `startMic`/`stopMic` in this same file.
+- No new public API - self-contained addition to `VoiceVideoSettingsComponent`, following the exact same `getUserMedia`/cleanup lifecycle pattern already used by `startMic`/`stopMic` in this same file.
 
 The Camera section currently has only a bare device-picker dropdown with zero visual feedback, unlike the Microphone section right above it (which has a live level meter). Add a live camera preview, gated behind a "Test Camera" toggle exactly like the mic test, so an idle Settings page never silently holds the camera open.
 
@@ -690,7 +690,7 @@ private async startCameraTest(): Promise<void> {
         });
         this.isCameraActive.set(true);
     } catch {
-        // Denied or unavailable — the existing permissionError banner covers the mic case;
+        // Denied or unavailable - the existing permissionError banner covers the mic case;
         // camera failures just leave the preview empty, matching the picker's own silent failure mode.
     }
 }
@@ -711,7 +711,7 @@ ngOnDestroy(): void {
 }
 ```
 
-Restart the preview when the selected camera changes while the test is active — extend the existing `selectedCameraId` setter:
+Restart the preview when the selected camera changes while the test is active - extend the existing `selectedCameraId` setter:
 
 ```ts
 set selectedCameraId(v: string) {
@@ -737,7 +737,7 @@ Add `StreamSrcDirective` to the component's `imports` array, and add a signal ex
 readonly cameraPreviewStream = computed(() => this.isCameraActive() ? this.cameraStream : null);
 ```
 
-`computed()` re-evaluating a private mutable field isn't reactive on its own — instead, expose it as a signal set alongside `isCameraActive`. Replace the plan above: keep `cameraStream` as a signal, not a plain field:
+`computed()` re-evaluating a private mutable field isn't reactive on its own - instead, expose it as a signal set alongside `isCameraActive`. Replace the plan above: keep `cameraStream` as a signal, not a plain field:
 
 ```ts
 readonly cameraStream = signal<MediaStream | null>(null);
@@ -768,7 +768,7 @@ private stopCameraTest(): void {
 
 - [ ] **Step 3: Add the preview UI**
 
-In `voice-video-settings.component.html`, the Camera section currently ends at line 99 with just the device picker. Add a preview block after it, matching the visual language of the Microphone test card (lines 17-38) — a bordered card with a Test/Stop button, but showing video instead of a level meter:
+In `voice-video-settings.component.html`, the Camera section currently ends at line 99 with just the device picker. Add a preview block after it, matching the visual language of the Microphone test card (lines 17-38) - a bordered card with a Test/Stop button, but showing video instead of a level meter:
 
 ```html
 <!-- ── Camera ────────────────────────────────────────────────────────── -->
@@ -838,9 +838,9 @@ git commit -m "feat: add live camera preview to Voice & Video settings"
 - Modify: `src/app/features/messaging/components/conversation/call-panel/call-panel.component.css`
 - Modify: `src/app/features/messaging/components/conversation/call-panel/call-panel.component.ts`
 
-**Interfaces:** None — template/CSS restructuring plus one method-body change (context menu clamp).
+**Interfaces:** None - template/CSS restructuring plus one method-body change (context menu clamp).
 
-Two related fixes: (1) the DM call panel is a flat docked bar with a plain top border while the guild voice channel gets a floating glass pill (`backdrop-blur-xl`, drop shadow) for the same "call controls" concept — this task moves that treatment into the shared component itself so both surfaces get it automatically and consistently. (2) Along the way, a layering bug is fixed: `CallControlsBarComponent`'s own template root currently hardcodes an **opaque** `bg-sidebar`, which paints over — and defeats — the translucent `bg-black/60 backdrop-blur-xl` classes the guild voice channel currently (redundantly, and ineffectively) applies from the outside. (3) `call-panel`'s participant context menu doesn't clamp to the viewport (can render off-screen near a window edge) while the guild voice channel's equivalent does — fixed by copying the guild clamp logic.
+Two related fixes: (1) the DM call panel is a flat docked bar with a plain top border while the guild voice channel gets a floating glass pill (`backdrop-blur-xl`, drop shadow) for the same "call controls" concept - this task moves that treatment into the shared component itself so both surfaces get it automatically and consistently. (2) Along the way, a layering bug is fixed: `CallControlsBarComponent`'s own template root currently hardcodes an **opaque** `bg-sidebar`, which paints over - and defeats - the translucent `bg-black/60 backdrop-blur-xl` classes the guild voice channel currently (redundantly, and ineffectively) applies from the outside. (3) `call-panel`'s participant context menu doesn't clamp to the viewport (can render off-screen near a window edge) while the guild voice channel's equivalent does - fixed by copying the guild clamp logic.
 
 - [ ] **Step 1: Bake the floating-glass treatment into the shared controls bar itself**
 
@@ -935,7 +935,7 @@ to:
 <div (mousedown)="onResizeStart($event)" class="resize-handle">
 ```
 
-(The inner `@if`/`@else if`/`@else` content itself is unchanged — only its wrapping div and what follows it moved. Leave the top status bar, connection banner, and stats bar exactly where they are, above this new wrapper.)
+(The inner `@if`/`@else if`/`@else` content itself is unchanged - only its wrapping div and what follows it moved. Leave the top status bar, connection banner, and stats bar exactly where they are, above this new wrapper.)
 
 - [ ] **Step 4: Give scrollable content room so it isn't hidden behind the floating pill**
 
@@ -957,7 +957,7 @@ The `.participants` grid (CSS in `call-panel.component.css:146-156`) currently h
 
 (only the `padding` line changes, from `10px 12px` to `10px 12px 76px`.)
 
-Also add bottom padding to `.focused-view`'s margin (`call-panel.component.css:180`) so the floating pill doesn't sit on top of the focused video — change:
+Also add bottom padding to `.focused-view`'s margin (`call-panel.component.css:180`) so the floating pill doesn't sit on top of the focused video - change:
 
 ```css
 .focused-view {
@@ -1037,9 +1037,9 @@ git commit -m "feat: unify DM call panel and guild voice channel controls into o
 **Files:**
 - Modify: `src/app/features/messaging/components/conversation/call-panel/call-panel.component.css`
 
-**Interfaces:** None — deletion only, verified by the fact that `call-panel.component.html` (after Task 9's edits) references none of the removed class names.
+**Interfaces:** None - deletion only, verified by the fact that `call-panel.component.html` (after Task 9's edits) references none of the removed class names.
 
-Roughly 500 lines of this 798-line file are dead: `.tile`, `.tile--speaking`, `.avatar-ring`, `.ring--speaking` (+ its own now-superseded copy of the `speaking-ring` keyframe — the shared one now lives in `src/styles.css` per Task 2), `.avatar-img`, `.avatar-video`, `.avatar-fallback`, `.tile-footer`, `.tile-name`, `.tile-icons`, `.icon-badge`, `.icon-badge--muted`, `.tile-overlay-actions`, `.tile-action-btn`, `.tile-expand`, `.shares-row`, `.share-tile`, `.share-preview`, `.share-video`, `.share-expand`, `.share-empty`, `.share-footer`, `.share-label`, `.share-fps`, `.join-btn`, `.controls`, `.ctrl-btn` (+ variants), `.ctrl-divider`, `.fps-selector`, `.fps-btn` (+ variants), `.ctrl-btn--end`, `.vol-menu` (+ its rows/slider — now fully superseded by Task 1's `call-context-menu.component.css`), `.no-audio-badge`, and the `live-pulse` / `rtc-pulse` keyframes (superseded by the shared `rtc-status-pulse` from Task 1, but verify `.live-dot`/`.status-label`/`.stats-*` classes in the *status bar* are still used — they are, that section stays).
+Roughly 500 lines of this 798-line file are dead: `.tile`, `.tile--speaking`, `.avatar-ring`, `.ring--speaking` (+ its own now-superseded copy of the `speaking-ring` keyframe - the shared one now lives in `src/styles.css` per Task 2), `.avatar-img`, `.avatar-video`, `.avatar-fallback`, `.tile-footer`, `.tile-name`, `.tile-icons`, `.icon-badge`, `.icon-badge--muted`, `.tile-overlay-actions`, `.tile-action-btn`, `.tile-expand`, `.shares-row`, `.share-tile`, `.share-preview`, `.share-video`, `.share-expand`, `.share-empty`, `.share-footer`, `.share-label`, `.share-fps`, `.join-btn`, `.controls`, `.ctrl-btn` (+ variants), `.ctrl-divider`, `.fps-selector`, `.fps-btn` (+ variants), `.ctrl-btn--end`, `.vol-menu` (+ its rows/slider - now fully superseded by Task 1's `call-context-menu.component.css`), `.no-audio-badge`, and the `live-pulse` / `rtc-pulse` keyframes (superseded by the shared `rtc-status-pulse` from Task 1, but verify `.live-dot`/`.status-label`/`.stats-*` classes in the *status bar* are still used - they are, that section stays).
 
 - [ ] **Step 1: Confirm which classes are still referenced before deleting anything**
 
@@ -1055,17 +1055,17 @@ For each name printed, run:
 grep -c '"CLASS_NAME"' src/app/features/messaging/components/conversation/call-panel/call-panel.component.html
 ```
 
-(replace `CLASS_NAME` with the bare class, e.g. `tile`, `avatar-ring` — the audit already identified the ones below as unused, but re-verify against the *current* template state after Task 9's edits, since Task 9 changed this file too.)
+(replace `CLASS_NAME` with the bare class, e.g. `tile`, `avatar-ring` - the audit already identified the ones below as unused, but re-verify against the *current* template state after Task 9's edits, since Task 9 changed this file too.)
 
 - [ ] **Step 2: Delete the confirmed-dead sections**
 
-Remove these blocks entirely from `call-panel.component.css` (identified by their section comments in the current file): "Participant tile" (`.tile`, `.tile--speaking`), "Avatar ring" (`.avatar-ring` through `.avatar-fallback`), "Tile footer" (`.tile-footer` through `.icon-badge--muted`), "Tile overlay actions" (`.tile-overlay-actions` through `.tile-expand:hover`), "Screen shares" (`.shares-row` through `.join-btn:hover`), "Controls bar" (`.controls` through `.ctrl-btn--end:hover` — note: this is the *old*, pre-Task-9 controls styling; the shared `CallControlsBarComponent` now owns all controls styling), and "Volume context menu" (`.vol-menu` through `.vol-value` — fully superseded by `call-context-menu.component.css` from Task 1). Also delete the `@keyframes speaking-ring` block at the very end (superseded by the shared one in `src/styles.css`, added in Task 2).
+Remove these blocks entirely from `call-panel.component.css` (identified by their section comments in the current file): "Participant tile" (`.tile`, `.tile--speaking`), "Avatar ring" (`.avatar-ring` through `.avatar-fallback`), "Tile footer" (`.tile-footer` through `.icon-badge--muted`), "Tile overlay actions" (`.tile-overlay-actions` through `.tile-expand:hover`), "Screen shares" (`.shares-row` through `.join-btn:hover`), "Controls bar" (`.controls` through `.ctrl-btn--end:hover` - note: this is the *old*, pre-Task-9 controls styling; the shared `CallControlsBarComponent` now owns all controls styling), and "Volume context menu" (`.vol-menu` through `.vol-value` - fully superseded by `call-context-menu.component.css` from Task 1). Also delete the `@keyframes speaking-ring` block at the very end (superseded by the shared one in `src/styles.css`, added in Task 2).
 
 Keep: "Panel shell" (`.panel`, `.panel--resizing`), "Resize handle", "Status bar" (`.status-bar`, `.stats-toggle*`, `.live-dot*`, `.status-label*`), "Stats bar" (`.stats-*`), "Focused stream view" (`.focused-view` through `.focused-video--mirror`), "Connection state variants" (`.live-dot--connecting` through `.status-label--failed`), "Connection banners" (`.conn-banner*`), "No-audio badge" (`.no-audio-badge`), and the `@keyframes live-pulse` / `@keyframes rtc-pulse` blocks (still used by `.live-dot` / `.live-dot--connecting` / `.live-dot--failed` in the status bar, which is untouched by Task 9).
 
 - [ ] **Step 3: Build and verify no visual regression**
 
-Run `npx ng build` (a stray reference to a deleted class would only be a silent no-op in CSS, not a build error — so this step is really "Step 1's grep audit was accurate," not a compiler check). Then `npm start`, open a DM call, and visually compare against Task 9's verification screenshot/state: status bar, connection banners, stats toggle, focused view, participant grid, and the floating controls bar should all look identical to right after Task 9 — this task only removes unreferenced CSS, so nothing should visibly change.
+Run `npx ng build` (a stray reference to a deleted class would only be a silent no-op in CSS, not a build error - so this step is really "Step 1's grep audit was accurate," not a compiler check). Then `npm start`, open a DM call, and visually compare against Task 9's verification screenshot/state: status bar, connection banners, stats toggle, focused view, participant grid, and the floating controls bar should all look identical to right after Task 9 - this task only removes unreferenced CSS, so nothing should visibly change.
 
 - [ ] **Step 4: Commit**
 
@@ -1078,7 +1078,7 @@ git commit -m "chore: remove ~500 lines of orphaned legacy CSS from call-panel.c
 
 ## Self-Review Notes
 
-- **Spec coverage:** All 8 in-scope items from the audit are covered — sidebar speaking ring (Task 2), controls-bar press feedback (Task 3), dead speaking-ring keyframe wired in (Task 4), dead header buttons removed (Task 5), PTT/VA mode + sensitivity (Task 7), camera preview (Task 8), unified visual language + context-menu clamp (Task 9), and CSS/keyframe/slider cleanup (Task 1 + Task 10). Two real bugs found during research (dead `vc-rtc-pulse`/`.vc-volume-slider` styles, non-functional DM Deafen) are fixed in Tasks 1 and 6 respectively, flagged explicitly in Global Constraints so they're not mistaken for scope creep.
+- **Spec coverage:** All 8 in-scope items from the audit are covered - sidebar speaking ring (Task 2), controls-bar press feedback (Task 3), dead speaking-ring keyframe wired in (Task 4), dead header buttons removed (Task 5), PTT/VA mode + sensitivity (Task 7), camera preview (Task 8), unified visual language + context-menu clamp (Task 9), and CSS/keyframe/slider cleanup (Task 1 + Task 10). Two real bugs found during research (dead `vc-rtc-pulse`/`.vc-volume-slider` styles, non-functional DM Deafen) are fixed in Tasks 1 and 6 respectively, flagged explicitly in Global Constraints so they're not mistaken for scope creep.
 - **Sound explicitly excluded:** confirmed no task touches `sound-settings.service.ts` or `notification-settings.*`.
-- **Scope boundary respected:** no task touches `guild-member-list`, invite features, or main-page files — Task 5 explicitly chooses deletion over rebuilding those features for exactly this reason.
+- **Scope boundary respected:** no task touches `guild-member-list`, invite features, or main-page files - Task 5 explicitly chooses deletion over rebuilding those features for exactly this reason.
 - **Task ordering:** Task 1 (shared keyframes) precedes Tasks 2, 4, 9, 10 which consume them. Task 2's `speaking-ring` keyframe precedes Task 4 which consumes it. Task 9 (restructures `call-panel.component.html`/`.css`) precedes Task 10 (deletes now-confirmed-dead CSS in the same file) so the dead-code audit in Task 10 Step 1 runs against the final template state.

@@ -1,17 +1,17 @@
-# Guild System Messages (Join/Leave) — Design
+# Guild System Messages (Join/Leave) - Design
 
 ## Background
 
 The backend now posts Discord-style system messages into a guild's system channel when a
 member joins (`type: "GuildMemberJoin"`), and is forward-compatible for a future
-`"GuildMemberLeave"` (no backend event produces this yet). Every message — REST history and
-realtime alike — now carries `type` (string enum: `Message`, `Invite`, `GuildMemberJoin`,
+`"GuildMemberLeave"` (no backend event produces this yet). Every message - REST history and
+realtime alike - now carries `type` (string enum: `Message`, `Invite`, `GuildMemberJoin`,
 `GuildMemberLeave`) and `systemMessageVariant` (`0`–`9`, only set for non-`Message` types).
 The backend never sends copy text for these; the client owns ~10 wording variants per type,
 picked by index, with the joining user substituted in as a mention.
 
 Guilds also gained a nullable `systemChannelId` field (the channel these messages post into),
-settable via `PATCH /api/v1/guild/guilds/{id}` (omit the field to leave unchanged — explicit
+settable via `PATCH /api/v1/guild/guilds/{id}` (omit the field to leave unchanged - explicit
 `null` to clear isn't wired up server-side yet).
 
 This spec covers what the Angular client needs to build to render these messages and manage
@@ -29,23 +29,23 @@ the system channel setting. Full backend contract is in the original integration
   hardcodes `type: MessageType.Message` on every incoming `guild.MessageCreated` event,
   which would silently mis-render system messages arriving live even after the rest of this
   work lands.
-- Wire up the `guild.MemberJoined` presence event, confirmed genuinely missing (not stale) —
+- Wire up the `guild.MemberJoined` presence event, confirmed genuinely missing (not stale) -
   it directly replaces a documented TODO/stopgap in `guild-member-list.component.ts` and
   `bot-install-dialog.service.ts`.
 
 ## Non-goals
 
-- Building `GuildMemberLeave`-triggering backend logic (kicks/bans/leaves) — the client just
+- Building `GuildMemberLeave`-triggering backend logic (kicks/bans/leaves) - the client just
   needs to render one generically if it ever arrives.
-- A dedicated `Invite` system-message renderer — `type: "Invite"` is added to the enum for
+- A dedicated `Invite` system-message renderer - `type: "Invite"` is added to the enum for
   completeness, but this app already renders shared invite links via content-based URL
   detection in `MessageComponent`; that path is untouched.
-- An "Announcement" channel type in the system-channel picker — this codebase only has
+- An "Announcement" channel type in the system-channel picker - this codebase only has
   `Text`/`Voice`/`Thread` channel types, so the picker is Text-only (the spec's Discord-style
   "Text or Announcement" wording doesn't apply here).
-- A "None" option for the system channel picker — every guild already has one assigned at
+- A "None" option for the system channel picker - every guild already has one assigned at
   creation, and explicitly clearing isn't backend-supported yet.
-- Replacing the bot-install roster-refresh stopgap — `guild.MemberJoined` isn't confirmed to
+- Replacing the bot-install roster-refresh stopgap - `guild.MemberJoined` isn't confirmed to
   also fire during bot installs, so that stopgap stays as-is; only the human-join TODO is
   resolved.
 
@@ -70,7 +70,7 @@ export enum MessageType {
 
 **`src/app/services/guild.service.ts`**
 - Add `systemChannelId?: string;` to `UpdateGuildDto` (optional/omittable, matching the
-  "omit to leave unchanged" contract — never send `null` from this client).
+  "omit to leave unchanged" contract - never send `null` from this client).
 
 No REST service changes are needed beyond the DTO additions: `MessagingService`'s history
 endpoints are plain `HttpClient.get<MessageDto[]>` calls, so new fields flow through once
@@ -104,7 +104,7 @@ they're on the interface.
 - Resolves the joining user's profile via `ProfileService` (same
   `resolveByUserId`/`getCachedByUserId` pattern `MessageComponent` already uses for mentions),
   and renders it with the existing `mention-chip` styling + `appUserNameStyle` directive,
-  clickable to open the profile dialog — visually consistent with an `@mention` inside a
+  clickable to open the profile dialog - visually consistent with an `@mention` inside a
   normal message.
 - Template: `translate` pipe on the resolved key with a `{{ user: ... }}` param wrapping the
   rendered mention chip; centered, avatar-less row (`flex justify-center py-1`), muted text
@@ -115,7 +115,7 @@ they're on the interface.
   `<app-system-message [message]="msg"/>`, everything else renders the existing `<app-message>`
   unchanged (same inputs/outputs as today).
 
-`MessageComponent` itself is untouched — no new branches added to its already-large template.
+`MessageComponent` itself is untouched - no new branches added to its already-large template.
 
 ## i18n
 
@@ -132,7 +132,7 @@ Each value contains a `{{user}}` placeholder, e.g. `"{{user}} joined the server"
 the tone of the example set in the original integration doc (light, Discord-like, not
 corporate).
 
-## Guild settings — system channel picker
+## Guild settings - system channel picker
 
 **`src/app/features/guild/components/guild-settings-modal/pages/overview-settings/overview-settings.component.ts`**
 - New `systemChannelId = signal<string | null>(null)`, initialized in `ngOnInit()` from
@@ -165,7 +165,7 @@ corporate).
 
 ## Open questions / follow-ups (not blocking this spec)
 
-- Whether bot installs also fire `guild.MemberJoined` — if backend confirms they do, the
+- Whether bot installs also fire `guild.MemberJoined` - if backend confirms they do, the
   bot-install stopgap in `bot-install-dialog.service.ts` / `guild-member-list.component.ts`
   can be removed as a follow-up.
 - A "None"/clear option for the system channel picker, once the backend supports explicitly

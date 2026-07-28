@@ -40,7 +40,7 @@
                             <button
                                     (click)="select(gif)"
                                     [title]="gif.title"
-                                    class="aspect-square overflow-hidden rounded-lg border-0 p-0 cursor-pointer hover:ring-2 hover:ring-indigo-500 transition-all bg-white/[0.04]">
+                                    class="aspect-square overflow-hidden rounded-lg border-0 p-0 cursor-pointer hover:ring-2 hover:ring-[var(--color-brand)] transition-all bg-white/[0.04]">
                                 <img [alt]="gif.title" [src]="gif.previewUrl" class="w-full h-full object-cover"
                                      loading="lazy"/>
                             </button>

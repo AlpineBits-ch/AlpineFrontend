@@ -2,25 +2,25 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Wire the Alpine Angular/Tauri client up to the backend's new Guild moderation surface — bans, kicks, timeouts, audit log, role hierarchy, channel permission overwrites, channel update/slowmode/threads, rich mentions, and Idle/DoNotDisturb presence — per the backend team's "Guild Moderation & Permission Completion" integration guide.
+**Goal:** Wire the Alpine Angular/Tauri client up to the backend's new Guild moderation surface - bans, kicks, timeouts, audit log, role hierarchy, channel permission overwrites, channel update/slowmode/threads, rich mentions, and Idle/DoNotDisturb presence - per the backend team's "Guild Moderation & Permission Completion" integration guide.
 
-**Architecture:** All new REST calls go through the existing `GuildService` (guild domain) and `ProfileService` (social domain, for self-status). All new push events register on the existing single shared SignalR connection (`RealtimeConnectionService`) via the existing per-domain wrapper services (`GuildWebsocketService` for `guild.*` events). UI additions follow the codebase's established patterns exactly: PrimeNG `Dialog`-based settings pages under `guild-settings-modal/pages/*` and `channel-settings-modal/pages/*`, `Menu`/`ContextMenu` for right-click actions, `signal()`-based local state, `hasPermission(parsePermissions(...), Permissions.X)` for inline gating (no new directive/pipe infrastructure — matches existing repo convention).
+**Architecture:** All new REST calls go through the existing `GuildService` (guild domain) and `ProfileService` (social domain, for self-status). All new push events register on the existing single shared SignalR connection (`RealtimeConnectionService`) via the existing per-domain wrapper services (`GuildWebsocketService` for `guild.*` events). UI additions follow the codebase's established patterns exactly: PrimeNG `Dialog`-based settings pages under `guild-settings-modal/pages/*` and `channel-settings-modal/pages/*`, `Menu`/`ContextMenu` for right-click actions, `signal()`-based local state, `hasPermission(parsePermissions(...), Permissions.X)` for inline gating (no new directive/pipe infrastructure - matches existing repo convention).
 
 **Tech Stack:** Angular 21 (standalone components, signals), PrimeNG 21, `@microsoft/signalr` 10, RxJS 7, `@ngx-translate/core`, Vitest (`@angular/build:unit-test`) + `HttpClientTestingModule`/`HttpTestingController` for service tests.
 
 ## Global Constraints
 
-- JSON property names from the backend are **camelCase**; enum values serialize as **PascalCase strings** (`"Online"`, `"MemberBanned"`, `"Text"`) — never numbers, never camelCase enum values.
-- Every gateway route below already includes the `/guild` or `/social` prefix the reverse proxy expects — `GuildService.base` is `${apiConfig.baseUrl()}/api/v1/guild`, so route strings in this plan are written relative to that base (e.g. `/guilds/{id}/bans` → `${this.base}/guilds/{id}/bans`). `ProfileService` uses `${apiConfig.baseUrl()}/api/v1/social/...` directly (no stored base).
-- Permission bitmask is a **64-bit value** — always `bigint` (`1n << 32n`, never `1 << 32`). Truncating to `number` silently corrupts the top bits.
-- Every new/changed permission-gated action must be checked client-side with `hasPermission(parsePermissions(member.permissions), Permissions.X)` (member-level) — this repo has no permission directive/pipe; follow the existing inline-computed-signal pattern from `channel-list.component.ts`.
-- i18n: this repo uses flat-key `@ngx-translate/core` JSON files at `src/assets/i18n/locales/{en,de,fr}.json`. Add new keys to **`en.json` only** in this plan (matching how large recent features have landed — see `GUILD_SETTINGS.*` keys) and leave `de.json`/`fr.json` for a follow-up translation pass; this is a deliberate scope cut, not an oversight.
+- JSON property names from the backend are **camelCase**; enum values serialize as **PascalCase strings** (`"Online"`, `"MemberBanned"`, `"Text"`) - never numbers, never camelCase enum values.
+- Every gateway route below already includes the `/guild` or `/social` prefix the reverse proxy expects - `GuildService.base` is `${apiConfig.baseUrl()}/api/v1/guild`, so route strings in this plan are written relative to that base (e.g. `/guilds/{id}/bans` → `${this.base}/guilds/{id}/bans`). `ProfileService` uses `${apiConfig.baseUrl()}/api/v1/social/...` directly (no stored base).
+- Permission bitmask is a **64-bit value** - always `bigint` (`1n << 32n`, never `1 << 32`). Truncating to `number` silently corrupts the top bits.
+- Every new/changed permission-gated action must be checked client-side with `hasPermission(parsePermissions(member.permissions), Permissions.X)` (member-level) - this repo has no permission directive/pipe; follow the existing inline-computed-signal pattern from `channel-list.component.ts`.
+- i18n: this repo uses flat-key `@ngx-translate/core` JSON files at `src/assets/i18n/locales/{en,de,fr}.json`. Add new keys to **`en.json` only** in this plan (matching how large recent features have landed - see `GUILD_SETTINGS.*` keys) and leave `de.json`/`fr.json` for a follow-up translation pass; this is a deliberate scope cut, not an oversight.
 - Follow existing component conventions exactly: `signal()` for local state, `input.required<T>()` / `input<T>()` for component inputs, `inject()` for DI, `(onClick)` (not `(click)`) on `<p-button>`, `ToastService.httpError(...)` for failed-request toasts, `takeUntilDestroyed(this.destroyRef)` for subscribing to long-lived observables in components.
-- This plan does not add automated tests for every UI component — this repo does not do that today (7 `.spec.ts` files total, mostly service/pure-logic). Tests are added in this plan for **service methods** (HTTP route/body correctness) and **pure functions** (permission bits, composer mention parsing) using the existing `HttpClientTestingModule` / `TestBed` + Vitest pattern (see `src/app/interceptors/token-interceptor.spec.ts`, `src/app/services/mls.service.spec.ts`). UI-heavy tasks end with a manual dev-server verification step instead.
+- This plan does not add automated tests for every UI component - this repo does not do that today (7 `.spec.ts` files total, mostly service/pure-logic). Tests are added in this plan for **service methods** (HTTP route/body correctness) and **pure functions** (permission bits, composer mention parsing) using the existing `HttpClientTestingModule` / `TestBed` + Vitest pattern (see `src/app/interceptors/token-interceptor.spec.ts`, `src/app/services/mls.service.spec.ts`). UI-heavy tasks end with a manual dev-server verification step instead.
 
 ---
 
-## Part 1 — Foundations: permission bits, DTOs, enums
+## Part 1 - Foundations: permission bits, DTOs, enums
 
 ### Task 1: Add moderation permission bits and the audit-log DTO
 
@@ -32,7 +32,7 @@
 - Test: `src/app/enums/permissions.enum.spec.ts`
 
 **Interfaces:**
-- Produces: `Permissions.KickMembers`, `Permissions.BanMembers`, `Permissions.ModerateMembers`, `Permissions.ManageGuild`, `Permissions.ViewAuditLog` (all `bigint`); `AuditLogEntryDto`, `AuditLogActionType` (string union) — consumed by Task 10 (service), Task 19 (bans UI), Task 20 (audit log UI), Task 18 (member context menu).
+- Produces: `Permissions.KickMembers`, `Permissions.BanMembers`, `Permissions.ModerateMembers`, `Permissions.ManageGuild`, `Permissions.ViewAuditLog` (all `bigint`); `AuditLogEntryDto`, `AuditLogActionType` (string union) - consumed by Task 10 (service), Task 19 (bans UI), Task 20 (audit log UI), Task 18 (member context menu).
 
 - [ ] **Step 1: Write the failing test for the new bit values**
 
@@ -85,11 +85,11 @@ describe('Permissions moderation bits', () => {
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `npx ng test --include src/app/enums/permissions.enum.spec.ts`
-Expected: FAIL — `Permissions.KickMembers` is `undefined`, so `undefined === 1n << 32n` fails.
+Expected: FAIL - `Permissions.KickMembers` is `undefined`, so `undefined === 1n << 32n` fails.
 
 - [ ] **Step 3: Add the five bits to `Permissions`**
 
-In `src/app/enums/permissions.enum.ts`, insert after the existing `ManagePermissions: 1n << 21n,` line's group (keep the `CreateInvite: 1n << 22n,` line where it is) — add a new group right before `// ── Catch-all` :
+In `src/app/enums/permissions.enum.ts`, insert after the existing `ManagePermissions: 1n << 21n,` line's group (keep the `CreateInvite: 1n << 22n,` line where it is) - add a new group right before `// ── Catch-all` :
 
 ```typescript
     // ── Guild moderation permissions ─────────────────────────────────────────
@@ -117,7 +117,7 @@ In `src/app/features/guild/shared/permission-toggle/permission-toggle.component.
     },
 ```
 
-`permission-override-editor.component.ts` is scoped to per-channel/category overwrites only — `KickMembers`/`BanMembers`/`ModerateMembers`/`ManageGuild`/`ViewAuditLog` are guild-scoped moderation actions that don't apply to a channel overwrite, so leave its `PERM_GROUPS` untouched. (No-op sub-step, documented so the next task doesn't re-investigate this.)
+`permission-override-editor.component.ts` is scoped to per-channel/category overwrites only - `KickMembers`/`BanMembers`/`ModerateMembers`/`ManageGuild`/`ViewAuditLog` are guild-scoped moderation actions that don't apply to a channel overwrite, so leave its `PERM_GROUPS` untouched. (No-op sub-step, documented so the next task doesn't re-investigate this.)
 
 - [ ] **Step 6: Create the audit log entry DTO**
 
@@ -137,7 +137,7 @@ export interface AuditLogEntryDto {
     actorUserId: string;
     actionType: AuditLogActionType;
     targetId: string | null;
-    /** JSON-encoded string, not a nested object — caller must JSON.parse it. */
+    /** JSON-encoded string, not a nested object - caller must JSON.parse it. */
     metadata: string | null;
     createdAt: string;
 }
@@ -162,7 +162,7 @@ git commit -m "feat: add guild moderation permission bits and audit log DTO"
 
 **Interfaces:**
 - Consumes: none (pure DTO additions).
-- Produces: `RoleDto.position: number`; `BanDto`; `ReorderRolesDto`; `MuteMemberDto` — consumed by Task 11 (service), Task 22 (role reorder UI), Task 19 (bans UI), Task 18 (mute action).
+- Produces: `RoleDto.position: number`; `BanDto`; `ReorderRolesDto`; `MuteMemberDto` - consumed by Task 11 (service), Task 22 (role reorder UI), Task 19 (bans UI), Task 18 (mute action).
 
 - [ ] **Step 1: Add `position` to `RoleDto`**
 
@@ -223,7 +223,7 @@ export interface MuteMemberDto {
 - [ ] **Step 5: Verify the project still compiles**
 
 Run: `npx ng build --configuration development`
-Expected: build succeeds (no consumer of `RoleDto` was relying on an exhaustive/sealed shape, so adding a required field is safe — `RoleDto` is only ever read from server responses or spread-copied, never constructed by hand in the current codebase; this task itself doesn't add any construction sites either).
+Expected: build succeeds (no consumer of `RoleDto` was relying on an exhaustive/sealed shape, so adding a required field is safe - `RoleDto` is only ever read from server responses or spread-copied, never constructed by hand in the current codebase; this task itself doesn't add any construction sites either).
 
 - [ ] **Step 6: Commit**
 
@@ -243,7 +243,7 @@ git commit -m "feat: add role position field, ban, mute and role-reorder DTOs"
 
 **Interfaces:**
 - Consumes: none.
-- Produces: `ChannelType.Thread`; `ChannelDto.slowModeSeconds: number`, `ChannelDto.parentChannelId: string | undefined`; `UpdateChannelDto` becomes a full-replace shape; `CreateThreadDto` — consumed by Task 12 (service), Task 23 (channel overview UI), Task 25 (threads UI).
+- Produces: `ChannelType.Thread`; `ChannelDto.slowModeSeconds: number`, `ChannelDto.parentChannelId: string | undefined`; `UpdateChannelDto` becomes a full-replace shape; `CreateThreadDto` - consumed by Task 12 (service), Task 23 (channel overview UI), Task 25 (threads UI).
 
 - [ ] **Step 1: Extend `ChannelType` and `ChannelDto`**
 
@@ -274,7 +274,7 @@ export interface ChannelDto {
 }
 ```
 
-Note: `Forum`, `Ticket`, `Announcement` are explicitly *not* added — the backend guide states channel creation now `400`s for those types since nothing is implemented behind them, so there is nothing for the client to represent.
+Note: `Forum`, `Ticket`, `Announcement` are explicitly *not* added - the backend guide states channel creation now `400`s for those types since nothing is implemented behind them, so there is nothing for the client to represent.
 
 - [ ] **Step 2: Change `UpdateChannelDto` to the full-replace shape and add `slowModeSeconds`**
 
@@ -290,7 +290,7 @@ export interface UpdateChannelDto {
 }
 ```
 
-(`categoryId` is removed from this DTO — it was never part of the PATCH body the backend guide documents for `PATCH /channels/{channelId}`; category assignment happens through channel reorder, which already has its own `ReorderChannesDto`. Grep confirms `categoryId` is not read from `UpdateChannelDto` anywhere outside `channel-overview.component.ts`, which Task 23 rewrites anyway.)
+(`categoryId` is removed from this DTO - it was never part of the PATCH body the backend guide documents for `PATCH /channels/{channelId}`; category assignment happens through channel reorder, which already has its own `ReorderChannesDto`. Grep confirms `categoryId` is not read from `UpdateChannelDto` anywhere outside `channel-overview.component.ts`, which Task 23 rewrites anyway.)
 
 - [ ] **Step 3: Create the thread-create request DTO**
 
@@ -309,7 +309,7 @@ git add src/app/dtos/response/guild.dto.ts src/app/services/guild.service.ts src
 git commit -m "feat: add Thread channel type, slowmode field, and thread request DTO"
 ```
 
-(Task 19 fixes the now-broken `channel-overview.component.ts` call site that only sends 4 of the 5 required `UpdateChannelDto` fields — the build will fail on that file until then, which is expected and resolved within this same plan before final verification.)
+(Task 19 fixes the now-broken `channel-overview.component.ts` call site that only sends 4 of the 5 required `UpdateChannelDto` fields - the build will fail on that file until then, which is expected and resolved within this same plan before final verification.)
 
 ---
 
@@ -320,7 +320,7 @@ git commit -m "feat: add Thread channel type, slowmode field, and thread request
 - Modify: `src/app/dtos/request/create-message.dto.ts`
 
 **Interfaces:**
-- Produces: `MessageDto.roleMentions?/mentionsEveryone?/mentionsHere?`; `CreateMessageDto` same three fields — consumed by Task 16 (SignalR payload), Task 27 (composer).
+- Produces: `MessageDto.roleMentions?/mentionsEveryone?/mentionsHere?`; `CreateMessageDto` same three fields - consumed by Task 16 (SignalR payload), Task 27 (composer).
 
 - [ ] **Step 1: Extend `MessageDto`**
 
@@ -361,7 +361,7 @@ git commit -m "feat: add optional role/everyone/here mention fields to message D
 - Modify: `src/app/dtos/response/profile.dto.ts`
 
 **Interfaces:**
-- Produces: `InviteDto.code/expiresAt/maxUses/useCount`; `CreateInviteDto.expiresAt/maxUses/channelId`; `OnlineStatus.Idle/DoNotDisturb/Hidden` — consumed by Task 14 (service), Task 26 (invites UI), Task 17 (presence service), Task 28 (status UI).
+- Produces: `InviteDto.code/expiresAt/maxUses/useCount`; `CreateInviteDto.expiresAt/maxUses/channelId`; `OnlineStatus.Idle/DoNotDisturb/Hidden` - consumed by Task 14 (service), Task 26 (invites UI), Task 17 (presence service), Task 28 (status UI).
 
 - [ ] **Step 1: Extend `InviteDto`**
 
@@ -441,20 +441,20 @@ git commit -m "feat: add invite code/expiry/uses fields and Idle/DoNotDisturb/Hi
 
 ---
 
-## Part 2 — `GuildService` route fixes and new endpoints
+## Part 2 - `GuildService` route fixes and new endpoints
 
 ### Task 6: Fix ban routes and kick route
 
-The existing `banMemberByUserId(guildId, userId)` hits `POST /guilds/{guildId}/bans/{userId}` with an empty body — the backend guide specifies `POST /guilds/{guildId}/bans` with body `{ userId, reason? }`. The existing `kickMember(guildId, memberId)` hits `DELETE /guild/{guildId}/member/{memberId}` (singular, legacy) — the guide specifies `DELETE /guilds/{guildId}/members/{memberId}` (plural). Both are corrected here; `getBans`/`unbanMember` are added.
+The existing `banMemberByUserId(guildId, userId)` hits `POST /guilds/{guildId}/bans/{userId}` with an empty body - the backend guide specifies `POST /guilds/{guildId}/bans` with body `{ userId, reason? }`. The existing `kickMember(guildId, memberId)` hits `DELETE /guild/{guildId}/member/{memberId}` (singular, legacy) - the guide specifies `DELETE /guilds/{guildId}/members/{memberId}` (plural). Both are corrected here; `getBans`/`unbanMember` are added.
 
 **Files:**
 - Modify: `src/app/services/guild.service.ts`
 - Modify: `src/app/features/guild/components/channel-list/channel-list.component.ts` (fixes the now-broken `banParticipant()` call site)
-- Test: `src/app/services/guild.service.spec.ts` (new file — first spec for this service)
+- Test: `src/app/services/guild.service.spec.ts` (new file - first spec for this service)
 
 **Interfaces:**
 - Consumes: `BanDto` (Task 2).
-- Produces: `GuildService.banMember(guildId, dto: {userId: string; reason?: string}): Observable<void>`, `getBans(guildId): Observable<BanDto[]>`, `unbanMember(guildId, userId): Observable<void>`, corrected `kickMember(guildId, memberId): Observable<void>` — consumed by Task 18, Task 19, Task 21.
+- Produces: `GuildService.banMember(guildId, dto: {userId: string; reason?: string}): Observable<void>`, `getBans(guildId): Observable<BanDto[]>`, `unbanMember(guildId, userId): Observable<void>`, corrected `kickMember(guildId, memberId): Observable<void>` - consumed by Task 18, Task 19, Task 21.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -531,7 +531,7 @@ describe('GuildService bans', () => {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `npx ng test --include src/app/services/guild.service.spec.ts`
-Expected: FAIL — `service.banMember` does not exist (`banMemberByUserId` does, with a different signature); `getBans`/`unbanMember` don't exist; `kickMember`'s request hits `/guild/g1/member/m1`, not `/guilds/g1/members/m1`.
+Expected: FAIL - `service.banMember` does not exist (`banMemberByUserId` does, with a different signature); `getBans`/`unbanMember` don't exist; `kickMember`'s request hits `/guild/g1/member/m1`, not `/guilds/g1/members/m1`.
 
 - [ ] **Step 3: Fix the routes in `guild.service.ts`**
 
@@ -609,7 +609,7 @@ git commit -m "fix: correct ban/kick routes to match backend guide, add ban list
 
 **Interfaces:**
 - Consumes: `MuteMemberDto` (Task 2).
-- Produces: `muteMember(guildId, memberId, durationMinutes): Observable<void>`, `unmuteMember(guildId, memberId): Observable<void>`, `leaveGuild(guildId): Observable<void>` — consumed by Task 18 (mute action), Task 21 (leave server).
+- Produces: `muteMember(guildId, memberId, durationMinutes): Observable<void>`, `unmuteMember(guildId, memberId): Observable<void>`, `leaveGuild(guildId): Observable<void>` - consumed by Task 18 (mute action), Task 21 (leave server).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -649,7 +649,7 @@ describe('GuildService timeouts and leave', () => {
 - [ ] **Step 2: Run to verify failure**
 
 Run: `npx ng test --include src/app/services/guild.service.spec.ts`
-Expected: FAIL — the three methods don't exist yet.
+Expected: FAIL - the three methods don't exist yet.
 
 - [ ] **Step 3: Add the methods**
 
@@ -699,7 +699,7 @@ Replace the current implementation:
     }
 ```
 
-Add `private toastService = inject(ToastService);` to the class and `import {ToastService} from '../../../../services/toast.service';` at the top. The `profileService` field that only existed to read `ownUserId` for the old kick-self workaround stays if it's used elsewhere in the file (check with a grep for `profileService` before removing it — `inviteToServer`/other methods do not use it per the earlier read, so remove the now-unused `private profileService = inject(ProfileService);` field and its import only if nothing else in the file references `this.profileService`).
+Add `private toastService = inject(ToastService);` to the class and `import {ToastService} from '../../../../services/toast.service';` at the top. The `profileService` field that only existed to read `ownUserId` for the old kick-self workaround stays if it's used elsewhere in the file (check with a grep for `profileService` before removing it - `inviteToServer`/other methods do not use it per the earlier read, so remove the now-unused `private profileService = inject(ProfileService);` field and its import only if nothing else in the file references `this.profileService`).
 
 - [ ] **Step 6: Commit**
 
@@ -718,7 +718,7 @@ git commit -m "feat: add timeout/mute and real leave-guild endpoints"
 
 **Interfaces:**
 - Consumes: `AuditLogEntryDto` (Task 1), `ReorderRolesDto` (Task 2).
-- Produces: `getAuditLog(guildId, skip, take): Observable<AuditLogEntryDto[]>`, `reorderRoles(guildId, dto): Observable<void>` — consumed by Task 20 (audit log UI), Task 22 (role reorder UI).
+- Produces: `getAuditLog(guildId, skip, take): Observable<AuditLogEntryDto[]>`, `reorderRoles(guildId, dto): Observable<void>` - consumed by Task 20 (audit log UI), Task 22 (role reorder UI).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -781,14 +781,14 @@ git commit -m "feat: add audit log and role reorder service methods"
 
 ### Task 9: Fix channel PATCH route and rewrite channel/category permission-overwrite routes
 
-The existing `updateChannel` hits `PATCH /channel/{id}` (singular) — the guide specifies `PATCH /channels/{channelId}` (plural). The existing `upsertChannelPermission`/`deleteChannelPermission`/`upsertCategoryPermission`/`deleteCategoryPermission` hit a single `/channel/{channelId}/permission` route keyed by an opaque permission id — the guide specifies four distinct routes keyed by `roleId`/`memberId` directly in the URL, which is what the backend actually implements now (per the guide, this write path did not previously work at all).
+The existing `updateChannel` hits `PATCH /channel/{id}` (singular) - the guide specifies `PATCH /channels/{channelId}` (plural). The existing `upsertChannelPermission`/`deleteChannelPermission`/`upsertCategoryPermission`/`deleteCategoryPermission` hit a single `/channel/{channelId}/permission` route keyed by an opaque permission id - the guide specifies four distinct routes keyed by `roleId`/`memberId` directly in the URL, which is what the backend actually implements now (per the guide, this write path did not previously work at all).
 
 **Files:**
 - Modify: `src/app/services/guild.service.ts`
 - Test: `src/app/services/guild.service.spec.ts`
 
 **Interfaces:**
-- Produces: `updateChannel(id, dto: UpdateChannelDto)` on the fixed route; `OverridePermissionsDto`; `upsertChannelRolePermission(channelId, roleId, dto)`, `upsertChannelMemberPermission(channelId, memberId, dto)`, `deleteChannelRolePermission(channelId, roleId)`, `deleteChannelMemberPermission(channelId, memberId)`, and the four category equivalents — consumed by Task 24 (permission editor UI), Task 23 (channel overview).
+- Produces: `updateChannel(id, dto: UpdateChannelDto)` on the fixed route; `OverridePermissionsDto`; `upsertChannelRolePermission(channelId, roleId, dto)`, `upsertChannelMemberPermission(channelId, memberId, dto)`, `deleteChannelRolePermission(channelId, roleId)`, `deleteChannelMemberPermission(channelId, memberId)`, and the four category equivalents - consumed by Task 24 (permission editor UI), Task 23 (channel overview).
 - Removes: `UpsertPermissionOverrideDto`, `upsertChannelPermission`, `deleteChannelPermission`, `upsertCategoryPermission`, `deleteCategoryPermission` (superseded).
 
 - [ ] **Step 1: Write the failing tests**
@@ -862,7 +862,7 @@ describe('GuildService channel/category updates and permission overwrites', () =
 - [ ] **Step 2: Run to verify failure**
 
 Run: `npx ng test --include src/app/services/guild.service.spec.ts`
-Expected: FAIL — old routes/methods don't match.
+Expected: FAIL - old routes/methods don't match.
 
 - [ ] **Step 3: Rewrite the channel/category sections of `guild.service.ts`**
 
@@ -935,7 +935,7 @@ git add src/app/services/guild.service.ts src/app/services/guild.service.spec.ts
 git commit -m "fix: correct channel PATCH route; rewrite permission overwrite routes to role/member-id-keyed shape"
 ```
 
-(This intentionally breaks `channel-overview.component.ts`, `channel-permissions.component.ts`, and `category-permissions.component.ts` at compile time — they're fixed in Task 19 and Task 20 later in this same plan. Do not run a full `ng build` as a gate on this task; the per-file test above is the correct verification unit.)
+(This intentionally breaks `channel-overview.component.ts`, `channel-permissions.component.ts`, and `category-permissions.component.ts` at compile time - they're fixed in Task 19 and Task 20 later in this same plan. Do not run a full `ng build` as a gate on this task; the per-file test above is the correct verification unit.)
 
 ---
 
@@ -947,7 +947,7 @@ git commit -m "fix: correct channel PATCH route; rewrite permission overwrite ro
 
 **Interfaces:**
 - Consumes: `CreateThreadDto` (Task 3).
-- Produces: `createThread(channelId, dto): Observable<ChannelDto>`, `getThreads(channelId): Observable<ChannelDto[]>`, `archiveThread(threadId): Observable<void>`, `getInviteByCode(code): Observable<InviteDto>` — consumed by Task 25 (threads UI), Task 26 (invites UI).
+- Produces: `createThread(channelId, dto): Observable<ChannelDto>`, `getThreads(channelId): Observable<ChannelDto[]>`, `archiveThread(threadId): Observable<void>`, `getInviteByCode(code): Observable<InviteDto>` - consumed by Task 25 (threads UI), Task 26 (invites UI).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1031,7 +1031,7 @@ git commit -m "feat: add thread endpoints and invite-by-code lookup"
 
 ---
 
-## Part 3 — SignalR wiring
+## Part 3 - SignalR wiring
 
 ### Task 11: Guild moderation SignalR events (bans, kicks, mutes, member-left, guild deleted/updated)
 
@@ -1040,7 +1040,7 @@ git commit -m "feat: add thread endpoints and invite-by-code lookup"
 
 **Interfaces:**
 - Consumes: `RealtimeConnectionService.on` (existing).
-- Produces: `memberBannedObservable: Subject<WsMemberBanned>`, `memberKickedObservable: Subject<WsMemberKicked>`, `memberMutedObservable: Subject<WsMemberMuted>`, `memberUnmutedObservable: Subject<WsMemberUnmuted>`, `memberLeftObservable: Subject<WsMemberLeft>`, `guildDeletedObservable: Subject<WsGuildDeleted>`, `guildUpdatedObservable: Subject<WsGuildUpdated>` — consumed by Task 18 (member list live updates), Task 19 (bans tab), Task 21 (guild delete/update propagation).
+- Produces: `memberBannedObservable: Subject<WsMemberBanned>`, `memberKickedObservable: Subject<WsMemberKicked>`, `memberMutedObservable: Subject<WsMemberMuted>`, `memberUnmutedObservable: Subject<WsMemberUnmuted>`, `memberLeftObservable: Subject<WsMemberLeft>`, `guildDeletedObservable: Subject<WsGuildDeleted>`, `guildUpdatedObservable: Subject<WsGuildUpdated>` - consumed by Task 18 (member list live updates), Task 19 (bans tab), Task 21 (guild delete/update propagation).
 
 - [ ] **Step 1: Add the event payload interfaces**
 
@@ -1112,7 +1112,7 @@ Add alongside the existing `guild.ChannelCreated`/`guild.ChannelDeleted` registr
 - [ ] **Step 4: Verify build**
 
 Run: `npx ng build --configuration development`
-Expected: succeeds — this task only adds new, unused-so-far exports.
+Expected: succeeds - this task only adds new, unused-so-far exports.
 
 - [ ] **Step 5: Commit**
 
@@ -1129,7 +1129,7 @@ git commit -m "feat: register guild moderation SignalR events (ban/kick/mute/lea
 - Modify: `src/app/services/guild-websocket.service.ts`
 
 **Interfaces:**
-- Produces: `rolesReorderedObservable: Subject<ReorderRolesDto>`, `channelUpdatedObservable: Subject<WsChannelUpdated>`, `threadCreatedObservable: Subject<WsThreadCreated>` — consumed by Task 22 (roles UI), Task 23 (channel list live update), Task 25 (threads UI).
+- Produces: `rolesReorderedObservable: Subject<ReorderRolesDto>`, `channelUpdatedObservable: Subject<WsChannelUpdated>`, `threadCreatedObservable: Subject<WsThreadCreated>` - consumed by Task 22 (roles UI), Task 23 (channel list live update), Task 25 (threads UI).
 
 - [ ] **Step 1: Add payload interfaces and Subjects**
 
@@ -1176,7 +1176,7 @@ git commit -m "feat: register guild role-reorder, channel-updated, and thread-cr
 
 ---
 
-### Task 13: Presence — `guild.PresenceChanged` push and self-status REST call
+### Task 13: Presence - `guild.PresenceChanged` push and self-status REST call
 
 **Files:**
 - Modify: `src/app/services/guild-websocket.service.ts` (the new event is `guild.*`-prefixed per the guide, so it belongs here, not in `messaging-websocket.service.ts`)
@@ -1184,7 +1184,7 @@ git commit -m "feat: register guild role-reorder, channel-updated, and thread-cr
 - Test: `src/app/services/profile.service.spec.ts` (new file)
 
 **Interfaces:**
-- Produces: `GuildWebsocketService.presenceChangedObservable: Subject<WsPresenceChanged>`; `ProfileService.setSelfStatus(status: OnlineStatus): Observable<ProfileDto>` — consumed by Task 18 (guild member list live status), Task 28 (status picker UI).
+- Produces: `GuildWebsocketService.presenceChangedObservable: Subject<WsPresenceChanged>`; `ProfileService.setSelfStatus(status: OnlineStatus): Observable<ProfileDto>` - consumed by Task 18 (guild member list live status), Task 28 (status picker UI).
 
 - [ ] **Step 1: Write the failing test for `setSelfStatus`**
 
@@ -1243,7 +1243,7 @@ describe('ProfileService.setSelfStatus', () => {
 - [ ] **Step 2: Run to verify failure**
 
 Run: `npx ng test --include src/app/services/profile.service.spec.ts`
-Expected: FAIL — `setSelfStatus` doesn't exist.
+Expected: FAIL - `setSelfStatus` doesn't exist.
 
 - [ ] **Step 3: Add `setSelfStatus` to `ProfileService`**
 
@@ -1285,7 +1285,7 @@ Add the Subject:
     public presenceChangedObservable = new Subject<WsPresenceChanged>();
 ```
 
-Register the handler — also update the cross-app profile cache so DM/friends lists reflect it too:
+Register the handler - also update the cross-app profile cache so DM/friends lists reflect it too:
 
 ```typescript
         this.realtime.on('guild.PresenceChanged', (d: WsPresenceChanged) => {
@@ -1310,16 +1310,16 @@ git commit -m "feat: add self-status REST call and guild.PresenceChanged live pu
 
 ---
 
-## Part 4 — Moderation UI
+## Part 4 - Moderation UI
 
-### Task 14: Member list interactivity — kick/ban/mute context menu with hierarchy gating
+### Task 14: Member list interactivity - kick/ban/mute context menu with hierarchy gating
 
 `GuildMemberListComponent` currently renders a flat read-only list. This task adds a right-click context menu (matching the `channel-list.component.ts` `Menu`/`ContextMenu` pattern) with Kick/Ban/Timeout actions gated by `KickMembers`/`BanMembers`/`ModerateMembers` and role-hierarchy (client-side best-effort mirror of the server's rule: can't act on a member whose highest role position is ≥ the acting member's highest role position, and nobody can act on the guild owner).
 
 **Files:**
 - Modify: `src/app/features/guild/components/guild-member-list/guild-member-list.component.ts`
 - Modify: `src/app/features/guild/components/guild-member-list/guild-member-list.component.html`
-- Modify: `src/app/dtos/response/member.dto.ts` (need each member's role IDs to compute hierarchy — add `roleIds: string[]` sourced from `GuildMemberDto`... see Step 1 note)
+- Modify: `src/app/dtos/response/member.dto.ts` (need each member's role IDs to compute hierarchy - add `roleIds: string[]` sourced from `GuildMemberDto`... see Step 1 note)
 - Modify: `src/assets/i18n/locales/en.json`
 
 **Interfaces:**
@@ -1328,7 +1328,7 @@ git commit -m "feat: add self-status REST call and guild.PresenceChanged live pu
 
 - [ ] **Step 1: Confirm role-hierarchy data is available and add a `RoleMemberDto`-based lookup**
 
-`GuildMemberDto` does not carry role IDs directly, but `GuildDto.roles: RoleDto[]` each has `userId` (per the existing, slightly odd shape noted in research — `RoleDto.userId` is populated per-assignment, not per-role-definition... actually re-check: `roleNamesFor` in `members-settings.component.ts` does `this.guild().roles.filter(r => r.userId === member.userId)`, meaning the guild's `roles` array, as returned embedded in `GuildDto`, contains **role-assignment rows** shaped like `RoleDto` with `userId` set to the assignee — i.e. one entry per (role × member) pairing, not one entry per distinct role. Use this exact pattern (already proven correct by the existing `members-settings.component.ts` code) rather than inventing a new field.
+`GuildMemberDto` does not carry role IDs directly, but `GuildDto.roles: RoleDto[]` each has `userId` (per the existing, slightly odd shape noted in research - `RoleDto.userId` is populated per-assignment, not per-role-definition... actually re-check: `roleNamesFor` in `members-settings.component.ts` does `this.guild().roles.filter(r => r.userId === member.userId)`, meaning the guild's `roles` array, as returned embedded in `GuildDto`, contains **role-assignment rows** shaped like `RoleDto` with `userId` set to the assignee - i.e. one entry per (role × member) pairing, not one entry per distinct role. Use this exact pattern (already proven correct by the existing `members-settings.component.ts` code) rather than inventing a new field.
 
 Add a small pure helper to compute a member's highest role position, colocated in the component since it's only used here:
 
@@ -1493,7 +1493,7 @@ export class GuildMemberListComponent implements OnChanges {
 }
 ```
 
-Keep the pre-existing `loadMore`, `onScroll`, `displayName`, `avatarUrl`, `reset`, `fetchPage` methods exactly as they are — only insert the additions above.
+Keep the pre-existing `loadMore`, `onScroll`, `displayName`, `avatarUrl`, `reset`, `fetchPage` methods exactly as they are - only insert the additions above.
 
 - [ ] **Step 3: Add the `p-menu` and context menu binding to the template**
 
@@ -1503,9 +1503,9 @@ In `guild-member-list.component.html`, add near the top (as a sibling of the lis
 <p-menu #memberMenu [popup]="true" appendTo="body"/>
 ```
 
-Add `(contextmenu)="onMemberContextMenu($event, member)"` to the row element that iterates `onlineRows()`/`offlineRows()` (locate the existing `@for` row markup and add the binding to its outer `<div>`/`<li>` — do not otherwise restructure the template).
+Add `(contextmenu)="onMemberContextMenu($event, member)"` to the row element that iterates `onlineRows()`/`offlineRows()` (locate the existing `@for` row markup and add the binding to its outer `<div>`/`<li>` - do not otherwise restructure the template).
 
-- [ ] **Step 4: Add i18n keys used above** (this task uses plain English strings inline rather than `| translate` to keep the diff focused — codebase precedent for quick MenuItem labels is mixed; `channel-list.component.ts`'s `guildMenuItems` also uses inline English `label:` strings, so this matches existing convention for `MenuItem[]` arrays specifically, as opposed to template-bound `p-button` labels which do use `| translate`.)
+- [ ] **Step 4: Add i18n keys used above** (this task uses plain English strings inline rather than `| translate` to keep the diff focused - codebase precedent for quick MenuItem labels is mixed; `channel-list.component.ts`'s `guildMenuItems` also uses inline English `label:` strings, so this matches existing convention for `MenuItem[]` arrays specifically, as opposed to template-bound `p-button` labels which do use `| translate`.)
 
 No `en.json` changes needed for this task.
 
@@ -1692,7 +1692,7 @@ export class BansSettingsComponent implements OnInit {
 </p-dialog>
 ```
 
-Note: `ban by user ID` is a plain text field because there is no existing member-search-by-ID-entry widget to reuse cheaply and the guide doesn't require anything richer; this matches the scope of `members-settings.component.ts`'s existing kick flow (acts on an already-fetched member row) — banning a user who has already left/was never in the visible member list is the actual reason a bans tab needs a raw-ID entry point at all.
+Note: `ban by user ID` is a plain text field because there is no existing member-search-by-ID-entry widget to reuse cheaply and the guide doesn't require anything richer; this matches the scope of `members-settings.component.ts`'s existing kick flow (acts on an already-fetched member row) - banning a user who has already left/was never in the visible member list is the actual reason a bans tab needs a raw-ID entry point at all.
 
 - [ ] **Step 3: Wire the new tab into the settings modal**
 
@@ -1906,7 +1906,7 @@ export class AuditLogSettingsComponent implements OnInit {
 </div>
 ```
 
-Note: `| date` requires `CommonModule`/`DatePipe` — add `DatePipe` to the component's `imports` array (`import {DatePipe} from '@angular/common';`) since this template uses it and no other page in this feature currently needs it.
+Note: `| date` requires `CommonModule`/`DatePipe` - add `DatePipe` to the component's `imports` array (`import {DatePipe} from '@angular/common';`) since this template uses it and no other page in this feature currently needs it.
 
 - [ ] **Step 3: Wire the tab in, gated by `ViewAuditLog`**
 
@@ -1918,7 +1918,7 @@ In `guild-settings-modal.component.ts`, add `{id: 'audit-log', label: 'Audit Log
                     }
 ```
 
-This plan does not add hide-if-no-permission logic to the settings modal's nav (none of the existing tabs do this either — `MembersSettingsComponent`'s kick button and edit-permissions button are always rendered regardless of the viewer's own permissions, relying on the server's 403 as the actual gate). Follow that precedent: show the tab to everyone, let a `403` from `getAuditLog` surface via `ToastService.httpError` as today.
+This plan does not add hide-if-no-permission logic to the settings modal's nav (none of the existing tabs do this either - `MembersSettingsComponent`'s kick button and edit-permissions button are always rendered regardless of the viewer's own permissions, relying on the server's 403 as the actual gate). Follow that precedent: show the tab to everyone, let a `403` from `getAuditLog` surface via `ToastService.httpError` as today.
 
 - [ ] **Step 4: Manual verification**
 
@@ -1941,7 +1941,7 @@ git commit -m "feat: add Audit Log settings tab"
 - Modify: `src/app/features/guild/components/server-taskbar/server-taskbar.component.ts`
 
 **Interfaces:**
-- Consumes: `GuildService.deleteGuild` (already existed, was dead code — now has real effect per the guide), `GuildWebsocketService.guildDeletedObservable/guildUpdatedObservable`.
+- Consumes: `GuildService.deleteGuild` (already existed, was dead code - now has real effect per the guide), `GuildWebsocketService.guildDeletedObservable/guildUpdatedObservable`.
 
 - [ ] **Step 1: Add a guarded delete-server action to overview settings**
 
@@ -2053,9 +2053,9 @@ git commit -m "feat: wire real delete-server UI and live GuildDeleted/GuildUpdat
 
 ---
 
-## Part 5 — Roles, channels, threads UI
+## Part 5 - Roles, channels, threads UI
 
-### Task 18: Role hierarchy — sort by position, drag reorder, escalation-guard error handling
+### Task 18: Role hierarchy - sort by position, drag reorder, escalation-guard error handling
 
 **Files:**
 - Modify: `src/app/features/guild/components/guild-settings-modal/pages/roles-settings/roles-settings.component.ts`
@@ -2132,11 +2132,11 @@ In `roles-settings.component.html`, find the `@for (role of roles(); ...)` block
 }
 ```
 
-(Do not otherwise alter row markup/classes — only add the three drag event bindings and `[draggable]="true"` to the existing row wrapper element.)
+(Do not otherwise alter row markup/classes - only add the three drag event bindings and `[draggable]="true"` to the existing row wrapper element.)
 
 - [ ] **Step 3: Handle the permission-escalation 403 distinctly in `saveRole()`**
 
-The existing `saveRole()` already routes errors through `this.toastService.httpError('Failed to save role', err)`. Change it to give a clearer message on `403` specifically, since the guide calls out that a hidden/disabled toggle is preferable but a clear message is the acceptable fallback this plan takes (no per-permission-row disabling is added — that would require plumbing the acting member's own mask into `PermissionToggleComponent`, which is out of scope for this task):
+The existing `saveRole()` already routes errors through `this.toastService.httpError('Failed to save role', err)`. Change it to give a clearer message on `403` specifically, since the guide calls out that a hidden/disabled toggle is preferable but a clear message is the acceptable fallback this plan takes (no per-permission-row disabling is added - that would require plumbing the acting member's own mask into `PermissionToggleComponent`, which is out of scope for this task):
 
 ```typescript
             error: err => {
@@ -2164,7 +2164,7 @@ git commit -m "feat: sort roles by position, add drag reorder, clarify permissio
 
 ---
 
-### Task 19: Channel overview — slowmode field and full-replace PATCH body
+### Task 19: Channel overview - slowmode field and full-replace PATCH body
 
 This task fixes the compile break introduced by Task 3 (`UpdateChannelDto` shape change) and Task 9 (route rename).
 
@@ -2236,7 +2236,7 @@ export class ChannelOverviewComponent implements OnInit {
 
 - [ ] **Step 2: Add the slowmode input to the template**
 
-In `channel-overview.component.html`, add near the `isAgeRestricted` toggle (only for `ChannelType.Text` channels — voice channels don't have slow mode):
+In `channel-overview.component.html`, add near the `isAgeRestricted` toggle (only for `ChannelType.Text` channels - voice channels don't have slow mode):
 
 ```html
 @if (channel().type === ChannelType.Text) {
@@ -2249,12 +2249,12 @@ In `channel-overview.component.html`, add near the `isAgeRestricted` toggle (onl
 }
 ```
 
-(The "not yet enforced" hint mirrors the guide's §4.2 note verbatim — this avoids the UI implying a guarantee the backend doesn't currently provide.)
+(The "not yet enforced" hint mirrors the guide's §4.2 note verbatim - this avoids the UI implying a guarantee the backend doesn't currently provide.)
 
 - [ ] **Step 3: Verify build**
 
 Run: `npx ng build --configuration development`
-Expected: succeeds — this resolves the `UpdateChannelDto` shape mismatch introduced in Task 3.
+Expected: succeeds - this resolves the `UpdateChannelDto` shape mismatch introduced in Task 3.
 
 - [ ] **Step 4: Manual verification**
 
@@ -2269,7 +2269,7 @@ git commit -m "feat: add slow mode field to channel overview, send full-replace 
 
 ---
 
-### Task 20: Channel and category permission editors — adapt to role/member-id-keyed routes
+### Task 20: Channel and category permission editors - adapt to role/member-id-keyed routes
 
 This task resolves the compile break from Task 9's route rewrite. `ChannelPermission.id` is still present in `PUT` responses so it's kept in the row model for the UI, but writes/deletes now key off `roleId`/`memberId` directly instead of `perm.id`.
 
@@ -2365,7 +2365,7 @@ Same four-method rewrite, using `this.category().id`, `upsertCategoryRolePermiss
 - [ ] **Step 3: Verify build**
 
 Run: `npx ng build --configuration development`
-Expected: succeeds — this resolves the last of the Task 9 route-rewrite compile breaks.
+Expected: succeeds - this resolves the last of the Task 9 route-rewrite compile breaks.
 
 - [ ] **Step 4: Manual verification**
 
@@ -2380,9 +2380,9 @@ git commit -m "fix: adapt channel/category permission editors to role/member-id-
 
 ---
 
-### Task 21: Threads — minimal create/list/archive panel reusing the existing channel message view
+### Task 21: Threads - minimal create/list/archive panel reusing the existing channel message view
 
-Threads are first-class `Channel` rows (`type: Thread`, `parentChannelId` set) — opening one reuses `NavigationService.openChannel()` and the existing `ChannelComponent` message view as-is, so this task only needs a thread list/create/archive panel, not a new messaging surface.
+Threads are first-class `Channel` rows (`type: Thread`, `parentChannelId` set) - opening one reuses `NavigationService.openChannel()` and the existing `ChannelComponent` message view as-is, so this task only needs a thread list/create/archive panel, not a new messaging surface.
 
 **Files:**
 - Create: `src/app/features/guild/components/channel/thread-panel/thread-panel.component.ts`
@@ -2536,7 +2536,7 @@ In `channel.component.ts`, add a toggle signal:
     protected showThreadPanel = signal(false);
 ```
 
-In `channel.component.html`, only for text channels (not threads themselves — a thread's `parentChannelId` being set is how you'd detect that, but simplest is gating on `channel().type === ChannelType.Text`), add a header button that toggles `showThreadPanel`, and conditionally render:
+In `channel.component.html`, only for text channels (not threads themselves - a thread's `parentChannelId` being set is how you'd detect that, but simplest is gating on `channel().type === ChannelType.Text`), add a header button that toggles `showThreadPanel`, and conditionally render:
 
 ```html
 @if (channel().type === ChannelType.Text) {
@@ -2544,7 +2544,7 @@ In `channel.component.html`, only for text channels (not threads themselves — 
 }
 ```
 
-and, in the layout (as a collapsible side panel alongside the message list — follow whatever existing flex/grid wrapper `channel.component.html` uses for its main content area):
+and, in the layout (as a collapsible side panel alongside the message list - follow whatever existing flex/grid wrapper `channel.component.html` uses for its main content area):
 
 ```html
 @if (showThreadPanel()) {
@@ -2553,7 +2553,7 @@ and, in the layout (as a collapsible side panel alongside the message list — f
 }
 ```
 
-Add `ThreadPanelComponent` to `channel.component.ts`'s `imports` array and import it. `navService` is already injected in this component (confirmed in research) and `NavigationService.openChannel(channel: ChannelDto)` already exists and is what the rest of the app uses to navigate into any channel — a thread is just a `ChannelDto`, so this reuses it as-is with zero new navigation code.
+Add `ThreadPanelComponent` to `channel.component.ts`'s `imports` array and import it. `navService` is already injected in this component (confirmed in research) and `NavigationService.openChannel(channel: ChannelDto)` already exists and is what the rest of the app uses to navigate into any channel - a thread is just a `ChannelDto`, so this reuses it as-is with zero new navigation code.
 
 - [ ] **Step 4: Manual verification**
 
@@ -2568,9 +2568,9 @@ git commit -m "feat: add thread create/list/archive panel, reusing existing chan
 
 ---
 
-## Part 6 — Invites and rich mentions
+## Part 6 - Invites and rich mentions
 
-### Task 22: Invite settings — code-based links, expiry/maxUses/useCount
+### Task 22: Invite settings - code-based links, expiry/maxUses/useCount
 
 **Files:**
 - Modify: `src/app/features/guild/components/guild-settings-modal/pages/invites-settings/invites-settings.component.ts`
@@ -2590,7 +2590,7 @@ git commit -m "feat: add thread create/list/archive panel, reusing existing chan
     }
 ```
 
-Add expiry controls for the "one-time"/"permanent" create flow — add a signal for an optional expiry duration and pass it through:
+Add expiry controls for the "one-time"/"permanent" create flow - add a signal for an optional expiry duration and pass it through:
 
 ```typescript
     createExpiryHours = signal<number | null>(null);
@@ -2665,7 +2665,7 @@ git commit -m "feat: use invite code for shareable links, show expiry/max-uses/u
 
 ---
 
-### Task 23: Composer — role/@everyone/@here mention parsing and rich mention serialization
+### Task 23: Composer - role/@everyone/@here mention parsing and rich mention serialization
 
 This is the largest single UI task in the plan: `MentionCandidate` becomes a discriminated union so the composer, suggestion overlay, and both message-send call sites (`channel.component.ts`, `conversation.component.ts`) can distinguish user/role/everyone/here mentions through the same pipeline.
 
@@ -2676,7 +2676,7 @@ This is the largest single UI task in the plan: `MentionCandidate` becomes a dis
 - Modify: `src/app/features/messaging/components/conversation/composer/suggestion-overlay/suggestion-overlay.component.html`
 - Modify: `src/app/features/guild/components/channel/channel.component.ts`
 - Modify: `src/app/features/guild/components/channel/channel.component.html`
-- Modify: `src/app/features/messaging/components/conversation/conversation.component.ts` (pass through the new fields unchanged for DMs — DMs have no roles/everyone/here, so this is a type-shape update only)
+- Modify: `src/app/features/messaging/components/conversation/conversation.component.ts` (pass through the new fields unchanged for DMs - DMs have no roles/everyone/here, so this is a type-shape update only)
 - Modify: `src/app/services/messaging.service.ts` is untouched (it already forwards whatever `CreateMessageDto` it's given)
 - Test: `src/app/features/messaging/components/conversation/composer/composer-utils.spec.ts`
 
@@ -2684,7 +2684,7 @@ This is the largest single UI task in the plan: `MentionCandidate` becomes a dis
 - Consumes: `MessageDto`/`CreateMessageDto` mention fields (Task 4), `RoleDto` (existing).
 - Produces: `MentionCandidate` discriminated union; `ComposerComponent`'s `message` output gains `roleMentions`, `mentionsEveryone`, `mentionsHere`.
 
-- [ ] **Step 1: Write the failing test for the pure trigger-detection logic (unchanged regex, but the candidate type it feeds now needs a `kind` discriminator downstream — this step locks in `detectTrigger`'s existing behavior stays correct before the type change)**
+- [ ] **Step 1: Write the failing test for the pure trigger-detection logic (unchanged regex, but the candidate type it feeds now needs a `kind` discriminator downstream - this step locks in `detectTrigger`'s existing behavior stays correct before the type change)**
 
 ```typescript
 // composer-utils.spec.ts
@@ -2735,10 +2735,10 @@ describe('detectTrigger mention detection', () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify pass (this locks in existing, unchanged behavior — a safety net before the type refactor, not a new-behavior test)**
+- [ ] **Step 2: Run to verify pass (this locks in existing, unchanged behavior - a safety net before the type refactor, not a new-behavior test)**
 
 Run: `npx ng test --include src/app/features/messaging/components/conversation/composer/composer-utils.spec.ts`
-Expected: PASS immediately — `detectTrigger` isn't being changed, only what consumes its output.
+Expected: PASS immediately - `detectTrigger` isn't being changed, only what consumes its output.
 
 - [ ] **Step 3: Change `MentionCandidate` to a discriminated union in `composer-utils.ts`**
 
@@ -2934,7 +2934,7 @@ Update `send()` to collect all four kinds from the DOM and change the `message` 
         }
 ```
 
-Every other `this.message.emit({...})` call site in this file (the GIF-drop and inline-command-at-non-start paths) must add the three new fields too — e.g. `onGifSelected`: `this.message.emit({content: url, attachments: [], mentions: [], roleMentions: [], mentionsEveryone: false, mentionsHere: false});`, and the equivalent spot in `onCommandSelected`.
+Every other `this.message.emit({...})` call site in this file (the GIF-drop and inline-command-at-non-start paths) must add the three new fields too - e.g. `onGifSelected`: `this.message.emit({content: url, attachments: [], mentions: [], roleMentions: [], mentionsEveryone: false, mentionsHere: false});`, and the equivalent spot in `onCommandSelected`.
 
 - [ ] **Step 5: Update the suggestion overlay to render all four candidate kinds**
 
@@ -3058,21 +3058,21 @@ Update `createMessage(event)`'s parameter type and both the optimistic `MessageD
 
 - [ ] **Step 7: Update `conversation.component.ts` (DM flow) to accept and pass through the same shape**
 
-DMs don't have roles/`@everyone`/`@here` — the composer never emits non-empty values for them there (since `guildId` is unset in that usage, `staticGuildCandidates` is empty and no role/everyone/here chip can ever be created), but the type signature must still match. Update `createPlainMessage`/`createEncryptedMessage` parameter types and pass-throughs identically to Step 6's pattern, and update the `message` output binding in `conversation.component.html` if the event type is named there. Add `roleMentions: [], mentionsEveryone: false, mentionsHere: false` wherever `mentions` is currently threaded through `messagingService.createMessage(...)` and the optimistic `MessageDto`.
+DMs don't have roles/`@everyone`/`@here` - the composer never emits non-empty values for them there (since `guildId` is unset in that usage, `staticGuildCandidates` is empty and no role/everyone/here chip can ever be created), but the type signature must still match. Update `createPlainMessage`/`createEncryptedMessage` parameter types and pass-throughs identically to Step 6's pattern, and update the `message` output binding in `conversation.component.html` if the event type is named there. Add `roleMentions: [], mentionsEveryone: false, mentionsHere: false` wherever `mentions` is currently threaded through `messagingService.createMessage(...)` and the optimistic `MessageDto`.
 
 - [ ] **Step 8: Run the full test suite**
 
 Run: `npx ng test`
-Expected: PASS — including the existing `composer.component.spec.ts`, which must still pass; if it asserts on the old `MentionCandidate` shape (e.g. constructs one with bare `{userId, userName}`), update its fixtures to `{kind: 'user', userId, userName}`.
+Expected: PASS - including the existing `composer.component.spec.ts`, which must still pass; if it asserts on the old `MentionCandidate` shape (e.g. constructs one with bare `{userId, userName}`), update its fixtures to `{kind: 'user', userId, userName}`.
 
 - [ ] **Step 9: Run a full build**
 
 Run: `npx ng build --configuration development`
-Expected: succeeds — this is the last task touching `MessageDto`/`CreateMessageDto` consumers, so this is the point where the whole plan should compile cleanly end-to-end.
+Expected: succeeds - this is the last task touching `MessageDto`/`CreateMessageDto` consumers, so this is the point where the whole plan should compile cleanly end-to-end.
 
 - [ ] **Step 10: Manual verification**
 
-Run: `npx ng serve`, in a guild text channel, type `@` and confirm `everyone`, `here`, and role names appear alongside member results; type `@role-name` and send, confirm the chip renders in the sent message distinctly from a user mention (check the rendered message component too — if `message.component.ts` renders mention chips from stored `mentions`, this plan does not add role-chip *rendering in already-sent messages* since that requires the read-side `message.component.ts` to resolve role IDs back to names, which is a separate, unscoped concern — verify this gap is visible but not silently broken, i.e. the message still sends and displays its plain text content correctly, just without a highlighted role chip in the read view).
+Run: `npx ng serve`, in a guild text channel, type `@` and confirm `everyone`, `here`, and role names appear alongside member results; type `@role-name` and send, confirm the chip renders in the sent message distinctly from a user mention (check the rendered message component too - if `message.component.ts` renders mention chips from stored `mentions`, this plan does not add role-chip *rendering in already-sent messages* since that requires the read-side `message.component.ts` to resolve role IDs back to names, which is a separate, unscoped concern - verify this gap is visible but not silently broken, i.e. the message still sends and displays its plain text content correctly, just without a highlighted role chip in the read view).
 
 - [ ] **Step 11: Commit**
 
@@ -3083,7 +3083,7 @@ git commit -m "feat: parse @role/@everyone/@here in composer, serialize rich men
 
 ---
 
-## Part 7 — Presence UI
+## Part 7 - Presence UI
 
 ### Task 24: 4-state status dot and self-status picker
 
@@ -3155,7 +3155,7 @@ describe('UserStatusDotComponent', () => {
 - [ ] **Step 2: Run to verify failure**
 
 Run: `npx ng test --include src/app/components/user-status-dot/user-status-dot.component.spec.ts`
-Expected: FAIL — `Idle`/`DoNotDisturb` currently fall into the `bg-white/20` else-branch, not `bg-amber-400`/`bg-rose-500`.
+Expected: FAIL - `Idle`/`DoNotDisturb` currently fall into the `bg-white/20` else-branch, not `bg-amber-400`/`bg-rose-500`.
 
 - [ ] **Step 3: Update the color mapping**
 
@@ -3232,7 +3232,7 @@ export class StatusPickerComponent {
 
 - [ ] **Step 7: Mount it in `quick-settings`, wrapping the existing avatar**
 
-In `quick-settings.component.ts`, add `StatusPickerComponent` to `imports`. In `quick-settings.component.html`, find the existing `<app-avatar>` usage and wrap/place `<app-status-picker>` as a positioned overlay on it (following the same `absolute -bottom-0.5 -right-0.5` corner-badge convention `UserStatusDotComponent` itself already uses) — locate the avatar's containing `relative`-positioned wrapper and add:
+In `quick-settings.component.ts`, add `StatusPickerComponent` to `imports`. In `quick-settings.component.html`, find the existing `<app-avatar>` usage and wrap/place `<app-status-picker>` as a positioned overlay on it (following the same `absolute -bottom-0.5 -right-0.5` corner-badge convention `UserStatusDotComponent` itself already uses) - locate the avatar's containing `relative`-positioned wrapper and add:
 
 ```html
 <app-status-picker class="absolute -bottom-0.5 -right-0.5"/>

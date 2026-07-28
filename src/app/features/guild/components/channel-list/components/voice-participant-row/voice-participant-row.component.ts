@@ -13,7 +13,7 @@ import {VoiceChannelParticipant} from '../../../../../../services/voice-channel.
 export class VoiceParticipantRowComponent {
     participant = input.required<VoiceChannelParticipant>();
 
-    /** Row was clicked — the parent decides what that means (join / focus the channel). */
+    /** Row was clicked - the parent decides what that means (join / focus the channel). */
     readonly open = output<void>();
     readonly openMenu = output<MouseEvent>();
 }

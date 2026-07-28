@@ -134,7 +134,7 @@
                             <input (ngModelChange)="onQueryChange($event)"
                                    [ngModel]="roleMembersQuery()"
                                    [placeholder]="'GUILD_SETTINGS.ROLES.SEARCH_PLACEHOLDER' | translate"
-                                   class="w-full pl-9 text-sm"
+                                   class="w-full !pl-9 text-sm"
                                    pInputText/>
                         </div>
                         <p-button (onClick)="openAddDialog()" [pTooltip]="'GUILD_SETTINGS.ROLES.ADD_MEMBER' | translate" icon="pi pi-user-plus"
@@ -145,9 +145,9 @@
                     <!-- Count -->
                     <p class="text-xs text-white/30 shrink-0">
                         {{
-                            roleMembersDisplay().length !== 1 ? ('GUILD_SETTINGS.MEMBERS.COUNT_PLURAL' | translate: {
+                            (roleMembersDisplay().length !== 1 ? 'GUILD_SETTINGS.MEMBERS.COUNT_PLURAL' : 'GUILD_SETTINGS.MEMBERS.COUNT_SINGLE') | translate: {
                                 count: roleMembersDisplay().length
-                            }) : ('GUILD_SETTINGS.MEMBERS.COUNT_SINGLE' | translate)
+                            }
                         }}
                     </p>
 
@@ -291,7 +291,7 @@
             <input (ngModelChange)="onAddSearchChange($event)"
                    [ngModel]="addSearch()"
                    [placeholder]="'GUILD_SETTINGS.ROLES.SEARCH_PLACEHOLDER' | translate"
-                   class="w-full pl-9 text-sm"
+                   class="w-full !pl-9 text-sm"
                    pInputText/>
         </div>
 

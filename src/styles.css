@@ -184,7 +184,7 @@ button, a, [role="button"], input, select, textarea, label {
   --color-hover:   #1d2333;
   --color-border:  #252e42;
 
-  /* ── Brand — must stay byte-identical to DEFAULT_THEME.colors in
+  /* ── Brand - must stay byte-identical to DEFAULT_THEME.colors in
      src/app/models/theme.model.ts, which ThemeService applies at runtime. ── */
   --color-brand:       #7c72ff;
   --color-brand-hover: #695df2;

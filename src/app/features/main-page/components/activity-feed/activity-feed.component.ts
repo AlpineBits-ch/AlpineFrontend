@@ -39,7 +39,7 @@ export class ActivityFeedComponent {
             this.profileService.getOnlineStatus(this.friendUserId(r)) === OnlineStatus.Online
         )
     );
-    // "Active Now" — friends with a live rich-presence activity get a card; everyone else
+    // "Active Now" - friends with a live rich-presence activity get a card; everyone else
     // online falls back to the plain roster row.
     protected activeNowFriends = computed(() =>
         this.onlineFriends().filter(r => this.activityFor(r))

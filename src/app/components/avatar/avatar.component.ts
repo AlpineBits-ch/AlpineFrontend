@@ -14,7 +14,7 @@ import {PlatformService} from '../../services/platform.service';
         @if (imageUrl()) {
           <img [src]="imageUrl()" [alt]="displayLabel() ?? ''" (error)="onError()" />
         } @else if (displayLabel()) {
-          <div class="w-full h-full flex items-center justify-center bg-indigo-500 text-white font-semibold text-sm rounded-full">
+          <div class="w-full h-full flex items-center justify-center bg-[var(--color-brand)] text-white font-semibold text-sm rounded-full">
             {{ displayLabel() }}
           </div>
         } @else {

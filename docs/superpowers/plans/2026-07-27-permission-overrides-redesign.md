@@ -11,9 +11,9 @@
 ## Global Constraints
 
 - Use `(onClick)` not `(click)` on `p-button`, per project convention.
-- Sidebar/detail scroll regions use the existing `thin-scrollbar` CSS class — never repeat the inline scrollbar style.
+- Sidebar/detail scroll regions use the existing `thin-scrollbar` CSS class - never repeat the inline scrollbar style.
 - Font sizes use rem-based Tailwind classes (e.g. `text-[10px]` is already used elsewhere for these labels; keep consistent with sibling components).
-- No new automated tests — this feature area has none (only one `.spec.ts` exists in the whole `guild` feature). Verify each task with `ng build` (type-checks templates across the whole `src` tree) and a final manual pass in the running app.
+- No new automated tests - this feature area has none (only one `.spec.ts` exists in the whole `guild` feature). Verify each task with `ng build` (type-checks templates across the whole `src` tree) and a final manual pass in the running app.
 - Follow the approved spec at `docs/superpowers/specs/2026-07-27-permission-overrides-redesign-design.md`.
 
 ---
@@ -258,7 +258,7 @@ git commit -m "feat: add shared permission overrides master-detail panel"
 
 **Interfaces:**
 - Consumes: `OverrideEntry`, `PermissionOverridesPanelComponent` from Task 1 (`../../../../shared/permission-overrides-panel/permission-overrides-panel.component`); `PermOverride` from `../../../../shared/permission-override-editor/permission-override-editor.component`; `RoleType` from `../../../../../../dtos/response/guild.dto`.
-- Produces: no change to the component's public inputs (`channel`, `guild`); internal methods `saveRoleOverride`, `deleteRoleOverride`, `saveMemberOverride`, `deleteMemberOverride` now take an `id: string` instead of a full row object — this is a breaking signature change but these methods are only called from this component's own template.
+- Produces: no change to the component's public inputs (`channel`, `guild`); internal methods `saveRoleOverride`, `deleteRoleOverride`, `saveMemberOverride`, `deleteMemberOverride` now take an `id: string` instead of a full row object - this is a breaking signature change but these methods are only called from this component's own template.
 
 - [ ] **Step 1: Replace the component TypeScript**
 
@@ -967,7 +967,7 @@ git commit -m "feat: redesign category permission overrides into master-detail l
 - Modify: `src/app/features/guild/components/channel-list/components/create-category-modal/create-category-modal.component.html`
 
 **Interfaces:**
-- Consumes: existing `submit()` method on both components (unchanged — already guards on empty name / in-flight creation).
+- Consumes: existing `submit()` method on both components (unchanged - already guards on empty name / in-flight creation).
 - Produces: no new interfaces.
 
 - [ ] **Step 1: Add the Enter handler to create-channel-modal**
@@ -1042,7 +1042,7 @@ Run: `npm start` (or use the project's `run` skill if available) and open the ap
 
 Open a text channel's settings → Advanced Permissions:
 - Roles tab shows a compact list on the left with `@everyone` pinned at the bottom behind a divider, and a detail panel on the right showing the selected role's grouped permissions.
-- Click the "+" button, pick a role from the popover — it's added, marked dirty, and selected in the detail panel.
+- Click the "+" button, pick a role from the popover - it's added, marked dirty, and selected in the detail panel.
 - Toggle a permission to Allow/Deny, confirm the Save button appears, save it, confirm it persists (no longer dirty, Delete button now visible).
 - Delete the override, confirm it disappears from the sidebar (unless it's the pinned `@everyone` entry, which stays but loses its Delete button).
 - Switch to the Members tab, confirm the spinner shows while loading, then repeat the add/edit/save/delete flow for a member.
@@ -1053,7 +1053,7 @@ Repeat Step 2 for a category's settings → Advanced Permissions (Roles and Memb
 
 - [ ] **Step 4: Verify Enter-to-submit**
 
-Open "Create Channel", type a name, press Enter — confirm the channel is created and the modal closes. Repeat for "Create Category".
+Open "Create Channel", type a name, press Enter - confirm the channel is created and the modal closes. Repeat for "Create Category".
 
 - [ ] **Step 5: Final full build**
 

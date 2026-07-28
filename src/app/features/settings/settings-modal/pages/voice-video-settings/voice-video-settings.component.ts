@@ -74,7 +74,7 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     ];
     readonly inputModeOptions: {value: 'voice-activity' | 'push-to-talk'; label: string; desc: string}[] = [
         {value: 'voice-activity', label: 'Voice Activity', desc: 'Transmit automatically when your mic level crosses the sensitivity threshold below'},
-        {value: 'push-to-talk', label: 'Push to Talk', desc: 'Only transmit while your bound key is held — bind it on the Keybinds page'},
+        {value: 'push-to-talk', label: 'Push to Talk', desc: 'Only transmit while your bound key is held - bind it on the Keybinds page'},
     ];
     readonly micLevel = signal(0);
     readonly isMicActive = signal(false);
@@ -366,7 +366,7 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
             this.cameraStream.set(stream);
             this.isCameraActive.set(true);
         } catch {
-            // Denied or unavailable — the existing permissionError banner covers the mic case;
+            // Denied or unavailable - the existing permissionError banner covers the mic case;
             // camera failures just leave the preview empty, matching the picker's own silent failure mode.
         }
     }

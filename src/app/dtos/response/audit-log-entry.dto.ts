@@ -12,7 +12,7 @@ export interface AuditLogEntryDto {
     actorUserId: string;
     actionType: AuditLogActionType;
     targetId: string | null;
-    /** JSON-encoded string, not a nested object — caller must JSON.parse it. */
+    /** JSON-encoded string, not a nested object - caller must JSON.parse it. */
     metadata: string | null;
     createdAt: string;
 }

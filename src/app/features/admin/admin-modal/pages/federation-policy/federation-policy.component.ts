@@ -1,12 +1,13 @@
 import {Component, inject, OnInit, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
+import {NgClass} from '@angular/common';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
 import {AdminFederationService, AcceptancePolicy, HandshakeResponse} from '../../../../../services/admin-federation.service';
 
 @Component({
     selector: 'app-federation-policy',
-    imports: [FormsModule, Button, InputText],
+    imports: [FormsModule, NgClass, Button, InputText],
     templateUrl: './federation-policy.component.html',
 })
 export class FederationPolicyComponent implements OnInit {

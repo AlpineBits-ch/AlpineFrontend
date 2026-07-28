@@ -3,7 +3,7 @@
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add backend-driven profile cosmetics (banner image, accent color, custom font) to
-Alpine's frontend — settings UI to edit them, propagation of the font/color to every place a
+Alpine's frontend - settings UI to edit them, propagation of the font/color to every place a
 username renders, and a Discord-style anchored popover for viewing/editing your own profile
 (replacing the current centered modal for that one case).
 
@@ -24,11 +24,11 @@ use), Tailwind CSS v4, `@fontsource`/`@fontsource-variable` for bundled webfonts
 
 - Follow the existing `ProfileService` convention: every mutating HTTP call ends with
   `.pipe(tap(p => { this.ownProfile.set(p); this.store(p); }))`.
-- All Social endpoints are called through the gateway prefix `/api/v1/social/...` — never the
+- All Social endpoints are called through the gateway prefix `/api/v1/social/...` - never the
   internal `/api/v1/...` form.
-- No `removeBanner()` — the backend spec defines no DELETE endpoint for banner.
+- No `removeBanner()` - the backend spec defines no DELETE endpoint for banner.
 - Username is not editable anywhere in this feature (backend spec excludes it from
-  `PATCH .../profiles/me`) — the Display Name field stays disabled.
+  `PATCH .../profiles/me`) - the Display Name field stays disabled.
 - Accent color and font apply to the username **label only**, never to message body text.
 - New standalone components/directives follow the codebase's existing style: signal `input()`s
   (not `@Input()` decorators) except where extending an existing decorator-based file.
@@ -37,7 +37,7 @@ use), Tailwind CSS v4, `@fontsource`/`@fontsource-variable` for bundled webfonts
 
 ---
 
-### Task 1: Data model — `ProfileDto` cosmetics fields
+### Task 1: Data model - `ProfileDto` cosmetics fields
 
 **Files:**
 - Modify: `src/app/dtos/response/profile.dto.ts`
@@ -46,12 +46,12 @@ use), Tailwind CSS v4, `@fontsource`/`@fontsource-variable` for bundled webfonts
 
 **Interfaces:**
 - Produces: `ProfileFont` enum, `ProfileDto.bannerUrl: string | undefined`,
-  `ProfileDto.accentColor: string | null`, `ProfileDto.font: ProfileFont` — consumed by every
+  `ProfileDto.accentColor: string | null`, `ProfileDto.font: ProfileFont` - consumed by every
   later task.
 
 - [ ] **Step 1: Add `ProfileFont` enum and the three new fields to `ProfileDto`**
 
-Edit `src/app/dtos/response/profile.dto.ts` — it currently reads:
+Edit `src/app/dtos/response/profile.dto.ts` - it currently reads:
 
 ```ts
 export interface ProfileDto {
@@ -186,7 +186,7 @@ req.flush({
 ```
 
 The `req.flush({onlineStatus: 'Idle'})` call in the first test (`PATCHes .../status`) is a
-partial response used only to check the request shape, not `ownProfile()` afterward — leave it
+partial response used only to check the request shape, not `ownProfile()` afterward - leave it
 unchanged.
 
 - [ ] **Step 4: Run the test suite to confirm the DTO change compiles and passes**
@@ -203,7 +203,7 @@ git commit -m "feat: add bannerUrl/accentColor/font fields to ProfileDto"
 
 ---
 
-### Task 2: Font infrastructure — `profile-font.model.ts` + bundled webfonts
+### Task 2: Font infrastructure - `profile-font.model.ts` + bundled webfonts
 
 **Files:**
 - Create: `src/app/models/profile-font.model.ts`
@@ -214,7 +214,7 @@ git commit -m "feat: add bannerUrl/accentColor/font fields to ProfileDto"
 **Interfaces:**
 - Consumes: `ProfileFont` (Task 1).
 - Produces: `FONT_LABELS: Record<ProfileFont, string>`, `FONT_STACKS: Record<ProfileFont, string>`,
-  `userNameStyle(profile): {color?: string; fontFamily?: string}` — consumed by
+  `userNameStyle(profile): {color?: string; fontFamily?: string}` - consumed by
   `UserNameStyleDirective` (Task 5), the composer's imperative chip builder (Task 11), and the
   Font `<p-select>` in settings (Task 12).
 
@@ -293,7 +293,7 @@ describe('userNameStyle', () => {
 - [ ] **Step 4: Run the test to verify it fails**
 
 Run: `ng test`
-Expected: FAIL — `Cannot find module './profile-font.model'`.
+Expected: FAIL - `Cannot find module './profile-font.model'`.
 
 - [ ] **Step 5: Implement `profile-font.model.ts`**
 
@@ -340,7 +340,7 @@ export function userNameStyle(
 - [ ] **Step 6: Run the test to verify it passes**
 
 Run: `ng test`
-Expected: PASS — all 6 `userNameStyle` cases green.
+Expected: PASS - all 6 `userNameStyle` cases green.
 
 - [ ] **Step 7: Commit**
 
@@ -360,7 +360,7 @@ git commit -m "feat: add profile font infrastructure and bundle five webfonts"
 **Interfaces:**
 - Consumes: `ProfileFont` (Task 1).
 - Produces: `ProfileService.updateProfile(patch: {bio?: string; accentColor?: string; font?: ProfileFont}): Observable<ProfileDto>`,
-  `ProfileService.uploadBanner(file: File): Observable<ProfileDto>` — consumed by the settings
+  `ProfileService.uploadBanner(file: File): Observable<ProfileDto>` - consumed by the settings
   page (Task 12).
 
 - [ ] **Step 1: Write the failing tests**
@@ -433,12 +433,12 @@ describe('ProfileService.uploadBanner', () => {
 
 Add `ProfileFont` to the existing import line at the top of the file:
 `import {OnlineStatus, ProfileDto, ProfileFont} from '../dtos/response/profile.dto';` (it's
-already imported as part of Task 1, Step 3 — just confirm it's there).
+already imported as part of Task 1, Step 3 - just confirm it's there).
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `ng test`
-Expected: FAIL — `service.updateProfile is not a function`, `service.uploadBanner is not a function`.
+Expected: FAIL - `service.updateProfile is not a function`, `service.uploadBanner is not a function`.
 
 - [ ] **Step 3: Implement both methods**
 
@@ -493,7 +493,7 @@ git commit -m "feat: add ProfileService.updateProfile and uploadBanner"
 
 **Files:**
 - Modify: `src/app/components/image-cropper/image-cropper.component.ts`
-- Modify: `src/app/features/settings/settings-modal/pages/profile-settings/profile-settings.component.html` (avatar cropper call site only — the `outputSize` → `outputWidth`/`outputHeight` rename)
+- Modify: `src/app/features/settings/settings-modal/pages/profile-settings/profile-settings.component.html` (avatar cropper call site only - the `outputSize` → `outputWidth`/`outputHeight` rename)
 
 **Interfaces:**
 - Produces: `ImageCropperComponent` inputs `outputWidth = input(400)`,
@@ -778,7 +778,7 @@ necessarily centered on the fixed `PAD` offset when it's narrower than the 240 m
     }
 ```
 
-(The `PAD` field itself is still used in `confirmCrop`, so it stays on the class — only the
+(The `PAD` field itself is still used in `confirmCrop`, so it stays on the class - only the
 unused local `P`/`C` aliases inside `draw()` are removed.)
 
 - [ ] **Step 2: Update the avatar crop dialog call site**
@@ -833,7 +833,7 @@ git commit -m "refactor: generalize ImageCropperComponent to arbitrary output as
 **Interfaces:**
 - Consumes: `userNameStyle()` (Task 2).
 - Produces: `UserNameStyleDirective`, selector `[appUserNameStyle]`, input
-  `appUserNameStyle: UserNameStyleInput | null | undefined` — consumed by Tasks 6, 7, 8, 9, 10.
+  `appUserNameStyle: UserNameStyleInput | null | undefined` - consumed by Tasks 6, 7, 8, 9, 10.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -883,7 +883,7 @@ describe('UserNameStyleDirective', () => {
 - [ ] **Step 2: Run the test to verify it fails**
 
 Run: `ng test`
-Expected: FAIL — `Cannot find module './user-name-style.directive'`.
+Expected: FAIL - `Cannot find module './user-name-style.directive'`.
 
 - [ ] **Step 3: Implement the directive**
 
@@ -914,7 +914,7 @@ export class UserNameStyleDirective {
 - [ ] **Step 4: Run the test to verify it passes**
 
 Run: `ng test`
-Expected: PASS — both directive tests green.
+Expected: PASS - both directive tests green.
 
 - [ ] **Step 5: Commit**
 
@@ -939,14 +939,14 @@ git commit -m "feat: add UserNameStyleDirective for per-user font/accent color o
 - Consumes: `UserNameStyleDirective` (Task 5), `ProfileDto` (Task 1).
 - Produces: `ProfileCardComponent` (`app-profile-card`), inputs `profile: ProfileDto | undefined`,
   `friendsSince: Date | null` (default `null`), `avatarError: boolean` (default `false`), outputs
-  `avatarClick: void`, `avatarErrorChange: void` — consumed by Task 7 (self-profile popover).
+  `avatarClick: void`, `avatarErrorChange: void` - consumed by Task 7 (self-profile popover).
 
 - [ ] **Step 1: Create `ProfileCardComponent`**
 
 This extracts the `@if (profile(); as p) { ... }` banner/avatar/name/bio/dates block that
 currently lives inline in `profile-dialog.component.html`, so it can be reused by the new
 anchored popover without duplication. It takes plain `@Input`-style signal inputs (no dialog
-chrome of its own — no close button, no `p-dialog` wrapper — that stays the caller's job).
+chrome of its own - no close button, no `p-dialog` wrapper - that stays the caller's job).
 
 Create `src/app/components/profile-card/profile-card.component.ts`:
 
@@ -987,7 +987,7 @@ export class ProfileCardComponent {
 }
 ```
 
-Create `src/app/components/profile-card/profile-card.component.html` — this is the existing
+Create `src/app/components/profile-card/profile-card.component.html` - this is the existing
 `profile-dialog.component.html` inner block, unchanged except: `bannerUrl` becomes
 `profile()?.bannerUrl`, a fallback `accentColor` background is added, the avatar-fallback circle
 uses `accentColor` when set, and the username heading gets `[appUserNameStyle]`:
@@ -1069,7 +1069,7 @@ uses `accentColor` when set, and the username heading gets `[appUserNameStyle]`:
 }
 ```
 
-Create `src/app/components/profile-card/profile-card.component.css` — the `.profile-banner` rule
+Create `src/app/components/profile-card/profile-card.component.css` - the `.profile-banner` rule
 moves here verbatim from `profile-dialog.component.css` (it's now the card's own concern, not the
 dialog's):
 
@@ -1151,7 +1151,7 @@ export class ProfileDialogComponent implements OnChanges {
 }
 ```
 
-(Removed the dead `@Input() bannerUrl` and the now-unused `avatarLabel`/`computed` import — both
+(Removed the dead `@Input() bannerUrl` and the now-unused `avatarLabel`/`computed` import - both
 moved into `ProfileCardComponent`.)
 
 Replace `src/app/components/profile-dialog/profile-dialog.component.html`:
@@ -1203,7 +1203,7 @@ Replace `src/app/components/profile-dialog/profile-dialog.component.html`:
 ```
 
 Note the close button now sits at the shell level (`profile-dialog.component.ts`/`.html`), not
-inside `ProfileCardComponent` — the card is dialog-agnostic and reusable by the popover, which
+inside `ProfileCardComponent` - the card is dialog-agnostic and reusable by the popover, which
 will supply its own close/dismiss affordance (a `p-popover` dismisses on outside click, no button
 needed there).
 
@@ -1253,7 +1253,7 @@ Replace `src/app/components/profile-dialog/profile-dialog.component.css` (drop t
 ```
 
 (Added `z-index: 20` since the button is now a sibling positioned over `app-profile-card` rather
-than living inside the same `relative` wrapper as the banner — without it, the banner's
+than living inside the same `relative` wrapper as the banner - without it, the banner's
 `position: relative` stacking could otherwise sit on top in some browsers. The wrapping `<div
 class="relative">` in the new template already gives both children a shared positioning context,
 so `position: absolute` + `z-index: 20` places the button correctly above the banner.)
@@ -1262,7 +1262,7 @@ so `position: absolute` + `z-index: 20` places the button correctly above the ba
 
 Run: `ng serve`, click another member's avatar/name (in a guild member list or a message) to open
 `ProfileDialogComponent`, and confirm the centered dialog still shows banner, avatar, status dot,
-username, bio, member-since — identical to before this task, since this is a pure refactor with a
+username, bio, member-since - identical to before this task, since this is a pure refactor with a
 few additive fallback behaviors (which won't visually trigger for a profile with no
 `accentColor`/`bannerUrl` set).
 
@@ -1283,7 +1283,7 @@ git commit -m "refactor: extract ProfileCardComponent from ProfileDialogComponen
 - Create: `src/app/features/main-page/components/self-profile-popover/self-profile-popover.component.ts`
 - Create: `src/app/features/main-page/components/self-profile-popover/self-profile-popover.component.html`
 - Modify: `src/app/features/settings/settings-modal/settings-modal.component.ts` (expose `selectPage`
-  as already-public — no signature change needed, see note in Step 2)
+  as already-public - no signature change needed, see note in Step 2)
 - Modify: `src/app/features/main-page/components/quick-settings/quick-settings.component.ts`
 - Modify: `src/app/features/main-page/components/quick-settings/quick-settings.component.html`
 
@@ -1292,7 +1292,7 @@ git commit -m "refactor: extract ProfileCardComponent from ProfileDialogComponen
   `src/app/features/main-page/components/status-picker/status-picker.component.ts`),
   `SettingsModalComponent.selectPage(id: string): void` (existing, already public).
 - Produces: `SelfProfilePopoverComponent` (`app-self-profile-popover`), output
-  `editProfile: void` — consumed by `QuickSettingsComponent`.
+  `editProfile: void` - consumed by `QuickSettingsComponent`.
 
 - [ ] **Step 1: Create `SelfProfilePopoverComponent`**
 
@@ -1352,10 +1352,10 @@ padding for the same reason).
 
 - [ ] **Step 2: Confirm `SettingsModalComponent.selectPage` is usable from outside**
 
-No code change needed here — `selectPage(id: string): void` on
+No code change needed here - `selectPage(id: string): void` on
 `src/app/features/settings/settings-modal/settings-modal.component.ts` is already a public
 (non-`protected`) method, so `QuickSettingsComponent` can call it directly via a `@ViewChild`
-reference in the next step. This step is just verifying that fact by reading the file — if it
+reference in the next step. This step is just verifying that fact by reading the file - if it
 were `protected`, this step would change it to public; skip any edit.
 
 - [ ] **Step 3: Wire the popover into `QuickSettingsComponent`**
@@ -1428,7 +1428,7 @@ export class QuickSettingsComponent {
 }
 ```
 
-(Removed the now-unused `ProfileDialogService` import/injection — the bottom-left bar no longer
+(Removed the now-unused `ProfileDialogService` import/injection - the bottom-left bar no longer
 opens the centered dialog.)
 
 In `quick-settings.component.html`, replace the avatar/name button's click handler and add the
@@ -1469,7 +1469,7 @@ Run: `ng serve`. Click the bottom-left avatar/username bar:
 - Confirm a small popover appears anchored above the bar (not centered on screen), showing your
   banner/accent-color background, avatar with status dot, username, bio (if set), member-since.
 - Confirm the status-picker inside the popover still changes your status.
-- Click "Edit Profile" — confirm it closes the popover and opens the Settings modal directly on
+- Click "Edit Profile" - confirm it closes the popover and opens the Settings modal directly on
   the Profile page.
 - Confirm clicking outside the popover dismisses it (default `p-popover` behavior).
 - Confirm clicking another user's avatar/message elsewhere still opens the original centered
@@ -1544,7 +1544,7 @@ to:
 - [ ] **Step 3: Manually verify**
 
 Run: `ng serve`, open a guild with members who have `accentColor`/`font` set on their profile
-(set one via Settings → Profile once Task 12 lands — for now, this can be checked visually once
+(set one via Settings → Profile once Task 12 lands - for now, this can be checked visually once
 the whole plan is complete, or skipped here and re-verified in Task 12's manual check). If Task 12
 hasn't landed yet, just confirm `ng build` compiles cleanly with no template errors from the new
 binding.
@@ -1628,7 +1628,7 @@ git commit -m "feat: apply per-user font/accent color to guild-settings member t
 
 **Interfaces:**
 - Consumes: `UserNameStyleDirective` (Task 5).
-- Produces: `MessageComponent.mentionedProfile(userId: string): ProfileDto | undefined` — used
+- Produces: `MessageComponent.mentionedProfile(userId: string): ProfileDto | undefined` - used
   only within this component's own template.
 
 - [ ] **Step 1: Import the directive and add a `mentionedProfile` lookup helper**
@@ -1641,7 +1641,7 @@ import {UserNameStyleDirective} from '../../../../../directives/user-name-style.
 
 Add `UserNameStyleDirective` to the component's `imports` array (currently
 `[AppAvatarComponent, DatePipe, AsyncPipe, NgClass, MarkdownPipe, InviteCardComponent, MessageHoverToolbarComponent, MessageReactionBarComponent, TwemojiComponent, Dialog, Button, TranslateModule]`
-— append it at the end).
+- append it at the end).
 
 Add a small public helper next to `getProfile()` (used by the mention-chip template branch, which
 only has a `refId: string`, not the resolved `ProfileDto`, in its segment object):
@@ -1724,7 +1724,7 @@ becomes:
 
 - [ ] **Step 3: Manually verify**
 
-Run: `ng build` to confirm the template compiles (no type errors — `user` from
+Run: `ng build` to confirm the template compiles (no type errors - `user` from
 `@let user = (getProfile() | async);` is `ProfileDto | null`, which satisfies
 `UserNameStyleInput | null | undefined`).
 
@@ -1823,7 +1823,7 @@ Change the `.map()` callback to also carry the cosmetics fields:
 
 The DM/conversation-member candidate builder in `conversation.component.ts`
 (`.map((m): MentionCandidate => ({kind: 'user', userId: m.userId, userName: m.cachedUserName}))`)
-is intentionally left unchanged — it only has a cached username string, not a full profile (see
+is intentionally left unchanged - it only has a cached username string, not a full profile (see
 spec §7, "Out of scope").
 
 - [ ] **Step 3: Apply the directive in the suggestion overlay**
@@ -1865,7 +1865,7 @@ to:
 ```
 
 (`m` is narrowed to `UserMentionCandidate` by the `@case ('user')` block, which now has
-`accentColor`/`font` — satisfies the directive's input type.)
+`accentColor`/`font` - satisfies the directive's input type.)
 
 - [ ] **Step 4: Apply the same styling to the live-typing composer chip**
 
@@ -1902,7 +1902,7 @@ import {userNameStyle} from '../../../../../models/profile-font.model';
 - [ ] **Step 5: Manually verify**
 
 Run: `ng build` to confirm all four files compile. Then `ng serve`, open a guild channel, type
-`@` and search a member whose profile has an accent color/font set (once Task 12 lands) — confirm
+`@` and search a member whose profile has an accent color/font set (once Task 12 lands) - confirm
 the autocomplete row and the resulting chip both reflect it.
 
 Expected: PASS on build; visual confirmation once Task 12 is done (acceptable to defer the visual
@@ -1917,7 +1917,7 @@ git commit -m "feat: apply per-user font/accent color to mention autocomplete an
 
 ---
 
-### Task 12: Profile settings page — Banner, Accent Color, Font, and Bio save
+### Task 12: Profile settings page - Banner, Accent Color, Font, and Bio save
 
 **Files:**
 - Modify: `src/app/features/settings/settings-modal/pages/profile-settings/profile-settings.component.ts`
@@ -1937,7 +1937,7 @@ import {FONT_LABELS} from '../../../../../models/profile-font.model';
 import {ProfileFont} from '../../../../../dtos/response/profile.dto';
 ```
 
-Add `Select` and `FormsModule` (already imported) to the component's `imports` array — change:
+Add `Select` and `FormsModule` (already imported) to the component's `imports` array - change:
 
 ```ts
     imports: [Button, Dialog, ImageCropperComponent, TranslateModule, FormsModule, DatePipe],
@@ -1963,7 +1963,7 @@ signals:
     protected savingDetails = signal(false);
 ```
 
-Add an `ngOnInit` sync of the edit state from the loaded profile — the class already implements
+Add an `ngOnInit` sync of the edit state from the loaded profile - the class already implements
 `OnInit` for the user fetch; extend the existing method rather than adding a second one. It
 currently reads:
 
@@ -2049,7 +2049,7 @@ Add a `detailsDirty` computed and the save/banner methods, near `pickFile`/`onFi
 ```
 
 Add the `computed` import to the existing `@angular/core` import line (it currently imports
-`Component, computed, ElementRef, inject, OnInit, signal, ViewChild` — `computed` is already
+`Component, computed, ElementRef, inject, OnInit, signal, ViewChild` - `computed` is already
 there) and add a second `@ViewChild` for the new hidden file input, next to the existing one:
 
 ```ts
@@ -2188,7 +2188,7 @@ import {FONT_LABELS, FONT_STACKS} from '../../../../../models/profile-font.model
 ```
 
 The `color-swatch-wrap`/`color-swatch-bg` classes already exist as global styles (used by
-`appearance-settings.component.html`'s color grid) — confirm via
+`appearance-settings.component.html`'s color grid) - confirm via
 `Grep "color-swatch-wrap" src/styles.css` that they're defined globally rather than scoped to
 that component; if they turn out to be scoped to `appearance-settings.component.css` instead,
 copy the two rules into `profile-settings.component.css` verbatim rather than reference an
@@ -2234,7 +2234,7 @@ Run: `ng serve`, open Settings → Profile:
   there too, and open another user's profile dialog (Task 6) to confirm the same for a profile
   that has cosmetics set.
 - Check the guild member list, message author names, and mention autocomplete (Tasks 8–11) for
-  your own name — confirm the accent color/font now visibly apply everywhere.
+  your own name - confirm the accent color/font now visibly apply everywhere.
 
 Expected: all of the above work end-to-end.
 
@@ -2254,19 +2254,19 @@ git commit -m "feat: add banner upload, accent color, font, and bio editing to p
 - [ ] **Step 1: Run the full test suite**
 
 Run: `ng test`
-Expected: PASS — every spec file touched across Tasks 1–12 green, no regressions elsewhere.
+Expected: PASS - every spec file touched across Tasks 1–12 green, no regressions elsewhere.
 
 - [ ] **Step 2: Run a full production build**
 
 Run: `ng build`
-Expected: PASS — no TypeScript or template compile errors across the ~20 files touched by this
+Expected: PASS - no TypeScript or template compile errors across the ~20 files touched by this
 plan (this is the first point every file is compiled together in one pass).
 
 - [ ] **Step 3: Fix anything the build/tests surface**
 
 If either command fails, the failure is almost certainly a leftover reference to the old
 `ImageCropperComponent.outputSize` input, the old `ProfileDialogComponent.@Input() bannerUrl`, or
-a missed `ProfileDto` literal somewhere Task 1's search didn't cover — grep for
+a missed `ProfileDto` literal somewhere Task 1's search didn't cover - grep for
 `outputSize`/`[bannerUrl]` across `src/app` to confirm zero remaining references before declaring
 this task done.
 

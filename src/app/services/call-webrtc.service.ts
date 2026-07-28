@@ -54,7 +54,7 @@ export class CallWebRtcService {
     private audioTrack: MediaStreamTrack | null = null;
     /** A clone of the local audio track, kept permanently enabled, so the speaking/VAD
      *  analyser always sees real audio even while applyVadGate() disables the real
-     *  (transmitted) audioTrack — a disabled MediaStreamTrack outputs silence to ALL
+     *  (transmitted) audioTrack - a disabled MediaStreamTrack outputs silence to ALL
      *  its consumers including this analyser, so analysing the same track that gets
      *  gated would make the gate unable to ever detect speech again once it closes. */
     private vadProbeTrack: MediaStreamTrack | null = null;
@@ -127,7 +127,7 @@ export class CallWebRtcService {
             const isMuted = s.local.isMuted;
             const gateOpen = this.callSession.pttGateOpen();
             // In voice-activity mode, only ever force the track CLOSED here (mute
-            // or PTT-gate-closed) — never force it open. Opening is applyVadGate's
+            // or PTT-gate-closed) - never force it open. Opening is applyVadGate's
             // job from the tick() loop, which re-evaluates every animation frame;
             // if this effect also forced enabled=true on every unrelated session
             // change (e.g. a remote participant's speaking/mute/camera event), it
@@ -147,7 +147,7 @@ export class CallWebRtcService {
             if (this.callId) this.voiceWs.invokeMuteChange(this.callId, isMuted);
         });
 
-        // Apply local deafen state to every remote audio element's volume — mirrors
+        // Apply local deafen state to every remote audio element's volume - mirrors
         // VoiceRTCService.setDeafened (voice-rtc.service.ts:383-388) for the guild path.
         effect(() => {
             const s = this.callSession.session();
@@ -207,7 +207,7 @@ export class CallWebRtcService {
      * Continuously re-applies the voice-activity transmit gate. Runs every
      * animation frame from the local speaking-detection tick() loop above, so it
      * needs no separate polling loop. No-ops outside voice-activity mode or while
-     * deliberately muted — the mute effect (below) already forced enabled=false
+     * deliberately muted - the mute effect (below) already forced enabled=false
      * in that case and this must not override it.
      */
     private applyVadGate(rms: number): void {
