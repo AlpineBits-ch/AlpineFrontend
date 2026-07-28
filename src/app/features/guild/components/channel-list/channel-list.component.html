@@ -122,10 +122,12 @@
 
 <!-- ── Channel settings modal ─────────────────────────────────────────────── -->
 <app-channel-settings-modal
+        (channelUpdated)="onChannelUpdated($event)"
         [(isVisible)]="showChannelSettings"/>
 
 <!-- ── Category settings modal ────────────────────────────────────────────── -->
 <app-category-settings-modal
+        (categoryUpdated)="onCategoryUpdated($event)"
         [(isVisible)]="showCategorySettings"/>
 
 <!-- ── Quick Invite Dialog ────────────────────────────────────────────────── -->

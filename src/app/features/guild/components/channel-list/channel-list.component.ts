@@ -27,7 +27,8 @@ import {
   WsCategoryCreated,
   WsCategoryDeleted,
   WsChannelCreated,
-  WsChannelDeleted
+  WsChannelDeleted,
+  WsChannelUpdated
 } from '../../../../services/guild-websocket.service';
 import {GuildVoiceService} from '../../../../services/guild-voice.service';
 import {GuildUiActionsService} from '../../../../services/guild-ui-actions.service';
@@ -220,8 +221,8 @@ export class ChannelListComponent {
                 if (e.guildId !== this.guild().id) return;
                 this.guildService.getGuild(e.guildId).subscribe(g => {
                     const ch = g.channels.find(c => c.id === e.channelId);
-                    if (ch && !this.localChannels().some(c => c.id === e.channelId)) {
-                        this.localChannels.update(chs => [...chs, ch]);
+                    if (ch && !this.guild().channels.some(c => c.id === e.channelId)) {
+                        this.patchGuild({channels: [...this.guild().channels, ch]});
                     }
                 });
             });
@@ -233,9 +234,10 @@ export class ChannelListComponent {
                 if (this.voiceChannelSvc.joinedChannelId() === e.channelId) {
                     void this.voiceChannelSvc.leaveChannel();
                 }
-                this.localChannels.update(chs => chs.filter(c => c.id !== e.channelId));
+                const remaining = this.guild().channels.filter(c => c.id !== e.channelId);
+                this.patchGuild({channels: remaining});
                 if (this.navService.isChannelActive(e.channelId)) {
-                    const firstText = this.localChannels().find(c => c.type === ChannelType.Text);
+                    const firstText = remaining.find(c => c.type === ChannelType.Text);
                     if (firstText) {
                         this.navService.openChannel(firstText);
                     } else {
@@ -244,14 +246,25 @@ export class ChannelListComponent {
                 }
             });
 
+        this.guildWsService.channelUpdatedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((e: WsChannelUpdated) => {
+                if (e.guildId !== this.guild().id) return;
+                this.guildService.getGuild(e.guildId).subscribe(g => {
+                    const ch = g.channels.find(c => c.id === e.channelId);
+                    if (!ch) return;
+                    this.patchGuild({channels: this.guild().channels.map(c => c.id === ch.id ? ch : c)});
+                });
+            });
+
         this.guildWsService.categoryCreatedObservable
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsCategoryCreated) => {
                 if (e.guildId !== this.guild().id) return;
                 this.guildService.getGuild(e.guildId).subscribe(g => {
                     const cat = g.categories.find(c => c.id === e.categoryId);
-                    if (cat && !this.localCategories().some(c => c.id === e.categoryId)) {
-                        this.localCategories.update(cats => [...cats, cat]);
+                    if (cat && !this.guild().categories.some(c => c.id === e.categoryId)) {
+                        this.patchGuild({categories: [...this.guild().categories, cat]});
                     }
                 });
             });
@@ -260,10 +273,10 @@ export class ChannelListComponent {
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe((e: WsCategoryDeleted) => {
                 if (e.guildId !== this.guild().id) return;
-                this.localCategories.update(cats => cats.filter(c => c.id !== e.categoryId));
-                this.localChannels.update(chs =>
-                    chs.map(c => c.categoryId === e.categoryId ? {...c, categoryId: undefined} : c)
-                );
+                this.patchGuild({
+                    categories: this.guild().categories.filter(c => c.id !== e.categoryId),
+                    channels: this.guild().channels.map(c => c.categoryId === e.categoryId ? {...c, categoryId: undefined} : c),
+                });
             });
 
         this.guildUiActions.openCreateChannel$
@@ -277,6 +290,19 @@ export class ChannelListComponent {
 
     protected onGuildUpdated(updated: GuildDto): void {
         this.navService.updateCurrentGuild(updated);
+    }
+
+    /** Merges a partial change into the shared guild so every consumer of `guild()` (system channel picker, audit log, etc.) sees it, not just this component's local copies. */
+    private patchGuild(partial: Partial<GuildDto>): void {
+        this.navService.updateCurrentGuild({...this.guild(), ...partial});
+    }
+
+    protected onChannelUpdated(updated: ChannelDto): void {
+        this.patchGuild({channels: this.guild().channels.map(c => c.id === updated.id ? updated : c)});
+    }
+
+    protected onCategoryUpdated(updated: CategoryDto): void {
+        this.patchGuild({categories: this.guild().categories.map(c => c.id === updated.id ? updated : c)});
     }
 
     protected categoryChannels(categoryId: string): ChannelDto[] {
