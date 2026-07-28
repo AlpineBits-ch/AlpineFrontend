@@ -40,9 +40,9 @@ export class UserStatusDotComponent {
 
     private colorClass(): string {
         switch (this.status()) {
-            case OnlineStatus.Online: return 'bg-emerald-400';
-            case OnlineStatus.Idle: return 'bg-amber-400';
-            case OnlineStatus.DoNotDisturb: return 'bg-rose-500';
+            case OnlineStatus.Online: return 'bg-online';
+            case OnlineStatus.Idle: return 'bg-connecting';
+            case OnlineStatus.DoNotDisturb: return 'bg-offline';
             default: return 'bg-white/20';
         }
     }

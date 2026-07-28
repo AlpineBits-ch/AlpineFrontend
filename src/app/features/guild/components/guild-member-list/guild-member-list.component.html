@@ -10,12 +10,13 @@
              class="flex-1 overflow-y-auto px-2 py-2 min-h-0"
              style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
 
-            @if (onlineRows().length > 0) {
+            @for (group of roleGroups(); track group.role.id) {
                 <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest px-2 pt-2 pb-1">
-                    Online &mdash; {{ onlineRows().length }}
+                    {{ group.role.name }} &mdash; {{ group.members.length }}
                 </p>
-                @for (member of onlineRows(); track member.id) {
-                    <div (contextmenu)="onMemberContextMenu($event, member)"
+                @for (member of group.members; track member.id) {
+                    <div (click)="profileDialogSvc.open(member.userId)"
+                         (contextmenu)="onMemberContextMenu($event, member)"
                          class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors cursor-pointer">
                         <div class="relative shrink-0">
                             <div class="w-8 h-8 rounded-full overflow-hidden bg-card flex items-center justify-center">
@@ -28,7 +29,36 @@
                             </div>
                             <app-user-status-dot [status]="effectiveStatus(member)" size="md" borderColor="border-sidebar"/>
                         </div>
-                        <span [appUserNameStyle]="member.profile" class="text-sm font-medium text-white/80 truncate min-w-0">{{ displayName(member) }}</span>
+                        <span [appUserNameStyle]="nameStyleFor(member)"
+                              [ngClass]="isActive(member) ? 'text-white/80' : 'text-white/35'"
+                              class="text-sm font-medium truncate min-w-0">{{ displayName(member) }}</span>
+                        @if (isBot(member)) {
+                            <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim">Bot</span>
+                        }
+                    </div>
+                }
+            }
+
+            @if (onlineRows().length > 0) {
+                <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest px-2 pt-2 pb-1">
+                    Online &mdash; {{ onlineRows().length }}
+                </p>
+                @for (member of onlineRows(); track member.id) {
+                    <div (click)="profileDialogSvc.open(member.userId)"
+                         (contextmenu)="onMemberContextMenu($event, member)"
+                         class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors cursor-pointer">
+                        <div class="relative shrink-0">
+                            <div class="w-8 h-8 rounded-full overflow-hidden bg-card flex items-center justify-center">
+                                @if (avatarUrl(member)) {
+                                    <img [alt]="displayName(member)" [src]="avatarUrl(member)"
+                                         class="w-full h-full object-cover"/>
+                                } @else {
+                                    <span class="text-xs font-semibold text-white/40">{{ displayName(member).charAt(0).toUpperCase() }}</span>
+                                }
+                            </div>
+                            <app-user-status-dot [status]="effectiveStatus(member)" size="md" borderColor="border-sidebar"/>
+                        </div>
+                        <span [appUserNameStyle]="nameStyleFor(member)" class="text-sm font-medium text-white/80 truncate min-w-0">{{ displayName(member) }}</span>
                         @if (isBot(member)) {
                             <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim">Bot</span>
                         }
@@ -41,7 +71,8 @@
                     Offline &mdash; {{ offlineRows().length }}
                 </p>
                 @for (member of offlineRows(); track member.id) {
-                    <div (contextmenu)="onMemberContextMenu($event, member)"
+                    <div (click)="profileDialogSvc.open(member.userId)"
+                         (contextmenu)="onMemberContextMenu($event, member)"
                          class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors cursor-pointer">
                         <div class="relative shrink-0">
                             <div class="w-8 h-8 rounded-full overflow-hidden bg-card flex items-center justify-center">
@@ -54,7 +85,7 @@
                             </div>
                             <app-user-status-dot [status]="effectiveStatus(member)" size="md" borderColor="border-sidebar"/>
                         </div>
-                        <span [appUserNameStyle]="member.profile" class="text-sm font-medium text-white/35 truncate min-w-0">{{ displayName(member) }}</span>
+                        <span [appUserNameStyle]="nameStyleFor(member)" class="text-sm font-medium text-white/35 truncate min-w-0">{{ displayName(member) }}</span>
                         @if (isBot(member)) {
                             <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim">Bot</span>
                         }

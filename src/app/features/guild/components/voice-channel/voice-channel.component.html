@@ -11,16 +11,8 @@
             <i class="pi pi-volume-up text-base text-white/50 shrink-0"></i>
             <span class="font-semibold text-white/85 truncate">{{ channel().name }}</span>
             @if (participants().length > 0) {
-                <span class="text-sm text-white/45">-{{ participants().length }} connected</span>
+                <span class="text-sm text-white/45">· {{ participants().length }} connected</span>
             }
-        </div>
-        <div class="ml-auto flex items-center gap-1 text-white/45">
-            <button class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/[0.05] hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
-                <i class="pi pi-users text-base"></i>
-            </button>
-            <button class="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-white/[0.05] hover:text-white/60 transition-colors cursor-pointer border-0 bg-transparent">
-                <i class="pi pi-link text-base"></i>
-            </button>
         </div>
     </header>
 
@@ -45,7 +37,7 @@
             @if (rtc === 'failed' || rtc === 'disconnected') {
                 <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium bg-rose-500/[0.12] border-b border-rose-500/20 text-rose-400">
                     <div class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"
-                         style="animation: vc-rtc-pulse 0.8s ease-in-out infinite"></div>
+                         style="animation: rtc-status-pulse 0.8s ease-in-out infinite"></div>
                     <svg class="shrink-0" fill="currentColor" height="12" viewBox="0 0 24 24" width="12">
                         <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
                     </svg>
@@ -54,7 +46,7 @@
             } @else if (rtc === 'new' || rtc === 'connecting') {
                 <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium bg-amber-400/10 border-b border-amber-400/20 text-amber-400">
                     <div class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"
-                         style="animation: vc-rtc-pulse 1s ease-in-out infinite"></div>
+                         style="animation: rtc-status-pulse 1s ease-in-out infinite"></div>
                     Establishing connection...
                 </div>
             }
@@ -117,7 +109,7 @@
                             [isScreenSharing]="voiceSvc.localState().isScreenSharing"
                             [screenAudioMuted]="voiceSvc.localScreenAudioMuted()"
                             [screenHasAudio]="voiceSvc.localScreenHasAudio()"
-                            class="pointer-events-auto shadow-[0_8px_32px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden border border-white/10 bg-black/60 backdrop-blur-xl"
+                            class="pointer-events-auto"
                     />
                 </div>
             </div>

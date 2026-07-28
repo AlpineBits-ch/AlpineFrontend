@@ -1,6 +1,7 @@
 import {Component, computed, DestroyRef, inject, input, OnChanges, signal, SimpleChanges, ViewChild} from '@angular/core';
+import {NgClass} from '@angular/common';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {GuildDto} from '../../../../dtos/response/guild.dto';
+import {GuildDto, RoleDto, RoleType} from '../../../../dtos/response/guild.dto';
 import {GuildMemberDto, SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {OnlineStatus} from '../../../../dtos/response/profile.dto';
 import {MemberType} from '../../../../enums/member-type.enum';
@@ -23,11 +24,18 @@ import {
 } from '../../../../services/guild-websocket.service';
 import {UserStatusDotComponent} from '../../../../components/user-status-dot/user-status-dot.component';
 import {UserNameStyleDirective} from '../../../../directives/user-name-style.directive';
+import {UserNameStyleInput} from '../../../../models/profile-font.model';
 import {BotInstallDialogService} from '../../../bot-install/bot-install-dialog.service';
+import {ProfileDialogService} from '../../../../services/profile-dialog.service';
+
+export interface MemberRoleGroup {
+    role: RoleDto;
+    members: GuildMemberDto[];
+}
 
 @Component({
     selector: 'app-guild-member-list',
-    imports: [TranslateModule, Menu, UserStatusDotComponent, UserNameStyleDirective],
+    imports: [TranslateModule, Menu, UserStatusDotComponent, UserNameStyleDirective, NgClass],
     templateUrl: './guild-member-list.component.html',
 })
 export class GuildMemberListComponent implements OnChanges {
@@ -36,8 +44,24 @@ export class GuildMemberListComponent implements OnChanges {
     loading = signal(true);
     loadingMore = signal(false);
     hasMore = signal(true);
-    onlineRows = computed(() => this.rows().filter(m => this.isBot(m) || (m.status !== OnlineStatus.Offline && m.status !== OnlineStatus.Hidden)));
-    offlineRows = computed(() => this.rows().filter(m => !this.isBot(m) && (m.status === OnlineStatus.Offline || m.status === OnlineStatus.Hidden)));
+    protected profileDialogSvc = inject(ProfileDialogService);
+    // Members are grouped by their highest-position role (Discord-style hierarchy display).
+    // Members with no roles at all fall back to the plain online/offline split.
+    roleGroups = computed((): MemberRoleGroup[] => {
+        const groups = new Map<string, MemberRoleGroup>();
+        for (const member of this.rows()) {
+            const role = this.highestRole(member);
+            if (!role) continue;
+            const group = groups.get(role.id);
+            if (group) group.members.push(member);
+            else groups.set(role.id, {role, members: [member]});
+        }
+        return [...groups.values()]
+            .sort((a, b) => b.role.position - a.role.position)
+            .map(g => ({...g, members: [...g.members].sort((a, b) => Number(this.isActive(b)) - Number(this.isActive(a)))}));
+    });
+    onlineRows = computed(() => this.rows().filter(m => !this.hasRole(m) && this.isActive(m)));
+    offlineRows = computed(() => this.rows().filter(m => !this.hasRole(m) && !this.isActive(m)));
     @ViewChild('memberMenu') memberMenu!: Menu;
     protected contextMember = signal<GuildMemberDto | null>(null);
     private ownMember = signal<SelfGuildMemberDto | null>(null);
@@ -122,6 +146,36 @@ export class GuildMemberListComponent implements OnChanges {
 
     effectiveStatus(member: GuildMemberDto): OnlineStatus {
         return this.isBot(member) ? OnlineStatus.Online : member.status;
+    }
+
+    // Role color is only used as a fallback -a member's own profile accent color (Nitro-style
+    // personalization) always wins when set, matching UserNameStyleDirective's precedence.
+    nameStyleFor(member: GuildMemberDto): UserNameStyleInput {
+        return {
+            accentColor: member.profile?.accentColor ?? this.highestRole(member)?.color,
+            font: member.profile?.font,
+        };
+    }
+
+    protected isActive(member: GuildMemberDto): boolean {
+        return this.isBot(member) || (member.status !== OnlineStatus.Offline && member.status !== OnlineStatus.Hidden);
+    }
+
+    // The @everyone role is assigned to every member and carries no meaningful color/grouping
+    // information (it's usually left black) -exclude it so those members fall back to the plain
+    // online/offline split instead of forming a giant, unstyled "everyone" role group.
+    private significantRoleMembers(member: GuildMemberDto): { role: RoleDto }[] {
+        return (member.roleMembers ?? []).filter(rm => rm.role.type !== RoleType.Everyone);
+    }
+
+    private hasRole(member: GuildMemberDto): boolean {
+        return this.significantRoleMembers(member).length > 0;
+    }
+
+    private highestRole(member: GuildMemberDto): RoleDto | undefined {
+        const roleMembers = this.significantRoleMembers(member);
+        if (roleMembers.length === 0) return undefined;
+        return roleMembers.reduce((max, cur) => cur.role.position > max.role.position ? cur : max).role;
     }
 
     private reset(): void {

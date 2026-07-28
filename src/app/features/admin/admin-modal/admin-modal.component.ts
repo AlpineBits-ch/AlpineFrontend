@@ -57,8 +57,8 @@ export class AdminModalComponent {
     navItemClasses(id: string): Record<string, boolean> {
         const active = this.activePage() === id;
         return {
-            'bg-indigo-500/15': active,
-            'text-indigo-400': active,
+            'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)]': active,
+            'text-[var(--color-brand-dim)]': active,
             'text-white/50': !active,
         };
     }

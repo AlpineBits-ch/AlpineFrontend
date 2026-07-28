@@ -20,7 +20,7 @@
 .bg-grid {
     position: absolute;
     inset: 0;
-    background-image: radial-gradient(rgba(99, 102, 241, 0.07) 1px, transparent 1px);
+    background-image: radial-gradient(color-mix(in srgb, var(--color-brand) 7%, transparent) 1px, transparent 1px);
     background-size: 26px 26px;
     pointer-events: none;
     z-index: 0;
@@ -39,7 +39,7 @@
     height: 340px;
     top: -100px;
     right: -80px;
-    background: radial-gradient(circle, rgba(99, 102, 241, 0.32) 0%, transparent 65%);
+    background: radial-gradient(circle, color-mix(in srgb, var(--color-brand) 32%, transparent) 0%, transparent 65%);
     opacity: 0.7;
     animation: orbFloat1 13s ease-in-out infinite alternate;
 }

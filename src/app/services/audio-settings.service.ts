@@ -33,6 +33,10 @@ export interface AudioSettings {
     proximityMicGain: number;
     /** Whether Isle proximity voice uses HRTF directional panning (false = distance-only). */
     proximitySpatialEnabled: boolean;
+    /** How the mic decides when to transmit for regular (non-Isle) calls. */
+    inputMode: 'voice-activity' | 'push-to-talk';
+    /** Voice-activity threshold, 0 (least sensitive) – 100 (most sensitive). Ignored in push-to-talk mode. */
+    inputSensitivity: number;
 }
 
 const DEFAULTS: AudioSettings = {
@@ -51,6 +55,8 @@ const DEFAULTS: AudioSettings = {
     proximityVolume: 1,
     proximityMicGain: 1,
     proximitySpatialEnabled: true,
+    inputMode: 'voice-activity',
+    inputSensitivity: 60,
 };
 
 const STORAGE_KEY = 'alpine_audio_settings';

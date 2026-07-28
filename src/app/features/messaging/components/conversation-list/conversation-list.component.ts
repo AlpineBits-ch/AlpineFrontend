@@ -29,6 +29,7 @@ import {MessageEncryptionState} from '../../../../enums/message-encryption-state
 import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
 import {UserStatusDotComponent} from '../../../../components/user-status-dot/user-status-dot.component';
 import {TypingDotsComponent} from '../../../../components/typing-dots/typing-dots.component';
+import {EmptyStateComponent} from '../../../../components/empty-state/empty-state.component';
 
 import {ProfileService} from '../../../../services/profile.service';
 import {MessagingService} from '../../../../services/messaging.service';
@@ -50,7 +51,7 @@ const PREVIEW_SIZE = 30;
 @Component({
     selector: 'app-conversation-list',
     imports: [
-        AppAvatarComponent, DatePipe, NgClass, UserStatusDotComponent, TypingDotsComponent,
+        AppAvatarComponent, DatePipe, NgClass, UserStatusDotComponent, TypingDotsComponent, EmptyStateComponent,
         IonList, IonItem, IonItemSliding, IonItemOptions, IonItemOption,
         IonLabel, IonBadge, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent,
         ContextMenu, ConfirmDialog,

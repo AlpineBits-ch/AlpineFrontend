@@ -33,7 +33,7 @@
                     <!-- Icon + info -->
                     <div class="flex-1 min-w-0">
                         <div class="flex items-center gap-2 mb-0.5">
-              <span [ngClass]="invite.type === InviteType.Permanent ? 'bg-indigo-500/15 text-indigo-400' : 'bg-amber-500/15 text-amber-400'"
+              <span [ngClass]="invite.type === InviteType.Permanent ? 'bg-[color-mix(in_srgb,var(--color-brand)_15%,transparent)] text-[var(--color-brand-dim)]' : 'bg-amber-500/15 text-amber-400'"
                     class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide">
                 @if (invite.type === InviteType.Permanent) {
                     <i class="pi pi-infinity text-[9px]"></i> {{ 'GUILD_SETTINGS.INVITES.TYPE_PERMANENT' | translate }}

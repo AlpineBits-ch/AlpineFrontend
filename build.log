@@ -1,0 +1,59 @@
+Node.js version v25.8.1 detected.
+Odd numbered Node.js versions will not enter LTS status and should not be used for production. For more information, please see https://nodejs.org/en/about/previous-releases/.
+[33m❯[39m Building...
+[32m✔[39m Building...
+[1mInitial chunk files[22m  [2m | [22m[1mNames[22m         [2m | [22m [1mRaw size[22m[2m | [22m[1mEstimated transfer size[22m
+[32mmain-YCEBC2TN.js[39m     [2m | [22m[2mmain[22m          [2m | [22m  [36m3.89 MB[39m[2m | [22m              [36m800.55 kB[39m
+[32mchunk-M4K2TCAL.js[39m    [2m | [22m[2m-[22m             [2m | [22m[36m280.80 kB[39m[2m | [22m               [36m76.58 kB[39m
+[32mstyles-Z3VE4PU3.css[39m  [2m | [22m[2mstyles[22m        [2m | [22m[36m133.78 kB[39m[2m | [22m               [36m16.12 kB[39m
+[32mchunk-AOGPCVBR.js[39m    [2m | [22m[2m-[22m             [2m | [22m [36m36.72 kB[39m[2m | [22m               [36m12.85 kB[39m
+[32mpolyfills-JUTM3XWE.js[39m[2m | [22m[2mpolyfills[22m     [2m | [22m [36m34.63 kB[39m[2m | [22m               [36m11.35 kB[39m
+[32mchunk-JFQB2E6N.js[39m    [2m | [22m[2m-[22m             [2m | [22m [36m16.52 kB[39m[2m | [22m                [36m3.10 kB[39m
+[32mchunk-PY674FFF.js[39m    [2m | [22m[2m-[22m             [2m | [22m [36m10.30 kB[39m[2m | [22m                [36m2.70 kB[39m
+[32mchunk-TGD3WFEG.js[39m    [2m | [22m[2m-[22m             [2m | [22m  [36m6.02 kB[39m[2m | [22m                [36m2.40 kB[39m
+[32mchunk-FEUABRKJ.js[39m    [2m | [22m[2m-[22m             [2m | [22m  [36m5.91 kB[39m[2m | [22m                [36m2.24 kB[39m
+[32mchunk-UYLSLOF7.js[39m    [2m | [22m[2m-[22m             [2m | [22m  [36m3.62 kB[39m[2m | [22m                [36m1.73 kB[39m
+[32mchunk-QNRW5O4V.js[39m    [2m | [22m[2m-[22m             [2m | [22m  [36m2.91 kB[39m[2m | [22m              [36m996 bytes[39m
+[32mchunk-L2U4S66G.js[39m    [2m | [22m[2m-[22m             [2m | [22m  [36m1.76 kB[39m[2m | [22m              [36m783 bytes[39m
+[32mchunk-I6CSH3M3.js[39m    [2m | [22m[2m-[22m             [2m | [22m  [36m1.65 kB[39m[2m | [22m              [36m639 bytes[39m
+[32mchunk-CFTMC2NR.js[39m    [2m | [22m[2m-[22m             [2m | [22m  [36m1.25 kB[39m[2m | [22m              [36m603 bytes[39m
+[32mchunk-KVERFQMJ.js[39m    [2m | [22m[2m-[22m             [2m | [22m  [36m1.14 kB[39m[2m | [22m              [36m555 bytes[39m
+[32mchunk-MIHCLMNX.js[39m    [2m | [22m[2m-[22m             [2m | [22m  [36m1.07 kB[39m[2m | [22m              [36m593 bytes[39m
+[32mchunk-TRNYLCEM.js[39m    [2m | [22m[2m-[22m             [2m | [22m  [36m1.05 kB[39m[2m | [22m              [36m496 bytes[39m
+[32mchunk-J6D3FWNX.js[39m    [2m | [22m[2m-[22m             [2m | [22m[36m955 bytes[39m[2m | [22m              [36m955 bytes[39m
+[32mchunk-VNLLBRWK.js[39m    [2m | [22m[2m-[22m             [2m | [22m[36m704 bytes[39m[2m | [22m              [36m704 bytes[39m
+[32mchunk-BPTUKUL5.js[39m    [2m | [22m[2m-[22m             [2m | [22m[36m217 bytes[39m[2m | [22m              [36m217 bytes[39m
+
+[1m [22m                    [2m | [22m[1mInitial total[22m [2m | [22m  [1m[93m4.43 MB[39m[22m[2m | [22m              [1m936.15 kB[22m
+
+[1mLazy chunk files[22m     [2m | [22m[1mNames[22m         [2m | [22m [1mRaw size[22m[2m | [22m[1mEstimated transfer size[22m
+[32mchunk-6B2QA7DX.js[39m    [2m | [22m[2mtwitter-json[22m  [2m | [22m[36m462.86 kB[39m[2m | [22m               [36m62.78 kB[39m
+[32mchunk-ZITHE25L.js[39m    [2m | [22m[2mnative-json[22m   [2m | [22m[36m434.14 kB[39m[2m | [22m               [36m57.32 kB[39m
+[32mchunk-QHB5C5LE.js[39m    [2m | [22m[2mmodule[22m        [2m | [22m [36m77.78 kB[39m[2m | [22m               [36m24.27 kB[39m
+[32mchunk-I3DHGZPE.js[39m    [2m | [22m[2mwebviewWindow[22m [2m | [22m  [36m5.92 kB[39m[2m | [22m                [36m1.42 kB[39m
+[32mchunk-74PEZ3GG.js[39m    [2m | [22m[2mp-Cwv-vmkN[22m    [2m | [22m  [36m5.15 kB[39m[2m | [22m                [36m2.08 kB[39m
+[32mchunk-FMLR6UYW.js[39m    [2m | [22m[2mion-icon-entry[22m[2m | [22m  [36m4.82 kB[39m[2m | [22m                [36m1.82 kB[39m
+[32mchunk-4DEMD3Q4.js[39m    [2m | [22m[2mdebug[22m         [2m | [22m  [36m1.92 kB[39m[2m | [22m              [36m804 bytes[39m
+[32mchunk-TDQNLA7X.js[39m    [2m | [22m[2mp-BgwEQWW6[22m    [2m | [22m  [36m1.72 kB[39m[2m | [22m              [36m823 bytes[39m
+[32mchunk-LCEUPZKF.js[39m    [2m | [22m[2mp-BmVRXR1y[22m    [2m | [22m  [36m1.02 kB[39m[2m | [22m              [36m475 bytes[39m
+[32mchunk-BOEV4RI3.js[39m    [2m | [22m[2mp-Cz5nLPGT[22m    [2m | [22m[36m876 bytes[39m[2m | [22m              [36m876 bytes[39m
+[32mchunk-SI3G6522.js[39m    [2m | [22m[2mindex[22m         [2m | [22m[36m762 bytes[39m[2m | [22m              [36m762 bytes[39m
+[32mchunk-6NY64NXM.js[39m    [2m | [22m[2mwindow[22m        [2m | [22m[36m625 bytes[39m[2m | [22m              [36m625 bytes[39m
+[32mchunk-G75WASBN.js[39m    [2m | [22m[2mp-CneGxKsZ[22m    [2m | [22m[36m624 bytes[39m[2m | [22m              [36m624 bytes[39m
+[32mchunk-XUT5443W.js[39m    [2m | [22m[2mp-D6Ynv7Xh[22m    [2m | [22m[36m453 bytes[39m[2m | [22m              [36m453 bytes[39m
+[32mchunk-WQBNZPWM.js[39m    [2m | [22m[2mcore[22m          [2m | [22m[36m350 bytes[39m[2m | [22m              [36m350 bytes[39m
+[2m...and 5 more lazy chunks files. Use "--verbose" to show all the files.[22m
+
+Application bundle generation complete. [15.504 seconds] - 2026-07-28T06:33:53.350Z
+
+[1m[33m[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mbundle initial exceeded maximum budget. Budget 500.00 kB was not met by 3.93 MB with a total of 4.43 MB.[0m
+
+
+[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1msrc/app/features/login/login.component.css exceeded maximum budget. Budget 4.00 kB was not met by 168 bytes with a total of 4.17 kB.[0m
+
+
+[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1msrc/app/features/messaging/components/conversation/call-panel/call-panel.component.css exceeded maximum budget. Budget 4.00 kB was not met by 6.59 kB with a total of 10.59 kB.[0m
+
+[39m[22m
+Output location: C:\Users\Domin\WebstormProjects\Alpine\dist\alpine
+

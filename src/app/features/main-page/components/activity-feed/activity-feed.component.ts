@@ -1,5 +1,7 @@
 import {Component, computed, inject, signal} from '@angular/core';
+import {NgClass} from '@angular/common';
 import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
+import {EmptyStateComponent} from '../../../../components/empty-state/empty-state.component';
 import {ProfileService} from '../../../../services/profile.service';
 import {ProfileDialogService} from '../../../../services/profile-dialog.service';
 import {RelationshipService} from '../../../../services/relationship.service';
@@ -19,7 +21,7 @@ export interface ActivityStatus {
 
 @Component({
     selector: 'app-activity-feed',
-    imports: [AppAvatarComponent, TranslateModule],
+    imports: [AppAvatarComponent, TranslateModule, NgClass, EmptyStateComponent],
     templateUrl: './activity-feed.component.html',
     styleUrl: './activity-feed.component.css',
 })
@@ -36,6 +38,14 @@ export class ActivityFeedComponent {
         this.friends().filter(r =>
             this.profileService.getOnlineStatus(this.friendUserId(r)) === OnlineStatus.Online
         )
+    );
+    // "Active Now" — friends with a live rich-presence activity get a card; everyone else
+    // online falls back to the plain roster row.
+    protected activeNowFriends = computed(() =>
+        this.onlineFriends().filter(r => this.activityFor(r))
+    );
+    protected plainOnlineFriends = computed(() =>
+        this.onlineFriends().filter(r => !this.activityFor(r))
     );
     protected offlineFriends = computed(() =>
         this.friends().filter(r =>
@@ -72,5 +82,14 @@ export class ActivityFeedComponent {
         const h = Math.floor(mins / 60);
         const m = mins % 60;
         return m > 0 ? `${h}h ${m}m` : `${h}h`;
+    }
+
+    protected activityIcon(status: ActivityStatus): string {
+        switch (status.type) {
+            case 'playing': return 'pi-play-circle';
+            case 'listening': return 'pi-volume-up';
+            case 'watching': return 'pi-eye';
+            case 'streaming': return 'pi-video';
+        }
     }
 }

@@ -45,7 +45,7 @@
         border-radius: 6px;
     }
     20% {
-        background: rgba(99, 102, 241, 0.15);
+        background: color-mix(in srgb, var(--color-brand) 15%, transparent);
         border-radius: 6px;
     }
     100% {
@@ -65,8 +65,8 @@
     align-items: center;
     gap: 12px;
     padding: 10px 16px;
-    background: linear-gradient(90deg, rgba(99, 102, 241, 0.13) 0%, rgba(99, 102, 241, 0.04) 100%);
-    border-bottom: 1px solid rgba(99, 102, 241, 0.18);
+    background: linear-gradient(90deg, color-mix(in srgb, var(--color-brand) 13%, transparent) 0%, color-mix(in srgb, var(--color-brand) 4%, transparent) 100%);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-brand) 18%, transparent);
 }
 
 .ringing-pulse {
@@ -83,7 +83,7 @@
     position: absolute;
     inset: -6px;
     border-radius: 50%;
-    border: 1.5px solid rgba(99, 102, 241, 0.45);
+    border: 1.5px solid color-mix(in srgb, var(--color-brand) 45%, transparent);
     animation: ringing-expand 1.8s ease-out infinite;
 }
 

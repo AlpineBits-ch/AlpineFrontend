@@ -6,6 +6,7 @@ import {Dialog} from 'primeng/dialog';
 import {Tooltip} from 'primeng/tooltip';
 import {GuildDto} from '../../../../../../dtos/response/guild.dto';
 import {GuildMemberDto} from '../../../../../../dtos/response/member.dto';
+import {MemberType} from '../../../../../../enums/member-type.enum';
 import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
@@ -50,7 +51,7 @@ export class MembersSettingsComponent implements OnInit {
         const q = this.filter().toLowerCase();
         if (!q) return this.members();
         return this.members().filter(row => {
-            const name = row.profile?.userName ?? '';
+            const name = this.displayName(row);
             return name.toLowerCase().includes(q) || row.member.userId.includes(q);
         });
     }
@@ -135,11 +136,18 @@ export class MembersSettingsComponent implements OnInit {
     }
 
     displayName(row: MemberRow): string {
+        if (this.isBot(row)) {
+            return row.member.nickname ?? row.member.userId.slice(0, 8) + '…';
+        }
         return row.profile?.userName ?? row.member.userId.slice(0, 8) + '…';
     }
 
     avatarUrl(row: MemberRow): string | undefined {
         return row.profile?.avatarUrl;
+    }
+
+    isBot(row: MemberRow): boolean {
+        return row.member.type === MemberType.Bot;
     }
 
     private fetchPage(): void {

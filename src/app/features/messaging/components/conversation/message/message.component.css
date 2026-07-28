@@ -147,8 +147,8 @@
 :host ::ng-deep .mention-chip {
     display: inline-flex;
     align-items: center;
-    background: rgba(99, 102, 241, 0.18);
-    color: rgb(129, 140, 248);
+    background: color-mix(in srgb, var(--color-brand) 18%, transparent);
+    color: var(--color-brand-dim);
     border-radius: 4px;
     padding: 1px 5px;
     font-size: 0.875rem;
@@ -166,7 +166,7 @@
 
 .mention-chip-channel,
 :host ::ng-deep .mention-chip-channel {
-    background: rgba(129, 140, 248, 0.10);
+    background: color-mix(in srgb, var(--color-brand-dim) 10%, transparent);
     color: var(--color-brand-dim);
 }
 

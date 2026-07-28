@@ -34,7 +34,14 @@ export class EntropyModalComponent implements AfterViewInit, OnDestroy {
     private timerId: ReturnType<typeof setInterval> | null = null;
     private finished = false;
 
+    private brandRgb = '124,114,255';
+    private brandDimRgb = '154,132,255';
+
     ngAfterViewInit(): void {
+        const style = getComputedStyle(document.documentElement);
+        this.brandRgb = this.hexToRgb(style.getPropertyValue('--color-brand')) ?? this.brandRgb;
+        this.brandDimRgb = this.hexToRgb(style.getPropertyValue('--color-brand-dim')) ?? this.brandDimRgb;
+
         this.grid = Array.from({length: this.ROWS}, () =>
             Array.from({length: this.COLS}, () => ({brightness: 0, visited: false}))
         );
@@ -105,6 +112,13 @@ export class EntropyModalComponent implements AfterViewInit, OnDestroy {
         }
     }
 
+    private hexToRgb(hex: string): string | null {
+        const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+        if (!match) return null;
+        const n = parseInt(match[1], 16);
+        return `${(n >> 16) & 255},${(n >> 8) & 255},${n & 255}`;
+    }
+
     private renderLoop(): void {
         const canvas = this.canvasRef.nativeElement;
         const ctx = this.ctx;
@@ -121,16 +135,16 @@ export class EntropyModalComponent implements AfterViewInit, OnDestroy {
                 const y = r * ch;
 
                 if (cell.visited) {
-                    ctx.fillStyle = 'rgba(99,102,241,0.12)';
+                    ctx.fillStyle = `rgba(${this.brandRgb},0.12)`;
                     ctx.fillRect(x + 1, y + 1, cw - 2, ch - 2);
                 }
 
                 if (cell.brightness > 0.01) {
-                    ctx.fillStyle = `rgba(99,102,241,${cell.brightness * 0.85})`;
+                    ctx.fillStyle = `rgba(${this.brandRgb},${cell.brightness * 0.85})`;
                     ctx.fillRect(x + 1, y + 1, cw - 2, ch - 2);
 
                     const m = cw * 0.28;
-                    ctx.fillStyle = `rgba(165,180,252,${cell.brightness * 0.55})`;
+                    ctx.fillStyle = `rgba(${this.brandDimRgb},${cell.brightness * 0.55})`;
                     ctx.fillRect(x + m, y + m, cw - m * 2, ch - m * 2);
 
                     cell.brightness *= DECAY;

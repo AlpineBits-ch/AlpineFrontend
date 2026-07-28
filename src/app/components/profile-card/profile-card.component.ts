@@ -36,9 +36,4 @@ export class ProfileCardComponent {
     protected onAvatarError(): void {
         this.avatarErrorChange.emit();
     }
-
-    protected bannerBackgroundImage(p: ProfileDto): string | null {
-        if (!p.bannerUrl) return null;
-        return `url('${cacheBustedUrl(p.bannerUrl, p.updatedAt)}')`;
-    }
 }

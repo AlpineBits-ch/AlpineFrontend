@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, effect, input, OnDestroy, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, input, OnDestroy, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 
 export interface ServerData {
@@ -9,6 +9,25 @@ export interface ServerData {
     badge?: number;
     isActive?: boolean;
     hasUnread?: boolean;
+}
+
+// Flat fallback colors for guilds without a custom icon, so the rail doesn't read as one
+// uniform gray strip. Picked to sit comfortably next to the brand accent in dark mode.
+const FALLBACK_PALETTE = [
+    'bg-rose-500/70 text-white',
+    'bg-amber-500/70 text-white',
+    'bg-emerald-500/70 text-white',
+    'bg-sky-500/70 text-white',
+    'bg-violet-500/70 text-white',
+    'bg-fuchsia-500/70 text-white',
+] as const;
+
+function hashToIndex(id: string, bucketCount: number): number {
+    let hash = 0;
+    for (let i = 0; i < id.length; i++) {
+        hash = (hash * 31 + id.charCodeAt(i)) | 0;
+    }
+    return Math.abs(hash) % bucketCount;
 }
 
 @Component({
@@ -23,6 +42,9 @@ export class ServerIconComponent implements OnDestroy {
 
     protected imgSrc = signal('');
     protected imgFailed = signal(false);
+    protected fallbackColorClass = computed(() =>
+        FALLBACK_PALETTE[hashToIndex(this.serverData().id, FALLBACK_PALETTE.length)]
+    );
 
     private retryCount = 0;
     private retryTimers: ReturnType<typeof setTimeout>[] = [];

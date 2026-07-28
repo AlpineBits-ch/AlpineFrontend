@@ -92,10 +92,22 @@ button, a, [role="button"], input, select, textarea, label {
 .typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
 .search-highlight {
-  background: rgba(99, 102, 241, 0.30);
+  background: color-mix(in srgb, var(--color-brand) 30%, transparent);
   color: rgba(255, 255, 255, 0.92);
   border-radius: 2px;
   padding: 0 2px;
+}
+
+/* ── Call / voice connection-state pulse ─────────────────────────────────── */
+
+@keyframes rtc-status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes speaking-ring {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.35); }
+  50% { box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.6); }
 }
 
 /**
@@ -109,9 +121,9 @@ button, a, [role="button"], input, select, textarea, label {
  *   border-subtle      → rgba(255,255,255,0.06)
  *   border-default     → rgba(255,255,255,0.10)
  *
- *   bg-brand           → #6366f1  (indigo-500)
- *   text-brand-dim     → #818cf8  (indigo-400)
- *   bg-brand/15        → indigo-500 at 15% opacity (active tab bg)
+ *   bg-brand           → #7c72ff  (brand purple)
+ *   text-brand-dim     → #9a84ff  (brand dim)
+ *   bg-brand/15        → brand purple at 15% opacity (active tab bg)
  *
  *   bg-online          → #34d399  (emerald-400, connected)
  *   bg-connecting      → #fbbf24  (amber-400, connecting)
@@ -129,7 +141,7 @@ button, a, [role="button"], input, select, textarea, label {
   color: rgba(255, 255, 255, 0.85);
 }
 .dark .p-select:hover { border-color: rgba(255, 255, 255, 0.18) !important; }
-.dark .p-select.p-focus { border-color: #818cf8 !important; }
+.dark .p-select.p-focus { border-color: var(--color-brand-dim) !important; }
 
 .dark .p-select-label { color: rgba(255, 255, 255, 0.80); }
 .dark .p-select-label.p-placeholder { color: rgba(255, 255, 255, 0.35) !important; }
@@ -148,13 +160,13 @@ button, a, [role="button"], input, select, textarea, label {
   color: rgba(255, 255, 255, 0.95) !important;
 }
 .dark .p-select-option.p-select-option-selected {
-  background: rgba(99, 102, 241, 0.15) !important;
-  color: #818cf8 !important;
+  background: color-mix(in srgb, var(--color-brand) 15%, transparent) !important;
+  color: var(--color-brand-dim) !important;
 }
 .dark .p-select-option.p-select-option-selected:hover,
 .dark .p-select-option.p-select-option-selected.p-focus {
-  background: rgba(99, 102, 241, 0.22) !important;
-  color: #a5b4fc !important;
+  background: color-mix(in srgb, var(--color-brand) 22%, transparent) !important;
+  color: color-mix(in srgb, var(--color-brand-dim) 80%, white 20%) !important;
 }
 .dark .p-select-empty-message { color: rgba(255, 255, 255, 0.40); }
 
@@ -172,11 +184,12 @@ button, a, [role="button"], input, select, textarea, label {
   --color-hover:   #1d2333;
   --color-border:  #252e42;
 
-  /* ── Brand (Indigo) ────────────────────────────────────── */
-  --color-brand:       #6366f1;
-  --color-brand-hover: #4f46e5;
-  --color-brand-dim:   #818cf8;
-  --color-brand-dark:  #4338ca;
+  /* ── Brand — must stay byte-identical to DEFAULT_THEME.colors in
+     src/app/models/theme.model.ts, which ThemeService applies at runtime. ── */
+  --color-brand:       #7c72ff;
+  --color-brand-hover: #695df2;
+  --color-brand-dim:   #9a84ff;
+  --color-brand-dark:  #584ad9;
 
   /* ── Connection status ─────────────────────────────────── */
   --color-online:      #34d399;
@@ -191,8 +204,8 @@ button, a, [role="button"], input, select, textarea, label {
   --color-text-faint:     rgba(255 255 255 / 0.06);
 
   /* ── Borders ────────────────────────────────────────────── */
-  --color-border-subtle:  rgba(255 255 255 / 0.08);
-  --color-border-default: rgba(255 255 255 / 0.12);
+  --color-border-subtle:  rgba(255 255 255 / 0.10);
+  --color-border-default: rgba(255 255 255 / 0.16);
 }
 
 /* ── Wiki markdown content ───────────────────────────────────────────────────
@@ -378,7 +391,7 @@ button, a, [role="button"], input, select, textarea, label {
 /* Image uploading placeholder -blob: src = still uploading */
 .wiki-wysiwyg img[src^="blob:"] {
   opacity: 0.4;
-  outline: 2px solid rgba(129, 140, 248, 0.5);
+  outline: 2px solid color-mix(in srgb, var(--color-brand-dim) 50%, transparent);
   outline-offset: 2px;
   animation: wiki-img-uploading 1.3s ease-in-out infinite;
 }

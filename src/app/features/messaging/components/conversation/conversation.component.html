@@ -18,7 +18,7 @@
             <div class="flex flex-col">
                 <h1 class="text-sm font-semibold text-white/85 m-0 leading-tight">{{ chatTitle() }}</h1>
                 @if (partnerStatus() !== null) {
-                    <span [ngClass]="partnerStatus() === OnlineStatus.Online ? 'text-emerald-400/70' : 'text-white/30'"
+                    <span [ngClass]="partnerStatus() === OnlineStatus.Online ? 'text-online/70' : 'text-white/30'"
                           class="text-[11px]">
             {{ partnerStatus() === OnlineStatus.Online ? 'Online' : 'Offline' }}
           </span>

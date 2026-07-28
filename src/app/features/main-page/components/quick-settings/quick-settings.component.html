@@ -12,9 +12,9 @@
             <div class="relative shrink-0 mr-1">
                 <app-avatar [userId]="profileService.ownProfile()?.userId"/>
                 <div [ngClass]="{
-            'bg-emerald-400': websocketService.connectionState() === ConnectionState.Connected,
-            'bg-amber-400': websocketService.connectionState() === ConnectionState.Connecting,
-            'bg-rose-500': websocketService.connectionState() === ConnectionState.Disconnected
+            'bg-online': websocketService.connectionState() === ConnectionState.Connected,
+            'bg-connecting': websocketService.connectionState() === ConnectionState.Connecting,
+            'bg-offline': websocketService.connectionState() === ConnectionState.Disconnected
           }"
                      class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-sidebar"></div>
             </div>

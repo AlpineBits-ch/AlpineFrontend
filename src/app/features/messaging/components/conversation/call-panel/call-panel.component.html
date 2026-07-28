@@ -85,85 +85,91 @@
             </div>
         }
 
-        <!-- ── Focused stream view ────────────────────────────────────────────── -->
-        @if (focusedStream(); as focused) {
-            <div #focusedViewEl class="focused-view">
-                <div class="focused-header">
-                    <span class="focused-label">{{ focused.label }}</span>
-                    <div class="focused-actions">
-                        <button (click)="requestPiP(focusedVideoEl)" class="focused-action-btn"
-                                title="Picture in picture">
-                            <svg fill="none" height="14" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
-                                 width="14">
-                                <rect height="14" rx="2" width="20" x="2" y="3"/>
-                                <rect fill="currentColor" height="6" rx="1" stroke="none" width="9" x="12" y="9"/>
-                            </svg>
-                        </button>
-                        <button (click)="toggleFullscreen(focusedViewEl)" class="focused-action-btn" title="Fullscreen">
-                            <svg fill="none" height="14" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
-                                 width="14">
-                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-                            </svg>
-                        </button>
-                        <button (click)="unfocus()" class="focused-action-btn focused-close" title="Close">
-                            <svg fill="none" height="14" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"
-                                 width="14">
-                                <line x1="18" x2="6" y1="6" y2="18"/>
-                                <line x1="6" x2="18" y1="6" y2="18"/>
-                            </svg>
-                        </button>
+        <!-- ── Content + floating controls ─────────────────────────────────────── -->
+        <div class="relative flex-1 min-h-0 flex flex-col">
+            <!-- ── Focused stream view ────────────────────────────────────────────── -->
+            @if (focusedStream(); as focused) {
+                <div #focusedViewEl class="focused-view">
+                    <div class="focused-header">
+                        <span class="focused-label">{{ focused.label }}</span>
+                        <div class="focused-actions">
+                            <button (click)="requestPiP(focusedVideoEl)" class="focused-action-btn"
+                                    title="Picture in picture">
+                                <svg fill="none" height="14" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                                     width="14">
+                                    <rect height="14" rx="2" width="20" x="2" y="3"/>
+                                    <rect fill="currentColor" height="6" rx="1" stroke="none" width="9" x="12" y="9"/>
+                                </svg>
+                            </button>
+                            <button (click)="toggleFullscreen(focusedViewEl)" class="focused-action-btn" title="Fullscreen">
+                                <svg fill="none" height="14" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                                     width="14">
+                                    <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                                </svg>
+                            </button>
+                            <button (click)="unfocus()" class="focused-action-btn focused-close" title="Close">
+                                <svg fill="none" height="14" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"
+                                     width="14">
+                                    <line x1="18" x2="6" y1="6" y2="18"/>
+                                    <line x1="6" x2="18" y1="6" y2="18"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
+                    <video #focusedVideoEl [class.focused-video--mirror]="focused.mirror" [streamSrc]="focused.stream" autoplay class="focused-video"
+                           muted
+                           playsinline></video>
                 </div>
-                <video #focusedVideoEl [class.focused-video--mirror]="focused.mirror" [streamSrc]="focused.stream" autoplay class="focused-video"
-                       muted
-                       playsinline></video>
+
+            } @else if (callScreenShares().length > 0) {
+
+                <!-- ── Screen share layout ────────────────────────────────────────────── -->
+                <app-call-screen-layout
+                        (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
+                        [participantsWithAudio]="participantsWithAudio()"
+                        [participants]="callParticipants()"
+                        [screenShares]="callScreenShares()"
+                        class="flex-1 min-h-0"
+                />
+
+            } @else {
+
+                <!-- ── Participants grid ─────────────────────────────────────────────── -->
+                <div [attr.data-count]="s.participants.length" class="participants">
+                    @for (p of callParticipants(); track p.userId) {
+                        <app-call-participant-tile
+                                (contextMenu)="onParticipantContextMenu($event, p)"
+                                [hasAudio]="participantsWithAudio().has(p.userId)"
+                                [participant]="p"
+                                [videoStream]="p.videoStream ?? null"
+                        />
+                    }
+                </div>
+
+            }
+
+            <!-- ── Floating controls bar ───────────────────────────────────────── -->
+            <div class="absolute bottom-8 left-0 right-0 flex justify-center z-20 pointer-events-none transition-all duration-300">
+                <app-call-controls-bar
+                        (cameraToggle)="toggleCamera()"
+                        (deafenToggle)="toggleDeafen()"
+                        (disconnect)="endCall()"
+                        (fpsChange)="setCaptureFps($event)"
+                        (muteToggle)="toggleMute()"
+                        (resolutionChange)="setScreenResolution($event)"
+                        (screenShareToggle)="toggleScreenShare()"
+                        [captureFps]="rustMedia.captureFps()"
+                        [captureResolution]="rustMedia.captureResolution()"
+                        [isCameraOn]="s.local.isCameraOn"
+                        [isDeafened]="s.local.isDeafened"
+                        [isMuted]="s.local.isMuted"
+                        [isScreenSharing]="s.local.isSharing"
+                        [screenHasAudio]="false"
+                        class="pointer-events-auto"
+                        disconnectLabel="End Call"
+                />
             </div>
-
-        } @else if (callScreenShares().length > 0) {
-
-            <!-- ── Screen share layout ────────────────────────────────────────────── -->
-            <app-call-screen-layout
-                    (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
-                    [participantsWithAudio]="participantsWithAudio()"
-                    [participants]="callParticipants()"
-                    [screenShares]="callScreenShares()"
-                    class="flex-1 min-h-0"
-            />
-
-        } @else {
-
-            <!-- ── Participants grid ─────────────────────────────────────────────── -->
-            <div [attr.data-count]="s.participants.length" class="participants">
-                @for (p of callParticipants(); track p.userId) {
-                    <app-call-participant-tile
-                            (contextMenu)="onParticipantContextMenu($event, p)"
-                            [hasAudio]="participantsWithAudio().has(p.userId)"
-                            [participant]="p"
-                            [videoStream]="p.videoStream ?? null"
-                    />
-                }
-            </div>
-
-        }
-
-        <!-- ── Controls bar ────────────────────────────────────────────────────── -->
-        <app-call-controls-bar
-                (cameraToggle)="toggleCamera()"
-                (deafenToggle)="toggleDeafen()"
-                (disconnect)="endCall()"
-                (fpsChange)="setCaptureFps($event)"
-                (muteToggle)="toggleMute()"
-                (resolutionChange)="setScreenResolution($event)"
-                (screenShareToggle)="toggleScreenShare()"
-                [captureFps]="rustMedia.captureFps()"
-                [captureResolution]="rustMedia.captureResolution()"
-                [isCameraOn]="s.local.isCameraOn"
-                [isDeafened]="s.local.isDeafened"
-                [isMuted]="s.local.isMuted"
-                [isScreenSharing]="s.local.isSharing"
-                [screenHasAudio]="false"
-                disconnectLabel="End Call"
-        />
+        </div>
 
         <!-- ── Resize handle ───────────────────────────────────────────────────── -->
         <div (mousedown)="onResizeStart($event)" class="resize-handle">

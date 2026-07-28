@@ -52,6 +52,12 @@ export class CallWebRtcService {
     private cfSessionId: string | null = null;
     private callId: string | null = null;
     private audioTrack: MediaStreamTrack | null = null;
+    /** A clone of the local audio track, kept permanently enabled, so the speaking/VAD
+     *  analyser always sees real audio even while applyVadGate() disables the real
+     *  (transmitted) audioTrack — a disabled MediaStreamTrack outputs silence to ALL
+     *  its consumers including this analyser, so analysing the same track that gets
+     *  gated would make the gate unable to ever detect speech again once it closes. */
+    private vadProbeTrack: MediaStreamTrack | null = null;
     private videoSender: RTCRtpSender | null = null;
     private videoTrackName: string | null = null;
     private screenSender: RTCRtpSender | null = null;
@@ -76,6 +82,7 @@ export class CallWebRtcService {
     private rafHandle: number | null = null;
     private lastSpeaking = false;
     private readonly SPEAKING_THRESHOLD = 0.02;
+    private readonly MAX_VAD_RMS = 0.05;
 
     // ── Negotiation serialisation ────────────────────────────────────────────
     // RTCPeerConnection only allows one offer/answer exchange at a time. Queuing
@@ -119,10 +126,36 @@ export class CallWebRtcService {
             if (!s) return;
             const isMuted = s.local.isMuted;
             const gateOpen = this.callSession.pttGateOpen();
-            if (this.audioTrack) this.audioTrack.enabled = !isMuted && gateOpen;
+            // In voice-activity mode, only ever force the track CLOSED here (mute
+            // or PTT-gate-closed) — never force it open. Opening is applyVadGate's
+            // job from the tick() loop, which re-evaluates every animation frame;
+            // if this effect also forced enabled=true on every unrelated session
+            // change (e.g. a remote participant's speaking/mute/camera event), it
+            // would momentarily re-open a track applyVadGate just closed, leaking
+            // up to one frame of live audio on every such event. Push-to-talk has
+            // no competing gate, so it keeps the original unconditional behavior.
+            const inVoiceActivity = this.audioSettings.settings().inputMode === 'voice-activity';
+            if (this.audioTrack) {
+                if (inVoiceActivity) {
+                    if (isMuted || !gateOpen) this.audioTrack.enabled = false;
+                } else {
+                    this.audioTrack.enabled = !isMuted && gateOpen;
+                }
+            }
             if (isMuted === this.prevMuted) return;
             this.prevMuted = isMuted;
             if (this.callId) this.voiceWs.invokeMuteChange(this.callId, isMuted);
+        });
+
+        // Apply local deafen state to every remote audio element's volume — mirrors
+        // VoiceRTCService.setDeafened (voice-rtc.service.ts:383-388) for the guild path.
+        effect(() => {
+            const s = this.callSession.session();
+            if (!s) return;
+            const isDeafened = s.local.isDeafened;
+            this.remoteAudio.forEach((audio, userId) => {
+                audio.volume = isDeafened ? 0 : (this.userVolumes.get(userId) ?? 1);
+            });
         });
 
         // Publish or unpublish the local camera track when the user toggles it.
@@ -162,11 +195,30 @@ export class CallWebRtcService {
         const clamped = Math.max(0, Math.min(1, volume));
         this.userVolumes.set(userId, clamped);
         const audio = this.remoteAudio.get(userId);
-        if (audio) audio.volume = clamped;
+        const isDeafened = this.callSession.session()?.local.isDeafened ?? false;
+        if (audio && !isDeafened) audio.volume = clamped;
     }
 
     getUserVolume(userId: string): number {
         return this.userVolumes.get(userId) ?? 1;
+    }
+
+    /**
+     * Continuously re-applies the voice-activity transmit gate. Runs every
+     * animation frame from the local speaking-detection tick() loop above, so it
+     * needs no separate polling loop. No-ops outside voice-activity mode or while
+     * deliberately muted — the mute effect (below) already forced enabled=false
+     * in that case and this must not override it.
+     */
+    private applyVadGate(rms: number): void {
+        if (this.audioSettings.settings().inputMode !== 'voice-activity') return;
+        if (!this.audioTrack) return;
+        const s = this.callSession.session();
+        if (!s || s.local.isMuted) return;
+        if (!this.callSession.pttGateOpen()) return;
+        const sensitivity = this.audioSettings.settings().inputSensitivity;
+        const threshold = this.MAX_VAD_RMS * (1 - sensitivity / 100);
+        this.audioTrack.enabled = rms > threshold;
     }
 
     // ── SDP offer/answer cycle ────────────────────────────────────────────────
@@ -239,7 +291,8 @@ export class CallWebRtcService {
         await this.publishAudioTrack(this.audioTrack);
         if (!this.callId) return;
 
-        this.startSpeakingDetection(new MediaStream([this.audioTrack]));
+        this.vadProbeTrack = this.audioTrack.clone();
+        this.startSpeakingDetection(new MediaStream([this.vadProbeTrack]));
         this.startStatsPolling();
     }
 
@@ -248,6 +301,8 @@ export class CallWebRtcService {
         this.stopStatsPolling();
         this.audioCtx?.close().catch(() => void 0);
         this.audioTrack?.stop();
+        this.vadProbeTrack?.stop();
+        this.vadProbeTrack = null;
         void this.rustMedia.stopMicCapture();
         void this.rustMedia.stopScreenCapture();
         this.pc?.close();
@@ -526,7 +581,8 @@ export class CallWebRtcService {
             const element = new Audio();
             element.srcObject = stream;
             element.autoplay = true;
-            element.volume = this.userVolumes.get(info.userId) ?? 1;
+            const isDeafened = this.callSession.session()?.local.isDeafened ?? false;
+            element.volume = isDeafened ? 0 : (this.userVolumes.get(info.userId) ?? 1);
             void this.routeToSelectedSpeaker(element);
             void element.play().catch(() => {
             });
@@ -677,6 +733,7 @@ export class CallWebRtcService {
                     const localId = s?.participants.find(p => p.isLocal)?.userId;
                     if (localId) this.callSession.onSpeakingChanged(localId, speaking);
                 }
+                this.applyVadGate(rms);
                 this.rafHandle = requestAnimationFrame(tick);
             };
             this.rafHandle = requestAnimationFrame(tick);

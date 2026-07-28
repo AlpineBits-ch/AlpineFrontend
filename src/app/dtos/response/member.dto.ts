@@ -13,6 +13,10 @@ export interface GuildMemberDto {
     nickname: string | null;
     profile: ProfileDto | undefined;
     readState: ReadStateDto[]
+    // Contract change: GET /guilds/{guildId}/members must now include each member's role
+    // assignments, same shape as GET /guilds/{guildId}/me already returns. Optional until the
+    // backend ships this — frontend guards with `member.roleMembers ?? []`.
+    roleMembers?: { role: RoleDto }[]
 }
 
 export interface SelfGuildMemberDto extends GuildMemberDto {

@@ -24,15 +24,7 @@
 .logo-mark {
     width: 18px;
     height: 18px;
-    border-radius: 5px;
-    background: linear-gradient(135deg, #818cf8 0%, #4338ca 100%);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 10px;
-    font-weight: 900;
-    color: white;
-    line-height: 1;
+    object-fit: contain;
     flex-shrink: 0;
 }
 

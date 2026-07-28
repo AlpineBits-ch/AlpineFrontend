@@ -1,9 +1,12 @@
 <div class="relative shrink-0">
     <button
-            [ngClass]="serverData().isActive
-      ? 'bg-indigo-500/20 text-indigo-400'
-      : 'bg-white/[0.07] text-white/60 hover:bg-indigo-500/20 hover:text-indigo-400'"
-            class="w-11 h-11 flex items-center justify-center transition-colors border-0 cursor-pointer text-sm font-bold overflow-hidden rounded-2xl">
+            [ngClass]="[
+              serverData().isActive ? 'rounded-2xl' : 'rounded-full hover:rounded-2xl',
+              (!serverData().icon || imgFailed())
+                ? fallbackColorClass()
+                : 'bg-white/[0.07] text-white/60'
+            ]"
+            class="w-11 h-11 flex items-center justify-center transition-[border-radius] duration-200 ease-out border-0 cursor-pointer text-sm font-bold overflow-hidden">
         @if (serverData().icon && !imgFailed()) {
             <img (error)="onImgError()" [src]="imgSrc()" alt="" class="w-full h-full object-cover"/>
         } @else {

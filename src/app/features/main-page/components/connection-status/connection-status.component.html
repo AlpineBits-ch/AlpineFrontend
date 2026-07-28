@@ -3,18 +3,18 @@
 <div class="flex items-center gap-1.5">
     <!-- Status dot -->
     <div [ngClass]="{
-      'bg-emerald-400': state === ConnectionState.Connected,
-      'bg-amber-400 animate-pulse': state === ConnectionState.Connecting,
-      'bg-rose-500': state === ConnectionState.Disconnected
+      'bg-online': state === ConnectionState.Connected,
+      'bg-connecting animate-pulse': state === ConnectionState.Connecting,
+      'bg-offline': state === ConnectionState.Disconnected
     }"
          class="w-1.5 h-1.5 rounded-full shrink-0">
     </div>
 
     <!-- Status text -->
     <span [ngClass]="{
-      'text-emerald-400/85': state === ConnectionState.Connected,
-      'text-amber-400/90':   state === ConnectionState.Connecting,
-      'text-rose-400/90':    state === ConnectionState.Disconnected
+      'text-online/85': state === ConnectionState.Connected,
+      'text-connecting/90':   state === ConnectionState.Connecting,
+      'text-offline/90':    state === ConnectionState.Disconnected
     }"
           class="text-[11px] font-medium leading-none">
     @switch (state) {

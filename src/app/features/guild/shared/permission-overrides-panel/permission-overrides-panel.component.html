@@ -29,7 +29,7 @@
                             [ngClass]="selected()?.id === entry.id ? 'bg-white/[0.08] text-white/90' : 'text-white/50 hover:bg-white/[0.04] hover:text-white/75'"
                             class="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer border-0 text-left">
                         @if (kind() === 'role') {
-                            <span [style.background]="entry.color || '#6366f1'" class="w-2.5 h-2.5 rounded-full shrink-0"></span>
+                            <span [style.background]="entry.color || 'var(--color-brand)'" class="w-2.5 h-2.5 rounded-full shrink-0"></span>
                         } @else {
                             <div class="w-5 h-5 rounded-full bg-card shrink-0 flex items-center justify-center overflow-hidden">
                                 @if (entry.avatarUrl) {
@@ -53,7 +53,7 @@
             @if (selected(); as entry) {
                 <div class="flex items-center gap-3 px-4 py-3 bg-white/[0.02] shrink-0">
                     @if (kind() === 'role') {
-                        <span [style.background]="entry.color || '#6366f1'" class="w-3 h-3 rounded-full shrink-0"></span>
+                        <span [style.background]="entry.color || 'var(--color-brand)'" class="w-3 h-3 rounded-full shrink-0"></span>
                     } @else {
                         <div class="w-7 h-7 rounded-full bg-card shrink-0 flex items-center justify-center overflow-hidden">
                             @if (entry.avatarUrl) {
@@ -94,7 +94,7 @@
                     (click)="onAdd(entry.id)"
                     class="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-white/[0.06] transition-colors cursor-pointer border-0 text-left">
                 @if (kind() === 'role') {
-                    <span [style.background]="entry.color || '#6366f1'" class="w-2.5 h-2.5 rounded-full shrink-0"></span>
+                    <span [style.background]="entry.color || 'var(--color-brand)'" class="w-2.5 h-2.5 rounded-full shrink-0"></span>
                 } @else {
                     <div class="w-6 h-6 rounded-full bg-card shrink-0 flex items-center justify-center overflow-hidden">
                         @if (entry.avatarUrl) {

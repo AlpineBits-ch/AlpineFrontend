@@ -1,5 +1,10 @@
-import { definePreset } from '@primeuix/themes';
+import { definePreset, palette } from '@primeuix/themes';
 import Aura from '@primeuix/themes/aura';
+import { DEFAULT_THEME } from '../models/theme.model';
+
+const BORDER_SUBTLE = 'rgba(255,255,255,0.10)';
+const BORDER_DEFAULT = 'rgba(255,255,255,0.16)';
+const BORDER_STRONG = 'rgba(255,255,255,0.22)';
 
 /**
  * Alpine Design System -refined dark messenger preset
@@ -20,17 +25,11 @@ export const AlpinePreset = definePreset(Aura, {
          * Slightly softer + less default-tailwind feeling
          */
         accent: {
-            50: '#f2f5ff',
-            100: '#e4eafc',
-            200: '#cdd8f6',
-            300: '#a9bbea',
-            400: '#7f99d9',
-            500: '#5f7fc7',
-            600: '#4d6db3',
-            700: '#405b95',
-            800: '#344977',
-            900: '#2b3c61',
-            950: '#1b263d',
+            ...(palette(DEFAULT_THEME.colors.brand) as object),
+            400: DEFAULT_THEME.colors.brandDim,
+            500: DEFAULT_THEME.colors.brand,
+            600: DEFAULT_THEME.colors.brandHover,
+            700: DEFAULT_THEME.colors.brandDark,
         },
 
         /**
@@ -46,12 +45,12 @@ export const AlpinePreset = definePreset(Aura, {
             300: '#9aa4b2',
             400: '#6b7280',
 
-            500: '#3f4652',
-            600: '#2b3038',
-            700: '#1f2329',
-            800: '#171a1f',
-            900: '#111317',
-            950: '#0b0d10',
+            500: '#454c59',
+            600: '#2f3540',
+            700: '#242a33',
+            800: '#1b1f26',
+            900: '#131620',
+            950: '#0a0c10',
         },
 
         /**
@@ -98,47 +97,47 @@ export const AlpinePreset = definePreset(Aura, {
 
                 formField: {
                     background: '#121821',
-                    borderColor: 'rgba(255,255,255,0.06)',
+                    borderColor: BORDER_SUBTLE,
                     color: '{zinc.50}',
                 },
 
                 overlay: {
                     select: {
                         background: '{zinc.800}',
-                        borderColor: 'rgba(255,255,255,0.06)',
+                        borderColor: BORDER_SUBTLE,
                         color: '{zinc.100}',
                         shadow: `
-              0 0 0 1px rgba(255,255,255,0.03),
+              0 0 0 1px rgba(255,255,255,0.08),
               0 12px 40px rgba(0,0,0,0.45)
             `,
                     },
 
                     popover: {
                         background: '{zinc.800}',
-                        borderColor: 'rgba(255,255,255,0.06)',
+                        borderColor: BORDER_SUBTLE,
                         color: '{zinc.100}',
                         shadow: `
-              0 0 0 1px rgba(255,255,255,0.03),
+              0 0 0 1px rgba(255,255,255,0.08),
               0 12px 40px rgba(0,0,0,0.45)
             `,
                     },
 
                     navigation: {
                         background: '{zinc.800}',
-                        borderColor: 'rgba(255,255,255,0.06)',
+                        borderColor: BORDER_SUBTLE,
                         color: '{zinc.100}',
                         shadow: `
-              0 0 0 1px rgba(255,255,255,0.03),
+              0 0 0 1px rgba(255,255,255,0.08),
               0 12px 40px rgba(0,0,0,0.45)
             `,
                     },
 
                     modal: {
                         background: '{zinc.900}',
-                        borderColor: 'rgba(255,255,255,0.05)',
+                        borderColor: BORDER_SUBTLE,
                         color: '{zinc.100}',
                         shadow: `
-              0 0 0 1px rgba(255,255,255,0.04),
+              0 0 0 1px rgba(255,255,255,0.10),
               0 20px 60px rgba(0,0,0,0.60)
             `,
                     },
@@ -178,13 +177,13 @@ export const AlpinePreset = definePreset(Aura, {
                         },
 
                         secondary: {
-                            background: 'rgba(255,255,255,0.03)',
-                            hoverBackground: 'rgba(255,255,255,0.06)',
-                            activeBackground: 'rgba(255,255,255,0.09)',
+                            background: 'rgba(255,255,255,0.05)',
+                            hoverBackground: 'rgba(255,255,255,0.09)',
+                            activeBackground: 'rgba(255,255,255,0.13)',
 
-                            borderColor: 'rgba(255,255,255,0.06)',
-                            hoverBorderColor: 'rgba(255,255,255,0.10)',
-                            activeBorderColor: 'rgba(255,255,255,0.14)',
+                            borderColor: BORDER_SUBTLE,
+                            hoverBorderColor: BORDER_DEFAULT,
+                            activeBorderColor: BORDER_STRONG,
 
                             color: '{zinc.200}',
                         },
@@ -199,8 +198,8 @@ export const AlpinePreset = definePreset(Aura, {
                     root: {
                         background: '#121821',
 
-                        borderColor: 'rgba(255,255,255,0.06)',
-                        hoverBorderColor: 'rgba(255,255,255,0.10)',
+                        borderColor: BORDER_SUBTLE,
+                        hoverBorderColor: BORDER_DEFAULT,
 
                         color: '{zinc.50}',
                         placeholderColor: '{zinc.400}',
@@ -211,7 +210,7 @@ export const AlpinePreset = definePreset(Aura, {
 
                         focusRing: {
                             color: '{accent.400}',
-                            shadow: '0 0 0 2px rgba(124,114,255,0.16)',
+                            shadow: '0 0 0 2px rgba(124,114,255,0.32)',
                         },
                     },
                 },
@@ -224,8 +223,8 @@ export const AlpinePreset = definePreset(Aura, {
                     root: {
                         background: '#121821',
 
-                        borderColor: 'rgba(255,255,255,0.06)',
-                        hoverBorderColor: 'rgba(255,255,255,0.10)',
+                        borderColor: BORDER_SUBTLE,
+                        hoverBorderColor: BORDER_DEFAULT,
 
                         color: '{zinc.50}',
                         placeholderColor: '{zinc.400}',
@@ -236,7 +235,7 @@ export const AlpinePreset = definePreset(Aura, {
 
                         focusRing: {
                             color: '{accent.400}',
-                            shadow: '0 0 0 2px rgba(124,114,255,0.16)',
+                            shadow: '0 0 0 2px rgba(124,114,255,0.32)',
                         },
                     },
                 },
@@ -248,11 +247,11 @@ export const AlpinePreset = definePreset(Aura, {
                 dark: {
                     root: {
                         background: '{zinc.900}',
-                        borderColor: 'rgba(255,255,255,0.05)',
+                        borderColor: BORDER_SUBTLE,
                         color: '{zinc.100}',
 
                         shadow: `
-              0 0 0 1px rgba(255,255,255,0.03),
+              0 0 0 1px rgba(255,255,255,0.09),
               0 24px 80px rgba(0,0,0,0.65)
             `,
                     },
@@ -265,11 +264,11 @@ export const AlpinePreset = definePreset(Aura, {
                 dark: {
                     root: {
                         background: '{zinc.800}',
-                        borderColor: 'rgba(255,255,255,0.06)',
+                        borderColor: BORDER_SUBTLE,
                         color: '{zinc.100}',
 
                         shadow: `
-              0 0 0 1px rgba(255,255,255,0.03),
+              0 0 0 1px rgba(255,255,255,0.08),
               0 12px 40px rgba(0,0,0,0.50)
             `,
                     },
@@ -278,7 +277,7 @@ export const AlpinePreset = definePreset(Aura, {
                         color: '{zinc.100}',
                         focusColor: '{zinc.50}',
 
-                        focusBackground: 'rgba(255,255,255,0.04)',
+                        focusBackground: 'rgba(255,255,255,0.07)',
 
                         icon: {
                             color: '{zinc.400}',
@@ -287,7 +286,7 @@ export const AlpinePreset = definePreset(Aura, {
                     },
 
                     separator: {
-                        borderColor: 'rgba(255,255,255,0.06)',
+                        borderColor: BORDER_SUBTLE,
                     },
 
                     submenuLabel: {
@@ -302,11 +301,11 @@ export const AlpinePreset = definePreset(Aura, {
                 dark: {
                     root: {
                         background: '{zinc.800}',
-                        borderColor: 'rgba(255,255,255,0.06)',
+                        borderColor: BORDER_SUBTLE,
                         color: '{zinc.100}',
 
                         shadow: `
-              0 0 0 1px rgba(255,255,255,0.03),
+              0 0 0 1px rgba(255,255,255,0.08),
               0 12px 40px rgba(0,0,0,0.50)
             `,
                     },
@@ -315,7 +314,7 @@ export const AlpinePreset = definePreset(Aura, {
                         color: '{zinc.100}',
                         focusColor: '{zinc.50}',
 
-                        focusBackground: 'rgba(255,255,255,0.04)',
+                        focusBackground: 'rgba(255,255,255,0.07)',
 
                         icon: {
                             color: '{zinc.400}',
@@ -324,7 +323,7 @@ export const AlpinePreset = definePreset(Aura, {
                     },
 
                     separator: {
-                        borderColor: 'rgba(255,255,255,0.06)',
+                        borderColor: BORDER_SUBTLE,
                     },
                 },
             },

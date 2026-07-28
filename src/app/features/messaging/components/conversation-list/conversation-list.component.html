@@ -1,4 +1,7 @@
 @if (platformService.isMobile) {
+    @if (sortedConversations().length === 0) {
+        <app-empty-state icon="pi-inbox" message="No messages yet"/>
+    }
     <ion-list class="ion-no-padding bg-transparent" lines="none">
         @for (conv of sortedConversations(); track conv.id) {
             @let preview = getPreview(conv);
@@ -68,6 +71,9 @@
         }
     </ion-list>
 } @else {
+    @if (sortedConversations().length === 0) {
+        <app-empty-state icon="pi-inbox" message="No messages yet"/>
+    }
     <div [@convList]="sortKey()" class="flex flex-col gap-0.5">
         @for (conv of sortedConversations(); track conv.id) {
             @let preview = getPreview(conv);
@@ -99,7 +105,7 @@
                                     <span class="text-[10px] text-white/25 group-hover/conv:opacity-0 transition-opacity">{{ previewMessages().get(conv.id)?.[0]?.createdAt | date: 'shortTime' }}</span>
                                 }
                                 @if (unread > 0) {
-                                    <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-indigo-500 text-white text-[10px] font-bold flex items-center justify-center">
+                                    <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-brand text-white text-[10px] font-bold flex items-center justify-center">
                 {{ unread >= 30 ? '30+' : unread }}
               </span>
                                 }

@@ -3,6 +3,7 @@ import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {NgClass} from "@angular/common";
 import {AppAvatarComponent} from "../../../../components/avatar/avatar.component";
 import {UserStatusDotComponent} from "../../../../components/user-status-dot/user-status-dot.component";
+import {EmptyStateComponent} from "../../../../components/empty-state/empty-state.component";
 import {Button} from "primeng/button";
 import {FormsModule} from "@angular/forms";
 import {RelationshipService} from "../../../../services/relationship.service";
@@ -24,7 +25,7 @@ type FriendsTab = 'online' | 'all' | 'pending' | 'blocked';
 
 @Component({
     selector: 'app-home',
-    imports: [AppAvatarComponent, Button, FormsModule, NgClass, TranslateModule, UserStatusDotComponent],
+    imports: [AppAvatarComponent, Button, FormsModule, NgClass, TranslateModule, UserStatusDotComponent, EmptyStateComponent],
     templateUrl: './home.component.html',
     styleUrl: './home.component.css',
 })
@@ -66,9 +67,9 @@ export class HomeComponent {
 
     public statusTextClass(status: OnlineStatus): string {
         switch (status) {
-            case OnlineStatus.Online: return 'text-emerald-400/80';
-            case OnlineStatus.Idle: return 'text-amber-400/80';
-            case OnlineStatus.DoNotDisturb: return 'text-rose-400/80';
+            case OnlineStatus.Online: return 'text-online/80';
+            case OnlineStatus.Idle: return 'text-connecting/80';
+            case OnlineStatus.DoNotDisturb: return 'text-offline/80';
             default: return 'text-white/35';
         }
     }

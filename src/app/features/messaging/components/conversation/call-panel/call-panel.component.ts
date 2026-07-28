@@ -227,7 +227,9 @@ export class CallPanelComponent implements OnInit, OnDestroy {
         event.preventDefault();
         event.stopPropagation();
         const volume = Math.round(this.callWebRtc.getUserVolume(p.userId) * 100);
-        this.participantMenu.set({x: event.clientX, y: event.clientY, participant: p, volume});
+        const x = Math.min(event.clientX, window.innerWidth - 236);
+        const y = Math.min(event.clientY, window.innerHeight - 200);
+        this.participantMenu.set({x: Math.max(0, x), y: Math.max(0, y), participant: p, volume});
     }
 
     protected onVolumeChange(value: number): void {

@@ -1,24 +1,20 @@
 <div class="flex flex-col w-56 h-full bg-sidebar border-l border-white/[0.10] shrink-0">
 
-    <!-- Online section header -->
-    <div class="px-4 pt-4 pb-2 shrink-0">
-        <h2 class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest">
-            Online -{{ onlineFriends().length }}
-        </h2>
-    </div>
+    <!-- Active Now section header -->
+    @if (activeNowFriends().length > 0) {
+        <div class="px-4 pt-4 pb-2 shrink-0">
+            <h2 class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest">
+                Active Now
+            </h2>
+        </div>
+    }
 
     <!-- Friends list -->
     <div class="flex-1 min-h-0 overflow-y-auto px-2 flex flex-col pb-3"
          style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
 
         @if (friends().length === 0) {
-            <!-- Empty state: no friends yet -->
-            <div class="flex flex-col items-center justify-center py-10 gap-2 text-center px-3">
-                <div class="w-8 h-8 rounded-full bg-white/[0.04] flex items-center justify-center">
-                    <i class="pi pi-users text-white/20 text-sm"></i>
-                </div>
-                <p class="text-[11px] text-white/25 leading-snug">No friends yet</p>
-            </div>
+            <app-empty-state icon="pi-users" message="No friends yet"/>
         }
 
         @if (friends().length > 0 && onlineFriends().length === 0) {
@@ -28,8 +24,37 @@
             </div>
         }
 
-        <!-- Online friends -->
-        @for (friend of onlineFriends(); track friend.id) {
+        <!-- Active Now: friends with a live rich-presence activity get a card -->
+        @for (friend of activeNowFriends(); track friend.id) {
+            @let status = activityFor(friend)!;
+            <div (click)="profileDialogSvc.open(friendUserId(friend))"
+                 class="flex items-center gap-2.5 px-2.5 py-2 mb-1 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition-colors cursor-pointer">
+                <div class="relative shrink-0">
+                    <app-avatar [userId]="friendUserId(friend)" size="normal"/>
+                    <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-online border-2 border-sidebar"></span>
+                    <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-card border-2 border-sidebar flex items-center justify-center">
+                        <i [ngClass]="activityIcon(status)" class="pi text-brand-dim text-[8px]"></i>
+                    </span>
+                </div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs font-medium text-white/80 truncate">{{ friendProfile(friend).userName }}</p>
+                    <p class="text-[10px] text-white/45 truncate">
+                        {{ status.label }}@if (status.since) {
+                        · {{ formatSince(status.since) }}
+                    }
+                    </p>
+                </div>
+            </div>
+        }
+
+        @if (plainOnlineFriends().length > 0) {
+            <p class="text-[10px] font-semibold text-white/20 uppercase tracking-wider px-2 pt-3 pb-1">
+                Online -{{ plainOnlineFriends().length }}
+            </p>
+        }
+
+        <!-- Plain online friends (no active-presence card) -->
+        @for (friend of plainOnlineFriends(); track friend.id) {
             <div (click)="profileDialogSvc.open(friendUserId(friend))"
                  class="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-white/[0.04] transition-colors cursor-pointer">
                 <div class="relative shrink-0">
@@ -38,15 +63,7 @@
                 </div>
                 <div class="flex-1 min-w-0">
                     <p class="text-xs font-medium text-white/80 truncate">{{ friendProfile(friend).userName }}</p>
-                    @if (activityFor(friend); as status) {
-                        <p class="text-[10px] text-white/40 truncate">
-                            {{ status.label }}@if (status.since) {
-                            · {{ formatSince(status.since) }}
-                        }
-                        </p>
-                    } @else {
-                        <p class="text-[10px] text-white/30 truncate">Online</p>
-                    }
+                    <p class="text-[10px] text-white/30 truncate">Online</p>
                 </div>
             </div>
         }
@@ -74,16 +91,6 @@
             }
         }
 
-    </div>
-
-    <!-- Bottom user card -->
-    <div class="p-3 shrink-0">
-        <div class="bg-gradient-to-br from-indigo-500/15 to-violet-500/10 border border-white/[0.07] rounded-2xl p-3 flex flex-col items-center gap-2">
-            <app-avatar [userId]="profileService.ownProfile()?.userId" size="large"/>
-            <div class="text-center">
-                <p class="text-sm font-semibold text-white/85">{{ profileService.ownProfile()?.userName ?? '…' }}</p>
-            </div>
-        </div>
     </div>
 
 </div>

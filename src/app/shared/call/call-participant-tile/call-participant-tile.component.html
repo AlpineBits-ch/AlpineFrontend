@@ -8,7 +8,8 @@
 
     <!-- Speaking glow ring -->
     @if (participant().isSpeaking) {
-        <div class="absolute inset-0 rounded-2xl ring-2 ring-online/40 pointer-events-none"></div>
+        <div class="absolute inset-0 rounded-2xl pointer-events-none"
+             style="animation: speaking-ring 1.4s ease-in-out infinite"></div>
     }
 
     <!-- LIVE badge -->

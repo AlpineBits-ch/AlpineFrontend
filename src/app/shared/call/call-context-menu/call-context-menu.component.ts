@@ -4,6 +4,7 @@ import {CallParticipantMenuData} from '../call.types';
 @Component({
     selector: 'app-call-context-menu',
     templateUrl: './call-context-menu.component.html',
+    styleUrl: './call-context-menu.component.css',
     host: {'(click)': '$event.stopPropagation()'}
 })
 export class CallContextMenuComponent {

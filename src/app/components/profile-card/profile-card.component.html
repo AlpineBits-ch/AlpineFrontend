@@ -2,9 +2,12 @@
     <div class="relative">
 
         <!-- Banner -->
-        <div [style.backgroundImage]="bannerBackgroundImage(p)"
-             [style.background]="!p.bannerUrl ? safeAccentColor(p.accentColor) : null"
-             class="profile-banner"></div>
+        <div [style.background]="!p.bannerUrl ? safeAccentColor(p.accentColor) : null"
+             class="profile-banner">
+            @if (p.bannerUrl) {
+                <img [src]="cacheBustedUrl(p.bannerUrl, p.updatedAt)" alt="" class="profile-banner-img"/>
+            }
+        </div>
 
         <!-- Avatar (overlapping banner/body boundary) -->
         <div class="absolute left-4 z-10" style="top: 56px;">

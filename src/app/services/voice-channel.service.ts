@@ -18,6 +18,7 @@ import {
 } from './guild-websocket.service';
 import {SoundSettingsService} from './sound-settings.service';
 import {VoiceRTCService} from './voice-rtc.service';
+import {AudioSettingsService} from './audio-settings.service';
 
 export interface VoiceChannelParticipant {
     userId: string;
@@ -76,6 +77,7 @@ export class VoiceChannelService {
     private guildVoiceSvc = inject(GuildVoiceService);
     private guildWsSvc = inject(GuildWebsocketService);
     private soundSettings = inject(SoundSettingsService);
+    private audioSettings = inject(AudioSettingsService);
     private channelParticipantsSignal = signal<Map<string, VoiceChannelParticipant[]>>(new Map());
     readonly channelParticipants = this.channelParticipantsSignal.asReadonly();
 
@@ -94,6 +96,8 @@ export class VoiceChannelService {
             if (channelId) {
                 this.patchParticipant(channelId, userId, p => p.isSpeaking === isSpeaking ? p : {...p, isSpeaking});
             }
+            const ownId = this.profileService.ownProfile()?.userId;
+            if (channelId && userId === ownId) this.applyVadGate(isSpeaking);
         });
 
         // Auto-stop screen share when the OS ends the screen track
@@ -255,6 +259,15 @@ export class VoiceChannelService {
     private syncMic(): void {
         const {isMuted} = this.localState();
         this.rtc.setMicEnabled(!isMuted && this.pttGateOpen());
+    }
+
+    /** Re-applies the voice-activity transmit gate. No-op outside voice-activity mode. */
+    private applyVadGate(isSpeaking: boolean): void {
+        if (this.audioSettings.settings().inputMode !== 'voice-activity') return;
+        const {isMuted} = this.localState();
+        if (isMuted) return;
+        if (!this.pttGateOpen()) return;
+        this.rtc.setMicEnabled(isSpeaking);
     }
 
     async toggleCamera(): Promise<void> {

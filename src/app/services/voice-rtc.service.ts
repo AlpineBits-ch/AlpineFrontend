@@ -45,6 +45,10 @@ export class VoiceRTCService {
     private setupDone = false;
 
     private localAudioTrack: MediaStreamTrack | null = null;
+    /** A permanently-enabled clone of localAudioTrack, analysed for voice-activity/speaking
+     *  detection so the analyser keeps seeing real audio even while setMicEnabled() disables
+     *  the real (transmitted) localAudioTrack. See the identical comment in call-webrtc.service.ts. */
+    private vadProbeTrack: MediaStreamTrack | null = null;
     private localVideoTrack: MediaStreamTrack | null = null;
     private localScreenTrack: MediaStreamTrack | null = null;
     private localScreenAudioTrack: MediaStreamTrack | null = null;
@@ -151,7 +155,8 @@ export class VoiceRTCService {
 
             const localStream = new MediaStream([audioTrack]);
             this.localAudioTrack = localStream.getAudioTracks()[0];
-            this.setupVAD('local', ownUserId, localStream);
+            this.vadProbeTrack = this.localAudioTrack.clone();
+            this.setupVAD('local', ownUserId, new MediaStream([this.vadProbeTrack]));
 
             const sender = this.pc.addTrack(this.localAudioTrack, localStream);
             this.localSenders.set('audio', sender);
@@ -215,6 +220,8 @@ export class VoiceRTCService {
         this.localSenders.clear();
 
         this.localAudioTrack?.stop();
+        this.vadProbeTrack?.stop();
+        this.vadProbeTrack = null;
         void this.rustMedia.stopMicCapture();
         this.localVideoTrack?.stop();
         this.localScreenTrack?.stop();
@@ -735,11 +742,16 @@ export class VoiceRTCService {
             analyser.fftSize = 256;
             source.connect(analyser);
             const data = new Uint8Array(analyser.frequencyBinCount);
+            const isLocal = handle === 'local';
+            const MAX_VAD_AVG = 60;
 
             const id = setInterval(() => {
                 analyser.getByteFrequencyData(data);
                 const avg = data.reduce((a, b) => a + b, 0) / data.length;
-                const speaking = avg > 20;
+                const threshold = isLocal
+                    ? MAX_VAD_AVG * (1 - this.audioSettings.settings().inputSensitivity / 100)
+                    : 20;
+                const speaking = avg > threshold;
                 this.speakingChanges$.next({userId, isSpeaking: speaking});
             }, 100);
 

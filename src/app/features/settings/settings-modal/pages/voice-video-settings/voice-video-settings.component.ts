@@ -5,10 +5,12 @@ import {Select} from 'primeng/select';
 import {ToggleSwitch} from 'primeng/toggleswitch';
 import {Slider} from 'primeng/slider';
 import {Button} from 'primeng/button';
+import {RadioButton} from 'primeng/radiobutton';
 import {TranslateModule} from '@ngx-translate/core';
 import {invoke} from '@tauri-apps/api/core';
 import {AudioSettingsService} from '../../../../../services/audio-settings.service';
 import {IsleProximityService} from '../../../../../services/isle-proximity.service';
+import {StreamSrcDirective} from '../../../../../directives/stream-src.directive';
 
 interface RustAudioDevice {
     id: string;
@@ -33,7 +35,7 @@ interface BitrateOption {
 
 @Component({
     selector: 'app-voice-video-settings',
-    imports: [FormsModule, NgClass, Select, ToggleSwitch, Slider, Button, TranslateModule],
+    imports: [FormsModule, NgClass, Select, ToggleSwitch, Slider, Button, RadioButton, TranslateModule, StreamSrcDirective],
     templateUrl: './voice-video-settings.component.html',
     styleUrl: './voice-video-settings.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -70,8 +72,14 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         {label: 'High · 8 Mbps', value: 8000},
         {label: 'Ultra · 15 Mbps', value: 15000},
     ];
+    readonly inputModeOptions: {value: 'voice-activity' | 'push-to-talk'; label: string; desc: string}[] = [
+        {value: 'voice-activity', label: 'Voice Activity', desc: 'Transmit automatically when your mic level crosses the sensitivity threshold below'},
+        {value: 'push-to-talk', label: 'Push to Talk', desc: 'Only transmit while your bound key is held — bind it on the Keybinds page'},
+    ];
     readonly micLevel = signal(0);
     readonly isMicActive = signal(false);
+    readonly isCameraActive = signal(false);
+    readonly cameraStream = signal<MediaStream | null>(null);
 
     // ── Persisted settings -setters write through to AudioSettingsService ───
     readonly isVoiceTesting = signal(false);
@@ -86,6 +94,7 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     private micStream: MediaStream | null = null;
     private animFrameId: number | null = null;
     private lastTick = 0;
+    private cameraTestGeneration = 0;
 
     constructor() {
         void this.loadDevices();
@@ -113,6 +122,10 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
 
     set selectedCameraId(v: string) {
         this.audioSettings.update({cameraId: v});
+        if (this.isCameraActive()) {
+            this.stopCameraTest();
+            void this.startCameraTest();
+        }
     }
 
     get noiseSuppression(): boolean {
@@ -121,6 +134,22 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
 
     set noiseSuppression(v: boolean) {
         this.audioSettings.update({noiseSuppression: v});
+    }
+
+    get inputMode(): 'voice-activity' | 'push-to-talk' {
+        return this.audioSettings.settings().inputMode;
+    }
+
+    set inputMode(v: 'voice-activity' | 'push-to-talk') {
+        this.audioSettings.update({inputMode: v});
+    }
+
+    get inputSensitivity(): number {
+        return this.audioSettings.settings().inputSensitivity;
+    }
+
+    set inputSensitivity(v: number) {
+        this.audioSettings.update({inputSensitivity: v});
     }
 
     get echoCancellation(): boolean {
@@ -224,6 +253,14 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         }
     }
 
+    async toggleCameraTest(): Promise<void> {
+        if (this.isCameraActive()) {
+            this.stopCameraTest();
+        } else {
+            await this.startCameraTest();
+        }
+    }
+
     onVoiceTestChange(enabled: boolean): void {
         this.applyVoiceTest(enabled);
     }
@@ -241,6 +278,7 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
 
     ngOnDestroy(): void {
         this.stopMic();
+        this.stopCameraTest();
     }
 
     private async loadDevices(): Promise<void> {
@@ -312,6 +350,32 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         this.micStream = null;
         this.isMicActive.set(false);
         this.micLevel.set(0);
+    }
+
+    private async startCameraTest(): Promise<void> {
+        if (!navigator?.mediaDevices) return;
+        const generation = ++this.cameraTestGeneration;
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: await this.audioSettings.buildVideoConstraint(),
+            });
+            if (generation !== this.cameraTestGeneration) {
+                stream.getTracks().forEach(t => t.stop());
+                return;
+            }
+            this.cameraStream.set(stream);
+            this.isCameraActive.set(true);
+        } catch {
+            // Denied or unavailable — the existing permissionError banner covers the mic case;
+            // camera failures just leave the preview empty, matching the picker's own silent failure mode.
+        }
+    }
+
+    private stopCameraTest(): void {
+        this.cameraTestGeneration++;
+        this.cameraStream()?.getTracks().forEach(t => t.stop());
+        this.cameraStream.set(null);
+        this.isCameraActive.set(false);
     }
 
     private poll(): void {

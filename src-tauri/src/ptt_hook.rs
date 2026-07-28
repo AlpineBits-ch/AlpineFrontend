@@ -13,13 +13,19 @@
 //!
 //! ## Slots
 //!
-//! The hook holds [`SLOT_COUNT`] independent bindings (currently: push-to-talk,
-//! toggle-mute, and push-to-mute/hold-to-mute), each armed/bound separately by
-//! the frontend and identified by a small integer `slot`. This is what lets a
-//! user bind all three at once rather than picking one mode for a single
-//! shared key. Every piece of per-binding state below is a fixed-size array
-//! indexed by slot instead of a scalar, but the concurrency story is
-//! unchanged - still plain atomics, still no locking on the input path.
+//! The hook holds [`SLOT_COUNT`] independent bindings, shared by two frontend
+//! features that each own a fixed slot range: Isle proximity voice (slots
+//! 0-2: push-to-talk, toggle-mute, push-to-mute) and in-app Voice Calls
+//! (slots 3-5: the same three, for `CallHotkeyService`). Voice Calls moved
+//! onto this hook rather than the OS global-shortcut plugin because
+//! `RegisterHotKey`-backed accelerators swallow the key system-wide,
+//! including inside Alpine's own text inputs, for as long as they're
+//! registered - which broke typing a bare-letter PTT key (e.g. `T`) anywhere
+//! while in a call. This hook's keyboard proc never swallows a keystroke
+//! (see `handle_key`), so it has no such side effect. Every piece of
+//! per-binding state below is a fixed-size array indexed by slot instead of
+//! a scalar, but the concurrency story is unchanged - still plain atomics,
+//! still no locking on the input path.
 //!
 //! Binding token format (stored in settings, `+`-joined):
 //!   modifiers: `Ctrl` `Alt` `Shift` `Win`
@@ -127,10 +133,11 @@ mod imp {
         slot: u8,
     }
 
-    /// Number of independent bindings the hook tracks (currently push-to-talk,
-    /// toggle-mute, and push-to-mute). Bump this to add another - every other
-    /// piece of per-slot state is a `[T; SLOT_COUNT]` array already.
-    const SLOT_COUNT: usize = 3;
+    /// Number of independent bindings the hook tracks: 0-2 are Isle proximity
+    /// voice (push-to-talk, toggle-mute, push-to-mute), 3-5 are the same three
+    /// for in-app Voice Calls (`CallHotkeyService`). Bump this to add another -
+    /// every other piece of per-slot state is a `[T; SLOT_COUNT]` array already.
+    const SLOT_COUNT: usize = 6;
 
     // ── Shared state ────────────────────────────────────────────────────────
     //

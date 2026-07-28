@@ -1,4 +1,4 @@
-<div class="shrink-0 border-t border-white/[0.10] bg-sidebar px-4 py-4 flex items-center justify-center gap-3">
+<div class="shrink-0 bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] px-4 py-4 flex items-center justify-center gap-3">
 
     <!-- Mute -->
     <button
@@ -7,9 +7,9 @@
       ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'
       : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
             [title]="isMuted() ? 'Unmute' : 'Mute'"
-            class="w-12 h-12 rounded-xl flex items-center justify-center transition-all cursor-pointer border-0">
+            class="group w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer border-0">
         <i [ngClass]="isMuted() ? 'pi-microphone-slash' : 'pi-microphone'"
-           class="pi text-base"></i>
+           class="pi text-base transition-transform duration-150 group-hover:scale-110"></i>
     </button>
 
     <!-- Deafen -->
@@ -19,8 +19,8 @@
       ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'
       : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
             [title]="isDeafened() ? 'Undeafen' : 'Deafen'"
-            class="w-12 h-12 rounded-xl flex items-center justify-center transition-all cursor-pointer border-0">
-        <i class="pi pi-volume-off text-base"></i>
+            class="group w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer border-0">
+        <i class="pi pi-volume-off text-base transition-transform duration-150 group-hover:scale-110"></i>
     </button>
 
     <!-- Camera -->
@@ -30,8 +30,8 @@
       ? 'bg-brand/20 text-brand-dim hover:bg-brand/30'
       : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
             [title]="isCameraOn() ? 'Turn off camera' : 'Turn on camera'"
-            class="w-12 h-12 rounded-xl flex items-center justify-center transition-all cursor-pointer border-0">
-        <i class="pi pi-camera text-base"></i>
+            class="group w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer border-0">
+        <i class="pi pi-camera text-base transition-transform duration-150 group-hover:scale-110"></i>
     </button>
 
     <!-- Screen share -->
@@ -41,8 +41,8 @@
       ? 'bg-brand/20 text-brand-dim hover:bg-brand/30'
       : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
             [title]="isScreenSharing() ? 'Stop sharing' : 'Share screen'"
-            class="w-12 h-12 rounded-xl flex items-center justify-center transition-all cursor-pointer border-0">
-        <i class="pi pi-desktop text-base"></i>
+            class="group w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer border-0">
+        <i class="pi pi-desktop text-base transition-transform duration-150 group-hover:scale-110"></i>
     </button>
 
     <!-- Mute stream audio -only shown when sharing and screen has audio -->
@@ -53,9 +53,9 @@
         ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'
         : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
                 [title]="screenAudioMuted() ? 'Unmute stream audio' : 'Mute stream audio'"
-                class="w-12 h-12 rounded-xl flex items-center justify-center transition-all cursor-pointer border-0">
+                class="group w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer border-0">
             <i [ngClass]="screenAudioMuted() ? 'pi-volume-off' : 'pi-volume-up'"
-               class="pi text-base"></i>
+               class="pi text-base transition-transform duration-150 group-hover:scale-110"></i>
         </button>
     }
 
@@ -69,7 +69,7 @@
             ? 'bg-brand text-white'
             : 'bg-transparent text-white/45 hover:text-white/75 hover:bg-white/[0.07]'"
                         [title]="fps + ' fps'"
-                        class="px-2 py-1 rounded text-xs font-mono transition-colors border-0 cursor-pointer leading-none">{{ fps }}
+                        class="px-2 py-1 rounded text-xs font-mono transition-all border-0 cursor-pointer leading-none active:scale-90">{{ fps }}
                 </button>
             }
         </div>
@@ -81,7 +81,7 @@
             ? 'bg-brand text-white'
             : 'bg-transparent text-white/45 hover:text-white/75 hover:bg-white/[0.07]'"
                         [title]="res"
-                        class="px-2 py-1 rounded text-xs font-mono transition-colors border-0 cursor-pointer leading-none">{{ res }}
+                        class="px-2 py-1 rounded text-xs font-mono transition-all border-0 cursor-pointer leading-none active:scale-90">{{ res }}
                 </button>
             }
         </div>
@@ -93,8 +93,8 @@
     <button
             (click)="disconnect.emit()"
             [title]="disconnectLabel()"
-            class="w-12 h-12 rounded-xl flex items-center justify-center bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 hover:text-rose-300 transition-all cursor-pointer border-0">
-        <i class="pi pi-phone text-base" style="transform: rotate(135deg); display: inline-block;"></i>
+            class="group w-12 h-12 rounded-xl flex items-center justify-center bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 hover:text-rose-300 transition-all duration-150 active:scale-95 cursor-pointer border-0">
+        <i class="pi pi-phone text-base transition-transform duration-150 group-hover:scale-110" style="transform: rotate(135deg); display: inline-block;"></i>
     </button>
 
 </div>

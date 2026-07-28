@@ -27,7 +27,7 @@
             } @else {
                 <div class="space-y-2">
                     @for (rev of revisions(); track rev.id; let first = $first) {
-                        <div [style.borderColor]="expandedRevId() === rev.id ? 'rgba(129,140,248,0.35)' : 'rgba(255,255,255,0.06)'"
+                        <div [style.borderColor]="expandedRevId() === rev.id ? 'color-mix(in srgb, var(--color-brand-dim) 35%, transparent)' : 'rgba(255,255,255,0.10)'"
                              class="rounded-xl bg-card border transition-colors">
 
                             <!-- Row -->

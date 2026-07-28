@@ -15,9 +15,9 @@
                 <app-user-status-dot [status]="partnerStatus" size="lg"/>
             </div>
             <h2 class="text-sm font-semibold text-white/90 m-0">{{ partner.cachedUserName }}</h2>
-            <span [ngClass]="partnerStatus === OnlineStatus.Online ? 'text-emerald-400/80' : 'text-white/30'"
+            <span [ngClass]="partnerStatus === OnlineStatus.Online ? 'text-online/80' : 'text-white/30'"
                   class="mt-1.5 text-[11px] flex items-center gap-1">
-        <span [ngClass]="partnerStatus === OnlineStatus.Online ? 'bg-emerald-400' : 'bg-white/30'"
+        <span [ngClass]="partnerStatus === OnlineStatus.Online ? 'bg-online' : 'bg-white/30'"
               class="w-1.5 h-1.5 rounded-full inline-block"></span>
                 {{ partnerStatus === OnlineStatus.Online ? 'Online' : 'Offline' }}
       </span>

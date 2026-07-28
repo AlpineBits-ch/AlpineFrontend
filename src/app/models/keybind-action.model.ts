@@ -65,14 +65,16 @@ export const KEYBIND_ACTIONS: readonly KeybindActionDef[] = [
         category: 'Voice Calls',
         label: 'Push to Talk',
         description: 'Hold to transmit during a call or voice channel.',
-        mechanism: 'accelerator',
+        mechanism: 'native',
+        nativeSlot: 3,
     },
     {
         id: 'call-toggle-mute',
         category: 'Voice Calls',
         label: 'Toggle Mute',
         description: 'Press to mute or unmute your mic during a call or voice channel.',
-        mechanism: 'accelerator',
+        mechanism: 'native',
+        nativeSlot: 4,
     },
     {
         id: 'call-push-to-mute',
@@ -80,7 +82,8 @@ export const KEYBIND_ACTIONS: readonly KeybindActionDef[] = [
         label: 'Push to Mute',
         description: 'Hold to mute your mic during a call or voice channel. Handy when you\'re talking '
             + 'on another voice app at the same time and don\'t want it to pick you up too.',
-        mechanism: 'accelerator',
+        mechanism: 'native',
+        nativeSlot: 5,
     },
 ];
 

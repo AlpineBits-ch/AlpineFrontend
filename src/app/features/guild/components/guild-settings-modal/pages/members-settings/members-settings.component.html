@@ -2,11 +2,11 @@
 
     <!-- Search -->
     <div class="relative">
-        <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-xs"></i>
+        <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-xs pointer-events-none"></i>
         <input (ngModelChange)="filter.set($event)"
                [ngModel]="filter()"
                [placeholder]="'GUILD_SETTINGS.MEMBERS.SEARCH_PLACEHOLDER' | translate"
-               class="w-full pl-8 text-sm"
+               class="w-full !pl-9 text-sm"
                pInputText/>
     </div>
 
@@ -42,7 +42,12 @@
 
                     <!-- Info -->
                     <div class="flex-1 min-w-0">
-                        <p [appUserNameStyle]="row.profile" class="text-sm font-medium text-white/85 truncate">{{ displayName(row) }}</p>
+                        <div class="flex items-center gap-1.5">
+                            <p [appUserNameStyle]="row.profile" class="text-sm font-medium text-white/85 truncate">{{ displayName(row) }}</p>
+                            @if (isBot(row)) {
+                                <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim">Bot</span>
+                            }
+                        </div>
                         @if (row.roleNames.length > 0) {
                             <p class="text-[11px] text-white/35 truncate">{{ row.roleNames.join(', ') }}</p>
                         }
