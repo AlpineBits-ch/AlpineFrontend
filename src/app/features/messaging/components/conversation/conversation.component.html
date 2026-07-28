@@ -244,16 +244,17 @@
 
                 <!-- Messages list -->
                 <div class="flex flex-col gap-0.5 pb-4">
-                    @for (msg of messages(); track msg.id) {
-                        @if (msg.id === firstUnreadId()) {
+                    @for (row of messageRows(); track row.message.id) {
+                        @if (row.message.id === firstUnreadId()) {
                             <div class="unread-divider">
                                 <span>New messages</span>
                             </div>
                         }
-                        <div [attr.data-message-id]="msg.id" class="message-row">
+                        <div [attr.data-message-id]="row.message.id" class="message-row">
                             <app-message (jumpTo)="jumpToMessage($event)"
                                          (reply)="onReply($event)"
-                                         [message]="msg"></app-message>
+                                         [isGrouped]="row.isGrouped"
+                                         [message]="row.message"></app-message>
                         </div>
                     }
                 </div>

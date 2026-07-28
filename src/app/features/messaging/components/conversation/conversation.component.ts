@@ -47,7 +47,7 @@ import {AppAvatarComponent} from '../../../../components/avatar/avatar.component
 import {ConversationSearchService} from './conversation-search.service';
 import {ConversationScrollService} from './conversation-scroll.service';
 import {ProfileDialogService} from '../../../../services/profile-dialog.service';
-import {decodeContent, fileIcon} from './message-utils';
+import {decodeContent, fileIcon, isGroupedWithPrevious} from './message-utils';
 import {toBase64} from "../../../../helpers/base64.helper";
 import {TranslateModule} from '@ngx-translate/core';
 
@@ -93,6 +93,13 @@ export class ConversationComponent implements AfterViewInit {
             .filter(m => m.conversationId === this.conversation().id)
             .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
     );
+    protected messageRows = computed(() => {
+        const msgs = this.messages();
+        return msgs.map((message, i) => ({
+            message,
+            isGrouped: isGroupedWithPrevious(message, msgs[i - 1]),
+        }));
+    });
     private conversationStore = inject(ConversationStore);
     private messagingService = inject(MessagingService);
 
