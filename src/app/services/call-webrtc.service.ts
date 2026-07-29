@@ -800,8 +800,16 @@ export class CallWebRtcService {
         if (!s) return;
         const ownId = s.participants.find(p => p.isLocal)?.userId;
 
-        if (fresh.status === 'Completed' || fresh.status === 'Rejected' ||
-            !fresh.participants.some(p => p.userId === ownId)) {
+        if (fresh.status === 'Completed' || fresh.status === 'Rejected') {
+            this.callSession.end();
+            return;
+        }
+        // ownId can be unresolved this early if profileService.ownProfile()
+        // hadn't loaded yet when join() computed isLocal (every participant
+        // then reads isLocal: false). Treating "no participant matches
+        // undefined" as "I was removed" would hang up a call that's actually
+        // fine - only act on this check once ownId is actually known.
+        if (ownId && !fresh.participants.some(p => p.userId === ownId)) {
             this.callSession.end();
             return;
         }
