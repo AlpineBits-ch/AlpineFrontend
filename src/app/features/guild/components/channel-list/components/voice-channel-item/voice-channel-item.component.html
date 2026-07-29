@@ -14,7 +14,7 @@
             class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer">
         <i [ngClass]="isJoined() ? 'text-online/60' : 'text-white/35'"
            class="pi pi-volume-up text-[13px] shrink-0"></i>
-        <span class="text-[15px] font-medium truncate">{{ channel().name }}</span>
+        <span class="text-[0.9375rem] font-medium truncate">{{ channel().name }}</span>
         @if (channel().isPrivate) {
             <i class="pi pi-lock text-[11px] text-white/35 ml-auto shrink-0"></i>
         } @else if (participants().length > 0) {
