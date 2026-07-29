@@ -6,7 +6,7 @@
      [class.py-1.5]="!isGrouped()"
      [class.py-0.5]="isGrouped()"
      [ngClass]="message().isFailed ? 'bg-rose-500/5' : ''"
-     class="relative flex items-start gap-3 px-4 hover:bg-white/[0.02] rounded-lg transition-colors transition-opacity duration-300 group">
+     class="relative flex items-start gap-3 px-4 hover:bg-white/[0.02] rounded-lg transition-colors transition-opacity duration-base ease-brand group">
 
     @if (!isGrouped()) {
         <div (click)="profileDialogSvc.open(message().authorId)" class="cursor-pointer shrink-0 mt-0.5">

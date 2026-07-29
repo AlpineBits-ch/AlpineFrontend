@@ -25,7 +25,7 @@
                 <span
                         [style.height]="getPillHeight(server)"
                         [style.opacity]="isPillVisible(server) ? '1' : '0'"
-                        class="absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-white transition-[height,opacity] duration-200 ease-out pointer-events-none">
+                        class="absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-white transition-[height,opacity] duration-base ease-brand pointer-events-none">
         </span>
                 <app-server-icon
                         (click)="navService.selectServer(guilds()[$index])"
