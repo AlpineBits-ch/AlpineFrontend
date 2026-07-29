@@ -908,23 +908,13 @@ git commit -m "refactor: apply the shared duration-base/ease-brand motion tokens
 **Interfaces:**
 - Consumes: nothing new.
 
-Found during manual review (not in the original design spec): in the same channel list, text-channel rows render their name at `text-[0.8rem]` (~12.8px) while voice-channel rows render theirs at a fixed `text-[15px]` — two different sizes for what should be one visual rhythm, and the voice-channel one is also a raw pixel value rather than the rem-based convention the rest of the app follows (`text-[0.625rem]` not `text-[10px]`, per the project's own styling convention). The sibling "Wiki" quick-link entry one level up in `channel-list.component.html:20` already uses `text-[15px] font-medium` — so 15px (as `0.9375rem`) is the established size for this list; text-channel names are the outlier to fix, and voice-channel names need converting from `px` to the equivalent `rem`.
+Found during manual review (not in the original design spec): in the same channel list, text-channel rows render their name at `text-[0.8rem]` (~12.8px) while voice-channel rows render theirs at a fixed `text-[15px]` — two different sizes for what should be one visual rhythm. First attempt unified both at `0.9375rem` (the 15px voice-channel size promoted to rem) — user feedback after seeing it live: too large, "just FAT". Corrected direction: unify both at the smaller `0.8rem` instead (the pre-existing text-channel size), which also fixes the voice-channel side's raw-pixel-value violation of the project's rem-based font-size convention (`text-[0.625rem]` not `text-[10px]`) without changing the size anyone was already used to.
 
-- [ ] **Step 1: `text-channel-item.component.html` — bring the name label up to the list's established size**
+- [ ] **Step 1: `text-channel-item.component.html` — already at the target size, no change needed**
 
-Replace:
+`text-channel-item.component.html:14` already reads `text-[0.8rem] font-medium truncate flex-1 pointer-events-none` — this is the target value, so this file needs no edit for this task. (Confirm it hasn't drifted from this value before moving on.)
 
-```html
-        <span class="text-[0.8rem] font-medium truncate flex-1 pointer-events-none">{{ channel().name }}</span>
-```
-
-with:
-
-```html
-        <span class="text-[0.9375rem] font-medium truncate flex-1 pointer-events-none">{{ channel().name }}</span>
-```
-
-- [ ] **Step 2: `voice-channel-item.component.html` — convert the fixed-px size to the rem-based equivalent**
+- [ ] **Step 2: `voice-channel-item.component.html` — convert the fixed-px size down to match, in rem**
 
 Replace:
 
@@ -935,10 +925,8 @@ Replace:
 with:
 
 ```html
-        <span class="text-[0.9375rem] font-medium truncate">{{ channel().name }}</span>
+        <span class="text-[0.8rem] font-medium truncate">{{ channel().name }}</span>
 ```
-
-(`0.9375rem` = `15px` at the default `16px` base font size, but — unlike a raw `15px` — it scales with the user's `--base-font-size` setting, same as every other font-size in the app.)
 
 - [ ] **Step 3: Verify build**
 
