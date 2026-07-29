@@ -1,4 +1,4 @@
-import {Component, effect, HostListener, inject, OnDestroy, signal} from '@angular/core';
+import {Component, effect, HostListener, inject, OnDestroy, signal, ViewChild} from '@angular/core';
 import {AuthService} from '../../services/auth.service';
 import {Router} from '@angular/router';
 import {HomeComponent} from './pages/home/home.component';
@@ -22,6 +22,7 @@ import {VoiceWebsocketService} from '../../services/voice-websocket.service';
 import {ProfileDialogComponent} from '../../components/profile-dialog/profile-dialog.component';
 import {ProfileDialogService} from '../../services/profile-dialog.service';
 import {QuickSettingsComponent} from './components/quick-settings/quick-settings.component';
+import {AccountDeletionBannerComponent} from './components/account-deletion-banner/account-deletion-banner.component';
 import {VoiceStatusBarComponent} from './components/voice-status-bar/voice-status-bar.component';
 import {ChannelType} from '../../dtos/response/guild.dto';
 import {GuildMemberListComponent} from '../guild/components/guild-member-list/guild-member-list.component';
@@ -54,6 +55,7 @@ import {AppReadyService} from '../../services/app-ready.service';
         ConversationInfoPanelComponent,
         ProfileDialogComponent,
         QuickSettingsComponent,
+        AccountDeletionBannerComponent,
         VoiceStatusBarComponent,
         GuildMemberListComponent,
         DeviceRegistrationModalComponent,
@@ -73,6 +75,7 @@ export class MainPageComponent implements OnDestroy {
     protected router = inject(Router);
     protected showDeviceRegistration = signal(false);
     protected showKeySetup = signal(false);
+    @ViewChild(QuickSettingsComponent) private quickSettings!: QuickSettingsComponent;
     /** Opaque handle for the session-loaded signing key -set after device unlock. */
     protected keyHandle = signal<string | null>(null);
     private websocketService = inject(MessagingWebsocketService);
@@ -151,6 +154,10 @@ export class MainPageComponent implements OnDestroy {
 
     public logout(): void {
         this.goToLogin();
+    }
+
+    protected openAccountSettings(): void {
+        this.quickSettings.openProfileSettings();
     }
 
     @HostListener('document:keydown', ['$event'])

@@ -55,7 +55,7 @@ export class QuickSettingsComponent {
         this.selfProfilePopover.toggle(event);
     }
 
-    protected openProfileSettings(): void {
+    public openProfileSettings(): void {
         this.settingsModal.selectPage('profile');
         this.isSettingsOpen.set(true);
     }
