@@ -15,7 +15,12 @@ import {Component, computed, input} from '@angular/core';
           <i class="pi text-white/20 text-sm" [class]="icon()"></i>
         </div>
       } @else {
-        <i class="pi text-3xl text-white/25" [class]="icon()"></i>
+        <svg width="120" height="64" viewBox="0 0 120 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M4 56 L28 22 L42 40 L58 12 L78 44 L92 26 L116 56"
+                stroke="var(--color-brand-dim)" stroke-width="3"
+                stroke-linejoin="round" stroke-linecap="round" opacity="0.55"/>
+          <circle cx="58" cy="12" r="3.5" fill="var(--color-brand-dim)" opacity="0.8"/>
+        </svg>
       }
       <p [class]="size() === 'sm' ? 'text-[11px] text-white/25' : 'text-sm text-white/25'" class="leading-snug">
         {{ message() }}
