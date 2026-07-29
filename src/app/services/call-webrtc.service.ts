@@ -89,6 +89,10 @@ export class CallWebRtcService {
     private lastSpeaking = false;
     private readonly SPEAKING_THRESHOLD = 0.02;
     private readonly MAX_VAD_RMS = 0.05;
+    // Hold the transmit gate open for this long after the last frame that cleared
+    // threshold, so a brief RMS dip between syllables doesn't clip mid-word.
+    private readonly VAD_RELEASE_MS = 300;
+    private lastVadOpenAt = -Infinity;
 
     // ── Negotiation serialisation ────────────────────────────────────────────
     // RTCPeerConnection only allows one offer/answer exchange at a time. Queuing
@@ -237,7 +241,9 @@ export class CallWebRtcService {
         if (!this.callSession.pttGateOpen()) return;
         const sensitivity = this.audioSettings.settings().inputSensitivity;
         const threshold = this.MAX_VAD_RMS * (1 - sensitivity / 100);
-        this.audioTrack.enabled = rms > threshold;
+        const now = performance.now();
+        if (rms > threshold) this.lastVadOpenAt = now;
+        this.audioTrack.enabled = now - this.lastVadOpenAt < this.VAD_RELEASE_MS;
     }
 
     // ── SDP offer/answer cycle ────────────────────────────────────────────────

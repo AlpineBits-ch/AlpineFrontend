@@ -89,6 +89,13 @@ export class VoiceChannelService {
     private pendingJoinId: string | null = null;
     private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
+    // ── Voice-activity transmit gate hold time ─────────────────────────────────
+    // Without a release hold, a momentary dip in the VAD signal between syllables
+    // (unvoiced consonants, breath pauses) closed the gate mid-word - see
+    // applyVadGate below.
+    private lastSpeakingAt = -Infinity;
+    private readonly VAD_RELEASE_MS = 300;
+
     constructor() {
         // Update participant speaking state from VAD events in VoiceRTCService
         this.rtc.speakingChanges$.subscribe(({userId, isSpeaking}) => {
@@ -261,13 +268,20 @@ export class VoiceChannelService {
         this.rtc.setMicEnabled(!isMuted && this.pttGateOpen());
     }
 
-    /** Re-applies the voice-activity transmit gate. No-op outside voice-activity mode. */
+    /**
+     * Re-applies the voice-activity transmit gate. No-op outside voice-activity mode.
+     * Opens instantly on speech but holds open for VAD_RELEASE_MS after the last
+     * positive detection so a brief dip below threshold (a quiet consonant, a
+     * breath) doesn't clip the tail of a word.
+     */
     private applyVadGate(isSpeaking: boolean): void {
         if (this.audioSettings.settings().inputMode !== 'voice-activity') return;
         const {isMuted} = this.localState();
         if (isMuted) return;
         if (!this.pttGateOpen()) return;
-        this.rtc.setMicEnabled(isSpeaking);
+        const now = Date.now();
+        if (isSpeaking) this.lastSpeakingAt = now;
+        this.rtc.setMicEnabled(now - this.lastSpeakingAt < this.VAD_RELEASE_MS);
     }
 
     async toggleCamera(): Promise<void> {

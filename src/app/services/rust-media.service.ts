@@ -48,6 +48,10 @@ export class RustMediaService {
     private workletNode: AudioWorkletNode | null = null;
     private micDestination: MediaStreamAudioDestinationNode | null = null;
     private audioChannel: Channel<AudioChunk> | null = null;
+    private micCaptureSettings: RustAudioSettings | null = null;
+    private lastMicChunkAt = 0;
+    private micWatchdog?: ReturnType<typeof setInterval>;
+    private micRestarting = false;
 
     private loopbackCtx: AudioContext | null = null;
     private loopbackWorklet: AudioWorkletNode | null = null;
@@ -232,18 +236,15 @@ export class RustMediaService {
         this.audioChannel = channel;
 
         channel.onmessage = (chunk) => {
+            this.lastMicChunkAt = Date.now();
             this.feedAudio(chunk);
         };
 
-        await invoke('start_audio_capture', {
-            settings: {
-                deviceId: settings.deviceId,
-                noiseSuppression: settings.noiseSuppression,
-                autoGainControl: settings.autoGainControl,
-                vadThreshold: settings.vadThreshold,
-            },
-            onChunk: channel,
-        });
+        this.micCaptureSettings = settings;
+        await invoke('start_audio_capture', {settings: toRustAudioSettings(settings), onChunk: channel});
+
+        this.lastMicChunkAt = Date.now();
+        this.startMicWatchdog();
 
         const track = destination.stream.getAudioTracks()[0];
         if (!track) throw new Error('No audio track from worklet');
@@ -251,6 +252,9 @@ export class RustMediaService {
     }
 
     async stopMicCapture(): Promise<void> {
+        clearInterval(this.micWatchdog);
+        this.micWatchdog = undefined;
+        this.micCaptureSettings = null;
         if (this.audioChannel) {
             this.audioChannel.onmessage = () => {
             };
@@ -266,6 +270,42 @@ export class RustMediaService {
         this.audioCtx?.close().catch(() => {
         });
         this.audioCtx = null;
+    }
+
+    /**
+     * The Rust capture stream can die silently (device unplugged, a stalled
+     * cpal callback, an exclusive-mode conflict with another app) - the worklet
+     * just keeps outputting silence forever with nothing surfacing the failure,
+     * so the remote side simply stops hearing the user. Real silence (not
+     * talking) still produces chunks -the denoiser and batching run continuously
+     * regardless of the VAD gate -so a prolonged gap is a reliable dead-stream
+     * signal, not a false positive from the user just being quiet.
+     */
+    private startMicWatchdog(): void {
+        clearInterval(this.micWatchdog);
+        const STALL_MS = 2500;
+        this.micWatchdog = setInterval(() => {
+            if (Date.now() - this.lastMicChunkAt > STALL_MS) void this.restartStalledMicCapture();
+        }, 1000);
+    }
+
+    private async restartStalledMicCapture(): Promise<void> {
+        if (this.micRestarting || !this.micCaptureSettings || !this.audioChannel) return;
+        this.micRestarting = true;
+        console.warn('[RustMedia] mic capture stalled -no audio chunks received, restarting Rust stream');
+        try {
+            await invoke('stop_audio_capture').catch(() => {
+            });
+            await invoke('start_audio_capture', {
+                settings: toRustAudioSettings(this.micCaptureSettings),
+                onChunk: this.audioChannel,
+            });
+            this.lastMicChunkAt = Date.now();
+        } catch (e) {
+            console.error('[RustMedia] mic capture restart failed', e);
+        } finally {
+            this.micRestarting = false;
+        }
     }
 
     // ── Microphone capture ────────────────────────────────────────────────────
@@ -380,6 +420,15 @@ export class RustMediaService {
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
+
+function toRustAudioSettings(settings: RustAudioSettings) {
+    return {
+        deviceId: settings.deviceId,
+        noiseSuppression: settings.noiseSuppression,
+        autoGainControl: settings.autoGainControl,
+        vadThreshold: settings.vadThreshold,
+    };
+}
 
 function base64ToArrayBuffer(b64: string): ArrayBuffer {
     const bin = atob(b64);

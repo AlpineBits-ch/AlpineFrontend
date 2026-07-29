@@ -199,19 +199,25 @@ pub async fn start_audio_capture(
     let sample_rate = config.sample_rate.0;
     let channels = config.channels as usize;
 
-    // Ring buffer from cpal callback → async task
+    // Ring buffer from cpal callback → async task. Bounded so a stalled consumer
+    // can't grow memory unboundedly, but the callback uses try_send (never send)
+    // below -a real-time audio callback must never block, and a blocking send
+    // here would stall the OS audio thread and can silently kill the stream.
     let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<f32>>(64);
-    let tx_err = tx.clone();
+    let stream_error = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stream_error_cb = stream_error.clone();
 
     let stream = device
         .build_input_stream(
             &config,
             move |data: &[f32], _| {
-                let _ = tx.send(data.to_vec());
+                // try_send: dropping a chunk under momentary backpressure is far
+                // better than blocking the real-time callback thread.
+                let _ = tx.try_send(data.to_vec());
             },
             move |err| {
                 eprintln!("[audio] cpal stream error: {err}");
-                drop(tx_err.clone());
+                stream_error_cb.store(true, std::sync::atomic::Ordering::Relaxed);
             },
             None,
         )
@@ -244,6 +250,15 @@ pub async fn start_audio_capture(
         loop {
             // Check stop signal
             if stop_rx.try_recv().is_ok() {
+                break;
+            }
+
+            // A dead stream (device unplugged, exclusive-mode conflict, etc.) would
+            // otherwise leave this loop spinning forever with no data and no signal
+            // to the caller -end capture cleanly so state can be torn down and the
+            // frontend's stall watchdog (which sees no chunks arriving) can restart it.
+            if stream_error.load(std::sync::atomic::Ordering::Relaxed) {
+                eprintln!("[audio] stream error detected, stopping capture task");
                 break;
             }
 
@@ -553,16 +568,19 @@ fn loopback_cpal(on_chunk: Channel<AudioChunk>, stop: Arc<std::sync::atomic::Ato
     let config: cpal::StreamConfig = out_cfg.into();
 
     let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<f32>>(64);
-    let tx_err = tx.clone();
+    let stop_err = stop.clone();
 
     let stream = match device.build_input_stream(
         &config,
         move |data: &[f32], _| {
-            let _ = tx.send(data.to_vec());
+            // try_send: never block the real-time audio callback thread.
+            let _ = tx.try_send(data.to_vec());
         },
         move |err| {
             eprintln!("[loopback] cpal error: {err}");
-            drop(tx_err.clone());
+            // Signal the capture loop below to stop rather than spinning forever
+            // with a dead stream and no data.
+            stop_err.store(true, std::sync::atomic::Ordering::Relaxed);
         },
         None,
     ) {

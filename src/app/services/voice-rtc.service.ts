@@ -741,19 +741,28 @@ export class VoiceRTCService {
             const analyser = ctx.createAnalyser();
             analyser.fftSize = 256;
             source.connect(analyser);
-            const data = new Uint8Array(analyser.frequencyBinCount);
+            // Time-domain RMS, not getByteFrequencyData averaged across every FFT
+            // bin -most of those 128 bins carry no voice energy (speech sits in a
+            // handful of low bins), so that average was diluted to ~1/4 of what the
+            // old MAX_VAD_AVG=60 assumed. That made the default 60% sensitivity's
+            // threshold sit right where normal speech straddles it, clipping words
+            // mid-syllable, and only sensitivities near 95-100% (threshold ~0) held
+            // the gate open reliably. RMS matches CallWebRtcService's speaking
+            // detection so both call paths interpret the slider identically.
+            const data = new Float32Array(analyser.fftSize);
             const isLocal = handle === 'local';
-            const MAX_VAD_AVG = 60;
+            const MAX_VAD_RMS = 0.05;
+            const REMOTE_THRESHOLD = 0.02;
 
             const id = setInterval(() => {
-                analyser.getByteFrequencyData(data);
-                const avg = data.reduce((a, b) => a + b, 0) / data.length;
+                analyser.getFloatTimeDomainData(data);
+                const rms = Math.sqrt(data.reduce((sum, v) => sum + v * v, 0) / data.length);
                 const threshold = isLocal
-                    ? MAX_VAD_AVG * (1 - this.audioSettings.settings().inputSensitivity / 100)
-                    : 20;
-                const speaking = avg > threshold;
+                    ? MAX_VAD_RMS * (1 - this.audioSettings.settings().inputSensitivity / 100)
+                    : REMOTE_THRESHOLD;
+                const speaking = rms > threshold;
                 this.speakingChanges$.next({userId, isSpeaking: speaking});
-            }, 100);
+            }, 50);
 
             const prev = this.vadHandles.get(handle);
             if (prev) clearInterval(prev);
