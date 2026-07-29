@@ -127,7 +127,11 @@ export class ConversationComponent implements AfterViewInit {
         // because CallSessionService.join() wires up WebRTC listeners ahead of
         // acceptance) - keep showing the ringing banner instead of the full call
         // panel, which otherwise looked like a live call before anyone answered.
-        if (this.isRinging() && s.participants.length === 1) return null;
+        // Participant count can't be used to detect "has answered" - the create-call
+        // response already lists every invitee up front, connected or not - so
+        // isRinging() (cleared only by a real ParticipantJoined/CallEnded event) is
+        // the only reliable signal.
+        if (this.isRinging()) return null;
         return s;
     });
     // Concrete evidence the call is still ringing and hasn't been answered -
