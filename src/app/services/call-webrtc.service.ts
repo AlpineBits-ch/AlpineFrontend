@@ -2,10 +2,11 @@ import {effect, inject, Injectable, signal} from '@angular/core';
 import {firstValueFrom, Subscription} from 'rxjs';
 import {CallSessionService} from './call-session.service';
 import {CfTrackNew, CfTrackResult, VoiceService} from './voice.service';
-import {VoiceWebsocketService} from './voice-websocket.service';
+import {ConnectionState, VoiceWebsocketService} from './voice-websocket.service';
 import {AudioSettingsService} from './audio-settings.service';
 import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
+import type {CallDto} from '../dtos/response/call.dto';
 
 export interface CallStats {
     inboundKbps: number;
@@ -69,6 +70,11 @@ export class CallWebRtcService {
         kind: 'audio' | 'video' | 'screen';
         shareId?: string
     }>();
+    // Users already subscribed to for audio -makes subscribeToTrack('audio')
+    // safe to call more than once for the same user (the live ParticipantJoined
+    // event and a reconcile-on-reconnect backfill can race for the same user).
+    private readonly subscribedAudioUserIds = new Set<string>();
+    private prevConnState: ConnectionState | null = null;
     // Audio elements for remote participants -WebView2/Tauri requires explicit <audio> elements
     private readonly remoteAudio = new Map<string, HTMLAudioElement>();
     // Local senders stored for on-the-fly bitrate updates
@@ -115,6 +121,19 @@ export class CallWebRtcService {
                 void this.connect(s.callId);
             } else if (!s && this.callId) {
                 this.disconnect();
+            }
+        });
+
+        // A reconnect is the signal that any `call.*` events broadcast during
+        // the gap were dropped -SignalR doesn't queue undelivered messages.
+        // Re-sync authoritative state so a missed ParticipantJoined/CallEnded
+        // doesn't leave us permanently out of sync.
+        effect(() => {
+            const cs = this.voiceWs.connectionState();
+            const wasConnected = this.prevConnState === ConnectionState.Connected;
+            this.prevConnState = cs;
+            if (cs === ConnectionState.Connected && !wasConnected && this.callId) {
+                void this.syncParticipants();
             }
         });
 
@@ -255,6 +274,11 @@ export class CallWebRtcService {
         // ParticipantJoined back to us for any already-connected participants.
         this.setupWsListeners();
 
+        // Backfill in case that ExchangeParticipantJoined re-notify is ever missed (e.g.
+        // joining a group call already in progress right as a signaling gap opens) -
+        // subscribeToTrack's dedupe guard makes this safe to race with the WS listener.
+        void this.syncParticipants();
+
         // Acquire microphone -use Rust pipeline when enhanced NS is on
         let audioTrack: MediaStreamTrack;
         try {
@@ -329,6 +353,7 @@ export class CallWebRtcService {
         this.screenShareId = null;
         this.midMap.clear();
         this.userVolumes.clear();
+        this.subscribedAudioUserIds.clear();
         this.pendingTracks.length = 0;
         this.negotiationChain = Promise.resolve();
         this.wsSubs = [];
@@ -509,6 +534,10 @@ export class CallWebRtcService {
         shareId?: string,
     ): Promise<void> {
         if (!this.pc) return;
+        if (kind === 'audio') {
+            if (this.subscribedAudioUserIds.has(userId)) return;
+            this.subscribedAudioUserIds.add(userId);
+        }
         console.log('[WebRTC] subscribeToTrack', {userId, remoteCfSessionId, trackName, kind});
         const mediaKind = kind === 'audio' ? 'audio' : 'video';
         const transceiver = this.pc.addTransceiver(mediaKind, {direction: 'recvonly'});
@@ -742,6 +771,56 @@ export class CallWebRtcService {
         }
     }
 
+    // ── Authoritative state reconciliation ────────────────────────────────────
+
+    /**
+     * Fetches the current call state and reconciles: subscribes to any
+     * participant's audio track we never heard about (subscribeToTrack's
+     * dedupe guard makes this safe against a live event having already
+     * handled it), removes participants who are no longer in the call, and
+     * hangs up locally if the call ended -or we were removed- while we
+     * weren't listening. Called once at connect() (covers joining a call
+     * already in progress) and on every SignalR reconnect (covers events
+     * dropped during the gap, since SignalR doesn't queue undelivered
+     * messages for a lapsed connection).
+     */
+    private async syncParticipants(): Promise<void> {
+        const callId = this.callId;
+        if (!callId) return;
+
+        let fresh: CallDto;
+        try {
+            fresh = await firstValueFrom(this.voiceService.getCall(callId));
+        } catch {
+            return; // Best-effort - a later reconnect or live event will catch up.
+        }
+        if (this.callId !== callId) return; // Call ended/changed while the request was in flight
+
+        const s = this.callSession.session();
+        if (!s) return;
+        const ownId = s.participants.find(p => p.isLocal)?.userId;
+
+        if (fresh.status === 'Completed' || fresh.status === 'Rejected' ||
+            !fresh.participants.some(p => p.userId === ownId)) {
+            this.callSession.end();
+            return;
+        }
+
+        const freshIds = new Set(fresh.participants.map(p => p.userId));
+        for (const p of s.participants) {
+            if (!p.isLocal && !freshIds.has(p.userId)) {
+                this.callSession.onParticipantLeft(p.userId);
+                this.subscribedAudioUserIds.delete(p.userId);
+            }
+        }
+
+        for (const p of fresh.participants) {
+            if (p.userId === ownId || !p.cfSessionId || !p.audioTrackName) continue;
+            this.callSession.onParticipantJoined(p.userId);
+            void this.subscribeToTrack(p.userId, p.cfSessionId, p.audioTrackName, 'audio');
+        }
+    }
+
     // ── SignalR event listeners ───────────────────────────────────────────────
 
     private setupWsListeners(): void {
@@ -756,6 +835,7 @@ export class CallWebRtcService {
             // Someone left → remove from UI (tracks will auto-end via onended)
             this.voiceWs.participantLeftObservable.subscribe(e => {
                 this.callSession.onParticipantLeft(e.userId);
+                this.subscribedAudioUserIds.delete(e.userId);
                 this.participantsWithAudio.update(s => {
                     const n = new Set(s);
                     n.delete(e.userId);

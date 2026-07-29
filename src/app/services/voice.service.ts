@@ -65,6 +65,12 @@ export class VoiceService {
         return this.client.put<CallDto>(`${this.base}/call/${callId}/end`, {});
     }
 
+    /** Authoritative current-state fetch - the catch-up path when a live
+     *  `call.*` SignalR event may have been missed (e.g. a reconnect gap). */
+    getCall(callId: string): Observable<CallDto> {
+        return this.client.get<CallDto>(`${this.base}/call/${callId}`);
+    }
+
     // ── Cloudflare Calls proxy endpoints ─────────────────────────────────────
     //
     // All CF Calls requests are proxied through the backend so the App ID and
