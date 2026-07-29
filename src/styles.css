@@ -121,9 +121,9 @@ button, a, [role="button"], input, select, textarea, label {
  *   border-subtle      → rgba(255,255,255,0.06)
  *   border-default     → rgba(255,255,255,0.10)
  *
- *   bg-brand           → #7c72ff  (brand purple)
- *   text-brand-dim     → #9a84ff  (brand dim)
- *   bg-brand/15        → brand purple at 15% opacity (active tab bg)
+ *   bg-brand           → #4B5BC4  (brand indigo-blue)
+ *   text-brand-dim     → #7E8AE0  (brand dim)
+ *   bg-brand/15        → brand indigo-blue at 15% opacity (active tab bg)
  *
  *   bg-online          → #34d399  (emerald-400, connected)
  *   bg-connecting      → #fbbf24  (amber-400, connecting)
@@ -186,10 +186,10 @@ button, a, [role="button"], input, select, textarea, label {
 
   /* ── Brand - must stay byte-identical to DEFAULT_THEME.colors in
      src/app/models/theme.model.ts, which ThemeService applies at runtime. ── */
-  --color-brand:       #7c72ff;
-  --color-brand-hover: #695df2;
-  --color-brand-dim:   #9a84ff;
-  --color-brand-dark:  #584ad9;
+  --color-brand:       #4B5BC4;
+  --color-brand-hover: #3E4EAE;
+  --color-brand-dim:   #7E8AE0;
+  --color-brand-dark:  #333F8C;
 
   /* ── Connection status ─────────────────────────────────── */
   --color-online:      #34d399;

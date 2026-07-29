@@ -39,14 +39,14 @@ export class RolesSettingsComponent implements OnInit {
     // Settings tab
     editName = signal('');
     editDescription = signal('');
-    editColor = signal('#7c72ff');
+    editColor = signal('#4B5BC4');
     editPermMask = signal(0n);
     editSaving = signal(false);
     editDirty = signal(false);
     // Create role dialog
     showCreateDialog = signal(false);
     createName = signal('');
-    createColor = signal('#7c72ff');
+    createColor = signal('#4B5BC4');
     creating = signal(false);
     // Delete role dialog
     confirmDeleteRole = signal<RoleDto | null>(null);
@@ -136,7 +136,7 @@ export class RolesSettingsComponent implements OnInit {
         this.selectedRole.set(role);
         this.editName.set(role.name);
         this.editDescription.set(role.description ?? '');
-        this.editColor.set(role.color ?? '#7c72ff');
+        this.editColor.set(role.color ?? '#4B5BC4');
         this.editPermMask.set(parsePermissions(role.permissions));
         this.editDirty.set(false);
         this.activeTab.set('settings');
@@ -156,7 +156,7 @@ export class RolesSettingsComponent implements OnInit {
         this.editDirty.set(
             this.editName() !== r.name ||
             this.editDescription() !== (r.description ?? '') ||
-            this.editColor() !== (r.color ?? '#7c72ff') ||
+            this.editColor() !== (r.color ?? '#4B5BC4') ||
             this.editPermMask() !== parsePermissions(r.permissions)
         );
     }
