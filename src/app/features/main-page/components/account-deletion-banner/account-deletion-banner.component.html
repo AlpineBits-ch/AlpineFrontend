@@ -1,0 +1,16 @@
+@if (visible()) {
+    <div class="shrink-0 bg-sidebar border-b border-rose-500/25 px-3 py-2 select-none">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-2 rounded-full shrink-0 bg-rose-500"></div>
+            <p class="flex-1 min-w-0 text-xs font-semibold text-white/80 truncate">
+                Your account is scheduled for deletion on {{ purgeScheduledAt() | date:'MMM d, y' }}.
+            </p>
+            <button
+                (click)="manage.emit()"
+                class="h-7 px-3 flex items-center gap-1.5 rounded-lg text-xs font-semibold text-white transition-colors cursor-pointer border-0 shrink-0"
+                style="background: #f43f5e">
+                Manage
+            </button>
+        </div>
+    </div>
+}
