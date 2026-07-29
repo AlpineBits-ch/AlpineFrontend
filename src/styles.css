@@ -198,22 +198,14 @@ button, a, [role="button"], input, select, textarea, label {
 
   /* ── Text shorthands (use with opacity modifier) ────────── */
   /* bg-white/[0.85] → text-primary feel; these aliases make intent clearer */
-  --color-text-primary:   rgba(255 255 255 / 0.88);
-  --color-text-secondary: rgba(255 255 255 / 0.62);
-  --color-text-muted:     rgba(255 255 255 / 0.42);
-  --color-text-faint:     rgba(255 255 255 / 0.24);
+  --color-text-primary:   rgba(255 255 255 / 0.85);
+  --color-text-secondary: rgba(255 255 255 / 0.60);
+  --color-text-muted:     rgba(255 255 255 / 0.40);
+  --color-text-faint:     rgba(255 255 255 / 0.06);
 
   /* ── Borders ────────────────────────────────────────────── */
   --color-border-subtle:  rgba(255 255 255 / 0.10);
   --color-border-default: rgba(255 255 255 / 0.16);
-
-  /* ── Motion — exactly two speeds, one curve, used everywhere ── */
-  --duration-fast: 100ms;  /* immediate feedback: buttons, presses */
-  --duration-base: 200ms;  /* everything else: hovers, panel/list transitions */
-  --ease-brand: cubic-bezier(0.2, 0, 0, 1);
-
-  /* ── Icon/tile shape — uniform rounded-square, no morphing ──── */
-  --radius-icon: 12px;
 }
 
 /* ── Wiki markdown content ───────────────────────────────────────────────────
