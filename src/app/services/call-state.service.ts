@@ -8,6 +8,7 @@ import {VoiceWebsocketService} from './voice-websocket.service';
 import {CallSessionService} from './call-session.service';
 import {NavigationService} from '../features/main-page/navigation.service';
 import {SoundSettingsService} from './sound-settings.service';
+import {ToastService} from './toast.service';
 
 export interface IncomingCallState {
     call: CallDto;
@@ -19,6 +20,7 @@ export interface OutgoingCallState {
     conversationId: string;
     displayName: string;
     avatarLabel: string;
+    startedAt: Date;
 }
 
 @Injectable({providedIn: 'root'})
@@ -32,10 +34,12 @@ export class CallStateService implements OnDestroy {
     private callSession = inject(CallSessionService);
     private navService = inject(NavigationService);
     private soundSettings = inject(SoundSettingsService);
+    private toast = inject(ToastService);
     private ringTimer: ReturnType<typeof setTimeout> | null = null;
     private pendingCallDto: CallDto | null = null;
     private pendingCallSub: Subscription | null = null;
     private sub: Subscription;
+    private incomingEndedSub: Subscription;
 
     constructor() {
         this.sub = this.ws.incomingCallObservable.subscribe(call => {
@@ -43,11 +47,20 @@ export class CallStateService implements OnDestroy {
             this.incomingCall.set(this.resolveCallInfo(call));
             this.startRingtone();
         });
+        // The caller may cancel, hang up, or the call may otherwise end before we've
+        // accepted/declined - nothing else clears the incoming-call overlay/ringtone
+        // in that case, so without this the card and ringing would persist forever
+        // and a subsequent Accept click would silently fail against a dead call.
+        this.incomingEndedSub = this.ws.callEndedObservable.subscribe(({callId}) => {
+            if (this.incomingCall()?.call.id !== callId) return;
+            this.stopRingtone();
+            this.incomingCall.set(null);
+        });
         document.addEventListener('keydown', this.devKeyHandler);
     }
 
     startCall(conversationId: string, participants: string[], displayName: string, avatarLabel: string): void {
-        this.outgoingCall.set({conversationId, displayName, avatarLabel});
+        this.outgoingCall.set({conversationId, displayName, avatarLabel, startedAt: new Date()});
         this.startRingback();
         this.voiceService.createCall({conversationId, participants}).subscribe({
             next: (callDto) => {
@@ -82,6 +95,10 @@ export class CallStateService implements OnDestroy {
         if (conv) this.navService.openConversation(conv);
         this.voiceService.acceptCall(incoming.call.id).subscribe({
             next: (callDto) => this.callSession.join(callDto, callDto.conversationId),
+            // Most commonly the caller already cancelled - without this, accepting a
+            // call that just ended silently dropped you into the conversation with
+            // no call session and no explanation.
+            error: (err) => this.toast.httpError('Could not join call - it may have ended', err),
         });
     }
 
@@ -90,7 +107,9 @@ export class CallStateService implements OnDestroy {
         if (!incoming) return;
         this.stopRingtone();
         this.incomingCall.set(null);
-        this.voiceService.declineCall(incoming.call.id).subscribe();
+        this.voiceService.declineCall(incoming.call.id).subscribe({
+            error: (err) => this.toast.httpError('Could not decline call', err),
+        });
     }
 
     cancelOutgoing(): void {
@@ -108,6 +127,7 @@ export class CallStateService implements OnDestroy {
         this.pendingCallSub?.unsubscribe();
         this.stopRingtone();
         this.sub.unsubscribe();
+        this.incomingEndedSub.unsubscribe();
         document.removeEventListener('keydown', this.devKeyHandler);
     }
 
@@ -134,7 +154,12 @@ export class CallStateService implements OnDestroy {
             this.startRingtone();
         } else if (e.key === 'O') {
             e.preventDefault();
-            this.outgoingCall.set({conversationId: 'dev-conv', displayName: 'Bob Testuser', avatarLabel: 'B'});
+            this.outgoingCall.set({
+                conversationId: 'dev-conv',
+                displayName: 'Bob Testuser',
+                avatarLabel: 'B',
+                startedAt: new Date(),
+            });
             this.startRingback();
         } else if (e.key === 'C') {
             e.preventDefault();

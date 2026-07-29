@@ -10,6 +10,7 @@ import {RolesSettingsComponent} from './pages/roles-settings/roles-settings.comp
 import {InvitesSettingsComponent} from './pages/invites-settings/invites-settings.component';
 import {BansSettingsComponent} from './pages/bans-settings/bans-settings.component';
 import {AuditLogSettingsComponent} from './pages/audit-log-settings/audit-log-settings.component';
+import {DiscordSyncSettingsComponent} from './pages/discord-sync-settings/discord-sync-settings.component';
 import {TranslateModule} from '@ngx-translate/core';
 
 interface NavItem {
@@ -35,6 +36,7 @@ interface NavGroup {
         InvitesSettingsComponent,
         BansSettingsComponent,
         AuditLogSettingsComponent,
+        DiscordSyncSettingsComponent,
         TranslateModule,
     ],
     templateUrl: './guild-settings-modal.component.html',
@@ -66,6 +68,7 @@ export class GuildSettingsModalComponent {
             title: 'Community',
             items: [
                 {id: 'invites', label: 'Invites', icon: 'pi pi-link'},
+                {id: 'discord-sync', label: 'Discord Sync', icon: 'pi pi-discord'},
             ],
         },
     ];

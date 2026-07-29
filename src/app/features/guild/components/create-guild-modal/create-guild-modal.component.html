@@ -46,16 +46,26 @@
     </div>
 
     <ng-template pTemplate="footer">
-        <div class="flex items-center justify-end gap-2 pt-1">
-            <p-button (onClick)="close()" [disabled]="loading()" [label]="'CREATE_GUILD.CANCEL' | translate" [text]="true"
-                      severity="secondary" size="small"/>
-            <p-button
-                    (onClick)="submit()"
-                    [disabled]="!name().trim() || loading()"
-                    [label]="'CREATE_GUILD.CREATE' | translate"
-                    [loading]="loading()"
-                    severity="primary"
-                    size="small"/>
+        <div class="flex items-center justify-between w-full pt-1">
+            <p-button (onClick)="startDiscordImport()"
+                      [disabled]="loading()"
+                      [loading]="importingFromDiscord()"
+                      [text]="true"
+                      icon="pi pi-discord"
+                      [label]="'CREATE_GUILD.IMPORT_FROM_DISCORD' | translate"
+                      severity="secondary"
+                      size="small"/>
+            <div class="flex items-center gap-2">
+                <p-button (onClick)="close()" [disabled]="loading() || importingFromDiscord()" [label]="'CREATE_GUILD.CANCEL' | translate" [text]="true"
+                          severity="secondary" size="small"/>
+                <p-button
+                        (onClick)="submit()"
+                        [disabled]="!name().trim() || loading() || importingFromDiscord()"
+                        [label]="'CREATE_GUILD.CREATE' | translate"
+                        [loading]="loading()"
+                        severity="primary"
+                        size="small"/>
+            </div>
         </div>
     </ng-template>
 

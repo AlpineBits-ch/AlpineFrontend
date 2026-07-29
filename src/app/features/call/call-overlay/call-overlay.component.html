@@ -68,7 +68,7 @@
 }
 
 <!-- ── Outgoing call ────────────────────────────────────────────────────── -->
-@if (callState.outgoingCall(); as out) {
+@if (showOutgoingCard() && callState.outgoingCall(); as out) {
     <div class="fixed bottom-6 right-6 w-72 rounded-2xl overflow-hidden call-card-enter
               border border-white/[0.08] shadow-2xl" style="z-index:1800; background: var(--color-sidebar)">
 

@@ -122,8 +122,17 @@ export class ConversationComponent implements AfterViewInit {
     private callSessionService = inject(CallSessionService);
     protected activeCall = computed(() => {
         const s = this.callSessionService.session();
-        return s?.conversationId === this.conversation().id ? s : null;
+        if (s?.conversationId !== this.conversation().id) return null;
+        // We're the caller and the callee hasn't joined yet (session exists solely
+        // because CallSessionService.join() wires up WebRTC listeners ahead of
+        // acceptance) - keep showing the ringing banner instead of the full call
+        // panel, which otherwise looked like a live call before anyone answered.
+        if (this.isRinging() && s.participants.length === 1) return null;
+        return s;
     });
+    // Concrete evidence the call is still ringing and hasn't been answered -
+    // ticks while the ringing banner is shown.
+    protected ringElapsed = signal('0:00');
     private messagingWs = inject(MessagingWebsocketService);
 
     // ── Messages ─────────────────────────────────────────────────────────────
@@ -162,6 +171,7 @@ export class ConversationComponent implements AfterViewInit {
         this.setupRenderHook();
         this.setupReadTracking();
         this.setupFirstUnreadSnapshot();
+        this.setupRingElapsedTimer();
     }
 
     ngAfterViewInit(): void {
@@ -259,6 +269,24 @@ export class ConversationComponent implements AfterViewInit {
         effect(() => {
             const id = this.conversation().id;
             untracked(() => this.messageStore.loadForConversation(id));
+        });
+    }
+
+    // Ticks ringElapsed while the ringing banner is shown for this conversation.
+    private setupRingElapsedTimer(): void {
+        effect((onCleanup) => {
+            const ringing = this.isRinging();
+            if (!ringing) return;
+            const start = ringing.startedAt.getTime();
+            const tick = () => {
+                const elapsed = Math.floor((Date.now() - start) / 1000);
+                const m = Math.floor(elapsed / 60);
+                const sec = (elapsed % 60).toString().padStart(2, '0');
+                this.ringElapsed.set(`${m}:${sec}`);
+            };
+            tick();
+            const id = setInterval(tick, 1000);
+            onCleanup(() => clearInterval(id));
         });
     }
 

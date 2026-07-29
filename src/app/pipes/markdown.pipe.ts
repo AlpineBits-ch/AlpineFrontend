@@ -49,7 +49,11 @@ function renderMixed(text: string): string {
 function renderInline(text: string): string {
     return text
         .split('\n')
-        .map(line => marked.parseInline(line) as string)
+        // Leading/trailing whitespace on a line is never visually significant in chat
+        // messages, but a browser only collapses it away at the start/end of a block -
+        // not after a <br>. Left untrimmed, a stray leading space renders as a real
+        // one-space indent, throwing off alignment between lines.
+        .map(line => marked.parseInline(line.trim()) as string)
         .join('<br>');
 }
 

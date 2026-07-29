@@ -24,10 +24,13 @@ import {BotInstallDialogComponent} from './features/bot-install/bot-install-dial
 import {BotCommandDialogComponent} from './features/bot-command/bot-command-dialog.component';
 import {BotInstallDialogService} from './features/bot-install/bot-install-dialog.service';
 import {parseInstallBotLink} from './features/bot-install/bot-install-link.util';
+import {DiscordImportProgressDialogComponent} from './features/discord-import/discord-import-progress-dialog.component';
+import {DiscordImportProgressService} from './features/discord-import/discord-import-progress.service';
+import {parseDiscordImportLink} from './features/discord-import/discord-import-link.util';
 
 @Component({
     selector: "app-root",
-    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent, BotCommandDialogComponent],
+    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent, BotCommandDialogComponent, DiscordImportProgressDialogComponent],
     templateUrl: "./app.component.html",
     styleUrl: "./app.component.css",
 })
@@ -43,6 +46,7 @@ export class AppComponent implements OnInit, OnDestroy {
     private inviteDialogService = inject(InviteDialogService);
     private steamService = inject(SteamService);
     private botInstallDialogService = inject(BotInstallDialogService);
+    private discordImportProgressService = inject(DiscordImportProgressService);
     private destroyRef = inject(DestroyRef);
     private updateInterval: ReturnType<typeof setInterval> | null = null;
 
@@ -82,7 +86,10 @@ export class AppComponent implements OnInit, OnDestroy {
             filter(e => e instanceof NavigationEnd),
             filter(() => this.router.url.startsWith('/overview')),
             takeUntilDestroyed(this.destroyRef),
-        ).subscribe(() => this.botInstallDialogService.resumeIfPending());
+        ).subscribe(() => {
+            this.botInstallDialogService.resumeIfPending();
+            this.discordImportProgressService.resumeIfPending();
+        });
 
         window.visualViewport?.addEventListener('resize', this.viewportHandler);
         window.visualViewport?.addEventListener('scroll', this.viewportHandler);
@@ -120,6 +127,12 @@ export class AppComponent implements OnInit, OnDestroy {
 
         if (url.includes('steam-auth')) {
             this.steamService.handleLinkCallback(this.parseSteamStatus(url));
+            return;
+        }
+
+        if (url.includes('discord-import')) {
+            const params = parseDiscordImportLink(url);
+            if (params) void this.discordImportProgressService.requestOpen(params);
             return;
         }
 
