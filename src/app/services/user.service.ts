@@ -71,8 +71,21 @@ export class UserService {
         );
     }
 
-    deleteAccount(): Observable<void> {
-        return this.httpClient.delete<void>(`${this.apiConfig.baseUrl()}/api/v1/identity/users/self`);
+    deleteAccount(): Observable<UserDto> {
+        return this.httpClient.delete<{ purgeScheduledAt: string }>(
+            `${this.apiConfig.baseUrl()}/api/v1/identity/users/self`
+        ).pipe(
+            switchMap(() => this.getSelf())
+        );
+    }
+
+    cancelDeletion(): Observable<UserDto> {
+        return this.httpClient.post<void>(
+            `${this.apiConfig.baseUrl()}/api/v1/identity/users/self/cancel-deletion`,
+            {}
+        ).pipe(
+            switchMap(() => this.getSelf())
+        );
     }
 
     public replenishKeyCount(): Observable<void> {
