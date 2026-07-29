@@ -404,7 +404,7 @@ export class CallWebRtcService {
         );
         if (!this.callId) return [];
 
-        await this.pc.setRemoteDescription(response.sessionDescription);
+        await this.setRemoteDescriptionOrThrow(response.sessionDescription, 'tracks/new');
 
         if (response.requiresImmediateRenegotiation) {
             // CF needs a fresh offer now that it has set up the remote tracks
@@ -420,10 +420,32 @@ export class CallWebRtcService {
                 this.voiceService.cfRenegotiate(this.callId, this.cfSessionId, reOffer)
             );
             if (!this.callId) return [];
-            await this.pc.setRemoteDescription(renegResponse.sessionDescription);
+            await this.setRemoteDescriptionOrThrow(renegResponse.sessionDescription, 'renegotiate');
         }
 
         return response.tracks ?? [];
+    }
+
+    /**
+     * setRemoteDescription with the sessionDescription's content logged on failure.
+     * That description comes verbatim from the backend's Cloudflare Calls proxy, not
+     * from this client, so a parse failure here means the backend/CF response was
+     * malformed before it ever reached us -there is nothing to munge or retry
+     * client-side. This only makes the next occurrence diagnosable instead of
+     * surfacing as a bare browser-internal parse error.
+     */
+    private async setRemoteDescriptionOrThrow(desc: RTCSessionDescriptionInit, stage: string): Promise<void> {
+        if (!this.pc) return;
+        try {
+            await this.pc.setRemoteDescription(desc);
+        } catch (e) {
+            console.error(`[WebRTC] setRemoteDescription failed at ${stage}:`, e, {
+                type: desc?.type,
+                sdpLength: desc?.sdp?.length ?? 0,
+                sdpPreview: desc?.sdp?.slice(0, 500),
+            });
+            throw e;
+        }
     }
 
     private async publishAudioTrack(track: MediaStreamTrack): Promise<void> {
