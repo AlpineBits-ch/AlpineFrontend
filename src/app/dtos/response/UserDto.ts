@@ -3,6 +3,15 @@
     Admin = 'Admin',
 }
 
+export enum AccountStatus {
+    Active = 'Active',
+    PendingDeletion = 'PendingDeletion',
+    PurgeInProgress = 'PurgeInProgress',
+    Deleted = 'Deleted',
+    Inactive = 'Inactive',
+    Banned = 'Banned',
+}
+
 export interface EncryptedMasterKey {
     cipherText: string;
     salt: string;
@@ -25,4 +34,7 @@ export interface UserDto {
     ageVerification: unknown;
     encryptedMasterKey: EncryptedMasterKey | undefined;
     steamId: string | undefined;
+    status: AccountStatus;
+    deletionRequestedAt: Date | undefined;
+    purgeScheduledAt: Date | undefined;
 }
