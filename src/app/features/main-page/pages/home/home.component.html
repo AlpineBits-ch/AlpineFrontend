@@ -10,7 +10,7 @@
                           severity="secondary" size="small"/>
                 <div class="flex items-center gap-2">
                     <i class="pi pi-users text-white/50 text-sm"></i>
-                    <h1 class="text-[15px] font-semibold text-white/85">{{ 'HOME.TITLE' | translate }}</h1>
+                    <h1 class="text-[15px] font-bold text-[var(--color-text-primary)]">{{ 'HOME.TITLE' | translate }}</h1>
                 </div>
             </div>
 
@@ -55,8 +55,8 @@
         @if (addFriendOpen()) {
             <div class="bg-white/[0.03] border border-white/[0.07] rounded-2xl p-4 flex flex-col gap-3">
                 <div>
-                    <p class="text-sm font-semibold text-white/80 mb-1">{{ 'HOME.ADD_FRIEND_PANEL.TITLE' | translate }}</p>
-                    <p class="text-xs text-white/35">{{ 'HOME.ADD_FRIEND_PANEL.HINT' | translate }} <span
+                    <p class="text-sm font-bold text-[var(--color-text-primary)] mb-1">{{ 'HOME.ADD_FRIEND_PANEL.TITLE' | translate }}</p>
+                    <p class="text-xs text-[var(--color-text-muted)]">{{ 'HOME.ADD_FRIEND_PANEL.HINT' | translate }} <span
                             class="text-brand-dim/70">sarah</span></p>
                 </div>
                 <div class="flex gap-2">
@@ -93,7 +93,7 @@
                 <app-empty-state icon="pi-users" [message]="'HOME.EMPTY_FRIENDS' | translate" size="lg"/>
             } @else {
                 <div class="flex flex-col gap-1">
-                    <p class="text-[11px] font-semibold text-white/25 uppercase tracking-widest mb-2">
+                    <p class="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-widest mb-2">
                         {{ 'HOME.FRIENDS_COUNT' | translate:{count: list.length} }}
                     </p>
                     @for (rel of list; track rel.id) {
@@ -105,7 +105,7 @@
                                 <app-user-status-dot [status]="getOnlineStatus(rel.target.userId)" borderColor="border-app-bg" size="md"/>
                             </div>
                             <div class="flex-1 min-w-0">
-                                <p class="text-sm font-semibold text-white/80">{{ rel.target.userName }}</p>
+                                <p class="text-sm font-bold text-[var(--color-text-primary)]">{{ rel.target.userName }}</p>
                                 <p [ngClass]="statusTextClass(getOnlineStatus(rel.target.userId))"
                                    class="text-xs">
                                     {{ statusLabelKey(getOnlineStatus(rel.target.userId)) | translate }}
@@ -136,7 +136,7 @@
 
                 <!-- Incoming -->
                 <div class="flex flex-col gap-2">
-                    <p class="text-[11px] font-semibold text-white/25 uppercase tracking-widest">
+                    <p class="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-widest">
                         {{ 'HOME.INCOMING_COUNT' | translate:{count: incoming().length} }}
                     </p>
                     @if (incoming().length === 0) {
@@ -148,8 +148,8 @@
                                 <app-avatar [label]="rel.target.userName[0].toUpperCase()" [userId]="rel.target.userId"
                                             size="normal"/>
                                 <div class="flex-1 min-w-0">
-                                    <p class="text-sm font-semibold text-white/80">{{ rel.target.userName }}</p>
-                                    <p class="text-xs text-white/35">{{ 'HOME.INCOMING_REQUEST' | translate }}</p>
+                                    <p class="text-sm font-bold text-[var(--color-text-primary)]">{{ rel.target.userName }}</p>
+                                    <p class="text-xs text-[var(--color-text-muted)]">{{ 'HOME.INCOMING_REQUEST' | translate }}</p>
                                 </div>
                                 <div (click)="$event.stopPropagation()" class="flex items-center gap-1.5">
                                     <p-button (onClick)="accept(rel.id)" [label]="'HOME.ACCEPT' | translate" [text]="true"
@@ -166,7 +166,7 @@
 
                 <!-- Outgoing -->
                 <div class="flex flex-col gap-2">
-                    <p class="text-[11px] font-semibold text-white/25 uppercase tracking-widest">
+                    <p class="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-widest">
                         {{ 'HOME.OUTGOING_COUNT' | translate:{count: outgoing().length} }}
                     </p>
                     @if (outgoing().length === 0) {
@@ -178,8 +178,8 @@
                                 <app-avatar [label]="rel.target.userName[0].toUpperCase()" [userId]="rel.target.userId"
                                             size="normal"/>
                                 <div class="flex-1 min-w-0">
-                                    <p class="text-sm font-semibold text-white/80">{{ rel.target.userName }}</p>
-                                    <p class="text-xs text-white/35">{{ 'HOME.OUTGOING_SENT' | translate }}</p>
+                                    <p class="text-sm font-bold text-[var(--color-text-primary)]">{{ rel.target.userName }}</p>
+                                    <p class="text-xs text-[var(--color-text-muted)]">{{ 'HOME.OUTGOING_SENT' | translate }}</p>
                                 </div>
                                 <div (click)="$event.stopPropagation()" class="flex items-center gap-2">
                                     <span class="text-[11px] font-medium text-connecting/70 bg-connecting/10 px-2.5 py-1 rounded-lg">{{ 'HOME.PENDING' | translate }}</span>
@@ -197,7 +197,7 @@
         <!-- BLOCKED tab -->
         @if (tab() === 'blocked') {
             <div class="flex flex-col gap-2">
-                <p class="text-[11px] font-semibold text-white/25 uppercase tracking-widest mb-2">
+                <p class="text-[11px] font-medium text-[var(--color-text-muted)] uppercase tracking-widest mb-2">
                     {{ 'HOME.BLOCKED_COUNT' | translate:{count: blocked().length} }}
                 </p>
                 @if (blocked().length === 0) {

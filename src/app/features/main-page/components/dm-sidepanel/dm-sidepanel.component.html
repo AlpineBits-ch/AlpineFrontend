@@ -15,7 +15,7 @@
 
     <!-- DMs header -->
     <div class="flex items-center justify-between px-4 pt-4 pb-2">
-        <span class="text-[10.5px] font-semibold text-white/35 uppercase tracking-widest">{{ 'SIDEBAR.DIRECT_MESSAGES' | translate }}</span>
+        <span class="text-[10.5px] font-medium text-[var(--color-text-muted)] uppercase tracking-widest">{{ 'SIDEBAR.DIRECT_MESSAGES' | translate }}</span>
         <p-button (onClick)="showNewConversation.set(true)" [text]="true" icon="pi pi-plus" severity="secondary" size="small"
                   styleClass="!p-1"/>
     </div>
