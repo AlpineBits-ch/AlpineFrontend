@@ -6,7 +6,7 @@
      [class.py-1.5]="!isGrouped()"
      [class.py-0.5]="isGrouped()"
      [ngClass]="message().isFailed ? 'bg-rose-500/5' : ''"
-     class="relative flex items-start gap-3 px-4 hover:bg-white/[0.02] rounded-lg transition-colors group">
+     class="relative flex items-start gap-3 px-4 hover:bg-white/[0.02] rounded-lg transition-colors transition-opacity duration-300 group">
 
     @if (!isGrouped()) {
         <div (click)="profileDialogSvc.open(message().authorId)" class="cursor-pointer shrink-0 mt-0.5">
@@ -67,9 +67,6 @@
                   stroke-width="1.5"/>
           </svg>
         </span>
-                }
-                @if (message().isPending) {
-                    <i class="pi pi-spin pi-spinner text-[11px] text-white/30"></i>
                 }
                 @if (message().isFailed) {
                     <span class="text-[11px] text-rose-400 flex items-center gap-1">

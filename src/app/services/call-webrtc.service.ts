@@ -544,37 +544,53 @@ export class CallWebRtcService {
             if (this.subscribedAudioUserIds.has(userId)) return;
             this.subscribedAudioUserIds.add(userId);
         }
-        console.log('[WebRTC] subscribeToTrack', {userId, remoteCfSessionId, trackName, kind});
-        const mediaKind = kind === 'audio' ? 'audio' : 'video';
-        const transceiver = this.pc.addTransceiver(mediaKind, {direction: 'recvonly'});
+        // Everything below is a network round trip (or more than one, via CF
+        // renegotiation) that can throw or transiently fail -most likely on a cold
+        // app start (fresh CF session, cold DNS/TLS). If we don't roll back the
+        // dedupe guard above on failure, this user's audio is silently dead for
+        // the rest of the call: every other path that could retry (live
+        // ParticipantJoined, syncParticipants backfill, reconnect resync) is
+        // gated behind the same subscribedAudioUserIds check, so a single failed
+        // attempt here would have zero chance of ever being retried.
+        try {
+            console.log('[WebRTC] subscribeToTrack', {userId, remoteCfSessionId, trackName, kind});
+            const mediaKind = kind === 'audio' ? 'audio' : 'video';
+            const transceiver = this.pc.addTransceiver(mediaKind, {direction: 'recvonly'});
 
-        // For video/screen tracks, prefer VP9 on the receive side for the same efficiency gains.
-        if (mediaKind === 'video') {
-            const caps = RTCRtpReceiver.getCapabilities('video')?.codecs ?? [];
-            const ordered = [
-                ...caps.filter(c => c.mimeType === 'video/VP9'),
-                ...caps.filter(c => c.mimeType === 'video/H264'),
-                ...caps.filter(c => c.mimeType !== 'video/VP9' && c.mimeType !== 'video/H264'),
-            ];
-            if (ordered.length) try {
-                transceiver.setCodecPreferences(ordered);
-            } catch {
+            // For video/screen tracks, prefer VP9 on the receive side for the same efficiency gains.
+            if (mediaKind === 'video') {
+                const caps = RTCRtpReceiver.getCapabilities('video')?.codecs ?? [];
+                const ordered = [
+                    ...caps.filter(c => c.mimeType === 'video/VP9'),
+                    ...caps.filter(c => c.mimeType === 'video/H264'),
+                    ...caps.filter(c => c.mimeType !== 'video/VP9' && c.mimeType !== 'video/H264'),
+                ];
+                if (ordered.length) try {
+                    transceiver.setCodecPreferences(ordered);
+                } catch {
+                }
             }
-        }
 
-        const results = await this.offerAnswerCycle(() => [{
-            location: 'remote',
-            sessionId: remoteCfSessionId,
-            trackName,
-        }]);
-        console.log('[WebRTC] subscribeToTrack results', results);
+            const results = await this.offerAnswerCycle(() => [{
+                location: 'remote',
+                sessionId: remoteCfSessionId,
+                trackName,
+            }]);
+            console.log('[WebRTC] subscribeToTrack results', results);
 
-        // Map the MID (from CF response or our transceiver) so handleRemoteTrack can route it
-        const mid = results.find(r => r.trackName === trackName)?.mid ?? transceiver.mid;
-        console.log('[WebRTC] midMap set', mid, '→', {userId, kind});
-        if (mid) {
-            this.midMap.set(mid, {userId, kind, shareId});
-            this.processPendingTracks();
+            // Map the MID (from CF response or our transceiver) so handleRemoteTrack can route it
+            const mid = results.find(r => r.trackName === trackName)?.mid ?? transceiver.mid;
+            console.log('[WebRTC] midMap set', mid, '→', {userId, kind});
+            if (mid) {
+                this.midMap.set(mid, {userId, kind, shareId});
+                this.processPendingTracks();
+            } else {
+                console.warn('[WebRTC] subscribeToTrack got no mid -CF likely had no active track for this name yet', {userId, trackName, kind});
+                if (kind === 'audio') this.subscribedAudioUserIds.delete(userId);
+            }
+        } catch (e) {
+            console.error('[WebRTC] subscribeToTrack failed', {userId, trackName, kind}, e);
+            if (kind === 'audio') this.subscribedAudioUserIds.delete(userId);
         }
     }
 
@@ -619,7 +635,8 @@ export class CallWebRtcService {
             const isDeafened = this.callSession.session()?.local.isDeafened ?? false;
             element.volume = isDeafened ? 0 : (this.userVolumes.get(info.userId) ?? 1);
             void this.routeToSelectedSpeaker(element);
-            void element.play().catch(() => {
+            void element.play().catch(e => {
+                console.error('[WebRTC] remote audio element failed to play', {userId: info.userId}, e);
             });
 
             this.remoteAudio.set(info.userId, element);
