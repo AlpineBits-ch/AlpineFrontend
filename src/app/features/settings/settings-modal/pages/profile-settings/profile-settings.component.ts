@@ -3,20 +3,18 @@ import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
 import {Select} from 'primeng/select';
-import {Router} from '@angular/router';
-import {finalize, from, of, switchMap, take} from 'rxjs';
+import {finalize, take} from 'rxjs';
 import {FormsModule} from '@angular/forms';
 import {DatePipe} from '@angular/common';
+import {HttpErrorResponse} from '@angular/common/http';
 import {ProfileService} from '../../../../../services/profile.service';
 import {UserService} from '../../../../../services/user.service';
-import {AuthService} from '../../../../../services/auth.service';
-import {MlsService} from '../../../../../services/mls.service';
 import {SteamService} from '../../../../../services/steam.service';
 import {ExternalLinkService} from '../../../../../services/external-link.service';
 import {ToastService} from '../../../../../services/toast.service';
 import {ImageCropperComponent} from '../../../../../components/image-cropper/image-cropper.component';
 import {TranslateModule} from '@ngx-translate/core';
-import {UserDto} from '../../../../../dtos/response/UserDto';
+import {AccountStatus, UserDto} from '../../../../../dtos/response/UserDto';
 import {FONT_LABELS, FONT_STACKS, safeAccentColor} from '../../../../../models/profile-font.model';
 import {cacheBustedUrl} from '../../../../../models/profile-image.model';
 import {ProfileFont} from '../../../../../dtos/response/profile.dto';
@@ -49,6 +47,8 @@ export class ProfileSettingsComponent implements OnInit {
     protected savingDetails = signal(false);
     protected confirmDeleteVisible = signal(false);
     protected deleting = signal(false);
+    protected cancelDeleteVisible = signal(false);
+    protected cancellingDeletion = signal(false);
     // Password change
     protected currentPassword = '';
     protected newPassword = '';
@@ -71,15 +71,14 @@ export class ProfileSettingsComponent implements OnInit {
     protected unlinkingSteam = signal(false);
     protected unlinkSteamVisible = signal(false);
     protected steamId = computed(() => this.user()?.steamId);
+    protected readonly AccountStatus = AccountStatus;
+    protected accountStatus = computed(() => this.user()?.status ?? AccountStatus.Active);
     private profileService = inject(ProfileService);
     protected ownProfile = this.profileService.ownProfile;
     private userService = inject(UserService);
-    private authService = inject(AuthService);
-    private mlsService = inject(MlsService);
     private steamService = inject(SteamService);
     private externalLink = inject(ExternalLinkService);
     private toast = inject(ToastService);
-    private router = inject(Router);
     @ViewChild('fileInput') private fileInputRef!: ElementRef<HTMLInputElement>;
     @ViewChild('bannerFileInput') private bannerFileInputRef!: ElementRef<HTMLInputElement>;
     private detailsSynced = false;
@@ -290,8 +289,36 @@ export class ProfileSettingsComponent implements OnInit {
     protected confirmDeleteAccount(): void {
         this.deleting.set(true);
         this.userService.deleteAccount().pipe(take(1)).subscribe({
-            next: () => this.clearMlsAndLogout(),
-            error: () => this.deleting.set(false),
+            next: user => {
+                this.deleting.set(false);
+                this.confirmDeleteVisible.set(false);
+                this.user.set(user);
+                this.toast.success('Account deletion scheduled');
+            },
+            error: (err: HttpErrorResponse) => {
+                this.deleting.set(false);
+                this.toast.httpError('Could not delete account', err);
+            },
+        });
+    }
+
+    protected confirmCancelDeletion(): void {
+        this.cancellingDeletion.set(true);
+        this.userService.cancelDeletion().pipe(take(1)).subscribe({
+            next: user => {
+                this.cancellingDeletion.set(false);
+                this.cancelDeleteVisible.set(false);
+                this.user.set(user);
+                this.toast.success('Account deletion cancelled');
+            },
+            error: (err: HttpErrorResponse) => {
+                this.cancellingDeletion.set(false);
+                if (err.status === 409) {
+                    this.toast.error('Too late to cancel — the deletion has already started.');
+                } else {
+                    this.toast.httpError('Could not cancel account deletion', err);
+                }
+            },
         });
     }
 
@@ -301,28 +328,5 @@ export class ProfileSettingsComponent implements OnInit {
         if (code === 422 || code === 400) return 'New password does not meet requirements.';
         if (code === 429) return 'Too many attempts -please wait before trying again.';
         return `Something went wrong (${code}).`;
-    }
-
-    private clearMlsAndLogout(): void {
-        from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(
-            switchMap(deviceId => {
-                const handle = this.mlsService.keyHandle();
-                const unload$ = handle ? this.mlsService.unloadSigningKey(handle) : of(undefined as void);
-                return unload$.pipe(
-                    switchMap(() => this.mlsService.clearStoredSigningKey(deviceId)),
-                    switchMap(() => this.mlsService.clearStorage()),
-                    switchMap(() => from(this.mlsService.clearGroupRegistry())),
-                );
-            }),
-        ).subscribe({
-            complete: () => {
-                this.authService.logout();
-                this.router.navigate(['/authentication']);
-            },
-            error: () => {
-                this.authService.logout();
-                this.router.navigate(['/authentication']);
-            },
-        });
     }
 }

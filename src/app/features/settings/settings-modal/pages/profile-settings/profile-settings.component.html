@@ -372,16 +372,46 @@
         <h2 class="text-[0.625rem] font-semibold text-rose-400/60 uppercase tracking-widest border-b border-rose-500/20 pb-3">
             Danger Zone
         </h2>
-        <div class="flex items-center justify-between bg-rose-500/[0.04] border border-rose-500/20 rounded-xl px-4 py-3">
-            <div>
-                <p class="text-sm text-white/75">Delete Account</p>
-                <p class="text-xs text-white/35 mt-0.5">Permanently delete your account and all associated data. This
-                    cannot be undone.</p>
-            </div>
-            <p-button (onClick)="confirmDeleteVisible.set(true)" label="Delete Account" severity="danger"
-                      size="small"
-                      styleClass="shrink-0 ml-4"/>
-        </div>
+        @switch (accountStatus()) {
+            @case (AccountStatus.PendingDeletion) {
+                <div class="flex items-start gap-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-xl px-4 py-3">
+                    <i class="pi pi-exclamation-triangle text-rose-400 shrink-0 mt-0.5"></i>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm text-white/75">
+                            Your account is scheduled for deletion on
+                            <strong class="text-white/90">{{ user()?.purgeScheduledAt | date:'MMM d, y' }}</strong>.
+                        </p>
+                        <p class="text-xs text-white/35 mt-0.5">You can cancel this at any time before then.</p>
+                    </div>
+                    <p-button (onClick)="cancelDeleteVisible.set(true)" label="Cancel Deletion" severity="secondary"
+                              size="small" styleClass="shrink-0 ml-4"/>
+                </div>
+            }
+            @case (AccountStatus.PurgeInProgress) {
+                <div class="flex items-start gap-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-xl px-4 py-3">
+                    <i class="pi pi-exclamation-triangle text-rose-400 shrink-0 mt-0.5"></i>
+                    <p class="text-sm text-white/75">Your account deletion is being processed and can no longer be cancelled.</p>
+                </div>
+            }
+            @case (AccountStatus.Deleted) {
+                <div class="flex items-start gap-3 bg-rose-500/[0.08] border border-rose-500/25 rounded-xl px-4 py-3">
+                    <i class="pi pi-exclamation-triangle text-rose-400 shrink-0 mt-0.5"></i>
+                    <p class="text-sm text-white/75">This account has been deleted.</p>
+                </div>
+            }
+            @default {
+                <div class="flex items-center justify-between bg-rose-500/[0.04] border border-rose-500/20 rounded-xl px-4 py-3">
+                    <div>
+                        <p class="text-sm text-white/75">Delete Account</p>
+                        <p class="text-xs text-white/35 mt-0.5">Permanently delete your account and all associated data. This
+                            cannot be undone.</p>
+                    </div>
+                    <p-button (onClick)="confirmDeleteVisible.set(true)" label="Delete Account" severity="danger"
+                              size="small"
+                              styleClass="shrink-0 ml-4"/>
+                </div>
+            }
+        }
     </section>
 
 </div>
@@ -507,6 +537,34 @@
                       size="small"/>
             <p-button (onClick)="confirmDeleteAccount()" [loading]="deleting()" label="Delete My Account"
                       severity="danger"
+                      size="small"/>
+        </div>
+    </div>
+</p-dialog>
+
+<!-- ── Cancel deletion confirm dialog ────────────────────────────────────── -->
+<p-dialog
+        [(visible)]="cancelDeleteVisible"
+        [closable]="!cancellingDeletion()"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '420px'}"
+        appendTo="body"
+        header="Cancel Account Deletion">
+    <div class="flex flex-col gap-4 pt-1">
+        <div class="flex items-start gap-3 bg-amber-500/[0.08] border border-amber-500/25 rounded-xl px-4 py-3">
+            <i class="pi pi-info-circle text-amber-400 shrink-0 mt-0.5"></i>
+            <p class="text-sm text-white/70">
+                Your account will be restored to normal and no longer scheduled for deletion.
+            </p>
+        </div>
+        <div class="flex gap-3 justify-end">
+            <p-button (onClick)="cancelDeleteVisible.set(false)" [disabled]="cancellingDeletion()" label="Keep Deletion"
+                      severity="secondary"
+                      size="small"/>
+            <p-button (onClick)="confirmCancelDeletion()" [loading]="cancellingDeletion()" label="Yes, Cancel Deletion"
+                      severity="primary"
                       size="small"/>
         </div>
     </div>
