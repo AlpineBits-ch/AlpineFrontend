@@ -14,7 +14,7 @@
         </div>
     } @else {
         <div class="shrink-0 w-8 flex items-start justify-center mt-0.5">
-            <span class="hidden group-hover:block text-[10px] text-white/25 select-none">{{ message().createdAt | date: 'shortTime' }}</span>
+            <span class="hidden group-hover:block text-[10px] font-medium text-[var(--color-text-muted)] select-none">{{ message().createdAt | date: 'shortTime' }}</span>
         </div>
     }
 
@@ -26,12 +26,12 @@
                  class="flex items-center gap-1.5 mb-1 min-w-0 cursor-pointer group/reply select-none">
                 <i class="pi pi-reply text-[10px] text-white/25 shrink-0 scale-x-[-1]"></i>
                 @if (replyMessage()) {
-                    <span [appUserNameStyle]="replyAuthorProfile()" class="text-[11px] font-semibold text-white/45 shrink-0
-                       group-hover/reply:text-white/65 transition-colors">
+                    <span [appUserNameStyle]="replyAuthorProfile()" class="text-[11px] font-medium text-[var(--color-text-muted)] shrink-0
+                       group-hover/reply:text-[var(--color-text-secondary)] transition-colors">
             {{ replyAuthorName() }}
           </span>
-                    <span class="text-[11px] text-white/25 truncate
-                       group-hover/reply:text-white/40 transition-colors">
+                    <span class="text-[11px] text-[var(--color-text-faint)] truncate
+                       group-hover/reply:text-[var(--color-text-muted)] transition-colors">
             {{ replySnippet() || '(attachment)' }}
           </span>
                 } @else {
@@ -45,7 +45,7 @@
                 @if (!isGrouped()) {
                     @if (botName(message().authorId); as bName) {
                         <span (click)="profileDialogSvc.open(message().authorId)"
-                              class="text-sm font-semibold text-white/85 cursor-pointer hover:text-white transition-colors">
+                              class="text-sm font-bold text-[var(--color-text-primary)] cursor-pointer hover:text-white transition-colors">
               {{ bName }}
             </span>
                         <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim">Bot</span>
@@ -53,11 +53,11 @@
                         @let user = (getProfile() | async);
                         <span (click)="profileDialogSvc.open(message().authorId)"
                               [appUserNameStyle]="user"
-                              class="text-sm font-semibold text-white/85 cursor-pointer hover:text-white transition-colors">
+                              class="text-sm font-bold text-[var(--color-text-primary)] cursor-pointer hover:text-white transition-colors">
               {{ user ? user.userName : message().authorId }}
             </span>
                     }
-                    <span class="text-[11px] text-white/25">{{ message().createdAt | date: 'shortTime' }}</span>
+                    <span class="text-[11px] font-medium text-[var(--color-text-muted)]">{{ message().createdAt | date: 'shortTime' }}</span>
                 }
                 @if (message().encryptionState === 'Encrypted') {
                     <span class="flex items-center gap-0.5 text-emerald-400/70" title="End-to-end encrypted">
@@ -134,7 +134,7 @@
         } @else if (!embeds().length) {
             <!-- Normal message content -->
             <div (click)="onLinkClick($event)"
-                 [ngClass]="message().isFailed ? 'text-rose-300' : message().isPending ? 'text-white/40' : 'text-white/70'"
+                 [ngClass]="message().isFailed ? 'text-rose-300' : message().isPending ? 'text-white/40' : 'text-[var(--color-text-secondary)]'"
                  class="text-[15px] leading-relaxed m-0 break-words">
                 @if (isOnlyEmoji()) {
                     <div class="flex items-center justify-start p-2 leading-none">
@@ -272,7 +272,7 @@
 
         <!-- Edited label -->
         @if (!message().isPending && !message().isFailed && message().updatedAt > message().createdAt) {
-            <span class="text-[10px] italic text-white/25 mt-0.5">Edited</span>
+            <span class="text-[10px] italic text-[var(--color-text-faint)] mt-0.5">Edited</span>
         }
 
         <!-- Delete confirmation -->
