@@ -42,6 +42,20 @@ export class PasswordResetDialogComponent {
     private cooldownTimer: ReturnType<typeof setInterval> | null = null;
 
     protected onShow(): void {
+        this.resetState();
+    }
+
+    /**
+     * The dialog is mounted for the whole app lifetime (see app.component.html), so its
+     * signals - including the typed reset code and new password - would otherwise stay
+     * resident in memory indefinitely after the flow ends. Reset on hide as well as on show,
+     * via the same private method, so the two paths cannot drift apart.
+     */
+    protected onHide(): void {
+        this.resetState();
+    }
+
+    private resetState(): void {
         this.stage.set('request');
         this.email.set(this.dialogService.prefillEmail());
         this.code.set('');

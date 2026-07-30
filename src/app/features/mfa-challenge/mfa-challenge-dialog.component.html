@@ -1,5 +1,5 @@
 <p-dialog
-        (onHide)="mfaChallenge.dismiss()"
+        (onHide)="mfaChallenge.dismiss(); onHide()"
         (onShow)="onShow()"
         [(visible)]="mfaChallenge.visible"
         [breakpoints]="{ '640px': '95vw' }"

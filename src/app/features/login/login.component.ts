@@ -149,7 +149,8 @@ export class Login {
     }
 
     protected openPasswordReset(): void {
-        this.passwordResetDialog.show(this.loginModel().username);
+        const value = this.loginModel().username;
+        this.passwordResetDialog.show(this.looksLikeEmail(value) ? value : '');
     }
 
     protected login(): void {
@@ -257,6 +258,18 @@ export class Login {
     private parseBirthdate(dateStr: string): Date {
         const [day, month, year] = dateStr.split('.').map(Number);
         return new Date(year, month - 1, day);
+    }
+
+    /**
+     * Minimal check for whether a login-field value is an email address rather than a bare
+     * username - `username or user@selfhosted.com` is a valid value for this field, but only
+     * the email form is safe to prefill into the password-reset dialog's `?email=` request.
+     */
+    private looksLikeEmail(value: string): boolean {
+        const atIdx = value.lastIndexOf('@');
+        if (atIdx <= 0) return false;
+        const dotIdx = value.indexOf('.', atIdx + 1);
+        return dotIdx > atIdx + 1 && dotIdx < value.length - 1;
     }
 
     public openLink(link: string): void {

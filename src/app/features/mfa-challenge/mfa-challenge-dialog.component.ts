@@ -39,6 +39,14 @@ export class MfaChallengeDialogComponent {
         this.loading.set(false);
     }
 
+    /**
+     * The dialog is mounted for the whole app lifetime (see app.component.html), so the
+     * entered code would otherwise stay resident in memory indefinitely after the flow ends.
+     */
+    protected onHide(): void {
+        this.code.set('');
+    }
+
     protected toggleRecoveryCode(): void {
         this.useRecoveryCode.update(v => !v);
         this.code.set('');

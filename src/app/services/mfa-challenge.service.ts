@@ -51,6 +51,7 @@ export class MfaChallengeService {
 
     dismiss(): void {
         this.visible.set(false);
+        this.username.set('');
         this.password.set('');
     }
 }

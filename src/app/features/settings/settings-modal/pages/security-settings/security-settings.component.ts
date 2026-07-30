@@ -131,8 +131,10 @@ export class SecuritySettingsComponent {
         const a = document.createElement('a');
         a.href = url;
         a.download = 'venta-recovery-codes.txt';
+        document.body.appendChild(a);
         a.click();
-        URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 0);
     }
 
     protected dismissCodes(): void {
