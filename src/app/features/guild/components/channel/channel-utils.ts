@@ -1,4 +1,5 @@
 import {HttpErrorResponse} from '@angular/common/http';
+import {ChannelDto, ChannelType, isForumLike} from '../../../../dtos/response/guild.dto';
 
 /**
  * Classifies a send failure as an auto-mod refusal.
@@ -13,4 +14,22 @@ export function classifyAutoModError(err: HttpErrorResponse | null | undefined):
     const body = err.error as { error?: string; reason?: string } | null;
     if (body?.error !== 'automod_blocked') return null;
     return body.reason === 'rate_limited' ? 'rate_limited' : 'blocked_word';
+}
+
+/**
+ * The forum a post belongs to, or null if this channel isn't a forum post.
+ *
+ * A forum post is an ordinary Thread whose parent happens to be a Forum or Media
+ * channel, so "is this a post?" and "which forum?" are the same lookup. A dangling
+ * parentChannelId - the parent not yet in the cached channel list - is a null rather
+ * than a throw, because both callers run during render of the main view.
+ */
+export function forumParentOf(
+    channel: ChannelDto,
+    channels: readonly ChannelDto[],
+): ChannelDto | null {
+    if (channel.type !== ChannelType.Thread) return null;
+    const parentId = channel.parentChannelId;
+    if (!parentId) return null;
+    return channels.find(c => c.id === parentId && isForumLike(c.type)) ?? null;
 }
