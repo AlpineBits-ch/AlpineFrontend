@@ -1,12 +1,13 @@
 import {Component, computed, input, output} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {ToggleSwitch} from 'primeng/toggleswitch';
+import {TranslateModule} from '@ngx-translate/core';
 import {PERM_GROUPS, PermissionKey, Permissions, permissionLabel} from '../../../../enums/permissions.enum';
 import {GuildFeatureSet} from '../../guild-features';
 
 @Component({
     selector: 'app-permission-toggle',
-    imports: [ToggleSwitch, FormsModule],
+    imports: [ToggleSwitch, FormsModule, TranslateModule],
     templateUrl: './permission-toggle.component.html',
 })
 export class PermissionToggleComponent {

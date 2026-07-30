@@ -96,7 +96,10 @@ export type PermissionKey = keyof typeof Permissions;
 export type PermissionValue = bigint;
 
 export interface PermGroup {
+    /** Untranslated identifier for the group - stable across locales, handy in tests. */
     label: string;
+    /** The `PERM_GROUP.*` key the UI actually renders. */
+    labelKey: string;
     perms: PermissionKey[];
     /**
      * The `GuildFeatures` module name gating this group. A plain string rather than the
@@ -111,72 +114,88 @@ export interface PermGroup {
 export const PERM_GROUPS: PermGroup[] = [
     {
         label: 'General',
+        labelKey: 'PERM_GROUP.GENERAL',
         perms: ['ViewChannel', 'CreateInvite'],
     },
     {
         label: 'Messages',
+        labelKey: 'PERM_GROUP.MESSAGES',
         perms: ['SendMessages', 'EditOwnMessages', 'EditAnyMessage', 'DeleteOwnMessages', 'DeleteAnyMessage', 'PinMessages'],
     },
     {
         label: 'Attachments & Embeds',
+        labelKey: 'PERM_GROUP.ATTACHMENTS',
         perms: ['AttachFiles', 'EmbedLinks', 'AddReactions'],
     },
     {
         label: 'Voice',
+        labelKey: 'PERM_GROUP.VOICE',
         perms: ['Connect', 'Speak', 'Stream', 'MuteMembers', 'DeafenMembers', 'MoveMembers'],
     },
     {
         label: 'Threads',
+        labelKey: 'PERM_GROUP.THREADS',
         perms: ['CreateThreads', 'SendMessagesInThreads', 'ManageOwnThreads', 'ManageAnyThread'],
     },
     {
         label: 'Moderation',
+        labelKey: 'PERM_GROUP.MODERATION',
         perms: ['ManageChannel', 'ManagePermissions', 'ManageGuild', 'KickMembers', 'BanMembers', 'ModerateMembers', 'ViewAuditLog'],
     },
     {
         label: 'Emojis',
+        labelKey: 'PERM_GROUP.EMOJIS',
         perms: ['ManageEmojis'],
     },
     {
         label: 'Events',
+        labelKey: 'PERM_GROUP.EVENTS',
         perms: ['ManageEvents'],
     },
     {
         label: 'Wiki',
+        labelKey: 'PERM_GROUP.WIKI',
         perms: ['ViewWiki', 'CreateWikiPages', 'EditOwnWikiPages', 'EditAnyWikiPage', 'DeleteWikiPages', 'ManageWikiRevisions', 'ManageWikiStructure', 'ModerateWikiComments', 'PublishWikiPublicly'],
     },
     {
         label: 'Lists',
+        labelKey: 'PERM_GROUP.LISTS',
         feature: 'Lists',
         perms: ['ManageLists', 'AddListItems', 'CheckOffListItems'],
     },
     {
         label: 'Chores',
+        labelKey: 'PERM_GROUP.CHORES',
         feature: 'Chores',
         perms: ['ManageChores', 'CompleteChores'],
     },
     {
         label: 'Ledger',
+        labelKey: 'PERM_GROUP.LEDGER',
         feature: 'Ledger',
         perms: ['ManageLedger', 'AddExpenses'],
     },
     {
         label: 'Pantry',
+        labelKey: 'PERM_GROUP.PANTRY',
         feature: 'Pantry',
         perms: ['ManagePantry'],
     },
     {
         label: 'Decisions',
+        labelKey: 'PERM_GROUP.DECISIONS',
         feature: 'Decisions',
         perms: ['CreateDecisions', 'VoteDecisions'],
     },
     {
         label: 'Guests',
+        labelKey: 'PERM_GROUP.GUESTS',
         feature: 'GuestAccess',
         perms: ['ManageGuests'],
     },
     {
         label: 'Admin',
+        labelKey: 'PERM_GROUP.ADMIN',
         perms: ['Superadmin'],
     },
 ];

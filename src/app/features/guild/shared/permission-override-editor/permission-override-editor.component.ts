@@ -1,10 +1,14 @@
 import {Component, computed, input, output} from '@angular/core';
 import {NgClass} from '@angular/common';
+import {TranslateModule} from '@ngx-translate/core';
 import {PermissionKey, Permissions} from '../../../../enums/permissions.enum';
 import {ChannelType} from '../../../../dtos/response/guild.dto';
 
 interface PermGroup {
+    /** Untranslated identifier for the group - stable across locales, and the `@for` track. */
     label: string;
+    /** The `PERM_GROUP.*` key the UI actually renders - the same vocabulary the role editor uses. */
+    labelKey: string;
     perms: PermissionKey[];
     /** When set, this group only appears on a channel of that exact type. */
     channelType?: ChannelType;
@@ -18,25 +22,26 @@ export interface PermOverride {
 }
 
 const PERM_GROUPS: PermGroup[] = [
-    {label: 'General', perms: ['ViewChannel']},
+    {label: 'General', labelKey: 'PERM_GROUP.GENERAL', perms: ['ViewChannel']},
     {
         label: 'Messages',
+        labelKey: 'PERM_GROUP.MESSAGES',
         perms: ['SendMessages', 'EditOwnMessages', 'EditAnyMessage', 'DeleteOwnMessages', 'DeleteAnyMessage', 'PinMessages']
     },
-    {label: 'Attachments & Embeds', perms: ['AttachFiles', 'EmbedLinks', 'AddReactions']},
-    {label: 'Voice', perms: ['Connect', 'Speak', 'Stream', 'MuteMembers', 'DeafenMembers', 'MoveMembers']},
-    {label: 'Threads', perms: ['CreateThreads', 'SendMessagesInThreads', 'ManageOwnThreads', 'ManageAnyThread']},
-    {label: 'Moderation', perms: ['ManageChannel', 'ManagePermissions']},
-    {label: 'Lists', channelType: ChannelType.List, perms: ['ManageLists', 'AddListItems', 'CheckOffListItems']},
-    {label: 'Chores', channelType: ChannelType.Chores, perms: ['ManageChores', 'CompleteChores']},
-    {label: 'Ledger', channelType: ChannelType.Ledger, perms: ['ManageLedger', 'AddExpenses']},
-    {label: 'Pantry', channelType: ChannelType.Pantry, perms: ['ManagePantry']},
-    {label: 'Decisions', channelType: ChannelType.Decisions, perms: ['CreateDecisions', 'VoteDecisions']},
+    {label: 'Attachments & Embeds', labelKey: 'PERM_GROUP.ATTACHMENTS', perms: ['AttachFiles', 'EmbedLinks', 'AddReactions']},
+    {label: 'Voice', labelKey: 'PERM_GROUP.VOICE', perms: ['Connect', 'Speak', 'Stream', 'MuteMembers', 'DeafenMembers', 'MoveMembers']},
+    {label: 'Threads', labelKey: 'PERM_GROUP.THREADS', perms: ['CreateThreads', 'SendMessagesInThreads', 'ManageOwnThreads', 'ManageAnyThread']},
+    {label: 'Moderation', labelKey: 'PERM_GROUP.MODERATION', perms: ['ManageChannel', 'ManagePermissions']},
+    {label: 'Lists', labelKey: 'PERM_GROUP.LISTS', channelType: ChannelType.List, perms: ['ManageLists', 'AddListItems', 'CheckOffListItems']},
+    {label: 'Chores', labelKey: 'PERM_GROUP.CHORES', channelType: ChannelType.Chores, perms: ['ManageChores', 'CompleteChores']},
+    {label: 'Ledger', labelKey: 'PERM_GROUP.LEDGER', channelType: ChannelType.Ledger, perms: ['ManageLedger', 'AddExpenses']},
+    {label: 'Pantry', labelKey: 'PERM_GROUP.PANTRY', channelType: ChannelType.Pantry, perms: ['ManagePantry']},
+    {label: 'Decisions', labelKey: 'PERM_GROUP.DECISIONS', channelType: ChannelType.Decisions, perms: ['CreateDecisions', 'VoteDecisions']},
 ];
 
 @Component({
     selector: 'app-permission-override-editor',
-    imports: [NgClass],
+    imports: [NgClass, TranslateModule],
     templateUrl: './permission-override-editor.component.html',
 })
 export class PermissionOverrideEditorComponent {

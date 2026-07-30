@@ -1,7 +1,7 @@
 <div class="space-y-4">
     @for (group of groups(); track group.label) {
         <div>
-            <p class="text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-2">{{ group.label }}</p>
+            <p class="text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-2">{{ group.labelKey | translate }}</p>
             <div class="space-y-1">
                 @for (key of group.perms; track key) {
                     <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.05] transition-colors">
