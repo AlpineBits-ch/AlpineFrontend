@@ -30,6 +30,7 @@ import {UnsupportedChannelComponent} from '../guild/components/unsupported-chann
 import {GuildMemberListComponent} from '../guild/components/guild-member-list/guild-member-list.component';
 import {UserTokenService} from '../../services/user-token.service';
 import {GuildWebsocketService} from '../../services/guild-websocket.service';
+import {SocialWebsocketService} from '../../services/social-websocket.service';
 import {UserService} from '../../services/user.service';
 import {KeySetupDialogComponent} from '../key-setup/key-setup-dialog/key-setup-dialog.component';
 import {MlsService} from '../../services/mls.service';
@@ -99,6 +100,7 @@ export class MainPageComponent implements OnDestroy {
     private websocketService = inject(MessagingWebsocketService);
     private voiceWebsocketService = inject(VoiceWebsocketService);
     private guildWebsocketService = inject(GuildWebsocketService);
+    private socialWebsocketService = inject(SocialWebsocketService);
     private notificationService = inject(NotificationService);
     private conversationStore = inject(ConversationStore);
     private userTokenService = inject(UserTokenService);
@@ -115,6 +117,7 @@ export class MainPageComponent implements OnDestroy {
         void this.websocketService.start();
         void this.voiceWebsocketService.start();
         void this.guildWebsocketService.start();
+        void this.socialWebsocketService.start();
 
         this.userTokenService.ensureTokenRegistered().then();
         void this.initLaunchSequence();

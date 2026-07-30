@@ -4,12 +4,8 @@ import {ConversationListComponent} from '../../../messaging/components/conversat
 import {NavigationService} from '../../navigation.service';
 import {ConversationDto} from '../../../../dtos/response/conversation.dto';
 import {NewConversationDialogComponent} from './new-conversation-dialog/new-conversation-dialog.component';
-import {RelationshipService} from '../../../../services/relationship.service';
+import {RelationshipStore} from '../../../../stores/relationship.store';
 import {ProfileService} from '../../../../services/profile.service';
-import {
-    RelationshipModel,
-    RelationshipStatus
-} from '../../../friendship/components/friendship-modal/dto/relationship.model';
 import {OnlineStatus} from '../../../../dtos/response/profile.dto';
 import {TranslateModule} from '@ngx-translate/core';
 
@@ -21,23 +17,17 @@ import {TranslateModule} from '@ngx-translate/core';
 export class DmSidepanelComponent {
     protected navService = inject(NavigationService);
     protected showNewConversation = signal(false);
-    private relationshipService = inject(RelationshipService);
+    private relationshipStore = inject(RelationshipStore);
     private profileService = inject(ProfileService);
-    private relationships = signal<RelationshipModel[]>([]);
 
     protected onlineFriendsCount = computed(() =>
-        this.relationships()
-            .filter(r => r.status === RelationshipStatus.Friends &&
-                this.profileService.getOnlineStatus(r.target.userId) === OnlineStatus.Online)
+        this.relationshipStore.friends()
+            .filter(r => this.profileService.getOnlineStatus(r.other.userId) === OnlineStatus.Online)
             .length
     );
 
     constructor() {
-        this.relationshipService.getRelationships().subscribe(d => {
-            this.relationships.set(d);
-            d.filter(r => r.status === RelationshipStatus.Friends)
-                .forEach(r => this.profileService.resolveByUserId(r.target.userId));
-        });
+        this.relationshipStore.load();
     }
 
     onConversationSelected(conv: ConversationDto): void {

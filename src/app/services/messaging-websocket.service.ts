@@ -105,8 +105,6 @@ export class MessagingWebsocketService {
     public reactionRemovedObservable = new Subject<ReactionEvent>()
     public messagePinnedObservable = new Subject<MessagePinnedEvent>()
     public messageUnpinnedObservable = new Subject<MessageUnpinnedEvent>()
-    public friendRequestReceivedObservable = new Subject<void>()
-    public friendRequestAcceptedObservable = new Subject<void>()
     private realtime = inject(RealtimeConnectionService);
     private notificationService = inject(NotificationService);
     private profileService = inject(ProfileService);
@@ -146,27 +144,9 @@ export class MessagingWebsocketService {
     }
 
     private setupListeners(): void {
-        this.realtime.on('conversation.FriendRequestAccepted', async (data: { acceptantUserName: string }) => {
-            console.log('Friend request accepted:', data);
-            this.friendRequestAcceptedObservable.next();
-            await this.notificationService.createNotification({
-                title: 'Friend request accepted',
-                message: `${data.acceptantUserName} accepted your friend request`,
-                sound: NotificationSound.NewMessage,
-            });
-        })
-
-        // NOTE: not listed in the migration guide; assuming the same conversation.* prefix.
-        this.realtime.on('conversation.FriendRequestReceived', async (data: { senderUserName: string }) => {
-            console.log('Friend request received:', data);
-            this.friendRequestReceivedObservable.next();
-            await this.notificationService.createNotification({
-                title: 'Friend request',
-                message: `${data.senderUserName} sent you a friend request`,
-                sound: NotificationSound.NewMessage,
-            });
-        })
-
+        // Friend requests moved to the `social.*` events -see SocialWebsocketService and
+        // RelationshipStore. The old conversation.FriendRequest{Accepted,Received} pair only
+        // carried a username, so every listener had to refetch the whole relationship list.
         this.realtime.on('conversation.MessageUpdated', async (data: MessageUpdatedEvent) => {
             console.log('Message updated:', data);
             this.messageUpdatedObservable.next(data);

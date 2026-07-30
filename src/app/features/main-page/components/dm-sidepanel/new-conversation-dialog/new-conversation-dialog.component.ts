@@ -8,17 +8,12 @@ import {InputText} from 'primeng/inputtext';
 import {Avatar} from 'primeng/avatar';
 import {ToggleSwitch} from 'primeng/toggleswitch';
 import {PrimeTemplate} from 'primeng/api';
-import {RelationshipService} from '../../../../../services/relationship.service';
+import {RelationshipStore} from '../../../../../stores/relationship.store';
 import {ConversationService} from '../../../../../services/conversation.service';
 import {MlsService} from '../../../../../services/mls.service';
 import {ConversationStore} from '../../../../../stores/conversation.store';
 import {NavigationService} from '../../../navigation.service';
 import {ProfileService} from '../../../../../services/profile.service';
-import {
-    MinimalProfileId,
-    RelationshipModel,
-    RelationshipStatus,
-} from '../../../../friendship/components/friendship-modal/dto/relationship.model';
 import {ConversationEncryption} from '../../../../../enums/conversation-encryption.enum';
 import {DeviceWelcomeDto} from '../../../../../dtos/request/create-conversation.dto';
 import {TranslateModule} from '@ngx-translate/core';
@@ -30,7 +25,8 @@ import {TranslateModule} from '@ngx-translate/core';
 })
 export class NewConversationDialogComponent {
     readonly visible = model.required<boolean>();
-    readonly friends = signal<MinimalProfileId[]>([]);
+    private relationshipStore = inject(RelationshipStore);
+    readonly friends = computed(() => this.relationshipStore.friends().map(r => r.other));
     readonly search = signal('');
     readonly selectedIds = signal(new Set<string>());
     readonly groupName = signal('');
@@ -47,7 +43,6 @@ export class NewConversationDialogComponent {
     );
     readonly isGroup = computed(() => this.selectedIds().size >= 2);
     readonly canCreate = computed(() => this.selectedIds().size >= 1 && !this.creating());
-    private relationshipService = inject(RelationshipService);
     private conversationService = inject(ConversationService);
     private mlsService = inject(MlsService);
     private conversationStore = inject(ConversationStore);
@@ -55,13 +50,7 @@ export class NewConversationDialogComponent {
     private profileService = inject(ProfileService);
 
     constructor() {
-        this.relationshipService.getRelationships().subscribe((rels: RelationshipModel[]) => {
-            const ownId = this.profileService.ownProfile()?.userId;
-            const friends = rels
-                .filter(r => r.status === RelationshipStatus.Friends)
-                .map(r => (r.owner.userId === ownId ? r.target : r.owner));
-            this.friends.set(friends);
-        });
+        this.relationshipStore.load();
     }
 
     toggleFriend(userId: string): void {

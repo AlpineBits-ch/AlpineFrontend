@@ -440,9 +440,9 @@ export class GuildWebsocketService {
     }
 
     private setupListeners(): void {
-        // FriendRequestAccepted is handled by MessagingWebsocketService
-        // (conversation.FriendRequestAccepted). With a single shared connection it must
-        // only be registered once, so the former duplicate handler here is removed.
+        // Friend requests are handled by SocialWebsocketService (the `social.*` events).
+        // With a single shared connection each event must only be registered once, so the
+        // former duplicate handler here is removed.
 
         this.realtime.on('guild.ChannelReordered', (data: ReorderChannesDto) => {
             this.channelReorderedObservable.next(data);

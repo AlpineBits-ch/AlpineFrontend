@@ -97,23 +97,23 @@
                         {{ 'HOME.FRIENDS_COUNT' | translate:{count: list.length} }}
                     </p>
                     @for (rel of list; track rel.id) {
-                        <div (click)="openOrCreateDm(rel.target.userId)"
+                        <div (click)="openOrCreateDm(rel.other.userId)"
                              class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all group cursor-pointer">
                             <div class="relative shrink-0">
-                                <app-avatar [label]="rel.target.userName[0].toUpperCase()" [userId]="rel.target.userId"
+                                <app-avatar [label]="rel.other.userName[0].toUpperCase()" [userId]="rel.other.userId"
                                             size="normal"/>
-                                <app-user-status-dot [status]="getOnlineStatus(rel.target.userId)" borderColor="border-app-bg" size="md"/>
+                                <app-user-status-dot [status]="getOnlineStatus(rel.other.userId)" borderColor="border-app-bg" size="md"/>
                             </div>
                             <div class="flex-1 min-w-0">
-                                <p class="text-sm font-bold text-[var(--color-text-primary)]">{{ rel.target.userName }}</p>
-                                <p [ngClass]="statusTextClass(getOnlineStatus(rel.target.userId))"
+                                <p class="text-sm font-bold text-[var(--color-text-primary)]">{{ rel.other.userName }}</p>
+                                <p [ngClass]="statusTextClass(getOnlineStatus(rel.other.userId))"
                                    class="text-xs">
-                                    {{ statusLabelKey(getOnlineStatus(rel.target.userId)) | translate }}
+                                    {{ statusLabelKey(getOnlineStatus(rel.other.userId)) | translate }}
                                 </p>
                             </div>
                             <div (click)="$event.stopPropagation()"
                                  class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button (click)="openOrCreateDm(rel.target.userId)"
+                                <button (click)="openOrCreateDm(rel.other.userId)"
                                         [title]="'HOME.MESSAGE' | translate"
                                         class="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-white/[0.06] border-0 bg-transparent cursor-pointer transition-all">
                                     <i class="pi pi-comment text-xs" style="color: rgba(255,255,255,0.55)"></i>
@@ -143,12 +143,12 @@
                         <p class="text-sm text-white/25 italic py-2">{{ 'HOME.INCOMING_EMPTY' | translate }}</p>
                     } @else {
                         @for (rel of incoming(); track rel.id) {
-                            <div (click)="profileDialogSvc.open(rel.target.userId)"
+                            <div (click)="profileDialogSvc.open(rel.other.userId)"
                                  class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all group cursor-pointer">
-                                <app-avatar [label]="rel.target.userName[0].toUpperCase()" [userId]="rel.target.userId"
+                                <app-avatar [label]="rel.other.userName[0].toUpperCase()" [userId]="rel.other.userId"
                                             size="normal"/>
                                 <div class="flex-1 min-w-0">
-                                    <p class="text-sm font-bold text-[var(--color-text-primary)]">{{ rel.target.userName }}</p>
+                                    <p class="text-sm font-bold text-[var(--color-text-primary)]">{{ rel.other.userName }}</p>
                                     <p class="text-xs text-[var(--color-text-muted)]">{{ 'HOME.INCOMING_REQUEST' | translate }}</p>
                                 </div>
                                 <div (click)="$event.stopPropagation()" class="flex items-center gap-1.5">
@@ -173,12 +173,12 @@
                         <p class="text-sm text-white/25 italic py-2">{{ 'HOME.OUTGOING_EMPTY' | translate }}</p>
                     } @else {
                         @for (rel of outgoing(); track rel.id) {
-                            <div (click)="profileDialogSvc.open(rel.target.userId)"
+                            <div (click)="profileDialogSvc.open(rel.other.userId)"
                                  class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all group cursor-pointer">
-                                <app-avatar [label]="rel.target.userName[0].toUpperCase()" [userId]="rel.target.userId"
+                                <app-avatar [label]="rel.other.userName[0].toUpperCase()" [userId]="rel.other.userId"
                                             size="normal"/>
                                 <div class="flex-1 min-w-0">
-                                    <p class="text-sm font-bold text-[var(--color-text-primary)]">{{ rel.target.userName }}</p>
+                                    <p class="text-sm font-bold text-[var(--color-text-primary)]">{{ rel.other.userName }}</p>
                                     <p class="text-xs text-[var(--color-text-muted)]">{{ 'HOME.OUTGOING_SENT' | translate }}</p>
                                 </div>
                                 <div (click)="$event.stopPropagation()" class="flex items-center gap-2">
@@ -204,12 +204,12 @@
                     <app-empty-state icon="pi-shield" [message]="'HOME.EMPTY_BLOCKED' | translate" size="lg"/>
                 } @else {
                     @for (rel of blocked(); track rel.id) {
-                        <div (click)="profileDialogSvc.open(rel.target.userId)"
+                        <div (click)="profileDialogSvc.open(rel.other.userId)"
                              class="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.04] transition-all group cursor-pointer">
-                            <app-avatar [label]="rel.target.userName[0].toUpperCase()" [userId]="rel.target.userId"
+                            <app-avatar [label]="rel.other.userName[0].toUpperCase()" [userId]="rel.other.userId"
                                         size="normal"/>
                             <div class="flex-1 min-w-0">
-                                <p class="text-sm font-semibold text-white/50">{{ rel.target.userName }}</p>
+                                <p class="text-sm font-semibold text-white/50">{{ rel.other.userName }}</p>
                                 <p class="text-xs text-white/25">{{ 'HOME.BLOCKED_STATUS' | translate }}</p>
                             </div>
                             <div (click)="$event.stopPropagation()">

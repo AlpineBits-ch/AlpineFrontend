@@ -4,11 +4,8 @@ import {AppAvatarComponent} from '../../../../components/avatar/avatar.component
 import {EmptyStateComponent} from '../../../../components/empty-state/empty-state.component';
 import {ProfileService} from '../../../../services/profile.service';
 import {ProfileDialogService} from '../../../../services/profile-dialog.service';
-import {RelationshipService} from '../../../../services/relationship.service';
-import {
-    RelationshipModel,
-    RelationshipStatus
-} from '../../../friendship/components/friendship-modal/dto/relationship.model';
+import {RelationshipStore} from '../../../../stores/relationship.store';
+import {RelationshipView} from '../../../friendship/components/friendship-modal/dto/relationship.model';
 import {OnlineStatus} from '../../../../dtos/response/profile.dto';
 import {TranslateModule} from '@ngx-translate/core';
 
@@ -28,15 +25,13 @@ export interface ActivityStatus {
 export class ActivityFeedComponent {
     protected profileService = inject(ProfileService);
     protected profileDialogSvc = inject(ProfileDialogService);
-    protected relationships = signal<RelationshipModel[]>([]);
+    private relationshipStore = inject(RelationshipStore);
     // Keyed by friend's userId -empty by default until activity data arrives
     protected activityStatuses = signal<Record<string, ActivityStatus>>({});
-    protected friends = computed(() =>
-        this.relationships().filter(r => r.status === RelationshipStatus.Friends)
-    );
+    protected friends = this.relationshipStore.friends;
     protected onlineFriends = computed(() =>
         this.friends().filter(r =>
-            this.profileService.getOnlineStatus(this.friendUserId(r)) === OnlineStatus.Online
+            this.profileService.getOnlineStatus(r.other.userId) === OnlineStatus.Online
         )
     );
     // "Active Now" - friends with a live rich-presence activity get a card; everyone else
@@ -49,31 +44,16 @@ export class ActivityFeedComponent {
     );
     protected offlineFriends = computed(() =>
         this.friends().filter(r =>
-            this.profileService.getOnlineStatus(this.friendUserId(r)) !== OnlineStatus.Online
+            this.profileService.getOnlineStatus(r.other.userId) !== OnlineStatus.Online
         )
     );
-    private relationshipService = inject(RelationshipService);
 
     constructor() {
-        this.relationshipService.getRelationships().subscribe(rels => {
-            this.relationships.set(rels);
-            rels
-                .filter(r => r.status === RelationshipStatus.Friends)
-                .forEach(r => this.profileService.resolveByUserId(this.friendUserId(r)));
-        });
+        this.relationshipStore.load();
     }
 
-    protected friendProfile(r: RelationshipModel) {
-        const ownId = this.profileService.ownProfile()?.userId;
-        return r.owner.userId === ownId ? r.target : r.owner;
-    }
-
-    protected friendUserId(r: RelationshipModel): string {
-        return this.friendProfile(r).userId;
-    }
-
-    protected activityFor(r: RelationshipModel): ActivityStatus | undefined {
-        return this.activityStatuses()[this.friendUserId(r)];
+    protected activityFor(r: RelationshipView): ActivityStatus | undefined {
+        return this.activityStatuses()[r.other.userId];
     }
 
     protected formatSince(since: Date): string {
