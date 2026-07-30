@@ -210,6 +210,7 @@
                             } @else {
                                 <app-message (jumpTo)="jumpToMessage($event)"
                                              (reply)="onReply($event)"
+                                             [canPinMessages]="canPinMessages()"
                                              [guildBots]="botCommandService.currentGuildBots()"
                                              [guildChannels]="guildChannels()"
                                              [guildRoles]="guildRoles()"

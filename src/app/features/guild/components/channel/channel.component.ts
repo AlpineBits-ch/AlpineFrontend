@@ -18,8 +18,10 @@ import {catchError, debounceTime, EMPTY, Subject, tap} from 'rxjs';
 
 import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 import {MessageAttachment, MessageDto} from '../../../../dtos/response/message.dto';
+import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {MessageEncryptionState} from '../../../../enums/message-encryption-state.enum';
 import {MessageType} from '../../../../enums/message-type.enum';
+import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
 import {isGroupedWithPrevious} from '../../../messaging/components/conversation/message-utils';
 
 import {Button} from 'primeng/button';
@@ -27,6 +29,7 @@ import {Button} from 'primeng/button';
 import {MessagingService} from '../../../../services/messaging.service';
 import {MessageStore} from '../../../../stores/message.store';
 import {ProfileService} from '../../../../services/profile.service';
+import {GuildService} from '../../../../services/guild.service';
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {GuildReadStateService} from '../../../../services/guild-read-state.service';
 import {TypingService} from '../../../../services/typing.service';
@@ -101,6 +104,17 @@ export class ChannelComponent implements AfterViewInit {
         return out;
     });
     private messageStore = inject(MessageStore);
+    private ownMember = signal<SelfGuildMemberDto | null>(null);
+    protected canPinMessages = computed(() => {
+        const member = this.ownMember();
+        if (!member) return false;
+        const permissionString = member.roleMembers.reduce((curr, m) => {
+            if (!m.role.permissions) return curr;
+            return curr === '' ? m.role.permissions : `${curr},${m.role.permissions}`;
+        }, member.permissions ?? '');
+        const perms = parsePermissions(permissionString);
+        return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.PinMessages);
+    });
     protected messages = computed(() =>
         this.messageStore
             .entities()
@@ -131,6 +145,7 @@ export class ChannelComponent implements AfterViewInit {
 
     // ── Search ───────────────────────────────────────────────────────────────
     private messagingService = inject(MessagingService);
+    private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private guildWs = inject(GuildWebsocketService);
     private readStateService = inject(GuildReadStateService);
@@ -168,6 +183,10 @@ export class ChannelComponent implements AfterViewInit {
 
         effect(() => {
             this.messageStore.loadForChannel(this.channel().id);
+        });
+
+        effect(() => {
+            this.guildService.getOwnMember(this.guildId()).subscribe(m => this.ownMember.set(m));
         });
 
 
