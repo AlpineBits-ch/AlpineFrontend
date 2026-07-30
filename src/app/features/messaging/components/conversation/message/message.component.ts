@@ -42,6 +42,7 @@ import {CreateReactionDto} from '../../../../../dtos/request/create-reaction.dto
 import {RemoveReactionDto} from '../../../../../dtos/request/remove-reaction.dto';
 import {TranslateModule} from '@ngx-translate/core';
 import {UserNameStyleDirective} from '../../../../../directives/user-name-style.directive';
+import {EmojiSelection} from './reaction-picker/reaction-picker.component';
 
 @Component({
     selector: 'app-message',
@@ -75,6 +76,7 @@ export class MessageComponent {
     public guildChannels = input<ChannelDto[]>([]);
     public guildRoles = input<RoleDto[]>([]);
     public guildBots = input<BotCommandDto[]>([]);
+    public guildId = input<string | undefined>();
     public isGrouped = input<boolean>(false);
     public canPinMessages = input<boolean>(false);
     public reply = output<MessageDto>();
@@ -502,35 +504,39 @@ export class MessageComponent {
         return this.guildRoles().find(r => r.id === roleId);
     }
 
-    hasOwnReaction(emoji: string): boolean {
+    hasOwnReaction(emoji: string, emojiId?: string): boolean {
         const own = this.profileService.ownProfile()?.userId;
         if (!own) return false;
-        return this.message().reactions?.some(r => r.emoji === emoji && r.userId === own) ?? false;
+        return this.message().reactions?.some(r => emojiId
+            ? r.emojiId === emojiId && r.userId === own
+            : r.emoji === emoji && !r.emojiId && r.userId === own) ?? false;
     }
 
-    toggleReaction(emoji: string): void {
+    toggleReaction(selection: EmojiSelection): void {
         const msg = this.message();
         const own = this.profileService.ownProfile()?.userId;
         if (!own || msg.isPending || msg.isFailed) return;
 
-        const hasReacted = this.hasOwnReaction(emoji);
+        const emoji = selection.customEmojiName ?? selection.native ?? '';
+        const emojiId = selection.customEmojiId;
+        if (!emoji) return;
+
+        const hasReacted = this.hasOwnReaction(emoji, emojiId);
 
         if (hasReacted) {
             const contextId = msg.conversationId ?? msg.channelId ?? '';
             const dto: RemoveReactionDto = {reaction: emoji, contextId};
-            this.messageStore.applyReactionRemoved({messageId: msg.id, emoji, userId: own});
+            this.messageStore.applyReactionRemoved({messageId: msg.id, emoji, emojiId, userId: own});
             this.messagingService.removeReaction(msg.id, dto).subscribe({
-                error: () => this.messageStore.applyReactionAdded({messageId: msg.id, emoji, userId: own}),
+                error: () => this.messageStore.applyReactionAdded({messageId: msg.id, emoji, emojiId, userId: own}),
             });
         } else {
-            const dto: CreateReactionDto = {
-                conversationId: msg.conversationId ?? '',
-                reaction: emoji,
-                channelId: msg.channelId,
-            };
-            this.messageStore.applyReactionAdded({messageId: msg.id, emoji, userId: own});
+            const dto: CreateReactionDto = emojiId
+                ? {channelId: msg.channelId, emojiId}
+                : {conversationId: msg.conversationId ?? '', reaction: emoji, channelId: msg.channelId};
+            this.messageStore.applyReactionAdded({messageId: msg.id, emoji, emojiId, userId: own});
             this.messagingService.addReaction(msg.id, dto).subscribe({
-                error: () => this.messageStore.applyReactionRemoved({messageId: msg.id, emoji, userId: own}),
+                error: () => this.messageStore.applyReactionRemoved({messageId: msg.id, emoji, emojiId, userId: own}),
             });
         }
     }

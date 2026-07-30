@@ -1,14 +1,22 @@
 <div class="flex flex-wrap items-center gap-1 mt-1.5">
-    @for (group of groups(); track group.emoji) {
-        <button (click)="emojiToggled.emit(group.emoji)"
-                [ngClass]="hasOwn(group.emoji)
+    @for (group of groups(); track group.key) {
+        <button (click)="toggle(group)"
+                [ngClass]="hasOwn(group)
         ? 'bg-brand-dark border-brand text-brand-dim hover:bg-brand-dark/80'
         : 'bg-white/[0.04] border-white/[0.10] text-white/65 hover:bg-white/[0.08] hover:border-white/20'"
                 [title]="group.count + ' reaction' + (group.count !== 1 ? 's' : '')"
                 class="flex items-center gap-1 h-8 px-2.5 rounded-full border text-[16px] leading-none transition-colors cursor-pointer">
-            <app-twemoji [emoji]="group.emoji" size="1em"/>
+            @if (group.emojiId) {
+                @if (imageUrl(group); as url) {
+                    <img [alt]="group.emoji" [src]="url" class="w-[1em] h-[1em] object-contain"/>
+                } @else {
+                    <span class="text-[13px]">:{{ group.emoji }}:</span>
+                }
+            } @else {
+                <app-twemoji [emoji]="group.emoji" size="1em"/>
+            }
             <span class="text-[15px] font-medium">{{ group.count }}</span>
         </button>
     }
-    <app-reaction-picker (emojiSelected)="emojiToggled.emit($event)" mode="bar"/>
+    <app-reaction-picker (emojiSelected)="emojiToggled.emit($event)" [guildId]="guildId()" mode="bar"/>
 </div>

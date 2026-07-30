@@ -1,0 +1,59 @@
+<div class="flex flex-col gap-4">
+    <div class="flex items-center justify-between">
+        <p class="text-xs text-white/40 m-0 max-w-md leading-relaxed">
+            Custom emoji can be used as message reactions in this server's channels.
+        </p>
+        @if (canManageEmojis()) {
+            <p-button (onClick)="openFilePicker()" icon="pi pi-upload" label="Upload Emoji" severity="primary" size="small"/>
+        }
+    </div>
+
+    <input #fileInput (change)="onFileSelected($event)" accept="image/png,image/jpeg,image/gif,image/webp"
+           class="hidden" type="file"/>
+
+    @if (loading()) {
+        <p class="text-xs text-white/25 text-center py-8">Loading…</p>
+    } @else if (emojis().length === 0) {
+        <div class="flex flex-col items-center justify-center py-14 gap-3">
+            <i class="pi pi-face-smile text-3xl text-white/10"></i>
+            <p class="text-sm text-white/25 m-0">No custom emoji yet.</p>
+        </div>
+    } @else {
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            @for (emoji of emojis(); track emoji.id) {
+                <div class="flex items-center gap-2.5 bg-card/60 border border-white/[0.06] rounded-xl px-3 py-2.5">
+                    <img [alt]="emoji.name" [src]="emoji.imageUrl" class="w-7 h-7 rounded object-contain shrink-0"/>
+                    <span class="text-xs text-white/70 truncate flex-1">:{{ emoji.name }}:</span>
+                    @if (canManageEmojis()) {
+                        <p-button (onClick)="deleteEmoji(emoji)" [loading]="deletingId() === emoji.id" [text]="true"
+                                  icon="pi pi-trash" severity="danger" size="small"/>
+                    }
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<!-- Upload dialog -->
+<p-dialog (visibleChange)="closeUploadDialog()" [draggable]="false" [modal]="true" [resizable]="false"
+          [style]="{width: '380px'}" [visible]="showUploadDialog()" appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-white/85">Upload Emoji</span>
+    </ng-template>
+    <div class="flex flex-col gap-3">
+        @if (pendingPreviewUrl(); as preview) {
+            <img [src]="preview" alt="Preview" class="w-16 h-16 rounded-lg object-contain mx-auto"/>
+        }
+        <input (ngModelChange)="uploadName.set($event)" [ngModel]="uploadName()" pInputText placeholder="Emoji name"
+               type="text"/>
+        <div class="flex items-center gap-2">
+            <p-checkbox (ngModelChange)="uploadAnimated.set($event)" [binary]="true" [ngModel]="uploadAnimated()"
+                        inputId="animated-check"/>
+            <label class="text-xs text-white/60" for="animated-check">Animated</label>
+        </div>
+    </div>
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="closeUploadDialog()" [text]="true" label="Cancel"/>
+        <p-button (onClick)="confirmUpload()" [disabled]="!uploadName().trim()" [loading]="uploading()" label="Upload"/>
+    </ng-template>
+</p-dialog>

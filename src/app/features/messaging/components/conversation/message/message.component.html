@@ -90,6 +90,7 @@
                     (pinToggled)="togglePin()"
                     (reply)="reply.emit(message())"
                     [canPin]="canPin()"
+                    [guildId]="guildId()"
                     [isOwn]="isOwn()"
                     [isPinned]="!!message().isPinned"/>
         }
@@ -274,6 +275,7 @@
         @if (!message().isPending && !message().isFailed && message().reactions?.length) {
             <app-message-reaction-bar
                     (emojiToggled)="toggleReaction($event)"
+                    [guildId]="guildId()"
                     [ownUserId]="profileService.ownProfile()?.userId"
                     [reactions]="message().reactions!"/>
         }

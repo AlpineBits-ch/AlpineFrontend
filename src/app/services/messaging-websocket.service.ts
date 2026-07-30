@@ -48,6 +48,7 @@ export interface UserTypingEvent {
 export interface ReactionEvent {
     messageId: string;
     emoji: string;
+    emojiId?: string;
     userId: string;
     channelId?: string;
     conversationId?: string;

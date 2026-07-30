@@ -1,4 +1,12 @@
-import {Component, input, OnDestroy, output, signal} from '@angular/core';
+import {Component, computed, effect, input, OnDestroy, output, signal, untracked} from '@angular/core';
+import {inject} from '@angular/core';
+import {GuildEmojiStore} from '../../../../../../stores/guild-emoji.store';
+
+export interface EmojiSelection {
+    native?: string;
+    customEmojiId?: string;
+    customEmojiName?: string;
+}
 
 @Component({
     selector: 'app-reaction-picker',
@@ -6,16 +14,34 @@ import {Component, input, OnDestroy, output, signal} from '@angular/core';
     templateUrl: './reaction-picker.component.html',
 })
 export class ReactionPickerComponent implements OnDestroy {
-    emojiSelected = output<string>();
+    emojiSelected = output<EmojiSelection>();
     /** toolbar = opens downward; bar = opens upward */
     mode = input<'toolbar' | 'bar'>('toolbar');
+    /** Set only in guild channels - custom emoji never render in DMs. */
+    guildId = input<string | undefined>();
 
     isOpen = signal(false);
 
+    private guildEmojiStore = inject(GuildEmojiStore);
+    private customEmojis = computed(() => {
+        const guildId = this.guildId();
+        return guildId ? this.guildEmojiStore.getEmojis(guildId) : [];
+    });
+    private builtCustomEmojiKey = '';
     private bodyContainer: HTMLDivElement | null = null;
     private pickerInstance: HTMLElement | null = null;
     private outsideClickListener: ((e: MouseEvent) => void) | null = null;
     private triggerRef: HTMLElement | null = null;
+
+    constructor() {
+        effect(() => {
+            const guildId = this.guildId();
+            // untracked: ensureLoaded() both reads and writes the store's state, so calling
+            // it inside the reactive context would make the effect depend on the very state
+            // it mutates and re-run in a loop.
+            if (guildId) untracked(() => this.guildEmojiStore.ensureLoaded(guildId));
+        });
+    }
 
     async toggle(event: MouseEvent): Promise<void> {
         this.triggerRef = event.currentTarget as HTMLElement;
@@ -31,11 +57,22 @@ export class ReactionPickerComponent implements OnDestroy {
             document.body.appendChild(this.bodyContainer);
         }
 
+        const customEmojis = this.customEmojis();
+        // imageUrl is part of the key: presigned URLs expire ~1h, so a revalidation can
+        // change only the URLs while the id set stays identical - a cached picker would
+        // otherwise keep serving expired (broken) images.
+        const customEmojiKey = customEmojis.map(e => `${e.id}|${e.imageUrl}`).join(',');
+        if (this.pickerInstance && customEmojiKey !== this.builtCustomEmojiKey) {
+            this.bodyContainer.removeChild(this.pickerInstance);
+            this.pickerInstance = null;
+        }
+
         if (!this.pickerInstance) {
             const [{Picker}, data] = await Promise.all([
                 import('emoji-mart'),
                 import('@emoji-mart/data/sets/15/twitter.json'),
             ]);
+            this.builtCustomEmojiKey = customEmojiKey;
             this.pickerInstance = new Picker({
                 data: data.default ?? data,
                 set: 'twitter',
@@ -43,8 +80,22 @@ export class ReactionPickerComponent implements OnDestroy {
                 theme: 'dark',
                 previewPosition: 'none',
                 skinTonePosition: 'none',
-                onEmojiSelect: (emoji: { native: string }) => {
-                    this.emojiSelected.emit(emoji.native);
+                custom: customEmojis.length ? [{
+                    id: 'guild',
+                    name: 'This Server',
+                    emojis: customEmojis.map(e => ({
+                        id: e.id,
+                        name: e.name,
+                        keywords: [e.name],
+                        skins: [{src: e.imageUrl}],
+                    })),
+                }] : [],
+                onEmojiSelect: (emoji: { native?: string; id: string; name: string; src?: string }) => {
+                    if (emoji.src) {
+                        this.emojiSelected.emit({customEmojiId: emoji.id, customEmojiName: emoji.name});
+                    } else {
+                        this.emojiSelected.emit({native: emoji.native});
+                    }
                     this.close();
                 },
             }) as unknown as HTMLElement;

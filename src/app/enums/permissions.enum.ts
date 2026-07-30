@@ -59,6 +59,9 @@ export const Permissions = {
     ManageGuild: 1n << 35n,
     ViewAuditLog: 1n << 36n,
 
+    // ── Emoji permissions ─────────────────────────────────────────────────────
+    ManageEmojis: 1n << 37n,
+
     // ── Catch-all ────────────────────────────────────────────────────────────
     Superadmin: 1n << 63n,
 } as const;
@@ -95,6 +98,10 @@ export const PERM_GROUPS: PermGroup[] = [
     {
         label: 'Moderation',
         perms: ['ManageChannel', 'ManagePermissions', 'ManageGuild', 'KickMembers', 'BanMembers', 'ModerateMembers', 'ViewAuditLog'],
+    },
+    {
+        label: 'Emojis',
+        perms: ['ManageEmojis'],
     },
     {
         label: 'Wiki',
