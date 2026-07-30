@@ -10,6 +10,10 @@
             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-white/50">
         <i class="pi pi-align-left text-white/35"></i> Forum Channel
       </span>
+        } @else if (channel().type === ChannelType.Announcement) {
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-white/50">
+        <i class="pi pi-megaphone text-white/35"></i> Announcement Channel
+      </span>
         } @else {
             <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/[0.06] text-xs text-white/50">
         <i class="pi pi-volume-up text-white/35"></i> Voice Channel
