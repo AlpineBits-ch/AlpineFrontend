@@ -15,6 +15,8 @@ import {MessagingService} from '../services/messaging.service';
 import {MlsService} from '../services/mls.service';
 import {
     MessageDeletedEvent,
+    MessagePinnedEvent,
+    MessageUnpinnedEvent,
     MessageUpdatedEvent,
     MessagingWebsocketService,
     ReactionEvent
@@ -239,6 +241,20 @@ export const MessageStore = signalStore(
                 r => !(r.emoji === event.emoji && r.userId === event.userId)
             );
             patchState(store, updateEntity({id: event.messageId, changes: {reactions}}));
+        },
+
+        applyPinned(event: MessagePinnedEvent): void {
+            patchState(store, updateEntity({
+                id: event.messageId,
+                changes: {isPinned: true, pinnedAt: event.pinnedAt, pinnedById: event.pinnedById},
+            }));
+        },
+
+        applyUnpinned(event: MessageUnpinnedEvent): void {
+            patchState(store, updateEntity({
+                id: event.messageId,
+                changes: {isPinned: false, pinnedAt: undefined, pinnedById: undefined},
+            }));
         },
 
         applyMessageUpdate(dto: MessageDto): void {
@@ -508,6 +524,11 @@ export const MessageStore = signalStore(
             wsService.reactionRemovedObservable.subscribe(event => store.applyReactionRemoved(event));
             guildWsService.reactionAddedObservable.subscribe(event => store.applyReactionAdded(event));
             guildWsService.reactionRemovedObservable.subscribe(event => store.applyReactionRemoved(event));
+
+            wsService.messagePinnedObservable.subscribe(event => store.applyPinned(event));
+            wsService.messageUnpinnedObservable.subscribe(event => store.applyUnpinned(event));
+            guildWsService.messagePinnedObservable.subscribe(event => store.applyPinned(event));
+            guildWsService.messageUnpinnedObservable.subscribe(event => store.applyUnpinned(event));
         },
     })
 );

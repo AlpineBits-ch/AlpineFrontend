@@ -10,11 +10,14 @@ import {TranslateModule} from '@ngx-translate/core';
 })
 export class MessageHoverToolbarComponent {
     isOwn = input.required<boolean>();
+    canPin = input<boolean>(false);
+    isPinned = input<boolean>(false);
 
     reply = output<void>();
     edit = output<void>();
     delete = output<void>();
     emojiToggled = output<string>();
+    pinToggled = output<void>();
 
     readonly quickReactions = ['👍', '❤️', '😂'];
 }

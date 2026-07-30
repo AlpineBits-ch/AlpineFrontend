@@ -69,4 +69,16 @@ export interface MessageDto {
     isBotCommandPlaceholder?: boolean;
     embedsJson?: string;
     systemMessageVariant?: number;
+    isPinned?: boolean;
+    pinnedAt?: string;
+    pinnedById?: string;
+}
+
+export interface PinMessageResponse {
+    success: boolean;
+    channelId?: string;
+    conversationId?: string;
+    authorId?: string;
+    pinnedById?: string;
+    pinnedAt?: string;
 }

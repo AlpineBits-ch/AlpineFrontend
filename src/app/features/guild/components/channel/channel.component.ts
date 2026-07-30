@@ -18,8 +18,10 @@ import {catchError, debounceTime, EMPTY, Subject, tap} from 'rxjs';
 
 import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 import {MessageAttachment, MessageDto} from '../../../../dtos/response/message.dto';
+import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {MessageEncryptionState} from '../../../../enums/message-encryption-state.enum';
 import {MessageType} from '../../../../enums/message-type.enum';
+import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
 import {isGroupedWithPrevious} from '../../../messaging/components/conversation/message-utils';
 
 import {Button} from 'primeng/button';
@@ -27,6 +29,7 @@ import {Button} from 'primeng/button';
 import {MessagingService} from '../../../../services/messaging.service';
 import {MessageStore} from '../../../../stores/message.store';
 import {ProfileService} from '../../../../services/profile.service';
+import {GuildService} from '../../../../services/guild.service';
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {GuildReadStateService} from '../../../../services/guild-read-state.service';
 import {TypingService} from '../../../../services/typing.service';
@@ -39,6 +42,7 @@ import {SystemMessageComponent} from '../../../messaging/components/conversation
 import {HighlightPipe} from '../../../../pipes/highlight.pipe';
 import {TypingDotsComponent} from '../../../../components/typing-dots/typing-dots.component';
 import {ThreadPanelComponent} from './thread-panel/thread-panel.component';
+import {PinnedMessagesPanelComponent} from '../../../messaging/components/pinned-messages-panel/pinned-messages-panel.component';
 
 const SCROLL_BOTTOM_THRESHOLD = 100;
 const LOAD_MORE_THRESHOLD = 400;
@@ -57,6 +61,7 @@ function decodeContent(encoded: string): string {
     imports: [
         ComposerComponent, MessageComponent, SystemMessageComponent, Button,
         DatePipe, HighlightPipe, TypingDotsComponent, ThreadPanelComponent,
+        PinnedMessagesPanelComponent,
     ],
     templateUrl: './channel.component.html',
     styleUrl: './channel.component.css',
@@ -77,6 +82,7 @@ export class ChannelComponent implements AfterViewInit {
     });
     protected replyingTo = signal<MessageDto | null>(null);
     protected showThreadPanel = signal(false);
+    protected showPinnedPanel = signal(false);
     protected readonly ChannelType = ChannelType;
     protected readonly MessageType = MessageType;
     protected searchQuery = signal('');
@@ -101,6 +107,17 @@ export class ChannelComponent implements AfterViewInit {
         return out;
     });
     private messageStore = inject(MessageStore);
+    private ownMember = signal<SelfGuildMemberDto | null>(null);
+    protected canPinMessages = computed(() => {
+        const member = this.ownMember();
+        if (!member) return false;
+        const permissionString = member.roleMembers.reduce((curr, m) => {
+            if (!m.role.permissions) return curr;
+            return curr === '' ? m.role.permissions : `${curr},${m.role.permissions}`;
+        }, member.permissions ?? '');
+        const perms = parsePermissions(permissionString);
+        return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.PinMessages);
+    });
     protected messages = computed(() =>
         this.messageStore
             .entities()
@@ -131,6 +148,7 @@ export class ChannelComponent implements AfterViewInit {
 
     // ── Search ───────────────────────────────────────────────────────────────
     private messagingService = inject(MessagingService);
+    private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private guildWs = inject(GuildWebsocketService);
     private readStateService = inject(GuildReadStateService);
@@ -170,6 +188,10 @@ export class ChannelComponent implements AfterViewInit {
             this.messageStore.loadForChannel(this.channel().id);
         });
 
+        effect(() => {
+            this.guildService.getOwnMember(this.guildId()).subscribe(m => this.ownMember.set(m));
+        });
+
 
         effect(() => {
             //console.log(this.messages());
@@ -199,6 +221,7 @@ export class ChannelComponent implements AfterViewInit {
             this.channel().id;
             this.searchQuery.set('');
             this.showThreadPanel.set(false);
+            this.showPinnedPanel.set(false);
         });
 
         afterEveryRender(() => {

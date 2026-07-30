@@ -13,7 +13,7 @@ import {
     ViewChild
 } from '@angular/core';
 import {takeUntilDestroyed, toObservable, toSignal} from '@angular/core/rxjs-interop';
-import {MessageAttachment, MessageDto, MessageEmbed} from "../../../../../dtos/response/message.dto";
+import {MessageAttachment, MessageDto, MessageEmbed, PinMessageResponse} from "../../../../../dtos/response/message.dto";
 import {BotCommandDto} from '../../../../../dtos/response/bot-command.dto';
 import {AppAvatarComponent} from "../../../../../components/avatar/avatar.component";
 import {AsyncPipe, DatePipe, NgClass} from "@angular/common";
@@ -76,6 +76,7 @@ export class MessageComponent {
     public guildRoles = input<RoleDto[]>([]);
     public guildBots = input<BotCommandDto[]>([]);
     public isGrouped = input<boolean>(false);
+    public canPinMessages = input<boolean>(false);
     public reply = output<MessageDto>();
     public jumpTo = output<string>();
 
@@ -258,6 +259,7 @@ export class MessageComponent {
     readonly isOwn = computed(() =>
         this.message().authorId === this.profileService.ownProfile()?.userId
     );
+    readonly canPin = computed(() => !this.message().conversationId ? this.canPinMessages() : true);
     readonly longPressMenu = signal(false);
     readonly isEditing = signal(false);
     readonly editText = signal('');
@@ -529,6 +531,34 @@ export class MessageComponent {
             this.messageStore.applyReactionAdded({messageId: msg.id, emoji, userId: own});
             this.messagingService.addReaction(msg.id, dto).subscribe({
                 error: () => this.messageStore.applyReactionRemoved({messageId: msg.id, emoji, userId: own}),
+            });
+        }
+    }
+
+    togglePin(): void {
+        const msg = this.message();
+        if (msg.isPending || msg.isFailed) return;
+        if (msg.isPinned) {
+            this.messageStore.applyUnpinned({messageId: msg.id, authorId: msg.authorId, unpinnedById: this.profileService.ownProfile()?.userId ?? ''});
+            this.messagingService.unpinMessage(msg.id).subscribe({
+                error: () => this.messageStore.applyPinned({
+                    messageId: msg.id,
+                    authorId: msg.authorId,
+                    pinnedById: msg.pinnedById ?? '',
+                    pinnedAt: msg.pinnedAt ?? new Date().toISOString(),
+                }),
+            });
+        } else {
+            const own = this.profileService.ownProfile()?.userId ?? '';
+            const optimisticAt = new Date().toISOString();
+            this.messageStore.applyPinned({messageId: msg.id, authorId: msg.authorId, pinnedById: own, pinnedAt: optimisticAt});
+            this.messagingService.pinMessage(msg.id).subscribe({
+                next: (res: PinMessageResponse) => {
+                    if (res.pinnedAt && res.pinnedById) {
+                        this.messageStore.applyPinned({messageId: msg.id, authorId: msg.authorId, pinnedById: res.pinnedById, pinnedAt: res.pinnedAt});
+                    }
+                },
+                error: () => this.messageStore.applyUnpinned({messageId: msg.id, authorId: msg.authorId, unpinnedById: own}),
             });
         }
     }

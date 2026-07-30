@@ -40,7 +40,7 @@
             </div>
         }
 
-        @if (!isGrouped() || message().isPending || message().isFailed || message().encryptionState === 'Encrypted') {
+        @if (!isGrouped() || message().isPending || message().isFailed || message().encryptionState === 'Encrypted' || message().isPinned) {
             <div class="flex items-center gap-2 mb-1">
                 @if (!isGrouped()) {
                     @if (botName(message().authorId); as bName) {
@@ -73,6 +73,11 @@
           <i class="pi pi-exclamation-circle"></i> {{ message().isBotCommandPlaceholder ? "Didn't respond" : 'Failed to send' }}
         </span>
                 }
+                @if (message().isPinned) {
+                    <span class="flex items-center gap-1 text-[11px] text-white/35" title="Pinned message">
+                        <i class="pi pi-thumbtack text-[10px]"></i>
+                    </span>
+                }
             </div>
         }
 
@@ -82,8 +87,11 @@
                     (delete)="confirmDelete()"
                     (edit)="startEdit()"
                     (emojiToggled)="toggleReaction($event)"
+                    (pinToggled)="togglePin()"
                     (reply)="reply.emit(message())"
-                    [isOwn]="isOwn()"/>
+                    [canPin]="canPin()"
+                    [isOwn]="isOwn()"
+                    [isPinned]="!!message().isPinned"/>
         }
 
         <!-- Edit mode -->
@@ -315,6 +323,15 @@
                 <i class="pi pi-reply text-base text-white/50"></i>
                 Reply
             </button>
+
+            @if (canPin()) {
+                <button (click)="longPressMenu.set(false); togglePin()"
+                        class="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-white/80 hover:bg-white/[0.07]
+               text-sm text-left bg-transparent border-0 cursor-pointer transition-colors">
+                    <i class="pi pi-thumbtack text-base text-white/50"></i>
+                    {{ message().isPinned ? 'Unpin' : 'Pin' }} Message
+                </button>
+            }
 
             @if (isOwn() && !message().isPending && !message().isFailed) {
                 <button (click)="onLongPressEdit()"
