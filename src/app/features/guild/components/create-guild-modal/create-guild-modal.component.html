@@ -59,7 +59,7 @@
                 </label>
                 <input (blur)="lookupTemplate()"
                        (keydown.enter)="lookupTemplate()"
-                       (ngModelChange)="templateInput.set($event)"
+                       (ngModelChange)="onTemplateInputChange($event)"
                        [disabled]="templateLoading()"
                        [ngModel]="templateInput()"
                        [placeholder]="'CREATE_GUILD.TEMPLATE.ID_PLACEHOLDER' | translate"

@@ -12,8 +12,6 @@ import {GuildTemplateDto, TemplateCategory, TemplateChannel, TemplateRole} from 
 export class TemplatePreviewComponent {
     template = input.required<GuildTemplateDto>();
 
-    protected readonly ChannelType = ChannelType;
-
     categories = computed<TemplateCategory[]>(() =>
         [...this.template().snapshot.categories].sort((a, b) => a.position - b.position)
             .map(c => ({...c, channels: [...c.channels].sort((a, b) => a.position - b.position)}))

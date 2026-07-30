@@ -4,7 +4,13 @@
         {{ 'GUILD_SETTINGS.TEMPLATES.INTRO' | translate }}
     </p>
 
-    @if (!created()) {
+    @if (!canCreateTemplate()) {
+
+        <p class="text-xs text-text-muted m-0 leading-relaxed">
+            {{ 'GUILD_SETTINGS.TEMPLATES.NO_PERMISSION' | translate }}
+        </p>
+
+    } @else if (!created()) {
 
         <!-- Name -->
         <div>

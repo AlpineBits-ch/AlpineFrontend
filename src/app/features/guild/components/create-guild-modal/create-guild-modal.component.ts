@@ -99,6 +99,13 @@ export class CreateGuildModalComponent {
         this.mode.set('create');
     }
 
+    /** Typing a corrected id must retire the stale "not found" message immediately,
+     *  rather than leaving it under the field until the next blur re-runs the lookup. */
+    onTemplateInputChange(value: string): void {
+        this.templateInput.set(value);
+        this.templateNotFound.set(false);
+    }
+
     lookupTemplate(): void {
         const id = this.extractTemplateId(this.templateInput());
         if (!id || this.templateLoading()) return;
@@ -143,8 +150,12 @@ export class CreateGuildModalComponent {
                         this.guildCreated.emit(guild);
                         this.close();
                     },
-                    error: () => {
+                    error: err => {
                         this.creatingFromTemplate.set(false);
+                        // The guild WAS created -only the follow-up fetch failed. Closing
+                        // silently would look like nothing happened and invite the user to
+                        // run the template again, creating a duplicate. Say so out loud.
+                        this.toastService.httpError(this.translate.instant('CREATE_GUILD.TEMPLATE.CREATE_ERROR_TOAST'), err);
                         if (!this.visible() || this.mode() !== 'template') return;
                         this.close();
                     },
