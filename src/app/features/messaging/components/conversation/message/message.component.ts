@@ -585,19 +585,23 @@ export class MessageComponent {
         // in-flight flag synchronously, before subscribing, so a second click before the
         // response arrives can't slip through and fire a duplicate request.
         this.publishing.set(true);
-        this.messagingService.publishMessage(this.message().id).subscribe({
-            next: res => {
-                this.published.set(true);
-                this.publishing.set(false);
-                this.toast.success(
-                    res.published === 0
-                        ? this.translate.instant('MESSAGE.PUBLISH_NO_FOLLOWERS')
-                        : this.translate.instant('MESSAGE.PUBLISH_SUCCESS', {count: res.published}));
-            },
-            error: err => {
-                this.publishing.set(false);
-                this.toast.httpError(this.translate.instant('MESSAGE.PUBLISH_FAILED'), err);
-            },
-        });
+        this.messagingService.publishMessage(this.message().id)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: res => {
+                    this.published.set(true);
+                    this.publishing.set(false);
+                    this.toast.success(
+                        res.published === 0
+                            ? this.translate.instant('MESSAGE.PUBLISH_NO_FOLLOWERS')
+                            : res.published === 1
+                                ? this.translate.instant('MESSAGE.PUBLISH_SUCCESS_SINGULAR', {count: res.published})
+                                : this.translate.instant('MESSAGE.PUBLISH_SUCCESS', {count: res.published}));
+                },
+                error: err => {
+                    this.publishing.set(false);
+                    this.toast.httpError(this.translate.instant('MESSAGE.PUBLISH_FAILED'), err);
+                },
+            });
     }
 }
