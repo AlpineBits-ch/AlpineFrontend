@@ -6,6 +6,7 @@ import {MessageService} from 'primeng/api';
 import {OverviewSettingsComponent} from './overview-settings.component';
 import {ApiConfigService} from '../../../../../../services/api-config.service';
 import {ChannelType, GuildDto} from '../../../../../../dtos/response/guild.dto';
+import {GuildVerificationLevel} from '../../../../../../dtos/response/guild-safety.dto';
 
 const BASE = 'https://api.test.example/api/v1/guild';
 
@@ -34,6 +35,7 @@ function guildFixture(overrides: Partial<GuildDto> = {}): GuildDto {
         ],
         roles: [],
         systemChannelId: 'chan_1',
+        verificationLevel: GuildVerificationLevel.None,
         ...overrides,
     };
 }
