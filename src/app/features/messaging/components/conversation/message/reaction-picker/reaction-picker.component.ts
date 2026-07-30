@@ -1,4 +1,4 @@
-import {Component, computed, effect, input, OnDestroy, output, signal} from '@angular/core';
+import {Component, computed, effect, input, OnDestroy, output, signal, untracked} from '@angular/core';
 import {inject} from '@angular/core';
 import {GuildEmojiStore} from '../../../../../../stores/guild-emoji.store';
 
@@ -36,7 +36,10 @@ export class ReactionPickerComponent implements OnDestroy {
     constructor() {
         effect(() => {
             const guildId = this.guildId();
-            if (guildId) this.guildEmojiStore.ensureLoaded(guildId);
+            // untracked: ensureLoaded() both reads and writes the store's state, so calling
+            // it inside the reactive context would make the effect depend on the very state
+            // it mutates and re-run in a loop.
+            if (guildId) untracked(() => this.guildEmojiStore.ensureLoaded(guildId));
         });
     }
 
@@ -55,7 +58,10 @@ export class ReactionPickerComponent implements OnDestroy {
         }
 
         const customEmojis = this.customEmojis();
-        const customEmojiKey = customEmojis.map(e => e.id).join(',');
+        // imageUrl is part of the key: presigned URLs expire ~1h, so a revalidation can
+        // change only the URLs while the id set stays identical - a cached picker would
+        // otherwise keep serving expired (broken) images.
+        const customEmojiKey = customEmojis.map(e => `${e.id}|${e.imageUrl}`).join(',');
         if (this.pickerInstance && customEmojiKey !== this.builtCustomEmojiKey) {
             this.bodyContainer.removeChild(this.pickerInstance);
             this.pickerInstance = null;

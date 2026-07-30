@@ -530,7 +530,7 @@ export class MessageComponent {
             });
         } else {
             const dto: CreateReactionDto = emojiId
-                ? {conversationId: msg.conversationId ?? '', channelId: msg.channelId, emojiId}
+                ? {channelId: msg.channelId, emojiId}
                 : {conversationId: msg.conversationId ?? '', reaction: emoji, channelId: msg.channelId};
             this.messageStore.applyReactionAdded({messageId: msg.id, emoji, emojiId, userId: own});
             this.messagingService.addReaction(msg.id, dto).subscribe({

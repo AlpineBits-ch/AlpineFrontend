@@ -31,7 +31,10 @@ export const GuildEmojiStore = signalStore(
         ensureLoaded(guildId: string): void {
             const entry = store.byGuild()[guildId];
             const isStale = !entry || (Date.now() - entry.fetchedAt) > STALE_MS;
-            if (!isStale) return;
+            // The loading guard makes ensureLoaded() re-entrancy-safe: back-to-back calls
+            // (or an effect re-running before the response lands) must not each fire a
+            // request. invalidate() clears loading so a superseding fetch is still allowed.
+            if (!isStale || entry?.loading) return;
 
             const requestId = (entry?.requestId ?? 0) + 1;
 
@@ -80,7 +83,15 @@ export const GuildEmojiStore = signalStore(
         invalidate(guildId: string): void {
             const entry = store.byGuild()[guildId];
             if (!entry) return;
-            patchState(store, {byGuild: {...store.byGuild(), [guildId]: {...entry, fetchedAt: 0}}});
+            // Bumping requestId supersedes any in-flight fetch (its response is dropped by
+            // the requestId check) and clearing loading lets the follow-up ensureLoaded()
+            // issue a fresh request instead of being blocked by a now-stale in-flight flag.
+            patchState(store, {
+                byGuild: {
+                    ...store.byGuild(),
+                    [guildId]: {...entry, fetchedAt: 0, loading: false, requestId: entry.requestId + 1},
+                },
+            });
         },
     })),
 
