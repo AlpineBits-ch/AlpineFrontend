@@ -1,19 +1,21 @@
 import {ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {HttpErrorResponse} from '@angular/common/http';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PrimeTemplate} from 'primeng/api';
+import {TranslateModule} from '@ngx-translate/core';
 import {GuildService} from '../../services/guild.service';
 import {InviteDialogService} from './invite-dialog.service';
 import {InviteDto, InviteState} from '../../dtos/response/invite.dto';
 import {environment} from '../../../environments/environment';
 
-type DialogState = 'loading' | 'ready' | 'joining' | 'joined' | 'error';
+type DialogState = 'loading' | 'ready' | 'joining' | 'joined' | 'error' | 'blocked';
 
 @Component({
     selector: 'app-invite-dialog',
     standalone: true,
-    imports: [Dialog, Button, PrimeTemplate],
+    imports: [Dialog, Button, PrimeTemplate, TranslateModule],
     templateUrl: './invite-dialog.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
@@ -25,6 +27,7 @@ export class InviteDialogComponent {
     protected readonly invite = signal<InviteDto | null>(null);
     protected readonly dialogState = signal<DialogState>('loading');
     protected readonly iconFailed = signal(false);
+    protected readonly requiredLevel = signal<string | null>(null);
     protected readonly InviteState = InviteState;
 
     protected readonly visible = computed(() => this.inviteDialogService.inviteId() !== null);
@@ -39,6 +42,16 @@ export class InviteDialogComponent {
         return name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');
     });
 
+    /** Maps the tier the server reported to the requirement to spell out to the user. */
+    protected readonly blockedReasonKey = computed(() => {
+        switch (this.requiredLevel()) {
+            case 'Low': return 'INVITE.VERIFY_LOW';
+            case 'Medium': return 'INVITE.VERIFY_MEDIUM';
+            case 'High': return 'INVITE.VERIFY_HIGH';
+            default: return 'INVITE.VERIFY_GENERIC';
+        }
+    });
+
     constructor() {
         effect(() => {
             const inviteId = this.inviteDialogService.inviteId();
@@ -46,6 +59,7 @@ export class InviteDialogComponent {
 
             this.invite.set(null);
             this.iconFailed.set(false);
+            this.requiredLevel.set(null);
             this.dialogState.set('loading');
 
             this.guildService.getInvite(inviteId)
@@ -72,7 +86,18 @@ export class InviteDialogComponent {
                     this.dialogState.set('joined');
                     this.guildService.guildJoined$.next();
                 },
-                error: () => this.dialogState.set('ready'),
+                error: (err: HttpErrorResponse) => {
+                    // A 403 from redeem is either the verification gate or an ordinary
+                    // ban/permission refusal - only the structured body distinguishes them,
+                    // so check for the marker rather than treating every 403 the same.
+                    const body = err?.error as { error?: string; requiredLevel?: string } | null;
+                    if (err?.status === 403 && body?.error === 'verification_level_not_met') {
+                        this.requiredLevel.set(body.requiredLevel ?? null);
+                        this.dialogState.set('blocked');
+                        return;
+                    }
+                    this.dialogState.set('ready');
+                },
             });
     }
 

@@ -12,6 +12,8 @@ import {BansSettingsComponent} from './pages/bans-settings/bans-settings.compone
 import {AuditLogSettingsComponent} from './pages/audit-log-settings/audit-log-settings.component';
 import {DiscordSyncSettingsComponent} from './pages/discord-sync-settings/discord-sync-settings.component';
 import {EmojiSettingsComponent} from './pages/emoji-settings/emoji-settings.component';
+import {ModerationSettingsComponent} from './pages/moderation-settings/moderation-settings.component';
+import {OnboardingSettingsComponent} from './pages/onboarding-settings/onboarding-settings.component';
 import {TranslateModule} from '@ngx-translate/core';
 
 interface NavItem {
@@ -39,6 +41,8 @@ interface NavGroup {
         AuditLogSettingsComponent,
         DiscordSyncSettingsComponent,
         EmojiSettingsComponent,
+        ModerationSettingsComponent,
+        OnboardingSettingsComponent,
         TranslateModule,
     ],
     templateUrl: './guild-settings-modal.component.html',
@@ -63,6 +67,7 @@ export class GuildSettingsModalComponent {
                 {id: 'members', label: 'Members', icon: 'pi pi-users'},
                 {id: 'roles', label: 'Roles', icon: 'pi pi-shield'},
                 {id: 'bans', label: 'Bans', icon: 'pi pi-ban'},
+                {id: 'moderation', label: 'Moderation', icon: 'pi pi-filter'},
                 {id: 'audit-log', label: 'Audit Log', icon: 'pi pi-history'},
             ],
         },
@@ -72,6 +77,7 @@ export class GuildSettingsModalComponent {
                 {id: 'invites', label: 'Invites', icon: 'pi pi-link'},
                 {id: 'emojis', label: 'Emojis', icon: 'pi pi-face-smile'},
                 {id: 'discord-sync', label: 'Discord Sync', icon: 'pi pi-discord'},
+                {id: 'onboarding', label: 'Onboarding', icon: 'pi pi-book'},
             ],
         },
     ];

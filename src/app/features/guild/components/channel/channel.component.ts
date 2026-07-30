@@ -14,6 +14,7 @@ import {
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {DatePipe} from '@angular/common';
+import {HttpErrorResponse} from '@angular/common/http';
 import {catchError, debounceTime, EMPTY, Subject, tap} from 'rxjs';
 
 import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
@@ -23,8 +24,10 @@ import {MessageEncryptionState} from '../../../../enums/message-encryption-state
 import {MessageType} from '../../../../enums/message-type.enum';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
 import {isGroupedWithPrevious} from '../../../messaging/components/conversation/message-utils';
+import {classifyAutoModError} from './channel-utils';
 
 import {Button} from 'primeng/button';
+import {TranslateModule} from '@ngx-translate/core';
 
 import {MessagingService} from '../../../../services/messaging.service';
 import {MessageStore} from '../../../../stores/message.store';
@@ -83,6 +86,8 @@ export class ChannelComponent implements AfterViewInit {
         return ws.type === 'server' ? ws.guild.channels : [];
     });
     protected replyingTo = signal<MessageDto | null>(null);
+    /** Set when the server refuses a send via auto-mod, cleared on the next attempt. */
+    protected autoModError = signal<'blocked_word' | 'rate_limited' | null>(null);
     protected showThreadPanel = signal(false);
     protected showPinnedPanel = signal(false);
     protected showFollowDialog = signal(false);
@@ -226,6 +231,7 @@ export class ChannelComponent implements AfterViewInit {
             this.showThreadPanel.set(false);
             this.showPinnedPanel.set(false);
             this.showFollowDialog.set(false);
+            this.autoModError.set(null);
         });
 
         afterEveryRender(() => {
@@ -294,6 +300,7 @@ export class ChannelComponent implements AfterViewInit {
         const now = new Date();
 
         this.replyingTo.set(null);
+        this.autoModError.set(null);
 
         const optimistic: MessageDto = {
             id: tempId,
@@ -335,8 +342,16 @@ export class ChannelComponent implements AfterViewInit {
                 this.messageStore.confirmMessage(tempId, confirmed);
                 this.messagingService.messageSentObservable.next(confirmed);
             }),
-            catchError(() => {
+            catchError((err: HttpErrorResponse) => {
                 this.messageStore.failMessage(tempId);
+                // Auto-mod refusals read very differently to a user than a generic send
+                // failure, so surface the reason inline by the composer instead of leaving
+                // a bare failed-message marker.
+                const autoModReason = classifyAutoModError(err);
+                if (autoModReason) {
+                    this.autoModError.set(autoModReason);
+                    this.messageStore.removeMessage(tempId);
+                }
                 return EMPTY;
             }),
         ).subscribe();

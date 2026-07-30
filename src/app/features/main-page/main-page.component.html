@@ -79,6 +79,11 @@
             }
         }
 
+        @let gateWorkspace = navService.workspace();
+        @if (gateWorkspace.type === 'server') {
+            <app-onboarding-gate [guildId]="gateWorkspace.guild.id"/>
+        }
+
         <app-profile-dialog
                 (visibleChange)="profileDialogSvc.close()"
                 [userId]="profileDialogSvc.selectedUserId()"/>

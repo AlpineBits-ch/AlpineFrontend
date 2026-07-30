@@ -6,6 +6,7 @@ import {MessageService} from 'primeng/api';
 import {OverviewSettingsComponent} from './overview-settings.component';
 import {ApiConfigService} from '../../../../../../services/api-config.service';
 import {ChannelType, GuildDto} from '../../../../../../dtos/response/guild.dto';
+import {GuildVerificationLevel} from '../../../../../../dtos/response/guild-safety.dto';
 
 const BASE = 'https://api.test.example/api/v1/guild';
 
@@ -34,6 +35,7 @@ function guildFixture(overrides: Partial<GuildDto> = {}): GuildDto {
         ],
         roles: [],
         systemChannelId: 'chan_1',
+        verificationLevel: GuildVerificationLevel.None,
         ...overrides,
     };
 }
@@ -98,5 +100,75 @@ describe('OverviewSettingsComponent system channel picker', () => {
         expect(req.request.body).toEqual({name: 'Renamed', description: ''});
         expect(req.request.body.systemChannelId).toBeUndefined();
         req.flush(guildFixture({name: 'Renamed'}));
+    });
+});
+
+describe('OverviewSettingsComponent verification level picker', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('initializes verificationLevel from the guild input', () => {
+        const {component} = setup(guildFixture({verificationLevel: GuildVerificationLevel.Medium}));
+        expect(component.verificationLevel()).toBe(GuildVerificationLevel.Medium);
+    });
+
+    it('defaults verificationLevel to None when the guild input omits it', () => {
+        const {component} = setup(guildFixture({verificationLevel: undefined}));
+        expect(component.verificationLevel()).toBe(GuildVerificationLevel.None);
+    });
+
+    it('marks dirty when verificationLevel changes and includes it in the save payload', () => {
+        const {component, ctrl} = setup(guildFixture());
+        component.verificationLevel.set(GuildVerificationLevel.High);
+        component.onFieldChange();
+        expect(component.dirty()).toBe(true);
+
+        component.save();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        expect(req.request.body).toEqual({name: 'Test Guild', description: '', verificationLevel: GuildVerificationLevel.High});
+        req.flush(guildFixture({verificationLevel: GuildVerificationLevel.High}));
+    });
+
+    it('omits verificationLevel from the save payload when unchanged', () => {
+        const {component, ctrl} = setup(guildFixture());
+        component.name.set('Renamed');
+        component.onFieldChange();
+
+        component.save();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        expect(req.request.body.verificationLevel).toBeUndefined();
+        req.flush(guildFixture({name: 'Renamed'}));
+    });
+
+    it('renders the matching hint text for the selected level', () => {
+        const {fixture, component} = setup(guildFixture());
+        expect(fixture.nativeElement.textContent).toContain('GUILD_SETTINGS.OVERVIEW.VERIFY_NONE_HINT');
+
+        component.verificationLevel.set(GuildVerificationLevel.High);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('GUILD_SETTINGS.OVERVIEW.VERIFY_HIGH_HINT');
+    });
+});
+
+describe('OverviewSettingsComponent save error handling', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('surfaces a toast and clears saving when the save request fails', () => {
+        const {component, ctrl} = setup(guildFixture());
+        const messageService = TestBed.inject(MessageService);
+        const addSpy = vi.spyOn(messageService, 'add');
+
+        component.name.set('Renamed');
+        component.onFieldChange();
+        component.save();
+        expect(component.saving()).toBe(true);
+
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        req.flush('Server error', {status: 500, statusText: 'Server Error'});
+
+        expect(component.saving()).toBe(false);
+        expect(addSpy).toHaveBeenCalledTimes(1);
+        const call = addSpy.mock.calls[0][0];
+        expect(call.severity).toBe('error');
+        expect(call.summary).toContain('GUILD_SETTINGS.OVERVIEW.SAVE_ERROR');
     });
 });

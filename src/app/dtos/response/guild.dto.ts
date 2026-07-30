@@ -1,3 +1,5 @@
+import {GuildVerificationLevel} from './guild-safety.dto';
+
 export enum ChannelType {
     Text = 'Text',
     Voice = 'Voice',
@@ -72,6 +74,7 @@ export interface GuildDto {
     roles: RoleDto[];
     bannerUrl?: string;
     systemChannelId: string | null;
+    verificationLevel?: GuildVerificationLevel;
 }
 
 export enum RoleType {

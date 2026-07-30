@@ -1,0 +1,78 @@
+@if (loading()) {
+    <p class="text-sm text-text-muted text-center py-8">{{ 'GUILD_SETTINGS.MODERATION.LOADING' | translate }}</p>
+} @else {
+    <div class="flex flex-col gap-6 max-w-2xl">
+
+        <!-- Master toggle -->
+        <div class="flex items-center justify-between bg-card/60 border border-white/[0.06] rounded-xl px-4 py-3">
+            <div>
+                <p class="text-[0.8125rem] text-text-primary">{{ 'GUILD_SETTINGS.MODERATION.ENABLE_TITLE' | translate }}</p>
+                <p class="text-xs text-text-muted mt-0.5">{{ 'GUILD_SETTINGS.MODERATION.ENABLE_DESC' | translate }}</p>
+            </div>
+            <p-toggleswitch (ngModelChange)="enabled.set($event)" [ngModel]="enabled()"/>
+        </div>
+
+        <!-- Blocked words -->
+        <section class="flex flex-col gap-3">
+            <div>
+                <p class="text-[0.8125rem] text-text-primary">{{ 'GUILD_SETTINGS.MODERATION.BLOCKED_WORDS_TITLE' | translate }}</p>
+                <p class="text-xs text-text-muted mt-0.5">{{ 'GUILD_SETTINGS.MODERATION.BLOCKED_WORDS_DESC' | translate }}</p>
+            </div>
+
+            <div class="flex items-center gap-2">
+                <input (keydown.enter)="addWord()" (ngModelChange)="wordDraft.set($event)"
+                       [ngModel]="wordDraft()" [placeholder]="'GUILD_SETTINGS.MODERATION.WORD_PLACEHOLDER' | translate"
+                       class="flex-1" pInputText type="text"/>
+                <p-button (onClick)="addWord()" [label]="'GUILD_SETTINGS.MODERATION.ADD_WORD' | translate"
+                          severity="secondary" size="small"/>
+            </div>
+
+            @if (blockedWords().length === 0) {
+                <p class="text-xs text-text-muted">{{ 'GUILD_SETTINGS.MODERATION.NO_WORDS' | translate }}</p>
+            } @else {
+                <div class="flex flex-wrap gap-2">
+                    @for (w of blockedWords(); track w) {
+                        <div class="flex items-center gap-1.5 bg-hover border border-border rounded-full px-3 py-1 text-[0.8125rem] text-text-primary">
+                            <span>{{ w }}</span>
+                            <button (click)="removeWord(w)"
+                                    class="flex items-center justify-center border-0 bg-transparent p-0 cursor-pointer text-text-muted hover:text-text-primary transition-colors">
+                                <i class="pi pi-times text-[0.625rem]"></i>
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+        </section>
+
+        <!-- Rate limit -->
+        <section class="flex flex-col gap-3">
+            <div class="flex items-center justify-between bg-card/60 border border-white/[0.06] rounded-xl px-4 py-3">
+                <div>
+                    <p class="text-[0.8125rem] text-text-primary">{{ 'GUILD_SETTINGS.MODERATION.RATE_LIMIT_TITLE' | translate }}</p>
+                    <p class="text-xs text-text-muted mt-0.5">{{ 'GUILD_SETTINGS.MODERATION.RATE_LIMIT_DESC' | translate }}</p>
+                </div>
+                <p-toggleswitch (ngModelChange)="rateLimitOn.set($event)" [ngModel]="rateLimitOn()"/>
+            </div>
+
+            @if (rateLimitOn()) {
+                <div class="flex items-center flex-wrap gap-2 text-[0.8125rem] text-text-secondary px-1">
+                    <span>{{ 'GUILD_SETTINGS.MODERATION.ALLOW' | translate }}</span>
+                    <p-inputnumber (ngModelChange)="maxMessages.set($event)" [min]="1" [ngModel]="maxMessages()"
+                                   [showButtons]="false" inputStyleClass="w-16 text-center"/>
+                    <span>{{ 'GUILD_SETTINGS.MODERATION.MESSAGES_EVERY' | translate }}</span>
+                    <p-inputnumber (ngModelChange)="intervalSeconds.set($event)" [min]="1" [ngModel]="intervalSeconds()"
+                                   [showButtons]="false" inputStyleClass="w-16 text-center"/>
+                    <span>{{ 'GUILD_SETTINGS.MODERATION.SECONDS' | translate }}</span>
+                </div>
+            }
+        </section>
+
+        <p class="text-xs text-text-muted">{{ 'GUILD_SETTINGS.MODERATION.BOTS_EXEMPT_NOTE' | translate }}</p>
+
+        <div>
+            <p-button (onClick)="save()" [label]="'COMMON.SAVE' | translate" [loading]="saving()" severity="primary"
+                      size="small"/>
+        </div>
+
+    </div>
+}

@@ -247,6 +247,19 @@
 
     <!-- Composer -->
     <footer class="shrink-0">
+        @if (autoModError(); as reason) {
+            <div class="mx-4 mb-2 flex items-center gap-2 rounded-md border border-offline/40
+                        bg-[color-mix(in_srgb,var(--color-offline)_12%,transparent)] px-3 py-2">
+                <i class="pi pi-ban text-offline text-[0.875rem]"></i>
+                <span class="text-[0.8125rem] text-text-secondary">
+                    {{ (reason === 'rate_limited' ? 'COMPOSER.AUTOMOD_RATE_LIMITED' : 'COMPOSER.AUTOMOD_BLOCKED_WORD') | translate }}
+                </span>
+                <button type="button" class="ml-auto text-text-muted hover:text-text-primary"
+                        (click)="autoModError.set(null)">
+                    <i class="pi pi-times text-[0.75rem]"></i>
+                </button>
+            </div>
+        }
         <app-composer (cancelReply)="onCancelReply()" (message)="createMessage($event)" (typing)="onTyping()" [guildId]="guildId()"
                       [channelId]="channel().id"
                       [guildChannels]="guildChannels()"
