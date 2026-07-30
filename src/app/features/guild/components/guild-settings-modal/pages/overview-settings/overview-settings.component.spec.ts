@@ -148,3 +148,27 @@ describe('OverviewSettingsComponent verification level picker', () => {
         expect(fixture.nativeElement.textContent).toContain('GUILD_SETTINGS.OVERVIEW.VERIFY_HIGH_HINT');
     });
 });
+
+describe('OverviewSettingsComponent save error handling', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('surfaces a toast and clears saving when the save request fails', () => {
+        const {component, ctrl} = setup(guildFixture());
+        const messageService = TestBed.inject(MessageService);
+        const addSpy = vi.spyOn(messageService, 'add');
+
+        component.name.set('Renamed');
+        component.onFieldChange();
+        component.save();
+        expect(component.saving()).toBe(true);
+
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        req.flush('Server error', {status: 500, statusText: 'Server Error'});
+
+        expect(component.saving()).toBe(false);
+        expect(addSpy).toHaveBeenCalledTimes(1);
+        const call = addSpy.mock.calls[0][0];
+        expect(call.severity).toBe('error');
+        expect(call.summary).toContain('GUILD_SETTINGS.OVERVIEW.SAVE_ERROR');
+    });
+});

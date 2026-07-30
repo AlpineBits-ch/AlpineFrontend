@@ -176,7 +176,7 @@ describe('InviteDialogComponent join rejection', () => {
         await fixture.whenStable();
         fixture.detectChanges();
 
-        expect(document.body.textContent).not.toContain('Join Server');
+        expect(document.body.textContent).not.toContain('INVITE.JOIN');
     });
 
     it('resets requiredLevel back to null when a new invite id is opened', async () => {

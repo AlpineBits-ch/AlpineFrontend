@@ -10,7 +10,7 @@ import {GuildVerificationLevel} from '../../../../../../dtos/response/guild-safe
 import {GuildService, UpdateGuildDto} from '../../../../../../services/guild.service';
 import {ImageCropperComponent} from '../../../../../../components/image-cropper/image-cropper.component';
 import {environment} from '../../../../../../../environments/environment';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {ToastService} from '../../../../../../services/toast.service';
 import {PrimeTemplate} from "primeng/api";
 
@@ -55,6 +55,7 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
     deleting = signal(false);
     private guildService = inject(GuildService);
     private toastService = inject(ToastService);
+    private translate = inject(TranslateService);
     private previewObjectUrl: string | null = null;
 
     ngOnInit(): void {
@@ -143,7 +144,10 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
                     this.dirty.set(false);
                     this.saving.set(false);
                 },
-                error: () => this.saving.set(false),
+                error: err => {
+                    this.saving.set(false);
+                    this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.OVERVIEW.SAVE_ERROR'), err);
+                },
             });
         };
 

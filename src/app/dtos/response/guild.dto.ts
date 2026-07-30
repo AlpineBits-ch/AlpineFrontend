@@ -73,7 +73,7 @@ export interface GuildDto {
     roles: RoleDto[];
     bannerUrl?: string;
     systemChannelId: string | null;
-    verificationLevel: GuildVerificationLevel;
+    verificationLevel?: GuildVerificationLevel;
 }
 
 export enum RoleType {

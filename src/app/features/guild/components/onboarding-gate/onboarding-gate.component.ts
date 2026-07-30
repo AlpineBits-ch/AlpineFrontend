@@ -49,7 +49,11 @@ export class OnboardingGateComponent {
         this.state.accept(this.guildId());
     }
 
-    protected openChannel(channel: ChannelDto): void {
-        this.navService.openChannel(channel);
+    protected leaveServer(): void {
+        // The gate is deliberately non-dismissable (no X, no escape, no mask click) so a
+        // pending member can't bypass the rules - but they still need a way out that isn't
+        // "reload the app". Switching the workspace off 'server' is what unmounts the gate
+        // (see main-page.component.html), so this is a navigation away, not a bypass.
+        this.navService.selectDMs();
     }
 }

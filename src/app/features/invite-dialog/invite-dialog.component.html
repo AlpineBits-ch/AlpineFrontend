@@ -97,7 +97,7 @@
                             (onClick)="join()"
                             [disabled]="dialogState() === 'loading'"
                             [loading]="dialogState() === 'joining'"
-                            label="Join Server"
+                            [label]="'INVITE.JOIN' | translate"
                             severity="primary"
                             size="small"/>
                 }
