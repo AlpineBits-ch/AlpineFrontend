@@ -1,0 +1,63 @@
+<div class="flex flex-col h-full bg-app-bg overflow-hidden">
+
+    <!-- Header -->
+    <header class="flex items-center px-3 sm:px-5 border-b border-white/[0.10] shrink-0 bg-app-bg"
+            style="padding-top: env(safe-area-inset-top); min-height: calc(env(safe-area-inset-top) + 3.5rem)">
+        <p-button (onClick)="navService.mobileNavOpen.set(true)" [text]="true" class="lg:hidden" icon="pi pi-bars"
+                  severity="secondary" size="small" styleClass="mr-1"/>
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <i class="pi pi-align-left text-white/30 shrink-0"></i>
+            <span class="text-sm font-semibold text-white/85 truncate">{{ channel().name }}</span>
+            @if (channel().description) {
+                <span class="hidden sm:block text-white/40 text-xs border-l border-white/15 pl-3 ml-1 truncate max-w-xs">
+                    {{ channel().description }}
+                </span>
+            }
+        </div>
+        <div class="ml-auto">
+            <p-button (onClick)="openCreateDialog()" icon="pi pi-plus" label="New Post" severity="primary" size="small"/>
+        </div>
+    </header>
+
+    <!-- Post list -->
+    <div class="flex-1 min-h-0 overflow-y-auto" style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+        <div class="px-4 py-4">
+            @if (loading()) {
+                <p class="text-xs text-white/25 text-center py-8">Loading…</p>
+            } @else if (posts().length === 0) {
+                <div class="flex flex-col items-center justify-center py-16 gap-3">
+                    <i class="pi pi-align-left text-3xl text-white/10"></i>
+                    <p class="text-sm text-white/25 m-0">No posts yet — start the first one.</p>
+                </div>
+            } @else {
+                <div class="flex flex-col gap-1.5">
+                    @for (post of posts(); track post.id) {
+                        <button (click)="openPost(post)"
+                                class="flex flex-col gap-1 bg-card/60 border border-white/[0.06] rounded-xl p-3 text-left hover:bg-hover hover:border-white/[0.10] transition-colors w-full">
+                            <span class="text-sm font-medium text-white/85 truncate">{{ post.name }}</span>
+                            <span class="text-[11px] text-white/30">{{ post.createdAt | date: 'MMM d, y · h:mm a' }}</span>
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+<!-- Create post dialog -->
+<p-dialog (visibleChange)="showCreateDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
+          [style]="{width: '480px'}" [visible]="showCreateDialog()" appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-white/85">New Post</span>
+    </ng-template>
+    <div class="flex flex-col gap-3">
+        <input (ngModelChange)="createName.set($event)" [ngModel]="createName()" pInputText placeholder="Post title"
+               type="text"/>
+        <textarea (ngModelChange)="createContent.set($event)" [ngModel]="createContent()"
+                   placeholder="What do you want to talk about? (optional)" pTextarea rows="4"></textarea>
+    </div>
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="showCreateDialog.set(false)" [text]="true" label="Cancel"/>
+        <p-button (onClick)="createPost()" [disabled]="!createName().trim()" [loading]="creating()" label="Create Post"/>
+    </ng-template>
+</p-dialog>
