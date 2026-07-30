@@ -33,9 +33,11 @@
 - Consumes: `ChannelType`, `isForumLike` from `dtos/response/guild.dto`; `GuildFeature` from `features/guild/guild-features`.
 - Produces:
   - `type ChannelView = 'voice' | 'forum' | 'message' | 'unsupported'`
-  - `interface HouseholdChannelMeta { type: ChannelType; feature: GuildFeature; icon: string; labelKey: string; descKey: string }`
-  - `const HOUSEHOLD_CHANNEL_META: readonly HouseholdChannelMeta[]`
-  - `householdChannelMeta(type: ChannelType): HouseholdChannelMeta | null`
+  - `interface ChannelTypeMeta { type: ChannelType; icon: string | null; feature: GuildFeature | null; labelKey: string; descKey: string }`
+  - `const CHANNEL_META: readonly ChannelTypeMeta[]` - **all eleven** types
+  - `const HOUSEHOLD_CHANNEL_META: readonly ChannelTypeMeta[]` - the household subset, derived
+  - `channelIcon(type: ChannelType): string | null` - **the only** icon lookup in the codebase
+  - `householdChannelMeta(type: ChannelType): ChannelTypeMeta | null`
   - `isHouseholdChannel(type: ChannelType): boolean`
   - `householdFeatureFor(type: ChannelType): GuildFeature | null`
   - `channelViewFor(type: ChannelType): ChannelView`
@@ -75,6 +77,8 @@ import {describe, expect, it} from 'vitest';
 import {ChannelType} from '../../dtos/response/guild.dto';
 import {GuildFeature} from './guild-features';
 import {
+    CHANNEL_META,
+    channelIcon,
     channelViewFor,
     HOUSEHOLD_CHANNEL_META,
     householdChannelMeta,
@@ -87,17 +91,58 @@ const HOUSEHOLD_TYPES = [
     ChannelType.Pantry, ChannelType.Decisions,
 ] as const;
 
-describe('HOUSEHOLD_CHANNEL_META', () => {
-    it('has exactly one entry per household channel type', () => {
-        expect(HOUSEHOLD_CHANNEL_META).toHaveLength(HOUSEHOLD_TYPES.length);
-        for (const type of HOUSEHOLD_TYPES) {
-            expect(HOUSEHOLD_CHANNEL_META.filter(m => m.type === type)).toHaveLength(1);
+describe('CHANNEL_META', () => {
+    it('has exactly one entry for every ChannelType', () => {
+        const allTypes = Object.values(ChannelType);
+        expect(CHANNEL_META).toHaveLength(allTypes.length);
+        for (const type of allTypes) {
+            expect(CHANNEL_META.filter(m => m.type === type), type).toHaveLength(1);
         }
     });
 
-    it('gives every entry an icon and translation keys', () => {
+    it('gives every entry translation keys, and an icon for all but Text', () => {
+        for (const meta of CHANNEL_META) {
+            expect(meta.labelKey, meta.type).toBeTruthy();
+            expect(meta.descKey, meta.type).toBeTruthy();
+            if (meta.type === ChannelType.Text) {
+                expect(meta.icon).toBeNull();  // renders a literal '#'
+            } else {
+                expect(meta.icon, meta.type).toMatch(/^pi pi-/);
+            }
+        }
+    });
+});
+
+describe('channelIcon', () => {
+    it('returns null for Text, which renders a hash instead', () => {
+        expect(channelIcon(ChannelType.Text)).toBeNull();
+    });
+
+    it('returns the icon for every other known type', () => {
+        expect(channelIcon(ChannelType.Voice)).toBe('pi pi-volume-up');
+        expect(channelIcon(ChannelType.Forum)).toBe('pi pi-align-left');
+        expect(channelIcon(ChannelType.Media)).toBe('pi pi-images');
+        expect(channelIcon(ChannelType.Announcement)).toBe('pi pi-megaphone');
+        expect(channelIcon(ChannelType.List)).toBe('pi pi-check-square');
+        expect(channelIcon(ChannelType.Chores)).toBe('pi pi-sync');
+        expect(channelIcon(ChannelType.Ledger)).toBe('pi pi-wallet');
+        expect(channelIcon(ChannelType.Pantry)).toBe('pi pi-box');
+        expect(channelIcon(ChannelType.Decisions)).toBe('pi pi-flag');
+    });
+
+    it('returns null for an unknown type rather than throwing', () => {
+        expect(channelIcon('Sauna' as ChannelType)).toBeNull();
+    });
+});
+
+describe('HOUSEHOLD_CHANNEL_META', () => {
+    it('is exactly the household subset of CHANNEL_META', () => {
+        expect(HOUSEHOLD_CHANNEL_META.map(m => m.type)).toEqual([...HOUSEHOLD_TYPES]);
+    });
+
+    it('gives every household entry a gating module and CHANNEL_TYPE.* keys', () => {
         for (const meta of HOUSEHOLD_CHANNEL_META) {
-            expect(meta.icon).toMatch(/^pi pi-/);
+            expect(meta.feature, meta.type).not.toBeNull();
             expect(meta.labelKey).toMatch(/^CHANNEL_TYPE\./);
             expect(meta.descKey).toMatch(/^CHANNEL_TYPE\./);
         }
@@ -185,75 +230,146 @@ import {GuildFeature} from './guild-features';
  */
 export type ChannelView = 'voice' | 'forum' | 'message' | 'unsupported';
 
-export interface HouseholdChannelMeta {
+export interface ChannelTypeMeta {
     type: ChannelType;
-    /** The module gating it. With the flag off the type cannot be created at all. */
-    feature: GuildFeature;
-    /** PrimeIcons class, used by the sidebar row and the create-channel picker alike. */
-    icon: string;
+    /** PrimeIcons class, or `null` for Text - which renders a literal `#` instead. */
+    icon: string | null;
+    /** The module gating this type, or `null` when nothing gates it (Text and Thread). */
+    feature: GuildFeature | null;
     labelKey: string;
     descKey: string;
 }
 
 /**
- * The five channel types whose contents are structured rows rather than messages.
- * One table, because the leading icon for a type was previously chosen by an `@if`
- * ladder in the sidebar row *and* independently again in the create-channel modal -
- * at eleven types those stop agreeing with each other.
+ * The types whose contents are structured rows rather than messages. Declared as raw
+ * strings ahead of the table so the table can be filtered by it at module init.
  */
-export const HOUSEHOLD_CHANNEL_META: readonly HouseholdChannelMeta[] = [
+const HOUSEHOLD_TYPE_SET: ReadonlySet<string> = new Set([
+    ChannelType.List, ChannelType.Chores, ChannelType.Ledger,
+    ChannelType.Pantry, ChannelType.Decisions,
+]);
+
+/**
+ * Every channel type this build knows, in sidebar order. One table, because the
+ * leading icon for a type was previously chosen by an `@if` ladder in the sidebar row
+ * *and* independently again in the create-channel modal - at eleven types those stop
+ * agreeing with each other. {@link channelIcon} is the only icon lookup in the app.
+ */
+export const CHANNEL_META: readonly ChannelTypeMeta[] = [
+    // ── Chat types. Their label keys predate this table, hence the GUILD.* stem. ──
+    {
+        type: ChannelType.Text,
+        icon: null,
+        feature: null,
+        labelKey: 'GUILD.CHANNEL_TYPE_TEXT',
+        descKey: 'GUILD.CHANNEL_TYPE_TEXT_DESC',
+    },
+    {
+        type: ChannelType.Voice,
+        icon: 'pi pi-volume-up',
+        feature: GuildFeature.VoiceChannels,
+        labelKey: 'GUILD.CHANNEL_TYPE_VOICE',
+        descKey: 'GUILD.CHANNEL_TYPE_VOICE_DESC',
+    },
+    {
+        // A thread is never offered in the create-channel picker - it is created from a
+        // message - so it borrows the text strings purely to keep the table total.
+        type: ChannelType.Thread,
+        icon: 'pi pi-comments',
+        feature: GuildFeature.Threads,
+        labelKey: 'GUILD.CHANNEL_TYPE_TEXT',
+        descKey: 'GUILD.CHANNEL_TYPE_TEXT_DESC',
+    },
+    {
+        type: ChannelType.Forum,
+        icon: 'pi pi-align-left',
+        feature: GuildFeature.Forums,
+        labelKey: 'GUILD.CHANNEL_TYPE_FORUM',
+        descKey: 'GUILD.CHANNEL_TYPE_FORUM_DESC',
+    },
+    {
+        type: ChannelType.Media,
+        icon: 'pi pi-images',
+        feature: GuildFeature.Forums,
+        labelKey: 'GUILD.CHANNEL_TYPE_MEDIA',
+        descKey: 'GUILD.CHANNEL_TYPE_MEDIA_DESC',
+    },
+    {
+        type: ChannelType.Announcement,
+        icon: 'pi pi-megaphone',
+        feature: GuildFeature.Announcements,
+        labelKey: 'GUILD.CHANNEL_TYPE_ANNOUNCEMENT',
+        descKey: 'GUILD.CHANNEL_TYPE_ANNOUNCEMENT_DESC',
+    },
+
+    // ── Household types: structured rows, no messages, no composer. ──────────────
     {
         type: ChannelType.List,
-        feature: GuildFeature.Lists,
         icon: 'pi pi-check-square',
+        feature: GuildFeature.Lists,
         labelKey: 'CHANNEL_TYPE.LIST.LABEL',
         descKey: 'CHANNEL_TYPE.LIST.DESC',
     },
     {
         type: ChannelType.Chores,
-        feature: GuildFeature.Chores,
         icon: 'pi pi-sync',
+        feature: GuildFeature.Chores,
         labelKey: 'CHANNEL_TYPE.CHORES.LABEL',
         descKey: 'CHANNEL_TYPE.CHORES.DESC',
     },
     {
         type: ChannelType.Ledger,
-        feature: GuildFeature.Ledger,
         icon: 'pi pi-wallet',
+        feature: GuildFeature.Ledger,
         labelKey: 'CHANNEL_TYPE.LEDGER.LABEL',
         descKey: 'CHANNEL_TYPE.LEDGER.DESC',
     },
     {
         type: ChannelType.Pantry,
-        feature: GuildFeature.Pantry,
         icon: 'pi pi-box',
+        feature: GuildFeature.Pantry,
         labelKey: 'CHANNEL_TYPE.PANTRY.LABEL',
         descKey: 'CHANNEL_TYPE.PANTRY.DESC',
     },
     {
         type: ChannelType.Decisions,
-        feature: GuildFeature.Decisions,
         icon: 'pi pi-flag',
+        feature: GuildFeature.Decisions,
         labelKey: 'CHANNEL_TYPE.DECISIONS.LABEL',
         descKey: 'CHANNEL_TYPE.DECISIONS.DESC',
     },
 ];
 
 /** Keyed by the raw string so an off-enum value from a newer server simply misses. */
-const HOUSEHOLD_BY_TYPE = new Map<string, HouseholdChannelMeta>(
-    HOUSEHOLD_CHANNEL_META.map(meta => [meta.type as string, meta]),
+const META_BY_TYPE = new Map<string, ChannelTypeMeta>(
+    CHANNEL_META.map(meta => [meta.type as string, meta]),
 );
 
-export function householdChannelMeta(type: ChannelType): HouseholdChannelMeta | null {
-    return HOUSEHOLD_BY_TYPE.get(type as string) ?? null;
+/** The five whose contents are structured rows rather than messages. */
+export const HOUSEHOLD_CHANNEL_META: readonly ChannelTypeMeta[] = CHANNEL_META.filter(
+    meta => HOUSEHOLD_TYPE_SET.has(meta.type as string),
+);
+
+/**
+ * The leading glyph for a channel type. `null` means "no icon" - Text renders a literal
+ * `#`, and an unknown type gets whatever fallback the caller prefers. The single icon
+ * lookup in the app: the sidebar row and the create-channel picker both call this.
+ */
+export function channelIcon(type: ChannelType): string | null {
+    return META_BY_TYPE.get(type as string)?.icon ?? null;
+}
+
+export function householdChannelMeta(type: ChannelType): ChannelTypeMeta | null {
+    if (!HOUSEHOLD_TYPE_SET.has(type as string)) return null;
+    return META_BY_TYPE.get(type as string) ?? null;
 }
 
 export function isHouseholdChannel(type: ChannelType): boolean {
-    return HOUSEHOLD_BY_TYPE.has(type as string);
+    return HOUSEHOLD_TYPE_SET.has(type as string);
 }
 
 export function householdFeatureFor(type: ChannelType): GuildFeature | null {
-    return HOUSEHOLD_BY_TYPE.get(type as string)?.feature ?? null;
+    return householdChannelMeta(type)?.feature ?? null;
 }
 
 /** The types this build can render as a message view - the only ones that get a composer. */
@@ -626,24 +742,14 @@ git commit -m "fix: route unknown channel types to an inert view, not the compos
 In `text-channel-item.component.ts`, add the import:
 
 ```ts
-import {householdChannelMeta, isHouseholdChannel} from '../../../../channel-types';
+import {channelIcon, isHouseholdChannel} from '../../../../channel-types';
 ```
 
 and add these members to the class, after `isActive`:
 
 ```ts
-    /**
-     * The leading glyph. `Text` keeps its `#`; everything else resolves from a table
-     * rather than from an `@if` ladder that has to grow a branch per channel type.
-     */
-    protected icon = computed<string | null>(() => {
-        const type = this.channel().type;
-        if (type === ChannelType.Text) return null;
-        if (type === ChannelType.Forum) return 'pi pi-align-left';
-        if (type === ChannelType.Media) return 'pi pi-images';
-        if (type === ChannelType.Announcement) return 'pi pi-megaphone';
-        return householdChannelMeta(type)?.icon ?? null;
-    });
+    /** `null` for Text, which renders a literal `#`. One table, no per-type ladder. */
+    protected icon = computed(() => channelIcon(this.channel().type));
 
     /**
      * Household channels carry no messages, so read state for them is meaningless -
@@ -1133,7 +1239,7 @@ git commit -m "feat: offer household permission overrides per channel type"
 In `create-channel-modal.component.ts`, add the import:
 
 ```ts
-import {HOUSEHOLD_CHANNEL_META, householdChannelMeta} from '../../../../channel-types';
+import {channelIcon, HOUSEHOLD_CHANNEL_META, householdFeatureFor} from '../../../../channel-types';
 ```
 
 Add these members after `canAnnouncement` (line 31):
@@ -1141,7 +1247,7 @@ Add these members after `canAnnouncement` (line 31):
 ```ts
     /** Only the household types whose module this guild actually has. */
     protected householdTypes = computed(() =>
-        HOUSEHOLD_CHANNEL_META.filter(meta => this.guildFeatures().has(meta.feature)));
+        HOUSEHOLD_CHANNEL_META.filter(meta => meta.feature !== null && this.guildFeatures().has(meta.feature)));
 ```
 
 Replace `hasTypeChoice` (line 32) with:
@@ -1154,17 +1260,8 @@ Replace `hasTypeChoice` (line 32) with:
 Add a helper for the name field's leading glyph, after `hasTypeChoice`:
 
 ```ts
-    /** The glyph shown inside the name field, mirroring the sidebar row for that type. */
-    protected selectedIcon = computed<string | null>(() => {
-        switch (this.type()) {
-            case ChannelType.Text: return null;
-            case ChannelType.Forum: return 'pi pi-align-left';
-            case ChannelType.Media: return 'pi pi-images';
-            case ChannelType.Announcement: return 'pi pi-megaphone';
-            case ChannelType.Voice: return 'pi pi-volume-up';
-            default: return householdChannelMeta(this.type())?.icon ?? null;
-        }
-    });
+    /** The glyph inside the name field - the same table the sidebar row reads. */
+    protected selectedIcon = computed(() => channelIcon(this.type()));
 ```
 
 - [ ] **Step 2: Strand-guard the household types too**
@@ -1174,11 +1271,11 @@ In the same file, replace the `effect` body in the constructor (lines 44-49) wit
 ```ts
         effect(() => {
             const type = this.type();
-            const householdFeature = householdChannelMeta(type)?.feature;
+            const householdFeature = householdFeatureFor(type);
             const stranded = (type === ChannelType.Voice && !this.canVoice())
                 || ((type === ChannelType.Forum || type === ChannelType.Media) && !this.canForum())
                 || (type === ChannelType.Announcement && !this.canAnnouncement())
-                || (householdFeature !== undefined && !this.guildFeatures().has(householdFeature));
+                || (householdFeature !== null && !this.guildFeatures().has(householdFeature));
             if (stranded) untracked(() => this.type.set(ChannelType.Text));
         });
 ```
