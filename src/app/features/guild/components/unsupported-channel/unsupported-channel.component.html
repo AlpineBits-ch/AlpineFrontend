@@ -1,0 +1,28 @@
+<div class="flex flex-col h-full bg-app-bg">
+
+    <!-- Header: matches the channel header elsewhere so the shell doesn't jump on navigation -->
+    <div class="flex items-center gap-2.5 px-4 h-12 shrink-0 border-b border-white/[0.10]">
+        <i [class]="icon()" class="text-white/35 text-[17px] shrink-0"></i>
+        <span class="text-sm font-semibold text-text-primary truncate">{{ channel().name }}</span>
+        @if (typeLabelKey(); as labelKey) {
+            <span class="text-[0.6875rem] font-medium text-text-muted uppercase tracking-widest px-1.5 py-0.5 rounded bg-white/[0.04] shrink-0">
+                {{ labelKey | translate }}
+            </span>
+        }
+    </div>
+
+    <!-- Body -->
+    <div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+        <div class="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center">
+            <i [class]="icon()" class="text-[1.5rem] text-text-muted"></i>
+        </div>
+
+        <div class="max-w-sm space-y-1.5">
+            <p class="text-sm font-semibold text-text-primary m-0">{{ 'CHANNEL.UNSUPPORTED.TITLE' | translate }}</p>
+            @if (typeDescKey(); as descKey) {
+                <p class="text-[0.8125rem] text-text-secondary m-0">{{ descKey | translate }}</p>
+            }
+            <p class="text-[0.8125rem] text-text-muted m-0">{{ 'CHANNEL.UNSUPPORTED.BODY' | translate }}</p>
+        </div>
+    </div>
+</div>
