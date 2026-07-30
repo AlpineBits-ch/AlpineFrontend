@@ -15,58 +15,131 @@
 
     <div class="px-1 py-1 flex flex-col gap-4">
 
-        <div class="flex flex-col gap-1.5">
-            <label class="text-[10.5px] font-semibold text-white/30 uppercase tracking-widest">
-                {{ 'CREATE_GUILD.SERVER_NAME' | translate }} <span
-                    class="text-rose-400/70 normal-case font-normal">*</span>
-            </label>
-            <input (ngModelChange)="name.set($event)"
-                   [disabled]="loading()"
-                   [ngModel]="name()"
-                   [placeholder]="'CREATE_GUILD.SERVER_NAME_PLACEHOLDER' | translate"
-                   class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
-                   pInputText/>
-        </div>
+        @if (mode() === 'create') {
 
-        <div class="flex flex-col gap-1.5">
-            <label class="text-[10.5px] font-semibold text-white/30 uppercase tracking-widest">
-                {{ 'CREATE_GUILD.DESCRIPTION' | translate }}
-                <span class="text-white/20 normal-case font-normal tracking-normal">{{ 'CREATE_GUILD.DESCRIPTION_OPTIONAL' | translate }}</span>
-            </label>
-            <textarea
-                    (ngModelChange)="description.set($event)"
-                    [disabled]="loading()"
-                    [ngModel]="description()"
-                    [placeholder]="'CREATE_GUILD.DESCRIPTION_PLACEHOLDER' | translate"
-                    class="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white/85 placeholder:text-white/25 px-3 py-2 outline-none focus:border-white/20 transition-colors resize-none"
-                    rows="3">
+            <div class="flex flex-col gap-1.5">
+                <label class="text-[10.5px] font-semibold text-white/30 uppercase tracking-widest">
+                    {{ 'CREATE_GUILD.SERVER_NAME' | translate }} <span
+                        class="text-rose-400/70 normal-case font-normal">*</span>
+                </label>
+                <input (ngModelChange)="name.set($event)"
+                       [disabled]="loading()"
+                       [ngModel]="name()"
+                       [placeholder]="'CREATE_GUILD.SERVER_NAME_PLACEHOLDER' | translate"
+                       class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
+                       pInputText/>
+            </div>
+
+            <div class="flex flex-col gap-1.5">
+                <label class="text-[10.5px] font-semibold text-white/30 uppercase tracking-widest">
+                    {{ 'CREATE_GUILD.DESCRIPTION' | translate }}
+                    <span class="text-white/20 normal-case font-normal tracking-normal">{{ 'CREATE_GUILD.DESCRIPTION_OPTIONAL' | translate }}</span>
+                </label>
+                <textarea
+                        (ngModelChange)="description.set($event)"
+                        [disabled]="loading()"
+                        [ngModel]="description()"
+                        [placeholder]="'CREATE_GUILD.DESCRIPTION_PLACEHOLDER' | translate"
+                        class="w-full rounded-xl bg-white/[0.04] border border-white/[0.08] text-sm text-white/85 placeholder:text-white/25 px-3 py-2 outline-none focus:border-white/20 transition-colors resize-none"
+                        rows="3">
       </textarea>
-        </div>
+            </div>
+
+        } @else {
+
+            <button (click)="backToCreate()"
+                    class="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors border-0 bg-transparent cursor-pointer w-fit p-0">
+                <i class="pi pi-arrow-left text-[0.625rem]"></i> {{ 'CREATE_GUILD.TEMPLATE.BACK' | translate }}
+            </button>
+
+            <div class="flex flex-col gap-1.5">
+                <label class="text-[0.65625rem] font-semibold text-white/30 uppercase tracking-widest">
+                    {{ 'CREATE_GUILD.TEMPLATE.ID_LABEL' | translate }} <span
+                        class="text-rose-400/70 normal-case font-normal">*</span>
+                </label>
+                <input (blur)="lookupTemplate()"
+                       (keydown.enter)="lookupTemplate()"
+                       (ngModelChange)="onTemplateInputChange($event)"
+                       [disabled]="templateLoading()"
+                       [ngModel]="templateInput()"
+                       [placeholder]="'CREATE_GUILD.TEMPLATE.ID_PLACEHOLDER' | translate"
+                       class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
+                       pInputText/>
+                @if (templateLoading()) {
+                    <p class="text-xs text-white/30 flex items-center gap-1.5">
+                        <i class="pi pi-spin pi-spinner text-[0.6875rem]"></i> {{ 'CREATE_GUILD.TEMPLATE.LOOKING_UP' | translate }}
+                    </p>
+                } @else if (templateNotFound()) {
+                    <p class="text-xs text-rose-400">{{ 'CREATE_GUILD.TEMPLATE.NOT_FOUND' | translate }}</p>
+                }
+            </div>
+
+            @if (template(); as tpl) {
+                <app-template-preview [template]="tpl"/>
+
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[0.65625rem] font-semibold text-white/30 uppercase tracking-widest">
+                        {{ 'CREATE_GUILD.SERVER_NAME' | translate }} <span
+                            class="text-rose-400/70 normal-case font-normal">*</span>
+                    </label>
+                    <input (ngModelChange)="templateGuildName.set($event)"
+                           [disabled]="creatingFromTemplate()"
+                           [ngModel]="templateGuildName()"
+                           [placeholder]="'CREATE_GUILD.SERVER_NAME_PLACEHOLDER' | translate"
+                           class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
+                           pInputText/>
+                </div>
+            }
+
+        }
 
     </div>
 
     <ng-template pTemplate="footer">
-        <div class="flex items-center justify-between w-full pt-1">
-            <p-button (onClick)="startDiscordImport()"
-                      [disabled]="loading()"
-                      [loading]="importingFromDiscord()"
-                      [text]="true"
-                      icon="pi pi-discord"
-                      [label]="'CREATE_GUILD.IMPORT_FROM_DISCORD' | translate"
-                      severity="secondary"
-                      size="small"/>
-            <div class="flex items-center gap-2">
-                <p-button (onClick)="close()" [disabled]="loading() || importingFromDiscord()" [label]="'CREATE_GUILD.CANCEL' | translate" [text]="true"
+        @if (mode() === 'create') {
+            <div class="flex items-center justify-between w-full pt-1">
+                <div class="flex items-center gap-1">
+                    <p-button (onClick)="startDiscordImport()"
+                              [disabled]="loading()"
+                              [loading]="importingFromDiscord()"
+                              [text]="true"
+                              icon="pi pi-discord"
+                              [label]="'CREATE_GUILD.IMPORT_FROM_DISCORD' | translate"
+                              severity="secondary"
+                              size="small"/>
+                    <p-button (onClick)="showTemplateMode()"
+                              [disabled]="loading() || importingFromDiscord()"
+                              [text]="true"
+                              icon="pi pi-clone"
+                              [label]="'CREATE_GUILD.USE_A_TEMPLATE' | translate"
+                              severity="secondary"
+                              size="small"/>
+                </div>
+                <div class="flex items-center gap-2">
+                    <p-button (onClick)="close()" [disabled]="loading() || importingFromDiscord()" [label]="'CREATE_GUILD.CANCEL' | translate" [text]="true"
+                              severity="secondary" size="small"/>
+                    <p-button
+                            (onClick)="submit()"
+                            [disabled]="!name().trim() || loading() || importingFromDiscord()"
+                            [label]="'CREATE_GUILD.CREATE' | translate"
+                            [loading]="loading()"
+                            severity="primary"
+                            size="small"/>
+                </div>
+            </div>
+        } @else {
+            <div class="flex items-center justify-end w-full pt-1 gap-2">
+                <p-button (onClick)="close()" [disabled]="creatingFromTemplate()" [label]="'CREATE_GUILD.CANCEL' | translate" [text]="true"
                           severity="secondary" size="small"/>
                 <p-button
-                        (onClick)="submit()"
-                        [disabled]="!name().trim() || loading() || importingFromDiscord()"
+                        (onClick)="createFromTemplate()"
+                        [disabled]="!template() || !templateGuildName().trim() || creatingFromTemplate()"
                         [label]="'CREATE_GUILD.CREATE' | translate"
-                        [loading]="loading()"
+                        [loading]="creatingFromTemplate()"
                         severity="primary"
                         size="small"/>
             </div>
-        </div>
+        }
     </ng-template>
 
 </p-dialog>

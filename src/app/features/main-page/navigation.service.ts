@@ -28,6 +28,7 @@ export class NavigationService {
     readonly mobileNavOpen = signal(false);
     readonly mobileSection = signal<'conversations' | 'friends'>('conversations');
     readonly wikiPanelGuildId = signal<string | null>(null);
+    readonly eventsPanelGuildId = signal<string | null>(null);
 
     tryRestoreGuildNav(guilds: GuildDto[]): boolean {
         try {
@@ -39,6 +40,7 @@ export class NavigationService {
             if (!guild) return false;
             this.workspace.set({type: 'server', guild});
             this.wikiPanelGuildId.set(null);
+            this.eventsPanelGuildId.set(null);
             if (state.kind === 'server-wiki') {
                 this.mainView.set({type: 'wiki', guildId: guild.id});
             } else {
@@ -74,6 +76,7 @@ export class NavigationService {
         this.mainView.set({type: 'home'});
         this.mobileSection.set('conversations');
         this.wikiPanelGuildId.set(null);
+        this.eventsPanelGuildId.set(null);
         this.saveNav();
     }
 
@@ -82,6 +85,7 @@ export class NavigationService {
         if (current.type === 'server' && current.guild.id === guild.id) return;
         this.workspace.set({type: 'server', guild});
         this.wikiPanelGuildId.set(null);
+        this.eventsPanelGuildId.set(null);
         const first = guild.channels.find(c => c.type === ChannelType.Text) ?? guild.channels[0];
         if (first) this.mainView.set({type: 'channel', channel: first});
         this.saveNav();
@@ -128,6 +132,9 @@ export class NavigationService {
 
     openWiki(guildId: string): void {
         this.wikiPanelGuildId.set(guildId);
+        // Both panels render in the same slot of main-page.component.html, so leaving the
+        // other one open produces a double sidebar. They are mutually exclusive.
+        this.eventsPanelGuildId.set(null);
         const current = this.mainView();
         if (current.type !== 'wiki' || current.guildId !== guildId) {
             this.mainView.set({type: 'wiki', guildId});
@@ -154,6 +161,18 @@ export class NavigationService {
             }
             this.saveNav();
         }
+    }
+
+    /** Pure toggle -unlike the wiki panel, events have no dedicated main-view route, so opening/closing both go through the same header button. */
+    toggleEventsPanel(guildId: string): void {
+        const next = this.eventsPanelGuildId() === guildId ? null : guildId;
+        this.eventsPanelGuildId.set(next);
+        // Mutually exclusive with the wiki panel -they share the same layout slot.
+        if (next) this.wikiPanelGuildId.set(null);
+    }
+
+    closeEventsPanel(): void {
+        this.eventsPanelGuildId.set(null);
     }
 
     private saveNav(): void {

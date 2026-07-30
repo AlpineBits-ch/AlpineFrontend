@@ -1,4 +1,4 @@
-import {Component, inject, model, output, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, inject, model, output, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
@@ -10,11 +10,17 @@ import {GuildDto} from '../../../../dtos/response/guild.dto';
 import {DiscordImportService} from '../../../../services/discord-import.service';
 import {ExternalLinkService} from '../../../../services/external-link.service';
 import {ToastService} from '../../../../services/toast.service';
+import {GuildTemplateService} from '../../../../services/guild-template.service';
+import {GuildTemplateDto} from '../../../../dtos/response/guild-template.dto';
+import {TemplatePreviewComponent} from './template-preview.component';
+
+type CreateGuildMode = 'create' | 'template';
 
 @Component({
     selector: 'app-create-guild-modal',
-    imports: [Dialog, Button, InputText, FormsModule, PrimeTemplate, TranslateModule],
+    imports: [Dialog, Button, InputText, FormsModule, PrimeTemplate, TranslateModule, TemplatePreviewComponent],
     templateUrl: './create-guild-modal.component.html',
+    changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class CreateGuildModalComponent {
     readonly visible = model.required<boolean>();
@@ -23,11 +29,21 @@ export class CreateGuildModalComponent {
     readonly description = signal('');
     readonly loading = signal(false);
     readonly importingFromDiscord = signal(false);
+
+    readonly mode = signal<CreateGuildMode>('create');
+    readonly templateInput = signal('');
+    readonly templateLoading = signal(false);
+    readonly templateNotFound = signal(false);
+    readonly template = signal<GuildTemplateDto | null>(null);
+    readonly templateGuildName = signal('');
+    readonly creatingFromTemplate = signal(false);
+
     private guildService = inject(GuildService);
     private discordImportService = inject(DiscordImportService);
     private externalLinkService = inject(ExternalLinkService);
     private toastService = inject(ToastService);
     private translate = inject(TranslateService);
+    private guildTemplateService = inject(GuildTemplateService);
 
     startDiscordImport(): void {
         if (this.importingFromDiscord() || this.loading()) return;
@@ -68,5 +84,113 @@ export class CreateGuildModalComponent {
         this.description.set('');
         this.loading.set(false);
         this.importingFromDiscord.set(false);
+        this.resetTemplateState();
+        this.mode.set('create');
+    }
+
+    // ── Create from template ────────────────────────────────────────────────
+    showTemplateMode(): void {
+        if (this.loading() || this.importingFromDiscord()) return;
+        this.mode.set('template');
+    }
+
+    backToCreate(): void {
+        this.resetTemplateState();
+        this.mode.set('create');
+    }
+
+    /** Typing a corrected id must retire the stale "not found" message immediately,
+     *  rather than leaving it under the field until the next blur re-runs the lookup. */
+    onTemplateInputChange(value: string): void {
+        this.templateInput.set(value);
+        this.templateNotFound.set(false);
+    }
+
+    lookupTemplate(): void {
+        const id = this.extractTemplateId(this.templateInput());
+        if (!id || this.templateLoading()) return;
+        this.templateLoading.set(true);
+        this.templateNotFound.set(false);
+        this.template.set(null);
+        this.guildTemplateService.get(id).subscribe({
+            next: dto => {
+                this.templateLoading.set(false);
+                // The user may have already left template mode or changed the input while this
+                // request was in flight - don't resurrect abandoned template state in that case.
+                if (this.isTemplateLookupStale(id)) return;
+                this.template.set(dto);
+            },
+            error: err => {
+                this.templateLoading.set(false);
+                // Same stale-response guard as above - a late error for an abandoned lookup
+                // shouldn't surface a "not found" message or toast for state nobody cares about anymore.
+                if (this.isTemplateLookupStale(id)) return;
+                if (err?.status === 404) {
+                    this.templateNotFound.set(true);
+                } else {
+                    this.toastService.httpError(this.translate.instant('CREATE_GUILD.TEMPLATE.LOOKUP_ERROR_TOAST'), err);
+                }
+            },
+        });
+    }
+
+    createFromTemplate(): void {
+        const template = this.template();
+        const trimmedName = this.templateGuildName().trim();
+        if (!template || !trimmedName || this.creatingFromTemplate()) return;
+        this.creatingFromTemplate.set(true);
+        this.guildTemplateService.useTemplate(template.id, {name: trimmedName}).subscribe({
+            next: created => {
+                this.guildService.getGuild(created.id).subscribe({
+                    next: guild => {
+                        this.creatingFromTemplate.set(false);
+                        // The user may have already cancelled/left template mode while this
+                        // request was in flight - don't slam the modal shut or navigate away in that case.
+                        if (!this.visible() || this.mode() !== 'template') return;
+                        this.guildCreated.emit(guild);
+                        this.close();
+                    },
+                    error: err => {
+                        this.creatingFromTemplate.set(false);
+                        // The guild WAS created -only the follow-up fetch failed. Closing
+                        // silently would look like nothing happened and invite the user to
+                        // run the template again, creating a duplicate. Say so out loud.
+                        this.toastService.httpError(this.translate.instant('CREATE_GUILD.TEMPLATE.CREATE_ERROR_TOAST'), err);
+                        if (!this.visible() || this.mode() !== 'template') return;
+                        this.close();
+                    },
+                });
+            },
+            error: err => {
+                this.creatingFromTemplate.set(false);
+                this.toastService.httpError(this.translate.instant('CREATE_GUILD.TEMPLATE.CREATE_ERROR_TOAST'), err);
+            },
+        });
+    }
+
+    private resetTemplateState(): void {
+        this.templateInput.set('');
+        this.templateLoading.set(false);
+        this.templateNotFound.set(false);
+        this.template.set(null);
+        this.templateGuildName.set('');
+        this.creatingFromTemplate.set(false);
+    }
+
+    /** True if a lookup for `requestedId` is no longer relevant: the modal closed, the user
+     *  left template mode, or the input has since changed to point at a different template. */
+    private isTemplateLookupStale(requestedId: string): boolean {
+        return !this.visible()
+            || this.mode() !== 'template'
+            || this.extractTemplateId(this.templateInput()) !== requestedId;
+    }
+
+    /** Accepts a bare template id or a pasted full URL, returning the trailing id segment. */
+    private extractTemplateId(raw: string): string {
+        const trimmed = raw.trim();
+        if (!trimmed) return '';
+        const withoutQuery = trimmed.split(/[?#]/)[0];
+        const segments = withoutQuery.split('/').filter(Boolean);
+        return segments.length ? segments[segments.length - 1] : '';
     }
 }

@@ -5,6 +5,7 @@ import {NgClass} from '@angular/common';
 import {Menu} from 'primeng/menu';
 import {ContextMenu} from 'primeng/contextmenu';
 import {Button} from 'primeng/button';
+import {Tooltip} from 'primeng/tooltip';
 import {Dialog} from 'primeng/dialog';
 import {InputText} from 'primeng/inputtext';
 import {MenuItem, PrimeTemplate} from 'primeng/api';
@@ -49,6 +50,7 @@ import {
         Menu,
         ContextMenu,
         Button,
+        Tooltip,
         Dialog,
         InputText,
         ChannelListItemsComponent,
@@ -316,6 +318,10 @@ export class ChannelListComponent {
 
     protected openWiki(): void {
         this.navService.openWiki(this.guild().id);
+    }
+
+    protected toggleEvents(): void {
+        this.navService.toggleEventsPanel(this.guild().id);
     }
 
     protected onChannelClick(channel: ChannelDto): void {

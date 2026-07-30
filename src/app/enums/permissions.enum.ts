@@ -62,6 +62,9 @@ export const Permissions = {
     // ── Emoji permissions ─────────────────────────────────────────────────────
     ManageEmojis: 1n << 37n,
 
+    // ── Event permissions ─────────────────────────────────────────────────────
+    ManageEvents: 1n << 38n,
+
     // ── Catch-all ────────────────────────────────────────────────────────────
     Superadmin: 1n << 63n,
 } as const;
@@ -102,6 +105,10 @@ export const PERM_GROUPS: PermGroup[] = [
     {
         label: 'Emojis',
         perms: ['ManageEmojis'],
+    },
+    {
+        label: 'Events',
+        perms: ['ManageEvents'],
     },
     {
         label: 'Wiki',

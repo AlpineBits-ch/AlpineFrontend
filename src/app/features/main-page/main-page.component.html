@@ -33,6 +33,11 @@
             <app-wiki-panel/>
         }
 
+        <!-- Events panel (second sidebar, same slot as the wiki panel) -->
+        @if (navService.eventsPanelGuildId(); as eventsGuildId) {
+            <app-events-panel [guildId]="eventsGuildId" [memberPermissions]="eventsMemberPermissions()"/>
+        }
+
         <!-- Main content -->
         <div class="flex-1 min-w-0 overflow-hidden">
             @switch (view.type) {

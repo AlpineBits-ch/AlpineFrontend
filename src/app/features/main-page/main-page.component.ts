@@ -40,8 +40,10 @@ import {RichPresenceService} from "../../services/rich-presence.service";
 import {WikiComponent} from '../guild/components/wiki/wiki.component';
 import {WikiPanelComponent} from '../guild/components/wiki/wiki-panel/wiki-panel.component';
 import {OnboardingGateComponent} from '../guild/components/onboarding-gate/onboarding-gate.component';
+import {EventsPanelComponent} from '../guild/components/events-panel/events-panel.component';
 import {EmailVerificationService} from '../../services/email-verification.service';
 import {AppReadyService} from '../../services/app-ready.service';
+import {GuildService} from '../../services/guild.service';
 
 @Component({
     selector: 'app-main-page',
@@ -66,6 +68,7 @@ import {AppReadyService} from '../../services/app-ready.service';
         WikiComponent,
         WikiPanelComponent,
         OnboardingGateComponent,
+        EventsPanelComponent,
     ],
     templateUrl: './main-page.component.html',
     styleUrl: './main-page.component.css',
@@ -79,6 +82,8 @@ export class MainPageComponent implements OnDestroy {
     protected router = inject(Router);
     protected showDeviceRegistration = signal(false);
     protected showKeySetup = signal(false);
+    /** Serialized permission string for the events panel -re-fetched whenever it's opened for a guild, mirroring the ownMember-fetch pattern used by every other permission-gated guild panel. */
+    protected eventsMemberPermissions = signal('');
     @ViewChild(QuickSettingsComponent) private quickSettings!: QuickSettingsComponent;
     /** Opaque handle for the session-loaded signing key -set after device unlock. */
     protected keyHandle = signal<string | null>(null);
@@ -94,6 +99,7 @@ export class MainPageComponent implements OnDestroy {
     private richPresenceService = inject(RichPresenceService);
     private emailVerification = inject(EmailVerificationService);
     private appReady = inject(AppReadyService);
+    private guildService = inject(GuildService);
     private actionSub = new Subscription();
 
     constructor() {
@@ -128,6 +134,28 @@ export class MainPageComponent implements OnDestroy {
 
         effect(() => {
             console.log('current game: ', this.richPresenceService.currentGame())
+        });
+
+        // Refetches own member permissions whenever the events panel is opened for a
+        // guild -only reads eventsPanelGuildId() and writes a separate signal, so it
+        // can't re-trigger itself.
+        effect(() => {
+            const guildId = this.navService.eventsPanelGuildId();
+            // Clear first, unconditionally: otherwise the previous guild's permissions stay
+            // live while guild B's request is in flight (a non-manager would briefly see the
+            // manage controls), and persist for the whole session if that request fails.
+            this.eventsMemberPermissions.set('');
+            if (!guildId) return;
+            this.guildService.getOwnMember(guildId).subscribe({
+                next: m => {
+                    const permissionString = m.roleMembers.reduce((curr, r) => {
+                        if (!r.role.permissions) return curr;
+                        return curr === '' ? r.role.permissions : `${curr},${r.role.permissions}`;
+                    }, m.permissions ?? '');
+                    this.eventsMemberPermissions.set(permissionString);
+                },
+                error: () => this.eventsMemberPermissions.set(''),
+            });
         });
 
         this.actionSub.add(this.notificationService.action$.subscribe(event => {
