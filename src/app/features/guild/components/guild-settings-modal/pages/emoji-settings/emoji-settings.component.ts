@@ -1,4 +1,4 @@
-import {Component, computed, ElementRef, inject, input, OnInit, signal, ViewChild} from '@angular/core';
+import {Component, computed, ElementRef, inject, input, OnDestroy, OnInit, signal, ViewChild} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -19,7 +19,7 @@ import {hasPermission, parsePermissions, Permissions} from '../../../../../../en
     imports: [FormsModule, Button, InputText, Dialog, Checkbox, PrimeTemplate],
     templateUrl: './emoji-settings.component.html',
 })
-export class EmojiSettingsComponent implements OnInit {
+export class EmojiSettingsComponent implements OnInit, OnDestroy {
     guild = input.required<GuildDto>();
 
     emojis = computed(() => this.guildEmojiStore.getEmojis(this.guild().id));
@@ -61,6 +61,10 @@ export class EmojiSettingsComponent implements OnInit {
             next: () => this.loading.set(false),
             error: () => this.loading.set(false),
         });
+    }
+
+    ngOnDestroy(): void {
+        if (this.previewObjectUrl) URL.revokeObjectURL(this.previewObjectUrl);
     }
 
     openFilePicker(): void {
