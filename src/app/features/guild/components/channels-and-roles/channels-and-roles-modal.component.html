@@ -1,0 +1,54 @@
+<p-dialog [(visible)]="visible" [breakpoints]="{'720px': '94vw'}" [dismissableMask]="true" [draggable]="false"
+          [modal]="true" [resizable]="false" [style]="{width: '640px', maxHeight: '80vh'}" appendTo="body">
+
+    <ng-template pTemplate="header">
+        <div class="flex flex-col gap-0.5">
+            <span class="text-sm font-semibold text-text-primary">{{ 'CHANNELS_ROLES.TITLE' | translate }}</span>
+            <span class="text-[0.6875rem] text-text-muted">{{ 'CHANNELS_ROLES.SUBTITLE' | translate }}</span>
+        </div>
+    </ng-template>
+
+    @if (loading()) {
+        <div class="flex justify-center py-16">
+            <i class="pi pi-spin pi-spinner text-text-muted"></i>
+        </div>
+    } @else if (sortedPrompts().length === 0) {
+        <div class="flex flex-col items-center gap-2 py-16 text-center">
+            <i class="pi pi-sliders-h text-2xl text-white/10"></i>
+            <p class="text-sm text-text-muted m-0">{{ 'CHANNELS_ROLES.EMPTY' | translate }}</p>
+        </div>
+    } @else {
+        <div class="flex flex-col gap-7 py-1">
+            @for (prompt of sortedPrompts(); track prompt.id) {
+                <section class="flex flex-col gap-3">
+                    <div>
+                        <h2 class="text-sm font-semibold text-text-primary m-0">
+                            {{ prompt.title }}
+                            @if (prompt.required) {
+                                <span class="text-offline ml-0.5">*</span>
+                            }
+                        </h2>
+                        <p class="text-xs text-text-muted m-0 mt-0.5">
+                            {{ (prompt.singleSelect ? 'ONBOARDING_GATE.PICK_ONE' : 'ONBOARDING_GATE.PICK_ANY') | translate }}
+                        </p>
+                    </div>
+
+                    <app-onboarding-prompt-step (selectionChange)="onSelectionChange(prompt.id, $event)"
+                                                [emojiUrls]="emojiUrls()" [prompt]="prompt"
+                                                [selected]="selectedFor(prompt.id)"/>
+
+                    @if (isMissing(prompt.id)) {
+                        <p class="text-xs text-offline m-0">{{ 'ONBOARDING_GATE.REQUIRED_ERROR' | translate }}</p>
+                    }
+                </section>
+            }
+        </div>
+    }
+
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="visible.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
+                  severity="secondary"/>
+        <p-button (onClick)="save()" [disabled]="!dirty()" [label]="'COMMON.SAVE' | translate" [loading]="saving()"
+                  severity="primary"/>
+    </ng-template>
+</p-dialog>

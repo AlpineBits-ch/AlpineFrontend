@@ -71,6 +71,34 @@
                     }
                 }
             </div>
+
+            <!-- Welcome screen. Only ever arrives on the invite preview - a non-member
+                 can't call the welcome-screen endpoint directly. -->
+            @if (welcomeScreen(); as welcome) {
+                <div class="w-full flex flex-col gap-2.5 pt-1">
+                    @if (welcome.description) {
+                        <p class="text-xs text-center m-0" style="color: var(--color-text-secondary)">
+                            {{ welcome.description }}
+                        </p>
+                    }
+                    @if (welcomeChannels().length > 0) {
+                        <div class="flex flex-col gap-1.5">
+                            @for (channel of welcomeChannels(); track channel.channelId) {
+                                <div class="flex items-center gap-2.5 rounded-xl border border-border-subtle bg-card/60 px-3 py-2">
+                                    @if (channel.emoji) {
+                                        <span class="text-sm leading-none shrink-0">{{ channel.emoji }}</span>
+                                    } @else {
+                                        <i class="pi pi-hashtag text-[0.6875rem] shrink-0" style="color: var(--color-text-muted)"></i>
+                                    }
+                                    <span class="text-xs truncate" style="color: var(--color-text-primary)">
+                                        {{ channel.description }}
+                                    </span>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+            }
         }
 
     </div>

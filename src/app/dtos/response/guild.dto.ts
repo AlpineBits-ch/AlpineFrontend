@@ -5,7 +5,14 @@ export enum ChannelType {
     Voice = 'Voice',
     Thread = 'Thread',
     Forum = 'Forum',
+    /** A forum variant: same tags, posts and endpoints, gallery-first rendering. */
+    Media = 'Media',
     Announcement = 'Announcement',
+}
+
+/** Forum and Media behave identically everywhere except how their post list is drawn. */
+export function isForumLike(type: ChannelType): boolean {
+    return type === ChannelType.Forum || type === ChannelType.Media;
 }
 
 export interface ChannelDto {
@@ -23,6 +30,19 @@ export interface ChannelDto {
     position: number;
     slowModeSeconds: number;
     parentChannelId: string | undefined;
+
+    // ── Thread-only, additive. Absent on non-thread channels and on threads
+    // created before the forum-parity deploy. ───────────────────────────────
+    createdByUserId?: string;
+    tagIds?: string[];
+    isPinned?: boolean;
+    isLocked?: boolean;
+    isArchived?: boolean;
+    /** Absent until someone posts in the thread; fall back to createdAt for sorting. */
+    lastActivityAt?: string;
+    messageCount?: number;
+    autoArchiveAt?: string;
+    autoArchiveMinutes?: number;
 }
 
 export interface ChannelPermission {
@@ -62,6 +82,19 @@ export interface CategoryDto {
 }
 
 
+/**
+ * What a guild *is*. Presentation only - it picks nomenclature ("House" vs "Server")
+ * and which settings surfaces make sense. It never gates anything: that is what
+ * `GuildDto.features` is for.
+ */
+export enum GuildKind {
+    Community = 'Community',
+    Household = 'Household',
+    Team = 'Team',
+    Study = 'Study',
+    Event = 'Event',
+}
+
 export interface GuildDto {
     id: string;
     createdAt: Date;
@@ -75,6 +108,15 @@ export interface GuildDto {
     bannerUrl?: string;
     systemChannelId: string | null;
     verificationLevel?: GuildVerificationLevel;
+
+    /** Absent on payloads that predate the modules layer - treat as {@link GuildKind.Community}. */
+    kind?: GuildKind;
+    /**
+     * Comma-separated flag *names* ("VoiceChannels, Threads"), or "None" - never a
+     * bitmask. Absent means an older backend, which is every-community-module-on;
+     * see `parseGuildFeatures` in features/guild/guild-features.ts.
+     */
+    features?: string;
 }
 
 export enum RoleType {

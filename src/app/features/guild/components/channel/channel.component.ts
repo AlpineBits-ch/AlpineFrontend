@@ -17,7 +17,16 @@ import {DatePipe} from '@angular/common';
 import {HttpErrorResponse} from '@angular/common/http';
 import {catchError, debounceTime, EMPTY, Subject, tap} from 'rxjs';
 
-import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
+import {ChannelDto, ChannelType, isForumLike} from '../../../../dtos/response/guild.dto';
+import {ForumTag} from '../../../../dtos/response/forum.dto';
+import {ForumService} from '../../../../services/forum.service';
+import {ForumStateService} from '../../../../services/forum-state.service';
+import {GuildEmojiStore} from '../../../../stores/guild-emoji.store';
+import {ToastService} from '../../../../services/toast.service';
+import {ForumTagChipComponent} from '../forum-channel/forum-tag-chip.component';
+import {ForumTagPickerComponent} from '../forum-channel/forum-tag-picker.component';
+import {Dialog} from 'primeng/dialog';
+import {PrimeTemplate} from 'primeng/api';
 import {MessageAttachment, MessageDto} from '../../../../dtos/response/message.dto';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {MessageEncryptionState} from '../../../../enums/message-encryption-state.enum';
@@ -27,7 +36,7 @@ import {isGroupedWithPrevious} from '../../../messaging/components/conversation/
 import {classifyAutoModError} from './channel-utils';
 
 import {Button} from 'primeng/button';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
 import {MessagingService} from '../../../../services/messaging.service';
 import {MessageStore} from '../../../../stores/message.store';
@@ -47,6 +56,7 @@ import {TypingDotsComponent} from '../../../../components/typing-dots/typing-dot
 import {ThreadPanelComponent} from './thread-panel/thread-panel.component';
 import {PinnedMessagesPanelComponent} from '../../../messaging/components/pinned-messages-panel/pinned-messages-panel.component';
 import {FollowChannelDialogComponent} from '../follow-channel-dialog/follow-channel-dialog.component';
+import {GuildFeature, guildHasFeature} from '../../guild-features';
 
 const SCROLL_BOTTOM_THRESHOLD = 100;
 const LOAD_MORE_THRESHOLD = 400;
@@ -66,6 +76,7 @@ function decodeContent(encoded: string): string {
         ComposerComponent, MessageComponent, SystemMessageComponent, Button,
         DatePipe, HighlightPipe, TypingDotsComponent, ThreadPanelComponent,
         PinnedMessagesPanelComponent, FollowChannelDialogComponent, TranslateModule,
+        ForumTagChipComponent, ForumTagPickerComponent, Dialog, PrimeTemplate,
     ],
     templateUrl: './channel.component.html',
     styleUrl: './channel.component.css',
@@ -84,12 +95,60 @@ export class ChannelComponent implements AfterViewInit {
         const ws = this.navService.workspace();
         return ws.type === 'server' ? ws.guild.channels : [];
     });
+    /** Threads are a module: with it off, the panel and its entry point are absent, not disabled. */
+    protected hasThreads = computed(() => {
+        const ws = this.navService.workspace();
+        return ws.type === 'server' && guildHasFeature(ws.guild, GuildFeature.Threads);
+    });
     protected replyingTo = signal<MessageDto | null>(null);
     /** Set when the server refuses a send via auto-mod, cleared on the next attempt. */
     protected autoModError = signal<'blocked_word' | 'rate_limited' | null>(null);
     protected showThreadPanel = signal(false);
     protected showPinnedPanel = signal(false);
     protected showFollowDialog = signal(false);
+
+    // ── Forum post state ─────────────────────────────────────────────────────
+    // A forum post is an ordinary Thread channel, so this whole view is reused for it;
+    // these members only light up when the thread's parent turns out to be a forum.
+    protected forumState = inject(ForumStateService);
+    private forumService = inject(ForumService);
+    private emojiStore = inject(GuildEmojiStore);
+    private toastService = inject(ToastService);
+
+    protected showTagDialog = signal(false);
+    protected tagDraft = signal<string[]>([]);
+    protected savingTags = signal(false);
+    /** Locally applied flags, so a lock or tag change here doesn't need a channel refetch. */
+    private localIsLocked = signal<boolean | null>(null);
+    private localTagIds = signal<string[] | null>(null);
+
+    protected parentForum = computed(() => {
+        const parentId = this.channel().parentChannelId;
+        if (!parentId || this.channel().type !== ChannelType.Thread) return null;
+        return this.guildChannels().find(c => c.id === parentId && isForumLike(c.type)) ?? null;
+    });
+
+    protected isForumPost = computed(() => this.parentForum() !== null);
+    protected isLocked = computed(() => this.localIsLocked() ?? this.channel().isLocked ?? false);
+
+    protected forumTags = computed<ForumTag[]>(() => {
+        const forum = this.parentForum();
+        return forum ? this.forumState.tagsFor(forum.id) : [];
+    });
+
+    protected postTagIds = computed(() => this.localTagIds() ?? this.channel().tagIds ?? []);
+
+    protected appliedTags = computed(() => {
+        const byId = new Map(this.forumTags().map(t => [t.id, t]));
+        return this.postTagIds().map(id => byId.get(id)).filter((t): t is ForumTag => !!t);
+    });
+
+    protected forumEmojiUrls = computed(() => {
+        const map: Record<string, string> = {};
+        for (const emoji of this.emojiStore.getEmojis(this.guildId())) map[emoji.id] = emoji.imageUrl;
+        return map;
+    });
+
     protected readonly ChannelType = ChannelType;
     protected readonly MessageType = MessageType;
     protected searchQuery = signal('');
@@ -125,6 +184,36 @@ export class ChannelComponent implements AfterViewInit {
         const perms = parsePermissions(permissionString);
         return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.PinMessages);
     });
+
+    private threadPermissions = computed(() => {
+        const member = this.ownMember();
+        if (!member) return 0n;
+        const merged = member.roleMembers.reduce((curr, m) => {
+            if (!m.role.permissions) return curr;
+            return curr === '' ? m.role.permissions : `${curr},${m.role.permissions}`;
+        }, member.permissions ?? '');
+        return parsePermissions(merged);
+    });
+
+    protected canManageAnyThread = computed(() =>
+        hasPermission(this.threadPermissions(), Permissions.Superadmin)
+        || hasPermission(this.threadPermissions(), Permissions.ManageAnyThread));
+
+    /**
+     * The server allows the post's creator too, but only some thread payloads carry
+     * createdByUserId - without it we can't tell, so fall back to the moderator bit
+     * rather than offering an edit that will 403.
+     */
+    protected canEditTags = computed(() => {
+        if (!this.isForumPost() || this.forumTags().length === 0) return false;
+        if (this.canManageAnyThread()) return true;
+        const creatorId = this.channel().createdByUserId;
+        return !!creatorId && creatorId === this.profileService.ownProfile()?.userId;
+    });
+
+    protected canUseModeratedTags = computed(() =>
+        this.canManageAnyThread() || hasPermission(this.threadPermissions(), Permissions.ManageChannel));
+
     protected messages = computed(() =>
         this.messageStore
             .entities()
@@ -158,6 +247,7 @@ export class ChannelComponent implements AfterViewInit {
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private guildWs = inject(GuildWebsocketService);
+    private translate = inject(TranslateService);
     private readStateService = inject(GuildReadStateService);
     private typingService = inject(TypingService);
     protected typingText = computed(() => {
@@ -198,6 +288,29 @@ export class ChannelComponent implements AfterViewInit {
         effect(() => {
             this.guildService.getOwnMember(this.guildId()).subscribe(m => this.ownMember.set(m));
         });
+
+        effect(() => {
+            // Reset the locally-applied forum flags whenever the channel changes, so a
+            // previous post's lock or tag state can't bleed into the one now open.
+            this.channel().id;
+            this.localIsLocked.set(null);
+            this.localTagIds.set(null);
+
+            const forum = this.parentForum();
+            if (forum) {
+                this.forumState.loadFor(forum.id);
+                this.emojiStore.ensureLoaded(forum.guildId);
+            }
+        });
+
+        this.guildWs.threadUpdatedObservable
+            .pipe(takeUntilDestroyed(inject(DestroyRef)))
+            .subscribe(e => {
+                if (e.channelId !== this.channel().id) return;
+                // Full current state, not a patch - each present field replaces.
+                if (e.isLocked !== undefined) this.localIsLocked.set(e.isLocked);
+                if (e.tagIds !== undefined) this.localTagIds.set(e.tagIds);
+            });
 
 
         effect(() => {
@@ -276,6 +389,36 @@ export class ChannelComponent implements AfterViewInit {
             } else {
                 this.messageStore.clearChannelSearch(this.channel().id);
             }
+        });
+    }
+
+    // ── Forum post tags ──────────────────────────────────────────────────────
+
+    protected forumEmojiUrlFor(tag: ForumTag): string | null {
+        return tag.emojiId ? this.forumEmojiUrls()[tag.emojiId] ?? null : null;
+    }
+
+    protected openTagDialog(): void {
+        this.tagDraft.set([...this.postTagIds()]);
+        this.showTagDialog.set(true);
+    }
+
+    protected saveTags(): void {
+        if (this.savingTags()) return;
+        this.savingTags.set(true);
+
+        // Replace semantics: the picker already emits the whole desired set, which is
+        // exactly what this endpoint wants and what makes a retry safe.
+        this.forumService.setPostTags(this.channel().id, {tagIds: this.tagDraft()}).subscribe({
+            next: post => {
+                this.localTagIds.set(post.tagIds ?? []);
+                this.savingTags.set(false);
+                this.showTagDialog.set(false);
+            },
+            error: err => {
+                this.savingTags.set(false);
+                this.toastService.httpError(this.translate.instant('FORUM.TAG_SAVE_ERROR'), err);
+            },
         });
     }
 

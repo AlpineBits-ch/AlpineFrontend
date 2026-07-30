@@ -1,6 +1,6 @@
 import {inject, Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
-import {CategoryDto, ChannelDto, ChannelPermission, GuildDto, RoleDto,} from '../dtos/response/guild.dto';
+import {CategoryDto, ChannelDto, ChannelPermission, GuildDto, GuildKind, RoleDto,} from '../dtos/response/guild.dto';
 import {GuildVerificationLevel} from '../dtos/response/guild-safety.dto';
 import {environment} from '../../environments/environment';
 import {catchError, Observable, of, Subject, throwError} from 'rxjs';
@@ -20,6 +20,14 @@ export interface UpdateGuildDto {
     systemChannelId?: string;
     /** Omitted means "leave unchanged" - the backend treats null as no-op, not clear. */
     verificationLevel?: GuildVerificationLevel;
+    /**
+     * Sending `kind` **on its own re-seeds `features`** from that kind's preset,
+     * discarding whatever the owner customised. Send `features` alongside it to
+     * relabel without resetting.
+     */
+    kind?: GuildKind;
+    /** The exact module set, as flag names ("Wiki, Lists") or "None" - never a bitmask. */
+    features?: string;
 }
 
 export interface CreateRoleDto {
@@ -89,8 +97,18 @@ export class GuildService {
     private base = this.apiConfig.baseUrl() + '/api/v1/guild';
 
     // ── Guilds ──────────────────────────────────────────────────────────────
-    createGuild(name: string, description: string | undefined): Observable<GuildDto> {
-        return this.http.post<GuildDto>(`${this.base}/guilds`, {name, description});
+    /**
+     * `kind` seeds the guild's module set from that kind's preset; `features` can't be
+     * set at creation, so a non-standard set means creating then PATCHing. Community is
+     * the server's own default and is left unsent, keeping a plain server byte-for-byte
+     * what the old single-step flow produced.
+     */
+    createGuild(name: string, description: string | undefined, kind?: GuildKind): Observable<GuildDto> {
+        return this.http.post<GuildDto>(`${this.base}/guilds`, {
+            name,
+            description,
+            ...(kind && kind !== GuildKind.Community ? {kind} : {}),
+        });
     }
 
     getGuilds(): Observable<GuildDto[]> {

@@ -8,7 +8,9 @@
     </ng-template>
     <div class="py-2 space-y-5">
 
-        <!-- Type selector -->
+        <!-- Type selector. Hidden entirely when every other type's module is off -
+             a picker with one choice is just noise. -->
+        @if (hasTypeChoice()) {
         <div>
             <p class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD.CHANNEL_TYPE' | translate }}</p>
             <div class="grid grid-cols-2 gap-2">
@@ -20,32 +22,49 @@
                     <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_TEXT' | translate }}</span>
                     <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_TEXT_DESC' | translate }}</span>
                 </button>
-                <button
-                        (click)="type.set(ChannelType.Voice)"
-                        [ngClass]="type() === ChannelType.Voice ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'"
-                        class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer">
-                    <i class="pi pi-volume-up text-white/50"></i>
-                    <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_VOICE' | translate }}</span>
-                    <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_VOICE_DESC' | translate }}</span>
-                </button>
-                <button
-                        (click)="type.set(ChannelType.Forum)"
-                        [ngClass]="type() === ChannelType.Forum ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'"
-                        class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer">
-                    <i class="pi pi-align-left text-white/50"></i>
-                    <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_FORUM' | translate }}</span>
-                    <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_FORUM_DESC' | translate }}</span>
-                </button>
-                <button
-                        (click)="type.set(ChannelType.Announcement)"
-                        [ngClass]="type() === ChannelType.Announcement ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'"
-                        class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer">
-                    <i class="pi pi-megaphone text-white/50"></i>
-                    <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_ANNOUNCEMENT' | translate }}</span>
-                    <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_ANNOUNCEMENT_DESC' | translate }}</span>
-                </button>
+                @if (canVoice()) {
+                    <button
+                            (click)="type.set(ChannelType.Voice)"
+                            [ngClass]="type() === ChannelType.Voice ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'"
+                            class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer">
+                        <i class="pi pi-volume-up text-white/50"></i>
+                        <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_VOICE' | translate }}</span>
+                        <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_VOICE_DESC' | translate }}</span>
+                    </button>
+                }
+                @if (canForum()) {
+                    <button
+                            (click)="type.set(ChannelType.Forum)"
+                            [ngClass]="type() === ChannelType.Forum ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'"
+                            class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer">
+                        <i class="pi pi-align-left text-white/50"></i>
+                        <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_FORUM' | translate }}</span>
+                        <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_FORUM_DESC' | translate }}</span>
+                    </button>
+                }
+                @if (canAnnouncement()) {
+                    <button
+                            (click)="type.set(ChannelType.Announcement)"
+                            [ngClass]="type() === ChannelType.Announcement ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'"
+                            class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer">
+                        <i class="pi pi-megaphone text-white/50"></i>
+                        <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_ANNOUNCEMENT' | translate }}</span>
+                        <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_ANNOUNCEMENT_DESC' | translate }}</span>
+                    </button>
+                }
+                @if (canForum()) {
+                    <button
+                            (click)="type.set(ChannelType.Media)"
+                            [ngClass]="type() === ChannelType.Media ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'"
+                            class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer">
+                        <i class="pi pi-images text-white/50"></i>
+                        <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_MEDIA' | translate }}</span>
+                        <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_MEDIA_DESC' | translate }}</span>
+                    </button>
+                }
             </div>
         </div>
+        }
 
         <!-- Name -->
         <div>
@@ -56,6 +75,8 @@
               #
           } @else if (type() === ChannelType.Forum) {
               <i class="pi pi-align-left text-xs"></i>
+          } @else if (type() === ChannelType.Media) {
+              <i class="pi pi-images text-xs"></i>
           } @else if (type() === ChannelType.Announcement) {
               <i class="pi pi-megaphone text-xs"></i>
           } @else {

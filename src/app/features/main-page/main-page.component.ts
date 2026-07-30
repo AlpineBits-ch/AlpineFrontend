@@ -1,4 +1,4 @@
-import {Component, effect, HostListener, inject, OnDestroy, signal, ViewChild} from '@angular/core';
+import {Component, computed, effect, HostListener, inject, OnDestroy, signal, ViewChild} from '@angular/core';
 import {AuthService} from '../../services/auth.service';
 import {Router} from '@angular/router';
 import {HomeComponent} from './pages/home/home.component';
@@ -25,7 +25,7 @@ import {ProfileDialogService} from '../../services/profile-dialog.service';
 import {QuickSettingsComponent} from './components/quick-settings/quick-settings.component';
 import {AccountDeletionBannerComponent} from './components/account-deletion-banner/account-deletion-banner.component';
 import {VoiceStatusBarComponent} from './components/voice-status-bar/voice-status-bar.component';
-import {ChannelType} from '../../dtos/response/guild.dto';
+import {ChannelType, isForumLike} from '../../dtos/response/guild.dto';
 import {GuildMemberListComponent} from '../guild/components/guild-member-list/guild-member-list.component';
 import {UserTokenService} from '../../services/user-token.service';
 import {GuildWebsocketService} from '../../services/guild-websocket.service';
@@ -41,6 +41,7 @@ import {WikiComponent} from '../guild/components/wiki/wiki.component';
 import {WikiPanelComponent} from '../guild/components/wiki/wiki-panel/wiki-panel.component';
 import {OnboardingGateComponent} from '../guild/components/onboarding-gate/onboarding-gate.component';
 import {EventsPanelComponent} from '../guild/components/events-panel/events-panel.component';
+import {GuildFeature, guildHasFeature} from '../guild/guild-features';
 import {EmailVerificationService} from '../../services/email-verification.service';
 import {AppReadyService} from '../../services/app-ready.service';
 import {GuildService} from '../../services/guild.service';
@@ -79,6 +80,12 @@ export class MainPageComponent implements OnDestroy {
     protected navService = inject(NavigationService);
     protected profileDialogSvc = inject(ProfileDialogService);
     protected readonly ChannelType = ChannelType;
+    protected readonly isForumLike = isForumLike;
+    /** The rules gate, prompts and welcome screen all belong to the Onboarding module. */
+    protected onboardingEnabled = computed(() => {
+        const ws = this.navService.workspace();
+        return ws.type === 'server' && guildHasFeature(ws.guild, GuildFeature.Onboarding);
+    });
     protected router = inject(Router);
     protected showDeviceRegistration = signal(false);
     protected showKeySetup = signal(false);

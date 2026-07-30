@@ -11,6 +11,7 @@ import {TranslateModule} from '@ngx-translate/core';
 import {Menu} from 'primeng/menu';
 import {MenuItem} from 'primeng/api';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
+import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {ToastService} from '../../../../services/toast.service';
 import {
     GuildWebsocketService,
@@ -228,7 +229,10 @@ export class GuildMemberListComponent implements OnChanges {
         const own = this.ownMember();
         const perms = own ? parsePermissions(own.roleMembers.reduce((c, m) => m.role.permissions ? (c === '' ? m.role.permissions : `${c},${m.role.permissions}`) : c, own.permissions ?? '')) : 0n;
         const items: MenuItem[] = [];
-        const canAct = this.canModerate(member);
+        // Kick, timeout and ban all live behind the Moderation module. With it off the
+        // server refuses them for everyone - the owner included - so offering them here
+        // would only produce 403s. Note this is a product state, not a permission level.
+        const canAct = this.canModerate(member) && guildHasFeature(this.guild(), GuildFeature.Moderation);
 
         if (canAct && hasPermission(perms, Permissions.KickMembers)) {
             items.push({label: 'Kick', icon: 'pi pi-user-minus', command: () => this.kick(member)});

@@ -48,6 +48,15 @@ export class InviteDialogComponent {
         return name.split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('');
     });
 
+    /** Absent, or present-but-disabled, both mean "render nothing extra". */
+    protected readonly welcomeScreen = computed(() => {
+        const screen = this.invite()?.welcomeScreen;
+        return screen?.enabled ? screen : null;
+    });
+
+    protected readonly welcomeChannels = computed(() =>
+        [...(this.welcomeScreen()?.channels ?? [])].sort((a, b) => a.position - b.position));
+
     /** Maps the tier the server reported to the requirement to spell out to the user. */
     protected readonly blockedReasonKey = computed(() => {
         switch (this.requiredLevel()) {

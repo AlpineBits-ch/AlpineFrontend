@@ -170,6 +170,76 @@ button, a, [role="button"], input, select, textarea, label {
 }
 .dark .p-select-empty-message { color: rgba(255, 255, 255, 0.40); }
 
+/* ── PrimeNG MultiSelect -same treatment as Select ─────────────────────
+   MultiSelect is not among the components overridden in alpine-preset.ts, so
+   without this it resolves Aura's default (light) surface tokens and renders a
+   white trigger and panel against the dark app. Kept in lockstep with the
+   .p-select rules above -any change there belongs here too.
+   ─────────────────────────────────────────────────────────────────────── */
+.dark .p-multiselect {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.09) !important;
+  color: rgba(255, 255, 255, 0.85);
+}
+.dark .p-multiselect:not(.p-disabled):hover { border-color: rgba(255, 255, 255, 0.18) !important; }
+.dark .p-multiselect:not(.p-disabled).p-focus { border-color: var(--color-brand-dim) !important; }
+
+.dark .p-multiselect-label { color: rgba(255, 255, 255, 0.80); }
+.dark .p-multiselect-label.p-placeholder { color: rgba(255, 255, 255, 0.35) !important; }
+.dark .p-multiselect-dropdown { color: rgba(255, 255, 255, 0.40); }
+
+.dark .p-multiselect-overlay {
+  background: #161b27 !important;
+  border-color: rgba(255, 255, 255, 0.09) !important;
+  color: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.50) !important;
+}
+.dark .p-multiselect-header {
+  background: transparent !important;
+  border-bottom-color: rgba(255, 255, 255, 0.09) !important;
+}
+/* The filter box is a plain input, not a pInputText, so it misses that override */
+.dark .p-multiselect-filter {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.09) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+.dark .p-multiselect-option { color: rgba(255, 255, 255, 0.75); }
+.dark .p-multiselect-option:not(.p-disabled):hover,
+.dark .p-multiselect-option.p-focus {
+  background: rgba(255, 255, 255, 0.09) !important;
+  color: rgba(255, 255, 255, 0.95) !important;
+}
+.dark .p-multiselect-option.p-multiselect-option-selected {
+  background: color-mix(in srgb, var(--color-brand) 15%, transparent) !important;
+  color: var(--color-brand-dim) !important;
+}
+.dark .p-multiselect-option.p-multiselect-option-selected:hover,
+.dark .p-multiselect-option.p-multiselect-option-selected.p-focus {
+  background: color-mix(in srgb, var(--color-brand) 22%, transparent) !important;
+  color: color-mix(in srgb, var(--color-brand-dim) 80%, white 20%) !important;
+}
+.dark .p-multiselect-empty-message { color: rgba(255, 255, 255, 0.40); }
+
+/* Selected values render as chips in the trigger when display="chip" */
+.dark .p-multiselect-chip-item .p-chip {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: rgba(255, 255, 255, 0.85) !important;
+}
+
+/* Option checkboxes: Aura's unchecked box is white-on-white here */
+.dark .p-multiselect-option .p-checkbox-box,
+.dark .p-multiselect-header .p-checkbox-box {
+  background: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.18) !important;
+}
+.dark .p-multiselect-option .p-checkbox-checked .p-checkbox-box,
+.dark .p-multiselect-header .p-checkbox-checked .p-checkbox-box {
+  background: var(--color-brand) !important;
+  border-color: var(--color-brand) !important;
+  color: #fff !important;
+}
+
 @theme {
   /* ── Typography ───────────────────────────────────────────
      'Inter Variable' is bundled locally via @fontsource-variable/inter

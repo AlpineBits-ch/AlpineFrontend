@@ -1,4 +1,15 @@
-import {Component, computed, DestroyRef, effect, HostListener, inject, input, signal, ViewChild} from '@angular/core';
+import {
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  HostListener,
+  inject,
+  input,
+  signal,
+  untracked,
+  ViewChild
+} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {firstValueFrom} from 'rxjs';
 import {NgClass} from '@angular/common';
@@ -24,6 +35,7 @@ import {InviteType} from '../../../../dtos/response/invite.dto';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
 import {memberCanManageGuild} from '../../guild-permissions';
+import {GuildFeature, guildFeatures} from '../../guild-features';
 import {
   GuildWebsocketService,
   WsCategoryCreated,
@@ -42,6 +54,8 @@ import {ChannelListItemsComponent} from './components/channel-list-items/channel
 import {
   ChannelDropIndicatorComponent
 } from './components/channel-drop-indicator/channel-drop-indicator.component';
+import {ChannelsAndRolesModalComponent} from '../channels-and-roles/channels-and-roles-modal.component';
+import {GuildOnboardingStateService} from '../../../../services/guild-onboarding-state.service';
 
 @Component({
     selector: 'app-channel-list',
@@ -63,6 +77,7 @@ import {
         CreateCategoryModalComponent,
         PrimeTemplate,
         CallContextMenuComponent,
+        ChannelsAndRolesModalComponent,
         TranslateModule,
     ],
     templateUrl: './channel-list.component.html',
@@ -100,10 +115,35 @@ export class ChannelListComponent {
         [...this.localCategories()].sort((a, b) => a.position - b.position)
     );
     protected isWikiActive = computed(() => this.navService.wikiPanelGuildId() !== null);
+    // ── Modules ───────────────────────────────────────────────────────────────
+    // Hidden, not disabled: a module that's off should be absent from navigation.
+    // Existing channels of a disabled type stay put - switching Forums off blocks
+    // creating them, it doesn't remove the ones already there.
+    protected features = computed(() => guildFeatures(this.guild()));
+    protected hasWiki = computed(() => this.features().has(GuildFeature.Wiki));
+    protected hasEvents = computed(() => this.features().has(GuildFeature.Events));
+    protected hasOnboarding = computed(() => this.features().has(GuildFeature.Onboarding));
+    protected hasModeration = computed(() => this.features().has(GuildFeature.Moderation));
     // ── Modal visibility ──────────────────────────────────────────────────────
     protected showGuildSettings = signal(false);
     protected showChannelSettings = signal(false);
     protected showCategorySettings = signal(false);
+    protected showChannelsAndRoles = signal(false);
+
+    private onboardingState = inject(GuildOnboardingStateService);
+
+    /**
+     * The entry point only appears once we know the guild actually has prompts. The
+     * member status is already fetched for the join gate, so this is free - and hiding
+     * it otherwise avoids offering a screen that would open empty.
+     *
+     * Prompts with `inOnboarding: false` never reach this status payload, so a guild that
+     * uses only those shows no link. That's the accepted cost of not adding a second
+     * fetch on every guild open.
+     */
+    protected hasSelfServeRoles = computed(() =>
+        this.hasOnboarding()
+        && (this.onboardingState.statusFor(this.guild().id)?.prompts?.length ?? 0) > 0);
     // ── Quick invite dialog ───────────────────────────────────────────────────
     protected showInviteDialog = signal(false);
     protected inviteLink = signal('');
@@ -207,6 +247,18 @@ export class ChannelListComponent {
         effect(() => {
             const guildId = this.guild().id;
             this.guildService.getOwnMember(guildId).subscribe(m => this.ownMember.set(m));
+        });
+
+        // Switching a module off while its panel is open would strand that panel in a
+        // sidebar slot whose entry point has just disappeared.
+        effect(() => {
+            const guildId = this.guild().id;
+            const wikiGone = !this.hasWiki() && this.navService.wikiPanelGuildId() === guildId;
+            const eventsGone = !this.hasEvents() && this.navService.eventsPanelGuildId() === guildId;
+            untracked(() => {
+                if (wikiGone) this.navService.closeWikiPanel();
+                if (eventsGone) this.navService.closeEventsPanel();
+            });
         });
 
         this.drag.setup(() => this.guild().id, this.localChannels, this.localCategories);

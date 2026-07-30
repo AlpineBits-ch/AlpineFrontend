@@ -1,6 +1,7 @@
 import {Injectable, signal} from '@angular/core';
 import {ConversationDto} from '../../dtos/response/conversation.dto';
 import {ChannelDto, ChannelType, GuildDto} from '../../dtos/response/guild.dto';
+import {GuildFeature, guildHasFeature} from '../guild/guild-features';
 
 export type WorkspaceContext =
     | { type: 'dms' }
@@ -41,7 +42,9 @@ export class NavigationService {
             this.workspace.set({type: 'server', guild});
             this.wikiPanelGuildId.set(null);
             this.eventsPanelGuildId.set(null);
-            if (state.kind === 'server-wiki') {
+            // A guild that has since switched its Wiki module off would otherwise restore
+            // straight into a wiki with no way back to it in the sidebar.
+            if (state.kind === 'server-wiki' && guildHasFeature(guild, GuildFeature.Wiki)) {
                 this.mainView.set({type: 'wiki', guildId: guild.id});
             } else {
                 const ch = guild.channels.find(c => c.id === state.channelId)

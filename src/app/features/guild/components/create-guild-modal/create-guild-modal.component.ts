@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, inject, model, output, signal} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, model, output, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
@@ -6,15 +6,22 @@ import {InputText} from 'primeng/inputtext';
 import {PrimeTemplate} from 'primeng/api';
 import {GuildService} from '../../../../services/guild.service';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
-import {GuildDto} from '../../../../dtos/response/guild.dto';
+import {GuildDto, GuildKind} from '../../../../dtos/response/guild.dto';
 import {DiscordImportService} from '../../../../services/discord-import.service';
 import {ExternalLinkService} from '../../../../services/external-link.service';
 import {ToastService} from '../../../../services/toast.service';
 import {GuildTemplateService} from '../../../../services/guild-template.service';
 import {GuildTemplateDto} from '../../../../dtos/response/guild-template.dto';
 import {TemplatePreviewComponent} from './template-preview.component';
+import {GUILD_KIND_META, guildKindMeta} from '../../guild-features';
 
-type CreateGuildMode = 'create' | 'template';
+/**
+ * `start` is the fork - make one, clone a template, or pull a Discord server across.
+ * The create path then splits in two because the kind seeds the whole module set:
+ * it's the decision that shapes everything else, and it's far cheaper to answer up
+ * front than to unpick afterwards in settings.
+ */
+type CreateGuildStep = 'start' | 'kind' | 'details' | 'template';
 
 @Component({
     selector: 'app-create-guild-modal',
@@ -30,13 +37,37 @@ export class CreateGuildModalComponent {
     readonly loading = signal(false);
     readonly importingFromDiscord = signal(false);
 
-    readonly mode = signal<CreateGuildMode>('create');
+    readonly step = signal<CreateGuildStep>('start');
+    readonly kind = signal<GuildKind>(GuildKind.Community);
+    readonly kinds = GUILD_KIND_META;
+
     readonly templateInput = signal('');
     readonly templateLoading = signal(false);
     readonly templateNotFound = signal(false);
     readonly template = signal<GuildTemplateDto | null>(null);
     readonly templateGuildName = signal('');
     readonly creatingFromTemplate = signal(false);
+
+    /** Metadata for the chosen kind: its noun, blurb and name placeholder. */
+    readonly selectedKind = computed(() => guildKindMeta(this.kind()));
+
+    /** Only the create path is a numbered journey; the template path is a single screen. */
+    readonly stepNumber = computed(() => this.step() === 'kind' ? 1 : this.step() === 'details' ? 2 : 0);
+    readonly stepCount = 2;
+    readonly stepIndicators = [1, 2];
+
+    readonly title = computed(() => {
+        switch (this.step()) {
+            case 'kind':
+                return 'CREATE_GUILD.STEP_KIND_TITLE';
+            case 'details':
+                return 'CREATE_GUILD.STEP_DETAILS_TITLE';
+            case 'template':
+                return 'CREATE_GUILD.TEMPLATE.TITLE';
+            default:
+                return 'CREATE_GUILD.TITLE';
+        }
+    });
 
     private guildService = inject(GuildService);
     private discordImportService = inject(DiscordImportService);
@@ -64,17 +95,57 @@ export class CreateGuildModalComponent {
         });
     }
 
+    // ── Step navigation ─────────────────────────────────────────────────────
+    showKindStep(): void {
+        if (this.loading() || this.importingFromDiscord()) return;
+        this.step.set('kind');
+    }
+
+    selectKind(kind: GuildKind): void {
+        this.kind.set(kind);
+    }
+
+    /** Double-click / Enter on a kind card commits the choice and moves on in one gesture. */
+    chooseKind(kind: GuildKind): void {
+        this.selectKind(kind);
+        this.step.set('details');
+    }
+
+    continueFromKind(): void {
+        this.step.set('details');
+    }
+
+    back(): void {
+        switch (this.step()) {
+            case 'details':
+                this.step.set('kind');
+                return;
+            case 'kind':
+                this.step.set('start');
+                return;
+            case 'template':
+                this.resetTemplateState();
+                this.step.set('start');
+                return;
+            default:
+                return;
+        }
+    }
+
     submit(): void {
         const trimmed = this.name().trim();
         if (!trimmed || this.loading()) return;
         this.loading.set(true);
-        this.guildService.createGuild(trimmed, this.description().trim() || undefined).subscribe({
+        this.guildService.createGuild(trimmed, this.description().trim() || undefined, this.kind()).subscribe({
             next: guild => {
                 this.loading.set(false);
                 this.guildCreated.emit(guild);
                 this.close();
             },
-            error: () => this.loading.set(false),
+            error: err => {
+                this.loading.set(false);
+                this.toastService.httpError(this.translate.instant('CREATE_GUILD.CREATE_ERROR_TOAST'), err);
+            },
         });
     }
 
@@ -82,21 +153,17 @@ export class CreateGuildModalComponent {
         this.visible.set(false);
         this.name.set('');
         this.description.set('');
+        this.kind.set(GuildKind.Community);
         this.loading.set(false);
         this.importingFromDiscord.set(false);
         this.resetTemplateState();
-        this.mode.set('create');
+        this.step.set('start');
     }
 
     // ── Create from template ────────────────────────────────────────────────
     showTemplateMode(): void {
         if (this.loading() || this.importingFromDiscord()) return;
-        this.mode.set('template');
-    }
-
-    backToCreate(): void {
-        this.resetTemplateState();
-        this.mode.set('create');
+        this.step.set('template');
     }
 
     /** Typing a corrected id must retire the stale "not found" message immediately,
@@ -146,7 +213,7 @@ export class CreateGuildModalComponent {
                         this.creatingFromTemplate.set(false);
                         // The user may have already cancelled/left template mode while this
                         // request was in flight - don't slam the modal shut or navigate away in that case.
-                        if (!this.visible() || this.mode() !== 'template') return;
+                        if (!this.visible() || this.step() !== 'template') return;
                         this.guildCreated.emit(guild);
                         this.close();
                     },
@@ -156,7 +223,7 @@ export class CreateGuildModalComponent {
                         // silently would look like nothing happened and invite the user to
                         // run the template again, creating a duplicate. Say so out loud.
                         this.toastService.httpError(this.translate.instant('CREATE_GUILD.TEMPLATE.CREATE_ERROR_TOAST'), err);
-                        if (!this.visible() || this.mode() !== 'template') return;
+                        if (!this.visible() || this.step() !== 'template') return;
                         this.close();
                     },
                 });
@@ -181,7 +248,7 @@ export class CreateGuildModalComponent {
      *  left template mode, or the input has since changed to point at a different template. */
     private isTemplateLookupStale(requestedId: string): boolean {
         return !this.visible()
-            || this.mode() !== 'template'
+            || this.step() !== 'template'
             || this.extractTemplateId(this.templateInput()) !== requestedId;
     }
 

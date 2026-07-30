@@ -1,10 +1,11 @@
-import {Component, inject, model, output, signal} from '@angular/core';
+import {Component, computed, inject, model, output, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
-import {ChannelDto, GuildDto} from '../../../../dtos/response/guild.dto';
+import {ChannelDto, GuildDto, isForumLike} from '../../../../dtos/response/guild.dto';
 import {ChannelOverviewComponent} from './pages/channel-overview/channel-overview.component';
 import {ChannelPermissionsComponent} from './pages/channel-permissions/channel-permissions.component';
+import {ForumSettingsComponent} from './pages/forum-settings/forum-settings.component';
 import {GuildService} from '../../../../services/guild.service';
 import {PrimeTemplate} from "primeng/api";
 import {TranslateModule} from '@ngx-translate/core';
@@ -17,7 +18,7 @@ interface NavItem {
 
 @Component({
     selector: 'app-channel-settings-modal',
-    imports: [NgClass, Dialog, Button, ChannelOverviewComponent, ChannelPermissionsComponent, PrimeTemplate, TranslateModule],
+    imports: [NgClass, Dialog, Button, ChannelOverviewComponent, ChannelPermissionsComponent, ForumSettingsComponent, PrimeTemplate, TranslateModule],
     templateUrl: './channel-settings-modal.component.html',
 })
 export class ChannelSettingsModalComponent {
@@ -31,10 +32,18 @@ export class ChannelSettingsModalComponent {
     activePage = signal('overview');
     deleting = signal(false);
     confirmDelete = signal(false);
-    navItems: NavItem[] = [
-        {id: 'overview', label: 'Overview', icon: 'pi pi-sliders-h'},
-        {id: 'permissions', label: 'Permissions', icon: 'pi pi-lock'},
-    ];
+    /** Tags and forum config only exist for Forum/Media channels, so that tab is conditional. */
+    navItems = computed<NavItem[]>(() => {
+        const items: NavItem[] = [
+            {id: 'overview', label: 'CHANNEL_SETTINGS.NAV.OVERVIEW', icon: 'pi pi-sliders-h'},
+            {id: 'permissions', label: 'CHANNEL_SETTINGS.NAV.PERMISSIONS', icon: 'pi pi-lock'},
+        ];
+        const channel = this.channel();
+        if (channel && isForumLike(channel.type)) {
+            items.splice(1, 0, {id: 'forum', label: 'CHANNEL_SETTINGS.NAV.FORUM', icon: 'pi pi-tags'});
+        }
+        return items;
+    });
     private guildService = inject(GuildService);
 
     open(channel: ChannelDto, guild: GuildDto): void {
@@ -54,7 +63,7 @@ export class ChannelSettingsModalComponent {
     }
 
     currentLabel(): string {
-        return this.navItems.find(i => i.id === this.activePage())?.label ?? '';
+        return this.navItems().find(i => i.id === this.activePage())?.label ?? '';
     }
 
     onChannelUpdated(c: ChannelDto): void {

@@ -1,0 +1,99 @@
+<div (click)="open.emit(post())"
+     (keydown.enter)="open.emit(post())"
+     [class]="layout() === ForumLayout.Gallery ? 'flex-col gap-3 p-4' : 'gap-3 p-3'"
+     [class.opacity-60]="post().isArchived"
+     class="group relative flex bg-card/60 border border-border-subtle rounded-xl text-left cursor-pointer
+            hover:bg-hover hover:border-border-default transition-colors"
+     role="button"
+     tabindex="0">
+
+    <!-- Author avatar. Sits inline in list rows, above the title in gallery cards. -->
+    <div class="shrink-0" [class.pt-0.5]="layout() !== ForumLayout.Gallery">
+        <app-avatar [userId]="post().createdByUserId" styleClass="!w-6 !h-6 !text-[0.625rem]"/>
+    </div>
+
+    <div class="flex-1 min-w-0 flex flex-col gap-1.5">
+
+        <!-- Title row -->
+        <div class="flex items-start gap-1.5">
+            @if (post().isPinned) {
+                <i [pTooltip]="'FORUM.PINNED' | translate"
+                   class="pi pi-thumbtack text-[0.6875rem] text-brand-dim shrink-0 mt-[0.1875rem]"
+                   tooltipPosition="top"></i>
+            }
+            <span class="text-sm font-semibold text-text-primary leading-snug line-clamp-2 flex-1">
+                {{ post().name }}
+            </span>
+            @if (post().isLocked) {
+                <i [pTooltip]="'FORUM.LOCKED' | translate"
+                   class="pi pi-lock text-[0.6875rem] text-connecting shrink-0 mt-[0.1875rem]"
+                   tooltipPosition="top"></i>
+            }
+            @if (post().isArchived) {
+                <i [pTooltip]="'FORUM.ARCHIVED' | translate"
+                   class="pi pi-inbox text-[0.6875rem] text-text-muted shrink-0 mt-[0.1875rem]"
+                   tooltipPosition="top"></i>
+            }
+        </div>
+
+        <!-- Applied tags -->
+        @if (appliedTags().length > 0) {
+            <div class="flex flex-wrap gap-1">
+                @for (tag of appliedTags(); track tag.id) {
+                    <app-forum-tag-chip [emojiUrl]="emojiUrlFor(tag)" [tag]="tag" size="xs"/>
+                }
+            </div>
+        }
+
+        <!-- Snippet -->
+        @if (post().description) {
+            <p class="text-xs text-text-secondary leading-relaxed m-0"
+               [class]="layout() === ForumLayout.Gallery ? 'line-clamp-4' : 'line-clamp-2'">
+                {{ post().description }}
+            </p>
+        }
+
+        <!-- Meta -->
+        <div class="flex items-center gap-2 text-[0.6875rem] text-text-muted">
+            @if (authorName()) {
+                <span class="truncate max-w-[8rem]">{{ authorName() }}</span>
+                <span class="opacity-40">·</span>
+            }
+            <span class="flex items-center gap-1 shrink-0">
+                <i class="pi pi-comment text-[0.625rem]"></i>
+                <span class="tabular-nums">{{ post().messageCount }}</span>
+            </span>
+            <span class="opacity-40">·</span>
+            <span class="shrink-0">{{ activityAt() | relativeTime: nowTick() }}</span>
+        </div>
+    </div>
+
+    <!-- Moderator actions. Hidden until hover on pointer devices; always reachable via
+         keyboard focus, and always visible on touch where there is no hover. -->
+    @if (canModerate()) {
+        <div class="absolute top-2 right-2 flex items-center gap-0.5 rounded-lg bg-sidebar/90 border border-border-subtle
+                    p-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity
+                    [@media(hover:none)]:opacity-100">
+            <button (click)="emit(post().isPinned ? 'unpin' : 'pin', $event)"
+                    [pTooltip]="(post().isPinned ? 'FORUM.UNPIN' : 'FORUM.PIN') | translate"
+                    class="w-6 h-6 grid place-items-center rounded-md text-text-muted hover:text-text-primary hover:bg-hover transition-colors"
+                    tooltipPosition="top" type="button">
+                <i class="pi pi-thumbtack text-[0.6875rem]"></i>
+            </button>
+            <button (click)="emit(post().isLocked ? 'unlock' : 'lock', $event)"
+                    [pTooltip]="(post().isLocked ? 'FORUM.UNLOCK' : 'FORUM.LOCK') | translate"
+                    class="w-6 h-6 grid place-items-center rounded-md text-text-muted hover:text-text-primary hover:bg-hover transition-colors"
+                    tooltipPosition="top" type="button">
+                <i [class]="post().isLocked ? 'pi pi-lock-open' : 'pi pi-lock'" class="text-[0.6875rem]"></i>
+            </button>
+            @if (!post().isArchived) {
+                <button (click)="emit('archive', $event)"
+                        [pTooltip]="'FORUM.ARCHIVE' | translate"
+                        class="w-6 h-6 grid place-items-center rounded-md text-text-muted hover:text-text-primary hover:bg-hover transition-colors"
+                        tooltipPosition="top" type="button">
+                    <i class="pi pi-inbox text-[0.6875rem]"></i>
+                </button>
+            }
+        </div>
+    }
+</div>

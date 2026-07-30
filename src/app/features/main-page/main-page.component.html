@@ -54,7 +54,7 @@
                 @case ('channel') {
                     @if (view.channel.type === ChannelType.Voice) {
                         <app-voice-channel [channel]="view.channel"/>
-                    } @else if (view.channel.type === ChannelType.Forum) {
+                    } @else if (isForumLike(view.channel.type)) {
                         <app-forum-channel (back)="navService.showHome()" [channel]="view.channel"/>
                     } @else {
                         <app-channel (back)="navService.showHome()" [channel]="view.channel"/>
@@ -85,7 +85,7 @@
         }
 
         @let gateWorkspace = navService.workspace();
-        @if (gateWorkspace.type === 'server') {
+        @if (gateWorkspace.type === 'server' && onboardingEnabled()) {
             <app-onboarding-gate [guildId]="gateWorkspace.guild.id"/>
         }
 

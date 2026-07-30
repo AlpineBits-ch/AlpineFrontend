@@ -28,12 +28,12 @@
                     <div class="px-3">
                         <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest px-3 mb-1">Channel
                             Settings</p>
-                        @for (item of navItems; track item.id) {
+                        @for (item of navItems(); track item.id) {
                             <button (click)="activePage.set(item.id)"
                                     [ngClass]="navItemClasses(item.id)"
                                     class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left">
                                 <i [class]="item.icon" class="text-sm shrink-0"></i>
-                                {{ item.label }}
+                                {{ item.label | translate }}
                             </button>
                         }
                     </div>
@@ -50,12 +50,12 @@
 
                 <!-- Mobile tabs -->
                 <div class="flex sm:hidden items-center gap-1 px-2">
-                    @for (item of navItems; track item.id) {
+                    @for (item of navItems(); track item.id) {
                         <button (click)="activePage.set(item.id)"
                                 [ngClass]="navItemClasses(item.id)"
                                 class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all cursor-pointer border-0 shrink-0">
                             <i [class]="item.icon" class="text-xs"></i>
-                            {{ item.label }}
+                            {{ item.label | translate }}
                         </button>
                     }
                 </div>
@@ -64,7 +64,7 @@
             <!-- ── Content ───────────────────────────────────────────────────────── -->
             <div class="flex-1 flex flex-col min-w-0 overflow-hidden bg-app-bg">
                 <div class="flex items-center justify-between px-6 sm:px-8 py-4 border-b border-white/[0.10] shrink-0">
-                    <h1 class="text-sm font-semibold text-white/85">{{ currentLabel() }}</h1>
+                    <h1 class="text-sm font-semibold text-white/85">{{ currentLabel() | translate }}</h1>
                     <p-button (onClick)="isVisible.set(false)" [text]="true" icon="pi pi-times" severity="secondary"
                               size="small"/>
                 </div>
@@ -73,6 +73,9 @@
                     @switch (activePage()) {
                         @case ('overview') {
                             <app-channel-overview (channelUpdated)="onChannelUpdated($event)" [channel]="channel()!"/>
+                        }
+                        @case ('forum') {
+                            <app-forum-settings [channel]="channel()!"/>
                         }
                         @case ('permissions') {
                             <app-channel-permissions [channel]="channel()!" [guild]="guild()!"/>

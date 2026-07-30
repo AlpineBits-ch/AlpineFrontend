@@ -7,8 +7,15 @@
         <p-button (onClick)="navService.mobileNavOpen.set(true)" [text]="true" class="lg:hidden" icon="pi pi-bars"
                   severity="secondary" size="small" styleClass="mr-1"/>
         <div class="flex items-center gap-2 sm:gap-3 min-w-0">
-            <span class="text-lg font-semibold text-white/30 leading-none shrink-0">#</span>
+            @if (isForumPost()) {
+                <i class="pi pi-comment text-white/30 shrink-0"></i>
+            } @else {
+                <span class="text-lg font-semibold text-white/30 leading-none shrink-0">#</span>
+            }
             <span class="text-sm font-semibold text-white/85 truncate">{{ channel().name }}</span>
+            @if (isLocked()) {
+                <i [title]="'FORUM.LOCKED' | translate" class="pi pi-lock text-connecting text-xs shrink-0"></i>
+            }
             @if (channel().description) {
                 <span class="hidden sm:block text-white/40 text-xs border-l border-white/15 pl-3 ml-1 truncate max-w-xs">
           {{ channel().description }}
@@ -33,7 +40,7 @@
                     </button>
                 }
             </div>
-            @if (channel().type === ChannelType.Text) {
+            @if (channel().type === ChannelType.Text && hasThreads()) {
                 <p-button (onClick)="showThreadPanel.set(!showThreadPanel())" icon="pi pi-comments" [text]="true"
                           [title]="showThreadPanel() ? 'Hide threads' : 'Threads'" severity="secondary" size="small"/>
             }
@@ -46,6 +53,25 @@
             <p-button [text]="true" icon="pi pi-ellipsis-v" severity="secondary" size="small"/>
         </div>
     </header>
+
+    <!-- Forum post tag bar. Only mounts when this thread's parent is a Forum/Media channel. -->
+    @if (isForumPost() && (appliedTags().length > 0 || canEditTags())) {
+        <div class="flex items-center gap-1.5 px-3 sm:px-5 py-2 border-b border-white/[0.06] shrink-0 overflow-x-auto thin-scrollbar">
+            @for (tag of appliedTags(); track tag.id) {
+                <app-forum-tag-chip [emojiUrl]="forumEmojiUrlFor(tag)" [tag]="tag" size="xs"/>
+            }
+            @if (canEditTags()) {
+                <button (click)="openTagDialog()"
+                        class="shrink-0 inline-flex items-center gap-1 rounded-full border border-dashed border-border-default
+                               px-2 py-1 text-[0.625rem] text-text-muted hover:text-text-primary hover:border-border-default
+                               transition-colors"
+                        type="button">
+                    <i class="pi pi-tag text-[0.5rem]"></i>
+                    {{ (appliedTags().length ? 'FORUM.EDIT_TAGS' : 'FORUM.ADD_TAGS') | translate }}
+                </button>
+            }
+        </div>
+    }
 
     <div class="relative flex-1 min-h-0 flex flex-col">
 
@@ -260,16 +286,27 @@
                 </button>
             </div>
         }
-        <app-composer (cancelReply)="onCancelReply()" (message)="createMessage($event)" (typing)="onTyping()" [guildId]="guildId()"
-                      [channelId]="channel().id"
-                      [guildChannels]="guildChannels()"
-                      [guildRoles]="guildRoles()"
-                      [replyTo]="replyingTo()" autofocus
-                      class="block"></app-composer>
+        @if (isLocked()) {
+            <!-- A locked post stays fully readable; only the composer goes away. -->
+            <div class="mx-4 mb-4 flex items-center gap-2.5 rounded-xl border border-border-subtle bg-card/60 px-4 py-3">
+                <i class="pi pi-lock text-connecting text-[0.875rem] shrink-0"></i>
+                <div class="min-w-0">
+                    <p class="text-[0.8125rem] text-text-primary m-0">{{ 'FORUM.LOCKED_TITLE' | translate }}</p>
+                    <p class="text-xs text-text-muted m-0 mt-0.5">{{ 'FORUM.LOCKED_DESC' | translate }}</p>
+                </div>
+            </div>
+        } @else {
+            <app-composer (cancelReply)="onCancelReply()" (message)="createMessage($event)" (typing)="onTyping()" [guildId]="guildId()"
+                          [channelId]="channel().id"
+                          [guildChannels]="guildChannels()"
+                          [guildRoles]="guildRoles()"
+                          [replyTo]="replyingTo()" autofocus
+                          class="block"></app-composer>
+        }
     </footer>
 
 </div>
-    @if (showThreadPanel()) {
+    @if (showThreadPanel() && hasThreads()) {
         <app-thread-panel (threadSelected)="navService.openChannel($event)" [parentChannelId]="channel().id"
                            class="w-64 shrink-0 border-l border-white/[0.08]"/>
     }
@@ -283,3 +320,19 @@
     <app-follow-channel-dialog [(visible)]="showFollowDialog" [sourceChannelId]="channel().id"
                                 [sourceChannelName]="channel().name"/>
 }
+
+<!-- Forum post tag editor -->
+<p-dialog (visibleChange)="showTagDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
+          [style]="{width: '420px'}" [visible]="showTagDialog()" appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">{{ 'FORUM.EDIT_TAGS' | translate }}</span>
+    </ng-template>
+    <app-forum-tag-picker [(selected)]="tagDraft" [canUseModerated]="canUseModeratedTags()"
+                          [emojiUrls]="forumEmojiUrls()" [tags]="forumTags()"/>
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="showTagDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
+                  severity="secondary"/>
+        <p-button (onClick)="saveTags()" [label]="'COMMON.SAVE' | translate" [loading]="savingTags()"
+                  severity="primary"/>
+    </ng-template>
+</p-dialog>

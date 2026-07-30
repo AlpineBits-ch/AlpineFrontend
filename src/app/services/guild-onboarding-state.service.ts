@@ -2,7 +2,10 @@ import {inject, Injectable, signal} from '@angular/core';
 import {TranslateService} from '@ngx-translate/core';
 import {GuildSafetyService} from './guild-safety.service';
 import {ToastService} from './toast.service';
-import {OnboardingStatus} from '../dtos/response/guild-safety.dto';
+import {OnboardingResponse, OnboardingStatus} from '../dtos/response/guild-safety.dto';
+
+/** What a failed status read falls back to: no onboarding, nothing gated. */
+const NOT_GATED: OnboardingStatus = {enabled: false, completed: true, defaultChannelIds: [], prompts: []};
 
 /**
  * Caches each guild's onboarding status for the current member. Onboarding is a
@@ -13,6 +16,7 @@ import {OnboardingStatus} from '../dtos/response/guild-safety.dto';
 export class GuildOnboardingStateService {
     private readonly statuses = signal<Record<string, OnboardingStatus>>({});
     private readonly requested = new Set<string>();
+    private readonly accepting = signal(false);
     private safety = inject(GuildSafetyService);
     private toast = inject(ToastService);
     private translate = inject(TranslateService);
@@ -21,8 +25,25 @@ export class GuildOnboardingStateService {
         return this.statuses()[guildId];
     }
 
+    isAccepting(): boolean {
+        return this.accepting();
+    }
+
+    /**
+     * Gated on `enabled`, not just `completed`. A member who joined while onboarding was
+     * on and had it turned off under them keeps `completed: false` forever but is not
+     * restricted - keying off `completed` alone strands them on an empty rules screen.
+     *
+     * `enabled` only exists on the post-parity payload. Against a server still returning
+     * the v1 shape the field is absent, and treating that as "disabled" would silently
+     * drop the rules gate entirely - so fall back to "is there anything to show".
+     */
     pendingForGuild(guildId: string): boolean {
-        return this.statuses()[guildId]?.completed === false;
+        const status = this.statuses()[guildId];
+        if (!status || status.completed) return false;
+
+        const enabled = status.enabled ?? (!!status.rulesText || (status.prompts?.length ?? 0) > 0);
+        return enabled;
     }
 
     loadFor(guildId: string): void {
@@ -35,22 +56,35 @@ export class GuildOnboardingStateService {
                 // A failed status read must not gate the UI: the server is the real
                 // enforcement point, so the worst case of assuming "not pending" is a
                 // send that comes back 403, not an unmoderated guild.
-                this.statuses.update(m => ({...m, [guildId]: {completed: true, defaultChannelIds: []}}));
+                this.statuses.update(m => ({...m, [guildId]: NOT_GATED}));
             },
         });
     }
 
-    accept(guildId: string): void {
-        this.safety.acceptOnboarding(guildId).subscribe({
-            next: () => this.statuses.update(m => ({
-                ...m,
-                [guildId]: {...(m[guildId] ?? {defaultChannelIds: []}), completed: true},
-            })),
+    /**
+     * `onDone` fires only on success. Roles and channel access change here, so callers
+     * use it to re-fetch the guild - the local channel list is stale the moment this
+     * resolves.
+     */
+    accept(guildId: string, responses: OnboardingResponse[] = [], onDone?: () => void): void {
+        if (this.accepting()) return;
+        this.accepting.set(true);
+
+        this.safety.acceptOnboarding(guildId, responses).subscribe({
+            next: () => {
+                this.accepting.set(false);
+                this.statuses.update(m => ({
+                    ...m,
+                    [guildId]: {...(m[guildId] ?? NOT_GATED), completed: true},
+                }));
+                onDone?.();
+            },
             error: err => {
                 // Leave the cached status untouched on failure - the guild stays pending
-                // and the gate's accept button is never disabled, so the user can just
-                // retry. Surface the failure here (not in the gate component) since this
-                // is where the request and its outcome both live.
+                // and the accept button is never disabled, so the user can just retry.
+                // Surface the failure here (not in the wizard) since this is where the
+                // request and its outcome both live.
+                this.accepting.set(false);
                 this.toast.httpError(this.translate.instant('ONBOARDING_GATE.ACCEPT_ERROR'), err);
             },
         });

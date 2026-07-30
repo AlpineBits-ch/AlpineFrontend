@@ -1,0 +1,150 @@
+<p-dialog [(visible)]="visible" [breakpoints]="{'720px': '94vw'}" [draggable]="false" [modal]="true"
+          [resizable]="false" [style]="{width: '660px', maxHeight: '86vh'}" appendTo="body">
+
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">
+            {{ (prompt() ? 'ONBOARDING_EDIT.EDIT_PROMPT' : 'ONBOARDING_EDIT.NEW_PROMPT') | translate }}
+        </span>
+    </ng-template>
+
+    <div class="flex flex-col gap-5">
+
+        <!-- Question -->
+        <label class="flex flex-col gap-1.5">
+            <span class="text-xs font-medium text-text-secondary">{{ 'ONBOARDING_EDIT.QUESTION' | translate }}</span>
+            <input (ngModelChange)="patch({title: $event})" [maxlength]="limits.titleLength" [ngModel]="draft().title"
+                   [placeholder]="'ONBOARDING_EDIT.QUESTION_PLACEHOLDER' | translate" pInputText type="text"/>
+        </label>
+
+        <!-- Behaviour -->
+        <div class="grid gap-3 sm:grid-cols-2">
+            <label class="flex flex-col gap-1.5">
+                <span class="text-xs font-medium text-text-secondary">{{ 'ONBOARDING_EDIT.TYPE' | translate }}</span>
+                <p-select (ngModelChange)="patch({type: $event})" [ngModel]="draft().type" [options]="typeOptions()"
+                          appendTo="body" optionLabel="label" optionValue="value" styleClass="w-full"/>
+            </label>
+
+            <div class="flex flex-col gap-2 justify-end pb-1">
+                <label class="flex items-center justify-between gap-3">
+                    <span class="text-xs text-text-secondary">{{ 'ONBOARDING_EDIT.SINGLE_SELECT' | translate }}</span>
+                    <p-toggleswitch (ngModelChange)="patch({singleSelect: $event})" [ngModel]="draft().singleSelect"/>
+                </label>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-3 p-3 rounded-xl bg-card/60 border border-border-subtle">
+            <label class="flex items-start justify-between gap-4">
+                <span class="min-w-0">
+                    <span class="block text-sm text-text-primary">{{ 'ONBOARDING_EDIT.REQUIRED' | translate }}</span>
+                    <span class="block text-xs text-text-muted mt-0.5">{{ 'ONBOARDING_EDIT.REQUIRED_DESC' | translate }}</span>
+                </span>
+                <p-toggleswitch (ngModelChange)="patch({required: $event})" [ngModel]="draft().required"/>
+            </label>
+
+            <label class="flex items-start justify-between gap-4">
+                <span class="min-w-0">
+                    <span class="block text-sm text-text-primary">{{ 'ONBOARDING_EDIT.IN_ONBOARDING' | translate }}</span>
+                    <span class="block text-xs text-text-muted mt-0.5">{{ 'ONBOARDING_EDIT.IN_ONBOARDING_DESC' | translate }}</span>
+                </span>
+                <p-toggleswitch (ngModelChange)="patch({inOnboarding: $event})" [ngModel]="draft().inOnboarding"/>
+            </label>
+        </div>
+
+        <!-- Options -->
+        <div class="flex flex-col gap-3">
+            <div class="flex items-center justify-between gap-3">
+                <span class="text-xs font-semibold uppercase tracking-wider text-text-muted">
+                    {{ 'ONBOARDING_EDIT.OPTIONS' | translate }}
+                </span>
+                <div class="flex items-center gap-2">
+                    <span class="text-[0.6875rem] tabular-nums text-text-muted">
+                        {{ draft().options.length }}/{{ limits.optionsPerPrompt }}
+                    </span>
+                    <p-button (onClick)="addOption()" [disabled]="atOptionCap()"
+                              [label]="'ONBOARDING_EDIT.ADD_OPTION' | translate" icon="pi pi-plus" severity="secondary"
+                              size="small"/>
+                </div>
+            </div>
+
+            @if (draft().options.length === 0) {
+                <div class="flex flex-col items-center gap-2 py-8 rounded-xl border border-dashed border-border-subtle">
+                    <i class="pi pi-list text-xl text-white/10"></i>
+                    <p class="text-xs text-text-muted m-0">{{ 'ONBOARDING_EDIT.OPTIONS_EMPTY' | translate }}</p>
+                </div>
+            }
+
+            @for (option of draft().options; track $index) {
+                <div class="flex flex-col gap-2.5 p-3 rounded-xl bg-card/60 border border-border-subtle">
+
+                    <div class="flex items-center gap-2">
+                        <input (ngModelChange)="patchOption($index, {emoji: $event || null})" [maxlength]="8"
+                               [ngModel]="option.emoji ?? ''" class="w-14 text-center" pInputText
+                               [placeholder]="'ONBOARDING_EDIT.EMOJI' | translate" type="text"/>
+                        <input (ngModelChange)="patchOption($index, {title: $event})" [maxlength]="limits.titleLength"
+                               [ngModel]="option.title" [placeholder]="'ONBOARDING_EDIT.OPTION_TITLE' | translate"
+                               class="flex-1 min-w-0" pInputText type="text"/>
+
+                        <div class="flex flex-col shrink-0">
+                            <button (click)="moveOption($index, -1)" [disabled]="$index === 0"
+                                    [attr.aria-label]="'ONBOARDING_EDIT.MOVE_UP' | translate"
+                                    class="h-3.5 w-5 grid place-items-center text-text-muted hover:text-text-primary disabled:opacity-25 transition-colors"
+                                    type="button">
+                                <i class="pi pi-chevron-up text-[0.5rem]"></i>
+                            </button>
+                            <button (click)="moveOption($index, 1)" [disabled]="$index === draft().options.length - 1"
+                                    [attr.aria-label]="'ONBOARDING_EDIT.MOVE_DOWN' | translate"
+                                    class="h-3.5 w-5 grid place-items-center text-text-muted hover:text-text-primary disabled:opacity-25 transition-colors"
+                                    type="button">
+                                <i class="pi pi-chevron-down text-[0.5rem]"></i>
+                            </button>
+                        </div>
+
+                        <p-button (onClick)="removeOption($index)" [text]="true" icon="pi pi-trash" severity="danger"
+                                  size="small"/>
+                    </div>
+
+                    <input (ngModelChange)="patchOption($index, {description: $event || null})"
+                           [maxlength]="limits.descriptionLength" [ngModel]="option.description ?? ''"
+                           [placeholder]="'ONBOARDING_EDIT.OPTION_DESCRIPTION' | translate" pInputText type="text"/>
+
+                    <div class="grid gap-2 sm:grid-cols-2">
+                        <p-multiSelect (ngModelChange)="patchOption($index, {roleIds: $event})" [filter]="true"
+                                       [ngModel]="option.roleIds" [options]="roleOptions()"
+                                       [placeholder]="'ONBOARDING_EDIT.GRANTS_ROLES' | translate"
+                                       [selectionLimit]="limits.rolesPerOption" appendTo="body"
+                                       optionDisabled="disabled" optionLabel="label" optionValue="value"
+                                       styleClass="w-full"/>
+
+                        <p-multiSelect (ngModelChange)="patchOption($index, {channelIds: $event})" [filter]="true"
+                                       [ngModel]="option.channelIds" [options]="channelOptions()"
+                                       [placeholder]="'ONBOARDING_EDIT.GRANTS_CHANNELS' | translate"
+                                       [selectionLimit]="limits.channelsPerOption" appendTo="body" optionLabel="label"
+                                       optionValue="value" styleClass="w-full"/>
+                    </div>
+
+                    @if (option.roleIds.length === 0 && option.channelIds.length === 0) {
+                        <p class="text-[0.6875rem] text-connecting m-0 flex items-center gap-1.5">
+                            <i class="pi pi-exclamation-triangle text-[0.625rem]"></i>
+                            {{ 'ONBOARDING_EDIT.ERR_OPTION_EMPTY' | translate }}
+                        </p>
+                    }
+                </div>
+            }
+        </div>
+
+        @if (showValidation() && errors().length > 0) {
+            <div class="flex flex-col gap-1 rounded-xl border border-offline/40
+                        bg-[color-mix(in_srgb,var(--color-offline)_10%,transparent)] p-3">
+                @for (error of errors(); track error) {
+                    <p class="text-xs text-offline m-0">{{ error | translate }}</p>
+                }
+            </div>
+        }
+    </div>
+
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="visible.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
+                  severity="secondary"/>
+        <p-button (onClick)="commit()" [label]="'COMMON.SAVE' | translate" severity="primary"/>
+    </ng-template>
+</p-dialog>

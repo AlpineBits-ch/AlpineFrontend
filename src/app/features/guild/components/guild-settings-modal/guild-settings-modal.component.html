@@ -54,7 +54,7 @@
                     </div>
                 </div>
 
-                @for (group of navGroups; track group.title) {
+                @for (group of navGroups(); track group.title) {
                     <div class="px-3 mb-4">
                         <p class="text-[0.625rem] font-semibold text-white/25 uppercase tracking-widest px-3 mb-1">
                             {{ group.title | translate }}
@@ -74,7 +74,7 @@
 
             <!-- Mobile: flat tab bar -->
             <div class="flex sm:hidden items-center gap-1 px-2">
-                @for (group of navGroups; track group.title) {
+                @for (group of navGroups(); track group.title) {
                     @for (item of group.items; track item.id) {
                         <button (click)="requestPage(item.id)"
                                 [attr.aria-current]="activePage() === item.id ? 'page' : null"
@@ -105,6 +105,9 @@
                     @case ('overview') {
                         <app-overview-settings (dirtyChange)="onPageDirtyChange($event)" (guildDeleted)="guildDeleted.emit($event)" (guildUpdated)="onGuildUpdated($event)" [guild]="guild()"/>
                     }
+                    @case ('modules') {
+                        <app-modules-settings (guildUpdated)="onGuildUpdated($event)" [guild]="guild()"/>
+                    }
                     @case ('members') {
                         <app-members-settings [guild]="guild()"/>
                     }
@@ -133,7 +136,7 @@
                         <app-audit-log-settings [guild]="guild()"/>
                     }
                     @case ('onboarding') {
-                        <app-onboarding-settings [guild]="guild()"/>
+                        <app-onboarding-settings (dirtyChange)="onPageDirtyChange($event)" [guild]="guild()"/>
                     }
                 }
             </div>

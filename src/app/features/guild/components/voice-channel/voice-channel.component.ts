@@ -15,6 +15,7 @@ import {
   CallParticipantTileComponent
 } from '../../../../shared/call/call-participant-tile/call-participant-tile.component';
 import {CallControlsBarComponent} from '../../../../shared/call/call-controls-bar/call-controls-bar.component';
+import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {CallScreenLayoutComponent} from '../../../../shared/call/call-screen-layout/call-screen-layout.component';
 import {CallParticipant, CallParticipantMenuData, CallScreenShare} from '../../../../shared/call/call.types';
 import {TranslateModule} from '@ngx-translate/core';
@@ -96,6 +97,11 @@ export class VoiceChannelComponent {
         const m = this.ownMember();
         if (!m) return false;
         return hasPermission(parsePermissions(m.permissions), Permissions.Superadmin);
+    });
+    /** Kick and ban belong to the Moderation module, which a guild can have switched off. */
+    protected hasModeration = computed(() => {
+        const ws = this.navService.workspace();
+        return ws.type !== 'server' || guildHasFeature(ws.guild, GuildFeature.Moderation);
     });
 
     // ── Context menu ───────────────────────────────────────────────────────────

@@ -15,6 +15,8 @@ import {EmojiSettingsComponent} from './pages/emoji-settings/emoji-settings.comp
 import {ModerationSettingsComponent} from './pages/moderation-settings/moderation-settings.component';
 import {OnboardingSettingsComponent} from './pages/onboarding-settings/onboarding-settings.component';
 import {TemplatesSettingsComponent} from './pages/templates-settings/templates-settings.component';
+import {ModulesSettingsComponent} from './pages/modules-settings/modules-settings.component';
+import {GuildFeature, guildFeatures} from '../../guild-features';
 import {TranslateModule} from '@ngx-translate/core';
 import {PrimeTemplate} from 'primeng/api';
 import {GuildService} from '../../../../services/guild.service';
@@ -57,6 +59,7 @@ interface NavGroup {
         ModerationSettingsComponent,
         OnboardingSettingsComponent,
         TemplatesSettingsComponent,
+        ModulesSettingsComponent,
         TranslateModule,
         PrimeTemplate,
     ],
@@ -107,29 +110,49 @@ export class GuildSettingsModalComponent {
     guildIconUrl = computed(() =>
         `${environment.apiUrl}/api/v1/guild/guilds/${this.guild().id}/icon`
     );
-    navGroups: NavGroup[] = [
-        {
-            title: 'GUILD_SETTINGS.NAV.GROUP_SERVER',
-            items: [
-                {id: 'overview', label: 'GUILD_SETTINGS.NAV.OVERVIEW', icon: 'pi pi-home'},
-                {id: 'members', label: 'GUILD_SETTINGS.NAV.MEMBERS', icon: 'pi pi-users'},
-                {id: 'roles', label: 'GUILD_SETTINGS.NAV.ROLES', icon: 'pi pi-shield'},
-                {id: 'bans', label: 'GUILD_SETTINGS.NAV.BANS', icon: 'pi pi-ban'},
-                {id: 'moderation', label: 'GUILD_SETTINGS.NAV.MODERATION', icon: 'pi pi-filter'},
-                {id: 'audit-log', label: 'GUILD_SETTINGS.NAV.AUDIT_LOG', icon: 'pi pi-history'},
-            ],
-        },
-        {
-            title: 'GUILD_SETTINGS.NAV.GROUP_COMMUNITY',
-            items: [
-                {id: 'invites', label: 'GUILD_SETTINGS.NAV.INVITES', icon: 'pi pi-link'},
-                {id: 'emojis', label: 'GUILD_SETTINGS.NAV.EMOJIS', icon: 'pi pi-face-smile'},
-                {id: 'templates', label: 'GUILD_SETTINGS.NAV.TEMPLATES', icon: 'pi pi-clone'},
-                {id: 'discord-sync', label: 'GUILD_SETTINGS.NAV.DISCORD_SYNC', icon: 'pi pi-discord'},
-                {id: 'onboarding', label: 'GUILD_SETTINGS.NAV.ONBOARDING', icon: 'pi pi-book'},
-            ],
-        },
-    ];
+    /**
+     * Modules a guild has switched off are *absent* here, not disabled - a household
+     * should never see a Bans tab it can't press. `modules` itself is never gated: it
+     * is how a module gets switched back on, so hiding it would be a one-way door.
+     */
+    navGroups = computed<NavGroup[]>(() => {
+        const features = guildFeatures(this.guild());
+        const groups: NavGroup[] = [
+            {
+                title: 'GUILD_SETTINGS.NAV.GROUP_SERVER',
+                items: [
+                    {id: 'overview', label: 'GUILD_SETTINGS.NAV.OVERVIEW', icon: 'pi pi-home'},
+                    {id: 'modules', label: 'GUILD_SETTINGS.NAV.MODULES', icon: 'pi pi-th-large'},
+                    {id: 'members', label: 'GUILD_SETTINGS.NAV.MEMBERS', icon: 'pi pi-users'},
+                    {id: 'roles', label: 'GUILD_SETTINGS.NAV.ROLES', icon: 'pi pi-shield'},
+                    ...(features.has(GuildFeature.Moderation)
+                        ? [{id: 'bans', label: 'GUILD_SETTINGS.NAV.BANS', icon: 'pi pi-ban'}]
+                        : []),
+                    ...(features.has(GuildFeature.AutoMod)
+                        ? [{id: 'moderation', label: 'GUILD_SETTINGS.NAV.MODERATION', icon: 'pi pi-filter'}]
+                        : []),
+                    ...(features.has(GuildFeature.Moderation)
+                        ? [{id: 'audit-log', label: 'GUILD_SETTINGS.NAV.AUDIT_LOG', icon: 'pi pi-history'}]
+                        : []),
+                ],
+            },
+            {
+                title: 'GUILD_SETTINGS.NAV.GROUP_COMMUNITY',
+                items: [
+                    {id: 'invites', label: 'GUILD_SETTINGS.NAV.INVITES', icon: 'pi pi-link'},
+                    ...(features.has(GuildFeature.Emojis)
+                        ? [{id: 'emojis', label: 'GUILD_SETTINGS.NAV.EMOJIS', icon: 'pi pi-face-smile'}]
+                        : []),
+                    {id: 'templates', label: 'GUILD_SETTINGS.NAV.TEMPLATES', icon: 'pi pi-clone'},
+                    {id: 'discord-sync', label: 'GUILD_SETTINGS.NAV.DISCORD_SYNC', icon: 'pi pi-discord'},
+                    ...(features.has(GuildFeature.Onboarding)
+                        ? [{id: 'onboarding', label: 'GUILD_SETTINGS.NAV.ONBOARDING', icon: 'pi pi-book'}]
+                        : []),
+                ],
+            },
+        ];
+        return groups.filter(group => group.items.length > 0);
+    });
 
     constructor() {
         // Esc bypasses `requestClose`, so a page can be left dirty. Clearing on close
@@ -149,6 +172,19 @@ export class GuildSettingsModalComponent {
             // untracked: the load writes the very signals `access` is built from, and a
             // tracked read of them here would re-run this effect on every write.
             untracked(() => this.loadOwnMember(guildId));
+        });
+
+        // Switching a module off from the modules page can pull the page the user is
+        // standing on out from under them - most obviously turning Moderation off while
+        // looking at Bans. Fall back rather than render a page that no longer has a tab.
+        effect(() => {
+            const visible = this.navGroups().some(g => g.items.some(i => i.id === this.activePage()));
+            if (visible) return;
+            untracked(() => {
+                this.pendingPage.set(null);
+                this.pageDirty.set(false);
+                this.activePage.set('overview');
+            });
         });
 
         // A failed icon load is about one guild only. Without this reset the fallback
@@ -213,7 +249,7 @@ export class GuildSettingsModalComponent {
     }
 
     currentLabel(): string {
-        for (const g of this.navGroups) {
+        for (const g of this.navGroups()) {
             const found = g.items.find(i => i.id === this.activePage());
             if (found) return found.label;
         }

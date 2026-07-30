@@ -51,6 +51,7 @@
             }
         </button>
 
+        @if (moderationEnabled()) {
         <button (click)="kick.emit()"
                 class="flex items-center gap-2 w-full px-2.5 py-[7px] rounded-md border-0 bg-transparent text-[13px] font-medium cursor-pointer text-left transition-colors text-rose-400 hover:bg-rose-500/[0.12]">
             <svg fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
@@ -68,6 +69,7 @@
             </svg>
             Ban
         </button>
+        }
     }
 
 </div>

@@ -40,10 +40,54 @@ describe('GuildSafetyService', () => {
         req.flush({completed: false, rulesText: 'be nice', defaultChannelIds: []});
     });
 
-    it('posts an empty body when accepting', () => {
+    /** An entirely empty body is rejected by the model binder before the endpoint runs. */
+    it('always posts a JSON body when accepting, even with no prompts', () => {
         service.acceptOnboarding('g1').subscribe();
         const req = http.expectOne(`${base}/guilds/g1/onboarding/accept`);
         expect(req.request.method).toBe('POST');
+        expect(req.request.body).toEqual({responses: []});
         req.flush({});
+    });
+
+    it('carries prompt responses through accept', () => {
+        service.acceptOnboarding('g1', [{promptId: 'onbp_1', optionIds: ['onbo_1', 'onbo_2']}]).subscribe();
+        const req = http.expectOne(`${base}/guilds/g1/onboarding/accept`);
+        expect(req.request.body).toEqual({responses: [{promptId: 'onbp_1', optionIds: ['onbo_1', 'onbo_2']}]});
+        req.flush({});
+    });
+
+    it('reads every prompt with the member picks marked', () => {
+        service.getMyPrompts('g1').subscribe();
+        const req = http.expectOne(`${base}/guilds/g1/onboarding/prompts`);
+        expect(req.request.method).toBe('GET');
+        req.flush([]);
+    });
+
+    it('PUTs the complete response set, not a delta', () => {
+        const responses = [{promptId: 'onbp_1', optionIds: []}];
+        service.setMyResponses('g1', responses).subscribe();
+        const req = http.expectOne(`${base}/guilds/g1/onboarding/me/responses`);
+        expect(req.request.method).toBe('PUT');
+        expect(req.request.body).toEqual({responses});
+        req.flush(null);
+    });
+
+    it('reads and writes the welcome screen', () => {
+        service.getWelcomeScreen('g1').subscribe();
+        http.expectOne(`${base}/guilds/g1/welcome-screen`).flush({enabled: false, channels: []});
+
+        const screen = {enabled: true, description: 'hi', channels: []};
+        service.updateWelcomeScreen('g1', screen).subscribe();
+        const req = http.expectOne(`${base}/guilds/g1/welcome-screen`);
+        expect(req.request.method).toBe('PUT');
+        expect(req.request.body).toEqual(screen);
+        req.flush(screen);
+    });
+
+    it('pages the pending-member list', () => {
+        service.getPendingMembers('g1', 50, 100).subscribe();
+        const req = http.expectOne(`${base}/guilds/g1/members/pending?limit=50&offset=100`);
+        expect(req.request.method).toBe('GET');
+        req.flush([]);
     });
 });

@@ -1,4 +1,4 @@
-import {Component, inject, input, model, signal} from '@angular/core';
+import {Component, computed, effect, inject, input, model, signal, untracked} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
@@ -7,6 +7,7 @@ import {PrimeTemplate} from 'primeng/api';
 import {TranslateModule} from '@ngx-translate/core';
 import {ChannelType} from '../../../../../../dtos/response/guild.dto';
 import {GuildService} from '../../../../../../services/guild.service';
+import {GuildFeature, GuildFeatureSet} from '../../../../guild-features';
 
 @Component({
     selector: 'app-create-channel-modal',
@@ -16,14 +17,37 @@ import {GuildService} from '../../../../../../services/guild.service';
 export class CreateChannelModalComponent {
     isVisible = model.required<boolean>();
     guildId = input.required<string>();
+    /** The guild's module set: a channel type whose module is off can't be created at all. */
+    guildFeatures = input.required<GuildFeatureSet>();
 
     protected readonly ChannelType = ChannelType;
+    /**
+     * Text has no module behind it - a guild without text channels would be an empty
+     * room - so it is always offered. The rest each answer to one flag.
+     */
+    protected canVoice = computed(() => this.guildFeatures().has(GuildFeature.VoiceChannels));
+    /** One flag covers Forum *and* Media; they are the same channel drawn two ways. */
+    protected canForum = computed(() => this.guildFeatures().has(GuildFeature.Forums));
+    protected canAnnouncement = computed(() => this.guildFeatures().has(GuildFeature.Announcements));
+    protected hasTypeChoice = computed(() => this.canVoice() || this.canForum() || this.canAnnouncement());
     protected name = signal('');
     protected type = signal<ChannelType>(ChannelType.Text);
     protected creating = signal(false);
     protected categoryId = signal<string | undefined>(undefined);
     private position = signal(0);
     private guildService = inject(GuildService);
+
+    constructor() {
+        // A second admin can switch a module off while this dialog is open. Creating that
+        // type would come back a 400, so the selection falls back to the one type that is
+        // never gated rather than leaving a dead Create button.
+        effect(() => {
+            const stranded = (this.type() === ChannelType.Voice && !this.canVoice())
+                || ((this.type() === ChannelType.Forum || this.type() === ChannelType.Media) && !this.canForum())
+                || (this.type() === ChannelType.Announcement && !this.canAnnouncement());
+            if (stranded) untracked(() => this.type.set(ChannelType.Text));
+        });
+    }
 
     open(categoryId: string | undefined, position: number): void {
         this.name.set('');

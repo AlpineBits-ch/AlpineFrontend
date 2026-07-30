@@ -11,6 +11,7 @@ import {ReorderChannesDto} from "../dtos/request/reorder-channel.dto";
 import {ReorderRolesDto} from "../dtos/request/reorder-roles.dto";
 import {ProfileService} from "./profile.service";
 import {OnlineStatus} from "../dtos/response/profile.dto";
+import {ForumConfig, ForumTag} from "../dtos/response/forum.dto";
 
 export interface ChannelTypingEvent {
     channelId: string;
@@ -190,6 +191,49 @@ export interface WsThreadCreated {
     channelId: string;
     parentChannelId: string;
     guildId: string;
+    /** Forum posts only; absent for text-channel threads. */
+    tagIds?: string[];
+}
+
+/**
+ * Applied-tag changes, pins, locks, renames and archives all arrive here rather
+ * than as separate events. The payload carries the full current state of those
+ * flags, so treat it as a replace, not a patch.
+ */
+export interface WsThreadUpdated {
+    channelId: string;
+    parentChannelId: string;
+    guildId: string;
+    name?: string;
+    tagIds?: string[];
+    isPinned?: boolean;
+    isLocked?: boolean;
+    isArchived?: boolean;
+}
+
+export interface WsForumTagEvent {
+    guildId: string;
+    channelId: string;
+    tag: ForumTag;
+}
+
+export interface WsForumTagDeleted {
+    guildId: string;
+    channelId: string;
+    tagId: string;
+}
+
+export interface WsForumTagsReordered {
+    guildId: string;
+    channelId: string;
+    /** The full ordered list, not a delta. */
+    tagIds: string[];
+}
+
+export interface WsForumConfigUpdated {
+    guildId: string;
+    channelId: string;
+    config: ForumConfig;
 }
 
 export interface WsEmojiCreated {
@@ -322,6 +366,13 @@ export class GuildWebsocketService {
     public rolesReorderedObservable = new Subject<ReorderRolesDto>();
     public channelUpdatedObservable = new Subject<WsChannelUpdated>();
     public threadCreatedObservable = new Subject<WsThreadCreated>();
+    public threadUpdatedObservable = new Subject<WsThreadUpdated>();
+    // ── Forums ──────────────────────────────────────────────────────────────────
+    public forumTagCreatedObservable = new Subject<WsForumTagEvent>();
+    public forumTagUpdatedObservable = new Subject<WsForumTagEvent>();
+    public forumTagDeletedObservable = new Subject<WsForumTagDeleted>();
+    public forumTagsReorderedObservable = new Subject<WsForumTagsReordered>();
+    public forumConfigUpdatedObservable = new Subject<WsForumConfigUpdated>();
     public emojiCreatedObservable = new Subject<WsEmojiCreated>();
     public emojiDeletedObservable = new Subject<WsEmojiDeleted>();
     // ── Presence ────────────────────────────────────────────────────────────────
@@ -434,6 +485,12 @@ export class GuildWebsocketService {
         this.realtime.on('guild.RolesReordered', (d: ReorderRolesDto) => this.rolesReorderedObservable.next(d));
         this.realtime.on('guild.ChannelUpdated', (d: WsChannelUpdated) => this.channelUpdatedObservable.next(d));
         this.realtime.on('guild.ThreadCreated', (d: WsThreadCreated) => this.threadCreatedObservable.next(d));
+        this.realtime.on('guild.ThreadUpdated', (d: WsThreadUpdated) => this.threadUpdatedObservable.next(d));
+        this.realtime.on('guild.ForumTagCreated', (d: WsForumTagEvent) => this.forumTagCreatedObservable.next(d));
+        this.realtime.on('guild.ForumTagUpdated', (d: WsForumTagEvent) => this.forumTagUpdatedObservable.next(d));
+        this.realtime.on('guild.ForumTagDeleted', (d: WsForumTagDeleted) => this.forumTagDeletedObservable.next(d));
+        this.realtime.on('guild.ForumTagsReordered', (d: WsForumTagsReordered) => this.forumTagsReorderedObservable.next(d));
+        this.realtime.on('guild.ForumConfigUpdated', (d: WsForumConfigUpdated) => this.forumConfigUpdatedObservable.next(d));
         this.realtime.on('guild.EmojiCreated', (d: WsEmojiCreated) => this.emojiCreatedObservable.next(d));
         this.realtime.on('guild.EmojiDeleted', (d: WsEmojiDeleted) => this.emojiDeletedObservable.next(d));
         this.realtime.on('guild.EventCreated', (d: WsEventCreated) => this.eventCreatedObservable.next(d));

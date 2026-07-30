@@ -10,6 +10,11 @@ import {CallParticipantMenuData} from '../call.types';
 export class CallContextMenuComponent {
     menu = input.required<CallParticipantMenuData>();
     isSuperadmin = input<boolean>(false);
+    /**
+     * Whether the guild has its Moderation module on. Kick and ban answer to it, server
+     * deafen doesn't - and a DM call has no guild at all, hence the permissive default.
+     */
+    moderationEnabled = input<boolean>(true);
 
     close = output<void>();
     volumeChange = output<number>();
