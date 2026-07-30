@@ -2,6 +2,7 @@ export enum ChannelType {
     Text = 'Text',
     Voice = 'Voice',
     Thread = 'Thread',
+    Forum = 'Forum',
 }
 
 export interface ChannelDto {
