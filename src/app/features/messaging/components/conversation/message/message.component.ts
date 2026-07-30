@@ -268,6 +268,7 @@ export class MessageComponent {
     // no separate permission bit exists for it.
     protected canPublish = computed(() => this.channelType() === ChannelType.Announcement && this.canPin());
     protected published = signal(false);
+    protected publishing = signal(false);
     readonly longPressMenu = signal(false);
     readonly isEditing = signal(false);
     readonly editText = signal('');
@@ -578,18 +579,25 @@ export class MessageComponent {
     }
 
     protected publish(): void {
-        if (this.published()) return;
+        if (this.published() || this.publishing()) return;
         // No server-side re-publish guard exists: a second call sends duplicate copies to
-        // every follower. Latch locally the moment the request succeeds.
+        // every follower. Latch locally the moment the request succeeds - and set the
+        // in-flight flag synchronously, before subscribing, so a second click before the
+        // response arrives can't slip through and fire a duplicate request.
+        this.publishing.set(true);
         this.messagingService.publishMessage(this.message().id).subscribe({
             next: res => {
                 this.published.set(true);
+                this.publishing.set(false);
                 this.toast.success(
                     res.published === 0
                         ? this.translate.instant('MESSAGE.PUBLISH_NO_FOLLOWERS')
                         : this.translate.instant('MESSAGE.PUBLISH_SUCCESS', {count: res.published}));
             },
-            error: err => this.toast.httpError(this.translate.instant('MESSAGE.PUBLISH_FAILED'), err),
+            error: err => {
+                this.publishing.set(false);
+                this.toast.httpError(this.translate.instant('MESSAGE.PUBLISH_FAILED'), err);
+            },
         });
     }
 }

@@ -94,7 +94,7 @@
                     [isOwn]="isOwn()"
                     [isPinned]="!!message().isPinned"
                     [canPublish]="canPublish()"
-                    [isPublished]="published()"
+                    [isPublished]="published() || publishing()"
                     (publish)="publish()"/>
         }
 
