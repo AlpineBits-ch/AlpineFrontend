@@ -37,6 +37,10 @@
                 <p-button (onClick)="showThreadPanel.set(!showThreadPanel())" icon="pi pi-comments" [text]="true"
                           [title]="showThreadPanel() ? 'Hide threads' : 'Threads'" severity="secondary" size="small"/>
             }
+            @if (channel().type === ChannelType.Announcement) {
+                <p-button (onClick)="showFollowDialog.set(true)" icon="pi pi-plus-circle" [text]="true"
+                          [title]="'CHANNEL.FOLLOW' | translate" severity="secondary" size="small"/>
+            }
             <p-button (onClick)="showPinnedPanel.set(!showPinnedPanel())" [text]="true" icon="pi pi-thumbtack"
                       [title]="showPinnedPanel() ? 'Hide pinned messages' : 'Pinned messages'" severity="secondary" size="small"/>
             <p-button [text]="true" icon="pi pi-ellipsis-v" severity="secondary" size="small"/>
@@ -218,7 +222,8 @@
                                              [guildId]="guildId()"
                                              [guildRoles]="guildRoles()"
                                              [isGrouped]="row.isGrouped"
-                                             [message]="row.message"></app-message>
+                                             [message]="row.message"
+                                             [channelType]="channel().type"></app-message>
                             }
                         </div>
                     }
@@ -260,3 +265,8 @@
                                     class="flex flex-col w-64 shrink-0 border-l border-white/[0.08]"/>
     }
 </div>
+
+@if (channel().type === ChannelType.Announcement) {
+    <app-follow-channel-dialog [(visible)]="showFollowDialog" [sourceChannelId]="channel().id"
+                                [sourceChannelName]="channel().name"/>
+}

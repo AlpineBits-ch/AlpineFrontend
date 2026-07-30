@@ -43,6 +43,8 @@ import {HighlightPipe} from '../../../../pipes/highlight.pipe';
 import {TypingDotsComponent} from '../../../../components/typing-dots/typing-dots.component';
 import {ThreadPanelComponent} from './thread-panel/thread-panel.component';
 import {PinnedMessagesPanelComponent} from '../../../messaging/components/pinned-messages-panel/pinned-messages-panel.component';
+import {FollowChannelDialogComponent} from '../follow-channel-dialog/follow-channel-dialog.component';
+import {TranslateModule} from '@ngx-translate/core';
 
 const SCROLL_BOTTOM_THRESHOLD = 100;
 const LOAD_MORE_THRESHOLD = 400;
@@ -61,7 +63,7 @@ function decodeContent(encoded: string): string {
     imports: [
         ComposerComponent, MessageComponent, SystemMessageComponent, Button,
         DatePipe, HighlightPipe, TypingDotsComponent, ThreadPanelComponent,
-        PinnedMessagesPanelComponent,
+        PinnedMessagesPanelComponent, FollowChannelDialogComponent, TranslateModule,
     ],
     templateUrl: './channel.component.html',
     styleUrl: './channel.component.css',
@@ -83,6 +85,7 @@ export class ChannelComponent implements AfterViewInit {
     protected replyingTo = signal<MessageDto | null>(null);
     protected showThreadPanel = signal(false);
     protected showPinnedPanel = signal(false);
+    protected showFollowDialog = signal(false);
     protected readonly ChannelType = ChannelType;
     protected readonly MessageType = MessageType;
     protected searchQuery = signal('');
@@ -222,6 +225,7 @@ export class ChannelComponent implements AfterViewInit {
             this.searchQuery.set('');
             this.showThreadPanel.set(false);
             this.showPinnedPanel.set(false);
+            this.showFollowDialog.set(false);
         });
 
         afterEveryRender(() => {

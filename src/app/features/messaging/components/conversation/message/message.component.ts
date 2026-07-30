@@ -40,9 +40,10 @@ import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {CreateReactionDto} from '../../../../../dtos/request/create-reaction.dto';
 import {RemoveReactionDto} from '../../../../../dtos/request/remove-reaction.dto';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {UserNameStyleDirective} from '../../../../../directives/user-name-style.directive';
 import {EmojiSelection} from './reaction-picker/reaction-picker.component';
+import {ToastService} from '../../../../../services/toast.service';
 
 @Component({
     selector: 'app-message',
@@ -79,6 +80,7 @@ export class MessageComponent {
     public guildId = input<string | undefined>();
     public isGrouped = input<boolean>(false);
     public canPinMessages = input<boolean>(false);
+    public channelType = input<ChannelType | undefined>();
     public reply = output<MessageDto>();
     public jumpTo = output<string>();
 
@@ -262,6 +264,10 @@ export class MessageComponent {
         this.message().authorId === this.profileService.ownProfile()?.userId
     );
     readonly canPin = computed(() => !this.message().conversationId ? this.canPinMessages() : true);
+    // Publishing (announcement cross-posting) reuses the PinMessages permission deliberately -
+    // no separate permission bit exists for it.
+    protected canPublish = computed(() => this.channelType() === ChannelType.Announcement && this.canPin());
+    protected published = signal(false);
     readonly longPressMenu = signal(false);
     readonly isEditing = signal(false);
     readonly editText = signal('');
@@ -310,6 +316,8 @@ export class MessageComponent {
     private messagingService = inject(MessagingService);
     private messageStore = inject(MessageStore);
     private destroyRef = inject(DestroyRef);
+    private toast = inject(ToastService);
+    private translate = inject(TranslateService);
     @ViewChild('editArea') private editAreaRef?: ElementRef<HTMLTextAreaElement>;
     private readonly replyCtx = computed(() => ({
         id: this.message().inReplyTo,
@@ -567,5 +575,21 @@ export class MessageComponent {
                 error: () => this.messageStore.applyUnpinned({messageId: msg.id, authorId: msg.authorId, unpinnedById: own}),
             });
         }
+    }
+
+    protected publish(): void {
+        if (this.published()) return;
+        // No server-side re-publish guard exists: a second call sends duplicate copies to
+        // every follower. Latch locally the moment the request succeeds.
+        this.messagingService.publishMessage(this.message().id).subscribe({
+            next: res => {
+                this.published.set(true);
+                this.toast.success(
+                    res.published === 0
+                        ? this.translate.instant('MESSAGE.PUBLISH_NO_FOLLOWERS')
+                        : this.translate.instant('MESSAGE.PUBLISH_SUCCESS', {count: res.published}));
+            },
+            error: err => this.toast.httpError(this.translate.instant('MESSAGE.PUBLISH_FAILED'), err),
+        });
     }
 }

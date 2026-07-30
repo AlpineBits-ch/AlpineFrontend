@@ -92,7 +92,10 @@
                     [canPin]="canPin()"
                     [guildId]="guildId()"
                     [isOwn]="isOwn()"
-                    [isPinned]="!!message().isPinned"/>
+                    [isPinned]="!!message().isPinned"
+                    [canPublish]="canPublish()"
+                    [isPublished]="published()"
+                    (publish)="publish()"/>
         }
 
         <!-- Edit mode -->
