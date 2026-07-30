@@ -14,9 +14,9 @@
 - **Tasks 1-4 are a behaviour-preserving refactor.** The only intended visible change is the toolbar moving from inside the channel header to a row beneath it. Anything else that looks different is a bug.
 - **Mobile behaviour must not change at all.** The pane is `hidden lg:flex`; below `lg` the post still replaces the list and `(back)` still returns to it.
 - **Tests:** Vitest via the Angular builder. `.spec.ts` for services and pure helpers only - no component-template tests.
-  - Single pure-helper file: `npx vitest run <path>`.
-  - Full suite: `./node_modules/.bin/ng test --watch=false`. Baseline is **57 files / 685 tests, all passing** - any failure is yours.
-  - **Never** run bare `npx vitest run` with no path: it bypasses the Angular builder and reports ~50 spurious file failures.
+  - **One file:** `./node_modules/.bin/ng test --watch=false --include=<path>`. Use this, not bare `npx vitest`.
+  - Full suite: `./node_modules/.bin/ng test --watch=false`. Baseline is **57 files / 692 tests, all passing** - any failure is yours.
+  - **Never** run bare `npx vitest run`, with or without a path. Without a path it reports ~50 spurious file failures. With a path it works *only* for a spec that imports nothing from Angular - and both spec files in this plan import Angular (`HttpErrorResponse`, `TestBed`), so it fails on them for environmental reasons that look like real failures.
   - `npx ng` does not resolve in this repo. Use `./node_modules/.bin/ng`.
 - **Build:** `./node_modules/.bin/ng build --configuration development`.
 - **Tailwind tokens:** `bg-app-bg`, `bg-card`, `border-border-subtle`, `text-text-muted` etc. Font sizes in rem. Match each file's surrounding conventions rather than modernising untouched lines.
@@ -98,7 +98,7 @@ describe('forumParentOf', () => {
 
 - [ ] **Step 2: Run it and confirm it fails**
 
-Run: `npx vitest run src/app/features/guild/components/channel/channel-utils.spec.ts`
+Run: `./node_modules/.bin/ng test --watch=false --include=src/app/features/guild/components/channel/channel-utils.spec.ts`
 Expected: FAIL — `forumParentOf` is not exported.
 
 - [ ] **Step 3: Implement**
@@ -129,7 +129,7 @@ Add `ChannelType` and `isForumLike` to the file's existing import from `dtos/res
 
 - [ ] **Step 4: Run tests**
 
-Run: `npx vitest run src/app/features/guild/components/channel/channel-utils.spec.ts`
+Run: `./node_modules/.bin/ng test --watch=false --include=src/app/features/guild/components/channel/channel-utils.spec.ts`
 Expected: PASS, including the pre-existing tests in that file.
 
 - [ ] **Step 5: Commit**
@@ -251,7 +251,7 @@ Exercise the service only through its public API — never reach into private si
 
 - [ ] **Step 2: Run it and confirm it fails**
 
-Run: `npx vitest run src/app/services/forum-post-list.service.spec.ts`
+Run: `./node_modules/.bin/ng test --watch=false --include=src/app/services/forum-post-list.service.spec.ts`
 Expected: FAIL — module not found.
 
 - [ ] **Step 3: Implement the service**
@@ -266,7 +266,7 @@ Requirements the tests above pin down:
 
 - [ ] **Step 4: Run tests**
 
-Run: `npx vitest run src/app/services/forum-post-list.service.spec.ts`
+Run: `./node_modules/.bin/ng test --watch=false --include=src/app/services/forum-post-list.service.spec.ts`
 Expected: PASS.
 
 - [ ] **Step 5: Update the `ForumStateService` comment**
