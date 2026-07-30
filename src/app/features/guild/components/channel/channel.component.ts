@@ -24,6 +24,7 @@ import {MessageEncryptionState} from '../../../../enums/message-encryption-state
 import {MessageType} from '../../../../enums/message-type.enum';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
 import {isGroupedWithPrevious} from '../../../messaging/components/conversation/message-utils';
+import {classifyAutoModError} from './channel-utils';
 
 import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
@@ -226,6 +227,7 @@ export class ChannelComponent implements AfterViewInit {
             this.searchQuery.set('');
             this.showThreadPanel.set(false);
             this.showPinnedPanel.set(false);
+            this.autoModError.set(null);
         });
 
         afterEveryRender(() => {
@@ -338,12 +340,12 @@ export class ChannelComponent implements AfterViewInit {
             }),
             catchError((err: HttpErrorResponse) => {
                 this.messageStore.failMessage(tempId);
-                // Auto-mod refusals are a 403 with a structured body. They read very
-                // differently to a user than a generic send failure, so surface the reason
-                // inline by the composer instead of leaving a bare failed-message marker.
-                const body = err?.error as { error?: string; reason?: string } | null;
-                if (err?.status === 403 && body?.error === 'automod_blocked') {
-                    this.autoModError.set(body.reason === 'rate_limited' ? 'rate_limited' : 'blocked_word');
+                // Auto-mod refusals read very differently to a user than a generic send
+                // failure, so surface the reason inline by the composer instead of leaving
+                // a bare failed-message marker.
+                const autoModReason = classifyAutoModError(err);
+                if (autoModReason) {
+                    this.autoModError.set(autoModReason);
                     this.messageStore.removeMessage(tempId);
                 }
                 return EMPTY;
