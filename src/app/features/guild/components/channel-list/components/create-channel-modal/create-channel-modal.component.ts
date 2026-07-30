@@ -8,6 +8,7 @@ import {TranslateModule} from '@ngx-translate/core';
 import {ChannelType} from '../../../../../../dtos/response/guild.dto';
 import {GuildService} from '../../../../../../services/guild.service';
 import {GuildFeature, GuildFeatureSet} from '../../../../guild-features';
+import {channelIcon, HOUSEHOLD_CHANNEL_META, householdFeatureFor} from '../../../../channel-types';
 
 @Component({
     selector: 'app-create-channel-modal',
@@ -29,7 +30,13 @@ export class CreateChannelModalComponent {
     /** One flag covers Forum *and* Media; they are the same channel drawn two ways. */
     protected canForum = computed(() => this.guildFeatures().has(GuildFeature.Forums));
     protected canAnnouncement = computed(() => this.guildFeatures().has(GuildFeature.Announcements));
-    protected hasTypeChoice = computed(() => this.canVoice() || this.canForum() || this.canAnnouncement());
+    /** Only the household types whose module this guild actually has. */
+    protected householdTypes = computed(() =>
+        HOUSEHOLD_CHANNEL_META.filter(meta => meta.feature !== null && this.guildFeatures().has(meta.feature)));
+    protected hasTypeChoice = computed(() =>
+        this.canVoice() || this.canForum() || this.canAnnouncement() || this.householdTypes().length > 0);
+    /** The glyph inside the name field - the same table the sidebar row reads. */
+    protected selectedIcon = computed(() => channelIcon(this.type()));
     protected name = signal('');
     protected type = signal<ChannelType>(ChannelType.Text);
     protected creating = signal(false);
@@ -42,9 +49,12 @@ export class CreateChannelModalComponent {
         // type would come back a 400, so the selection falls back to the one type that is
         // never gated rather than leaving a dead Create button.
         effect(() => {
-            const stranded = (this.type() === ChannelType.Voice && !this.canVoice())
-                || ((this.type() === ChannelType.Forum || this.type() === ChannelType.Media) && !this.canForum())
-                || (this.type() === ChannelType.Announcement && !this.canAnnouncement());
+            const type = this.type();
+            const householdFeature = householdFeatureFor(type);
+            const stranded = (type === ChannelType.Voice && !this.canVoice())
+                || ((type === ChannelType.Forum || type === ChannelType.Media) && !this.canForum())
+                || (type === ChannelType.Announcement && !this.canAnnouncement())
+                || (householdFeature !== null && !this.guildFeatures().has(householdFeature));
             if (stranded) untracked(() => this.type.set(ChannelType.Text));
         });
     }
