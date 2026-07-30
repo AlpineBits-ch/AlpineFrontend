@@ -13,6 +13,7 @@ export interface MessageReaction {
     contextId: string;
     messageId: string;
     emoji: string;
+    emojiId?: string | null;
     userId: string;
     createdAt: string;
     conversationId: string | null;

@@ -219,11 +219,15 @@ export const MessageStore = signalStore(
             const msg = store.entityMap()[event.messageId];
             if (!msg) return;
             const reactions = msg.reactions ?? [];
-            if (reactions.some(r => r.emoji === event.emoji && r.userId === event.userId)) return;
+            const matches = (r: MessageReaction) => event.emojiId
+                ? r.emojiId === event.emojiId && r.userId === event.userId
+                : r.emoji === event.emoji && !r.emojiId && r.userId === event.userId;
+            if (reactions.some(matches)) return;
             const entry: MessageReaction = {
                 contextId: event.conversationId ?? event.channelId ?? '',
                 messageId: event.messageId,
                 emoji: event.emoji,
+                emojiId: event.emojiId ?? null,
                 userId: event.userId,
                 createdAt: new Date().toISOString(),
                 conversationId: event.conversationId ?? null,
@@ -235,9 +239,10 @@ export const MessageStore = signalStore(
         applyReactionRemoved(event: ReactionEvent): void {
             const msg = store.entityMap()[event.messageId];
             if (!msg) return;
-            const reactions = (msg.reactions ?? []).filter(
-                r => !(r.emoji === event.emoji && r.userId === event.userId)
-            );
+            const matches = (r: MessageReaction) => event.emojiId
+                ? r.emojiId === event.emojiId && r.userId === event.userId
+                : r.emoji === event.emoji && !r.emojiId && r.userId === event.userId;
+            const reactions = (msg.reactions ?? []).filter(r => !matches(r));
             patchState(store, updateEntity({id: event.messageId, changes: {reactions}}));
         },
 
