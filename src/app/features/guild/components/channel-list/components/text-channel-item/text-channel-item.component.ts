@@ -1,6 +1,6 @@
 import {Component, computed, inject, input, output} from '@angular/core';
 import {NgClass} from '@angular/common';
-import {ChannelDto} from '../../../../../../dtos/response/guild.dto';
+import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto';
 import {GuildReadStateService} from '../../../../../../services/guild-read-state.service';
 import {NavigationService} from '../../../../../main-page/navigation.service';
 import {ChannelListDragService} from '../../channel-list-drag.service';
@@ -18,6 +18,8 @@ export class TextChannelItemComponent {
 
     readonly open = output<void>();
     readonly openMenu = output<MouseEvent>();
+
+    protected readonly ChannelType = ChannelType;
 
     protected drag = inject(ChannelListDragService);
     private navService = inject(NavigationService);
