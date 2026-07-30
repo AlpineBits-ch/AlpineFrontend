@@ -1,7 +1,7 @@
 import {inject} from '@angular/core';
 import {patchState, signalStore, withHooks, withMethods, withState} from '@ngrx/signals';
 import {removeEntity, updateEntity, upsertEntities, upsertEntity, withEntities} from '@ngrx/signals/entities';
-import {Observable, tap} from 'rxjs';
+import {catchError, defer, Observable, tap, throwError} from 'rxjs';
 import {ScheduledEventService} from '../services/scheduled-event.service';
 import {
     CreateScheduledEventDto,
@@ -80,34 +80,47 @@ export const ScheduledEventStore = signalStore(
             // Soft-cancelled server-side, but the list endpoint excludes cancelled events
             // entirely -so the local copy must be removed, not marked, or a later reload
             // would desync from an in-memory "cancelled" badge that the server never sends.
-            cancel(eventId: string): void {
-                scheduledEventService.cancel(eventId).subscribe({
-                    next: () => patchState(store, removeEntity(eventId)),
-                });
+            // Cold Observable: the entity is only removed - and an error only surfaced -
+            // once the caller subscribes, matching create/update so nothing mutates state
+            // (or silently drops a failure) without the caller opting in.
+            cancel(eventId: string): Observable<void> {
+                return scheduledEventService.cancel(eventId).pipe(
+                    tap(() => patchState(store, removeEntity(eventId))),
+                );
             },
 
-            toggleInterest(event: ScheduledEventDto): void {
-                const wasInterested = event.isInterested;
-                const previousCount = event.interestedCount;
-                const nextInterested = !wasInterested;
-                const nextCount = previousCount + (nextInterested ? 1 : -1);
+            // Cold Observable via defer(): the optimistic patch (and the request it guards)
+            // only happens on subscribe, and a failure rolls both fields back and is still
+            // rethrown to the caller. The pre-call values are read from the store - not from
+            // the caller-supplied `event` - inside the defer body, so an overlapping second
+            // toggle can't roll back to a value that's already stale by the time this one's
+            // request settles.
+            toggleInterest(event: ScheduledEventDto): Observable<void> {
+                return defer(() => {
+                    const current = store.entityMap()[event.id] ?? event;
+                    const wasInterested = current.isInterested;
+                    const previousCount = current.interestedCount;
+                    const nextInterested = !wasInterested;
+                    const nextCount = previousCount + (nextInterested ? 1 : -1);
 
-                patchState(store, updateEntity({
-                    id: event.id,
-                    changes: {isInterested: nextInterested, interestedCount: nextCount},
-                }));
+                    patchState(store, updateEntity({
+                        id: event.id,
+                        changes: {isInterested: nextInterested, interestedCount: nextCount},
+                    }));
 
-                const request = nextInterested
-                    ? scheduledEventService.markInterested(event.id)
-                    : scheduledEventService.removeInterest(event.id);
+                    const request = nextInterested
+                        ? scheduledEventService.markInterested(event.id)
+                        : scheduledEventService.removeInterest(event.id);
 
-                request.subscribe({
-                    error: () => {
-                        patchState(store, updateEntity({
-                            id: event.id,
-                            changes: {isInterested: wasInterested, interestedCount: previousCount},
-                        }));
-                    },
+                    return request.pipe(
+                        catchError(err => {
+                            patchState(store, updateEntity({
+                                id: event.id,
+                                changes: {isInterested: wasInterested, interestedCount: previousCount},
+                            }));
+                            return throwError(() => err);
+                        }),
+                    );
                 });
             },
 
