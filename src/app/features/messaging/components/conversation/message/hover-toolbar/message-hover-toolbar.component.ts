@@ -1,5 +1,5 @@
 import {ChangeDetectionStrategy, Component, input, output} from '@angular/core';
-import {ReactionPickerComponent} from '../reaction-picker/reaction-picker.component';
+import {ReactionPickerComponent, EmojiSelection} from '../reaction-picker/reaction-picker.component';
 import {TranslateModule} from '@ngx-translate/core';
 
 @Component({
@@ -10,11 +10,12 @@ import {TranslateModule} from '@ngx-translate/core';
 })
 export class MessageHoverToolbarComponent {
     isOwn = input.required<boolean>();
+    guildId = input<string | undefined>();
 
     reply = output<void>();
     edit = output<void>();
     delete = output<void>();
-    emojiToggled = output<string>();
+    emojiToggled = output<EmojiSelection>();
 
     readonly quickReactions = ['👍', '❤️', '😂'];
 }
