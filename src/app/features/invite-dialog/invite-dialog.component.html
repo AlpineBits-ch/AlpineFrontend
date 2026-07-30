@@ -54,11 +54,21 @@
                 <p class="text-base font-semibold m-0" style="color: var(--color-text-primary)">
                     {{ inv.guild?.name ?? 'Unknown Server' }}
                 </p>
-                @if (inv.guild?.description) {
-                    <p class="text-xs m-0" style="color: var(--color-text-secondary)">{{ inv.guild!.description }}</p>
-                }
-                @if (inv.state === InviteState.Expired) {
-                    <span class="text-[11px] mt-1" style="color: var(--color-offline)">Invite expired</span>
+                @if (dialogState() === 'blocked') {
+                    <div class="flex flex-col items-center gap-2 mt-2">
+                        <i class="pi pi-shield text-2xl text-offline"></i>
+                        <p class="text-sm font-semibold m-0" style="color: var(--color-text-primary)">
+                            {{ 'INVITE.CANT_JOIN' | translate }}
+                        </p>
+                        <p class="text-xs m-0" style="color: var(--color-text-muted)">{{ blockedReasonKey() | translate }}</p>
+                    </div>
+                } @else {
+                    @if (inv.guild?.description) {
+                        <p class="text-xs m-0" style="color: var(--color-text-secondary)">{{ inv.guild!.description }}</p>
+                    }
+                    @if (inv.state === InviteState.Expired) {
+                        <span class="text-[11px] mt-1" style="color: var(--color-offline)">Invite expired</span>
+                    }
                 }
             </div>
         }
@@ -74,7 +84,7 @@
                     label="Dismiss"
                     severity="secondary"
                     size="small"/>
-            @if (dialogState() !== 'error' && invite()?.state !== InviteState.Expired) {
+            @if (dialogState() !== 'error' && dialogState() !== 'blocked' && invite()?.state !== InviteState.Expired) {
                 @if (dialogState() === 'joined') {
                     <p-button
                             [disabled]="true"
