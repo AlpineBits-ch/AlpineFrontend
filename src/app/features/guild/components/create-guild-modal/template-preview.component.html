@@ -15,7 +15,7 @@
                 <div class="space-y-1 pl-2">
                     @for (channel of category.channels; track channel.name) {
                         <div class="flex items-center gap-2 text-xs text-text-secondary">
-                            <i [class]="'pi ' + channelIcon(channel.type)" class="text-[11px] shrink-0"></i>
+                            <i [class]="'pi ' + channelIcon(channel.type)" class="text-[0.6875rem] shrink-0"></i>
                             <span class="truncate">{{ channel.name }}</span>
                         </div>
                     }
@@ -28,7 +28,7 @@
                 <div class="space-y-1 pl-2">
                     @for (channel of uncategorizedChannels(); track channel.name) {
                         <div class="flex items-center gap-2 text-xs text-text-secondary">
-                            <i [class]="'pi ' + channelIcon(channel.type)" class="text-[11px] shrink-0"></i>
+                            <i [class]="'pi ' + channelIcon(channel.type)" class="text-[0.6875rem] shrink-0"></i>
                             <span class="truncate">{{ channel.name }}</span>
                         </div>
                     }
@@ -48,7 +48,7 @@
             }
         </div>
         <p class="text-[0.625rem] text-text-muted mt-1.5 leading-relaxed">
-            <i class="pi pi-info-circle text-[10px] mr-1"></i>{{ 'CREATE_GUILD.TEMPLATE.REORDER_NOTE' | translate }}
+            <i class="pi pi-info-circle text-[0.625rem] mr-1"></i>{{ 'CREATE_GUILD.TEMPLATE.REORDER_NOTE' | translate }}
         </p>
     </div>
 

@@ -108,10 +108,16 @@ export class CreateGuildModalComponent {
         this.guildTemplateService.get(id).subscribe({
             next: dto => {
                 this.templateLoading.set(false);
+                // The user may have already left template mode or changed the input while this
+                // request was in flight - don't resurrect abandoned template state in that case.
+                if (this.isTemplateLookupStale(id)) return;
                 this.template.set(dto);
             },
             error: err => {
                 this.templateLoading.set(false);
+                // Same stale-response guard as above - a late error for an abandoned lookup
+                // shouldn't surface a "not found" message or toast for state nobody cares about anymore.
+                if (this.isTemplateLookupStale(id)) return;
                 if (err?.status === 404) {
                     this.templateNotFound.set(true);
                 } else {
@@ -131,11 +137,15 @@ export class CreateGuildModalComponent {
                 this.guildService.getGuild(created.id).subscribe({
                     next: guild => {
                         this.creatingFromTemplate.set(false);
+                        // The user may have already cancelled/left template mode while this
+                        // request was in flight - don't slam the modal shut or navigate away in that case.
+                        if (!this.visible() || this.mode() !== 'template') return;
                         this.guildCreated.emit(guild);
                         this.close();
                     },
                     error: () => {
                         this.creatingFromTemplate.set(false);
+                        if (!this.visible() || this.mode() !== 'template') return;
                         this.close();
                     },
                 });
@@ -154,6 +164,14 @@ export class CreateGuildModalComponent {
         this.template.set(null);
         this.templateGuildName.set('');
         this.creatingFromTemplate.set(false);
+    }
+
+    /** True if a lookup for `requestedId` is no longer relevant: the modal closed, the user
+     *  left template mode, or the input has since changed to point at a different template. */
+    private isTemplateLookupStale(requestedId: string): boolean {
+        return !this.visible()
+            || this.mode() !== 'template'
+            || this.extractTemplateId(this.templateInput()) !== requestedId;
     }
 
     /** Accepts a bare template id or a pasted full URL, returning the trailing id segment. */
