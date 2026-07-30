@@ -16,19 +16,22 @@ describe('UserStatusDotComponent', () => {
         await TestBed.configureTestingModule({imports: [UserStatusDotComponent]}).compileComponents();
     });
 
-    it('renders emerald for Online', async () => {
+    // Colors come from the theme tokens in styles.css, not hardcoded palette
+    // classes: --color-online is emerald-400, --color-connecting amber-400,
+    // --color-offline rose-500.
+    it('renders the online token (emerald) for Online', async () => {
         const el = await render(OnlineStatus.Online);
-        expect(el.querySelector('div')?.className).toContain('bg-emerald-400');
+        expect(el.querySelector('div')?.className).toContain('bg-online');
     });
 
-    it('renders amber for Idle', async () => {
+    it('renders the connecting token (amber) for Idle', async () => {
         const el = await render(OnlineStatus.Idle);
-        expect(el.querySelector('div')?.className).toContain('bg-amber-400');
+        expect(el.querySelector('div')?.className).toContain('bg-connecting');
     });
 
-    it('renders rose for DoNotDisturb', async () => {
+    it('renders the offline token (rose) for DoNotDisturb', async () => {
         const el = await render(OnlineStatus.DoNotDisturb);
-        expect(el.querySelector('div')?.className).toContain('bg-rose-500');
+        expect(el.querySelector('div')?.className).toContain('bg-offline');
     });
 
     it('renders muted grey for Offline', async () => {
