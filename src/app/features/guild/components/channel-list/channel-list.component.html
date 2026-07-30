@@ -11,14 +11,16 @@
     </div>
 
     <!-- Wiki quick-link -->
-    <div class="px-2 pt-2 shrink-0">
+    <div class="px-2 pt-2 shrink-0 flex items-center gap-1 mb-1">
         <button (click)="openWiki()"
                 [ngClass]="isWikiActive() ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-                class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer mb-1">
+                class="flex-1 flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer">
             <i [ngClass]="isWikiActive() ? 'text-brand-dim' : 'text-white/35'"
                class="pi pi-book text-[13px] shrink-0"></i>
             <span class="text-[15px] font-medium">{{ 'GUILD.WIKI' | translate }}</span>
         </button>
+        <p-button (onClick)="toggleEvents()" [pTooltip]="'EVENTS.TITLE' | translate" [text]="true"
+                  icon="pi pi-calendar" severity="secondary" size="small" tooltipPosition="bottom"/>
     </div>
 
     <!-- Channel list -->

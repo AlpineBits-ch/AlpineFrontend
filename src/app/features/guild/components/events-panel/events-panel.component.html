@@ -1,0 +1,101 @@
+<div class="hidden lg:flex flex-col w-80 shrink-0 h-full bg-sidebar border-r border-white/[0.10]">
+
+    <!-- Header -->
+    <div class="flex items-center justify-between px-3 py-3 border-b border-white/[0.10] shrink-0">
+        <span class="text-sm font-semibold text-text-primary">{{ 'EVENTS.TITLE' | translate }}</span>
+        @if (canManage()) {
+            <p-button (onClick)="openCreate()" [text]="true" icon="pi pi-plus" severity="secondary" size="small"/>
+        }
+    </div>
+
+    <!-- Body -->
+    <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar p-3 space-y-2">
+
+        @if (upcoming().length === 0) {
+            <p class="text-[0.8125rem] text-text-muted text-center py-6">{{ 'EVENTS.EMPTY' | translate }}</p>
+        } @else {
+            @for (event of upcoming(); track event.id) {
+                <div class="bg-card border border-border rounded-lg p-3">
+                    <div class="text-[0.75rem] text-[var(--color-brand-dim)] uppercase">
+                        {{ event.startsAt | date:'EEE, MMM d · h:mm a' }}
+                    </div>
+                    <div class="text-text-primary font-medium mt-0.5">{{ event.title }}</div>
+
+                    @if (event.description) {
+                        <p class="text-[0.8125rem] text-text-secondary mt-1 line-clamp-2">{{ event.description }}</p>
+                    }
+
+                    @if (event.location) {
+                        <div class="flex items-center gap-1.5 text-[0.75rem] text-text-secondary mt-2">
+                            <i class="pi pi-map-marker"></i>
+                            <span>{{ event.location }}</span>
+                        </div>
+                    }
+
+                    @if (event.voiceChannelId; as voiceChannelId) {
+                        <div class="flex items-center gap-1.5 text-[0.75rem] text-text-secondary mt-1.5">
+                            <i class="pi pi-volume-up"></i>
+                            <span>{{ voiceChannelName(voiceChannelId) }}</span>
+                            <p-button (onClick)="joinVoice(voiceChannelId)" [label]="'EVENTS.JOIN_VOICE' | translate"
+                                      [text]="true" severity="secondary" size="small"/>
+                        </div>
+                    }
+
+                    <div class="flex items-center justify-between mt-2">
+                        <button (click)="toggleInterest(event)"
+                                [class.text-connecting]="event.isInterested"
+                                class="flex items-center gap-1.5 text-[0.75rem] text-text-secondary border-0 bg-transparent cursor-pointer p-0">
+                            <i [class]="event.isInterested ? 'pi pi-star-fill' : 'pi pi-star'"></i>
+                            <span>{{ event.interestedCount }}</span>
+                        </button>
+
+                        @if (canManage()) {
+                            <div class="flex items-center gap-1">
+                                <p-button (onClick)="openEdit(event)" [text]="true" icon="pi pi-pencil"
+                                          severity="secondary" size="small"/>
+                                <p-button (onClick)="confirmCancel(event)" [text]="true" icon="pi pi-trash"
+                                          severity="danger" size="small"/>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+
+        <!-- Past events -->
+        @if (past().length > 0) {
+            <div class="pt-2">
+                <button (click)="showPast.set(!showPast())"
+                        class="flex items-center gap-1.5 text-[0.6875rem] font-semibold text-text-muted uppercase tracking-widest border-0 bg-transparent cursor-pointer px-1 py-1">
+                    <i [class.pi-chevron-right]="!showPast()" [class.pi-chevron-down]="showPast()" class="pi"></i>
+                    {{ 'EVENTS.PAST' | translate }} ({{ past().length }})
+                </button>
+
+                @if (showPast()) {
+                    <div class="space-y-2 mt-1 opacity-50">
+                        @for (event of past(); track event.id) {
+                            <div class="bg-card border border-border rounded-lg p-3">
+                                <div class="text-[0.75rem] text-[var(--color-brand-dim)] uppercase">
+                                    {{ event.startsAt | date:'EEE, MMM d · h:mm a' }}
+                                </div>
+                                <div class="text-text-primary font-medium mt-0.5">{{ event.title }}</div>
+                                @if (event.description) {
+                                    <p class="text-[0.8125rem] text-text-secondary mt-1 line-clamp-2">{{ event.description }}</p>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <!-- Footer -->
+    <div class="px-3 py-2 border-t border-white/[0.10] shrink-0">
+        <p class="text-[0.6875rem] text-text-muted text-center">{{ 'EVENTS.NO_REMINDERS_NOTE' | translate }}</p>
+    </div>
+</div>
+
+<p-confirmdialog appendTo="body"/>
+
+<app-event-editor-dialog [event]="editingEvent()" [guildId]="guildId()" [(visible)]="editorVisible"/>

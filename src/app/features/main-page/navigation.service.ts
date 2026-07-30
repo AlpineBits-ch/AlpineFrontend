@@ -28,6 +28,7 @@ export class NavigationService {
     readonly mobileNavOpen = signal(false);
     readonly mobileSection = signal<'conversations' | 'friends'>('conversations');
     readonly wikiPanelGuildId = signal<string | null>(null);
+    readonly eventsPanelGuildId = signal<string | null>(null);
 
     tryRestoreGuildNav(guilds: GuildDto[]): boolean {
         try {
@@ -39,6 +40,7 @@ export class NavigationService {
             if (!guild) return false;
             this.workspace.set({type: 'server', guild});
             this.wikiPanelGuildId.set(null);
+            this.eventsPanelGuildId.set(null);
             if (state.kind === 'server-wiki') {
                 this.mainView.set({type: 'wiki', guildId: guild.id});
             } else {
@@ -74,6 +76,7 @@ export class NavigationService {
         this.mainView.set({type: 'home'});
         this.mobileSection.set('conversations');
         this.wikiPanelGuildId.set(null);
+        this.eventsPanelGuildId.set(null);
         this.saveNav();
     }
 
@@ -82,6 +85,7 @@ export class NavigationService {
         if (current.type === 'server' && current.guild.id === guild.id) return;
         this.workspace.set({type: 'server', guild});
         this.wikiPanelGuildId.set(null);
+        this.eventsPanelGuildId.set(null);
         const first = guild.channels.find(c => c.type === ChannelType.Text) ?? guild.channels[0];
         if (first) this.mainView.set({type: 'channel', channel: first});
         this.saveNav();
@@ -154,6 +158,11 @@ export class NavigationService {
             }
             this.saveNav();
         }
+    }
+
+    /** Pure toggle -unlike the wiki panel, events have no dedicated main-view route, so opening/closing both go through the same header button. */
+    toggleEventsPanel(guildId: string): void {
+        this.eventsPanelGuildId.update(current => current === guildId ? null : guildId);
     }
 
     private saveNav(): void {
