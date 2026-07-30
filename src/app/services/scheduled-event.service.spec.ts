@@ -31,6 +31,15 @@ describe('ScheduledEventService', () => {
         req.flush([]);
     });
 
+    it('creates an event under the guild', () => {
+        const dto = {title: 'My Event', startsAt: '2026-08-01T10:00:00Z'};
+        service.create('g1', dto).subscribe();
+        const req = http.expectOne(`${base}/guilds/g1/events`);
+        expect(req.request.method).toBe('POST');
+        expect(req.request.body).toEqual(dto);
+        req.flush({});
+    });
+
     it('updates an event by id, not under the guild', () => {
         service.update('e1', {title: 'x'}).subscribe();
         const req = http.expectOne(`${base}/events/e1`);
