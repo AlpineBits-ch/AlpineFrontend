@@ -21,6 +21,16 @@
             title="Reply">
         <i class="pi pi-reply -scale-x-100 text-[10px]"></i></button>
 
+    @if (canPin()) {
+        <button (click)="pinToggled.emit()"
+                [class.text-brand-dim]="isPinned()"
+                class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-white/75
+               hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-colors"
+                [title]="isPinned() ? 'Unpin message' : 'Pin message'">
+            <i class="pi pi-thumbtack text-[10px]"></i>
+        </button>
+    }
+
     @if (isOwn()) {
         <button (click)="edit.emit()"
                 class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-white/75
