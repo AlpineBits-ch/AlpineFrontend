@@ -202,11 +202,17 @@ Six new groups follow, one per module: Lists, Chores, Ledger, Pantry, Decisions,
 existing `permissions.enum.spec.ts` coverage assertion keeps this honest - all eleven keys must
 be grouped or the suite fails.
 
-**Consumers filter rather than disable.** `permission-toggle` and `bot-install-consent` hide a
-group whose `feature` is off for the guild in question. §10.2 of the guide is explicit that a
-`403` here usually means "the guild doesn't have that module", and that "your house doesn't do
-money" and "you're not allowed to see the money" must not look the same. Hiding is also what the
-rest of this codebase already does for modules (`channel.component.ts:98`).
+**Consumers filter rather than disable.** `permission-toggle` - the editor behind both the roles
+and members settings pages - hides a group whose `feature` is off for the guild in question.
+§10.2 of the guide is explicit that a `403` here usually means "the guild doesn't have that
+module", and that "your house doesn't do money" and "you're not allowed to see the money" must
+not look the same. Hiding is also what the rest of this codebase already does for modules
+(`channel.component.ts:98`).
+
+`bot-install-consent` is deliberately **excluded** from this filtering. It enumerates the
+permissions a bot has *requested*, and hiding a requested permission would understate what the
+user is about to grant. A consent screen must show everything being asked for, module or no
+module.
 
 `permission-override-editor`'s local `PERM_GROUPS` gets the same eleven permissions, but gated on
 **channel type** rather than guild features, because these resolve per channel: a `Ledger`
