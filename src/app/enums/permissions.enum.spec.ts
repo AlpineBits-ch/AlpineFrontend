@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {diffPermissions, hasPermission, permissionLabel, PERM_GROUPS, Permissions, PermissionKey, stringifyPermissions} from './permissions.enum';
+import {diffPermissions, hasPermission, parsePermissions, permissionLabel, PERM_GROUPS, Permissions, PermissionKey, stringifyPermissions} from './permissions.enum';
 
 describe('Permissions moderation bits', () => {
     it('defines KickMembers at bit 32', () => {
@@ -24,6 +24,15 @@ describe('Permissions moderation bits', () => {
 
     it('defines ManageEmojis at bit 37', () => {
         expect(Permissions.ManageEmojis).toBe(1n << 37n);
+    });
+
+    it('exposes ManageEvents at bit 38, matching the backend enum', () => {
+        expect(Permissions.ManageEvents).toBe(1n << 38n);
+    });
+
+    it('round-trips ManageEvents through the serializer', () => {
+        expect(stringifyPermissions(Permissions.ManageEvents)).toBe('ManageEvents');
+        expect(parsePermissions('ManageEvents')).toBe(Permissions.ManageEvents);
     });
 
     it('does not collide with any existing bit (0-31, 63)', () => {
