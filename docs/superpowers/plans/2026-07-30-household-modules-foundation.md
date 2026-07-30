@@ -15,7 +15,11 @@
 - **This foundation makes no HTTP calls.** No services, stores, DTOs or WebSocket subjects for any module. Those belong to the eight per-module plans that follow.
 - **A module being off makes its UI absent, not disabled.** Existing precedent: `channel.component.ts:98`.
 - **Permission wire format is comma-separated names**, never a bitmask. Bit positions are client-internal.
-- **Tests:** Vitest. `.spec.ts` for pure helpers and enums only - no component-template tests. Run a single file with `npx vitest run <path>`.
+- **Tests:** Vitest, driven by the Angular builder. `.spec.ts` for pure helpers and enums only - no component-template tests.
+  - **Single pure-helper file** (no Angular imports): `npx vitest run <path>` is fine and fast.
+  - **The full suite:** `./node_modules/.bin/ng test --watch=false`. Baseline is **57 files / 679 tests, all passing** - any failure is yours.
+  - **Never** run bare `npx vitest run` with no path. It bypasses the Angular builder's setup, so every component spec fails to import and it reports ~50 spurious file failures. That number is an artifact of the wrong command, not a broken suite.
+  - `npx ng ...` does not resolve in this repo; use `./node_modules/.bin/ng`.
 - **i18n:** `src/assets/i18n/locales` is a **git submodule**. Keys are flat and dot-separated. All three of `en.json`, `de.json`, `fr.json` are maintained in parallel. Submodule changes need their own commit *inside* the submodule, then the parent repo's pointer bump.
 - **Tailwind tokens:** use `bg-card`, `border-border`, `text-text-muted` etc. - never raw hex. Font sizes in rem (`text-[0.8125rem]`), never px.
 - **Angular style:** `input.required<T>()` / `output<T>()` / `computed()`, `protected` members when template-only, `private` for injected services.
@@ -611,7 +615,7 @@ Create `src/app/features/guild/components/unsupported-channel/unsupported-channe
 
 - [ ] **Step 3: Verify it compiles**
 
-Run: `npx ng build --configuration development`
+Run: `./node_modules/.bin/ng build --configuration development`
 Expected: build succeeds. (The component is not yet mounted; this only proves it type-checks.)
 
 - [ ] **Step 4: Commit**
@@ -710,7 +714,7 @@ with:
 
 - [ ] **Step 3: Verify the build**
 
-Run: `npx ng build --configuration development`
+Run: `./node_modules/.bin/ng build --configuration development`
 Expected: build succeeds with no unused-import or unknown-element errors.
 
 - [ ] **Step 4: Re-run the routing test**
@@ -780,7 +784,7 @@ In `text-channel-item.component.html`, replace lines 11-27 (the `[ngClass]` line
 
 - [ ] **Step 3: Verify the build**
 
-Run: `npx ng build --configuration development`
+Run: `./node_modules/.bin/ng build --configuration development`
 Expected: build succeeds.
 
 - [ ] **Step 4: Commit**
@@ -1083,7 +1087,7 @@ and add to `members-settings.component.ts` - import `computed` from `@angular/co
 
 - [ ] **Step 5: Verify the build**
 
-Run: `npx ng build --configuration development`
+Run: `./node_modules/.bin/ng build --configuration development`
 Expected: build succeeds.
 
 - [ ] **Step 6: Commit**
@@ -1212,7 +1216,7 @@ Leave `category-permissions.component.html` untouched - it correctly passes noth
 
 - [ ] **Step 6: Verify the build**
 
-Run: `npx ng build --configuration development`
+Run: `./node_modules/.bin/ng build --configuration development`
 Expected: build succeeds.
 
 - [ ] **Step 7: Commit**
@@ -1384,13 +1388,13 @@ In the same file, replace the leading-glyph `<span>` (lines 73-85) with:
 
 - [ ] **Step 5: Verify the build**
 
-Run: `npx ng build --configuration development`
+Run: `./node_modules/.bin/ng build --configuration development`
 Expected: build succeeds.
 
 - [ ] **Step 6: Run the full test suite**
 
-Run: `npx vitest run`
-Expected: PASS - no regressions anywhere in the suite.
+Run: `./node_modules/.bin/ng test --watch=false`
+Expected: PASS - 57 files / 679 tests, matching the baseline. No regressions.
 
 - [ ] **Step 7: Commit**
 
@@ -1403,7 +1407,7 @@ git commit -m "feat: offer household channel types in the create-channel picker"
 
 ## Manual verification
 
-After Task 9, confirm the two behaviours that no unit test covers. Run `npx ng serve` (port 1420) or the Tauri shell.
+After Task 9, confirm the two behaviours that no unit test covers. Run `./node_modules/.bin/ng serve` (port 1420) or the Tauri shell.
 
 1. **A Community guild is unchanged.** Open any existing server: the channel sidebar, the create-channel modal (five chat types, no "Household" section, no group headers if only Text is available), and the roles settings permission list (no Lists/Chores/Ledger/Pantry/Decisions/Guests groups) all look exactly as they did before.
 2. **A household channel is inert.** In a Household guild, open `# groceries`: it shows the placeholder with the list icon and the "List" chip, **and no message composer anywhere on screen**. This is the single behaviour the whole plan exists to guarantee.
