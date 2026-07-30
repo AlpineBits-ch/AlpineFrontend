@@ -28,9 +28,15 @@ export class InviteDialogComponent {
     protected readonly dialogState = signal<DialogState>('loading');
     protected readonly iconFailed = signal(false);
     protected readonly requiredLevel = signal<string | null>(null);
-    protected readonly InviteState = InviteState;
 
     protected readonly visible = computed(() => this.inviteDialogService.inviteId() !== null);
+
+    /**
+     * Derived here rather than exposing the InviteState enum to the template. Re-exporting
+     * an enum as a field couples the view to module-evaluation order, which is fragile
+     * under the test runner's module graph, and a boolean is what the template actually wants.
+     */
+    protected readonly isExpired = computed(() => this.invite()?.state === InviteState.Expired);
 
     protected readonly guildIconUrl = computed(() => {
         const id = this.invite()?.guild?.id;

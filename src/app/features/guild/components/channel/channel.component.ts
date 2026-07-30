@@ -47,7 +47,6 @@ import {TypingDotsComponent} from '../../../../components/typing-dots/typing-dot
 import {ThreadPanelComponent} from './thread-panel/thread-panel.component';
 import {PinnedMessagesPanelComponent} from '../../../messaging/components/pinned-messages-panel/pinned-messages-panel.component';
 import {FollowChannelDialogComponent} from '../follow-channel-dialog/follow-channel-dialog.component';
-import {TranslateModule} from '@ngx-translate/core';
 
 const SCROLL_BOTTOM_THRESHOLD = 100;
 const LOAD_MORE_THRESHOLD = 400;

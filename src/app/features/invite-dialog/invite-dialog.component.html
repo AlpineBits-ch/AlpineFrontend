@@ -66,7 +66,7 @@
                     @if (inv.guild?.description) {
                         <p class="text-xs m-0" style="color: var(--color-text-secondary)">{{ inv.guild!.description }}</p>
                     }
-                    @if (inv.state === InviteState.Expired) {
+                    @if (isExpired()) {
                         <span class="text-[11px] mt-1" style="color: var(--color-offline)">Invite expired</span>
                     }
                 }
@@ -84,7 +84,7 @@
                     label="Dismiss"
                     severity="secondary"
                     size="small"/>
-            @if (dialogState() !== 'error' && dialogState() !== 'blocked' && invite()?.state !== InviteState.Expired) {
+            @if (dialogState() !== 'error' && dialogState() !== 'blocked' && !isExpired()) {
                 @if (dialogState() === 'joined') {
                     <p-button
                             [disabled]="true"

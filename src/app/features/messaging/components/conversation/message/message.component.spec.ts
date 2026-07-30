@@ -36,8 +36,13 @@ function messageFixture(overrides: Partial<MessageDto> = {}): MessageDto {
     };
 }
 
-function setup() {
-    TestBed.configureTestingModule({
+async function setup() {
+    // configureTestingModule must not run against a TestBed another spec file left
+    // instantiated, and compileComponents returns a promise that has to be awaited -
+    // leaving it floating lets it settle during a later file's test and corrupts the
+    // shared TestBed singleton.
+    TestBed.resetTestingModule();
+    await TestBed.configureTestingModule({
         imports: [MessageComponent],
         providers: [
             provideHttpClient(),
@@ -75,8 +80,8 @@ const PUBLISH_URL = `${BASE}/api/v1/messaging/messaging/m1/publish`;
 describe('MessageComponent publish()', () => {
     afterEach(() => TestBed.inject(HttpTestingController).verify());
 
-    it('sends exactly one POST when publish() is called twice before the first response arrives (double-click race)', () => {
-        const {component, ctrl} = setup();
+    it('sends exactly one POST when publish() is called twice before the first response arrives (double-click race)', async () => {
+        const {component, ctrl} = await setup();
 
         (component as unknown as { publish(): void }).publish();
         (component as unknown as { publish(): void }).publish();
@@ -86,8 +91,8 @@ describe('MessageComponent publish()', () => {
         // would already have thrown for finding 2 matching requests.
     });
 
-    it('latches published() and clears publishing() after a successful publish', () => {
-        const {component, ctrl} = setup();
+    it('latches published() and clears publishing() after a successful publish', async () => {
+        const {component, ctrl} = await setup();
         const c = component as unknown as { publish(): void; published: () => boolean; publishing: () => boolean };
 
         c.publish();
@@ -101,8 +106,8 @@ describe('MessageComponent publish()', () => {
         expect(c.publishing()).toBe(false);
     });
 
-    it('releases publishing() without latching published() after a failed publish, allowing a retry', () => {
-        const {component, ctrl} = setup();
+    it('releases publishing() without latching published() after a failed publish, allowing a retry', async () => {
+        const {component, ctrl} = await setup();
         const c = component as unknown as { publish(): void; published: () => boolean; publishing: () => boolean };
 
         c.publish();
@@ -118,8 +123,8 @@ describe('MessageComponent publish()', () => {
         expect(c.published()).toBe(true);
     });
 
-    it('routes {published: 0} to the success toast, not the error toast', () => {
-        const {component, ctrl, messageService} = setup();
+    it('routes {published: 0} to the success toast, not the error toast', async () => {
+        const {component, ctrl, messageService} = await setup();
         const c = component as unknown as { publish(): void };
         const addSpy = vi.spyOn(messageService, 'add');
 
@@ -131,8 +136,8 @@ describe('MessageComponent publish()', () => {
         expect(addSpy.mock.calls[0][0]).toEqual(expect.objectContaining({severity: 'success'}));
     });
 
-    it('picks the singular translation key when exactly one channel received the publish', () => {
-        const {component, ctrl} = setup();
+    it('picks the singular translation key when exactly one channel received the publish', async () => {
+        const {component, ctrl} = await setup();
         const c = component as unknown as { publish(): void };
         const translate = TestBed.inject(TranslateService);
         const instantSpy = vi.spyOn(translate, 'instant');
@@ -144,8 +149,8 @@ describe('MessageComponent publish()', () => {
         expect(instantSpy).not.toHaveBeenCalledWith('MESSAGE.PUBLISH_SUCCESS', expect.anything());
     });
 
-    it('picks the plural translation key when more than one channel received the publish', () => {
-        const {component, ctrl} = setup();
+    it('picks the plural translation key when more than one channel received the publish', async () => {
+        const {component, ctrl} = await setup();
         const c = component as unknown as { publish(): void };
         const translate = TestBed.inject(TranslateService);
         const instantSpy = vi.spyOn(translate, 'instant');
