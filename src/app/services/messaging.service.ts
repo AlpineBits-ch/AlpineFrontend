@@ -7,6 +7,7 @@ import {MessageDto, PinMessageResponse} from "../dtos/response/message.dto";
 import {CreateReactionDto} from "../dtos/request/create-reaction.dto";
 import {RemoveReactionDto} from "../dtos/request/remove-reaction.dto";
 import {ApiConfigService} from "./api-config.service";
+import {PublishResponse} from "../dtos/response/channel-follow.dto";
 
 /** Server caps this at 50 and silently falls back to 25 for anything out of range. */
 const SEARCH_LIMIT = 50;
@@ -95,5 +96,16 @@ export class MessagingService {
     public getPinnedMessages(params: { channelId?: string; conversationId?: string }): Observable<MessageDto[]> {
         const query = params.channelId ? `channelId=${params.channelId}` : `conversationId=${params.conversationId}`;
         return this.httpClient.get<MessageDto[]>(`${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/pins?${query}`);
+    }
+
+    /**
+     * Copies an announcement-channel message into every channel currently following it.
+     * Gated by PinMessages on the source channel, reused as the elevated-action bit rather
+     * than adding a new permission. There is no re-publish guard server-side, so callers
+     * must disable the control after a successful publish to avoid duplicate sends.
+     */
+    public publishMessage(messageId: string): Observable<PublishResponse> {
+        return this.httpClient.post<PublishResponse>(
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/${messageId}/publish`, null);
     }
 }
