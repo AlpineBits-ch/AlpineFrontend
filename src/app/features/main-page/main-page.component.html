@@ -52,12 +52,21 @@
                     <app-conversation (back)="navService.showHome()" [conversation]="view.conversation"/>
                 }
                 @case ('channel') {
-                    @if (view.channel.type === ChannelType.Voice) {
-                        <app-voice-channel [channel]="view.channel"/>
-                    } @else if (isForumLike(view.channel.type)) {
-                        <app-forum-channel (back)="navService.showHome()" [channel]="view.channel"/>
-                    } @else {
-                        <app-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                    <!-- An allowlist, deliberately. The previous @else sent every
+                         unrecognised type to the message view, composer and all. -->
+                    @switch (channelViewFor(view.channel.type)) {
+                        @case ('voice') {
+                            <app-voice-channel [channel]="view.channel"/>
+                        }
+                        @case ('forum') {
+                            <app-forum-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @case ('message') {
+                            <app-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @default {
+                            <app-unsupported-channel [channel]="view.channel"/>
+                        }
                     }
                 }
                 @case ('wiki') {

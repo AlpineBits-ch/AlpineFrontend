@@ -25,7 +25,8 @@ import {ProfileDialogService} from '../../services/profile-dialog.service';
 import {QuickSettingsComponent} from './components/quick-settings/quick-settings.component';
 import {AccountDeletionBannerComponent} from './components/account-deletion-banner/account-deletion-banner.component';
 import {VoiceStatusBarComponent} from './components/voice-status-bar/voice-status-bar.component';
-import {ChannelType, isForumLike} from '../../dtos/response/guild.dto';
+import {channelViewFor} from '../guild/channel-types';
+import {UnsupportedChannelComponent} from '../guild/components/unsupported-channel/unsupported-channel.component';
 import {GuildMemberListComponent} from '../guild/components/guild-member-list/guild-member-list.component';
 import {UserTokenService} from '../../services/user-token.service';
 import {GuildWebsocketService} from '../../services/guild-websocket.service';
@@ -56,6 +57,7 @@ import {GuildService} from '../../services/guild.service';
         ChannelComponent,
         VoiceChannelComponent,
         ForumChannelComponent,
+        UnsupportedChannelComponent,
         ServerTaskbarComponent,
         ActivityFeedComponent,
         ConversationInfoPanelComponent,
@@ -79,8 +81,8 @@ export class MainPageComponent implements OnDestroy {
     protected oAuthService = inject(OAuthService);
     protected navService = inject(NavigationService);
     protected profileDialogSvc = inject(ProfileDialogService);
-    protected readonly ChannelType = ChannelType;
-    protected readonly isForumLike = isForumLike;
+    /** Routing is an allowlist: an unrecognised type resolves to 'unsupported', never 'message'. */
+    protected readonly channelViewFor = channelViewFor;
     /** The rules gate, prompts and welcome screen all belong to the Onboarding module. */
     protected onboardingEnabled = computed(() => {
         const ws = this.navService.workspace();
