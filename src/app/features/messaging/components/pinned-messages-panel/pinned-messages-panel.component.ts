@@ -1,13 +1,12 @@
 import {Component, DestroyRef, effect, inject, input, output, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {DatePipe} from '@angular/common';
-import {Button} from 'primeng/button';
 import {MessageDto} from '../../../../dtos/response/message.dto';
 import {MessagingService} from '../../../../services/messaging.service';
 import {MessagingWebsocketService} from '../../../../services/messaging-websocket.service';
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
-import {ProfileService} from '../../../../services/profile.service';
 import {ToastService} from '../../../../services/toast.service';
+import {MessageStore} from '../../../../stores/message.store';
 
 function decodeContent(encoded: string): string {
     try {
@@ -20,7 +19,7 @@ function decodeContent(encoded: string): string {
 
 @Component({
     selector: 'app-pinned-messages-panel',
-    imports: [Button, DatePipe],
+    imports: [DatePipe],
     templateUrl: './pinned-messages-panel.component.html',
 })
 export class PinnedMessagesPanelComponent {
@@ -34,8 +33,8 @@ export class PinnedMessagesPanelComponent {
     private messagingService = inject(MessagingService);
     private messagingWs = inject(MessagingWebsocketService);
     private guildWs = inject(GuildWebsocketService);
-    protected profileService = inject(ProfileService);
     private toastService = inject(ToastService);
+    private messageStore = inject(MessageStore);
     private destroyRef = inject(DestroyRef);
 
     constructor() {
@@ -85,6 +84,8 @@ export class PinnedMessagesPanelComponent {
     }
 
     snippet(msg: MessageDto): string {
-        return decodeContent(msg.content).slice(0, 120);
+        const stored = this.messageStore.entityMap()[msg.id];
+        const content = stored?.content ?? msg.content;
+        return decodeContent(content).slice(0, 120);
     }
 }

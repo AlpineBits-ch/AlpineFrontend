@@ -256,6 +256,6 @@
     }
     @if (showPinnedPanel()) {
         <app-pinned-messages-panel (messageSelected)="jumpToMessage($event)" [channelId]="channel().id"
-                                    class="w-64 shrink-0 border-l border-white/[0.08]"/>
+                                    class="flex flex-col w-64 shrink-0 border-l border-white/[0.08]"/>
     }
 </div>
