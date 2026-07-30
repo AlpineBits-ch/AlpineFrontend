@@ -53,6 +53,23 @@ export interface ReactionEvent {
     conversationId?: string;
 }
 
+export interface MessagePinnedEvent {
+    messageId: string;
+    conversationId?: string;
+    channelId?: string;
+    authorId: string;
+    pinnedById: string;
+    pinnedAt: string;
+}
+
+export interface MessageUnpinnedEvent {
+    messageId: string;
+    conversationId?: string;
+    channelId?: string;
+    authorId: string;
+    unpinnedById: string;
+}
+
 interface MessageCreatedPayload {
     messageId: string;
     content: string;
@@ -85,6 +102,8 @@ export class MessagingWebsocketService {
     public welcomeObservable = new Subject<string>()
     public reactionAddedObservable = new Subject<ReactionEvent>()
     public reactionRemovedObservable = new Subject<ReactionEvent>()
+    public messagePinnedObservable = new Subject<MessagePinnedEvent>()
+    public messageUnpinnedObservable = new Subject<MessageUnpinnedEvent>()
     public friendRequestReceivedObservable = new Subject<void>()
     public friendRequestAcceptedObservable = new Subject<void>()
     private realtime = inject(RealtimeConnectionService);
@@ -201,6 +220,14 @@ export class MessagingWebsocketService {
 
         this.realtime.on('conversation.ReactionRemoved', (data: ReactionEvent) => {
             this.reactionRemovedObservable.next(data);
+        });
+
+        this.realtime.on('conversation.MessagePinned', (data: MessagePinnedEvent) => {
+            this.messagePinnedObservable.next(data);
+        });
+
+        this.realtime.on('conversation.MessageUnpinned', (data: MessageUnpinnedEvent) => {
+            this.messageUnpinnedObservable.next(data);
         });
     }
 

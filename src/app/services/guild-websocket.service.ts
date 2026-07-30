@@ -1,6 +1,6 @@
 import {inject, Injectable} from '@angular/core';
 import {RealtimeConnectionService} from "./realtime-connection.service";
-import {ReactionEvent} from "./messaging-websocket.service";
+import {MessagePinnedEvent, MessageUnpinnedEvent, ReactionEvent} from "./messaging-websocket.service";
 import {NotificationService, NotificationSound} from "./notification.service";
 import {catchError, firstValueFrom, of, Subject, timeout} from "rxjs";
 import {MessageDto} from "../dtos/response/message.dto";
@@ -290,6 +290,8 @@ export class GuildWebsocketService {
     // ── Reactions ───────────────────────────────────────────────────────────────
     public reactionAddedObservable = new Subject<ReactionEvent>();
     public reactionRemovedObservable = new Subject<ReactionEvent>();
+    public messagePinnedObservable = new Subject<MessagePinnedEvent>();
+    public messageUnpinnedObservable = new Subject<MessageUnpinnedEvent>();
     // ── Roles/channels/threads ────────────────────────────────────────────────────
     public rolesReorderedObservable = new Subject<ReorderRolesDto>();
     public channelUpdatedObservable = new Subject<WsChannelUpdated>();
@@ -408,6 +410,9 @@ export class GuildWebsocketService {
 
         this.realtime.on('guild.ReactionCreated', (d: ReactionEvent) => this.reactionAddedObservable.next(d));
         this.realtime.on('guild.ReactionRemoved', (d: ReactionEvent) => this.reactionRemovedObservable.next(d));
+
+        this.realtime.on('guild.MessagePinned', (d: MessagePinnedEvent) => this.messagePinnedObservable.next(d));
+        this.realtime.on('guild.MessageUnpinned', (d: MessageUnpinnedEvent) => this.messageUnpinnedObservable.next(d));
 
         this.realtime.on('guild.BotInstalled', (d: WsBotInstalled) => this.botInstalledObservable.next(d));
         this.realtime.on('guild.BotUninstalled', (d: WsBotUninstalled) => this.botUninstalledObservable.next(d));
