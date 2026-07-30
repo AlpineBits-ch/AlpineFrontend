@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {ChannelType} from '../../dtos/response/guild.dto';
+import {PERM_GROUPS} from '../../enums/permissions.enum';
 import {GuildFeature} from './guild-features';
 import {
     CHANNEL_META,
@@ -70,6 +71,19 @@ describe('HOUSEHOLD_CHANNEL_META', () => {
             expect(meta.feature, meta.type).not.toBeNull();
             expect(meta.labelKey).toMatch(/^CHANNEL_TYPE\./);
             expect(meta.descKey).toMatch(/^CHANNEL_TYPE\./);
+        }
+    });
+});
+
+// `PermGroup.feature` is a plain string so the enum file needs no feature-layer import,
+// which means a typo like 'Ledgers' compiles and silently hides that group in every guild
+// forever. This is the only spec that sees both layers, so it is where they get compared.
+describe('PERM_GROUPS gating', () => {
+    it('gates every group on a real GuildFeature', () => {
+        const known = new Set<string>(Object.values(GuildFeature));
+        for (const group of PERM_GROUPS) {
+            if (!group.feature) continue;
+            expect(known.has(group.feature), `${group.label} -> ${group.feature}`).toBe(true);
         }
     });
 });
