@@ -89,6 +89,8 @@ const emptyState = {
     nextCursor: null,
     selectedTagIds: [],
     showArchived: false,
+    hasLoaded: false,
+    stale: false,
 };
 
 describe('ForumPostListService state', () => {
@@ -149,6 +151,58 @@ describe('ForumPostListService loading', () => {
     });
 
     /**
+     * posts: [] can't tell "not fetched yet" from "this forum is empty", and a pane that
+     * mounts before its first response would paint the empty state instead of a spinner.
+     */
+    it('reports hasLoaded only once a fetch has actually succeeded', () => {
+        const {service, ctrl} = setup();
+
+        expect(service.stateFor('never-opened').hasLoaded).toBe(false);
+
+        service.reload('f1');
+        expect(service.stateFor('f1').hasLoaded).toBe(false);
+
+        expectPosts(ctrl).flush('nope', {status: 500, statusText: 'Server Error'});
+        expect(service.stateFor('f1').hasLoaded).toBe(false);
+
+        service.reload('f1');
+        flushPosts(ctrl, []);
+        expect(service.stateFor('f1').hasLoaded).toBe(true);
+        expect(service.stateFor('f1').posts).toEqual([]);
+    });
+
+    /**
+     * A reload abandons the append in flight, whose response is then dropped as stale - so
+     * reload has to clear loadingMore itself, or nothing ever will and loadMore's own guard
+     * blocks infinite scroll for the rest of the session.
+     */
+    it('keeps infinite scroll alive when a reload interrupts a loadMore', () => {
+        const {service, ctrl} = setup();
+
+        service.reload('f1');
+        flushPosts(ctrl, [postFixture({id: 'p1'})], 'c1');
+
+        service.loadMore('f1');
+        service.reload('f1');
+        const requests = ctrl.match(r => r.url === `${base}/channels/f1/posts`);
+        expect(requests.length).toBe(2);
+
+        requests[1].flush({posts: [postFixture({id: 'p1'})], nextCursor: 'c2'});
+        // The abandoned append lands late; it is dropped, so it can't clear the flag either.
+        requests[0].flush({posts: [postFixture({id: 'pX'})], nextCursor: 'c9'});
+
+        expect(service.stateFor('f1').loadingMore).toBe(false);
+        expect(service.stateFor('f1').posts.map(p => p.id)).toEqual(['p1']);
+
+        service.loadMore('f1');
+        const more = expectPosts(ctrl);
+        expect(more.request.params.get('cursor')).toBe('c2');
+        more.flush({posts: [postFixture({id: 'p3'})], nextCursor: null});
+
+        expect(service.stateFor('f1').posts.map(p => p.id)).toEqual(['p1', 'p3']);
+    });
+
+    /**
      * A response for a list the user has since reloaded must not overwrite the one they're
      * now looking at, so the older request is flushed last and has to lose.
      */
@@ -188,6 +242,38 @@ describe('ForumPostListService realtime', () => {
         // ask the service whether it thinks the forum is open: a created post in an open
         // forum triggers a reload, and afterEach's verify() would fail on that request.
         ws.threadCreatedObservable.next({guildId: 'g1', parentChannelId: 'never-opened', channelId: 'x'});
+    });
+
+    /**
+     * The state outlives the components reading it, so a created post must not make every
+     * forum opened this session refetch - only the one the user is actually looking at.
+     */
+    it('reloads the active forum on a created post and only marks the others stale', () => {
+        const {service, ctrl, ws} = setup();
+
+        service.reload('f1');
+        flushPosts(ctrl, [postFixture({id: 'p1'})], null, 'f1');
+        service.reload('f2');
+        flushPosts(ctrl, [postFixture({id: 'p9', parentChannelId: 'f2'})], null, 'f2');
+
+        service.setActiveForum('f1');
+
+        ws.threadCreatedObservable.next({guildId: 'g1', parentChannelId: 'f1', channelId: 'new1'});
+        flushPosts(ctrl, [postFixture({id: 'p1'}), postFixture({id: 'new1'})], null, 'f1');
+        expect(service.stateFor('f1').posts.map(p => p.id)).toEqual(['p1', 'new1']);
+        expect(service.stateFor('f1').stale).toBe(false);
+
+        ws.threadCreatedObservable.next({guildId: 'g1', parentChannelId: 'f2', channelId: 'new2'});
+        expect(service.stateFor('f2').stale).toBe(true);
+        expect(service.stateFor('f2').posts.map(p => p.id)).toEqual(['p9']);
+
+        // Catching up is the mounting component's job, and only costs a request once.
+        service.reloadIfStale('f2');
+        flushPosts(ctrl, [postFixture({id: 'p9', parentChannelId: 'f2'}), postFixture({id: 'new2'})], null, 'f2');
+        expect(service.stateFor('f2').posts.map(p => p.id)).toEqual(['p9', 'new2']);
+        expect(service.stateFor('f2').stale).toBe(false);
+
+        service.reloadIfStale('f2');
     });
 
     it('drops an archived post when showArchived is false', () => {

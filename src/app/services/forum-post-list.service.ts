@@ -16,6 +16,15 @@ export interface ForumPostListState {
     nextCursor: string | null;
     selectedTagIds: string[];
     showArchived: boolean;
+    /**
+     * True once a fetch for this forum has succeeded at least once. `posts: []` alone can't
+     * tell "not fetched yet" from "this forum really is empty", and a pane that mounts before
+     * its first response would paint the empty state instead of a spinner - render on
+     * `loading || !hasLoaded`.
+     */
+    hasLoaded: boolean;
+    /** A post was created here while the user was looking at another forum; see reloadIfStale. */
+    stale: boolean;
 }
 
 /**
@@ -30,6 +39,8 @@ const EMPTY_STATE: ForumPostListState = Object.freeze({
     nextCursor: null,
     selectedTagIds: Object.freeze([] as string[]) as string[],
     showArchived: false,
+    hasLoaded: false,
+    stale: false,
 });
 
 /**
@@ -54,6 +65,9 @@ export class ForumPostListService {
      */
     private readonly generationByForum = new Map<string, number>();
 
+    /** The forum currently on screen, per the component that mounted it. */
+    private activeForumId: string | null = null;
+
     private forumService = inject(ForumService);
     private forumState = inject(ForumStateService);
     private ws = inject(GuildWebsocketService);
@@ -63,6 +77,13 @@ export class ForumPostListService {
     constructor() {
         this.ws.threadCreatedObservable.subscribe(e => {
             if (!this.stateByForum()[e.parentChannelId]) return;
+            // State outlives the components reading it, so every forum opened this session
+            // would otherwise refetch on every post created in it. Only the one on screen
+            // needs to be live; the rest just record that they're behind.
+            if (e.parentChannelId !== this.activeForumId) {
+                this.patch(e.parentChannelId, {stale: true});
+                return;
+            }
             // A new post can land anywhere in the current filter/sort, and the cursor
             // can't express "insert here" - a reload from page one is the only way to
             // place it correctly without desynchronizing pagination.
@@ -95,14 +116,29 @@ export class ForumPostListService {
         return this.stateByForum()[forumId] ?? EMPTY_STATE;
     }
 
+    /**
+     * Which forum is on screen. Only that one reacts to a created post in realtime; the
+     * component that mounts a list sets it, and clears it (null) when it goes away.
+     */
+    setActiveForum(forumId: string | null): void {
+        this.activeForumId = forumId;
+    }
+
     // ── Loading ──────────────────────────────────────────────────────────────
     reload(forumId: string): void {
         const generation = (this.generationByForum.get(forumId) ?? 0) + 1;
         this.generationByForum.set(forumId, generation);
         // loadingMore is cleared too: any append still in flight belongs to the list being
-        // thrown away, and its response will be dropped as stale, so nothing else would.
-        this.patch(forumId, {loading: true, loadingMore: false, nextCursor: null});
+        // thrown away, and its response will be dropped as stale, so nothing else would -
+        // leaving the flag set would block loadMore, killing infinite scroll for good.
+        this.patch(forumId, {loading: true, loadingMore: false, nextCursor: null, stale: false});
         this.fetch(forumId, generation, undefined, (state, page) => ({...state, posts: page, loading: false}));
+    }
+
+    /** Catches a list up on the posts created while the user was elsewhere; free if it's current. */
+    reloadIfStale(forumId: string): void {
+        if (!this.stateFor(forumId).stale) return;
+        this.reload(forumId);
     }
 
     loadMore(forumId: string): void {
@@ -140,10 +176,11 @@ export class ForumPostListService {
     /**
      * Filters belong to the forum you were looking at, not the one you just opened -
      * carrying them across would silently hide posts in the new forum. No fetch: the
-     * caller pairs this with the reload that opening a forum does anyway.
+     * caller pairs this with the reload that opening a forum does anyway, and a forum
+     * with nothing to reset stays unopened rather than gaining an entry.
      */
     resetFilters(forumId: string): void {
-        this.patch(forumId, {selectedTagIds: [], showArchived: false});
+        this.updateLoaded(forumId, s => ({...s, selectedTagIds: [], showArchived: false}));
     }
 
     // ── Post edits ───────────────────────────────────────────────────────────
@@ -157,8 +194,8 @@ export class ForumPostListService {
     }
 
     /**
-     * Archived posts leave the default list entirely; keeping the card around greyed-out
-     * would misrepresent what the filter now matches.
+     * Drops a post from the list unconditionally. Whether it still belongs there is the
+     * caller's call - archiving, for one, only removes it while showArchived is off.
      */
     removePost(forumId: string, postId: string): void {
         this.updateLoaded(forumId, s => ({...s, posts: s.posts.filter(p => p.id !== postId)}));
@@ -187,7 +224,10 @@ export class ForumPostListService {
                 // A response for a list the user has already reloaded past must not
                 // overwrite the one they're now looking at.
                 if ((this.generationByForum.get(forumId) ?? 0) !== generation) return;
-                this.updateLoaded(forumId, s => apply({...s, nextCursor: page.nextCursor}, page.posts ?? []));
+                // hasLoaded flips here and only here: a response that arrived is the one
+                // thing that distinguishes an empty forum from an unfetched one.
+                this.updateLoaded(forumId, s =>
+                    apply({...s, nextCursor: page.nextCursor, hasLoaded: true}, page.posts ?? []));
             },
             error: err => {
                 this.patch(forumId, {loading: false, loadingMore: false});
