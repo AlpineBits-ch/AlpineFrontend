@@ -72,7 +72,8 @@
     </div>
 
     <ng-template pTemplate="footer">
-        <p-button (onClick)="close()" [text]="true" label="{{ 'EVENTS.CANCEL_BUTTON' | translate }}" severity="secondary"/>
+        <p-button (onClick)="close()" [disabled]="saving()" [text]="true"
+                  label="{{ 'EVENTS.CANCEL_BUTTON' | translate }}" severity="secondary"/>
         <p-button (onClick)="save()" [disabled]="!canSave()" [loading]="saving()"
                   label="{{ 'EVENTS.SAVE' | translate }}" severity="primary"/>
     </ng-template>

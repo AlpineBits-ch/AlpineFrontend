@@ -25,8 +25,6 @@ export class EventEditorDialogComponent {
     event = input<ScheduledEventDto | null>(null);
     visible = model.required<boolean>();
 
-    protected readonly ChannelType = ChannelType;
-
     protected title = signal('');
     protected description = signal('');
     protected startsAt = signal<Date | null>(null);
@@ -76,6 +74,10 @@ export class EventEditorDialogComponent {
 
     protected close(): void {
         this.visible.set(false);
+        // Also runs from p-dialog's (onHide) -clearing `saving` here means dismissing the
+        // dialog mid-save can't leave the Save button stuck in its spinner state the next
+        // time the dialog opens.
+        this.saving.set(false);
     }
 
     protected save(): void {

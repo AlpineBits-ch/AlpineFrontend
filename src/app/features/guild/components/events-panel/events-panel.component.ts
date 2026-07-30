@@ -1,20 +1,15 @@
 import {ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal, untracked} from '@angular/core';
-import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {DatePipe} from '@angular/common';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Button} from 'primeng/button';
 import {ConfirmationService} from 'primeng/api';
 import {ConfirmDialog} from 'primeng/confirmdialog';
+import {Tooltip} from 'primeng/tooltip';
 import {ScheduledEventStore} from '../../../../stores/scheduled-event.store';
 import {ScheduledEventDto} from '../../../../dtos/response/scheduled-event.dto';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
-import {
-    GuildWebsocketService,
-    WsEventCancelled,
-    WsEventCreated,
-    WsEventUpdated,
-} from '../../../../services/guild-websocket.service';
 import {NavigationService} from '../../../main-page/navigation.service';
+import {ProfileService} from '../../../../services/profile.service';
 import {VoiceChannelService} from '../../../../services/voice-channel.service';
 import {ToastService} from '../../../../services/toast.service';
 import {EventEditorDialogComponent} from './event-editor-dialog.component';
@@ -22,7 +17,7 @@ import {EventEditorDialogComponent} from './event-editor-dialog.component';
 @Component({
     selector: 'app-events-panel',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [DatePipe, TranslateModule, Button, ConfirmDialog, EventEditorDialogComponent],
+    imports: [DatePipe, TranslateModule, Button, Tooltip, ConfirmDialog, EventEditorDialogComponent],
     providers: [ConfirmationService],
     templateUrl: './events-panel.component.html',
 })
@@ -32,15 +27,25 @@ export class EventsPanelComponent {
 
     protected readonly navService = inject(NavigationService);
     protected readonly store = inject(ScheduledEventStore);
-    private readonly guildWs = inject(GuildWebsocketService);
+    private readonly profileService = inject(ProfileService);
     private readonly voiceChannelSvc = inject(VoiceChannelService);
     private readonly toastService = inject(ToastService);
     private readonly translate = inject(TranslateService);
     private readonly confirmationService = inject(ConfirmationService);
     private readonly destroyRef = inject(DestroyRef);
 
-    protected canManage = computed(() =>
-        hasPermission(parsePermissions(this.memberPermissions()), Permissions.ManageEvents));
+    // Mirrors ChannelListComponent.canReorder / EmojiSettingsComponent.canManageEmojis:
+    // the guild owner short-circuits first (SelfGuildMemberDto.permissions does not
+    // reliably carry Superadmin for owners), then Superadmin, then the specific bit.
+    protected canManage = computed(() => {
+        const ws = this.navService.workspace();
+        const ownUserId = this.profileService.ownProfile()?.userId;
+        if (ws.type === 'server' && ws.guild.id === this.guildId() && ownUserId && ownUserId === ws.guild.ownerId) {
+            return true;
+        }
+        const perms = parsePermissions(this.memberPermissions());
+        return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.ManageEvents);
+    });
 
     // `Date.now()` isn't itself a reactive read, so a computed that only calls it
     // directly would never re-evaluate as time passes -it'd need some *other* signal
@@ -56,12 +61,21 @@ export class EventsPanelComponent {
     // "over" must be derived from the timestamps, never from `status`.
     private readonly events = computed(() => this.store.eventsForGuild(this.guildId()));
     protected upcoming = computed(() =>
-        this.events().filter(e => new Date(e.endsAt ?? e.startsAt).getTime() >= this.now()));
+        this.events().filter(e => this.endBoundary(e) >= this.now()));
     protected past = computed(() =>
         this.events()
-            .filter(e => new Date(e.endsAt ?? e.startsAt).getTime() < this.now())
+            .filter(e => this.endBoundary(e) < this.now())
             .slice()
             .reverse());
+
+    // Load state, so the panel never claims "no upcoming events" while the request is
+    // still in flight or after it failed.
+    protected isLoading = computed(() => this.store.loading(this.guildId()));
+    protected showLoading = computed(() => this.isLoading() && this.events().length === 0);
+    protected showError = computed(() =>
+        !this.isLoading() && this.store.loadError(this.guildId()) && this.events().length === 0);
+    protected showEmpty = computed(() =>
+        !this.showLoading() && !this.showError() && this.upcoming().length === 0);
 
     protected showPast = signal(false);
     protected editorVisible = signal(false);
@@ -78,26 +92,25 @@ export class EventsPanelComponent {
             untracked(() => this.store.loadFor(id));
         });
 
-        this.guildWs.eventCreatedObservable
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe((e: WsEventCreated) => {
-                if (e.guildId !== this.guildId()) return;
-                this.store.applyRealtimeCreatedOrUpdated(e.guildId);
-            });
+        // No websocket subscriptions here on purpose: ScheduledEventStore's own onInit
+        // hook already subscribes to eventCreated/eventUpdated/eventCancelled and
+        // dispatches to the exact same store methods. Duplicating them here only worked
+        // because the store's hook happened to run first.
+    }
 
-        this.guildWs.eventUpdatedObservable
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe((e: WsEventUpdated) => {
-                if (e.guildId !== this.guildId()) return;
-                this.store.applyRealtimeCreatedOrUpdated(e.guildId);
-            });
+    protected retry(): void {
+        this.store.loadFor(this.guildId());
+    }
 
-        this.guildWs.eventCancelledObservable
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe((e: WsEventCancelled) => {
-                if (e.guildId !== this.guildId()) return;
-                this.store.applyRealtimeCancelled(e.eventId);
-            });
+    /**
+     * Epoch ms at which an event counts as over: its end when present and parseable,
+     * otherwise its start. A blank or unparseable `endsAt` must fall back to `startsAt` -
+     * a bare `new Date('')` yields NaN, and NaN compares false both ways, silently
+     * dropping the event from the upcoming *and* past lists.
+     */
+    private endBoundary(event: ScheduledEventDto): number {
+        const end = event.endsAt ? new Date(event.endsAt).getTime() : Number.NaN;
+        return Number.isNaN(end) ? new Date(event.startsAt).getTime() : end;
     }
 
     protected openCreate(): void {

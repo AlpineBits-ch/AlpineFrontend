@@ -1,8 +1,10 @@
 <div class="hidden lg:flex flex-col w-80 shrink-0 h-full bg-sidebar border-r border-white/[0.10]">
 
     <!-- Header -->
-    <div class="flex items-center justify-between px-3 py-3 border-b border-white/[0.10] shrink-0">
-        <span class="text-sm font-semibold text-text-primary">{{ 'EVENTS.TITLE' | translate }}</span>
+    <div class="flex items-center gap-1.5 px-3 py-3 border-b border-white/[0.10] shrink-0">
+        <p-button (onClick)="navService.closeEventsPanel()" [pTooltip]="'COMMON.CLOSE' | translate" [text]="true"
+                  icon="pi pi-times" severity="secondary" size="small" tooltipPosition="bottom"/>
+        <span class="flex-1 min-w-0 truncate text-sm font-semibold text-text-primary">{{ 'EVENTS.TITLE' | translate }}</span>
         @if (canManage()) {
             <p-button (onClick)="openCreate()" [text]="true" icon="pi pi-plus" severity="secondary" size="small"/>
         }
@@ -11,7 +13,17 @@
     <!-- Body -->
     <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar p-3 space-y-2">
 
-        @if (upcoming().length === 0) {
+        @if (showLoading()) {
+            <p class="flex items-center justify-center gap-2 text-[0.8125rem] text-text-muted py-6">
+                <i class="pi pi-spin pi-spinner text-[0.75rem]"></i>{{ 'COMMON.LOADING' | translate }}
+            </p>
+        } @else if (showError()) {
+            <div class="flex flex-col items-center gap-2 py-6">
+                <p class="text-[0.8125rem] text-text-secondary text-center m-0">{{ 'EVENTS.LOAD_ERROR' | translate }}</p>
+                <p-button (onClick)="retry()" [label]="'COMMON.RETRY' | translate" [text]="true" icon="pi pi-refresh"
+                          severity="secondary" size="small"/>
+            </div>
+        } @else if (showEmpty()) {
             <p class="text-[0.8125rem] text-text-muted text-center py-6">{{ 'EVENTS.EMPTY' | translate }}</p>
         } @else {
             @for (event of upcoming(); track event.id) {

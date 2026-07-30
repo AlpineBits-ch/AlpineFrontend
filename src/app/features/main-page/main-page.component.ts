@@ -139,13 +139,20 @@ export class MainPageComponent implements OnDestroy {
         // can't re-trigger itself.
         effect(() => {
             const guildId = this.navService.eventsPanelGuildId();
+            // Clear first, unconditionally: otherwise the previous guild's permissions stay
+            // live while guild B's request is in flight (a non-manager would briefly see the
+            // manage controls), and persist for the whole session if that request fails.
+            this.eventsMemberPermissions.set('');
             if (!guildId) return;
-            this.guildService.getOwnMember(guildId).subscribe(m => {
-                const permissionString = m.roleMembers.reduce((curr, r) => {
-                    if (!r.role.permissions) return curr;
-                    return curr === '' ? r.role.permissions : `${curr},${r.role.permissions}`;
-                }, m.permissions ?? '');
-                this.eventsMemberPermissions.set(permissionString);
+            this.guildService.getOwnMember(guildId).subscribe({
+                next: m => {
+                    const permissionString = m.roleMembers.reduce((curr, r) => {
+                        if (!r.role.permissions) return curr;
+                        return curr === '' ? r.role.permissions : `${curr},${r.role.permissions}`;
+                    }, m.permissions ?? '');
+                    this.eventsMemberPermissions.set(permissionString);
+                },
+                error: () => this.eventsMemberPermissions.set(''),
             });
         });
 
