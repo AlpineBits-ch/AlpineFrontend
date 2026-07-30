@@ -9,6 +9,7 @@ import {NotificationSettingsComponent} from "./pages/notification-settings/notif
 import {VoiceVideoSettingsComponent} from "./pages/voice-video-settings/voice-video-settings.component";
 import {KeybindsSettingsComponent} from "./pages/keybinds-settings/keybinds-settings.component";
 import {AppearanceSettingsComponent} from "./pages/appearance-settings/appearance-settings.component";
+import {SecuritySettingsComponent} from "./pages/security-settings/security-settings.component";
 import {LogoutDialogComponent} from "../logout-dialog/logout-dialog.component";
 import {TranslateModule} from '@ngx-translate/core';
 
@@ -36,6 +37,7 @@ export interface SettingsNavGroup {
         VoiceVideoSettingsComponent,
         KeybindsSettingsComponent,
         AppearanceSettingsComponent,
+        SecuritySettingsComponent,
         LogoutDialogComponent,
         TranslateModule,
     ],
@@ -53,6 +55,7 @@ export class SettingsModalComponent {
             items: [
                 {id: 'profile', label: 'Profile', icon: 'pi pi-user'},
                 {id: 'privacy', label: 'Privacy', icon: 'pi pi-shield'},
+                {id: 'security', label: 'Security', icon: 'pi pi-lock'},
                 {id: 'notifications', label: 'Notifications', icon: 'pi pi-bell'},
             ],
         },
