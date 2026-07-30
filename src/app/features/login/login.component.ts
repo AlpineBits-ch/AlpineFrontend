@@ -18,6 +18,10 @@ import {PasswordResetDialogService} from '../password-reset/password-reset.servi
 import {ExternalLinkService} from "../../services/external-link.service";
 import {ApiConfigService, ServerConfiguration} from "../../services/api-config.service";
 import {environment} from "../../../environments/environment";
+import {QrLoginPanelComponent} from "./qr-login-panel/qr-login-panel.component";
+
+/** `qr` is a peer of `login`, not a sub-step of it: it produces its own token pair. */
+type AuthMode = 'login' | 'register' | 'qr';
 
 interface LoginModel {
     username: string;
@@ -41,13 +45,14 @@ interface RegisterModel {
         FormField,
         NgClass,
         FormsModule,
-        TranslateModule
+        TranslateModule,
+        QrLoginPanelComponent
     ],
     templateUrl: './login.component.html',
     styleUrl: './login.component.css',
 })
 export class Login {
-    protected isLoginMode = signal(true);
+    protected mode = signal<AuthMode>('login');
     protected externalLinkService = inject(ExternalLinkService);
     protected authService = inject(AuthService);
     protected router = inject(Router);
@@ -90,15 +95,19 @@ export class Login {
         );
     });
 
-    // Register server selector
-    protected registerServerDomain = signal('venta.gg');
-    protected isEditingRegisterServer = signal(false);
-    protected registerServerInputValue = 'venta.gg';
-    protected registerServerConfig = signal<ServerConfiguration | null>(null);
-    protected registerServerConfigLoading = signal(false);
-    protected registerServerConfigError = signal(false);
+    // ── Server selector ───────────────────────────────────────────────────────
+    // Shared by register and QR. The sign-in tab has its own, derived from the
+    // `user@server` form of the username field, because there the server is part of
+    // the identity being typed rather than a separate choice.
+    protected serverDomain = signal('venta.gg');
+    protected isEditingServer = signal(false);
+    protected serverInputValue = 'venta.gg';
+    protected serverConfig = signal<ServerConfiguration | null>(null);
+    protected serverConfigLoading = signal(false);
+    protected serverConfigError = signal(false);
+    protected serverUrl = computed(() => ApiConfigService.domainToUrl(this.serverDomain()));
     protected registerEnabled = computed(() =>
-        this.registerServerConfig()?.isRegisterEnabled !== false
+        this.serverConfig()?.isRegisterEnabled !== false
     );
 
     private apiConfigService = inject(ApiConfigService);
@@ -140,12 +149,22 @@ export class Login {
             this.loginServerConfigLoading.set(false);
         });
 
-        // Fetch register server config on init (default server)
-        this.fetchRegisterConfig(environment.apiUrl);
+        // Fetch server config on init (default server)
+        this.fetchServerConfig(environment.apiUrl);
     }
 
-    protected switchToMode(loginMode: boolean): void {
-        this.isLoginMode.set(loginMode);
+    protected switchToMode(mode: AuthMode): void {
+        // QR pairing is minted by whichever server ApiConfigService currently points at, and
+        // the token exchange rides the OAuth config alongside it. Applying the selection on
+        // the way in keeps both pointing at the server shown next to the code.
+        if (mode === 'qr') this.apiConfigService.setServer(this.serverDomain());
+        this.mode.set(mode);
+    }
+
+    /** A QR pairing that reached `approved` has already stored its tokens. */
+    protected onQrAuthenticated(): void {
+        this.userSettings.load();
+        void this.router.navigate(['/overview']);
     }
 
     protected openPasswordReset(): void {
@@ -209,7 +228,7 @@ export class Login {
         if (!this.registerForm().valid()) return;
 
         // Apply the selected server before the API call
-        const domain = this.registerServerDomain();
+        const domain = this.serverDomain();
         this.apiConfigService.setServer(domain);
 
         this.passwordMismatch.set(false);
@@ -219,7 +238,7 @@ export class Login {
                     ? ` Sign in using ${model.username}@${domain}.`
                     : '';
                 this.toast.success('Account created!', {detail: `Welcome to Alpine.${hint}`});
-                this.switchToMode(true);
+                this.switchToMode('login');
             }),
             catchError((err) => {
                 this.toast.httpError('Registration failed', err, {detail: 'Please check your details and try again.'});
@@ -228,37 +247,40 @@ export class Login {
         ).subscribe();
     }
 
-    protected startEditRegisterServer(): void {
-        this.registerServerInputValue = this.registerServerDomain();
-        this.isEditingRegisterServer.set(true);
+    protected startEditServer(): void {
+        this.serverInputValue = this.serverDomain();
+        this.isEditingServer.set(true);
     }
 
-    protected confirmRegisterServer(): void {
-        const raw = this.registerServerInputValue.trim();
+    protected confirmServer(): void {
+        const raw = this.serverInputValue.trim();
         if (!raw) return;
         // Strip any protocol prefix and trailing slash
         const domain = raw.replace(/^https?:\/\//, '').replace(/\/$/, '');
-        this.registerServerDomain.set(domain);
-        this.isEditingRegisterServer.set(false);
-        this.fetchRegisterConfig(ApiConfigService.domainToUrl(domain));
+        this.serverDomain.set(domain);
+        this.isEditingServer.set(false);
+        // In QR mode the pairing is already bound to the old server, so re-point
+        // ApiConfigService now; the panel restarts off the changed `serverUrl`.
+        if (this.mode() === 'qr') this.apiConfigService.setServer(domain);
+        this.fetchServerConfig(ApiConfigService.domainToUrl(domain));
     }
 
-    protected cancelRegisterServerEdit(): void {
-        this.isEditingRegisterServer.set(false);
-        this.registerServerInputValue = this.registerServerDomain();
+    protected cancelServerEdit(): void {
+        this.isEditingServer.set(false);
+        this.serverInputValue = this.serverDomain();
     }
 
-    private fetchRegisterConfig(url: string): void {
-        this.registerServerConfigLoading.set(true);
-        this.registerServerConfigError.set(false);
+    private fetchServerConfig(url: string): void {
+        this.serverConfigLoading.set(true);
+        this.serverConfigError.set(false);
         this.apiConfigService.getServerConfiguration(url).pipe(
             catchError(() => {
-                this.registerServerConfigError.set(true);
+                this.serverConfigError.set(true);
                 return of(null);
             })
         ).subscribe(config => {
-            this.registerServerConfig.set(config);
-            this.registerServerConfigLoading.set(false);
+            this.serverConfig.set(config);
+            this.serverConfigLoading.set(false);
         });
     }
 

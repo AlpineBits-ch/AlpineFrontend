@@ -1,0 +1,81 @@
+<div class="flex flex-col items-center gap-4">
+
+    <div class="text-center">
+        <h2 class="text-base font-semibold text-slate-100">{{ 'LOGIN.QR.TITLE' | translate }}</h2>
+        <p class="text-xs text-slate-500 mt-1 leading-relaxed">{{ 'LOGIN.QR.SUBTITLE' | translate }}</p>
+    </div>
+
+    <!-- Code + state overlay -->
+    <div class="relative">
+        <div [class.opacity-25]="!isLive()"
+             class="transition-opacity duration-200 rounded-xl bg-white p-1 shadow-[0_8px_30px_rgba(0,0,0,0.45)]">
+            @if (code()) {
+                <app-qr-code [data]="code()" [size]="176" [ariaLabel]="'LOGIN.QR.ARIA' | translate"/>
+            } @else {
+                <!-- Reserve the code's footprint so the panel never jumps as states change -->
+                <div class="w-[192px] h-[192px] rounded-lg bg-white"></div>
+            }
+        </div>
+
+        @if (state() === 'starting') {
+            <div class="absolute inset-0 flex items-center justify-center">
+                <i class="pi pi-spin pi-spinner text-xl text-slate-700"></i>
+            </div>
+        }
+
+        @if (state() === 'scanned' || state() === 'exchanging') {
+            <div class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-center px-4">
+                <i class="pi pi-spin pi-spinner text-lg text-[var(--color-brand-dim)]"></i>
+                <span class="text-xs font-medium text-slate-100 drop-shadow">
+                    {{ (state() === 'scanned' ? 'LOGIN.QR.CONFIRM_ON_PHONE' : 'LOGIN.QR.SIGNING_IN') | translate }}
+                </span>
+            </div>
+        }
+
+        @if (state() === 'denied' || state() === 'expired' || state() === 'error') {
+            <div class="absolute inset-0 flex items-center justify-center">
+                <i [class]="state() === 'denied' ? 'pi pi-times-circle text-rose-500' : 'pi pi-refresh text-slate-500'"
+                   class="text-2xl"></i>
+            </div>
+        }
+    </div>
+
+    <!-- Status line -->
+    @switch (state()) {
+        @case ('pending') {
+            <div class="flex flex-col items-center gap-1.5">
+                <span class="inline-flex items-center gap-1.5 text-[0.6875rem] font-medium text-slate-500">
+                    <span class="w-1.5 h-1.5 rounded-full bg-[var(--color-brand-dim)] animate-pulse"></span>
+                    {{ 'LOGIN.QR.WAITING' | translate }}
+                </span>
+                <span class="text-[0.625rem] text-slate-600 tabular-nums">
+                    {{ 'LOGIN.QR.EXPIRES_IN' | translate }} {{ countdown() }}
+                </span>
+            </div>
+        }
+        @case ('denied') {
+            <p class="text-xs text-rose-400 text-center max-w-[15rem]">{{ 'LOGIN.QR.DENIED' | translate }}</p>
+        }
+        @case ('expired') {
+            <p class="text-xs text-slate-500 text-center max-w-[15rem]">{{ 'LOGIN.QR.EXPIRED' | translate }}</p>
+        }
+        @case ('error') {
+            <p class="text-xs text-rose-400 text-center max-w-[15rem]">{{ 'LOGIN.QR.ERROR' | translate }}</p>
+        }
+    }
+
+    <div class="flex flex-col items-stretch gap-2 w-full">
+        @if (state() === 'denied' || state() === 'expired' || state() === 'error') {
+            <p-button (onClick)="start()"
+                      [label]="'LOGIN.QR.NEW_CODE' | translate"
+                      icon="pi pi-refresh"
+                      size="small"/>
+        }
+        <button (click)="cancel()"
+                class="text-xs text-slate-500 hover:text-[var(--color-brand-dim)] bg-transparent border-0 cursor-pointer transition-colors py-1"
+                type="button">
+            {{ 'LOGIN.QR.USE_PASSWORD' | translate }}
+        </button>
+    </div>
+
+</div>

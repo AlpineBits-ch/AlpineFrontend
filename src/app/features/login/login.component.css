@@ -54,16 +54,6 @@
     animation: orbFloat2 13s ease-in-out infinite alternate;
 }
 
-.orb-3 {
-    width: 220px;
-    height: 220px;
-    top: 50%;
-    left: 50%;
-    background: radial-gradient(circle, rgba(59, 130, 246, 0.16) 0%, transparent 65%);
-    opacity: 0.5;
-    animation: orbFloat3 13s ease-in-out infinite alternate;
-}
-
 @keyframes orbFloat1 {
     0% {
         transform: translate(0, 0) scale(1);
@@ -82,21 +72,197 @@
     }
 }
 
-@keyframes orbFloat3 {
-    0% {
-        transform: translate(-50%, -50%) scale(1);
+/* ── Two-column shell ───────────────────────────────────────────────────── */
+/* `safe center` keeps a tall register form from having its top clipped once the
+   card outgrows a short window -plain centering would push it past the scroll origin. */
+.login-shell {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: safe center;
+    justify-content: center;
+    gap: 64px;
+    width: 100%;
+    height: 100%;
+    padding: 28px 24px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+}
+
+.login-shell::-webkit-scrollbar {
+    display: none;
+}
+
+/* ── Brand panel ────────────────────────────────────────────────────────── */
+/* 880px is just under the app window's 900px minimum, so the panel is present for
+   the whole desktop range and only drops out on genuinely narrow viewports. */
+.brand-panel {
+    display: none;
+    flex-direction: column;
+    gap: 22px;
+    width: 100%;
+    max-width: 400px;
+    flex-shrink: 0;
+}
+
+@media (min-width: 880px) {
+    .brand-panel {
+        display: flex;
     }
-    100% {
-        transform: translate(calc(-50% + 12px), calc(-50% - 18px)) scale(1.05);
+
+    .card-lockup {
+        display: none;
     }
+}
+
+.brand-lockup {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.brand-mark {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+}
+
+.brand-word {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--color-text-primary);
+}
+
+.brand-headline {
+    font-size: clamp(1.75rem, 2.6vw, 2.25rem);
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.032em;
+    color: var(--color-text-primary);
+    margin: 0;
+}
+
+.brand-headline-accent {
+    background: linear-gradient(96deg, var(--color-brand-dim) 0%, #8ea2ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.brand-description {
+    font-size: 0.875rem;
+    line-height: 1.65;
+    color: var(--color-text-secondary);
+    max-width: 34ch;
+    margin: 0;
+}
+
+/* ── Thread mock ────────────────────────────────────────────────────────── */
+.thread {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-start;
+    max-width: 300px;
+}
+
+.bubble {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    padding: 8px 13px;
+    border-radius: 15px;
+    animation: bubbleIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.bubble-in {
+    background: rgba(255, 255, 255, 0.055);
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    border-bottom-left-radius: 5px;
+    color: var(--color-text-primary);
+    padding-left: 8px;
+    animation-delay: 0.15s;
+}
+
+.bubble-avatar {
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.bubble-out {
+    align-self: flex-end;
+    background: linear-gradient(135deg, var(--color-brand-dark) 0%, var(--color-brand) 100%);
+    border-bottom-right-radius: 5px;
+    color: #fff;
+    box-shadow: 0 4px 16px color-mix(in srgb, var(--color-brand-dark) 32%, transparent);
+    animation-delay: 0.5s;
+}
+
+.bubble-receipt {
+    align-self: flex-end;
+    font-size: 0.625rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--color-online);
+    padding-right: 4px;
+    animation: bubbleIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.85s backwards;
+}
+
+@keyframes bubbleIn {
+    from {
+        opacity: 0;
+        transform: translateY(7px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* ── Feature list ───────────────────────────────────────────────────────── */
+.feature-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.feature-list li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary);
+}
+
+.feature-list i {
+    font-size: 0.6875rem;
+    color: var(--color-brand-dim);
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--color-brand) 13%, transparent);
+    flex-shrink: 0;
 }
 
 /* ── Glass form card ────────────────────────────────────────────────────── */
 .login-card {
     position: relative;
     z-index: 10;
-    width: calc(100% - 48px);
+    width: 100%;
     max-width: 380px;
+    flex-shrink: 0;
     padding: 22px 22px 18px;
     background: rgba(11, 14, 26, 0.82);
     backdrop-filter: blur(28px);
@@ -105,6 +271,110 @@
     border-radius: 18px;
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65),
     0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.card-lockup {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 18px;
+}
+
+/* ── Shared field furniture ─────────────────────────────────────────────── */
+.field-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--color-text-muted);
+}
+
+.field-hint {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.6875rem;
+    margin-top: 2px;
+}
+
+.field-error {
+    font-size: 0.6875rem;
+    color: #fb7185;
+}
+
+.legal {
+    text-align: center;
+    font-size: 0.6875rem;
+    line-height: 1.6;
+    color: var(--color-text-muted);
+    margin-top: 2px;
+}
+
+.legal a {
+    color: color-mix(in srgb, var(--color-brand-dim) 65%, transparent);
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.14s ease;
+}
+
+.legal a:hover {
+    color: var(--color-brand-dim);
+}
+
+/* ── "or" divider ───────────────────────────────────────────────────────── */
+.or-rule {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--color-text-muted);
+    margin: 2px 0;
+}
+
+.or-rule::before,
+.or-rule::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* ── QR call to action ──────────────────────────────────────────────────── */
+.qr-cta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    width: 100%;
+    padding: 10px 18px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-text-primary);
+    background: rgba(255, 255, 255, 0.045);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.qr-cta:hover {
+    background: color-mix(in srgb, var(--color-brand) 12%, transparent);
+    border-color: color-mix(in srgb, var(--color-brand) 38%, transparent);
+    color: #fff;
+}
+
+.qr-cta:focus-visible {
+    outline: 2px solid var(--color-brand-dim);
+    outline-offset: 2px;
+}
+
+.qr-cta i {
+    font-size: 0.875rem;
+    color: var(--color-brand-dim);
 }
 
 /* ── PrimeNG input overrides ────────────────────────────────────────────── */
@@ -116,7 +386,7 @@
     border-radius: 9px !important;
     color: var(--color-text-primary) !important;
     padding: 9px 12px !important;
-    font-size: 14px !important;
+    font-size: 0.875rem !important;
     box-shadow: none !important;
     transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease !important;
 }
@@ -146,7 +416,7 @@
     border-radius: 9px !important;
     color: var(--color-text-primary) !important;
     padding: 9px 12px !important;
-    font-size: 14px !important;
+    font-size: 0.875rem !important;
     transition: border-color 0.16s, box-shadow 0.16s !important;
 }
 
@@ -171,7 +441,7 @@
     border: none !important;
     border-radius: 9px !important;
     padding: 10px 18px !important;
-    font-size: 13.5px !important;
+    font-size: 0.84375rem !important;
     font-weight: 600 !important;
     color: #fff !important;
     cursor: pointer !important;
@@ -188,4 +458,17 @@
 
 ::ng-deep .login-card .p-button:active {
     transform: translateY(0) !important;
+}
+
+/* ── Reduced motion ─────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    .orb,
+    .bubble,
+    .bubble-receipt {
+        animation: none !important;
+    }
+
+    ::ng-deep .login-card .p-button:hover {
+        transform: none !important;
+    }
 }
