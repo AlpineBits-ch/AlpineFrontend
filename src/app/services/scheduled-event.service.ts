@@ -2,11 +2,8 @@ import {inject, Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {ApiConfigService} from './api-config.service';
-import {
-    CreateScheduledEventDto,
-    ScheduledEventDto,
-    UpdateScheduledEventDto,
-} from '../dtos/response/scheduled-event.dto';
+import {ScheduledEventDto} from '../dtos/response/scheduled-event.dto';
+import {CreateScheduledEventDto, UpdateScheduledEventDto} from '../dtos/request/scheduled-event.dto';
 
 @Injectable({providedIn: 'root'})
 export class ScheduledEventService {

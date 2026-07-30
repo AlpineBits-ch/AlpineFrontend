@@ -2,7 +2,8 @@ import {inject, Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {ApiConfigService} from './api-config.service';
-import {CreateTemplateDto, GuildTemplateDto, UseTemplateDto} from '../dtos/response/guild-template.dto';
+import {GuildTemplateDto} from '../dtos/response/guild-template.dto';
+import {CreateTemplateDto, UseTemplateDto} from '../dtos/request/guild-template.dto';
 
 export interface CreatedTemplateDto {
     id: string;

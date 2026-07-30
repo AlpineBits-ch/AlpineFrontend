@@ -35,13 +35,3 @@ export interface GuildTemplateDto {
         uncategorizedChannels: TemplateChannel[];
     };
 }
-
-export interface CreateTemplateDto {
-    name: string;
-    description?: string;
-}
-
-export interface UseTemplateDto {
-    name: string;
-    description?: string;
-}

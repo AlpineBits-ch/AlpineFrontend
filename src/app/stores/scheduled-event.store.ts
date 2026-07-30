@@ -3,11 +3,8 @@ import {patchState, signalStore, withHooks, withMethods, withState} from '@ngrx/
 import {removeEntity, updateEntity, upsertEntities, upsertEntity, withEntities} from '@ngrx/signals/entities';
 import {catchError, defer, Observable, tap, throwError} from 'rxjs';
 import {ScheduledEventService} from '../services/scheduled-event.service';
-import {
-    CreateScheduledEventDto,
-    ScheduledEventDto,
-    UpdateScheduledEventDto,
-} from '../dtos/response/scheduled-event.dto';
+import {ScheduledEventDto} from '../dtos/response/scheduled-event.dto';
+import {CreateScheduledEventDto, UpdateScheduledEventDto} from '../dtos/request/scheduled-event.dto';
 import {
     GuildWebsocketService,
     WsEventCancelled,

@@ -2,12 +2,8 @@ import {TestBed} from '@angular/core/testing';
 import {Observable, of, Subject, throwError} from 'rxjs';
 import {ScheduledEventStore} from './scheduled-event.store';
 import {ScheduledEventService} from '../services/scheduled-event.service';
-import {
-    CreateScheduledEventDto,
-    ScheduledEventDto,
-    ScheduledEventStatus,
-    UpdateScheduledEventDto,
-} from '../dtos/response/scheduled-event.dto';
+import {ScheduledEventDto, ScheduledEventStatus} from '../dtos/response/scheduled-event.dto';
+import {CreateScheduledEventDto, UpdateScheduledEventDto} from '../dtos/request/scheduled-event.dto';
 import {GuildWebsocketService, WsEventCancelled, WsEventCreated, WsEventUpdated} from '../services/guild-websocket.service';
 
 function event(id: string, overrides: Partial<ScheduledEventDto> = {}): ScheduledEventDto {
