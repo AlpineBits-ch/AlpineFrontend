@@ -142,6 +142,7 @@
 
 <!-- Disable 2FA confirm -->
 <p-dialog [(visible)]="showDisableDialog"
+          (onHide)="password.set('')"
           [closable]="!busy()"
           [dismissableMask]="!busy()"
           [modal]="true"
@@ -186,6 +187,7 @@
 
 <!-- Regenerate recovery codes confirm -->
 <p-dialog [(visible)]="showRegenerateDialog"
+          (onHide)="password.set('')"
           [closable]="!busy()"
           [dismissableMask]="!busy()"
           [modal]="true"
