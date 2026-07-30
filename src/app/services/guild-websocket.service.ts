@@ -303,6 +303,9 @@ export class GuildWebsocketService {
     private notificationService = inject(NotificationService);
     private profileService = inject(ProfileService);
     private listenersSetUp = false;
+    // See MessagingWebsocketService.notifiedMessageIds -guards against SignalR
+    // redelivering 'guild.MessageCreated' after a reconnect and double-firing the sound.
+    private readonly notifiedMessageIds = new Set<string>();
 
     /** Shared connection state -one connection now backs every feature. */
     get connectionState() {
@@ -416,7 +419,7 @@ export class GuildWebsocketService {
 
             const ownId = this.profileService.ownProfile()?.userId;
             const mentions = data.mentions ?? [];
-            if (ownId && mentions.includes(ownId)) {
+            if (ownId && mentions.includes(ownId) && this.markNotified(data.messageId)) {
                 let body: string;
                 try {
                     const bytes = Uint8Array.from(atob(data.content), c => c.charCodeAt(0));
@@ -440,5 +443,16 @@ export class GuildWebsocketService {
                 });
             }
         });
+    }
+
+    /** Returns false (and skips) if this messageId was already notified -bounded so long sessions don't leak memory. */
+    private markNotified(messageId: string): boolean {
+        if (this.notifiedMessageIds.has(messageId)) return false;
+        this.notifiedMessageIds.add(messageId);
+        if (this.notifiedMessageIds.size > 200) {
+            const oldest = this.notifiedMessageIds.values().next().value;
+            if (oldest !== undefined) this.notifiedMessageIds.delete(oldest);
+        }
+        return true;
     }
 }

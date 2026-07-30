@@ -94,6 +94,9 @@ export class MessagingWebsocketService {
     private conversationService = inject(ConversationService);
     private readonly _rawMessageCreated$ = new Subject<MessageCreatedPayload>();
     private listenersSetUp = false;
+    // SignalR's automatic reconnect can redeliver 'conversation.MessageCreated' for a message
+    // that already arrived just before the drop, which used to fire the notification sound twice.
+    private readonly notifiedMessageIds = new Set<string>();
 
     constructor() {
         this._rawMessageCreated$.pipe(
@@ -289,6 +292,8 @@ export class MessagingWebsocketService {
             embedsJson: data.embedsJson,
         });
 
+        if (!this.markNotified(data.messageId)) return;
+
         const sender = await firstValueFrom(
             this.profileService.getByUserId(data.authorId).pipe(
                 timeout(5_000),
@@ -303,6 +308,17 @@ export class MessagingWebsocketService {
             actionTypeId: 'message',
             extra,
         });
+    }
+
+    /** Returns false (and skips) if this messageId was already notified -bounded so long sessions don't leak memory. */
+    private markNotified(messageId: string): boolean {
+        if (this.notifiedMessageIds.has(messageId)) return false;
+        this.notifiedMessageIds.add(messageId);
+        if (this.notifiedMessageIds.size > 200) {
+            const oldest = this.notifiedMessageIds.values().next().value;
+            if (oldest !== undefined) this.notifiedMessageIds.delete(oldest);
+        }
+        return true;
     }
 
 }

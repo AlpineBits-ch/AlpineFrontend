@@ -41,6 +41,8 @@
         </div>
     </header>
 
+    <div class="relative flex-1 min-h-0 flex flex-col">
+
     <!-- Search results panel -->
     @if (isSearchActive()) {
         <div
@@ -223,13 +225,16 @@
 
     }
 
-    <!-- Typing indicator -->
+    <!-- Typing indicator - absolutely positioned so it overlays the message list
+         instead of adding flow height, which used to push messages/composer up. -->
     @if (typingText(); as text) {
-        <div class="px-5 pb-1 pt-0.5 flex items-center gap-2 text-white/40 text-xs shrink-0 select-none">
+        <div class="absolute bottom-0 left-0 right-0 px-5 pb-1 pt-0.5 flex items-center gap-2 text-white/40 text-xs select-none bg-app-bg">
             <app-typing-dots/>
             {{ text }}
         </div>
     }
+
+    </div>
 
     <!-- Composer -->
     <footer class="shrink-0">
