@@ -56,3 +56,47 @@ describe('MessagingService pinning', () => {
         req.flush([]);
     });
 });
+
+describe('MessagingService search', () => {
+    let service: MessagingService;
+    let http: HttpTestingController;
+
+    beforeEach(() => {
+        TestBed.configureTestingModule({
+            providers: [
+                provideHttpClient(),
+                provideHttpClientTesting(),
+                {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test.example'}},
+            ],
+        });
+        service = TestBed.inject(MessagingService);
+        http = TestBed.inject(HttpTestingController);
+    });
+
+    afterEach(() => http.verify());
+
+    it('scopes a channel search with query params on the flat search route', () => {
+        service.searchMessagesForChannel('c1', 'hello world').subscribe();
+        const req = http.expectOne(r => r.url === 'https://api.test.example/api/v1/messaging/messaging/search');
+        expect(req.request.method).toBe('GET');
+        expect(req.request.params.get('query')).toBe('hello world');
+        expect(req.request.params.get('channelId')).toBe('c1');
+        expect(req.request.params.get('conversationId')).toBeNull();
+        req.flush([]);
+    });
+
+    it('scopes a conversation search the same way', () => {
+        service.searchMessagesForConversation('v1', 'test').subscribe();
+        const req = http.expectOne(r => r.url === 'https://api.test.example/api/v1/messaging/messaging/search');
+        expect(req.request.params.get('conversationId')).toBe('v1');
+        expect(req.request.params.get('channelId')).toBeNull();
+        req.flush([]);
+    });
+
+    it('sends the server-side maximum limit', () => {
+        service.searchMessagesForChannel('c1', 'x').subscribe();
+        const req = http.expectOne(r => r.url.endsWith('/search'));
+        expect(req.request.params.get('limit')).toBe('50');
+        req.flush([]);
+    });
+});
