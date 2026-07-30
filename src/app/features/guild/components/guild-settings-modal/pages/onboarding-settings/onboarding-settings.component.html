@@ -1,0 +1,56 @@
+@if (loading()) {
+    <p class="text-sm text-text-muted text-center py-8">{{ 'GUILD_SETTINGS.ONBOARDING.LOADING' | translate }}</p>
+} @else {
+    <div class="flex flex-col gap-6 max-w-2xl">
+
+        <!-- Master toggle -->
+        <div class="flex items-center justify-between bg-card/60 border border-white/[0.06] rounded-xl px-4 py-3">
+            <div>
+                <p class="text-[0.8125rem] text-text-primary">{{ 'GUILD_SETTINGS.ONBOARDING.ENABLE_TITLE' | translate }}</p>
+                <p class="text-xs text-text-muted mt-0.5">{{ 'GUILD_SETTINGS.ONBOARDING.ENABLE_DESC' | translate }}</p>
+            </div>
+            <p-toggleswitch (ngModelChange)="enabled.set($event)" [ngModel]="enabled()"/>
+        </div>
+
+        <!-- Rules text -->
+        <section class="flex flex-col gap-3">
+            <div>
+                <p class="text-[0.8125rem] text-text-primary">{{ 'GUILD_SETTINGS.ONBOARDING.RULES_TITLE' | translate }}</p>
+                <p class="text-xs text-text-muted mt-0.5">{{ 'GUILD_SETTINGS.ONBOARDING.RULES_DESC' | translate }}</p>
+            </div>
+            <textarea (ngModelChange)="onRulesTextChange($event)"
+                      [ngModel]="rulesText()"
+                      [placeholder]="'GUILD_SETTINGS.ONBOARDING.RULES_PLACEHOLDER' | translate"
+                      class="w-full resize-none"
+                      pTextarea
+                      rows="10"></textarea>
+            @if (rulesRequiredError()) {
+                <p class="text-xs text-offline">{{ 'GUILD_SETTINGS.ONBOARDING.RULES_REQUIRED_ERROR' | translate }}</p>
+            }
+        </section>
+
+        <!-- Default channels -->
+        <section class="flex flex-col gap-3">
+            <div>
+                <p class="text-[0.8125rem] text-text-primary">{{ 'GUILD_SETTINGS.ONBOARDING.CHANNELS_TITLE' | translate }}</p>
+                <p class="text-xs text-text-muted mt-0.5">{{ 'GUILD_SETTINGS.ONBOARDING.CHANNELS_DESC' | translate }}</p>
+            </div>
+            <p-multiselect (ngModelChange)="defaultChannelIds.set($event)"
+                            [ngModel]="defaultChannelIds()"
+                            [options]="channelOptions()"
+                            [placeholder]="'GUILD_SETTINGS.ONBOARDING.CHANNELS_PLACEHOLDER' | translate"
+                            display="chip"
+                            optionLabel="label"
+                            optionValue="value"
+                            styleClass="w-full"/>
+        </section>
+
+        <p class="text-xs text-text-muted">{{ 'GUILD_SETTINGS.ONBOARDING.NOT_RETROACTIVE_NOTE' | translate }}</p>
+
+        <div>
+            <p-button (onClick)="save()" [label]="'COMMON.SAVE' | translate" [loading]="saving()" severity="primary"
+                      size="small"/>
+        </div>
+
+    </div>
+}

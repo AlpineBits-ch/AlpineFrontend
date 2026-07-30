@@ -39,6 +39,7 @@ import {ConversationService} from "../../services/conversation.service";
 import {RichPresenceService} from "../../services/rich-presence.service";
 import {WikiComponent} from '../guild/components/wiki/wiki.component';
 import {WikiPanelComponent} from '../guild/components/wiki/wiki-panel/wiki-panel.component';
+import {OnboardingGateComponent} from '../guild/components/onboarding-gate/onboarding-gate.component';
 import {EmailVerificationService} from '../../services/email-verification.service';
 import {AppReadyService} from '../../services/app-ready.service';
 
@@ -64,6 +65,7 @@ import {AppReadyService} from '../../services/app-ready.service';
         KeySetupDialogComponent,
         WikiComponent,
         WikiPanelComponent,
+        OnboardingGateComponent,
     ],
     templateUrl: './main-page.component.html',
     styleUrl: './main-page.component.css',
