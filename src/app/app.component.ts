@@ -13,6 +13,7 @@ import {Toast} from "primeng/toast";
 import {ScreenPickerComponent} from './features/screen-picker/screen-picker.component';
 import {EmailVerificationDialogComponent} from './features/email-verification/email-verification-dialog.component';
 import {MfaChallengeDialogComponent} from './features/mfa-challenge/mfa-challenge-dialog.component';
+import {PasswordResetDialogComponent} from './features/password-reset/password-reset-dialog.component';
 import {InviteDialogComponent} from './features/invite-dialog/invite-dialog.component';
 import {InviteDialogService} from './features/invite-dialog/invite-dialog.service';
 import {environment} from "../environments/environment";
@@ -31,7 +32,7 @@ import {parseDiscordImportLink} from './features/discord-import/discord-import-l
 
 @Component({
     selector: "app-root",
-    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, MfaChallengeDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent, BotCommandDialogComponent, DiscordImportProgressDialogComponent],
+    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, MfaChallengeDialogComponent, PasswordResetDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent, BotCommandDialogComponent, DiscordImportProgressDialogComponent],
     templateUrl: "./app.component.html",
     styleUrl: "./app.component.css",
 })

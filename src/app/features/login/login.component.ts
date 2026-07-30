@@ -14,6 +14,7 @@ import {ToastService} from "../../services/toast.service";
 import {TranslateModule} from '@ngx-translate/core';
 import {EmailVerificationService} from '../../services/email-verification.service';
 import {MfaChallengeService, mfaErrorKind} from '../../services/mfa-challenge.service';
+import {PasswordResetDialogService} from '../password-reset/password-reset.service';
 import {ExternalLinkService} from "../../services/external-link.service";
 import {ApiConfigService, ServerConfiguration} from "../../services/api-config.service";
 import {environment} from "../../../environments/environment";
@@ -105,6 +106,7 @@ export class Login {
     private toast = inject(ToastService);
     private emailVerification = inject(EmailVerificationService);
     private mfaChallenge = inject(MfaChallengeService);
+    private passwordResetDialog = inject(PasswordResetDialogService);
     private destroyRef = inject(DestroyRef);
 
     constructor() {
@@ -144,6 +146,10 @@ export class Login {
 
     protected switchToMode(loginMode: boolean): void {
         this.isLoginMode.set(loginMode);
+    }
+
+    protected openPasswordReset(): void {
+        this.passwordResetDialog.show(this.loginModel().username);
     }
 
     protected login(): void {

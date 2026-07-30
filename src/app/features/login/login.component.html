@@ -72,6 +72,11 @@
                     <input (keydown.enter)="login()" [formField]="loginForm.password" [placeholder]="'LOGIN.LOGIN.PASSWORD_PLACEHOLDER' | translate"
                            autocomplete="current-password"
                            pPassword type="password"/>
+                    <button type="button"
+                            class="text-[0.8125rem] text-text-muted hover:text-[var(--color-brand-dim)] transition-colors self-end"
+                            (click)="openPasswordReset()">
+                        {{ 'LOGIN.LOGIN.FORGOT_PASSWORD' | translate }}
+                    </button>
                 </div>
 
                 <!-- Login disabled warning -->
