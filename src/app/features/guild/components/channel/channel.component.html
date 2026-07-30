@@ -37,6 +37,8 @@
                 <p-button (onClick)="showThreadPanel.set(!showThreadPanel())" icon="pi pi-comments" [text]="true"
                           [title]="showThreadPanel() ? 'Hide threads' : 'Threads'" severity="secondary" size="small"/>
             }
+            <p-button (onClick)="showPinnedPanel.set(!showPinnedPanel())" [text]="true" icon="pi pi-thumbtack"
+                      [title]="showPinnedPanel() ? 'Hide pinned messages' : 'Pinned messages'" severity="secondary" size="small"/>
             <p-button [text]="true" icon="pi pi-ellipsis-v" severity="secondary" size="small"/>
         </div>
     </header>
@@ -251,5 +253,9 @@
     @if (showThreadPanel()) {
         <app-thread-panel (threadSelected)="navService.openChannel($event)" [parentChannelId]="channel().id"
                            class="w-64 shrink-0 border-l border-white/[0.08]"/>
+    }
+    @if (showPinnedPanel()) {
+        <app-pinned-messages-panel (messageSelected)="jumpToMessage($event)" [channelId]="channel().id"
+                                    class="w-64 shrink-0 border-l border-white/[0.08]"/>
     }
 </div>
