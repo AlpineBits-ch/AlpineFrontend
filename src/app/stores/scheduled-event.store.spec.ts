@@ -146,6 +146,93 @@ describe('ScheduledEventStore', () => {
         expect(api.requestCount).toBe(2);
     });
 
+    it('refetches once the load is older than the staleness TTL', () => {
+        const {api, store} = setup();
+        const base = Date.now();
+        const clock = vi.spyOn(Date, 'now').mockReturnValue(base);
+
+        try {
+            store.loadFor('g1');
+            api.listPending[0].next([event('e1')]);
+            api.listPending[0].complete();
+            expect(api.requestCount).toBe(1);
+
+            // Just inside the 2-minute TTL - still fresh.
+            clock.mockReturnValue(base + 119_000);
+            store.loadFor('g1');
+            expect(api.requestCount).toBe(1);
+
+            // Past the TTL - SignalR doesn't replay across a reconnect, so this is the only
+            // thing standing between a missed realtime message and a permanently stale list.
+            clock.mockReturnValue(base + 121_000);
+            store.loadFor('g1');
+            expect(api.requestCount).toBe(2);
+        } finally {
+            clock.mockRestore();
+        }
+    });
+
+    it('issues the queued refetch when a realtime invalidation races an in-flight list request', () => {
+        const {api, ws, store} = setup();
+
+        // Panel opens - GET issued, no response yet.
+        store.loadFor('g1');
+        expect(api.requestCount).toBe(1);
+
+        // Someone creates an event while the original request is still in flight.
+        ws.eventCreatedObservable.next({guildId: 'g1', eventId: 'e2', title: 'New', startsAt: '2026-08-05T00:00:00Z'});
+
+        // The refetch is queued, not fired on top of the in-flight request.
+        expect(api.requestCount).toBe(1);
+
+        // The (pre-creation) original response lands - the follow-up must go out now,
+        // rather than being swallowed and marking the guild loaded forever.
+        api.listPending[0].next([event('e1')]);
+        api.listPending[0].complete();
+        expect(api.requestCount).toBe(2);
+
+        api.listPending[1].next([event('e1'), event('e2')]);
+        api.listPending[1].complete();
+        expect(store.eventsForGuild('g1').map(e => e.id)).toEqual(['e1', 'e2']);
+    });
+
+    it('issues the queued refetch even when the racing in-flight request fails', () => {
+        const {api, ws, store} = setup();
+
+        store.loadFor('g1');
+        ws.eventCreatedObservable.next({guildId: 'g1', eventId: 'e2', title: 'New', startsAt: '2026-08-05T00:00:00Z'});
+        api.listPending[0].error(new Error('boom'));
+
+        expect(api.requestCount).toBe(2);
+    });
+
+    it('ignores realtime events for guilds that were never loaded', () => {
+        const {api, ws, store} = setup();
+
+        ws.eventCreatedObservable.next({guildId: 'other', eventId: 'x', title: 'Elsewhere', startsAt: '2026-08-05T00:00:00Z'});
+
+        // No GET for a guild nobody has opened, and no entities accumulated for it.
+        expect(api.requestCount).toBe(0);
+        expect(store.eventsForGuild('other')).toEqual([]);
+    });
+
+    it('records a load error that a successful retry clears', () => {
+        const {api, store} = setup();
+
+        store.loadFor('g1');
+        api.listPending[0].error(new Error('boom'));
+        expect(store.loadError('g1')).toBe(true);
+        expect(store.loading('g1')).toBe(false);
+
+        store.loadFor('g1');
+        expect(store.loading('g1')).toBe(true);
+        api.listPending[1].next([event('e1')]);
+        api.listPending[1].complete();
+
+        expect(store.loadError('g1')).toBe(false);
+        expect(store.loading('g1')).toBe(false);
+    });
+
     it('toggleInterest optimistically flips isInterested and increments interestedCount, rolling both back on error', () => {
         const {api, store} = setup();
 
