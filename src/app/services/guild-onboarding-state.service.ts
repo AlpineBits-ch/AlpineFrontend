@@ -1,5 +1,7 @@
 import {inject, Injectable, signal} from '@angular/core';
+import {TranslateService} from '@ngx-translate/core';
 import {GuildSafetyService} from './guild-safety.service';
+import {ToastService} from './toast.service';
 import {OnboardingStatus} from '../dtos/response/guild-safety.dto';
 
 /**
@@ -12,6 +14,8 @@ export class GuildOnboardingStateService {
     private readonly statuses = signal<Record<string, OnboardingStatus>>({});
     private readonly requested = new Set<string>();
     private safety = inject(GuildSafetyService);
+    private toast = inject(ToastService);
+    private translate = inject(TranslateService);
 
     statusFor(guildId: string): OnboardingStatus | undefined {
         return this.statuses()[guildId];
@@ -42,6 +46,13 @@ export class GuildOnboardingStateService {
                 ...m,
                 [guildId]: {...(m[guildId] ?? {defaultChannelIds: []}), completed: true},
             })),
+            error: err => {
+                // Leave the cached status untouched on failure - the guild stays pending
+                // and the gate's accept button is never disabled, so the user can just
+                // retry. Surface the failure here (not in the gate component) since this
+                // is where the request and its outcome both live.
+                this.toast.httpError(this.translate.instant('ONBOARDING_GATE.ACCEPT_ERROR'), err);
+            },
         });
     }
 }
