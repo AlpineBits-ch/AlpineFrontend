@@ -12,6 +12,7 @@ interface GuildEmojiEntry {
     emojis: GuildEmojiDto[];
     fetchedAt: number;
     loading: boolean;
+    requestId: number;
 }
 
 interface GuildEmojiState {
@@ -30,25 +31,35 @@ export const GuildEmojiStore = signalStore(
         ensureLoaded(guildId: string): void {
             const entry = store.byGuild()[guildId];
             const isStale = !entry || (Date.now() - entry.fetchedAt) > STALE_MS;
-            if (!isStale || entry?.loading) return;
+            if (!isStale) return;
+
+            const requestId = (entry?.requestId ?? 0) + 1;
 
             patchState(store, {
                 byGuild: {
                     ...store.byGuild(),
-                    [guildId]: {emojis: entry?.emojis ?? [], fetchedAt: entry?.fetchedAt ?? 0, loading: true},
+                    [guildId]: {emojis: entry?.emojis ?? [], fetchedAt: entry?.fetchedAt ?? 0, loading: true, requestId},
                 },
             });
 
             guildEmojiService.getEmojis(guildId).subscribe({
-                next: emojis => patchState(store, {
-                    byGuild: {...store.byGuild(), [guildId]: {emojis, fetchedAt: Date.now(), loading: false}},
-                }),
-                error: () => patchState(store, {
-                    byGuild: {
-                        ...store.byGuild(),
-                        [guildId]: {emojis: entry?.emojis ?? [], fetchedAt: entry?.fetchedAt ?? 0, loading: false},
-                    },
-                }),
+                next: emojis => {
+                    const current = store.byGuild()[guildId];
+                    if (current?.requestId !== requestId) return;
+                    patchState(store, {
+                        byGuild: {...store.byGuild(), [guildId]: {emojis, fetchedAt: Date.now(), loading: false, requestId}},
+                    });
+                },
+                error: () => {
+                    const current = store.byGuild()[guildId];
+                    if (current?.requestId !== requestId) return;
+                    patchState(store, {
+                        byGuild: {
+                            ...store.byGuild(),
+                            [guildId]: {emojis: current.emojis, fetchedAt: current.fetchedAt, loading: false, requestId},
+                        },
+                    });
+                },
             });
         },
 
