@@ -1,6 +1,8 @@
-import {Component, computed, input} from '@angular/core';
+import {Component, computed, inject, input} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
+import {Button} from 'primeng/button';
 import {ChannelDto} from '../../../../dtos/response/guild.dto';
+import {NavigationService} from '../../../main-page/navigation.service';
 import {householdChannelMeta} from '../../channel-types';
 
 /**
@@ -10,11 +12,18 @@ import {householdChannelMeta} from '../../channel-types';
  */
 @Component({
     selector: 'app-unsupported-channel',
-    imports: [TranslateModule],
+    imports: [TranslateModule, Button],
     templateUrl: './unsupported-channel.component.html',
 })
 export class UnsupportedChannelComponent {
     channel = input.required<ChannelDto>();
+
+    /**
+     * The left nav is off-screen below `lg` until this is set, so the header carries the
+     * same hamburger every other channel view does - otherwise a household channel opened
+     * on a phone is a dead end with no way back to the channel list.
+     */
+    protected navService = inject(NavigationService);
 
     private meta = computed(() => householdChannelMeta(this.channel().type));
 
