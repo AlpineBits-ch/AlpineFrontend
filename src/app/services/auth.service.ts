@@ -24,13 +24,18 @@ export class AuthService {
     }
 
     /** Accepts `username` or `user@server.com`, resolves the server, then logs in. */
-    public login(input: string, password: string): Observable<TokenResponse> {
+    public login(input: string, password: string, mfaCode?: string): Observable<TokenResponse> {
         const username = this.apiConfig.applyLoginInput(input);
-        return from(this.oauthService.fetchTokenUsingPasswordFlow(username, password)).pipe(
+        // fetchTokenUsingPasswordFlow is exactly fetchTokenUsingGrant('password', {username, password});
+        // going through the grant call directly is the only way to add the mfa_code field the
+        // backend reads off the token request.
+        const parameters: Record<string, string> = {username, password};
+        if (mfaCode) parameters['mfa_code'] = mfaCode;
+
+        return from(this.oauthService.fetchTokenUsingGrant('password', parameters)).pipe(
             tap({
                 error: (err) => console.error('Login failed', err)
             }),
-
             catchError((err) => throwError(() => err))
         );
     }

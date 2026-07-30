@@ -13,6 +13,7 @@ import {UserSettingsService} from "../../services/user-settings.service";
 import {ToastService} from "../../services/toast.service";
 import {TranslateModule} from '@ngx-translate/core';
 import {EmailVerificationService} from '../../services/email-verification.service';
+import {MfaChallengeService, mfaErrorKind} from '../../services/mfa-challenge.service';
 import {ExternalLinkService} from "../../services/external-link.service";
 import {ApiConfigService, ServerConfiguration} from "../../services/api-config.service";
 import {environment} from "../../../environments/environment";
@@ -103,6 +104,7 @@ export class Login {
     private userSettings = inject(UserSettingsService);
     private toast = inject(ToastService);
     private emailVerification = inject(EmailVerificationService);
+    private mfaChallenge = inject(MfaChallengeService);
     private destroyRef = inject(DestroyRef);
 
     constructor() {
@@ -154,6 +156,11 @@ export class Login {
                 void this.router.navigate(['/overview']);
             }),
             catchError((err) => {
+                if (mfaErrorKind(err) === 'required') {
+                    const {username, password} = this.loginModel();
+                    this.mfaChallenge.show(username, password);
+                    return EMPTY;
+                }
                 const status = err?.status ?? err?.reason?.status;
                 if (status === 403) {
                     const {username, password} = this.loginModel();
