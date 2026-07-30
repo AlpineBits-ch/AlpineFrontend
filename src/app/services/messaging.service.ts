@@ -1,5 +1,5 @@
 import {inject, Injectable} from '@angular/core';
-import {HttpClient} from "@angular/common/http";
+import {HttpClient, HttpParams} from "@angular/common/http";
 import {Observable, Subject} from "rxjs";
 import {environment} from "../../environments/environment";
 import {CreateMessageDto} from "../dtos/request/create-message.dto";
@@ -7,6 +7,10 @@ import {MessageDto, PinMessageResponse} from "../dtos/response/message.dto";
 import {CreateReactionDto} from "../dtos/request/create-reaction.dto";
 import {RemoveReactionDto} from "../dtos/request/remove-reaction.dto";
 import {ApiConfigService} from "./api-config.service";
+import {PublishResponse} from "../dtos/response/channel-follow.dto";
+
+/** Server caps this at 50 and silently falls back to 25 for anything out of range. */
+const SEARCH_LIMIT = 50;
 
 @Injectable({
     providedIn: 'root',
@@ -38,15 +42,22 @@ export class MessagingService {
         return this.httpClient.put<MessageDto>(this.apiConfig.baseUrl() + '/api/v1/messaging/messaging/' + messageId, {content});
     }
 
+    /**
+     * Single flat search route scoped by query param - there is no per-channel search
+     * path. Relevance-ordered (best match first), not chronological, and MLS-encrypted
+     * messages are never indexed so encrypted conversations always come back empty.
+     */
     public searchMessagesForChannel(channelId: string, query: string): Observable<MessageDto[]> {
         return this.httpClient.get<MessageDto[]>(
-            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/channels/${channelId}/messages/search?q=${encodeURIComponent(query)}`
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/search`,
+            {params: new HttpParams().set('query', query).set('channelId', channelId).set('limit', SEARCH_LIMIT)}
         );
     }
 
     public searchMessagesForConversation(conversationId: string, query: string): Observable<MessageDto[]> {
         return this.httpClient.get<MessageDto[]>(
-            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/conversations/${conversationId}/messages/search?q=${encodeURIComponent(query)}`
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/search`,
+            {params: new HttpParams().set('query', query).set('conversationId', conversationId).set('limit', SEARCH_LIMIT)}
         );
     }
 
@@ -85,5 +96,16 @@ export class MessagingService {
     public getPinnedMessages(params: { channelId?: string; conversationId?: string }): Observable<MessageDto[]> {
         const query = params.channelId ? `channelId=${params.channelId}` : `conversationId=${params.conversationId}`;
         return this.httpClient.get<MessageDto[]>(`${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/pins?${query}`);
+    }
+
+    /**
+     * Copies an announcement-channel message into every channel currently following it.
+     * Gated by PinMessages on the source channel, reused as the elevated-action bit rather
+     * than adding a new permission. There is no re-publish guard server-side, so callers
+     * must disable the control after a successful publish to avoid duplicate sends.
+     */
+    public publishMessage(messageId: string): Observable<PublishResponse> {
+        return this.httpClient.post<PublishResponse>(
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/${messageId}/publish`, null);
     }
 }

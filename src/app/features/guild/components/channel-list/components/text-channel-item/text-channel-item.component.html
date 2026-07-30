@@ -12,6 +12,8 @@
             class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer">
         @if (channel().type === ChannelType.Forum) {
             <i class="pi pi-align-left text-white/35 text-[17px] shrink-0 pointer-events-none"></i>
+        } @else if (channel().type === ChannelType.Announcement) {
+            <i class="pi pi-megaphone text-white/35 text-[17px] shrink-0 pointer-events-none"></i>
         } @else {
             <span class="text-white/35 text-[25px] leading-none font-medium shrink-0 pointer-events-none">#</span>
         }

@@ -13,12 +13,15 @@ export class MessageHoverToolbarComponent {
     canPin = input<boolean>(false);
     isPinned = input<boolean>(false);
     guildId = input<string | undefined>();
+    canPublish = input<boolean>(false);
+    isPublished = input<boolean>(false);
 
     reply = output<void>();
     edit = output<void>();
     delete = output<void>();
     emojiToggled = output<EmojiSelection>();
     pinToggled = output<void>();
+    publish = output<void>();
 
     readonly quickReactions = ['👍', '❤️', '😂'];
 }

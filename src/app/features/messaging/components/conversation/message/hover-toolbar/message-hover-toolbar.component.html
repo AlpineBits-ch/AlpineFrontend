@@ -31,6 +31,18 @@
         </button>
     }
 
+    @if (canPublish()) {
+        <button (click)="publish.emit()"
+                [disabled]="isPublished()"
+                [class.text-brand-dim]="isPublished()"
+                class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-white/75
+               hover:bg-white/[0.07] cursor-pointer border-0 bg-transparent transition-colors
+               disabled:opacity-40 disabled:cursor-not-allowed"
+                [title]="(isPublished() ? 'MESSAGE.PUBLISHED' : 'MESSAGE.PUBLISH') | translate">
+            <i class="pi pi-megaphone text-[10px]"></i>
+        </button>
+    }
+
     @if (isOwn()) {
         <button (click)="edit.emit()"
                 class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-white/75
