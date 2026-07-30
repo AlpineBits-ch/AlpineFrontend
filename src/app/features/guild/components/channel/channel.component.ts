@@ -14,6 +14,7 @@ import {
 } from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {DatePipe} from '@angular/common';
+import {HttpErrorResponse} from '@angular/common/http';
 import {catchError, debounceTime, EMPTY, Subject, tap} from 'rxjs';
 
 import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
@@ -25,6 +26,7 @@ import {hasPermission, parsePermissions, Permissions} from '../../../../enums/pe
 import {isGroupedWithPrevious} from '../../../messaging/components/conversation/message-utils';
 
 import {Button} from 'primeng/button';
+import {TranslateModule} from '@ngx-translate/core';
 
 import {MessagingService} from '../../../../services/messaging.service';
 import {MessageStore} from '../../../../stores/message.store';
@@ -61,7 +63,7 @@ function decodeContent(encoded: string): string {
     imports: [
         ComposerComponent, MessageComponent, SystemMessageComponent, Button,
         DatePipe, HighlightPipe, TypingDotsComponent, ThreadPanelComponent,
-        PinnedMessagesPanelComponent,
+        PinnedMessagesPanelComponent, TranslateModule,
     ],
     templateUrl: './channel.component.html',
     styleUrl: './channel.component.css',
@@ -81,6 +83,8 @@ export class ChannelComponent implements AfterViewInit {
         return ws.type === 'server' ? ws.guild.channels : [];
     });
     protected replyingTo = signal<MessageDto | null>(null);
+    /** Set when the server refuses a send via auto-mod, cleared on the next attempt. */
+    protected autoModError = signal<'blocked_word' | 'rate_limited' | null>(null);
     protected showThreadPanel = signal(false);
     protected showPinnedPanel = signal(false);
     protected readonly ChannelType = ChannelType;
@@ -290,6 +294,7 @@ export class ChannelComponent implements AfterViewInit {
         const now = new Date();
 
         this.replyingTo.set(null);
+        this.autoModError.set(null);
 
         const optimistic: MessageDto = {
             id: tempId,
@@ -331,8 +336,16 @@ export class ChannelComponent implements AfterViewInit {
                 this.messageStore.confirmMessage(tempId, confirmed);
                 this.messagingService.messageSentObservable.next(confirmed);
             }),
-            catchError(() => {
+            catchError((err: HttpErrorResponse) => {
                 this.messageStore.failMessage(tempId);
+                // Auto-mod refusals are a 403 with a structured body. They read very
+                // differently to a user than a generic send failure, so surface the reason
+                // inline by the composer instead of leaving a bare failed-message marker.
+                const body = err?.error as { error?: string; reason?: string } | null;
+                if (err?.status === 403 && body?.error === 'automod_blocked') {
+                    this.autoModError.set(body.reason === 'rate_limited' ? 'rate_limited' : 'blocked_word');
+                    this.messageStore.removeMessage(tempId);
+                }
                 return EMPTY;
             }),
         ).subscribe();
