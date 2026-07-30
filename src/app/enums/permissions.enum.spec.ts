@@ -22,6 +22,10 @@ describe('Permissions moderation bits', () => {
         expect(Permissions.ViewAuditLog).toBe(1n << 36n);
     });
 
+    it('defines ManageEmojis at bit 37', () => {
+        expect(Permissions.ManageEmojis).toBe(1n << 37n);
+    });
+
     it('does not collide with any existing bit (0-31, 63)', () => {
         const newBits: PermissionKey[] = ['KickMembers', 'BanMembers', 'ModerateMembers', 'ManageGuild', 'ViewAuditLog'];
         const existingKeys = (Object.keys(Permissions) as PermissionKey[])
