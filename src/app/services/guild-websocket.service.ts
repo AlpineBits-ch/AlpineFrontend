@@ -220,6 +220,20 @@ export interface WsBotUninstalled {
     userId: string;
 }
 
+export interface WsEventCreated {
+    guildId: string;
+    eventId: string;
+    title: string;
+    startsAt: string;
+}
+
+export type WsEventUpdated = WsEventCreated;
+
+export interface WsEventCancelled {
+    guildId: string;
+    eventId: string;
+}
+
 export interface GuildMessageCreatedPayload {
     messageId: string;
     content: string;
@@ -315,6 +329,10 @@ export class GuildWebsocketService {
     // ── Bot lifecycle ──────────────────────────────────────────────────────────
     public botInstalledObservable = new Subject<WsBotInstalled>();
     public botUninstalledObservable = new Subject<WsBotUninstalled>();
+    // ── Scheduled events ────────────────────────────────────────────────────────
+    readonly eventCreatedObservable = new Subject<WsEventCreated>();
+    readonly eventUpdatedObservable = new Subject<WsEventUpdated>();
+    readonly eventCancelledObservable = new Subject<WsEventCancelled>();
     private realtime = inject(RealtimeConnectionService);
     private notificationService = inject(NotificationService);
     private profileService = inject(ProfileService);
@@ -418,6 +436,9 @@ export class GuildWebsocketService {
         this.realtime.on('guild.ThreadCreated', (d: WsThreadCreated) => this.threadCreatedObservable.next(d));
         this.realtime.on('guild.EmojiCreated', (d: WsEmojiCreated) => this.emojiCreatedObservable.next(d));
         this.realtime.on('guild.EmojiDeleted', (d: WsEmojiDeleted) => this.emojiDeletedObservable.next(d));
+        this.realtime.on('guild.EventCreated', (d: WsEventCreated) => this.eventCreatedObservable.next(d));
+        this.realtime.on('guild.EventUpdated', (d: WsEventUpdated) => this.eventUpdatedObservable.next(d));
+        this.realtime.on('guild.EventCancelled', (d: WsEventCancelled) => this.eventCancelledObservable.next(d));
 
         this.realtime.on('guild.PresenceChanged', (d: WsPresenceChanged) => {
             this.presenceChangedObservable.next(d);
