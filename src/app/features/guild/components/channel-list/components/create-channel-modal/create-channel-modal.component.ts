@@ -33,8 +33,10 @@ export class CreateChannelModalComponent {
     /** Only the household types whose module this guild actually has. */
     protected householdTypes = computed(() =>
         HOUSEHOLD_CHANNEL_META.filter(meta => meta.feature !== null && this.guildFeatures().has(meta.feature)));
+    /** Drives the split into "Chat" / "Household" headings: no household types, no split. */
+    protected hasHouseholdTypes = computed(() => this.householdTypes().length > 0);
     protected hasTypeChoice = computed(() =>
-        this.canVoice() || this.canForum() || this.canAnnouncement() || this.householdTypes().length > 0);
+        this.canVoice() || this.canForum() || this.canAnnouncement() || this.hasHouseholdTypes());
     /** The glyph inside the name field - the same table the sidebar row reads. */
     protected selectedIcon = computed(() => channelIcon(this.type()));
     protected name = signal('');
