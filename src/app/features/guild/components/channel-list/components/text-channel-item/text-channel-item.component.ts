@@ -5,7 +5,7 @@ import {GuildReadStateService} from '../../../../../../services/guild-read-state
 import {NavigationService} from '../../../../../main-page/navigation.service';
 import {ChannelListDragService} from '../../channel-list-drag.service';
 
-/** A text channel row in the channel sidebar. */
+/** A text or Forum channel row in the channel sidebar. */
 @Component({
     selector: 'app-text-channel-item',
     host: {class: 'contents'},
