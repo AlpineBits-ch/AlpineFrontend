@@ -61,6 +61,18 @@ function messageMatchesQuery(msg: MessageDto, q: string): boolean {
     return msg.attachments.some(a => a.fileName.toLowerCase().includes(q));
 }
 
+/**
+ * A reaction event matches a stored reaction when they refer to the same custom emoji
+ * (by emojiId) or, if the event has no emojiId, the same unicode/text emoji -but never
+ * across the two: a custom-emoji reaction and a unicode reaction that happen to share
+ * display text must never be treated as the same reaction.
+ */
+function reactionMatches(r: MessageReaction, event: ReactionEvent): boolean {
+    return event.emojiId
+        ? r.emojiId === event.emojiId && r.userId === event.userId
+        : r.emoji === event.emoji && !r.emojiId && r.userId === event.userId;
+}
+
 async function decryptMessages(messages: MessageDto[], mlsService: MlsService): Promise<MessageDto[]> {
     const result: MessageDto[] = [];
     for (const msg of messages) {
@@ -219,10 +231,7 @@ export const MessageStore = signalStore(
             const msg = store.entityMap()[event.messageId];
             if (!msg) return;
             const reactions = msg.reactions ?? [];
-            const matches = (r: MessageReaction) => event.emojiId
-                ? r.emojiId === event.emojiId && r.userId === event.userId
-                : r.emoji === event.emoji && !r.emojiId && r.userId === event.userId;
-            if (reactions.some(matches)) return;
+            if (reactions.some(r => reactionMatches(r, event))) return;
             const entry: MessageReaction = {
                 contextId: event.conversationId ?? event.channelId ?? '',
                 messageId: event.messageId,
@@ -239,10 +248,7 @@ export const MessageStore = signalStore(
         applyReactionRemoved(event: ReactionEvent): void {
             const msg = store.entityMap()[event.messageId];
             if (!msg) return;
-            const matches = (r: MessageReaction) => event.emojiId
-                ? r.emojiId === event.emojiId && r.userId === event.userId
-                : r.emoji === event.emoji && !r.emojiId && r.userId === event.userId;
-            const reactions = (msg.reactions ?? []).filter(r => !matches(r));
+            const reactions = (msg.reactions ?? []).filter(r => !reactionMatches(r, event));
             patchState(store, updateEntity({id: event.messageId, changes: {reactions}}));
         },
 
