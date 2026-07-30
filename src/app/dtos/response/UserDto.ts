@@ -37,4 +37,10 @@ export interface UserDto {
     status: AccountStatus;
     deletionRequestedAt: Date | undefined;
     purgeScheduledAt: Date | undefined;
+    /**
+     * Inherited from IdentityUser server-side and already present on the /users/self
+     * payload - there is no dedicated MFA-status endpoint. Optional because a
+     * self-hosted server on an older build predating MFA won't send it at all.
+     */
+    twoFactorEnabled?: boolean;
 }

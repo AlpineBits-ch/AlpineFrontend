@@ -8,6 +8,8 @@ import {TranslateModule} from '@ngx-translate/core';
 import {MfaService} from '../../../../../services/mfa.service';
 import {ToastService} from '../../../../../services/toast.service';
 import {QrCodeComponent} from '../../../../../components/qr-code/qr-code.component';
+import {UserService} from '../../../../../services/user.service';
+import {UserDto} from '../../../../../dtos/response/UserDto';
 
 type Stage = 'idle' | 'enrolling' | 'enabled';
 
@@ -33,6 +35,18 @@ export class SecuritySettingsComponent {
 
     private mfa = inject(MfaService);
     private toast = inject(ToastService);
+    private userService = inject(UserService);
+
+    constructor() {
+        // Without this the page always opens on 'idle', so a user who already has 2FA on
+        // is shown "Enable 2FA" and has no way to disable it or regenerate recovery codes.
+        // There is no MFA-status endpoint; twoFactorEnabled rides along on /users/self.
+        const seed = (user: UserDto | null) => {
+            if (user?.twoFactorEnabled && this.stage() === 'idle') this.stage.set('enabled');
+        };
+        seed(this.userService.self());
+        if (!this.userService.self()) this.userService.getSelf().subscribe({next: seed, error: () => void 0});
+    }
 
     protected beginEnroll(): void {
         if (this.busy()) return;

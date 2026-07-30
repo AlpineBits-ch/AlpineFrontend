@@ -150,6 +150,13 @@ export class Login {
 
     protected openPasswordReset(): void {
         const value = this.loginModel().username;
+        // The reset endpoints go through ApiConfigService.baseUrl(), which only points at a
+        // self-hosted server once applyLoginInput() has parsed a `user@server` identity —
+        // normally during a login attempt. Someone resetting their password on a fresh
+        // install has never logged in, so without this the request would go to the default
+        // server and silently do nothing. `user@host` is read as server-qualified here for
+        // the same reason login reads it that way.
+        if (this.isCustomServer()) this.apiConfigService.applyLoginInput(value);
         this.passwordResetDialog.show(this.looksLikeEmail(value) ? value : '');
     }
 
