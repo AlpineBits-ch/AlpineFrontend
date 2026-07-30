@@ -3,7 +3,7 @@ import {HttpClient} from "@angular/common/http";
 import {Observable, Subject} from "rxjs";
 import {environment} from "../../environments/environment";
 import {CreateMessageDto} from "../dtos/request/create-message.dto";
-import {MessageDto} from "../dtos/response/message.dto";
+import {MessageDto, PinMessageResponse} from "../dtos/response/message.dto";
 import {CreateReactionDto} from "../dtos/request/create-reaction.dto";
 import {RemoveReactionDto} from "../dtos/request/remove-reaction.dto";
 import {ApiConfigService} from "./api-config.service";
@@ -72,5 +72,18 @@ export class MessagingService {
 
     public removeReaction(messageId: string, dto: RemoveReactionDto): Observable<void> {
         return this.httpClient.delete<void>(`${this.apiConfig.baseUrl()}/api/v1/messaging/messages/${messageId}/reactions`, {body: dto});
+    }
+
+    public pinMessage(messageId: string): Observable<PinMessageResponse> {
+        return this.httpClient.post<PinMessageResponse>(`${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/${messageId}/pin`, null);
+    }
+
+    public unpinMessage(messageId: string): Observable<PinMessageResponse> {
+        return this.httpClient.delete<PinMessageResponse>(`${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/${messageId}/pin`);
+    }
+
+    public getPinnedMessages(params: { channelId?: string; conversationId?: string }): Observable<MessageDto[]> {
+        const query = params.channelId ? `channelId=${params.channelId}` : `conversationId=${params.conversationId}`;
+        return this.httpClient.get<MessageDto[]>(`${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/pins?${query}`);
     }
 }
