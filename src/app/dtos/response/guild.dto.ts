@@ -8,6 +8,16 @@ export enum ChannelType {
     /** A forum variant: same tags, posts and endpoints, gallery-first rendering. */
     Media = 'Media',
     Announcement = 'Announcement',
+
+    // ── Household channel types ─────────────────────────────────────────────
+    // Structured rows, not messages: none of these has message history or a
+    // composer. Each is gated on the matching GuildFeatures module - see
+    // features/guild/channel-types.ts.
+    List = 'List',
+    Chores = 'Chores',
+    Ledger = 'Ledger',
+    Pantry = 'Pantry',
+    Decisions = 'Decisions',
 }
 
 /** Forum and Media behave identically everywhere except how their post list is drawn. */
