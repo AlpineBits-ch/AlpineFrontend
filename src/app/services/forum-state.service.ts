@@ -10,7 +10,8 @@ import {GuildWebsocketService} from './guild-websocket.service';
  * Tags and config are small, near-static and read on every render of a forum, so
  * they're cached for the session and kept fresh by the realtime events rather than
  * re-fetched. Posts are deliberately *not* cached here - they're paginated, filtered
- * and volatile, so the forum view owns that list.
+ * and volatile. That state lives in ForumPostListService, which the full-width list and
+ * the narrow post-list pane share so switching between them doesn't refetch.
  */
 @Injectable({providedIn: 'root'})
 export class ForumStateService {
