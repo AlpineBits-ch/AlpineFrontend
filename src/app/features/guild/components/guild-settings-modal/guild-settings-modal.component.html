@@ -103,6 +103,9 @@
                     @case ('bans') {
                         <app-bans-settings [guild]="guild()"/>
                     }
+                    @case ('moderation') {
+                        <app-moderation-settings [guild]="guild()"/>
+                    }
                     @case ('audit-log') {
                         <app-audit-log-settings [guild]="guild()"/>
                     }
