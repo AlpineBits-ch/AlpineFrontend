@@ -85,9 +85,12 @@ export class ChannelListComponent {
     protected localChannels = signal<ChannelDto[]>([]);
     protected localCategories = signal<CategoryDto[]>([]);
     // ── Computed channel groups (sorted by position) ──────────────────────────
+    // Nested channels (text-channel threads and forum posts) arrive in the guild
+    // payload alongside top-level channels but belong to their parent's own UI -
+    // the thread panel or the forum post list - never the sidebar.
     protected uncategorizedChannels = computed(() =>
         this.localChannels()
-            .filter(c => !c.categoryId)
+            .filter(c => !c.categoryId && !c.parentChannelId)
             .sort((a, b) => a.position - b.position)
     );
     protected sortedCategories = computed(() =>
@@ -307,7 +310,7 @@ export class ChannelListComponent {
 
     protected categoryChannels(categoryId: string): ChannelDto[] {
         return this.localChannels()
-            .filter(c => c.categoryId === categoryId)
+            .filter(c => c.categoryId === categoryId && !c.parentChannelId)
             .sort((a, b) => a.position - b.position);
     }
 
@@ -507,7 +510,7 @@ export class ChannelListComponent {
     protected openCreateChannel(categoryId: string | undefined): void {
         const position = categoryId
             ? this.categoryChannels(categoryId).length
-            : this.localChannels().filter(c => !c.categoryId).length;
+            : this.uncategorizedChannels().length;
         this.createChannelModal?.open(categoryId, position);
     }
 
