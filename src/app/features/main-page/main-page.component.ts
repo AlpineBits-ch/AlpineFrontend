@@ -9,6 +9,7 @@ import {ActionSidepanelComponent} from './components/action-sidepanel/action-sid
 import {ConversationComponent} from '../messaging/components/conversation/conversation.component';
 import {ChannelComponent} from '../guild/components/channel/channel.component';
 import {VoiceChannelComponent} from '../guild/components/voice-channel/voice-channel.component';
+import {ForumChannelComponent} from '../guild/components/forum-channel/forum-channel.component';
 import {ServerTaskbarComponent} from '../guild/components/server-taskbar/server-taskbar.component';
 import {ActivityFeedComponent} from './components/activity-feed/activity-feed.component';
 import {
@@ -50,6 +51,7 @@ import {AppReadyService} from '../../services/app-ready.service';
         ConversationComponent,
         ChannelComponent,
         VoiceChannelComponent,
+        ForumChannelComponent,
         ServerTaskbarComponent,
         ActivityFeedComponent,
         ConversationInfoPanelComponent,

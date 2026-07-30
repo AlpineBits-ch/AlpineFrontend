@@ -49,6 +49,8 @@
                 @case ('channel') {
                     @if (view.channel.type === ChannelType.Voice) {
                         <app-voice-channel [channel]="view.channel"/>
+                    } @else if (view.channel.type === ChannelType.Forum) {
+                        <app-forum-channel (back)="navService.showHome()" [channel]="view.channel"/>
                     } @else {
                         <app-channel (back)="navService.showHome()" [channel]="view.channel"/>
                     }
