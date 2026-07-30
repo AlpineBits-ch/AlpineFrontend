@@ -6,6 +6,7 @@ import {Textarea} from 'primeng/textarea';
 import {Dialog} from 'primeng/dialog';
 import {Select} from 'primeng/select';
 import {ChannelType, GuildDto} from '../../../../../../dtos/response/guild.dto';
+import {GuildVerificationLevel} from '../../../../../../dtos/response/guild-safety.dto';
 import {GuildService, UpdateGuildDto} from '../../../../../../services/guild.service';
 import {ImageCropperComponent} from '../../../../../../components/image-cropper/image-cropper.component';
 import {environment} from '../../../../../../../environments/environment';
@@ -30,6 +31,19 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
             .filter(c => c.type === ChannelType.Text)
             .map(c => ({label: c.name, value: c.id}))
     );
+    verificationLevel = signal<GuildVerificationLevel>(GuildVerificationLevel.None);
+
+    /** Requirement text is spelled out per option, the way Discord's own picker does. */
+    readonly verificationOptions = [
+        {label: 'None', value: GuildVerificationLevel.None, hint: 'GUILD_SETTINGS.OVERVIEW.VERIFY_NONE_HINT'},
+        {label: 'Low', value: GuildVerificationLevel.Low, hint: 'GUILD_SETTINGS.OVERVIEW.VERIFY_LOW_HINT'},
+        {label: 'Medium', value: GuildVerificationLevel.Medium, hint: 'GUILD_SETTINGS.OVERVIEW.VERIFY_MEDIUM_HINT'},
+        {label: 'High', value: GuildVerificationLevel.High, hint: 'GUILD_SETTINGS.OVERVIEW.VERIFY_HIGH_HINT'},
+    ];
+
+    protected verificationHint = computed(() =>
+        this.verificationOptions.find(o => o.value === this.verificationLevel())?.hint ?? ''
+    );
     saving = signal(false);
     dirty = signal(false);
     iconPreview = signal<string | null>(null);
@@ -47,6 +61,7 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
         this.name.set(this.guild().name);
         this.description.set(this.guild().description ?? '');
         this.systemChannelId.set(this.guild().systemChannelId);
+        this.verificationLevel.set(this.guild().verificationLevel ?? GuildVerificationLevel.None);
         if (this.previewObjectUrl) {
             URL.revokeObjectURL(this.previewObjectUrl);
             this.previewObjectUrl = null;
@@ -66,6 +81,7 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
             this.name() !== g.name
             || this.description() !== (g.description ?? '')
             || this.systemChannelId() !== g.systemChannelId
+            || this.verificationLevel() !== (g.verificationLevel ?? GuildVerificationLevel.None)
         );
     }
 
@@ -116,6 +132,9 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
             const dto: UpdateGuildDto = {name: this.name(), description: this.description()};
             if (this.systemChannelId() !== g.systemChannelId && this.systemChannelId()) {
                 dto.systemChannelId = this.systemChannelId()!;
+            }
+            if (this.verificationLevel() !== (g.verificationLevel ?? GuildVerificationLevel.None)) {
+                dto.verificationLevel = this.verificationLevel();
             }
             this.guildService.updateGuild(g.id, dto).subscribe({
                 next: updated => {

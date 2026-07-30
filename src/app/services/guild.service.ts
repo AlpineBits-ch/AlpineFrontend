@@ -1,6 +1,7 @@
 import {inject, Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {CategoryDto, ChannelDto, ChannelPermission, GuildDto, RoleDto,} from '../dtos/response/guild.dto';
+import {GuildVerificationLevel} from '../dtos/response/guild-safety.dto';
 import {environment} from '../../environments/environment';
 import {catchError, Observable, of, Subject, throwError} from 'rxjs';
 import {GuildMemberDto, RoleMemberDto, SelfGuildMemberDto} from '../dtos/response/member.dto';
@@ -17,6 +18,8 @@ export interface UpdateGuildDto {
     name?: string;
     description?: string;
     systemChannelId?: string;
+    /** Omitted means "leave unchanged" - the backend treats null as no-op, not clear. */
+    verificationLevel?: GuildVerificationLevel;
 }
 
 export interface CreateRoleDto {

@@ -102,3 +102,49 @@ describe('OverviewSettingsComponent system channel picker', () => {
         req.flush(guildFixture({name: 'Renamed'}));
     });
 });
+
+describe('OverviewSettingsComponent verification level picker', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('initializes verificationLevel from the guild input', () => {
+        const {component} = setup(guildFixture({verificationLevel: GuildVerificationLevel.Medium}));
+        expect(component.verificationLevel()).toBe(GuildVerificationLevel.Medium);
+    });
+
+    it('defaults verificationLevel to None when the guild input omits it', () => {
+        const {component} = setup(guildFixture({verificationLevel: undefined}));
+        expect(component.verificationLevel()).toBe(GuildVerificationLevel.None);
+    });
+
+    it('marks dirty when verificationLevel changes and includes it in the save payload', () => {
+        const {component, ctrl} = setup(guildFixture());
+        component.verificationLevel.set(GuildVerificationLevel.High);
+        component.onFieldChange();
+        expect(component.dirty()).toBe(true);
+
+        component.save();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        expect(req.request.body).toEqual({name: 'Test Guild', description: '', verificationLevel: GuildVerificationLevel.High});
+        req.flush(guildFixture({verificationLevel: GuildVerificationLevel.High}));
+    });
+
+    it('omits verificationLevel from the save payload when unchanged', () => {
+        const {component, ctrl} = setup(guildFixture());
+        component.name.set('Renamed');
+        component.onFieldChange();
+
+        component.save();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        expect(req.request.body.verificationLevel).toBeUndefined();
+        req.flush(guildFixture({name: 'Renamed'}));
+    });
+
+    it('renders the matching hint text for the selected level', () => {
+        const {fixture, component} = setup(guildFixture());
+        expect(fixture.nativeElement.textContent).toContain('GUILD_SETTINGS.OVERVIEW.VERIFY_NONE_HINT');
+
+        component.verificationLevel.set(GuildVerificationLevel.High);
+        fixture.detectChanges();
+        expect(fixture.nativeElement.textContent).toContain('GUILD_SETTINGS.OVERVIEW.VERIFY_HIGH_HINT');
+    });
+});
