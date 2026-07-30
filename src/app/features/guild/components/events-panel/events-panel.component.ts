@@ -42,15 +42,24 @@ export class EventsPanelComponent {
     protected canManage = computed(() =>
         hasPermission(parsePermissions(this.memberPermissions()), Permissions.ManageEvents));
 
+    // `Date.now()` isn't itself a reactive read, so a computed that only calls it
+    // directly would never re-evaluate as time passes -it'd need some *other* signal
+    // to change first to notice an event had ended. This local clock is that signal:
+    // a plain `signal<number>`, ticked by a 60s interval (minute-granularity UI, no
+    // need to poll faster), read by `upcoming`/`past` below so they recompute on their
+    // own. It never touches the store and can't trigger `loadFor` or any HTTP call.
+    private readonly now = signal(Date.now());
+    private readonly nowIntervalId = setInterval(() => this.now.set(Date.now()), 60_000);
+
     // The server never advances an event's status past Scheduled except via cancel
     // (and cancelled events are excluded from the list entirely) -so "happening" vs
     // "over" must be derived from the timestamps, never from `status`.
     private readonly events = computed(() => this.store.eventsForGuild(this.guildId()));
     protected upcoming = computed(() =>
-        this.events().filter(e => new Date(e.endsAt ?? e.startsAt).getTime() >= Date.now()));
+        this.events().filter(e => new Date(e.endsAt ?? e.startsAt).getTime() >= this.now()));
     protected past = computed(() =>
         this.events()
-            .filter(e => new Date(e.endsAt ?? e.startsAt).getTime() < Date.now())
+            .filter(e => new Date(e.endsAt ?? e.startsAt).getTime() < this.now())
             .slice()
             .reverse());
 
@@ -59,6 +68,8 @@ export class EventsPanelComponent {
     protected editingEvent = signal<ScheduledEventDto | null>(null);
 
     constructor() {
+        this.destroyRef.onDestroy(() => clearInterval(this.nowIntervalId));
+
         // `loadFor` reads AND patches loadingGuilds/loadedGuilds internally -tracking
         // only `guildId()` here (and calling loadFor untracked) keeps this effect from
         // re-running itself into a request storm off the store's own state changes.
