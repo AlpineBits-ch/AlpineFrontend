@@ -29,6 +29,7 @@
                 (delete)="deleteRoleOverride($event)"
                 (save)="saveRoleOverride($event)"
                 [addable]="addableRoles()"
+                [channelType]="channel().type"
                 [entries]="roleEntries()"
                 kind="role"/>
     }
@@ -41,6 +42,7 @@
                 (delete)="deleteMemberOverride($event)"
                 (save)="saveMemberOverride($event)"
                 [addable]="addableMembers()"
+                [channelType]="channel().type"
                 [entries]="memberEntries()"
                 [loading]="membersLoading()"
                 kind="member"/>

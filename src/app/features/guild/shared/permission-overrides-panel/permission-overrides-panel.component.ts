@@ -7,6 +7,7 @@ import {
     PermissionOverrideEditorComponent,
     PermOverride,
 } from '../permission-override-editor/permission-override-editor.component';
+import {ChannelType} from '../../../../dtos/response/guild.dto';
 
 export interface OverrideEntry {
     id: string;
@@ -31,6 +32,8 @@ export class PermissionOverridesPanelComponent {
     addable = input.required<OverrideEntry[]>();
     kind = input.required<'role' | 'member'>();
     loading = input(false);
+    /** Forwarded to the editor so channel-scoped household groups appear on the right channel. */
+    channelType = input<ChannelType | null>(null);
 
     add = output<string>();
     change = output<{ id: string; override: PermOverride }>();

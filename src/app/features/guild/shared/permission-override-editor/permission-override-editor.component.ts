@@ -1,10 +1,13 @@
-import {Component, input, output} from '@angular/core';
+import {Component, computed, input, output} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {PermissionKey, Permissions} from '../../../../enums/permissions.enum';
+import {ChannelType} from '../../../../dtos/response/guild.dto';
 
 interface PermGroup {
     label: string;
     perms: PermissionKey[];
+    /** When set, this group only appears on a channel of that exact type. */
+    channelType?: ChannelType;
 }
 
 export type OverrideState = 'allow' | 'deny' | 'inherit';
@@ -24,6 +27,11 @@ const PERM_GROUPS: PermGroup[] = [
     {label: 'Voice', perms: ['Connect', 'Speak', 'Stream', 'MuteMembers', 'DeafenMembers', 'MoveMembers']},
     {label: 'Threads', perms: ['CreateThreads', 'SendMessagesInThreads', 'ManageOwnThreads', 'ManageAnyThread']},
     {label: 'Moderation', perms: ['ManageChannel', 'ManagePermissions']},
+    {label: 'Lists', channelType: ChannelType.List, perms: ['ManageLists', 'AddListItems', 'CheckOffListItems']},
+    {label: 'Chores', channelType: ChannelType.Chores, perms: ['ManageChores', 'CompleteChores']},
+    {label: 'Ledger', channelType: ChannelType.Ledger, perms: ['ManageLedger', 'AddExpenses']},
+    {label: 'Pantry', channelType: ChannelType.Pantry, perms: ['ManagePantry']},
+    {label: 'Decisions', channelType: ChannelType.Decisions, perms: ['CreateDecisions', 'VoteDecisions']},
 ];
 
 @Component({
@@ -35,7 +43,18 @@ export class PermissionOverrideEditorComponent {
     override = input.required<PermOverride>();
     overrideChange = output<PermOverride>();
 
-    readonly groups = PERM_GROUPS;
+    /**
+     * The type of the channel being edited, or null for a category. Household permission
+     * groups resolve per channel, so a Ledger channel offers the ledger permissions and
+     * nothing else - and a category offers none of them, since a category-wide grant is
+     * precisely the "controls every list" shape the per-channel model avoids.
+     */
+    channelType = input<ChannelType | null>(null);
+
+    protected readonly groups = computed(() => {
+        const type = this.channelType();
+        return PERM_GROUPS.filter(group => !group.channelType || group.channelType === type);
+    });
 
     getState(key: PermissionKey): OverrideState {
         const val = Permissions[key];
