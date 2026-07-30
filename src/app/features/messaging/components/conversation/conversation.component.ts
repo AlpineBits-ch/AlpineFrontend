@@ -50,6 +50,7 @@ import {ProfileDialogService} from '../../../../services/profile-dialog.service'
 import {decodeContent, fileIcon, isGroupedWithPrevious} from './message-utils';
 import {toBase64} from "../../../../helpers/base64.helper";
 import {TranslateModule} from '@ngx-translate/core';
+import {PinnedMessagesPanelComponent} from '../pinned-messages-panel/pinned-messages-panel.component';
 
 @Component({
     selector: 'app-conversation',
@@ -58,7 +59,7 @@ import {TranslateModule} from '@ngx-translate/core';
         ComposerComponent, MessageComponent, Avatar, Button,
         CallPanelComponent, NgClass, DatePipe,
         UserStatusDotComponent, TypingDotsComponent, HighlightPipe,
-        TranslateModule, AppAvatarComponent,
+        TranslateModule, AppAvatarComponent, PinnedMessagesPanelComponent,
     ],
     templateUrl: './conversation.component.html',
     styleUrl: './conversation.component.css',
@@ -73,6 +74,7 @@ export class ConversationComponent implements AfterViewInit {
     protected readonly OnlineStatus = OnlineStatus;
     protected readonly ConversationEncryption = ConversationEncryption;
     protected replyingTo = signal<MessageDto | null>(null);
+    protected showPinnedPanel = signal(false);
     protected chatTitle = computed(() => this.convUtils.getChatTitle(this.conversation()));
     protected chatAvatarLabel = computed(() => this.convUtils.getChatAvatarLabel(this.conversation()));
     protected partnerStatus = computed(() => this.convUtils.getPartnerStatus(this.conversation()));
