@@ -110,7 +110,9 @@
                 {{ 'GUILD_SETTINGS.MEMBERS.PERMISSIONS_DESC' | translate: {name: displayName(editMember()!)} }}
             </p>
             <div class="overflow-y-auto max-h-[50vh] thin-scrollbar">
-                <app-permission-toggle (maskChange)="onPermissionChange($event)" [mask]="editPermMask()"/>
+                <app-permission-toggle (maskChange)="onPermissionChange($event)"
+                                       [features]="features()"
+                                       [mask]="editPermMask()"/>
             </div>
         </div>
         <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.10]">

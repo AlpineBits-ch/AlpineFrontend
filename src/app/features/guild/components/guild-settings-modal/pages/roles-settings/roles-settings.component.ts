@@ -18,6 +18,7 @@ import {ToastService} from '../../../../../../services/toast.service';
 import {parsePermissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
 import {PermissionToggleComponent} from '../../../../shared/permission-toggle/permission-toggle.component';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
+import {guildFeatures} from '../../../../guild-features';
 
 interface RoleMemberDisplay {
     roleMember: RoleMemberDto;
@@ -98,6 +99,9 @@ export class RolesSettingsComponent implements OnInit {
 
     /** Blocks Save on a malformed hex value instead of writing it to the role. */
     protected colorInvalid = computed(() => !HEX_COLOR_PATTERN.test(this.editColor().trim()));
+
+    /** Module set for this guild: permission groups whose module is off aren't offered. */
+    protected features = computed(() => guildFeatures(this.guild()));
 
     constructor() {
         effect(() => this.dirtyChange.emit(this.editDirty()));

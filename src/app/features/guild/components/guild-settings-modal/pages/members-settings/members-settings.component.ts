@@ -1,4 +1,4 @@
-import {Component, inject, input, OnInit, signal} from '@angular/core';
+import {Component, computed, inject, input, OnInit, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -12,6 +12,7 @@ import {ProfileService} from '../../../../../../services/profile.service';
 import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
 import {parsePermissions, Permissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
 import {PermissionToggleComponent} from '../../../../shared/permission-toggle/permission-toggle.component';
+import {guildFeatures} from '../../../../guild-features';
 import {PrimeTemplate} from "primeng/api";
 import {ToastService} from '../../../../../../services/toast.service';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
@@ -46,6 +47,8 @@ export class MembersSettingsComponent implements OnInit {
     isSearching = signal(false);
     searchPending = signal(false);
     protected readonly Permissions = Permissions;
+    /** Module set for this guild: permission groups whose module is off aren't offered. */
+    protected features = computed(() => guildFeatures(this.guild()));
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private toastService = inject(ToastService);
