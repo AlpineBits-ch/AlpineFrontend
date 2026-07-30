@@ -95,3 +95,56 @@ describe('diffPermissions', () => {
         expect(diffPermissions(mask, mask)).toEqual([]);
     });
 });
+
+describe('Household permission bits', () => {
+    const HOUSEHOLD_KEYS: PermissionKey[] = [
+        'ManageLists', 'AddListItems', 'CheckOffListItems',
+        'ManageChores', 'CompleteChores',
+        'ManageLedger', 'AddExpenses',
+        'ManagePantry',
+        'CreateDecisions', 'VoteDecisions',
+        'ManageGuests',
+    ];
+
+    it('assigns bits 39-49 in the order the backend guide lists them', () => {
+        HOUSEHOLD_KEYS.forEach((key, i) => {
+            expect(Permissions[key], key).toBe(1n << BigInt(39 + i));
+        });
+    });
+
+    it('does not collide with any pre-existing bit', () => {
+        const existing = (Object.keys(Permissions) as PermissionKey[])
+            .filter(k => k !== 'None' && !HOUSEHOLD_KEYS.includes(k));
+        for (const key of HOUSEHOLD_KEYS) {
+            for (const other of existing) {
+                expect(Permissions[key] & Permissions[other], `${key} vs ${other}`).toBe(0n);
+            }
+        }
+    });
+
+    // The wire format is names in both directions, so a name that does not round-trip
+    // is a permission the client would silently drop when saving a role.
+    it('round-trips every household name through the serializer', () => {
+        for (const key of HOUSEHOLD_KEYS) {
+            expect(stringifyPermissions(Permissions[key])).toBe(key);
+            expect(parsePermissions(key)).toBe(Permissions[key]);
+        }
+    });
+
+    it('tags each household group with the module that gates it', () => {
+        const byLabel = new Map(PERM_GROUPS.map(g => [g.label, g]));
+        expect(byLabel.get('Lists')?.feature).toBe('Lists');
+        expect(byLabel.get('Chores')?.feature).toBe('Chores');
+        expect(byLabel.get('Ledger')?.feature).toBe('Ledger');
+        expect(byLabel.get('Pantry')?.feature).toBe('Pantry');
+        expect(byLabel.get('Decisions')?.feature).toBe('Decisions');
+        expect(byLabel.get('Guests')?.feature).toBe('GuestAccess');
+    });
+
+    it('leaves the chat groups untagged, so they always render', () => {
+        const byLabel = new Map(PERM_GROUPS.map(g => [g.label, g]));
+        expect(byLabel.get('General')?.feature).toBeUndefined();
+        expect(byLabel.get('Messages')?.feature).toBeUndefined();
+        expect(byLabel.get('Admin')?.feature).toBeUndefined();
+    });
+});

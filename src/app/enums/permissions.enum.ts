@@ -65,6 +65,29 @@ export const Permissions = {
     // ── Event permissions ─────────────────────────────────────────────────────
     ManageEvents: 1n << 38n,
 
+    // ── Household: lists ──────────────────────────────────────────────────────
+    ManageLists: 1n << 39n,
+    AddListItems: 1n << 40n,
+    CheckOffListItems: 1n << 41n,
+
+    // ── Household: chores ─────────────────────────────────────────────────────
+    ManageChores: 1n << 42n,
+    CompleteChores: 1n << 43n,
+
+    // ── Household: ledger ─────────────────────────────────────────────────────
+    ManageLedger: 1n << 44n,
+    AddExpenses: 1n << 45n,
+
+    // ── Household: pantry ─────────────────────────────────────────────────────
+    ManagePantry: 1n << 46n,
+
+    // ── Household: decisions ──────────────────────────────────────────────────
+    CreateDecisions: 1n << 47n,
+    VoteDecisions: 1n << 48n,
+
+    // ── Household: guest access ───────────────────────────────────────────────
+    ManageGuests: 1n << 49n,
+
     // ── Catch-all ────────────────────────────────────────────────────────────
     Superadmin: 1n << 63n,
 } as const;
@@ -75,6 +98,14 @@ export type PermissionValue = bigint;
 export interface PermGroup {
     label: string;
     perms: PermissionKey[];
+    /**
+     * The `GuildFeatures` module name gating this group. A plain string rather than the
+     * `GuildFeature` union so this file needs no feature-layer import - and the values
+     * are the flag names anyway, which is exactly what `GuildFeatureSet` holds.
+     *
+     * Absent means ungated: the group renders in every guild.
+     */
+    feature?: string;
 }
 
 export const PERM_GROUPS: PermGroup[] = [
@@ -113,6 +144,36 @@ export const PERM_GROUPS: PermGroup[] = [
     {
         label: 'Wiki',
         perms: ['ViewWiki', 'CreateWikiPages', 'EditOwnWikiPages', 'EditAnyWikiPage', 'DeleteWikiPages', 'ManageWikiRevisions', 'ManageWikiStructure', 'ModerateWikiComments', 'PublishWikiPublicly'],
+    },
+    {
+        label: 'Lists',
+        feature: 'Lists',
+        perms: ['ManageLists', 'AddListItems', 'CheckOffListItems'],
+    },
+    {
+        label: 'Chores',
+        feature: 'Chores',
+        perms: ['ManageChores', 'CompleteChores'],
+    },
+    {
+        label: 'Ledger',
+        feature: 'Ledger',
+        perms: ['ManageLedger', 'AddExpenses'],
+    },
+    {
+        label: 'Pantry',
+        feature: 'Pantry',
+        perms: ['ManagePantry'],
+    },
+    {
+        label: 'Decisions',
+        feature: 'Decisions',
+        perms: ['CreateDecisions', 'VoteDecisions'],
+    },
+    {
+        label: 'Guests',
+        feature: 'GuestAccess',
+        perms: ['ManageGuests'],
     },
     {
         label: 'Admin',
