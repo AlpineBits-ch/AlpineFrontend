@@ -1,0 +1,55 @@
+<div class="flex flex-col gap-3">
+
+    <p class="text-xs text-text-secondary m-0">
+        {{ 'CREATE_GUILD.TEMPLATE.PREVIEW_SUMMARY' | translate: {
+        categories: categories().length,
+        channels: channelCount(),
+        roles: roles().length
+    } }}
+    </p>
+
+    <div class="max-h-40 overflow-y-auto thin-scrollbar rounded-xl bg-card border border-border p-3 space-y-2.5">
+        @for (category of categories(); track category.name) {
+            <div>
+                <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-1 truncate">{{ category.name }}</p>
+                <div class="space-y-1 pl-2">
+                    @for (channel of category.channels; track channel.name) {
+                        <div class="flex items-center gap-2 text-xs text-text-secondary">
+                            <i [class]="'pi ' + channelIcon(channel.type)" class="text-[11px] shrink-0"></i>
+                            <span class="truncate">{{ channel.name }}</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        @if (uncategorizedChannels().length > 0) {
+            <div>
+                <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-1">{{ 'CREATE_GUILD.TEMPLATE.UNCATEGORIZED' | translate }}</p>
+                <div class="space-y-1 pl-2">
+                    @for (channel of uncategorizedChannels(); track channel.name) {
+                        <div class="flex items-center gap-2 text-xs text-text-secondary">
+                            <i [class]="'pi ' + channelIcon(channel.type)" class="text-[11px] shrink-0"></i>
+                            <span class="truncate">{{ channel.name }}</span>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <div>
+        <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-1.5">{{ 'CREATE_GUILD.TEMPLATE.ROLES' | translate }}</p>
+        <div class="flex flex-wrap gap-1.5">
+            @for (role of roles(); track role.name) {
+                <span class="inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-hover text-[0.6875rem] text-text-secondary">
+                    <span class="w-2 h-2 rounded-full shrink-0" [style.background-color]="role.color"></span>
+                    {{ role.name }}
+                </span>
+            }
+        </div>
+        <p class="text-[0.625rem] text-text-muted mt-1.5 leading-relaxed">
+            <i class="pi pi-info-circle text-[10px] mr-1"></i>{{ 'CREATE_GUILD.TEMPLATE.REORDER_NOTE' | translate }}
+        </p>
+    </div>
+
+</div>

@@ -97,6 +97,9 @@
                     @case ('emojis') {
                         <app-emoji-settings [guild]="guild()"/>
                     }
+                    @case ('templates') {
+                        <app-templates-settings [guild]="guild()"/>
+                    }
                     @case ('discord-sync') {
                         <app-discord-sync-settings [guild]="guild()"/>
                     }

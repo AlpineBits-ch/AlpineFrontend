@@ -12,6 +12,7 @@ import {BansSettingsComponent} from './pages/bans-settings/bans-settings.compone
 import {AuditLogSettingsComponent} from './pages/audit-log-settings/audit-log-settings.component';
 import {DiscordSyncSettingsComponent} from './pages/discord-sync-settings/discord-sync-settings.component';
 import {EmojiSettingsComponent} from './pages/emoji-settings/emoji-settings.component';
+import {TemplatesSettingsComponent} from './pages/templates-settings/templates-settings.component';
 import {TranslateModule} from '@ngx-translate/core';
 
 interface NavItem {
@@ -39,6 +40,7 @@ interface NavGroup {
         AuditLogSettingsComponent,
         DiscordSyncSettingsComponent,
         EmojiSettingsComponent,
+        TemplatesSettingsComponent,
         TranslateModule,
     ],
     templateUrl: './guild-settings-modal.component.html',
@@ -71,6 +73,7 @@ export class GuildSettingsModalComponent {
             items: [
                 {id: 'invites', label: 'Invites', icon: 'pi pi-link'},
                 {id: 'emojis', label: 'Emojis', icon: 'pi pi-face-smile'},
+                {id: 'templates', label: 'Templates', icon: 'pi pi-clone'},
                 {id: 'discord-sync', label: 'Discord Sync', icon: 'pi pi-discord'},
             ],
         },
