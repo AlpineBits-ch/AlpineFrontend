@@ -23,6 +23,7 @@ import {CategorySettingsModalComponent} from '../category-settings-modal/categor
 import {InviteType} from '../../../../dtos/response/invite.dto';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
+import {memberCanManageGuild} from '../../guild-permissions';
 import {
   GuildWebsocketService,
   WsCategoryCreated,
@@ -116,12 +117,14 @@ export class ChannelListComponent {
     protected contextChannel = signal<ChannelDto | null>(null);
     protected contextCategory = signal<CategoryDto | null>(null);
     // ── Guild header dropdown items ───────────────────────────────────────────
-    protected guildMenuItems: MenuItem[] = [
-        {
+    protected guildMenuItems = computed<MenuItem[]>(() => [
+        // Managing the server is the only entry here that needs elevated permission;
+        // copying the ID, creating channels and inviting are checked by their own flows.
+        ...(this.canManageGuild() ? [{
             label: 'Server Settings',
             icon: 'pi pi-cog',
             command: () => this.showGuildSettings.set(true),
-        },
+        }] : []),
         {
             label: 'Copy Server ID',
             icon: 'pi pi-copy',
@@ -144,7 +147,7 @@ export class ChannelListComponent {
             icon: 'pi pi-link',
             command: () => this.quickCreateInvite(),
         },
-    ];
+    ]);
     // ── Voice participant context menu ────────────────────────────────────────
     protected participantMenu = signal<CallParticipantMenuData | null>(null);
     private guildService = inject(GuildService);
@@ -178,6 +181,11 @@ export class ChannelListComponent {
         if (!m) return false;
         return hasPermission(parsePermissions(m.permissions), Permissions.Superadmin);
     });
+    protected canManageGuild = computed(() => memberCanManageGuild(
+        this.ownMember(),
+        this.guild().ownerId,
+        this.profileService.ownProfile()?.userId,
+    ));
     // ── Collapse state ────────────────────────────────────────────────────────
     private collapsedIds = signal(new Set<string>());
     private participantChannelId = signal<string | null>(null);

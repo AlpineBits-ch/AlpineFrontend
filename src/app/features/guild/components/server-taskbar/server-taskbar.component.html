@@ -18,7 +18,7 @@
     <div class="flex-1 min-h-0 overflow-y-auto w-full flex flex-col items-center py-1"
          style="scrollbar-width: none;">
         @for (server of serverIcons(); track server.id) {
-            <div (mouseenter)="hoveredServerId.set(server.id)"
+            <div (mouseenter)="onServerHover(guilds()[$index])"
                  (mouseleave)="hoveredServerId.set(null)"
                  class="relative w-full flex justify-center items-center py-1">
                 <!-- Left pill indicator -->

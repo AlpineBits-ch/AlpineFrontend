@@ -10,6 +10,24 @@
         appendTo="body"
         styleClass="settings-dialog">
 
+    @if (access() === 'checking') {
+        <div class="flex h-full items-center justify-center bg-app-bg">
+            <i class="pi pi-spin pi-spinner text-xl text-white/30"></i>
+        </div>
+    } @else if (access() === 'denied') {
+        <div class="flex h-full flex-col items-center justify-center gap-4 bg-app-bg px-8 text-center">
+            <i class="pi pi-lock text-2xl text-white/25"></i>
+            <div class="flex flex-col gap-1.5">
+                <h1 class="text-sm font-semibold text-white/85">{{ 'GUILD_SETTINGS.NO_ACCESS_TITLE' | translate }}</h1>
+                <p class="text-[0.8125rem] text-white/50 max-w-sm">{{ 'GUILD_SETTINGS.NO_ACCESS_DESC' | translate }}</p>
+            </div>
+            <p-button (onClick)="isVisible.set(false)"
+                      [label]="'GUILD_SETTINGS.CLOSE' | translate"
+                      severity="secondary"
+                      size="small"/>
+        </div>
+    } @else {
+
     <div class="flex h-full flex-col sm:flex-row">
 
         <!-- ── Left nav ────────────────────────────────────────────────────────── -->
@@ -120,4 +138,6 @@
         </div>
 
     </div>
+
+    }
 </p-dialog>

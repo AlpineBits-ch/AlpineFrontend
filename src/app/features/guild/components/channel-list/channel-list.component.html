@@ -98,10 +98,10 @@
 </div>
 
 <!-- ── Popup menus ──────────────────────────────────────────────────────────── -->
-<p-menu #guildMenu [model]="guildMenuItems" [popup]="true" appendTo="body"/>
+<p-menu #guildMenu [model]="guildMenuItems()" [popup]="true" appendTo="body"/>
 <p-menu #channelMenu [model]="[]" [popup]="true" appendTo="body"/>
 <p-menu #categoryMenu [model]="[]" [popup]="true" appendTo="body"/>
-<p-contextMenu #listMenu [model]="guildMenuItems" appendTo="body"/>
+<p-contextMenu #listMenu [model]="guildMenuItems()" appendTo="body"/>
 
 <!-- ── Voice participant context menu ─────────────────────────────────────── -->
 @if (participantMenu(); as menu) {

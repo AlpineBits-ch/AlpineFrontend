@@ -25,6 +25,9 @@ import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-setting
 import {InviteType} from '../../../../dtos/response/invite.dto';
 import {ToastService} from '../../../../services/toast.service';
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
+import {ProfileService} from '../../../../services/profile.service';
+import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
+import {memberCanManageGuild} from '../../guild-permissions';
 
 @Component({
     selector: 'app-server-taskbar',
@@ -40,8 +43,12 @@ export class ServerTaskbarComponent implements OnInit {
     protected contextGuild = signal<GuildDto | null>(null);
     protected showGuildSettings = signal(false);
     protected hoveredServerId = signal<string | null>(null);
+    /** Own member row per guild, filled in on hover -see `onServerHover`. */
+    private ownMembers = signal<Record<string, SelfGuildMemberDto>>({});
+    private memberRequests = new Set<string>();
     protected isDMsActive = computed(() => this.navService.workspace().type === 'dms');
     private guildService = inject(GuildService);
+    private profileService = inject(ProfileService);
     private readStateService = inject(GuildReadStateService);
     protected serverIcons = computed<ServerData[]>(() => {
         const workspace = this.navService.workspace();
@@ -129,6 +136,25 @@ export class ServerTaskbarComponent implements OnInit {
         this.guildContextMenu.show(event);
     }
 
+    /**
+     * Warms the member row behind the "Server Settings" entry. The menu's model is assigned
+     * imperatively at show time, so the permission has to be known *before* the right-click -
+     * hovering is the last moment we get, and a pointer always crosses the icon on its way
+     * to right-clicking it. Loading every guild's member row up front instead would be one
+     * request per server in the list, for a menu most people never open.
+     */
+    protected onServerHover(guild: GuildDto): void {
+        this.hoveredServerId.set(guild.id);
+        if (this.ownMembers()[guild.id] || this.memberRequests.has(guild.id)) return;
+
+        this.memberRequests.add(guild.id);
+        this.guildService.getOwnMember(guild.id).subscribe({
+            next: member => this.ownMembers.update(m => ({...m, [guild.id]: member})),
+            // Leave it unfetched so a later hover retries; until then the entry stays hidden.
+            error: () => this.memberRequests.delete(guild.id),
+        });
+    }
+
     protected onGuildSettingsUpdated(updated: GuildDto): void {
         this.guilds.update(gs => gs.map(g => g.id === updated.id ? updated : g));
     }
@@ -140,6 +166,14 @@ export class ServerTaskbarComponent implements OnInit {
         if (ws.type === 'server' && ws.guild.id === guildId) {
             this.navService.selectDMs();
         }
+    }
+
+    private canManageGuild(guild: GuildDto): boolean {
+        return memberCanManageGuild(
+            this.ownMembers()[guild.id],
+            guild.ownerId,
+            this.profileService.ownProfile()?.userId,
+        );
     }
 
     private buildGuildMenuItems(guild: GuildDto): MenuItem[] {
@@ -178,11 +212,11 @@ export class ServerTaskbarComponent implements OnInit {
                 },
             },
             {separator: true},
-            {
+            ...(this.canManageGuild(guild) ? [{
                 label: 'Server Settings',
                 icon: 'pi pi-cog',
                 command: () => this.showGuildSettings.set(true),
-            },
+            }] : []),
             {
                 label: 'Copy Server ID',
                 icon: 'pi pi-copy',
