@@ -3,20 +3,32 @@
     <!-- Search -->
     <div class="relative">
         <i class="pi pi-search absolute left-3 top-1/2 -translate-y-1/2 text-white/30 text-xs pointer-events-none"></i>
-        <input (ngModelChange)="filter.set($event)"
+        <input (ngModelChange)="onFilterChange($event)"
                [ngModel]="filter()"
                [placeholder]="'GUILD_SETTINGS.MEMBERS.SEARCH_PLACEHOLDER' | translate"
                class="w-full !pl-9 text-sm"
                pInputText/>
     </div>
 
-    <!-- Count -->
+    <!-- Count: says "50+" while more pages exist rather than passing the loaded page off as the total -->
     <p class="text-xs text-white/30">
-        {{
-            (members().length !== 1 ? 'GUILD_SETTINGS.MEMBERS.COUNT_PLURAL' : 'GUILD_SETTINGS.MEMBERS.COUNT_SINGLE') | translate: {
-                count: members().length
-            }
-        }}
+        @if (searchPending()) {
+            {{ 'GUILD_SETTINGS.MEMBERS.SEARCHING' | translate }}
+        } @else if (isSearching()) {
+            {{
+                (members().length === 1 ? 'GUILD_SETTINGS.MEMBERS.RESULTS_SINGLE' : 'GUILD_SETTINGS.MEMBERS.RESULTS_PLURAL') | translate: {
+                    count: members().length
+                }
+            }}
+        } @else if (hasMore()) {
+            {{ 'GUILD_SETTINGS.MEMBERS.COUNT_MORE' | translate: {count: members().length} }}
+        } @else {
+            {{
+                (members().length !== 1 ? 'GUILD_SETTINGS.MEMBERS.COUNT_PLURAL' : 'GUILD_SETTINGS.MEMBERS.COUNT_SINGLE') | translate: {
+                    count: members().length
+                }
+            }}
+        }
     </p>
 
     <!-- List -->
@@ -26,9 +38,8 @@
         </div>
     } @else {
         <div (scroll)="onScroll($event)"
-             class="space-y-1 overflow-y-auto flex-1"
-             style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
-            @for (row of filteredMembers; track row.member.id) {
+             class="space-y-1 overflow-y-auto flex-1 thin-scrollbar">
+            @for (row of members(); track row.member.id) {
                 <div class="flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-white/[0.04] transition-colors group">
 
                     <!-- Avatar -->
@@ -45,16 +56,16 @@
                         <div class="flex items-center gap-1.5">
                             <p [appUserNameStyle]="row.profile" class="text-sm font-medium text-white/85 truncate">{{ displayName(row) }}</p>
                             @if (isBot(row)) {
-                                <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim">Bot</span>
+                                <span class="shrink-0 text-[0.5625rem] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim">{{ 'GUILD_SETTINGS.MEMBERS.BOT' | translate }}</span>
                             }
                         </div>
                         @if (row.roleNames.length > 0) {
-                            <p class="text-[11px] text-white/35 truncate">{{ row.roleNames.join(', ') }}</p>
+                            <p class="text-[0.6875rem] text-white/35 truncate">{{ row.roleNames.join(', ') }}</p>
                         }
                     </div>
 
-                    <!-- Actions (visible on hover) -->
-                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <!-- Actions: focus-within keeps these reachable by keyboard, not hover-only -->
+                    <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                         <p-button (onClick)="openEditPermissions(row)" [pTooltip]="'GUILD_SETTINGS.MEMBERS.EDIT_PERMISSIONS' | translate" [text]="true" icon="pi pi-shield"
                                   severity="secondary"
                                   size="small"
@@ -66,8 +77,10 @@
                 </div>
             }
 
-            @if (filteredMembers.length === 0 && !loadingMore()) {
-                <p class="text-sm text-white/25 text-center py-6">{{ 'GUILD_SETTINGS.MEMBERS.NO_MEMBERS' | translate }}</p>
+            @if (members().length === 0 && !loadingMore()) {
+                <p class="text-sm text-white/25 text-center py-6">
+                    {{ (isSearching() ? 'GUILD_SETTINGS.MEMBERS.NO_RESULTS' : 'GUILD_SETTINGS.MEMBERS.NO_MEMBERS') | translate }}
+                </p>
             }
 
             @if (loadingMore()) {
@@ -96,8 +109,7 @@
             <p class="text-xs text-white/40 mb-4">
                 {{ 'GUILD_SETTINGS.MEMBERS.PERMISSIONS_DESC' | translate: {name: displayName(editMember()!)} }}
             </p>
-            <div class="overflow-y-auto max-h-[50vh]"
-                 style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
+            <div class="overflow-y-auto max-h-[50vh] thin-scrollbar">
                 <app-permission-toggle (maskChange)="onPermissionChange($event)" [mask]="editPermMask()"/>
             </div>
         </div>

@@ -1,15 +1,17 @@
-import {Component, inject, input, OnInit, signal} from '@angular/core';
+import {Component, computed, inject, input, OnInit, signal} from '@angular/core';
+import {DatePipe} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
 import {Dialog} from 'primeng/dialog';
+import {PrimeTemplate} from 'primeng/api';
 import {GuildDto} from '../../../../../../dtos/response/guild.dto';
 import {BanDto} from '../../../../../../dtos/response/ban.dto';
 import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
 import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {ToastService} from '../../../../../../services/toast.service';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
 interface BanRow {
     ban: BanDto;
@@ -18,7 +20,7 @@ interface BanRow {
 
 @Component({
     selector: 'app-bans-settings',
-    imports: [FormsModule, Button, InputText, Dialog, TranslateModule],
+    imports: [FormsModule, Button, InputText, Dialog, TranslateModule, PrimeTemplate, DatePipe],
     templateUrl: './bans-settings.component.html',
 })
 export class BansSettingsComponent implements OnInit {
@@ -30,9 +32,27 @@ export class BansSettingsComponent implements OnInit {
     banUserId = signal('');
     banReason = signal('');
     banning = signal(false);
+    filter = signal('');
+    confirmUnbanRow = signal<BanRow | null>(null);
+    showUnbanDialog = signal(false);
+
+    /** The list can run long on a busy server, so it filters on name, reason and ID. */
+    filteredBans = computed(() => {
+        const q = this.filter().trim().toLowerCase();
+        if (!q) return this.bans();
+        return this.bans().filter(row =>
+            this.displayName(row).toLowerCase().includes(q)
+            || (row.ban.reason ?? '').toLowerCase().includes(q)
+            || row.ban.userId.toLowerCase().includes(q)
+        );
+    });
+
+    protected banIdValid = computed(() => this.banUserId().trim().length > 0);
+
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private toastService = inject(ToastService);
+    private translate = inject(TranslateService);
 
     ngOnInit(): void {
         this.load();
@@ -42,22 +62,21 @@ export class BansSettingsComponent implements OnInit {
         this.loading.set(true);
         this.guildService.getBans(this.guild().id).subscribe({
             next: bans => {
-                const rows: BanRow[] = bans.map(ban => ({ban, profile: null}));
-                this.bans.set(rows);
+                this.bans.set(bans.map(ban => ({ban, profile: null})));
                 this.loading.set(false);
-                rows.forEach((row, i) => {
-                    this.profileService.fetchByUserId(row.ban.userId).subscribe({
-                        next: p => this.bans.update(list => {
-                            const next = [...list];
-                            next[i] = {...next[i], profile: p};
-                            return next;
-                        }),
+                // Matched back by ban id, not list index: an unban landing mid-flight used
+                // to shift the array and staple the arriving profile onto the wrong row.
+                bans.forEach(ban => {
+                    this.profileService.fetchByUserId(ban.userId).subscribe({
+                        next: p => this.bans.update(list =>
+                            list.map(r => r.ban.id === ban.id ? {...r, profile: p} : r)
+                        ),
                     });
                 });
             },
             error: err => {
                 this.loading.set(false);
-                this.toastService.httpError('Failed to load bans', err);
+                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.BANS.LOAD_ERROR'), err);
             },
         });
     }
@@ -80,13 +99,24 @@ export class BansSettingsComponent implements OnInit {
             next: () => {
                 this.showBanDialog.set(false);
                 this.banning.set(false);
+                this.toastService.success(this.translate.instant('GUILD_SETTINGS.BANS.BAN_SUCCESS'));
                 this.load();
             },
             error: err => {
                 this.banning.set(false);
-                this.toastService.httpError('Failed to ban user', err);
+                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.BANS.BAN_ERROR'), err);
             },
         });
+    }
+
+    openUnbanDialog(row: BanRow): void {
+        this.confirmUnbanRow.set(row);
+        this.showUnbanDialog.set(true);
+    }
+
+    closeUnbanDialog(): void {
+        this.confirmUnbanRow.set(null);
+        this.showUnbanDialog.set(false);
     }
 
     unban(row: BanRow): void {
@@ -96,10 +126,11 @@ export class BansSettingsComponent implements OnInit {
             next: () => {
                 this.bans.update(list => list.filter(r => r.ban.id !== row.ban.id));
                 this.unbanningId.set(null);
+                this.closeUnbanDialog();
             },
             error: err => {
                 this.unbanningId.set(null);
-                this.toastService.httpError('Failed to unban user', err);
+                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.BANS.UNBAN_ERROR'), err);
             },
         });
     }

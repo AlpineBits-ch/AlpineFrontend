@@ -31,7 +31,7 @@
                         <i class="pi pi-trash text-xs"></i> {{ 'GUILD_SETTINGS.OVERVIEW.REMOVE_ICON' | translate }}
                     </button>
                 }
-                <p class="text-[11px] text-white/25">{{ 'GUILD_SETTINGS.OVERVIEW.ICON_HINT' | translate }}</p>
+                <p class="text-[0.6875rem] text-white/25">{{ 'GUILD_SETTINGS.OVERVIEW.ICON_HINT' | translate }}</p>
             </div>
         </div>
     </div>
@@ -43,17 +43,23 @@
         <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">
             {{ 'GUILD_SETTINGS.OVERVIEW.SERVER_NAME' | translate }} <span class="text-rose-400">*</span>
         </label>
-        <input (ngModelChange)="name.set($event); onFieldChange()"
+        <input (ngModelChange)="name.set($event)"
+               [attr.aria-invalid]="nameInvalid()"
+               [maxlength]="100"
                [ngModel]="name()"
                [placeholder]="'GUILD_SETTINGS.OVERVIEW.SERVER_NAME_PLACEHOLDER' | translate"
                class="w-full"
                pInputText/>
+        @if (nameInvalid()) {
+            <p class="text-[0.6875rem] text-rose-400 mt-1.5">{{ 'GUILD_SETTINGS.OVERVIEW.NAME_REQUIRED' | translate }}</p>
+        }
     </div>
 
     <!-- Description -->
     <div>
         <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD_SETTINGS.OVERVIEW.DESCRIPTION' | translate }}</label>
-        <textarea (ngModelChange)="description.set($event); onFieldChange()"
+        <textarea (ngModelChange)="description.set($event)"
+                  [maxlength]="300"
                   [ngModel]="description()"
                   [placeholder]="'GUILD_SETTINGS.OVERVIEW.DESCRIPTION_PLACEHOLDER' | translate"
                   class="w-full resize-none"
@@ -68,13 +74,15 @@
         <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">
             {{ 'GUILD_SETTINGS.OVERVIEW.SYSTEM_CHANNEL' | translate }}
         </label>
-        <p-select (ngModelChange)="systemChannelId.set($event); onFieldChange()"
+        <p-select (ngModelChange)="systemChannelId.set($event)"
                   [ngModel]="systemChannelId()"
                   [options]="channelOptions()"
+                  [placeholder]="'GUILD_SETTINGS.OVERVIEW.SYSTEM_CHANNEL_PLACEHOLDER' | translate"
+                  [showClear]="true"
                   [style]="{minWidth: '220px'}"
                   optionLabel="label"
                   optionValue="value"/>
-        <p class="text-[11px] text-white/25 mt-1.5">{{ 'GUILD_SETTINGS.OVERVIEW.SYSTEM_CHANNEL_HINT' | translate }}</p>
+        <p class="text-[0.6875rem] text-white/25 mt-1.5">{{ 'GUILD_SETTINGS.OVERVIEW.SYSTEM_CHANNEL_HINT' | translate }}</p>
     </div>
 
     <!-- Verification Level -->
@@ -82,44 +90,62 @@
         <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">
             {{ 'GUILD_SETTINGS.OVERVIEW.VERIFICATION_LEVEL' | translate }}
         </label>
-        <p-select (ngModelChange)="verificationLevel.set($event); onFieldChange()"
+        <p-select (ngModelChange)="verificationLevel.set($event)"
                   [ngModel]="verificationLevel()"
                   [options]="verificationOptions"
                   optionLabel="label"
                   optionValue="value"
                   styleClass="w-full"/>
-        <p class="text-[0.8125rem] text-text-muted mt-1.5">{{ verificationHint() | translate }}</p>
+        <p class="text-[0.6875rem] text-white/25 mt-1.5">{{ verificationHint() | translate }}</p>
     </div>
 
     <!-- Save -->
     @if (dirty()) {
         <div class="flex items-center gap-3 pt-1">
-            <p-button (onClick)="save()" [label]="'GUILD_SETTINGS.OVERVIEW.SAVE_CHANGES' | translate" [loading]="saving()"
+            <p-button (onClick)="save()" [disabled]="nameInvalid()" [label]="'GUILD_SETTINGS.OVERVIEW.SAVE_CHANGES' | translate" [loading]="saving()"
                       severity="primary" size="small"/>
-            <p-button (onClick)="ngOnInit()" [label]="'GUILD_SETTINGS.OVERVIEW.RESET' | translate" [text]="true"
+            <p-button (onClick)="reset()" [label]="'GUILD_SETTINGS.OVERVIEW.RESET' | translate" [text]="true"
                       severity="secondary"
                       size="small"/>
         </div>
     }
 
     <div class="mt-8 pt-6 border-t border-white/[0.08]">
-        <p class="text-xs font-semibold text-rose-400 uppercase tracking-widest mb-2">Danger Zone</p>
-        <p-button (onClick)="showDeleteDialog.set(true)" icon="pi pi-trash" label="Delete Server" severity="danger" size="small"/>
+        <p class="text-xs font-semibold text-rose-400 uppercase tracking-widest mb-2">{{ 'GUILD_SETTINGS.OVERVIEW.DANGER_ZONE' | translate }}</p>
+        <p class="text-[0.6875rem] text-white/30 mb-3 max-w-sm leading-relaxed">{{ 'GUILD_SETTINGS.OVERVIEW.DANGER_ZONE_DESC' | translate }}</p>
+        <p-button (onClick)="openDeleteDialog()" [label]="'GUILD_SETTINGS.OVERVIEW.DELETE_SERVER' | translate"
+                  icon="pi pi-trash" severity="danger" size="small"/>
     </div>
 
 </div>
 
+<!-- Deleting a server is unrecoverable, so it asks for the name rather than a bare confirm. -->
 <p-dialog [(visible)]="showDeleteDialog" [draggable]="false" [modal]="true" [resizable]="false"
           [style]="{width: '420px'}" appendTo="body">
     <ng-template pTemplate="header">
-        <span class="text-sm font-semibold text-rose-400">Delete Server</span>
+        <span class="text-sm font-semibold text-rose-400">{{ 'GUILD_SETTINGS.OVERVIEW.DELETE_TITLE' | translate }}</span>
     </ng-template>
-    <p class="text-sm text-white/70">
-        This permanently deletes <strong>{{ guild().name }}</strong> and everything in it. This cannot be undone.
-    </p>
+    <div class="flex flex-col gap-4 py-1">
+        <p class="text-sm text-white/70 m-0 leading-relaxed">
+            {{ 'GUILD_SETTINGS.OVERVIEW.DELETE_WARNING' | translate: {name: guild().name} }}
+        </p>
+        <div>
+            <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2" for="delete-confirm-name">
+                {{ 'GUILD_SETTINGS.OVERVIEW.DELETE_CONFIRM_LABEL' | translate }}
+            </label>
+            <input (ngModelChange)="deleteConfirmName.set($event)"
+                   [ngModel]="deleteConfirmName()"
+                   [placeholder]="guild().name"
+                   autocomplete="off"
+                   class="w-full"
+                   id="delete-confirm-name"
+                   pInputText/>
+        </div>
+    </div>
     <ng-template pTemplate="footer">
-        <p-button (onClick)="showDeleteDialog.set(false)" [text]="true" label="Cancel"/>
-        <p-button (onClick)="deleteGuild()" [loading]="deleting()" label="Delete Forever" severity="danger"/>
+        <p-button (onClick)="showDeleteDialog.set(false)" [label]="'GUILD_SETTINGS.OVERVIEW.CANCEL' | translate" [text]="true"/>
+        <p-button (onClick)="deleteGuild()" [disabled]="!deleteConfirmed()"
+                  [label]="'GUILD_SETTINGS.OVERVIEW.DELETE_BTN' | translate" [loading]="deleting()" severity="danger"/>
     </ng-template>
 </p-dialog>
 

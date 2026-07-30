@@ -1,4 +1,4 @@
-import {Component, computed, DestroyRef, inject, input, OnInit, output, signal} from '@angular/core';
+import {Component, computed, DestroyRef, effect, inject, input, OnInit, output, signal} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {NgClass} from '@angular/common';
 import {FormsModule} from '@angular/forms';
@@ -17,13 +17,16 @@ import {ProfileService} from '../../../../../../services/profile.service';
 import {ToastService} from '../../../../../../services/toast.service';
 import {parsePermissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
 import {PermissionToggleComponent} from '../../../../shared/permission-toggle/permission-toggle.component';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
 interface RoleMemberDisplay {
     roleMember: RoleMemberDto;
     profile: ProfileDto | undefined;
     userId: string;
 }
+
+/** Hex colours only; the free-text field used to accept anything and persist it. */
+const HEX_COLOR_PATTERN = /^#[0-9a-fA-F]{6}$/;
 
 @Component({
     selector: 'app-roles-settings',
@@ -33,6 +36,8 @@ interface RoleMemberDisplay {
 export class RolesSettingsComponent implements OnInit {
     guild = input.required<GuildDto>();
     rolesChanged = output<RoleDto[]>();
+    /** Lets the modal shell guard nav-away and close while edits are pending. */
+    dirtyChange = output<boolean>();
     roles = signal<RoleDto[]>([]);
     selectedRole = signal<RoleDto | null>(null);
     activeTab = signal<'settings' | 'members'>('settings');
@@ -82,11 +87,21 @@ export class RolesSettingsComponent implements OnInit {
         })
     );
     private toastService = inject(ToastService);
+    private translate = inject(TranslateService);
+    /** Member ids known to already hold the selected role, used to filter add candidates. */
+    private assignedMemberIds = signal<ReadonlySet<string>>(new Set());
     // Members tab -raw list; profiles resolved from store
     private readonly TAKE = 30;
     private memberNextSkip = 0;
     private memberSearchTimer?: ReturnType<typeof setTimeout>;
     private addSearchTimer?: ReturnType<typeof setTimeout>;
+
+    /** Blocks Save on a malformed hex value instead of writing it to the role. */
+    protected colorInvalid = computed(() => !HEX_COLOR_PATTERN.test(this.editColor().trim()));
+
+    constructor() {
+        effect(() => this.dirtyChange.emit(this.editDirty()));
+    }
 
     ngOnInit(): void {
         this.roles.set([...this.guild().roles].sort((a, b) => a.position - b.position));
@@ -114,7 +129,23 @@ export class RolesSettingsComponent implements OnInit {
     onDrop(targetIndex: number): void {
         const fromIndex = this.dragIndex();
         this.dragIndex.set(null);
-        if (fromIndex === null || fromIndex === targetIndex) return;
+        if (fromIndex === null) return;
+        this.moveRole(fromIndex, targetIndex);
+    }
+
+    /** Keyboard path to reordering; drag-and-drop alone left this unusable without a mouse. */
+    moveRoleBy(index: number, delta: number): void {
+        this.moveRole(index, index + delta);
+    }
+
+    canMove(index: number, delta: number): boolean {
+        const target = index + delta;
+        return target >= 0 && target < this.roles().length;
+    }
+
+    private moveRole(fromIndex: number, targetIndex: number): void {
+        if (fromIndex === targetIndex) return;
+        if (targetIndex < 0 || targetIndex >= this.roles().length) return;
 
         const reordered = [...this.roles()];
         const [moved] = reordered.splice(fromIndex, 1);
@@ -126,7 +157,7 @@ export class RolesSettingsComponent implements OnInit {
             roles: withPositions.map(r => ({roleId: r.id, position: r.position})),
         }).subscribe({
             error: err => {
-                this.toastService.httpError('Failed to reorder roles', err);
+                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.ROLES.REORDER_ERROR'), err);
                 this.roles.set([...this.guild().roles].sort((a, b) => a.position - b.position));
             },
         });
@@ -170,12 +201,12 @@ export class RolesSettingsComponent implements OnInit {
 
     saveRole(): void {
         const role = this.selectedRole();
-        if (!role || this.editSaving()) return;
+        if (!role || this.editSaving() || this.colorInvalid()) return;
         this.editSaving.set(true);
         const dto: UpdateRoleDto = {
             name: this.editName(),
             description: this.editDescription(),
-            color: this.editColor(),
+            color: this.editColor().trim(),
             permissions: stringifyPermissions(this.editPermMask()),
         };
         this.guildService.updateRole(role.id, dto).subscribe({
@@ -190,9 +221,9 @@ export class RolesSettingsComponent implements OnInit {
             error: err => {
                 this.editSaving.set(false);
                 if (err.status === 403) {
-                    this.toastService.error('You can only grant permissions you already have yourself.');
+                    this.toastService.error(this.translate.instant('GUILD_SETTINGS.ROLES.ESCALATION_ERROR'));
                 } else {
-                    this.toastService.httpError('Failed to save role', err);
+                    this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.ROLES.SAVE_ERROR'), err);
                 }
             },
         });
@@ -219,9 +250,9 @@ export class RolesSettingsComponent implements OnInit {
             error: err => {
                 this.creating.set(false);
                 if (err.status === 403) {
-                    this.toastService.error('You can only grant permissions you already have yourself.');
+                    this.toastService.error(this.translate.instant('GUILD_SETTINGS.ROLES.ESCALATION_ERROR'));
                 } else {
-                    this.toastService.httpError('Failed to create role', err);
+                    this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.ROLES.CREATE_ERROR'), err);
                 }
             },
         });
@@ -239,7 +270,10 @@ export class RolesSettingsComponent implements OnInit {
                 this.deleting.set(false);
                 this.rolesChanged.emit(this.roles());
             },
-            error: () => this.deleting.set(false),
+            error: err => {
+                this.deleting.set(false);
+                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.ROLES.DELETE_ERROR'), err);
+            },
         });
     }
 
@@ -283,7 +317,10 @@ export class RolesSettingsComponent implements OnInit {
                 this.roleMembers.update(list => list.filter(r => r.memberId !== rm.memberId));
                 this.removing.set(null);
             },
-            error: () => this.removing.set(null),
+            error: err => {
+                this.removing.set(null);
+                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.ROLES.REMOVE_ERROR'), err);
+            },
         });
     }
 
@@ -295,6 +332,26 @@ export class RolesSettingsComponent implements OnInit {
         this.addSearch.set('');
         this.addCandidates.set([]);
         this.showAddDialog.set(true);
+
+        // Exclusion is computed from the role's current members. Opening this dialog
+        // without visiting the Members tab first left that set empty, so members who
+        // already held the role were offered as candidates.
+        const role = this.selectedRole();
+        if (role && !this.roleMembersLoaded()) {
+            this.addLoading.set(true);
+            this.guildService.getRoleMembers(role.id, 0, this.TAKE).subscribe({
+                next: incoming => {
+                    this.assignedMemberIds.update(ids => {
+                        const next = new Set(ids);
+                        incoming.forEach(rm => next.add(rm.memberId));
+                        return next;
+                    });
+                    this.fetchAddCandidates('');
+                },
+                error: () => this.fetchAddCandidates(''),
+            });
+            return;
+        }
         this.fetchAddCandidates('');
     }
 
@@ -311,11 +368,15 @@ export class RolesSettingsComponent implements OnInit {
         this.guildService.assignRoleToMember(role.id, member.id).subscribe({
             next: () => {
                 this.addCandidates.update(list => list.filter(m => m.id !== member.id));
+                this.assignedMemberIds.update(ids => new Set(ids).add(member.id));
                 this.adding.set(null);
                 this.resetMembersTab();
                 this.loadRoleMembers();
             },
-            error: () => this.adding.set(null),
+            error: err => {
+                this.adding.set(null);
+                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.ROLES.ADD_ERROR'), err);
+            },
         });
     }
 
@@ -331,6 +392,7 @@ export class RolesSettingsComponent implements OnInit {
 
     private resetMembersTab(): void {
         this.roleMembers.set([]);
+        this.assignedMemberIds.set(new Set());
         this.roleMembersLoaded.set(false);
         this.roleMembersQuery.set('');
         this.roleMembersIsSearch.set(false);
@@ -355,6 +417,11 @@ export class RolesSettingsComponent implements OnInit {
                 incoming.forEach(rm => {
                     const uid = rm.member?.userId ?? rm.userId;
                     if (uid) this.profileService.resolveByUserId(uid);
+                });
+                this.assignedMemberIds.update(ids => {
+                    const next = new Set(ids);
+                    incoming.forEach(rm => next.add(rm.memberId));
+                    return next;
                 });
                 if (skip === 0) {
                     this.roleMembers.set(incoming);
@@ -398,7 +465,7 @@ export class RolesSettingsComponent implements OnInit {
             : this.guildService.getMembers(this.guild().id, 0, 30);
         obs.subscribe({
             next: members => {
-                const existingIds = new Set(this.roleMembers().map(r => r.memberId));
+                const existingIds = this.assignedMemberIds();
                 this.addCandidates.set(members.filter(m => !existingIds.has(m.id)));
                 this.addLoading.set(false);
             },

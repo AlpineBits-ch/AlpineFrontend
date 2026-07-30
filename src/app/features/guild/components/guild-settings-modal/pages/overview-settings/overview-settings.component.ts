@@ -1,4 +1,4 @@
-import {Component, computed, inject, input, OnDestroy, OnInit, output, signal} from '@angular/core';
+import {Component, computed, effect, inject, input, OnDestroy, OnInit, output, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -14,6 +14,14 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {ToastService} from '../../../../../../services/toast.service';
 import {PrimeTemplate} from "primeng/api";
 
+/** The last-saved values `dirty` measures against. */
+interface Baseline {
+    name: string;
+    description: string;
+    systemChannelId: string | null;
+    verificationLevel: GuildVerificationLevel;
+}
+
 @Component({
     selector: 'app-overview-settings',
     imports: [FormsModule, Button, InputText, Textarea, Dialog, Select, ImageCropperComponent, TranslateModule, PrimeTemplate],
@@ -23,6 +31,8 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
     guild = input.required<GuildDto>();
     guildUpdated = output<GuildDto>();
     guildDeleted = output<string>();
+    /** Lets the modal shell guard nav-away and close while edits are pending. */
+    dirtyChange = output<boolean>();
     name = signal('');
     description = signal('');
     systemChannelId = signal<string | null>(null);
@@ -45,24 +55,74 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
         this.verificationOptions.find(o => o.value === this.verificationLevel())?.hint ?? ''
     );
     saving = signal(false);
-    dirty = signal(false);
     iconPreview = signal<string | null>(null);
     pendingIconFile = signal<File | null>(null);
     iconRemoved = signal(false);
     cropVisible = signal(false);
     cropSrc = signal('');
     showDeleteDialog = signal(false);
+    deleteConfirmName = signal('');
     deleting = signal(false);
+
+    /** Trimmed empty names are rejected client-side; the field is marked required. */
+    protected nameInvalid = computed(() => this.name().trim().length === 0);
+
+    /**
+     * Compared against a local baseline rather than `guild()`, because a successful save
+     * can't rely on the parent pushing a fresh guild back down this input.
+     */
+    private baseline = signal<Baseline>({name: '', description: '', systemChannelId: null, verificationLevel: GuildVerificationLevel.None});
+
+    /**
+     * Derived rather than assigned: an earlier version recomputed a `dirty` flag from
+     * the text fields alone, so a pending icon was forgotten the moment a name edit
+     * was typed and undone -Save vanished with the file still queued.
+     */
+    dirty = computed(() => {
+        const b = this.baseline();
+        return this.name() !== b.name
+            || this.description() !== b.description
+            || this.systemChannelId() !== b.systemChannelId
+            || this.verificationLevel() !== b.verificationLevel
+            || this.pendingIconFile() !== null
+            || this.iconRemoved();
+    });
+
+    /** Delete is gated on retyping the name, the way the rest of the app gates nothing else this destructive. */
+    protected deleteConfirmed = computed(() =>
+        this.deleteConfirmName().trim() === this.guild().name.trim()
+    );
+
     private guildService = inject(GuildService);
     private toastService = inject(ToastService);
     private translate = inject(TranslateService);
     private previewObjectUrl: string | null = null;
 
+    constructor() {
+        effect(() => this.dirtyChange.emit(this.dirty()));
+    }
+
     ngOnInit(): void {
-        this.name.set(this.guild().name);
-        this.description.set(this.guild().description ?? '');
-        this.systemChannelId.set(this.guild().systemChannelId);
-        this.verificationLevel.set(this.guild().verificationLevel ?? GuildVerificationLevel.None);
+        this.reset();
+    }
+
+    ngOnDestroy(): void {
+        if (this.previewObjectUrl) URL.revokeObjectURL(this.previewObjectUrl);
+    }
+
+    /** Restores every field to the saved guild. Was previously wired to `ngOnInit`. */
+    reset(): void {
+        const g = this.guild();
+        this.baseline.set({
+            name: g.name,
+            description: g.description ?? '',
+            systemChannelId: g.systemChannelId,
+            verificationLevel: g.verificationLevel ?? GuildVerificationLevel.None,
+        });
+        this.name.set(g.name);
+        this.description.set(g.description ?? '');
+        this.systemChannelId.set(g.systemChannelId);
+        this.verificationLevel.set(g.verificationLevel ?? GuildVerificationLevel.None);
         if (this.previewObjectUrl) {
             URL.revokeObjectURL(this.previewObjectUrl);
             this.previewObjectUrl = null;
@@ -70,20 +130,6 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
         this.pendingIconFile.set(null);
         this.iconRemoved.set(false);
         this.iconPreview.set(this.iconUrl(this.guild().id));
-    }
-
-    ngOnDestroy(): void {
-        if (this.previewObjectUrl) URL.revokeObjectURL(this.previewObjectUrl);
-    }
-
-    onFieldChange(): void {
-        const g = this.guild();
-        this.dirty.set(
-            this.name() !== g.name
-            || this.description() !== (g.description ?? '')
-            || this.systemChannelId() !== g.systemChannelId
-            || this.verificationLevel() !== (g.verificationLevel ?? GuildVerificationLevel.None)
-        );
     }
 
     onIconSelected(event: Event): void {
@@ -104,8 +150,8 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
         if (this.previewObjectUrl) URL.revokeObjectURL(this.previewObjectUrl);
         this.previewObjectUrl = URL.createObjectURL(file);
         this.pendingIconFile.set(file);
+        this.iconRemoved.set(false);
         this.iconPreview.set(this.previewObjectUrl);
-        this.dirty.set(true);
     }
 
     removeIcon(): void {
@@ -116,7 +162,6 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
         this.iconPreview.set(null);
         this.pendingIconFile.set(null);
         this.iconRemoved.set(true);
-        this.dirty.set(true);
     }
 
     onIconLoadError(): void {
@@ -126,11 +171,11 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
     }
 
     save(): void {
-        if (this.saving()) return;
+        if (this.saving() || this.nameInvalid()) return;
         this.saving.set(true);
 
         const doUpdate = (g: GuildDto) => {
-            const dto: UpdateGuildDto = {name: this.name(), description: this.description()};
+            const dto: UpdateGuildDto = {name: this.name().trim(), description: this.description()};
             if (this.systemChannelId() !== g.systemChannelId && this.systemChannelId()) {
                 dto.systemChannelId = this.systemChannelId()!;
             }
@@ -141,7 +186,19 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
                 next: updated => {
                     this.guildService.guildUpdated$.next(updated);
                     this.guildUpdated.emit(updated);
-                    this.dirty.set(false);
+                    // Re-baseline on what was actually persisted so `dirty` settles to false.
+                    this.baseline.set({
+                        name: updated.name,
+                        description: updated.description ?? '',
+                        systemChannelId: updated.systemChannelId,
+                        verificationLevel: updated.verificationLevel ?? GuildVerificationLevel.None,
+                    });
+                    this.name.set(updated.name);
+                    this.description.set(updated.description ?? '');
+                    this.systemChannelId.set(updated.systemChannelId);
+                    this.verificationLevel.set(updated.verificationLevel ?? GuildVerificationLevel.None);
+                    this.pendingIconFile.set(null);
+                    this.iconRemoved.set(false);
                     this.saving.set(false);
                 },
                 error: err => {
@@ -157,20 +214,33 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
                     this.pendingIconFile.set(null);
                     doUpdate(this.guild());
                 },
-                error: () => this.saving.set(false),
+                // Both icon calls used to fail silently: the spinner stopped, nothing
+                // changed on screen, and the user had no way to tell it hadn't worked.
+                error: err => {
+                    this.saving.set(false);
+                    this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.OVERVIEW.ICON_UPLOAD_ERROR'), err);
+                },
             });
         } else if (this.iconRemoved()) {
             this.guildService.removeGuildIcon(this.guild().id).subscribe({
                 next: updated => doUpdate(updated),
-                error: () => this.saving.set(false),
+                error: err => {
+                    this.saving.set(false);
+                    this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.OVERVIEW.ICON_REMOVE_ERROR'), err);
+                },
             });
         } else {
             doUpdate(this.guild());
         }
     }
 
+    openDeleteDialog(): void {
+        this.deleteConfirmName.set('');
+        this.showDeleteDialog.set(true);
+    }
+
     deleteGuild(): void {
-        if (this.deleting()) return;
+        if (this.deleting() || !this.deleteConfirmed()) return;
         this.deleting.set(true);
         this.guildService.deleteGuild(this.guild().id).subscribe({
             next: () => {
@@ -180,7 +250,7 @@ export class OverviewSettingsComponent implements OnInit, OnDestroy {
             },
             error: err => {
                 this.deleting.set(false);
-                this.toastService.httpError('Failed to delete server', err);
+                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.OVERVIEW.DELETE_ERROR'), err);
             },
         });
     }

@@ -6,6 +6,7 @@ import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
 import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {ToastService} from '../../../../../../services/toast.service';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
 interface AuditRow {
     entry: AuditLogEntryDto;
@@ -18,9 +19,41 @@ const USER_TARGET_ACTIONS = new Set([
     'MemberBanned', 'MemberUnbanned', 'MemberKicked', 'MemberMuted', 'MemberUnmuted',
 ]);
 
+/**
+ * Action type to translation-key stem. Actions with a `_GENERIC` counterpart fall back to
+ * it when the target can't be resolved -a deleted role has no name left to print.
+ */
+const ACTION_KEYS: Record<string, string> = {
+    MemberBanned: 'MEMBER_BANNED',
+    MemberUnbanned: 'MEMBER_UNBANNED',
+    MemberKicked: 'MEMBER_KICKED',
+    MemberMuted: 'MEMBER_MUTED',
+    MemberUnmuted: 'MEMBER_UNMUTED',
+    MemberLeft: 'MEMBER_LEFT',
+    RoleCreated: 'ROLE_CREATED',
+    RoleUpdated: 'ROLE_UPDATED',
+    RoleDeleted: 'ROLE_DELETED',
+    RolePositionsChanged: 'ROLE_POSITIONS_CHANGED',
+    ChannelCreated: 'CHANNEL_CREATED',
+    ChannelDeleted: 'CHANNEL_DELETED',
+    ChannelUpdated: 'CHANNEL_UPDATED',
+    ChannelPermissionChanged: 'CHANNEL_PERMISSION_CHANGED',
+    CategoryCreated: 'CATEGORY_CREATED',
+    CategoryDeleted: 'CATEGORY_DELETED',
+    GuildUpdated: 'GUILD_UPDATED',
+    GuildDeleted: 'GUILD_DELETED',
+    InviteCreated: 'INVITE_CREATED',
+    InviteDeleted: 'INVITE_DELETED',
+};
+
+/** Actions whose sentence never interpolates a target, so no `_GENERIC` variant exists. */
+const TARGETLESS_ACTIONS = new Set([
+    'MemberLeft', 'RolePositionsChanged', 'GuildUpdated', 'GuildDeleted', 'InviteCreated', 'InviteDeleted',
+]);
+
 @Component({
     selector: 'app-audit-log-settings',
-    imports: [DatePipe],
+    imports: [DatePipe, TranslateModule],
     templateUrl: './audit-log-settings.component.html',
 })
 export class AuditLogSettingsComponent implements OnInit {
@@ -34,6 +67,7 @@ export class AuditLogSettingsComponent implements OnInit {
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private toastService = inject(ToastService);
+    private translate = inject(TranslateService);
 
     ngOnInit(): void {
         this.load();
@@ -63,31 +97,17 @@ export class AuditLogSettingsComponent implements OnInit {
     }
 
     describe(row: AuditRow): string {
-        const entry = row.entry;
+        const stem = ACTION_KEYS[row.entry.actionType];
+        // An unmapped action type still says something useful rather than rendering a blank.
+        if (!stem) return row.entry.actionType;
+
+        const base = `GUILD_SETTINGS.AUDIT_LOG.ACTION.${stem}`;
+        if (TARGETLESS_ACTIONS.has(row.entry.actionType)) return this.translate.instant(base);
+
         const target = this.targetLabel(row);
-        switch (entry.actionType) {
-            case 'MemberBanned': return target ? `banned ${target}` : 'banned a member';
-            case 'MemberUnbanned': return target ? `unbanned ${target}` : 'unbanned a member';
-            case 'MemberKicked': return target ? `kicked ${target}` : 'kicked a member';
-            case 'MemberMuted': return target ? `timed out ${target}` : 'timed out a member';
-            case 'MemberUnmuted': return target ? `removed a timeout from ${target}` : 'removed a timeout';
-            case 'MemberLeft': return 'left the server';
-            case 'RoleCreated': return target ? `created the role "${target}"` : 'created a role';
-            case 'RoleUpdated': return target ? `updated the role "${target}"` : 'updated a role';
-            case 'RoleDeleted': return target ? `deleted the role "${target}"` : 'deleted a role';
-            case 'RolePositionsChanged': return 'reordered roles';
-            case 'ChannelCreated': return target ? `created the channel #${target}` : 'created a channel';
-            case 'ChannelDeleted': return target ? `deleted the channel #${target}` : 'deleted a channel';
-            case 'ChannelUpdated': return target ? `updated the channel #${target}` : 'updated a channel';
-            case 'ChannelPermissionChanged': return target ? `changed permissions for #${target}` : 'changed channel permissions';
-            case 'CategoryCreated': return target ? `created the category "${target}"` : 'created a category';
-            case 'CategoryDeleted': return target ? `deleted the category "${target}"` : 'deleted a category';
-            case 'GuildUpdated': return 'updated server settings';
-            case 'GuildDeleted': return 'deleted the server';
-            case 'InviteCreated': return 'created an invite';
-            case 'InviteDeleted': return 'deleted an invite';
-            default: return entry.actionType;
-        }
+        return target
+            ? this.translate.instant(base, {target})
+            : this.translate.instant(`${base}_GENERIC`);
     }
 
     /** Compact "key: value" summary of the entry's metadata, or null if empty/absent. */
@@ -170,7 +190,7 @@ export class AuditLogSettingsComponent implements OnInit {
             error: err => {
                 this.loading.set(false);
                 this.loadingMore.set(false);
-                this.toastService.httpError('Failed to load audit log', err);
+                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.AUDIT_LOG.LOAD_ERROR'), err);
             },
         });
     }

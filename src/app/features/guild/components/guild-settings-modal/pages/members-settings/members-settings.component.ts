@@ -13,7 +13,8 @@ import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
 import {parsePermissions, Permissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
 import {PermissionToggleComponent} from '../../../../shared/permission-toggle/permission-toggle.component';
 import {PrimeTemplate} from "primeng/api";
-import {TranslateModule} from '@ngx-translate/core';
+import {ToastService} from '../../../../../../services/toast.service';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {UserNameStyleDirective} from '../../../../../../directives/user-name-style.directive';
 
 interface MemberRow {
@@ -41,27 +42,44 @@ export class MembersSettingsComponent implements OnInit {
     confirmKickMember = signal<MemberRow | null>(null);
     showKickDialog = signal(false);
     kicking = signal(false);
+    /** True while the list is showing server-side search hits rather than the paged roster. */
+    isSearching = signal(false);
+    searchPending = signal(false);
     protected readonly Permissions = Permissions;
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
+    private toastService = inject(ToastService);
+    private translate = inject(TranslateService);
     private readonly TAKE = 50;
     private nextSkip = 0;
-
-    get filteredMembers(): MemberRow[] {
-        const q = this.filter().toLowerCase();
-        if (!q) return this.members();
-        return this.members().filter(row => {
-            const name = this.displayName(row);
-            return name.toLowerCase().includes(q) || row.member.userId.includes(q);
-        });
-    }
+    private searchTimer?: ReturnType<typeof setTimeout>;
 
     ngOnInit(): void {
         this.load();
     }
 
+    /**
+     * Filtering client-side only ever saw the pages already fetched, so a real member on
+     * page three came back as "no members". The guild search endpoint covers the whole
+     * roster and is what the role add-member dialog already uses.
+     */
+    onFilterChange(query: string): void {
+        this.filter.set(query);
+        clearTimeout(this.searchTimer);
+        const trimmed = query.trim();
+        if (!trimmed) {
+            this.searchPending.set(false);
+            this.isSearching.set(false);
+            this.load();
+            return;
+        }
+        this.searchPending.set(true);
+        this.searchTimer = setTimeout(() => this.runSearch(trimmed), 300);
+    }
+
     load(): void {
         this.loading.set(true);
+        this.isSearching.set(false);
         this.nextSkip = 0;
         this.hasMore.set(true);
         this.members.set([]);
@@ -69,7 +87,7 @@ export class MembersSettingsComponent implements OnInit {
     }
 
     loadMore(): void {
-        if (this.loadingMore() || !this.hasMore() || this.loading()) return;
+        if (this.loadingMore() || !this.hasMore() || this.loading() || this.isSearching()) return;
         this.loadingMore.set(true);
         this.fetchPage();
     }
@@ -108,7 +126,10 @@ export class MembersSettingsComponent implements OnInit {
                 this.showEditDialog.set(false);
                 this.editSaving.set(false);
             },
-            error: () => this.editSaving.set(false),
+            error: err => {
+                this.editSaving.set(false);
+                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.MEMBERS.PERMISSIONS_ERROR'), err);
+            },
         });
     }
 
@@ -118,10 +139,13 @@ export class MembersSettingsComponent implements OnInit {
         this.guildService.kickMember(this.guild().id, row.member.id).subscribe({
             next: () => {
                 this.members.update(list => list.filter(r => r.member.id !== row.member.id));
-                this.confirmKickMember.set(null);
+                this.closeKickDialog();
                 this.kicking.set(false);
             },
-            error: () => this.kicking.set(false),
+            error: err => {
+                this.kicking.set(false);
+                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.MEMBERS.KICK_ERROR'), err);
+            },
         });
     }
 
@@ -150,14 +174,49 @@ export class MembersSettingsComponent implements OnInit {
         return row.member.type === MemberType.Bot;
     }
 
+    private runSearch(query: string): void {
+        this.isSearching.set(true);
+        this.loading.set(true);
+        this.hasMore.set(false);
+        this.guildService.searchMembers(this.guild().id, query).subscribe({
+            next: incoming => {
+                const rows: MemberRow[] = incoming.map(m => ({
+                    member: m,
+                    profile: m.profile ?? null,
+                    roleNames: this.roleNamesFor(m),
+                }));
+                this.members.set(rows);
+                this.loading.set(false);
+                this.searchPending.set(false);
+                this.resolveProfiles(rows);
+            },
+            error: err => {
+                this.loading.set(false);
+                this.searchPending.set(false);
+                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.MEMBERS.LOAD_ERROR'), err);
+            },
+        });
+    }
+
+    /** Keyed on member id so a row removed mid-flight can't misdirect an arriving profile. */
+    private resolveProfiles(rows: MemberRow[]): void {
+        rows.forEach(row => {
+            if (row.profile) return;
+            this.profileService.fetchByUserId(row.member.userId).subscribe({
+                next: p => this.members.update(list =>
+                    list.map(r => r.member.id === row.member.id ? {...r, profile: p} : r)
+                ),
+            });
+        });
+    }
+
     private fetchPage(): void {
         const skip = this.nextSkip;
         this.guildService.getMembers(this.guild().id, skip, this.TAKE).subscribe({
             next: incoming => {
-                const baseIdx = skip === 0 ? 0 : this.members().length;
                 const rows: MemberRow[] = incoming.map(m => ({
                     member: m,
-                    profile: null,
+                    profile: m.profile ?? null,
                     roleNames: this.roleNamesFor(m),
                 }));
 
@@ -172,22 +231,12 @@ export class MembersSettingsComponent implements OnInit {
                 this.nextSkip = skip + incoming.length;
                 if (incoming.length < this.TAKE) this.hasMore.set(false);
 
-                rows.forEach((row, i) => {
-                    this.profileService.fetchByUserId(row.member.userId).subscribe({
-                        next: p => {
-                            this.members.update(list => {
-                                const next = [...list];
-                                const idx = baseIdx + i;
-                                if (next[idx]) next[idx] = {...next[idx], profile: p};
-                                return next;
-                            });
-                        },
-                    });
-                });
+                this.resolveProfiles(rows);
             },
-            error: () => {
+            error: err => {
                 this.loading.set(false);
                 this.loadingMore.set(false);
+                this.toastService.httpError(this.translate.instant('GUILD_SETTINGS.MEMBERS.LOAD_ERROR'), err);
             },
         });
     }

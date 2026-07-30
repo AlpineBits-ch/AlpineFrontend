@@ -1,9 +1,14 @@
 <!-- audit-log-settings.component.html -->
-<div (scroll)="onScroll($event)" class="flex flex-col gap-1 max-h-full overflow-y-auto">
+<!-- Scrolls on the page body rather than nesting a second scroller inside it. -->
+<div (scroll)="onScroll($event)" class="flex flex-col gap-1 h-full overflow-y-auto thin-scrollbar">
     @if (loading()) {
-        <p class="text-sm text-white/25 text-center py-6">Loading…</p>
+        <p class="text-sm text-white/25 text-center py-6">{{ 'GUILD_SETTINGS.AUDIT_LOG.LOADING' | translate }}</p>
     } @else if (rows().length === 0) {
-        <p class="text-sm text-white/25 text-center py-6">No audit log entries yet</p>
+        <div class="flex flex-col items-center justify-center py-12 gap-2 text-center">
+            <i class="pi pi-history text-3xl text-white/10"></i>
+            <p class="text-sm text-white/25 m-0">{{ 'GUILD_SETTINGS.AUDIT_LOG.EMPTY' | translate }}</p>
+            <p class="text-xs text-white/20 m-0">{{ 'GUILD_SETTINGS.AUDIT_LOG.EMPTY_HINT' | translate }}</p>
+        </div>
     } @else {
         @for (row of rows(); track row.entry.id) {
             <div class="flex items-start gap-3 px-3 py-2.5 rounded-lg hover:bg-white/[0.03]">
@@ -12,14 +17,14 @@
                         <span class="font-medium">{{ actorName(row) }}</span> {{ describe(row) }}
                     </p>
                     @if (metadataSummary(row); as summary) {
-                        <p class="text-[11px] text-white/40 font-mono truncate">{{ summary }}</p>
+                        <p class="text-[0.6875rem] text-white/40 font-mono truncate">{{ summary }}</p>
                     }
-                    <p class="text-[11px] text-white/30">{{ row.entry.createdAt | date:'medium' }}</p>
+                    <p class="text-[0.6875rem] text-white/30">{{ row.entry.createdAt | date:'medium' }}</p>
                 </div>
             </div>
         }
         @if (loadingMore()) {
-            <p class="text-xs text-white/25 text-center py-3">Loading more…</p>
+            <p class="text-xs text-white/25 text-center py-3">{{ 'GUILD_SETTINGS.AUDIT_LOG.LOADING_MORE' | translate }}</p>
         }
     }
 </div>

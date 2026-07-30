@@ -81,7 +81,6 @@ describe('OverviewSettingsComponent system channel picker', () => {
     it('marks dirty when systemChannelId changes and includes it in the save payload', () => {
         const {component, ctrl} = setup(guildFixture());
         component.systemChannelId.set('chan_3');
-        component.onFieldChange();
         expect(component.dirty()).toBe(true);
 
         component.save();
@@ -93,7 +92,6 @@ describe('OverviewSettingsComponent system channel picker', () => {
     it('omits systemChannelId from the save payload when unchanged', () => {
         const {component, ctrl} = setup(guildFixture());
         component.name.set('Renamed');
-        component.onFieldChange();
 
         component.save();
         const req = ctrl.expectOne(`${BASE}/guilds/g1`);
@@ -119,7 +117,6 @@ describe('OverviewSettingsComponent verification level picker', () => {
     it('marks dirty when verificationLevel changes and includes it in the save payload', () => {
         const {component, ctrl} = setup(guildFixture());
         component.verificationLevel.set(GuildVerificationLevel.High);
-        component.onFieldChange();
         expect(component.dirty()).toBe(true);
 
         component.save();
@@ -131,7 +128,6 @@ describe('OverviewSettingsComponent verification level picker', () => {
     it('omits verificationLevel from the save payload when unchanged', () => {
         const {component, ctrl} = setup(guildFixture());
         component.name.set('Renamed');
-        component.onFieldChange();
 
         component.save();
         const req = ctrl.expectOne(`${BASE}/guilds/g1`);
@@ -149,6 +145,70 @@ describe('OverviewSettingsComponent verification level picker', () => {
     });
 });
 
+describe('OverviewSettingsComponent dirty tracking', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('stays dirty while an icon is queued even after text edits are undone', () => {
+        const {component} = setup(guildFixture());
+        component.pendingIconFile.set(new File(['x'], 'icon.png', {type: 'image/png'}));
+        expect(component.dirty()).toBe(true);
+
+        component.name.set('Renamed');
+        component.name.set('Test Guild');
+
+        expect(component.dirty()).toBe(true);
+    });
+
+    it('stays dirty when the icon is marked for removal', () => {
+        const {component} = setup(guildFixture());
+        component.iconRemoved.set(true);
+        expect(component.dirty()).toBe(true);
+    });
+
+    it('clears dirty when reset restores the saved values', () => {
+        const {component} = setup(guildFixture());
+        component.name.set('Renamed');
+        component.iconRemoved.set(true);
+        expect(component.dirty()).toBe(true);
+
+        component.reset();
+
+        expect(component.dirty()).toBe(false);
+        expect(component.name()).toBe('Test Guild');
+        expect(component.iconRemoved()).toBe(false);
+    });
+
+    it('rejects a blank server name', () => {
+        const {component, ctrl} = setup(guildFixture());
+        component.name.set('   ');
+
+        component.save();
+
+        expect(component.saving()).toBe(false);
+        ctrl.expectNone(`${BASE}/guilds/g1`);
+    });
+});
+
+describe('OverviewSettingsComponent delete confirmation', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('does not issue a delete until the typed name matches', () => {
+        const {component, ctrl} = setup(guildFixture());
+        component.showDeleteDialog.set(true);
+
+        component.deleteConfirmName.set('Test Guil');
+        component.deleteGuild();
+        expect(component.deleting()).toBe(false);
+        ctrl.expectNone(`${BASE}/guilds/g1`);
+
+        component.deleteConfirmName.set('Test Guild');
+        component.deleteGuild();
+        const req = ctrl.expectOne(`${BASE}/guilds/g1`);
+        expect(req.request.method).toBe('DELETE');
+        req.flush(null);
+    });
+});
+
 describe('OverviewSettingsComponent save error handling', () => {
     afterEach(() => TestBed.inject(HttpTestingController).verify());
 
@@ -158,7 +218,6 @@ describe('OverviewSettingsComponent save error handling', () => {
         const addSpy = vi.spyOn(messageService, 'add');
 
         component.name.set('Renamed');
-        component.onFieldChange();
         component.save();
         expect(component.saving()).toBe(true);
 

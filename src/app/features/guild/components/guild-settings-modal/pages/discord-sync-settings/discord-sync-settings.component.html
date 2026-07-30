@@ -4,7 +4,7 @@
         <p class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">
             {{ 'GUILD_SETTINGS.DISCORD_SYNC.TITLE' | translate }}
         </p>
-        <p class="text-[11px] text-white/25 mb-4">
+        <p class="text-[0.6875rem] text-white/25 mb-4">
             {{ 'GUILD_SETTINGS.DISCORD_SYNC.HINT' | translate }}
         </p>
 
@@ -18,7 +18,7 @@
                     <div class="flex items-center justify-between gap-3 p-3 rounded-xl bg-card border border-white/[0.08]">
                         <div class="min-w-0">
                             <p class="text-sm text-white/85 truncate">{{ link.discordGuildName }}</p>
-                            <p class="text-[11px] text-white/40 mt-0.5">
+                            <p class="text-[0.6875rem] text-white/40 mt-0.5">
                                 @if (link.status === 'Active') {
                                     {{ 'GUILD_SETTINGS.DISCORD_SYNC.STATUS_ACTIVE' | translate }}
                                 } @else if (link.status === 'Paused') {

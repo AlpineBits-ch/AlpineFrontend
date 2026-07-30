@@ -16,6 +16,7 @@ import {ModerationSettingsComponent} from './pages/moderation-settings/moderatio
 import {OnboardingSettingsComponent} from './pages/onboarding-settings/onboarding-settings.component';
 import {TemplatesSettingsComponent} from './pages/templates-settings/templates-settings.component';
 import {TranslateModule} from '@ngx-translate/core';
+import {PrimeTemplate} from 'primeng/api';
 import {GuildService} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
@@ -57,6 +58,7 @@ interface NavGroup {
         OnboardingSettingsComponent,
         TemplatesSettingsComponent,
         TranslateModule,
+        PrimeTemplate,
     ],
     templateUrl: './guild-settings-modal.component.html',
 })
@@ -68,6 +70,17 @@ export class GuildSettingsModalComponent {
 
     activePage = signal('overview');
     headerIconFailed = signal(false);
+
+    /**
+     * Set by whichever page is showing when it has edits the user hasn't saved.
+     * Nav clicks and the close button route through the confirm dialog while it's
+     * true -the `@switch` below destroys the page component, so leaving without
+     * asking silently throws the edits away.
+     */
+    protected pageDirty = signal(false);
+    protected pendingPage = signal<string | null>(null);
+    protected pendingClose = signal(false);
+    protected showUnsavedDialog = computed(() => this.pendingPage() !== null || this.pendingClose());
 
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
@@ -96,29 +109,40 @@ export class GuildSettingsModalComponent {
     );
     navGroups: NavGroup[] = [
         {
-            title: 'Server Settings',
+            title: 'GUILD_SETTINGS.NAV.GROUP_SERVER',
             items: [
-                {id: 'overview', label: 'Overview', icon: 'pi pi-home'},
-                {id: 'members', label: 'Members', icon: 'pi pi-users'},
-                {id: 'roles', label: 'Roles', icon: 'pi pi-shield'},
-                {id: 'bans', label: 'Bans', icon: 'pi pi-ban'},
-                {id: 'moderation', label: 'Moderation', icon: 'pi pi-filter'},
-                {id: 'audit-log', label: 'Audit Log', icon: 'pi pi-history'},
+                {id: 'overview', label: 'GUILD_SETTINGS.NAV.OVERVIEW', icon: 'pi pi-home'},
+                {id: 'members', label: 'GUILD_SETTINGS.NAV.MEMBERS', icon: 'pi pi-users'},
+                {id: 'roles', label: 'GUILD_SETTINGS.NAV.ROLES', icon: 'pi pi-shield'},
+                {id: 'bans', label: 'GUILD_SETTINGS.NAV.BANS', icon: 'pi pi-ban'},
+                {id: 'moderation', label: 'GUILD_SETTINGS.NAV.MODERATION', icon: 'pi pi-filter'},
+                {id: 'audit-log', label: 'GUILD_SETTINGS.NAV.AUDIT_LOG', icon: 'pi pi-history'},
             ],
         },
         {
-            title: 'Community',
+            title: 'GUILD_SETTINGS.NAV.GROUP_COMMUNITY',
             items: [
-                {id: 'invites', label: 'Invites', icon: 'pi pi-link'},
-                {id: 'emojis', label: 'Emojis', icon: 'pi pi-face-smile'},
-                {id: 'templates', label: 'Templates', icon: 'pi pi-clone'},
-                {id: 'discord-sync', label: 'Discord Sync', icon: 'pi pi-discord'},
-                {id: 'onboarding', label: 'Onboarding', icon: 'pi pi-book'},
+                {id: 'invites', label: 'GUILD_SETTINGS.NAV.INVITES', icon: 'pi pi-link'},
+                {id: 'emojis', label: 'GUILD_SETTINGS.NAV.EMOJIS', icon: 'pi pi-face-smile'},
+                {id: 'templates', label: 'GUILD_SETTINGS.NAV.TEMPLATES', icon: 'pi pi-clone'},
+                {id: 'discord-sync', label: 'GUILD_SETTINGS.NAV.DISCORD_SYNC', icon: 'pi pi-discord'},
+                {id: 'onboarding', label: 'GUILD_SETTINGS.NAV.ONBOARDING', icon: 'pi pi-book'},
             ],
         },
     ];
 
     constructor() {
+        // Esc bypasses `requestClose`, so a page can be left dirty. Clearing on close
+        // stops that stale flag from guarding the next visit for no reason.
+        effect(() => {
+            if (this.isVisible()) return;
+            untracked(() => {
+                this.pageDirty.set(false);
+                this.pendingPage.set(null);
+                this.pendingClose.set(false);
+            });
+        });
+
         effect(() => {
             const guildId = this.guild().id;
             if (!this.isVisible()) return;
@@ -126,10 +150,57 @@ export class GuildSettingsModalComponent {
             // tracked read of them here would re-run this effect on every write.
             untracked(() => this.loadOwnMember(guildId));
         });
+
+        // A failed icon load is about one guild only. Without this reset the fallback
+        // initial sticks when the modal is reopened on a guild that does have an icon.
+        effect(() => {
+            this.guildIconUrl();
+            untracked(() => this.headerIconFailed.set(false));
+        });
     }
 
     onHeaderIconError(): void {
         this.headerIconFailed.set(true);
+    }
+
+    onPageDirtyChange(dirty: boolean): void {
+        this.pageDirty.set(dirty);
+    }
+
+    /** Nav clicks go through here so unsaved edits get a chance to survive. */
+    requestPage(id: string): void {
+        if (id === this.activePage()) return;
+        if (this.pageDirty()) {
+            this.pendingPage.set(id);
+            return;
+        }
+        this.activePage.set(id);
+    }
+
+    requestClose(): void {
+        if (this.pageDirty()) {
+            this.pendingClose.set(true);
+            return;
+        }
+        this.isVisible.set(false);
+    }
+
+    discardAndContinue(): void {
+        const target = this.pendingPage();
+        const closing = this.pendingClose();
+        this.pendingPage.set(null);
+        this.pendingClose.set(false);
+        this.pageDirty.set(false);
+        if (closing) {
+            this.isVisible.set(false);
+        } else if (target) {
+            this.activePage.set(target);
+        }
+    }
+
+    keepEditing(): void {
+        this.pendingPage.set(null);
+        this.pendingClose.set(false);
     }
 
     navItemClasses(id: string): Record<string, boolean> {
