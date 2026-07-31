@@ -24,8 +24,15 @@ use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
 
+use webrtc::rtp_transceiver::rtp_codec::RTPCodecType;
+use webrtc::rtp_transceiver::rtp_transceiver_direction::RTCRtpTransceiverDirection;
+use webrtc::rtp_transceiver::RTCRtpTransceiverInit;
+
 use crate::media::publisher::rtc::IceServerConfig;
-use crate::media::publisher::signalling::{LocalTrack, SessionDescription, Signalling};
+use crate::media::publisher::signalling::{
+    LocalTrack, RemoteTrack, SessionDescription, Signalling,
+};
+use super::jitter::Packet;
 
 /// The name every other client resolves a participant's microphone by.
 ///
@@ -57,12 +64,34 @@ pub fn opus_capability() -> RTCRtpCodecCapability {
     }
 }
 
+/// Where RTP from subscribed tracks goes, keyed by the mid Cloudflare assigned.
+///
+/// Set once by the session after construction. Behind a mutex only because the handler is installed
+/// before the consumer exists - see the note in `start`.
+type PacketSink = Arc<std::sync::Mutex<Option<tokio::sync::mpsc::Sender<(String, Packet)>>>>;
+
 pub struct VoicePublication {
     peer_connection: Arc<RTCPeerConnection>,
     track: Arc<TrackLocalStaticSample>,
     signalling: Signalling,
+    packet_sink: PacketSink,
     pub cf_session_id: String,
     pub track_name: String,
+}
+
+/// Build the pull request for a set of `(cf_session_id, track_name)` pairs.
+///
+/// Split out from `subscribe` so the request shape is testable without a peer connection or a
+/// network. The shape is the part that is easy to get wrong; the plumbing around it is not.
+fn subscription_tracks(sources: &[(String, String)]) -> Vec<RemoteTrack> {
+    sources
+        .iter()
+        .map(|(session_id, track_name)| RemoteTrack {
+            location: "remote",
+            track_name: track_name.clone(),
+            session_id: session_id.clone(),
+        })
+        .collect()
 }
 
 impl VoicePublication {
@@ -120,6 +149,44 @@ impl VoicePublication {
             let mut buf = vec![0u8; 1500];
             while rtp_sender.read(&mut buf).await.is_ok() {}
         });
+
+        // Installed now, before any subscription exists, because Cloudflare starts sending as soon
+        // as it answers a pull. A handler added per-subscription races the first packets of that
+        // subscription, and those are exactly the packets the jitter buffer needs to start cleanly.
+        let packet_sink: PacketSink = Arc::new(std::sync::Mutex::new(None));
+        let handler_sink = Arc::clone(&packet_sink);
+        peer_connection.on_track(Box::new(move |track, _receiver, transceiver| {
+            let sink = Arc::clone(&handler_sink);
+            Box::pin(async move {
+                let Some(mid) = transceiver.mid().map(|m| m.to_string()) else {
+                    return;
+                };
+                loop {
+                    match track.read_rtp().await {
+                        Ok((rtp, _)) => {
+                            // Cloned out of the lock rather than held across the send: the sink is
+                            // written once at startup, and holding a std mutex across an await is
+                            // how a deadlock gets written by accident.
+                            let sender = match sink.lock() {
+                                Ok(guard) => guard.clone(),
+                                Err(_) => return,
+                            };
+                            let Some(sender) = sender else { continue };
+                            let packet = Packet {
+                                seq: rtp.header.sequence_number,
+                                payload: rtp.payload.to_vec(),
+                            };
+                            // try_send, not send: the consumer is the playout thread and the network
+                            // task must never wait on it. A full queue means playout has stalled,
+                            // and dropping is what keeps latency bounded rather than unbounded.
+                            let _ = sender.try_send((mid.clone(), packet));
+                        }
+                        // The track ended, or the connection went away.
+                        Err(_) => return,
+                    }
+                }
+            })
+        }));
 
         let offer = peer_connection
             .create_offer(None)
@@ -203,6 +270,7 @@ impl VoicePublication {
             peer_connection,
             track,
             signalling,
+            packet_sink,
             cf_session_id,
             track_name,
         };
@@ -212,6 +280,94 @@ impl VoicePublication {
         }
 
         Ok(publication)
+    }
+
+    /// Route every RTP packet on every subscribed track into `sink`, keyed by mid.
+    pub fn on_audio(&self, sink: tokio::sync::mpsc::Sender<(String, Packet)>) {
+        if let Ok(mut guard) = self.packet_sink.lock() {
+            *guard = Some(sink);
+        }
+    }
+
+    /// Pull a set of remote tracks onto this session, returning Cloudflare's mid for each, in the
+    /// order they were asked for.
+    ///
+    /// Those mids are the *only* way to route incoming packets to a participant. A track that comes
+    /// back without one is a failed subscribe wearing an HTTP 200, and is reported as an error
+    /// rather than skipped - the webview's guild path used to skip it silently, and the participant
+    /// was then unhearable for the rest of the session with nothing in any log.
+    ///
+    /// No ICE gathering wait here, deliberately: the connection is already established by the
+    /// publish, and a subscribe is a renegotiation of it. Waiting again would reintroduce exactly
+    /// the stall that wedged phase 1.
+    pub async fn subscribe(&self, sources: &[(String, String)]) -> Result<Vec<String>, String> {
+        if sources.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        for _ in sources {
+            self.peer_connection
+                .add_transceiver_from_kind(
+                    RTPCodecType::Audio,
+                    Some(RTCRtpTransceiverInit {
+                        direction: RTCRtpTransceiverDirection::Recvonly,
+                        send_encodings: vec![],
+                    }),
+                )
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+
+        let offer = self
+            .peer_connection
+            .create_offer(None)
+            .await
+            .map_err(|e| e.to_string())?;
+        self.peer_connection
+            .set_local_description(offer)
+            .await
+            .map_err(|e| e.to_string())?;
+        let local = self
+            .peer_connection
+            .local_description()
+            .await
+            .ok_or_else(|| "no local description for subscribe".to_string())?;
+
+        let response = self
+            .signalling
+            .tracks_new_remote(
+                &self.cf_session_id,
+                &SessionDescription {
+                    sdp_type: "offer".to_owned(),
+                    sdp: local.sdp,
+                },
+                &subscription_tracks(sources),
+            )
+            .await?;
+
+        let mids: Vec<String> = response
+            .tracks
+            .iter()
+            .map(|t| t.mid.clone().unwrap_or_default())
+            .collect();
+        if mids.len() != sources.len() || mids.iter().any(|m| m.is_empty()) {
+            return Err(format!(
+                "Cloudflare returned no mid for one or more subscribed tracks: {:?}",
+                response.tracks
+            ));
+        }
+
+        let answer = RTCSessionDescription::answer(response.session_description.sdp)
+            .map_err(|e| e.to_string())?;
+        self.peer_connection
+            .set_remote_description(answer)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        if response.requires_immediate_renegotiation {
+            self.renegotiate().await?;
+        }
+        Ok(mids)
     }
 
     /// Hand one encoded packet to the packetiser.
@@ -270,6 +426,27 @@ impl VoicePublication {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_subscription_asks_for_remote_tracks_only() {
+        // The request shape is what Cloudflare validates, and getting it wrong fails only against
+        // the real SFU - which is the most expensive place to find out.
+        let tracks = subscription_tracks(&[
+            ("sess-a".to_string(), "audio".to_string()),
+            ("sess-b".to_string(), "screen-audio-x".to_string()),
+        ]);
+        assert_eq!(tracks.len(), 2);
+        assert!(tracks.iter().all(|t| t.location == "remote"));
+        assert_eq!(tracks[0].session_id, "sess-a");
+        assert_eq!(tracks[0].track_name, "audio");
+        assert_eq!(tracks[1].session_id, "sess-b");
+        assert_eq!(tracks[1].track_name, "screen-audio-x");
+    }
+
+    #[test]
+    fn an_empty_subscription_asks_for_nothing() {
+        assert!(subscription_tracks(&[]).is_empty());
+    }
 
     #[test]
     fn the_codec_is_mono_opus_at_the_pipeline_rate() {

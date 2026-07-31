@@ -36,6 +36,27 @@ struct TracksNewRequest<'a> {
     tracks: &'a [LocalTrack],
 }
 
+/// A track to pull from another participant's session.
+///
+/// A separate type from [`LocalTrack`] rather than the same one with an optional `mid`: a remote
+/// pull that sends a mid is rejected by Cloudflare, and an optional field is exactly the kind of
+/// thing that gets filled in by accident.
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteTrack {
+    pub location: &'static str,
+    pub track_name: String,
+    pub session_id: String,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+struct TracksNewRemoteRequest<'a> {
+    cf_session_id: &'a str,
+    session_description: &'a SessionDescription,
+    tracks: &'a [RemoteTrack],
+}
+
 #[derive(Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct TrackResult {
@@ -189,6 +210,29 @@ impl Signalling {
         self.post(
             &format!("{}/cf/tracks/new", self.voice_base()),
             &TracksNewRequest {
+                cf_session_id,
+                session_description,
+                tracks,
+            },
+        )
+        .await
+    }
+
+    /// Subscribe to tracks published on other participants' sessions.
+    ///
+    /// The backend routes an all-remote request through its retry path
+    /// (`TracksNewWithRetryAsync`), which absorbs the window where the publisher's track has not
+    /// finished propagating across Cloudflare's SFU. That retry is what makes this safe to call the
+    /// instant a ParticipantJoined arrives, rather than having to guess at a delay.
+    pub async fn tracks_new_remote(
+        &self,
+        cf_session_id: &str,
+        session_description: &SessionDescription,
+        tracks: &[RemoteTrack],
+    ) -> Result<TracksNewResponse, String> {
+        self.post(
+            &format!("{}/cf/tracks/new", self.voice_base()),
+            &TracksNewRemoteRequest {
                 cf_session_id,
                 session_description,
                 tracks,
@@ -403,6 +447,34 @@ mod tests {
         assert_eq!(json["tracks"][0]["location"], "local");
         assert_eq!(json["tracks"][0]["trackName"], "screen-abc");
         assert_eq!(json["tracks"][0]["mid"], "0");
+    }
+
+    #[test]
+    fn a_remote_track_request_carries_a_session_id_and_no_mid() {
+        let sdp = SessionDescription {
+            sdp_type: "offer".into(),
+            sdp: "v=0".into(),
+        };
+        let tracks = [RemoteTrack {
+            location: "remote",
+            track_name: "audio".into(),
+            session_id: "their-session".into(),
+        }];
+        let json = serde_json::to_value(TracksNewRemoteRequest {
+            cf_session_id: "mine",
+            session_description: &sdp,
+            tracks: &tracks,
+        })
+        .unwrap();
+
+        assert_eq!(json["cfSessionId"], "mine");
+        assert_eq!(json["tracks"][0]["location"], "remote");
+        assert_eq!(json["tracks"][0]["trackName"], "audio");
+        assert_eq!(json["tracks"][0]["sessionId"], "their-session");
+        assert!(
+            json["tracks"][0].get("mid").is_none(),
+            "a remote pull must not claim a mid - Cloudflare allocates it"
+        );
     }
 
     #[test]
