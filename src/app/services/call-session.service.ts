@@ -7,8 +7,12 @@ import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
 import type {CallDto} from '../dtos/response/call.dto';
 import type {ActiveCallSession, CallParticipantUi, ScreenShareUi,} from './call-session.types';
+import {OAuthService} from 'angular-oauth2-oidc';
 import {StreamPreset} from '../models/stream-preset';
 import {solveGeometry} from '../models/capture-geometry';
+import {publishOptions, useRustPublisher} from './screen-publish';
+import {ScreenPickerChoice} from './screen-picker.service';
+import {ApiConfigService} from './api-config.service';
 
 @Injectable({providedIn: 'root'})
 export class CallSessionService {
@@ -26,6 +30,10 @@ export class CallSessionService {
      * original size rather than ratcheting down from the current output geometry.
      */
     private screenSourceSize: { width: number; height: number } | null = null;
+    /** True while the running share is owned by the Rust publisher rather than the webview. */
+    private rustPublishing = false;
+    private readonly oauth = inject(OAuthService);
+    private readonly apiConfig = inject(ApiConfigService);
     private profileService = inject(ProfileService);
     private conversationStore = inject(ConversationStore);
     private voiceService = inject(VoiceService);
@@ -143,7 +151,13 @@ export class CallSessionService {
         if (s.local.isSharing) {
             const localShare = s.screenShares.find(sh => sh.isLocal);
             localShare?.stream?.getTracks().forEach(t => t.stop());
-            void this.rustMedia.stopScreenCapture();
+            if (this.rustPublishing) {
+                // The publisher owns its own session and closes its own tracks.
+                await this.rustMedia.stopScreenPublish();
+                this.rustPublishing = false;
+            } else {
+                void this.rustMedia.stopScreenCapture();
+            }
             this.screenPreset.set(null);
             this.screenSourceSize = null;
             this.session.update(st => st ? {
@@ -158,6 +172,14 @@ export class CallSessionService {
             if (!choice) return;
 
             const {sourceId, preset, sourceWidth, sourceHeight} = choice;
+            const shareId = crypto.randomUUID();
+            const ownId = this.profileService.ownProfile()?.userId ?? '';
+
+            if (useRustPublisher()) {
+                await this.startRustPublish(choice, shareId, ownId);
+                return;
+            }
+
             // Solved once, before capture starts, and held for the session.
             const geometry = solveGeometry(sourceWidth, sourceHeight, preset.resolution);
             let videoTrack: MediaStreamTrack;
@@ -170,8 +192,6 @@ export class CallSessionService {
             this.screenSourceSize = {width: sourceWidth, height: sourceHeight};
 
             const stream = new MediaStream([videoTrack]);
-            const shareId = crypto.randomUUID();
-            const ownId = this.profileService.ownProfile()?.userId ?? '';
 
             videoTrack.onended = () => {
                 this.session.update(st => st ? {
@@ -191,6 +211,45 @@ export class CallSessionService {
     }
 
     /**
+     * Publish the screen from Rust, on its own Cloudflare session.
+     *
+     * CallWebRtcService watches the session's local share for a stream to publish; there is none
+     * here by design, so it leaves the peer connection alone and the track reaches the other side
+     * through the publisher's own session.
+     */
+    private async startRustPublish(
+        choice: ScreenPickerChoice,
+        shareId: string,
+        ownId: string,
+    ): Promise<void> {
+        const callId = this.session()?.callId;
+        if (!callId) return;
+
+        try {
+            const published = await this.rustMedia.startScreenPublish(
+                publishOptions(choice, shareId, this.apiConfig.baseUrl(), this.oauth.getAccessToken(), {
+                    callId,
+                }),
+            );
+            console.log(`[call] Rust publisher live on ${published.encoder}`, published);
+        } catch (e) {
+            console.error('[call] Rust publish failed', e);
+            return;
+        }
+
+        this.screenPreset.set(choice.preset);
+        this.screenSourceSize = {width: choice.sourceWidth, height: choice.sourceHeight};
+        this.rustPublishing = true;
+        this.session.update(st => st ? {
+            ...st,
+            screenShares: [...st.screenShares, {
+                shareId, userId: ownId, displayName: 'You', isLocal: true, stream: undefined,
+            }],
+            local: {...st.local, isSharing: true},
+        } : st);
+    }
+
+    /**
      * Change stream quality mid-share.
      *
      * Only the capture side is handled here; CallWebRtcService watches {@link screenPreset} and
@@ -201,6 +260,18 @@ export class CallSessionService {
         const previous = this.screenPreset();
         if (!previous) return;
         this.screenPreset.set(preset);
+
+        if (this.rustPublishing) {
+            // Framerate is live; resolution and bitrate are baked into the encoder, so changing
+            // them means restarting the publish. Left to a follow-up rather than silently ignored.
+            if (preset.framerate !== previous.framerate) {
+                await this.rustMedia.setPublishFps(preset.framerate);
+            }
+            if (preset.resolution !== previous.resolution) {
+                console.warn('[call] resolution changes need a publish restart; not yet wired');
+            }
+            return;
+        }
 
         if (preset.framerate !== previous.framerate) {
             await this.rustMedia.setCaptureFps(preset.framerate);

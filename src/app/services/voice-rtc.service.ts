@@ -6,8 +6,11 @@ import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
 import {environment} from '../../environments/environment';
 import {ApiConfigService} from "./api-config.service";
+import {OAuthService} from 'angular-oauth2-oidc';
 import {bitrateFor, DEFAULT_STREAM_PRESET, StreamPreset} from '../models/stream-preset';
 import {solveGeometry} from '../models/capture-geometry';
+import {publishOptions, useRustPublisher} from './screen-publish';
+import {ScreenPickerChoice} from './screen-picker.service';
 import {
     applyScreenEncoding,
     applySimpleBitrate,
@@ -102,6 +105,9 @@ export class VoiceRTCService {
      * every change.
      */
     private screenSourceSize: { width: number; height: number } | null = null;
+    /** True while the running share is owned by the Rust publisher rather than this connection. */
+    private rustPublishing = false;
+    private readonly oauth = inject(OAuthService);
 
     // ── Connection setup / teardown ────────────────────────────────────────────
 
@@ -461,6 +467,10 @@ export class VoiceRTCService {
             this.screenPreset.set(preset);
             this.screenSourceSize = {width: sourceWidth, height: sourceHeight};
 
+            if (useRustPublisher()) {
+                return await this.publishScreenFromRust(guildId, channelId, choice);
+            }
+
             // Solved once, before capture starts, and held for the session.
             const geometry = solveGeometry(sourceWidth, sourceHeight, preset.resolution);
             const videoTrack = await this.rustMedia.startScreenCapture(sourceId, geometry, preset.framerate);
@@ -536,6 +546,17 @@ export class VoiceRTCService {
     }
 
     async closeScreen(guildId: string, channelId: string): Promise<{ shareId: string } | null> {
+        if (this.rustPublishing) {
+            // The publisher owns its own session and closes its own tracks; nothing on this peer
+            // connection needs unwinding.
+            const shareId = this.screenShareId ?? 'share';
+            await this.rustMedia.stopScreenPublish();
+            this.rustPublishing = false;
+            this.screenShareId = null;
+            this.screenSourceSize = null;
+            this.screenPreset.set(null);
+            return {shareId};
+        }
         if (!this.pc || !this.cfSessionId || !this.localScreenTrack) return null;
 
         const shareId = this.screenShareId ?? 'share';
@@ -575,6 +596,38 @@ export class VoiceRTCService {
     }
 
     /**
+     * Publish the screen entirely from Rust, on its own Cloudflare session.
+     *
+     * Nothing is added to this peer connection: the track lives on the publisher's session, and
+     * subscribers reach it through the TrackPublished event, which carries that session id. The
+     * local tile has no stream to show, so it falls back to its placeholder.
+     */
+    private async publishScreenFromRust(
+        guildId: string,
+        channelId: string,
+        choice: ScreenPickerChoice,
+    ): Promise<{ shareId: string } | null> {
+        const shareId = crypto.randomUUID();
+        try {
+            const published = await this.rustMedia.startScreenPublish(
+                publishOptions(choice, shareId, this.apiConfig.baseUrl(), this.oauth.getAccessToken(), {
+                    guildId,
+                    channelId,
+                }),
+            );
+            console.log(`[voice] Rust publisher live on ${published.encoder}`, published);
+            this.screenShareId = shareId;
+            this.rustPublishing = true;
+            return {shareId};
+        } catch (e) {
+            console.error('[voice] Rust publish failed', e);
+            this.screenPreset.set(null);
+            this.screenSourceSize = null;
+            return null;
+        }
+    }
+
+    /**
      * Change stream quality mid-share, the way Discord's stream-settings cog does.
      *
      * A framerate change is free — the Rust capture loop reads it each frame. A resolution change
@@ -583,6 +636,19 @@ export class VoiceRTCService {
     async setScreenPreset(preset: StreamPreset): Promise<void> {
         const previous = this.screenPreset() ?? DEFAULT_STREAM_PRESET;
         this.screenPreset.set(preset);
+
+        if (this.rustPublishing) {
+            // Framerate is live; resolution and bitrate are baked into the encoder, so changing
+            // them means restarting the publish. Left to a follow-up rather than silently ignored.
+            if (preset.framerate !== previous.framerate) {
+                await this.rustMedia.setPublishFps(preset.framerate);
+            }
+            if (preset.resolution !== previous.resolution) {
+                console.warn('[voice] resolution changes need a publish restart; not yet wired');
+            }
+            return;
+        }
+
         if (!this.localScreenTrack) return;
 
         if (preset.framerate !== previous.framerate) {

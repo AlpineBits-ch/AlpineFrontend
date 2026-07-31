@@ -12,6 +12,29 @@ export interface ScreenSource {
     height: number;
 }
 
+export interface ScreenPublishOptions {
+    sourceId: string;
+    shareId: string;
+    width: number;
+    height: number;
+    fps: number;
+    kbps: number;
+    iceUrls: string[];
+    apiBase: string;
+    token: string;
+    /** Guild voice supplies guildId + channelId; a DM call supplies callId instead. */
+    guildId?: string;
+    channelId?: string;
+    callId?: string;
+}
+
+export interface ScreenPublishResult {
+    cfSessionId: string;
+    trackName: string;
+    /** Which encoder was selected - 'media-foundation' or 'openh264'. */
+    encoder: string;
+}
+
 export interface RustAudioSettings {
     deviceId: string | null;
     noiseSuppression: boolean;
@@ -167,6 +190,50 @@ export class RustMediaService {
         } catch {
         }
         return track;
+    }
+
+    // ── Rust-native publishing ────────────────────────────────────────────────
+
+    /**
+     * Capture, encode and publish a screen source entirely in Rust.
+     *
+     * Unlike {@link startScreenCapture} this returns no MediaStream: frames never enter the
+     * webview at all. The resolved ids are what other clients subscribe to, exactly as they would
+     * for a track the webview published.
+     */
+    async startScreenPublish(options: ScreenPublishOptions): Promise<ScreenPublishResult> {
+        return invoke<ScreenPublishResult>('start_screen_publish', {
+            sourceId: options.sourceId,
+            shareId: options.shareId,
+            width: options.width,
+            height: options.height,
+            fps: options.fps,
+            kbps: options.kbps,
+            iceUrls: options.iceUrls,
+            apiBase: options.apiBase,
+            token: options.token,
+            guildId: options.guildId ?? null,
+            channelId: options.channelId ?? null,
+            callId: options.callId ?? null,
+        });
+    }
+
+    async stopScreenPublish(): Promise<void> {
+        if (!isTauri()) return;
+        await invoke('stop_screen_publish').catch(() => {
+        });
+    }
+
+    /**
+     * Change the publisher's capture rate mid-stream.
+     *
+     * Framerate is the only part of a preset that changes without rebuilding the encoder, which is
+     * fixed to one geometry and bitrate for its lifetime; a resolution change restarts the publish.
+     */
+    async setPublishFps(fps: number): Promise<void> {
+        if (!isTauri()) return;
+        await invoke('set_publish_fps', {fps: Math.round(fps)}).catch(() => {
+        });
     }
 
     /** Change capture FPS mid-stream without stopping/restarting. Takes effect within one frame. */
