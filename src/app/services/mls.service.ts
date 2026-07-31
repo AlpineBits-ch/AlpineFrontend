@@ -372,6 +372,17 @@ export class MlsService {
     }
 
     /**
+     * This device's own identity fingerprint, for reading out to whoever is reviewing its admission.
+     *
+     * Free to call. Deriving it from a freshly minted key package instead would consume one per
+     * read - they are single-use and finite, so a screen showing your own fingerprint would quietly
+     * drain the supply and eventually leave this device unaddable to any group.
+     */
+    ownFingerprint(keyHandle: string): Observable<string> {
+        return from(invoke<string>('mls_signing_key_fingerprint', {keyHandle}));
+    }
+
+    /**
      * Inspect a key package before vouching for it, or before adding it.
      *
      * Validated, not merely parsed - a reviewer must never be shown an identity lifted from

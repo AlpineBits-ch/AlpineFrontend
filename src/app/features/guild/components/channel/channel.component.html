@@ -295,6 +295,10 @@
                     <p class="text-xs text-text-muted m-0 mt-0.5">{{ 'FORUM.LOCKED_DESC' | translate }}</p>
                 </div>
             </div>
+        } @else if (isLockedOut()) {
+            <!-- Offering a composer here would only produce sends the server refuses: this device
+                 holds no group, so it has nothing to encrypt with. -->
+            <app-channel-access-banner [channelId]="channel().id"/>
         } @else {
             <app-composer (cancelReply)="onCancelReply()" (message)="createMessage($event)" (typing)="onTyping()" [guildId]="guildId()"
                           [channelId]="channel().id"

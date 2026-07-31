@@ -640,6 +640,18 @@ fn format_fingerprint(bytes: &[u8]) -> String {
         .join("-")
 }
 
+/// Fingerprint of the signing key already loaded under `key_handle`.
+///
+/// Same value `inspect_key_package_impl` reports for any key package this device mints - the leaf's
+/// signature key *is* this key. Deriving it here matters because the alternative was generating a
+/// key package purely to read its fingerprint and throwing the package away: key packages are
+/// single-use and finite, so a screen that showed your own fingerprint would quietly drain the
+/// device's supply and eventually leave it unaddable to any group.
+fn signing_key_fingerprint_impl(mls: &MlsState, key_handle: String) -> Result<String, String> {
+    let entry = get_signer_entry(mls, &key_handle)?;
+    Ok(format_fingerprint(&entry.pub_bytes))
+}
+
 fn inspect_key_package_impl(
     mls: &MlsState,
     key_package_b64: String,
@@ -1164,6 +1176,16 @@ pub fn mls_commit_pending_proposals(
     commit_pending_proposals_impl(&mut mls, group_id_b64, key_handle)
 }
 
+/// This device's own identity fingerprint, for reading out to whoever is reviewing its admission.
+#[tauri::command]
+pub fn mls_signing_key_fingerprint(
+    state: tauri::State<MlsStateHandle>,
+    key_handle: String,
+) -> Result<String, String> {
+    let mls = state.lock().map_err(|e| e.to_string())?;
+    signing_key_fingerprint_impl(&mls, key_handle)
+}
+
 /// Inspects a key package so a reviewer can check who it really belongs to before vouching for it,
 /// and so the committing client can confirm the bytes match what was approved.
 #[tauri::command]
@@ -1375,6 +1397,7 @@ mod integration_tests {
     use super::{
         add_members_impl, clear_pending_commit_impl, commit_pending_proposals_impl,
         create_group_impl, delete_group_impl, inspect_key_package_impl, merge_pending_commit_impl,
+        signing_key_fingerprint_impl,
         export_group_info_impl, export_state_impl, generate_key_packages_impl,
         generate_key_packages_with_handle_impl, get_group_info_impl, get_members_impl,
         import_state_impl, join_group_impl, leave_group_impl, load_signing_key_impl,
@@ -1793,6 +1816,49 @@ mod integration_tests {
         // value that changed with every package could never be read out and compared over a call.
         assert_eq!(fingerprints[0], fingerprints[1]);
         assert_eq!(fingerprints[1], fingerprints[2]);
+    }
+
+    #[test]
+    fn own_fingerprint_matches_the_one_a_reviewer_sees() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+
+        let from_handle = signing_key_fingerprint_impl(&mls, batch.key_handle.clone())
+            .expect("should succeed");
+        let from_package = inspect_key_package_impl(&mls, batch.key_packages[0].key_package.clone())
+            .expect("should succeed")
+            .signature_key_fingerprint;
+
+        // The requester reads their own value aloud and the reviewer compares it against the one
+        // derived from the key package. If these two ever diverged, every honest comparison would
+        // fail and the review would train people to approve mismatches.
+        assert_eq!(from_handle, from_package);
+    }
+
+    #[test]
+    fn own_fingerprint_does_not_consume_a_key_package() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+
+        for _ in 0..5 {
+            signing_key_fingerprint_impl(&mls, batch.key_handle.clone()).expect("should succeed");
+        }
+
+        // Reading your own fingerprint has to be free. Minting a package per read - which is what
+        // this replaced - would drain a finite supply and eventually leave the device unaddable.
+        create_group_impl(&mut mls, rand_group_id(), batch.key_handle)
+            .expect("the signing key must still be usable");
+    }
+
+    #[test]
+    fn own_fingerprint_needs_a_loaded_key() {
+        let mls = make_mls();
+
+        let err = signing_key_fingerprint_impl(&mls, "no-such-handle".to_string())
+            .expect_err("must fail");
+        assert!(err.contains("KeyNotFound"), "error was: {err}");
     }
 
     #[test]

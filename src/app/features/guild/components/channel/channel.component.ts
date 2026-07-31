@@ -36,6 +36,7 @@ import {isGroupedWithPrevious} from '../../../messaging/components/conversation/
 import {classifyAutoModError, forumParentOf} from './channel-utils';
 import {MlsService} from '../../../../services/mls.service';
 import {MlsSyncService} from '../../../../services/mls-sync.service';
+import {ChannelAccessBannerComponent} from './channel-access-banner.component';
 import {toBase64} from '../../../../helpers/base64.helper';
 
 import {Button} from 'primeng/button';
@@ -79,6 +80,7 @@ function decodeContent(encoded: string): string {
         ComposerComponent, MessageComponent, SystemMessageComponent, Button,
         DatePipe, HighlightPipe, TypingDotsComponent, ThreadPanelComponent,
         PinnedMessagesPanelComponent, FollowChannelDialogComponent, TranslateModule,
+        ChannelAccessBannerComponent,
         ForumTagChipComponent, ForumTagPickerComponent, Dialog, PrimeTemplate,
     ],
     templateUrl: './channel.component.html',
@@ -108,6 +110,13 @@ export class ChannelComponent implements AfterViewInit {
     protected autoModError = signal<'blocked_word' | 'rate_limited' | null>(null);
     protected showThreadPanel = signal(false);
     protected showPinnedPanel = signal(false);
+    /**
+     * Three states, not two. 'locked-out' is encrypted-but-this-device-is-not-in-the-group, which
+     * used to be treated as plaintext - so the composer offered to send, the server refused, and
+     * nothing explained why.
+     */
+    protected encryptionState = signal<'plain' | 'joined' | 'locked-out'>('plain');
+    protected isLockedOut = computed(() => this.encryptionState() === 'locked-out');
     protected showFollowDialog = signal(false);
 
     // ── Forum post state ─────────────────────────────────────────────────────
@@ -293,8 +302,7 @@ export class ChannelComponent implements AfterViewInit {
             // but finding out on send is a worse experience than finding out on open. This also
             // picks up a Welcome minted while we were away.
             const channelId = this.channel().id;
-            this.mlsSync.refreshState(channelId, true)
-                .catch(err => console.error('Could not resolve channel encryption state', channelId, err));
+            void this.resolveEncryptionState(channelId);
         });
 
         effect(() => {
@@ -513,6 +521,33 @@ export class ChannelComponent implements AfterViewInit {
                 return EMPTY;
             }),
         ).subscribe();
+    }
+
+    /**
+     * Works out which of the three states this channel is in for this device.
+     *
+     * The middle and last were previously conflated: a channel we could not read looked exactly
+     * like a plaintext one, so the composer offered to send, the server refused the plaintext, and
+     * the user got a failed message with no explanation and no way forward.
+     */
+    private async resolveEncryptionState(channelId: string): Promise<void> {
+        try {
+            const state = await this.mlsSync.refreshState(channelId, true);
+
+            if (!state.encrypted) {
+                this.encryptionState.set('plain');
+                return;
+            }
+
+            // refreshState has already tried to join from any waiting Welcome, so holding no group
+            // at this point means we genuinely have not been admitted.
+            const groupId = await this.mlsService.getActiveGroupId(channelId);
+            this.encryptionState.set(groupId ? 'joined' : 'locked-out');
+        } catch (err) {
+            console.error('Could not resolve channel encryption state', channelId, err);
+            // Deliberately not 'plain'. Guessing plaintext on a failed lookup is how ciphertext
+            // ends up sent in the clear; leaving the previous state stands still and sends nothing.
+        }
     }
 
     /**

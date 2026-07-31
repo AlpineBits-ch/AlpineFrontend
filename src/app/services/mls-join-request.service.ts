@@ -97,16 +97,30 @@ export class MlsJoinRequestService {
         }));
     }
 
-    /** This device's own identity fingerprint, so its owner can read it out to a reviewer. */
+    /**
+     * This device's own identity fingerprint, so its owner can read it out to a reviewer.
+     *
+     * Derived from the loaded signing key, not from a freshly minted key package. The earlier
+     * version minted one per call and discarded it, which on a screen that re-renders would have
+     * silently drained a finite supply until the device could not be added to any group at all.
+     */
     async ownFingerprint(): Promise<string | null> {
         const keyHandle = this.mls.keyHandle();
         if (!keyHandle) return null;
 
-        const [keyPackage] = await firstValueFrom(this.mls.generateAdditionalKeyPackages(keyHandle, 1));
-        if (!keyPackage) return null;
+        return firstValueFrom(this.mls.ownFingerprint(keyHandle));
+    }
 
-        const info = await firstValueFrom(this.mls.inspectKeyPackage(keyPackage.keyPackage));
-        return info.signatureKeyFingerprint;
+    /**
+     * This device's own outstanding request for a channel, if it has one.
+     *
+     * Found by listing: a locked-out member can still see the channel, so they can read the queue
+     * their own request is sitting in.
+     */
+    async myPendingRequest(channelId: string): Promise<MlsJoinRequestDto | null> {
+        const deviceId = await this.deviceIdentity.deviceId();
+        const requests = await firstValueFrom(this.list(channelId));
+        return requests.find(r => r.requesterDeviceId === deviceId) ?? null;
     }
 
     /**
