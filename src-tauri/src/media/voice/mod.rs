@@ -13,6 +13,7 @@
 //! another.
 
 pub mod capture;
+pub mod chain;
 pub mod codec;
 pub mod denoise;
 pub mod gate;
