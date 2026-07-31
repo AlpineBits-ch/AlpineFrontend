@@ -1,4 +1,4 @@
-import {computed, effect, inject, Injectable, signal} from '@angular/core';
+import {computed, effect, inject, Injectable, signal, untracked} from '@angular/core';
 import {firstValueFrom, Subscription} from 'rxjs';
 import {OAuthService} from 'angular-oauth2-oidc';
 import {ApiConfigService} from './api-config.service';
@@ -67,6 +67,14 @@ export class CallWebRtcService {
     });
     readonly participantsWithAudio = signal<Set<string>>(new Set());
     private callSession = inject(CallSessionService);
+
+    /**
+     * Narrow views of the session, so effects wake on the value they care about rather than on
+     * every rebuild of the session object. A `computed` over a boolean only notifies when the
+     * boolean actually flips.
+     */
+    private readonly localMuted = computed(() => this.callSession.session()?.local.isMuted ?? false);
+    private readonly localDeafened = computed(() => this.callSession.session()?.local.isDeafened ?? false);
     private voiceService = inject(VoiceService);
     private voiceWs = inject(VoiceWebsocketService);
     private audioSettings = inject(AudioSettingsService);
@@ -155,10 +163,10 @@ export class CallWebRtcService {
         // `track.enabled`, which forced this effect to tiptoe around the voice-activity gate that
         // was fighting it for the same boolean; there is now exactly one gate and it lives with the
         // audio it gates.
+        // Reads `localMuted`, not `session()`. Tracking the whole session object woke this on every
+        // participant, speaking and camera change, and each wake fired two IPC calls into Rust.
         effect(() => {
-            const s = this.callSession.session();
-            if (!s) return;
-            const isMuted = s.local.isMuted;
+            const isMuted = this.localMuted();
             void this.voiceEngine.setMute(isMuted);
             void this.voiceEngine.setPttOpen(this.callSession.pttGateOpen());
             if (isMuted === this.prevMuted) return;
@@ -168,18 +176,23 @@ export class CallWebRtcService {
 
         // Own speaking state, straight from the Rust gate - the same decision that picks which
         // frames are transmitted, so the indicator cannot disagree with what is actually sent.
+        //
+        // The session read is untracked deliberately. This effect *writes* to the session via
+        // onSpeakingChanged, so tracking it would make the effect retrigger itself - an infinite
+        // loop allocating a session object per pass. `speaking()` is the only thing that should
+        // wake it.
         effect(() => {
             const speaking = this.voiceEngine.speaking();
-            const localId = this.callSession.session()?.participants.find(p => p.isLocal)?.userId;
+            const localId = untracked(() =>
+                this.callSession.session()?.participants.find(p => p.isLocal)?.userId);
             if (localId) this.callSession.onSpeakingChanged(localId, speaking);
         });
 
         // Apply local deafen state to every remote audio element's volume - mirrors
-        // VoiceRTCService.setDeafened (voice-rtc.service.ts:383-388) for the guild path.
+        // VoiceRTCService.setDeafened for the guild path. Narrowed to `localDeafened` for the same
+        // reason as the mute effect above.
         effect(() => {
-            const s = this.callSession.session();
-            if (!s) return;
-            const isDeafened = s.local.isDeafened;
+            const isDeafened = this.localDeafened();
             this.remoteAudio.forEach((audio, userId) => {
                 audio.volume = isDeafened ? 0 : (this.userVolumes.get(userId) ?? 1);
             });

@@ -521,15 +521,31 @@ export class VoiceChannelService {
         });
     }
 
+    /**
+     * Returns the same map when `fn` changed nothing, so a no-op patch notifies nobody.
+     *
+     * This is written at speaking rate, and it used to rebuild the map unconditionally. No effect
+     * here reads it, so it never looped - but the equivalent in CallSessionService did, and the
+     * cheapest guarantee that it never starts is to not emit a change when there isn't one.
+     */
     private patchParticipant(
         channelId: string,
         userId: string,
         fn: (p: VoiceChannelParticipant) => VoiceChannelParticipant,
     ): void {
         this.channelParticipantsSignal.update(map => {
+            const list = map.get(channelId);
+            if (!list) return map;
+            let changed = false;
+            const next = list.map(p => {
+                if (p.userId !== userId) return p;
+                const patched = fn(p);
+                if (patched !== p) changed = true;
+                return patched;
+            });
+            if (!changed) return map;
             const n = new Map(map);
-            const list = n.get(channelId);
-            if (list) n.set(channelId, list.map(p => p.userId === userId ? fn(p) : p));
+            n.set(channelId, next);
             return n;
         });
     }

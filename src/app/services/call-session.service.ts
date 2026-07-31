@@ -345,18 +345,38 @@ export class CallSessionService {
         );
     }
 
+    /**
+     * Both of these return the *same* session object when nothing actually changed.
+     *
+     * They used to rebuild it unconditionally, so every call notified every reader even when the
+     * value was identical. Speaking state is written many times a second, and any effect that both
+     * reads the session and calls one of these becomes an infinite loop that allocates a session
+     * and a participant array per pass - which is what it did: ~0.5 GB/s, and a UI that never got
+     * as far as rendering the call screen.
+     */
     onSpeakingChanged(userId: string, isSpeaking: boolean): void {
-        this.session.update(s => s ? {
-            ...s,
-            participants: s.participants.map(p => p.userId === userId ? {...p, isSpeaking} : p),
-        } : s);
+        this.patchParticipant(userId, p => p.isSpeaking === isSpeaking ? p : {...p, isSpeaking});
     }
 
     onMuteChanged(userId: string, isMuted: boolean): void {
-        this.session.update(s => s ? {
-            ...s,
-            participants: s.participants.map(p => p.userId === userId ? {...p, isMuted} : p),
-        } : s);
+        this.patchParticipant(userId, p => p.isMuted === isMuted ? p : {...p, isMuted});
+    }
+
+    private patchParticipant(
+        userId: string,
+        fn: (p: CallParticipantUi) => CallParticipantUi,
+    ): void {
+        this.session.update(s => {
+            if (!s) return s;
+            let changed = false;
+            const participants = s.participants.map(p => {
+                if (p.userId !== userId) return p;
+                const next = fn(p);
+                if (next !== p) changed = true;
+                return next;
+            });
+            return changed ? {...s, participants} : s;
+        });
     }
 
     // WebRTC will call this with the remote video stream once peer connection is established
