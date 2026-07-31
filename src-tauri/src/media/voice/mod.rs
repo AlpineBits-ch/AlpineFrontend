@@ -44,7 +44,7 @@ use crate::media::publisher::signalling::{SessionRole, Signalling, VoiceTarget};
 use chain::ChainConfig;
 use gate::{GateConfig, InputMode};
 use process::{NoiseSuppression, ProcessConfig};
-use mixer::Position;
+use mixer::{Position, SpatialModel};
 use rtc::VoicePublication;
 use session::{Control, Engine, VoiceEvent};
 
@@ -367,14 +367,30 @@ pub fn voice_set_deafened(deafened: bool) {
     with_control(|control| control.set_deafened(deafened));
 }
 
-/// The audible radius in metres, beyond which a positioned source is silent.
+/// How placed sources fall off with distance, and how hard they are panned.
 ///
-/// Comes from the server rather than being assumed here: it has to match the radius the backend
-/// uses to decide who is even subscribed, or players fade to nothing before they stop being sent,
-/// or - worse - stay audible right up to the moment they vanish.
+/// `max_distance` comes from the server rather than being assumed here: it has to match the radius
+/// the backend uses to decide who is even subscribed, or players fade to nothing before they stop
+/// being sent, or - worse - stay audible right up to the moment they vanish.
+///
+/// The other three are the tuning the WebAudio graph used before mixing moved here, passed through
+/// unchanged so proximity voice sounds the same rather than merely working.
 #[tauri::command]
-pub fn voice_set_max_distance(metres: f32) {
-    with_control(|control| control.set_max_distance(metres));
+pub fn voice_set_spatial_model(
+    ref_distance: f32,
+    rolloff: f32,
+    max_distance: f32,
+    intensity: f32,
+) -> Result<(), String> {
+    let model = SpatialModel {
+        ref_distance,
+        rolloff,
+        max_distance,
+        intensity,
+    };
+    let mut result = Err("no voice session is running".to_owned());
+    with_control(|control| result = control.set_spatial_model(model));
+    result
 }
 
 /// Place a participant relative to the listener, or un-place them by passing no coordinates.

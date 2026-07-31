@@ -1,66 +1,44 @@
 import {inject, Injectable} from '@angular/core';
 import {environment} from '../../environments/environment';
-import {MediaDeviceResolverService} from './media-device-resolver.service';
+import {SpatialModel, VoiceEngineService} from './voice-engine.service';
 
 /**
- * Web Audio spatializer for Isle proximity voice.
+ * Turns Isle's world telemetry into listener-relative positions for the Rust mixer.
  *
- * Each remote peer's `MediaStream` is routed through its own graph; the single
- * `AudioContext.listener` is the local player. Positions arrive in Unreal world
- * coordinates (centimetres, left-handed, Z-up: +X forward, +Y right, +Z up) and
- * are converted to the Web Audio frame (right-handed, Y-up, −Z forward).
+ * This used to be a Web Audio graph - a `PannerNode` per peer, a listener, a master gain and a
+ * `setSinkId` output. None of that can see the audio any more: proximity voice is decoded and mixed
+ * in Rust alongside every other call, so panning happens there and this is left holding the one job
+ * the webview is still the right place for - the coordinate maths.
  *
- * Per-peer graph (distance handled once, then a wet/dry directional blend):
+ * Positions arrive in Unreal world coordinates (centimetres, left-handed, Z-up: +X forward, +Y
+ * right, +Z up) plus the local player's yaw. The mixer wants metres, listener-relative, +x right,
+ * +y up, +z forward - so the delta is rotated into the listener's frame here. Rust has no notion of
+ * where anybody is standing; it only knows where they are *from you*.
  *
- *   source → distanceGain ─┬→ panner(HRTF) → wetGain ─┐
- *                          └───────────────→ dryGain ─┴→ masterGain → sink
- *
- *  - `distanceGain` applies inverse-distance attenuation in BOTH modes, so the
- *    panner is left to do direction only (`rolloffFactor: 0`).
- *  - `wetGain`/`dryGain` cross-fade the panned copy against a centered mono copy.
- *    `spatialIntensity` (dev config) sets the wet share: 1 = full HRTF (a 90°
- *    source is almost ear-exclusive), lower values keep direction findable while
- *    still bleeding into both ears so you can't aim a rifle by it. The user's
- *    spatial toggle being off forces intensity 0 (pure mono distance-only).
- *
- * Output device: the whole mix goes through `AudioContext.setSinkId`, so the
- * user's speaker selection is honoured and can be switched live (no teardown).
- *
- * Motion: position telemetry arrives at ~1 Hz with a velocity vector. We store
- * each sample stamped with a local {@link performance.now} receipt time and
- * extrapolate (`pos + vel·dt`, clamped to {@link MAX_EXTRAP_MS}) on a fixed
- * timer, so peers glide instead of teleporting once a second. The timer is a
- * `setInterval`, not `requestAnimationFrame`: while the game is focused this
- * (Echo) window is backgrounded/occluded, which pauses rAF entirely but only
- * throttles timers -and since extrapolation is time-based, a slower tick just
- * means coarser updates, never wrong positions.
- *
- * WebView2 quirk: an unrendered MediaStreamAudioSourceNode may not pump, so every
- * peer stream is also attached to a muted <audio> element to keep it flowing.
+ * Motion: telemetry arrives at ~1 Hz with a velocity vector. Each sample is stamped with a local
+ * {@link performance.now} receipt time and extrapolated (`pos + vel·dt`, clamped to
+ * {@link MAX_EXTRAP_MS}) on a fixed timer, so peers glide instead of teleporting once a second. The
+ * timer is a `setInterval`, not `requestAnimationFrame`: while the game is focused this window is
+ * backgrounded, which pauses rAF entirely but only throttles timers - and since extrapolation is
+ * time-based, a slower tick means coarser updates, never wrong positions.
  */
 
 /** Dev-only tuning knobs (see `environment.isleVoice`), with safe defaults. */
 const TUNING_DEFAULTS = {
     spatialIntensity: 0.6,
-    panningModel: 'HRTF' as PanningModelType,
+    panningModel: 'HRTF' as const,
     refDistance: 1500,
     maxDistance: 8000,
     rolloffFactor: 1.6,
 };
 const envTuning = (environment as { isleVoice?: Partial<typeof TUNING_DEFAULTS> }).isleVoice ?? {};
-const TUNING = {
-    ...TUNING_DEFAULTS,
-    ...envTuning,
-    // env delivers panningModel as a plain string; keep it as the literal union.
-    panningModel: (envTuning.panningModel ?? TUNING_DEFAULTS.panningModel) as PanningModelType,
-};
+const TUNING = {...TUNING_DEFAULTS, ...envTuning};
 
 /**
- * Backend `VoiceGridConfig.CellSize` in Unreal units (cm) = 80 m. Audibility is a
- * coarse 3x3 cell subscription plus client distance attenuation as the real edge,
- * which stays cliff-free only while our range never exceeds one cell -otherwise
- * two players a metre apart across a cell border hear nothing. Bump only when the
- * backend does.
+ * Backend `VoiceGridConfig.CellSize` in Unreal units (cm) = 80 m. Audibility is a coarse 3x3 cell
+ * subscription plus client distance attenuation as the real edge, which stays cliff-free only while
+ * our range never exceeds one cell -otherwise two players a metre apart across a cell border hear
+ * nothing. Bump only when the backend does.
  */
 const BACKEND_CELL_SIZE = 8000;
 /** Audible range in Unreal units (cm) = 80 m -audio is inaudible beyond this. */
@@ -69,29 +47,14 @@ if (TUNING.maxDistance > BACKEND_CELL_SIZE) {
     console.warn(`[isle-voice] maxDistance ${TUNING.maxDistance} exceeds backend CellSize ` +
         `${BACKEND_CELL_SIZE}; clamping to avoid the cell-border cliff.`);
 }
-/** Full volume within this distance (cm) = 15 m. */
-const REF_DISTANCE = TUNING.refDistance;
-/** Distance attenuation steepness. */
-const ROLLOFF = TUNING.rolloffFactor;
-/**
- * Raw inverse-curve gain at {@link CELL_UNITS}. The curve never reaches 0 on its
- * own (at 80 m with rolloff 1.6 it is still ~0.13, i.e. -18 dB), and the 3x3 cell
- * subscription block hands us peers well past 80 m, so that residual would leave
- * a whole neighbourhood faintly audible. {@link distanceGainFor} subtracts it and
- * renormalizes, which keeps the curve's shape but lands exactly on silence at the
- * range edge.
- */
-const EDGE_GAIN = REF_DISTANCE / (REF_DISTANCE + ROLLOFF * (CELL_UNITS - REF_DISTANCE));
+
+/** Unreal units per metre. Telemetry is in centimetres; the mixer works in metres. */
+const UNITS_PER_METRE = 100;
 
 /** How far past the last sample we coast before holding position (ms). */
 const MAX_EXTRAP_MS = 1500;
 /** Extrapolation tick period (ms). ~20 Hz when foregrounded; throttled when hidden. */
 const TICK_MS = 50;
-/** Smoothing time-constant for panner/gain param glides (s). */
-const SMOOTH_TAU = 0.05;
-
-/** AudioContext augmented with the output-device selection API (Chromium 110+). */
-type AudioContextWithSink = AudioContext & { setSinkId?: (sinkId: string) => Promise<void> };
 
 /** A position sample plus the velocity and local receipt time used to extrapolate it. */
 interface MotionState {
@@ -106,80 +69,57 @@ interface MotionState {
     recvAt: number;
 }
 
-interface PeerNode {
-    stream: MediaStream;
-    source: MediaStreamAudioSourceNode;
-    /** Distance attenuation, applied before the wet/dry split (both modes). */
-    distanceGain: GainNode;
-    /** Directional (HRTF) copy. */
-    panner: PannerNode;
-    /** Level of the panned copy in the mix. */
-    wetGain: GainNode;
-    /** Level of the centered (mono) copy in the mix. */
-    dryGain: GainNode;
-    /** Muted sink element that forces WebView2 to pump the stream. */
-    audioEl: HTMLAudioElement;
-    state: MotionState | null;
-}
-
 @Injectable({providedIn: 'root'})
 export class SpatialAudioService {
-    private readonly devices = inject(MediaDeviceResolverService);
-    private ctx: AudioContext | null = null;
-    private masterGain: GainNode | null = null;
+    private readonly engine = inject(VoiceEngineService);
+
     private spatialEnabled = true;
+    /** Proximity volume, 0-1. Applied per peer, because the engine's master is the output slider. */
     private masterVolume = 1;
-    /** Directional share of the mix when spatial is enabled (0–1). */
-    private spatialIntensity = clamp01(TUNING.spatialIntensity);
-    /** Selected output device as a web sink id; '' means the system default sink. */
-    private sinkId = '';
-    /** Bumped per {@link setOutputDevice} call so a slow resolve can't clobber a newer pick. */
-    private sinkGen = 0;
 
     private self: MotionState | null = null;
     private selfYaw = 0;
-    /** Drives extrapolation; null when no context/graph is live. */
+    /** Drives extrapolation; null when no peers are being tracked. */
     private tickHandle: ReturnType<typeof setInterval> | null = null;
 
-    private readonly peers = new Map<string, PeerNode>();
-    /** Positions that arrived before the peer's audio track (ontrack) did. */
-    private readonly pendingPos = new Map<string, MotionState>();
+    private readonly peers = new Map<string, MotionState | null>();
 
     // ── Configuration ──────────────────────────────────────────────────────────
 
-    /** @param volume 0–1 */
+    /**
+     * Proximity volume, 0-1.
+     *
+     * Applied as a per-source gain on each proximity peer rather than through the engine's master,
+     * which is the global output slider and would drag a guild call down with it.
+     *
+     * @param volume 0–1
+     */
     setMasterVolume(volume: number): void {
         this.masterVolume = Math.max(0, Math.min(1, volume));
-        if (this.masterGain && this.ctx) {
-            this.masterGain.gain.setTargetAtTime(this.masterVolume, this.ctx.currentTime, 0.02);
-        }
-    }
-
-    setSpatialEnabled(enabled: boolean): void {
-        if (enabled === this.spatialEnabled) return;
-        this.spatialEnabled = enabled;
-        for (const peer of this.peers.values()) this.applyBlend(peer);
+        for (const userId of this.peers.keys()) void this.engine.setUserVolume(userId, this.masterVolume);
     }
 
     /**
-     * Select the output device for the proximity mix and apply it live.
+     * The user's spatial-audio toggle.
      *
-     * Uses `AudioContext.setSinkId`, so switching devices takes effect instantly
-     * without tearing down the session.
-     *
-     * @param deviceName the stored `speakerId` -a platform device name, which is
-     *   resolved to a web sink id here. `'default'`/empty (or an unknown device)
-     *   map to the system sink.
+     * Off does not mean "stop placing people" - distance still has to attenuate, or everyone in
+     * range would be equally loud. It means panning intensity zero, which centres every placed
+     * source while leaving the falloff intact.
      */
-    async setOutputDevice(deviceName: string): Promise<void> {
-        const gen = ++this.sinkGen;
-        const next = await this.devices.toWebDeviceId('audiooutput', deviceName);
-        // A newer selection landed while we were resolving -let it win.
-        if (gen !== this.sinkGen) return;
+    setSpatialEnabled(enabled: boolean): void {
+        if (enabled === this.spatialEnabled) return;
+        this.spatialEnabled = enabled;
+        void this.pushModel();
+    }
 
-        // Re-apply even when unchanged: the context may not have existed yet.
-        this.sinkId = next;
-        await this.applySink();
+    /**
+     * Retained so the settings page and {@link IsleProximityService} keep one call shape for all
+     * audio output, but proximity voice no longer has an output device of its own: it is mixed into
+     * the same stereo frame as every other call and leaves through the device the Rust engine
+     * opened. The speaker setting reaches it through the ordinary audio settings instead.
+     */
+    async setOutputDevice(_deviceName: string): Promise<void> {
+        // Deliberately nothing.
     }
 
     // ── Listener (self) ──────────────────────────────────────────────────────────
@@ -189,95 +129,42 @@ export class SpatialAudioService {
                vx = 0, vy = 0, vz = 0): void {
         this.self = {x, y, z, vx, vy, vz, recvAt: performance.now()};
         this.selfYaw = yaw;
-        // Yaw isn't extrapolated, so apply it immediately; the tick loop handles
-        // per-peer repositioning off the extrapolated self/peer positions.
-        this.applyListenerOrientation();
     }
 
     // ── Peers ─────────────────────────────────────────────────────────────────
 
-    /** Attach a peer's audio stream and start spatializing it. */
-    attachPeer(userId: string, stream: MediaStream): void {
-        const ctx = this.ensureContext();
-        this.removePeer(userId); // replace any stale entry for this user
-
-        const source = ctx.createMediaStreamSource(stream);
-
-        const distanceGain = ctx.createGain();
-        distanceGain.gain.value = 1;
-
-        const panner = new PannerNode(ctx, {
-            panningModel: TUNING.panningModel,
-            distanceModel: 'inverse',
-            refDistance: REF_DISTANCE,
-            maxDistance: CELL_UNITS,
-            // Distance is done manually on distanceGain; the panner is direction-only.
-            rolloffFactor: 0,
-        });
-
-        const wetGain = ctx.createGain();
-        const dryGain = ctx.createGain();
-
-        // Muted sink so WebView2 keeps the stream flowing into Web Audio.
-        const audioEl = new Audio();
-        audioEl.srcObject = stream;
-        audioEl.muted = true;
-        audioEl.autoplay = true;
-        void audioEl.play().catch(() => void 0);
-
-        const peer: PeerNode = {
-            stream,
-            source,
-            distanceGain,
-            panner,
-            wetGain,
-            dryGain,
-            audioEl,
-            state: this.pendingPos.get(userId) ?? null,
-        };
-        this.pendingPos.delete(userId);
-        this.peers.set(userId, peer);
-
-        // source → distanceGain ─┬→ panner → wetGain ─┐
-        //                        └──────────→ dryGain ─┴→ master
-        source.connect(distanceGain);
-        distanceGain.connect(panner).connect(wetGain).connect(this.masterGain!);
-        distanceGain.connect(dryGain).connect(this.masterGain!);
-
-        this.applyBlend(peer);
+    /**
+     * Start placing a peer.
+     *
+     * No longer takes a `MediaStream`: their audio is already in the Rust mixer, pulled onto the
+     * proximity publication by {@link IsleVoiceRtcService}. All that is left to attach is a
+     * position.
+     */
+    addPeer(userId: string): void {
+        // Keep any position that arrived before their track did.
+        if (!this.peers.has(userId)) this.peers.set(userId, null);
+        void this.engine.setUserVolume(userId, this.masterVolume);
+        void this.pushModel();
+        this.startRenderLoop();
         this.reposition(userId);
-        void ctx.resume().catch(() => void 0);
     }
 
     /**
-     * Update a peer's world telemetry (yaw currently unused for peers). Stored
-     * with its receipt time; the tick loop extrapolates and repositions.
+     * Update a peer's world telemetry (yaw currently unused for peers). Stored with its receipt
+     * time; the tick loop extrapolates and repositions.
      */
     updatePeer(userId: string, x: number, y: number, z: number,
                vx = 0, vy = 0, vz = 0): void {
-        const state: MotionState = {x, y, z, vx, vy, vz, recvAt: performance.now()};
-        const peer = this.peers.get(userId);
-        if (!peer) {
-            this.pendingPos.set(userId, state);
-            return;
-        }
-        peer.state = state;
+        this.peers.set(userId, {x, y, z, vx, vy, vz, recvAt: performance.now()});
     }
 
     removePeer(userId: string): void {
-        const peer = this.peers.get(userId);
-        if (!peer) return;
-        try {
-            peer.source.disconnect();
-            peer.distanceGain.disconnect();
-            peer.panner.disconnect();
-            peer.wetGain.disconnect();
-            peer.dryGain.disconnect();
-        } catch { /* nodes may already be detached */ }
-        peer.audioEl.pause();
-        peer.audioEl.srcObject = null;
-        this.peers.delete(userId);
-        this.pendingPos.delete(userId);
+        if (!this.peers.delete(userId)) return;
+        // Un-place them explicitly. The engine drops the position when their track is unsubscribed,
+        // but a peer can stop being *placed* while still being heard - and a stale position would
+        // leave them stuck at the last spot they were seen.
+        void this.engine.setPosition(userId, null);
+        if (!this.peers.size) this.stopRenderLoop();
     }
 
     hasPeer(userId: string): boolean {
@@ -287,32 +174,32 @@ export class SpatialAudioService {
     /** Tear everything down (leave voice / hub loss). */
     reset(): void {
         this.stopRenderLoop();
-        for (const userId of [...this.peers.keys()]) this.removePeer(userId);
-        this.pendingPos.clear();
+        for (const userId of [...this.peers.keys()]) void this.engine.setPosition(userId, null);
+        this.peers.clear();
         this.self = null;
         this.selfYaw = 0;
-        this.masterGain?.disconnect();
-        this.masterGain = null;
-        void this.ctx?.close().catch(() => void 0);
-        this.ctx = null;
     }
 
     // ── Internals ────────────────────────────────────────────────────────────────
 
-    private ensureContext(): AudioContext {
-        if (this.ctx) return this.ctx;
-        const ctx = new AudioContext();
-        const master = ctx.createGain();
-        master.gain.value = this.masterVolume;
-        master.connect(ctx.destination);
-        this.setListenerPosition(ctx, 0, 0, 0);
-        this.ctx = ctx;
-        this.masterGain = master;
-        this.applyListenerOrientation();
-        // Honour the selected output device as soon as the graph exists.
-        void this.applySink();
-        this.startRenderLoop();
-        return ctx;
+    /**
+     * Push the falloff and panning tuning to the mixer.
+     *
+     * Converted from the Unreal centimetres the tuning is written in to the metres the mixer works
+     * in. The audible radius is {@link CELL_UNITS} rather than the raw configured value, because it
+     * has to stay inside the backend's subscription cell.
+     */
+    private async pushModel(): Promise<void> {
+        const model: SpatialModel = {
+            refDistance: TUNING.refDistance / UNITS_PER_METRE,
+            rolloff: TUNING.rolloffFactor,
+            maxDistance: CELL_UNITS / UNITS_PER_METRE,
+            // Zero centres every placed source while leaving distance attenuation alone, which is
+            // what the user's spatial toggle being off should mean.
+            intensity: this.spatialEnabled ? clamp01(TUNING.spatialIntensity) : 0,
+        };
+        await this.engine.setSpatialModel(model).catch(e =>
+            console.error('[isle-voice] the mixer rejected the spatial model', e));
     }
 
     /** Extrapolate a sample to "now" (pos + vel·dt), coasting at most MAX_EXTRAP_MS. */
@@ -337,99 +224,17 @@ export class SpatialAudioService {
         }
     }
 
-    /** Cross-fade a peer's panned (wet) vs centered (dry) copies. */
-    private applyBlend(peer: PeerNode): void {
-        if (!this.ctx) return;
-        const t = this.ctx.currentTime;
-        const wet = this.spatialEnabled ? this.spatialIntensity : 0;
-        peer.wetGain.gain.setTargetAtTime(wet, t, 0.02);
-        peer.dryGain.gain.setTargetAtTime(1 - wet, t, 0.02);
-    }
-
-    /** Push the current sink selection onto the live AudioContext, if supported. */
-    private async applySink(): Promise<void> {
-        const ctx = this.ctx as AudioContextWithSink | null;
-        if (!ctx || typeof ctx.setSinkId !== 'function') return;
-        try {
-            await ctx.setSinkId(this.sinkId);
-        } catch (e) {
-            // The device went away between enumeration and here (headset unplugged,
-            // dock detached). Fall back to the system sink so the mix keeps playing
-            // instead of stranding it on a dead device.
-            console.warn('[isle-voice] setSinkId failed; falling back to the default output', e);
-            if (this.sinkId === '') return;
-            this.sinkId = '';
-            await ctx.setSinkId('').catch(() => void 0);
-        }
-    }
-
     private reposition(userId: string): void {
-        const peer = this.peers.get(userId);
-        if (!peer || !peer.state || !this.self || !this.ctx) return;
+        const state = this.peers.get(userId);
+        if (!state || !this.self) return;
 
-        // Extrapolate both endpoints to "now", then take the relative vector in
-        // Unreal space (peer minus listener). Both coast off their own velocity,
-        // so a moving listener with static peers still pans correctly.
+        // Extrapolate both endpoints to "now", then take the relative vector in Unreal space (peer
+        // minus listener). Both coast off their own velocity, so a moving listener with static peers
+        // still pans correctly.
         const me = this.extrapolate(this.self);
-        const them = this.extrapolate(peer.state);
-        const dFwd = them.x - me.x;
-        const dRight = them.y - me.y;
-        const dUp = them.z - me.z;
-
-        // Distance attenuation applied once, before the wet/dry split, so both
-        // modes fade alike.
-        const dist = Math.hypot(dFwd, dRight, dUp);
-        const g = distanceGainFor(dist);
-        const t = this.ctx.currentTime;
-        peer.distanceGain.gain.setTargetAtTime(g, t, SMOOTH_TAU);
-
-        // Direction: UE(+X fwd, +Y right, +Z up) → WebAudio(x right, y up, z back).
-        // Magnitude is irrelevant to HRTF direction (only the angle matters).
-        const ax = dRight;
-        const ay = dUp;
-        const az = -dFwd;
-        if (peer.panner.positionX) {
-            peer.panner.positionX.setTargetAtTime(ax, t, SMOOTH_TAU);
-            peer.panner.positionY.setTargetAtTime(ay, t, SMOOTH_TAU);
-            peer.panner.positionZ.setTargetAtTime(az, t, SMOOTH_TAU);
-        } else {
-            // Deprecated fallback for older WebView engines.
-            (peer.panner as unknown as { setPosition(x: number, y: number, z: number): void })
-                .setPosition(ax, ay, az);
-        }
-    }
-
-    private applyListenerOrientation(): void {
-        if (!this.ctx) return;
-        const listener = this.ctx.listener;
-        const yaw = (this.selfYaw * Math.PI) / 180;
-        // forward = (-X component maps to −Z fwd, +Y component maps to +X right)
-        const fwdX = Math.sin(yaw);
-        const fwdZ = -Math.cos(yaw);
-        if (listener.forwardX) {
-            const t = this.ctx.currentTime;
-            listener.forwardX.setTargetAtTime(fwdX, t, 0.02);
-            listener.forwardY.setTargetAtTime(0, t, 0.02);
-            listener.forwardZ.setTargetAtTime(fwdZ, t, 0.02);
-            listener.upX.setTargetAtTime(0, t, 0.02);
-            listener.upY.setTargetAtTime(1, t, 0.02);
-            listener.upZ.setTargetAtTime(0, t, 0.02);
-        } else {
-            (listener as unknown as {
-                setOrientation(fx: number, fy: number, fz: number, ux: number, uy: number, uz: number): void
-            }).setOrientation(fwdX, 0, fwdZ, 0, 1, 0);
-        }
-    }
-
-    private setListenerPosition(ctx: AudioContext, x: number, y: number, z: number): void {
-        const listener = ctx.listener;
-        if (listener.positionX) {
-            listener.positionX.value = x;
-            listener.positionY.value = y;
-            listener.positionZ.value = z;
-        } else {
-            (listener as unknown as { setPosition(x: number, y: number, z: number): void }).setPosition(x, y, z);
-        }
+        const them = this.extrapolate(state);
+        void this.engine.setPosition(userId, listenerRelative(
+            them.x - me.x, them.y - me.y, them.z - me.z, this.selfYaw));
     }
 }
 
@@ -438,15 +243,32 @@ function clamp01(v: number): number {
 }
 
 /**
- * Distance attenuation for a peer `dist` centimetres away: flat 1 out to
- * {@link REF_DISTANCE} (15 m), then the inverse-distance curve the PannerNode
- * would apply, shifted so it reaches exactly 0 at {@link CELL_UNITS} (80 m)
- * instead of bottoming out at {@link EDGE_GAIN}.
+ * A world-space delta in Unreal units, as metres in the listener's own frame.
+ *
+ * The rotation is the part that used to be the `AudioContext.listener` orientation. Rust knows
+ * nothing about facing - it is handed positions already relative to where the listener is looking -
+ * so turning on the spot has to move every peer, and that happens here.
+ *
+ * Unreal is left-handed with +X forward, +Y right, +Z up; the mixer is right-handed with +x right,
+ * +y up, +z forward. Yaw grows clockwise seen from above, so rotating the delta *into* the
+ * listener's frame is a rotation by −yaw.
+ *
+ * Exported for tests: getting the handedness wrong produces a mirrored world that looks entirely
+ * correct in code and is immediately obvious in game.
  */
-function distanceGainFor(dist: number): number {
-    if (dist <= REF_DISTANCE) return 1;
-    if (dist >= CELL_UNITS) return 0;
-    const raw = REF_DISTANCE / (REF_DISTANCE + ROLLOFF * (dist - REF_DISTANCE));
-    // ROLLOFF 0 (flat, dev knob) makes EDGE_GAIN 1 and the shift undefined.
-    return EDGE_GAIN >= 1 ? raw : (raw - EDGE_GAIN) / (1 - EDGE_GAIN);
+export function listenerRelative(
+    dFwd: number, dRight: number, dUp: number, yawDegrees: number,
+): { x: number; y: number; z: number } {
+    const yaw = (yawDegrees * Math.PI) / 180;
+    const cos = Math.cos(yaw);
+    const sin = Math.sin(yaw);
+
+    const forward = dFwd * cos + dRight * sin;
+    const right = -dFwd * sin + dRight * cos;
+
+    return {
+        x: right / UNITS_PER_METRE,
+        y: dUp / UNITS_PER_METRE,
+        z: forward / UNITS_PER_METRE,
+    };
 }

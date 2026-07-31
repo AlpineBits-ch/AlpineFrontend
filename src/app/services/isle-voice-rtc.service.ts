@@ -1,181 +1,141 @@
 import {inject, Injectable, signal} from '@angular/core';
-import {firstValueFrom} from 'rxjs';
-import {environment} from '../../environments/environment';
-import {IsleVoiceApiService} from './isle-voice-api.service';
-import {AudioSettingsService} from './audio-settings.service';
+import {OAuthService} from 'angular-oauth2-oidc';
+import {ApiConfigService} from './api-config.service';
+import {DeviceIdentityService} from './device-identity.service';
 import {SpatialAudioService} from './spatial-audio.service';
+import {VoiceEngineService, VoiceSession} from './voice-engine.service';
 
 /**
- * WebRTC lifecycle for Isle proximity voice against the Cloudflare Calls SFU.
+ * Isle proximity voice, as a publication on the shared Rust audio engine.
  *
- * Structurally mirrors {@link VoiceRTCService} (one RTCPeerConnection, publish own
- * mic once, pull each peer on demand, serialise SDP cycles), but:
- *  - it goes through {@link IsleVoiceApiService} (no guild/channel ids);
- *  - it acquires its OWN `getUserMedia` mic track (not the shared Rust pipeline),
- *    so push-to-talk toggling here never affects guild voice's mic;
- *  - the mic is routed through a Web Audio gain stage before being published, so
- *    the proximity mic volume (including >100% boost) is adjustable live;
- *  - incoming audio is routed into {@link SpatialAudioService} instead of a plain
- *    <audio> element.
+ * This used to own everything: its own `getUserMedia`, its own `RTCPeerConnection`, its own
+ * WebAudio gain stage on the way out and a spatializer on the way in. The reason given for the
+ * separate microphone was that push-to-talk here must not key the guild channel's - which is now a
+ * property of the engine rather than of a second capture, so proximity voice can share the one
+ * microphone, the one echo canceller and the one mixer with whatever else is running.
+ *
+ * That sharing is the point. Two engines each played through their own output, so neither echo
+ * canceller could see the other's audio and proximity voice leaked into the guild microphone with
+ * nothing able to remove it.
+ *
+ * What is left here is the parts Rust does not own: which peers to pull, and when.
+ * {@link SpatialAudioService} keeps the coordinate maths and feeds positions to the same mixer.
  */
 @Injectable({providedIn: 'root'})
 export class IsleVoiceRtcService {
+    /**
+     * Connection state for the proximity UI.
+     *
+     * Rust owns the peer connection now, so this is no longer an `RTCPeerConnection.connectionState`
+     * being observed - it is whether the publication exists. The type is kept so the status
+     * indicators that read it need no change.
+     */
     readonly rtcState = signal<RTCPeerConnectionState>('new');
-    /** userIds currently pulled and spatialized. */
+    /** userIds currently pulled and placed. */
     readonly peers = signal<Set<string>>(new Set());
 
-    private api = inject(IsleVoiceApiService);
-    private audioSettings = inject(AudioSettingsService);
+    private engine = inject(VoiceEngineService);
     private spatial = inject(SpatialAudioService);
+    private apiConfig = inject(ApiConfigService);
+    private oauth = inject(OAuthService);
+    private deviceIdentity = inject(DeviceIdentityService);
 
-    private pc: RTCPeerConnection | null = null;
-    private cfSessionId: string | null = null;
-    private localAudioTrack: MediaStreamTrack | null = null;
-    private cfAudioTrackName: string | null = null;
-
-    // Mic gain stage: raw mic → source → gain → destination → published track.
-    private rawMicStream: MediaStream | null = null;
-    private micCtx: AudioContext | null = null;
-    private micSource: MediaStreamAudioSourceNode | null = null;
-    private micGain: GainNode | null = null;
-    private micDest: MediaStreamAudioDestinationNode | null = null;
-    /** Current outgoing mic gain (1 = unity); retained so it survives reconnects. */
-    private micGainValue = 1;
-
-    // Maps a remote transceiver MID → peer userId.
-    private readonly midToUser = new Map<string, string>();
-    // ontrack events whose MID isn't mapped yet (arrive before tracks/new resolves).
-    private readonly pendingTracks: RTCTrackEvent[] = [];
-    // Serialises all offer/answer cycles so concurrent subscribes don't race.
-    private negotiationChain: Promise<void> = Promise.resolve();
+    /** The proximity publication, once connected. Its own slot, alongside any guild or DM call. */
+    private session: VoiceSession | null = null;
+    /**
+     * Serialises connect against subscribe, so a SubscribeMutual arriving immediately cannot try to
+     * pull a peer before there is a publication to pull them onto.
+     */
+    private ready: Promise<void> = Promise.resolve();
 
     get isConnected(): boolean {
-        return this.pc !== null && this.cfSessionId !== null;
+        return this.session !== null;
     }
 
-    // ── Publish (§6.1) ───────────────────────────────────────────────────────
+    // ── Publish ──────────────────────────────────────────────────────────────
 
-    /** Acquire the mic, open a session and publish the local "audio" track. */
+    /** Open the proximity session and start publishing the microphone into it. */
     async connect(): Promise<boolean> {
-        // Block the queue until the base publish completes, so a SubscribeMutual
-        // that arrives immediately can't negotiate before the offer/answer is done.
-        let releaseQueue!: () => void;
-        this.negotiationChain = new Promise<void>(resolve => (releaseQueue = resolve));
-        this.micGainValue = this.audioSettings.settings().proximityMicGain;
+        let release!: () => void;
+        this.ready = new Promise<void>(resolve => (release = resolve));
 
         try {
-            let localStream: MediaStream;
-            try {
-                const raw = await navigator.mediaDevices.getUserMedia({
-                    audio: await this.audioSettings.buildAudioConstraint(),
-                    video: false,
-                });
-                // Route the raw mic through a gain node so proximity mic volume
-                // (incl. Discord-style >100% boost) can be tuned live without
-                // renegotiation; the published track is the gain stage's output.
-                localStream = this.buildMicPipeline(raw);
-            } catch (e) {
-                console.error('[isle-voice] mic acquisition failed', e);
-                return false;
-            }
-
-            this.pc = new RTCPeerConnection({iceServers: environment.iceServers, bundlePolicy: 'max-bundle'});
-            this.pc.ontrack = e => this.handleRemoteTrack(e);
-            this.pc.onconnectionstatechange = () => {
-                if (this.pc) this.rtcState.set(this.pc.connectionState);
-            };
-
-            this.localAudioTrack = localStream.getAudioTracks()[0];
-            // Start muted -push-to-talk unmutes only while the key is held.
-            this.localAudioTrack.enabled = false;
-
-            const sender = this.pc.addTrack(this.localAudioTrack, localStream);
-
-            const {cfSessionId} = await firstValueFrom(this.api.createSession());
-            this.cfSessionId = cfSessionId;
-
-            const offer = await this.pc.createOffer();
-            await this.pc.setLocalDescription(offer);
-
-            const mid = this.pc.getTransceivers().find(t => t.sender === sender)?.mid ?? '0';
-
-            const resp = await firstValueFrom(this.api.tracksNew({
-                cfSessionId,
-                sessionDescription: this.pc.localDescription!,
-                tracks: [{location: 'local', mid, trackName: 'audio'}],
-            }));
-
-            this.cfAudioTrackName = resp.tracks[0]?.trackName ?? 'audio';
-            await this.pc.setRemoteDescription(resp.sessionDescription);
-            if (resp.requiresImmediateRenegotiation) await this.renegotiate();
-
+            this.session = await this.engine.start(
+                {kind: 'isle'},
+                this.apiConfig.baseUrl(),
+                this.oauth.getAccessToken(),
+                await this.deviceIdentity.deviceId(),
+            );
+            // Proximity voice is push-to-talk in practice, and the engine starts a publication
+            // closed in that mode. Nothing is transmitted until setMicEnabled says so.
+            this.rtcState.set('connected');
             return true;
         } catch (e) {
-            console.error('[isle-voice] publish failed', e);
+            console.error('[isle-voice] proximity publish failed', e);
+            this.rtcState.set('failed');
             return false;
         } finally {
-            releaseQueue();
+            release();
         }
     }
 
-    // ── Subscribe (§6.2) ─────────────────────────────────────────────────────
+    // ── Subscribe ────────────────────────────────────────────────────────────
 
-    /** Pull a peer's remote audio track (on isle.SubscribeMutual). */
-    subscribeToPeer(userId: string, peerSessionId: string, trackName: string): Promise<void> {
-        return this.enqueueNegotiation(async () => {
-            if (!this.pc || !this.cfSessionId) return;
+    /**
+     * Pull a peer's audio into the mix (on isle.SubscribeMutual).
+     *
+     * There is no offer/answer to serialise here any more - Rust does one round trip per subscribe
+     * on its own connection - but connect still has to have finished, or there is no publication to
+     * name.
+     */
+    async subscribeToPeer(userId: string, peerSessionId: string, trackName: string): Promise<void> {
+        await this.ready.catch(() => void 0);
+        const session = this.session;
+        if (!session) return;
 
-            this.pc.addTransceiver('audio', {direction: 'recvonly'});
+        try {
+            await this.engine.subscribe(session, userId, peerSessionId, trackName);
+        } catch (e) {
+            console.error('[isle-voice] failed to pull a peer', {userId, e});
+            return;
+        }
 
-            const offer = await this.pc.createOffer();
-            await this.pc.setLocalDescription(offer);
-
-            const resp = await firstValueFrom(this.api.tracksNew({
-                cfSessionId: this.cfSessionId,
-                sessionDescription: this.pc.localDescription!,
-                tracks: [{location: 'remote', sessionId: peerSessionId, trackName}],
-            }));
-
-            // `mid` present is the real signal that Cloudflare set the subscription up; the error
-            // fields are belt-and-braces (the relay retries and then throws rather than handing us
-            // a failed track). The old `!t.error` check tested a field the backend never sent.
-            for (const t of resp.tracks) {
-                if (t.mid && !t.errorCode) this.midToUser.set(t.mid, userId);
-            }
-
-            await this.pc.setRemoteDescription(resp.sessionDescription);
-            if (resp.requiresImmediateRenegotiation) await this.renegotiate();
-
-            this.drainPendingTracks();
-        });
+        // Only once their audio is actually in the mixer. Placing someone who was never pulled
+        // would leave a position for a source that does not exist.
+        this.spatial.addPeer(userId);
+        this.peers.update(s => new Set(s).add(userId));
     }
 
     // ── Local controls ─────────────────────────────────────────────────────────
 
-    /** Push-to-talk gate. Enables/disables the local mic track without renegotiation. */
+    /**
+     * Push-to-talk gate for proximity voice specifically.
+     *
+     * Per publication, so keying here does not also open the guild channel - the same guarantee the
+     * separate microphone used to provide, without the second capture.
+     */
     setMicEnabled(enabled: boolean): void {
-        if (this.localAudioTrack) this.localAudioTrack.enabled = enabled;
+        if (this.session) void this.engine.setPttOpen(this.session, enabled);
     }
 
     /**
-     * Set the outgoing mic gain (1 = unity, >1 boosts past source level). Applies
-     * live via the gain node -no renegotiation, no track replacement.
+     * Retained for the proximity mic slider, which no longer has anything to act on.
+     *
+     * There is one capture chain and one encode for every call, and the microphone gain is applied
+     * before it - so a proximity-specific gain would mean encoding the same audio twice, which is
+     * most of what sharing the engine just bought. The microphone slider in audio settings governs
+     * proximity voice too.
      */
-    setMicGain(gain: number): void {
-        this.micGainValue = Math.max(0, gain);
-        if (this.micGain && this.micCtx) {
-            this.micGain.gain.setTargetAtTime(this.micGainValue, this.micCtx.currentTime, 0.02);
-        }
+    setMicGain(_gain: number): void {
+        // Deliberately nothing. See above.
     }
 
     // ── Teardown ─────────────────────────────────────────────────────────────
 
-    /** Tear down a single peer (on isle.PeerLeft): stop rendering + drop their mapping. */
+    /** Tear down a single peer (on isle.PeerLeft): drop them from the mix and stop placing them. */
     tearDownPeer(userId: string): void {
         this.spatial.removePeer(userId);
-        for (const [mid, u] of this.midToUser) {
-            if (u === userId) this.midToUser.delete(mid);
-        }
+        if (this.session) void this.engine.unsubscribe(this.session, userId);
         this.peers.update(s => {
             if (!s.has(userId)) return s;
             const n = new Set(s);
@@ -184,125 +144,27 @@ export class IsleVoiceRtcService {
         });
     }
 
-    /** Stop rendering all pulled peers (hub-disconnect safety net / teardown). */
+    /** Drop all pulled peers (hub-disconnect safety net / teardown). */
     tearDownAllRemotePeers(): void {
-        this.midToUser.clear();
-        this.pendingTracks.length = 0;
-        for (const userId of this.peers()) this.spatial.removePeer(userId);
+        for (const userId of this.peers()) {
+            this.spatial.removePeer(userId);
+            if (this.session) void this.engine.unsubscribe(this.session, userId);
+        }
         this.peers.set(new Set());
     }
 
-    /** Fully tear down: close published track, peer connection, mic and spatial graph. */
+    /**
+     * Fully tear down proximity voice.
+     *
+     * Ends this publication only. Any guild channel or DM call keeps its own, along with the
+     * microphone and speakers they share.
+     */
     async disconnect(): Promise<void> {
-        if (this.cfSessionId && this.cfAudioTrackName) {
-            await firstValueFrom(this.api.closeTracks(this.cfSessionId, [this.cfAudioTrackName]))
-                .catch(() => void 0);
-        }
         this.tearDownAllRemotePeers();
-        this.localAudioTrack?.stop();
-        this.localAudioTrack = null;
-        this.teardownMicPipeline();
-        this.pc?.close();
-        this.pc = null;
-        this.cfSessionId = null;
-        this.cfAudioTrackName = null;
-        this.negotiationChain = Promise.resolve();
+        if (this.session) await this.engine.stop(this.session);
+        this.session = null;
+        this.ready = Promise.resolve();
         this.rtcState.set('new');
         this.spatial.reset();
-    }
-
-    // ── Internals ────────────────────────────────────────────────────────────
-
-    /**
-     * Wrap the raw mic in `source → gain → destination` and return the stream
-     * carrying the gain-staged track. If Web Audio is unavailable for any reason,
-     * fall back to publishing the raw stream (gain fixed at unity).
-     */
-    private buildMicPipeline(raw: MediaStream): MediaStream {
-        this.rawMicStream = raw;
-        try {
-            const ctx = new AudioContext();
-            const source = ctx.createMediaStreamSource(raw);
-            const gain = ctx.createGain();
-            gain.gain.value = this.micGainValue;
-            const dest = ctx.createMediaStreamDestination();
-            source.connect(gain).connect(dest);
-
-            this.micCtx = ctx;
-            this.micSource = source;
-            this.micGain = gain;
-            this.micDest = dest;
-            void ctx.resume().catch(() => void 0);
-            return dest.stream;
-        } catch (e) {
-            console.error('[isle-voice] mic gain stage unavailable, publishing raw', e);
-            this.teardownMicPipeline(false);
-            return raw;
-        }
-    }
-
-    /** Disconnect the gain graph and stop the raw capture. */
-    private teardownMicPipeline(stopRaw = true): void {
-        try {
-            this.micSource?.disconnect();
-            this.micGain?.disconnect();
-        } catch { /* already detached */ }
-        this.micSource = null;
-        this.micGain = null;
-        this.micDest = null;
-        void this.micCtx?.close().catch(() => void 0);
-        this.micCtx = null;
-        if (stopRaw) {
-            this.rawMicStream?.getTracks().forEach(t => t.stop());
-            this.rawMicStream = null;
-        }
-    }
-
-    private handleRemoteTrack(event: RTCTrackEvent): void {
-        const mid = event.transceiver.mid;
-        if (!mid) return;
-        const userId = this.midToUser.get(mid);
-        if (!userId) {
-            // Track arrived before its mid was mapped -replay after the next subscribe.
-            this.pendingTracks.push(event);
-            return;
-        }
-        this.attach(userId, event);
-    }
-
-    private drainPendingTracks(): void {
-        if (!this.pendingTracks.length) return;
-        const still: RTCTrackEvent[] = [];
-        for (const event of this.pendingTracks) {
-            const userId = event.transceiver.mid ? this.midToUser.get(event.transceiver.mid) : undefined;
-            if (userId) this.attach(userId, event);
-            else still.push(event);
-        }
-        this.pendingTracks.length = 0;
-        this.pendingTracks.push(...still);
-    }
-
-    private attach(userId: string, event: RTCTrackEvent): void {
-        const stream = event.streams[0] ?? new MediaStream([event.track]);
-        this.spatial.attachPeer(userId, stream);
-        this.peers.update(s => {
-            const n = new Set(s);
-            n.add(userId);
-            return n;
-        });
-    }
-
-    private enqueueNegotiation(fn: () => Promise<void>): Promise<void> {
-        const next = this.negotiationChain.catch(() => void 0).then(fn);
-        this.negotiationChain = next.catch(() => void 0);
-        return next;
-    }
-
-    private async renegotiate(): Promise<void> {
-        if (!this.pc || !this.cfSessionId) return;
-        const offer = await this.pc.createOffer();
-        await this.pc.setLocalDescription(offer);
-        const resp = await firstValueFrom(this.api.renegotiate(this.cfSessionId, offer));
-        await this.pc.setRemoteDescription(resp.sessionDescription);
     }
 }

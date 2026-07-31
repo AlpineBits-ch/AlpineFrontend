@@ -5,16 +5,20 @@
  * These cover the two volume sliders in particular: both are stored 0-100 and consumed as 0.0-1.0
  * gains, and until this was wired they moved, saved, and changed nothing.
  */
+// `isTauri` is a spy rather than a fixed arrow, and is set below per test. Three spec files mock
+// this module - mls.service.spec.ts with a bare automock, whose `isTauri` returns undefined - and
+// only one registration wins per run. Depending on which one made every test here pass or fail
+// purely on file ordering, with `applySettings` returning early and recording no call at all.
 vi.mock('@tauri-apps/api/core', () => ({
     invoke: vi.fn().mockResolvedValue(undefined),
-    isTauri: () => true,
+    isTauri: vi.fn(() => true),
     Channel: class {
     },
 }));
 
 import {signal} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
-import {invoke} from '@tauri-apps/api/core';
+import {invoke, isTauri} from '@tauri-apps/api/core';
 import {AudioSettings, AudioSettingsService} from './audio-settings.service';
 import {VoiceEngineService} from './voice-engine.service';
 
@@ -46,6 +50,9 @@ let engine: VoiceEngineService;
 
 beforeEach(() => {
     vi.clearAllMocks();
+    // After clearAllMocks, which would otherwise drop it. These tests are about what reaches Rust,
+    // so the engine has to believe it is running under Tauri whichever mock registration won.
+    vi.mocked(isTauri).mockReturnValue(true);
     withSettings({});
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({

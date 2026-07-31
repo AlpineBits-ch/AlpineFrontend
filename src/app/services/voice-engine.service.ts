@@ -31,6 +31,29 @@ export interface VoicePosition {
     z: number;
 }
 
+/**
+ * How placed sources fall off with distance, and how hard they are panned. All distances in metres.
+ *
+ * Mirrors the Rust `SpatialModel`. Only proximity voice sets it; guild and DM participants are never
+ * placed, so none of this reaches them.
+ */
+export interface SpatialModel {
+    /** Full volume within this many metres. */
+    refDistance: number;
+    /** Steepness of the falloff beyond `refDistance`. */
+    rolloff: number;
+    /** Beyond this many metres a source is silent. */
+    maxDistance: number;
+    /**
+     * How much of a placed source is panned rather than centred, 0-1.
+     *
+     * Short of 1 on purpose: full HRTF makes a source at 90 degrees almost ear-exclusive, which in
+     * a game turns proximity chat into a direction finder. 0 is how the user's "spatial audio off"
+     * setting is honoured - direction goes, distance stays.
+     */
+    intensity: number;
+}
+
 /** One remote participant's meter, mirroring the Rust `RemoteLevel`. */
 export interface RemoteLevel {
     id: string;
@@ -279,15 +302,23 @@ export class VoiceEngineService {
     // ── Positional audio (Isle proximity voice) ───────────────────────────────
 
     /**
-     * The audible radius in metres. Beyond it a positioned source is silent.
+     * How placed sources fall off with distance, and how hard they are panned.
      *
-     * Comes from the server so it matches the radius the backend uses to decide who is subscribed
-     * at all - otherwise players either fade out before they stop being sent, or stay at full
-     * volume until they abruptly vanish.
+     * `maxDistance` has to match the radius the backend uses to decide who is subscribed at all -
+     * otherwise players either fade out before they stop being sent, or stay at full volume until
+     * they abruptly vanish. The rest is the tuning the WebAudio graph used before mixing moved into
+     * Rust, passed through unchanged so proximity voice sounds the same rather than merely working.
+     *
+     * Rejects if the numbers would silence the mix, rather than half-applying them.
      */
-    async setMaxDistance(metres: number): Promise<void> {
+    async setSpatialModel(model: SpatialModel): Promise<void> {
         if (!isTauri()) return;
-        await invoke('voice_set_max_distance', {metres});
+        await invoke('voice_set_spatial_model', {
+            refDistance: model.refDistance,
+            rolloff: model.rolloff,
+            maxDistance: model.maxDistance,
+            intensity: model.intensity,
+        });
     }
 
     /**

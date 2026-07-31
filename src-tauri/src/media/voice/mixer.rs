@@ -45,6 +45,91 @@ impl Position {
     }
 }
 
+/// How placed sources fall off with distance, and how hard they are panned.
+///
+/// Ported from the WebAudio graph this replaced rather than reinvented, because the numbers are
+/// tuned against a specific world: full volume out to `ref_distance`, then an inverse curve of
+/// steepness `rolloff`, renormalised to reach exactly zero at `max_distance`.
+///
+/// The renormalisation is the part worth keeping. The raw inverse curve never reaches zero - at 80 m
+/// with a rolloff of 1.6 it is still around -18 dB - and the server hands over peers well past the
+/// audible range, so without it a whole neighbourhood stays faintly audible.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SpatialModel {
+    /// Full volume within this many metres.
+    pub ref_distance: f32,
+    /// Steepness of the falloff beyond `ref_distance`.
+    pub rolloff: f32,
+    /// Beyond this many metres a source is silent.
+    pub max_distance: f32,
+    /// How much of a placed source is panned rather than centred, 0.0-1.0.
+    ///
+    /// Not always 1.0 on purpose: full HRTF makes a source at 90 degrees almost ear-exclusive, which
+    /// in a game turns proximity chat into a direction finder. Blending a centred copy back in keeps
+    /// direction legible without making it precise.
+    pub intensity: f32,
+}
+
+impl Default for SpatialModel {
+    fn default() -> Self {
+        Self {
+            ref_distance: 1.0,
+            rolloff: 1.6,
+            max_distance: 20.0,
+            intensity: 1.0,
+        }
+    }
+}
+
+impl SpatialModel {
+    /// The model as given, or `None` if any of it would silence or corrupt the mix.
+    ///
+    /// Rejected wholesale rather than clamped field by field: these four numbers are tuned together,
+    /// and a half-applied model is harder to recognise than one that was ignored. A zero or NaN
+    /// `max_distance` in particular silences every placed source at once, which looks exactly like
+    /// the game having stopped sending positions.
+    pub fn validated(self) -> Option<Self> {
+        let finite = self.ref_distance.is_finite()
+            && self.rolloff.is_finite()
+            && self.max_distance.is_finite()
+            && self.intensity.is_finite();
+        if !finite || self.max_distance <= 0.0 || self.ref_distance < 0.0 || self.rolloff < 0.0 {
+            return None;
+        }
+        Some(Self {
+            // A reference distance at or past the audible edge would make every source either full
+            // volume or silent, with nothing in between.
+            ref_distance: self.ref_distance.min(self.max_distance * 0.99),
+            intensity: self.intensity.clamp(0.0, 1.0),
+            ..self
+        })
+    }
+
+    /// Gain for a source `distance` metres away.
+    fn gain(&self, distance: f32) -> f32 {
+        if !distance.is_finite() {
+            return 0.0;
+        }
+        if distance <= self.ref_distance {
+            return 1.0;
+        }
+        if distance >= self.max_distance {
+            return 0.0;
+        }
+        let curve = |d: f32| {
+            self.ref_distance / (self.ref_distance + self.rolloff * (d - self.ref_distance))
+        };
+        let raw = curve(distance);
+        let edge = curve(self.max_distance);
+        // A flat curve (rolloff 0, a dev knob) puts the edge at 1.0 and the shift below undefined.
+        if edge >= 1.0 {
+            raw
+        } else {
+            ((raw - edge) / (1.0 - edge)).clamp(0.0, 1.0)
+        }
+    }
+}
+
 /// The HRIR sphere every mixer starts with: SADIE II subject D1, a Neumann KU100 dummy head, at
 /// 48 kHz.
 ///
@@ -105,7 +190,7 @@ pub struct Mixer {
     /// directional, so proximity voice keeps working while a licence-compatible dataset is chosen.
     /// The `hrtf` crate ships no data of its own.
     hrir_bytes: Option<&'static [u8]>,
-    max_distance: f32,
+    model: SpatialModel,
     /// Stereo scratch the HRTF processors accumulate into. `process_samples` *adds* to its output
     /// buffer, so every spatial source can share one buffer cleared once per mix.
     spatial_accumulator: Vec<(f32, f32)>,
@@ -124,7 +209,7 @@ impl Mixer {
             positions: HashMap::new(),
             spatial_state: HashMap::new(),
             hrir_bytes: Some(BUNDLED_HRIR),
-            max_distance: 20.0,
+            model: SpatialModel::default(),
             spatial_accumulator: vec![(0.0, 0.0); FRAME],
         }
     }
@@ -149,9 +234,9 @@ impl Mixer {
         self.positions.insert(id.to_owned(), position);
     }
 
-    /// Beyond this distance a source is silent, matching Isle's proximity falloff.
-    pub fn set_max_distance(&mut self, metres: f32) {
-        self.max_distance = metres.max(0.001);
+    /// How placed sources fall off and how hard they are panned. See [`SpatialModel`].
+    pub fn set_spatial_model(&mut self, model: SpatialModel) {
+        self.model = model;
     }
 
     /// Supply the HRIR sphere to pan with. Without one, spatial sources stay centred.
@@ -207,24 +292,27 @@ impl Mixer {
         self.apply_limiter(out);
     }
 
-    /// Inverse-distance falloff, reaching exactly zero at `max_distance`.
-    ///
-    /// Without the taper a source would still be faintly audible at the cutoff and then jump to
-    /// silence, which is audible as a click when someone walks out of range.
-    fn distance_gain(&self, distance: f32) -> f32 {
-        if distance >= self.max_distance {
-            return 0.0;
-        }
-        let near = 1.0 / distance.max(1.0);
-        let taper = 1.0 - (distance / self.max_distance);
-        (near * taper).clamp(0.0, 1.0)
-    }
-
     fn render_spatial(&mut self, id: &str, samples: &[f32], gain: f32, position: Position) {
-        let distance_gain = self.distance_gain(position.distance());
+        let distance_gain = self.model.gain(position.distance());
         if distance_gain <= 0.0 {
             // Out of range. Returning here also avoids building HRTF state for a source that
             // cannot be heard.
+            return;
+        }
+
+        // The centred share. Panning short of fully keeps direction legible without making it
+        // precise enough to aim by - see `SpatialModel::intensity`. At full intensity this is zero
+        // and the whole source goes through the HRTF path below.
+        let dry = gain * distance_gain * (1.0 - self.model.intensity);
+        if dry > 0.0 {
+            for (i, &s) in samples.iter().take(FRAME).enumerate() {
+                let v = if s.is_finite() { s * dry } else { 0.0 };
+                self.accumulator[i * 2] += v;
+                self.accumulator[i * 2 + 1] += v;
+            }
+        }
+        let gain = gain * self.model.intensity;
+        if gain <= 0.0 {
             return;
         }
 
@@ -343,6 +431,121 @@ mod tests {
         for _ in 0..8 {
             m.mix(&[(id, samples)], out);
         }
+    }
+
+    /// The default model with a given audible radius.
+    fn model(max_distance: f32) -> SpatialModel {
+        SpatialModel { max_distance, ..SpatialModel::default() }
+    }
+
+    #[test]
+    fn the_falloff_is_flat_out_to_the_reference_distance() {
+        // Isle's tuning gives 15 m of full volume before anything fades. A curve that started
+        // attenuating at the listener would put a conversation partner two rooms down at the level
+        // the old graph gave someone across a field.
+        let m = SpatialModel { ref_distance: 15.0, max_distance: 80.0, ..SpatialModel::default() };
+        assert_eq!(m.gain(0.0), 1.0);
+        assert_eq!(m.gain(14.9), 1.0);
+        assert!(m.gain(20.0) < 1.0, "and it does fade past the reference");
+    }
+
+    #[test]
+    fn the_falloff_reaches_exactly_silence_at_the_audible_edge() {
+        // The renormalisation this model exists for. The raw inverse curve is still around -18 dB
+        // at 80 m, and the server sends peers well past that, so without the shift a whole
+        // neighbourhood stays faintly audible - and walking out of range would click rather than
+        // fade.
+        let m = SpatialModel { ref_distance: 15.0, max_distance: 80.0, ..SpatialModel::default() };
+        assert_eq!(m.gain(80.0), 0.0);
+        assert_eq!(m.gain(1000.0), 0.0);
+        assert!(m.gain(79.0) < 0.02, "and it approaches silence rather than jumping: {}", m.gain(79.0));
+        assert!(m.gain(79.0) > 0.0);
+    }
+
+    #[test]
+    fn the_falloff_is_monotonic() {
+        let m = SpatialModel { ref_distance: 15.0, max_distance: 80.0, ..SpatialModel::default() };
+        let mut last = f32::INFINITY;
+        for step in 0..=80 {
+            let g = m.gain(step as f32);
+            assert!(g <= last + 1e-6, "gain rose from {last} to {g} at {step} m");
+            assert!((0.0..=1.0).contains(&g), "gain {g} out of range at {step} m");
+            last = g;
+        }
+    }
+
+    #[test]
+    fn a_nonsensical_model_is_rejected_whole() {
+        // Zero or NaN would silence every placed source at once, which looks exactly like the game
+        // having stopped sending positions. Rejecting the whole model rather than clamping a field
+        // keeps a bad one recognisable instead of half-applied.
+        for bad in [0.0, -5.0, f32::NAN, f32::INFINITY] {
+            assert!(model(bad).validated().is_none(), "accepted max_distance {bad}");
+        }
+        let nan_rolloff = SpatialModel { rolloff: f32::NAN, ..SpatialModel::default() };
+        assert!(nan_rolloff.validated().is_none());
+    }
+
+    #[test]
+    fn a_reference_distance_past_the_edge_is_pulled_back_inside_it() {
+        // Otherwise every source is either full volume or silent, with no fade between - the exact
+        // cliff the taper exists to remove.
+        let m = SpatialModel { ref_distance: 500.0, max_distance: 80.0, ..SpatialModel::default() }
+            .validated()
+            .expect("the radius itself is usable");
+        assert!(m.ref_distance < m.max_distance);
+        assert!(m.gain(m.max_distance * 0.995) > 0.0);
+    }
+
+    #[test]
+    fn panning_short_of_full_intensity_still_reaches_both_ears() {
+        // Full HRTF makes a source at 90 degrees nearly ear-exclusive, which in a game turns
+        // proximity chat into a direction finder. The blend has to leave the quiet ear audible
+        // while keeping the loud one clearly ahead.
+        let mut m = Mixer::new();
+        m.set_spatial_model(SpatialModel { intensity: 0.6, ..SpatialModel::default() });
+        m.set_position("a", Some(Position { x: -4.0, y: 0.0, z: 0.0 }));
+        let a = constant(0.5);
+        let mut out = vec![0.0f32; FRAME * 2];
+        settle(&mut m, "a", &a, &mut out);
+
+        let (left, right) = ear_energy(&out);
+        assert!(left > right, "the near ear should still lead: l {left} r {right}");
+        assert!(right > left * 0.05, "the far ear must not be cut off: l {left} r {right}");
+    }
+
+    #[test]
+    fn zero_intensity_centres_a_placed_source_without_losing_its_distance() {
+        // How the user's "spatial audio off" setting is honoured for proximity voice: direction
+        // goes, distance stays. Turning it off must not make everyone equally loud.
+        let mut near = Mixer::new();
+        near.set_spatial_model(SpatialModel {
+            intensity: 0.0,
+            ref_distance: 1.0,
+            max_distance: 20.0,
+            ..SpatialModel::default()
+        });
+        near.set_position("a", Some(Position { x: -4.0, y: 0.0, z: 0.0 }));
+        let a = constant(0.5);
+        let mut out = vec![0.0f32; FRAME * 2];
+        near.mix(&[("a", &a)], &mut out);
+
+        let (left, right) = ear_energy(&out);
+        assert!((left - right).abs() < 1e-3, "no direction at zero intensity: l {left} r {right}");
+        assert!(left > 0.0, "but still audible");
+
+        let mut far = Mixer::new();
+        far.set_spatial_model(SpatialModel {
+            intensity: 0.0,
+            ref_distance: 1.0,
+            max_distance: 20.0,
+            ..SpatialModel::default()
+        });
+        far.set_position("a", Some(Position { x: -18.0, y: 0.0, z: 0.0 }));
+        let mut far_out = vec![0.0f32; FRAME * 2];
+        far.mix(&[("a", &a)], &mut far_out);
+        let (fl, fr) = ear_energy(&far_out);
+        assert!(left + right > (fl + fr) * 2.0, "distance still attenuates when direction does not");
     }
 
     #[test]
@@ -511,11 +714,11 @@ mod tests {
     #[test]
     fn distance_attenuates() {
         let mut near = Mixer::new();
-        near.set_max_distance(20.0);
+        near.set_spatial_model(model(20.0));
         near.set_position("a", Some(Position { x: 0.0, y: 0.0, z: 1.0 }));
 
         let mut far = Mixer::new();
-        far.set_max_distance(20.0);
+        far.set_spatial_model(model(20.0));
         far.set_position("a", Some(Position { x: 0.0, y: 0.0, z: 15.0 }));
 
         let a = constant(0.5);
@@ -537,7 +740,7 @@ mod tests {
     #[test]
     fn beyond_max_distance_is_silent() {
         let mut m = Mixer::new();
-        m.set_max_distance(10.0);
+        m.set_spatial_model(model(10.0));
         m.set_position("a", Some(Position { x: 0.0, y: 0.0, z: 50.0 }));
         let a = constant(0.5);
         let mut out = vec![0.0f32; FRAME * 2];

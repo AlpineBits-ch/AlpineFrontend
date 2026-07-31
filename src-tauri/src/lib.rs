@@ -440,7 +440,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             media::voice::voice_unsubscribe,
             media::voice::voice_set_user_volume,
             media::voice::voice_set_deafened,
-            media::voice::voice_set_max_distance,
+            media::voice::voice_set_spatial_model,
             media::voice::voice_set_position,
             rich_presence::scan_game_process,
             ptt_hook::ptt_supported,

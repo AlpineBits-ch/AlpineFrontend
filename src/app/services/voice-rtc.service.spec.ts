@@ -7,14 +7,18 @@
  * These tests pin the recovery: retry across that window, do not retry into a participant who has
  * left, and never subscribe twice for a session already being pulled.
  */
+// A spy rather than a fixed arrow, and set below per test: several spec files mock this module and
+// only one registration wins per run, so anything relying on this file's value held or not
+// depending on file ordering. See the same note in voice-engine.service.spec.ts.
 vi.mock('@tauri-apps/api/core', () => ({
     invoke: vi.fn().mockResolvedValue(undefined),
-    isTauri: () => false,
+    isTauri: vi.fn(() => false),
     Channel: class {
     },
 }));
 
 import {TestBed} from '@angular/core/testing';
+import {isTauri} from '@tauri-apps/api/core';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {OAuthService} from 'angular-oauth2-oidc';
@@ -26,7 +30,7 @@ import {DeviceIdentityService} from './device-identity.service';
 import {ApiConfigService} from './api-config.service';
 import {AudioSettingsService} from './audio-settings.service';
 
-/** Stands in for the Rust session. Only the calls these tests exercise are implemented. */
+/** Stands in for the Rust engine. Only the calls these tests exercise are implemented. */
 class FakeEngine {
     subscribe = vi.fn().mockResolvedValue(undefined);
     unsubscribe = vi.fn().mockResolvedValue(undefined);
@@ -34,6 +38,14 @@ class FakeEngine {
     stop = vi.fn().mockResolvedValue(undefined);
     available = () => false;
 }
+
+/**
+ * The publication this channel's audio runs on.
+ *
+ * Every engine call now names one, because Isle proximity voice can be running on the same
+ * microphone. `slot` is Rust's, and opaque to the frontend.
+ */
+const SESSION = {slot: 'primary', cfSessionId: 'rust_sess', trackName: 'audio'};
 
 let engine: FakeEngine;
 let service: VoiceRTCService;
@@ -47,6 +59,8 @@ const target = (userId = 'user_a', cfSessionId = 'sess_1') => ({
 
 beforeEach(() => {
     vi.useFakeTimers();
+    // The engine is faked here, so nothing should be reaching Rust directly.
+    vi.mocked(isTauri).mockReturnValue(false);
     engine = new FakeEngine();
 
     TestBed.configureTestingModule({
@@ -65,6 +79,10 @@ beforeEach(() => {
         ],
     });
     service = TestBed.inject(VoiceRTCService);
+    // Stand the service up as though `setup` had connected, without the RTCPeerConnection and the
+    // signalling round trips it also does - none of which these tests are about. Reached into
+    // directly rather than through a setter that would exist only for this.
+    (service as unknown as {voiceSession: typeof SESSION}).voiceSession = SESSION;
 });
 
 afterEach(() => {
@@ -139,7 +157,7 @@ it('drops a subscription that completed after the participant left', async () =>
     settle();
     await done;
 
-    expect(engine.unsubscribe).toHaveBeenCalledWith('user_a');
+    expect(engine.unsubscribe).toHaveBeenCalledWith(SESSION, 'user_a');
     expect(service.participantsWithAudio()).not.toContain('user_a');
 });
 
@@ -158,14 +176,14 @@ it('resubscribes when the same participant is announced on a new session', async
 
     // The old session is no longer publishing - dropping it is what stops a dead source being
     // mixed in and a dead m-line being carried by every later renegotiation.
-    expect(engine.unsubscribe).toHaveBeenCalledWith('user_a');
-    expect(engine.subscribe).toHaveBeenNthCalledWith(2, 'user_a', 'sess_2', 'audio');
+    expect(engine.unsubscribe).toHaveBeenCalledWith(SESSION, 'user_a');
+    expect(engine.subscribe).toHaveBeenNthCalledWith(2, SESSION, 'user_a', 'sess_2', 'audio');
 });
 
 it('does not let one slow participant hold up the others announced with them', async () => {
     // Joining a busy channel backfills the whole room at once. If these ran in sequence, the first
     // participant still connecting would delay everyone behind them by the full retry budget.
-    engine.subscribe.mockImplementation(async (id: string) => {
+    engine.subscribe.mockImplementation(async (_session: unknown, id: string) => {
         if (id === 'user_a') throw notFound();
     });
 

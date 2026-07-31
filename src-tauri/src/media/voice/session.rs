@@ -25,7 +25,7 @@ use super::capture;
 use super::chain::{CaptureChain, ChainConfig};
 use super::gate::InputMode;
 use super::jitter::Packet;
-use super::mixer::{Mixer, Position};
+use super::mixer::{Mixer, Position, SpatialModel};
 use super::playout;
 use super::receive::RemoteSource;
 use super::rtc::VoicePublication;
@@ -186,8 +186,14 @@ pub struct Control {
     /// `pending_config` because that one belongs to the capture thread and this is read by playout.
     master_bits: AtomicU32,
 
-    /// Audible radius in metres, as `f32` bits. Only positioned sources are affected by it.
-    max_distance_bits: AtomicU32,
+    /// How placed sources fall off and how hard they are panned.
+    ///
+    /// A mutex behind a dirty flag rather than a pile of atomics, because these numbers are tuned
+    /// together and have to reach the mixer as one - a model applied field by field would be
+    /// briefly incoherent every time proximity voice reconfigured itself. Set once per Isle
+    /// connect, so the flag is false on essentially every frame.
+    spatial_model: Mutex<Option<SpatialModel>>,
+    spatial_model_dirty: AtomicBool,
     /// Listener-relative positions, keyed by source id. `None` centres a source.
     ///
     /// Same shape as `gains`: a mutex the frame path only locks when `positions_dirty` says
@@ -216,8 +222,11 @@ impl Default for Control {
             gains_dirty: AtomicBool::new(false),
             deafened: AtomicBool::new(false),
             master_bits: AtomicU32::new(1.0f32.to_bits()),
-            // Matches Mixer's own default. Isle overrides it from the server's audible radius.
-            max_distance_bits: AtomicU32::new(20.0f32.to_bits()),
+            // Absent, not defaulted: the mixer already starts on `SpatialModel::default()`, and
+            // pushing an identical copy on the first frame would only look like a configuration
+            // step that had happened when it had not.
+            spatial_model: Mutex::new(None),
+            spatial_model_dirty: AtomicBool::new(false),
             positions: Mutex::new(HashMap::new()),
             positions_dirty: AtomicBool::new(false),
             departed: Mutex::new(Vec::new()),
@@ -294,19 +303,28 @@ impl Control {
         self.deafened.store(deafened, Ordering::Relaxed);
     }
 
-    pub fn max_distance(&self) -> f32 {
-        f32::from_bits(self.max_distance_bits.load(Ordering::Relaxed))
+    /// How placed sources fall off and how hard they are panned.
+    ///
+    /// A model that would silence or corrupt the mix is dropped rather than stored - see
+    /// [`SpatialModel::validated`]. Reported so the caller learns its tuning was ignored instead of
+    /// wondering why proximity voice sounds unchanged.
+    pub fn set_spatial_model(&self, model: SpatialModel) -> Result<(), String> {
+        let Some(model) = model.validated() else {
+            return Err(format!("nonsensical spatial model: {model:?}"));
+        };
+        if let Ok(mut guard) = self.spatial_model.lock() {
+            *guard = Some(model);
+            self.spatial_model_dirty.store(true, Ordering::Release);
+        }
+        Ok(())
     }
 
-    /// Audible radius in metres. Ignored unless positive and finite: zero or NaN would silence
-    /// every positioned source at once, which is indistinguishable from the game having stopped
-    /// sending positions.
-    pub fn set_max_distance(&self, metres: f32) {
-        if !metres.is_finite() || metres <= 0.0 {
-            return;
+    /// The pending model, or `None` when nothing was reconfigured since the last call.
+    fn take_spatial_model(&self) -> Option<SpatialModel> {
+        if !self.spatial_model_dirty.swap(false, Ordering::Acquire) {
+            return None;
         }
-        self.max_distance_bits
-            .store(metres.to_bits(), Ordering::Relaxed);
+        self.spatial_model.lock().ok().and_then(|mut g| g.take())
     }
 
     pub fn set_position(&self, id: String, position: Option<Position>) {
@@ -526,7 +544,9 @@ impl Engine {
                     }
                     mixer.set_deafened(playout_control.deafened());
                     mixer.set_master(playout_control.master());
-                    mixer.set_max_distance(playout_control.max_distance());
+                    if let Some(model) = playout_control.take_spatial_model() {
+                        mixer.set_spatial_model(model);
+                    }
                     if let Some(positions) = playout_control.take_positions() {
                         for (id, position) in positions {
                             mixer.set_position(&id, position);
@@ -963,15 +983,37 @@ mod tests {
     }
 
     #[test]
-    fn a_nonsensical_audible_radius_is_ignored() {
-        // Zero or NaN would silence every positioned source at once, which looks exactly like the
-        // game having stopped sending positions - so the last usable radius is kept instead.
+    fn a_nonsensical_spatial_model_never_reaches_the_mixer() {
+        // Zero or NaN would silence every placed source at once, which looks exactly like the game
+        // having stopped sending positions - so a bad model is dropped and the caller told, rather
+        // than half-applied.
         let control = Control::default();
-        control.set_max_distance(40.0);
+        let good = SpatialModel { max_distance: 40.0, ..SpatialModel::default() };
+        control.set_spatial_model(good).expect("a usable model");
+        assert_eq!(control.take_spatial_model(), Some(good));
+
         for bad in [0.0, -5.0, f32::NAN, f32::INFINITY] {
-            control.set_max_distance(bad);
-            assert_eq!(control.max_distance(), 40.0, "rejected {bad}");
+            let model = SpatialModel { max_distance: bad, ..SpatialModel::default() };
+            assert!(control.set_spatial_model(model).is_err(), "accepted {bad}");
+            assert!(control.take_spatial_model().is_none(), "{bad} reached the mixer");
         }
+    }
+
+    #[test]
+    fn the_spatial_model_starts_absent_rather_than_defaulted() {
+        // The mixer already starts on its own default. Reporting one here on the first frame would
+        // read as a configuration step that had happened when it had not.
+        assert!(Control::default().take_spatial_model().is_none());
+    }
+
+    #[test]
+    fn a_spatial_model_is_delivered_exactly_once() {
+        // Set once per Isle connect, read every 10 ms. Handing it over repeatedly would rebuild
+        // nothing but would make the dirty flag pointless.
+        let control = Control::default();
+        control.set_spatial_model(SpatialModel::default()).unwrap();
+        assert!(control.take_spatial_model().is_some());
+        assert!(control.take_spatial_model().is_none(), "the change was consumed");
     }
 
     #[test]
