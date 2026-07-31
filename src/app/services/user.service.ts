@@ -1,7 +1,7 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {HttpClient, HttpErrorResponse} from '@angular/common/http';
 import {environment} from '../../environments/environment';
-import {catchError, from, map, Observable, of, tap} from 'rxjs';
+import {catchError, firstValueFrom, from, map, Observable, of, tap} from 'rxjs';
 import {EncryptedMasterKey, UserDto} from '../dtos/response/UserDto';
 import {MlsService} from "./mls.service";
 import {switchMap} from "rxjs/operators";
@@ -40,13 +40,12 @@ export class UserService {
 
     }
 
-    getToGenerateKeyCount(): Observable<{ count: number }> {
-
-
+    getToGenerateKeyCount(): Observable<{ count: number; needsLastResort: boolean }> {
         return from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(
             switchMap(deviceId => {
                 return this.httpClient.get<{
-                    count: number
+                    count: number;
+                    needsLastResort: boolean;
                 }>(`${this.apiConfig.baseUrl()}/api/v1/identity/devices/client/${deviceId}/generate`
                 )
             })
@@ -96,29 +95,52 @@ export class UserService {
             return of(undefined);
         }
 
-        // 1. Start with the device identifier
         return from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(
-            switchMap(deviceId => {
-                // 2. Now that we have deviceId, get the count
-                return this.getToGenerateKeyCount().pipe(
-                    switchMap(response => {
-                        // 3. Generate the packages using the handle and count
-                        return from(this.mlsService.generateAdditionalKeyPackages(handle, response.count)).pipe(
-                            switchMap(packages => {
-                                const body = {
-                                    keyPackages: packages.map(p => ({keyPackage: p.keyPackage}))
-                                };
-
-                                // 4. Use the deviceId in your URL or body
+            switchMap(deviceId =>
+                this.getToGenerateKeyCount().pipe(
+                    switchMap(response =>
+                        from(this.buildKeyPackageUpload(handle, response.count, response.needsLastResort)).pipe(
+                            switchMap(keyPackages => {
+                                if (keyPackages.length === 0) return of(undefined);
                                 return this.httpClient.post<void>(
                                     `${this.apiConfig.baseUrl()}/api/v1/identity/devices/client/${deviceId}/key-packages`,
-                                    body
+                                    {keyPackages},
                                 );
-                            })
-                        );
-                    })
-                );
-            })
+                            }),
+                        ),
+                    ),
+                ),
+            ),
+            map(() => undefined),
         );
+    }
+
+    /**
+     * Single-use packages to top the supply back up, plus a last-resort one when the server has
+     * none for this device.
+     *
+     * The last-resort package is reusable and is only handed out once the single-use supply is
+     * drained. It exists so a device that ran dry between launches is still addable to a group:
+     * without it the server has nothing to offer, and that device is silently left out of every new
+     * conversation - readable by everyone except the person holding it.
+     */
+    private async buildKeyPackageUpload(
+        handle: string,
+        count: number,
+        needsLastResort: boolean,
+    ): Promise<{ keyPackage: string; isLastResort?: boolean }[]> {
+        const upload: { keyPackage: string; isLastResort?: boolean }[] = [];
+
+        if (count > 0) {
+            const packages = await firstValueFrom(this.mlsService.generateAdditionalKeyPackages(handle, count));
+            upload.push(...packages.map(p => ({keyPackage: p.keyPackage})));
+        }
+
+        if (needsLastResort) {
+            const [lastResort] = await firstValueFrom(this.mlsService.generateAdditionalKeyPackages(handle, 1));
+            if (lastResort) upload.push({keyPackage: lastResort.keyPackage, isLastResort: true});
+        }
+
+        return upload;
     }
 }

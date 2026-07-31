@@ -12,5 +12,7 @@ export interface CreateMessageDto {
     mentionsHere?: boolean;
     encryptionState?: MessageEncryptionState;
     mlsEpoch?: number;
+    /** Which encryption era of the context the ciphertext was sealed under. */
+    mlsGeneration?: number;
     senderDeviceId?: string;
 }

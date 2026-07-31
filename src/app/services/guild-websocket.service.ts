@@ -108,6 +108,19 @@ export interface WsChannelDeleted {
     guildId: string;
 }
 
+/**
+ * A channel's encryption was toggled. Clients must act on this: one that keeps encrypting after a
+ * disable, or keeps sending plaintext after an enable, has its sends refused until it catches up.
+ */
+export interface WsChannelMlsStateChanged {
+    channelId: string;
+    guildId: string;
+    encrypted: boolean;
+    /** The generation now active, or the one just terminated. */
+    generation: number;
+    changedByUserId: string;
+}
+
 export interface WsCategoryCreated {
     categoryId: string;
     guildId: string;
@@ -345,6 +358,8 @@ export class GuildWebsocketService {
     // ── Channel/category lifecycle ──────────────────────────────────────────────
     public channelCreatedObservable = new Subject<WsChannelCreated>();
     public channelDeletedObservable = new Subject<WsChannelDeleted>();
+    /** Encryption was switched on or off for a channel by someone with ManageChannel. */
+    public channelMlsStateChangedObservable = new Subject<WsChannelMlsStateChanged>();
     public categoryCreatedObservable = new Subject<WsCategoryCreated>();
     public categoryDeletedObservable = new Subject<WsCategoryDeleted>();
     // ── Wiki lifecycle ──────────────────────────────────────────────────────────
@@ -474,6 +489,7 @@ export class GuildWebsocketService {
         this.realtime.on('guild.voice.KickedByOtherDevice', (d: WsKickedByOtherDevice) => this.kickedByOtherDeviceObservable.next(d));
         this.realtime.on('guild.ChannelCreated', (d: WsChannelCreated) => this.channelCreatedObservable.next(d));
         this.realtime.on('guild.ChannelDeleted', (d: WsChannelDeleted) => this.channelDeletedObservable.next(d));
+        this.realtime.on('guild.ChannelMlsStateChanged', (d: WsChannelMlsStateChanged) => this.channelMlsStateChangedObservable.next(d));
         this.realtime.on('guild.CategoryCreated', (d: WsCategoryCreated) => this.categoryCreatedObservable.next(d));
         this.realtime.on('guild.CategoryDeleted', (d: WsCategoryDeleted) => this.categoryDeletedObservable.next(d));
         this.realtime.on('guild.WikiPageCreated', (d: WsWikiPageCreated) => this.wikiPageCreatedObservable.next(d));

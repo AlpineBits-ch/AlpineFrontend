@@ -75,44 +75,54 @@ function reactionMatches(r: MessageReaction, event: ReactionEvent): boolean {
         : r.emoji === event.emoji && !r.emojiId && r.userId === event.userId;
 }
 
+/**
+ * Turns stored ciphertext back into readable content where it can.
+ *
+ * The plaintext cache is not an optimisation, it is the only way most of this succeeds. MLS ratchets
+ * forward and never backward, so a message can be decrypted from the wire exactly once, on the
+ * device that was in the group at the time. Paging back through history therefore reads from the
+ * cache or not at all - `undecryptable` is set so the UI can say so plainly instead of rendering
+ * base64 at the user.
+ */
 async function decryptMessages(messages: MessageDto[], mlsService: MlsService): Promise<MessageDto[]> {
     const result: MessageDto[] = [];
     for (const msg of messages) {
-        if (msg.encryptionState !== MessageEncryptionState.Encrypted || !msg.conversationId || msg.type === MessageType.System) {
+        const contextId = msg.conversationId ?? msg.channelId;
+        if (msg.encryptionState !== MessageEncryptionState.Encrypted || !contextId || msg.type === MessageType.System) {
             result.push(msg);
-            console.log('skipping message', msg)
             continue;
         }
 
-        console.log('decrypting message', msg)
-
-        // Check local plaintext cache first -MLS keys are ephemeral and deleted
-        // after use, so re-decryption from server ciphertext isn't possible.
         const cached = await mlsService.getCachedMessage(msg.id);
         if (cached) {
             result.push({...msg, content: cached});
-            console.log('using cached plaintext for message', msg)
             continue;
         }
-        const groupId = await mlsService.getGroupIdForConversation(msg.conversationId);
+
+        // The message names the era it was sealed under. Falling back to whichever group we
+        // currently hold would decrypt against the wrong keys once a context has been toggled off
+        // and on, producing silent garbage instead of an honest failure.
+        const generation = msg.mlsGeneration ?? await mlsService.getKnownGeneration(contextId);
+        const groupId = generation === null || generation === undefined
+            ? null
+            : await mlsService.getGroupId(contextId, generation);
+
         if (!groupId) {
-            console.log('group not found for message', msg.id, 'in conversation', msg.conversationId, 'with content', msg.content, 'and attachments', msg.attachments);
-            result.push(msg);
+            result.push({...msg, undecryptable: true});
             continue;
         }
+
         try {
             const processed = await firstValueFrom(mlsService.processMessage(groupId, fromBase64(msg.content)));
             if (processed.kind === 'application' && processed.plaintext) {
                 void mlsService.cacheMessage(msg.id, processed.plaintext);
                 result.push({...msg, content: processed.plaintext});
-                console.log('decrypt success')
                 continue;
             }
-        } catch (e) {
-            console.error(e, groupId, msg.content)
-            // leave content as-is if decryption fails
+        } catch {
+            // Expected when paging past the ratchet's reach - not an error worth logging per message.
         }
-        result.push(msg);
+        result.push({...msg, undecryptable: true});
     }
     return result;
 }

@@ -142,16 +142,52 @@ export class MlsService {
     private readonly deviceIdentity = inject(DeviceIdentityService);
 
     // -------------------------------------------------------------------------
-    // Group registry -maps conversationId → MLS groupId (persisted)
+    // Group registry - maps (contextId, generation) → MLS groupId (persisted)
+    //
+    // Encryption can be switched off and back on, and each stretch is a distinct MLS group whose
+    // epochs restart at zero. Keying by context alone would have the second group overwrite the
+    // first, and every message from the first era would then be decrypted against the wrong keys -
+    // so the generation is part of the key, and the old entry is deliberately kept.
     // -------------------------------------------------------------------------
 
-    async registerGroupForConversation(conversationId: string, mlsGroupId: string): Promise<void> {
-        await this._groupRegistry.set(conversationId, mlsGroupId);
+    private static groupKey(contextId: string, generation: number): string {
+        return `${contextId}#${generation}`;
+    }
+
+    /** Key under which we remember which generation a context is currently on. */
+    private static activeGenerationKey(contextId: string): string {
+        return `${contextId}#active`;
+    }
+
+    async registerGroup(contextId: string, generation: number, mlsGroupId: string): Promise<void> {
+        await this._groupRegistry.set(MlsService.groupKey(contextId, generation), mlsGroupId);
+        await this._groupRegistry.set(MlsService.activeGenerationKey(contextId), generation);
         await this._groupRegistry.save();
     }
 
-    async getGroupIdForConversation(conversationId: string): Promise<string | null> {
-        return (await this._groupRegistry.get<string>(conversationId)) ?? null;
+    async getGroupId(contextId: string, generation: number): Promise<string | null> {
+        return (await this._groupRegistry.get<string>(MlsService.groupKey(contextId, generation))) ?? null;
+    }
+
+    /** The generation this device last saw as live for the context, if any. */
+    async getKnownGeneration(contextId: string): Promise<number | null> {
+        return (await this._groupRegistry.get<number>(MlsService.activeGenerationKey(contextId))) ?? null;
+    }
+
+    /**
+     * Records that a context is no longer encrypted, without forgetting the group that encrypted
+     * it - the messages from that era are still in the history and still need its keys.
+     */
+    async clearActiveGeneration(contextId: string): Promise<void> {
+        await this._groupRegistry.delete(MlsService.activeGenerationKey(contextId));
+        await this._groupRegistry.save();
+    }
+
+    /** Group id for whichever generation this device believes is live. */
+    async getActiveGroupId(contextId: string): Promise<string | null> {
+        const generation = await this.getKnownGeneration(contextId);
+        if (generation === null) return null;
+        return this.getGroupId(contextId, generation);
     }
 
     async clearGroupRegistry(): Promise<void> {
@@ -283,9 +319,15 @@ export class MlsService {
     }
 
     /**
-     * Leave the group by proposing and committing self-removal.
-     * The returned `commit` must be broadcast to remaining members.
-     * The local group state is automatically cleaned up.
+     * Leave the group.
+     *
+     * MLS does not let a member commit their own removal, so this produces a Remove **proposal**,
+     * not a commit - despite the field being named `commit` for shape compatibility with the other
+     * operations. Publish it like a commit; a remaining member then turns it into one via
+     * {@link commitPendingProposals}. `epoch` is meaningless here and comes back as 0.
+     *
+     * Local group state is dropped immediately, so this device loses access the moment it asks to
+     * leave, whether or not anyone ever commits the proposal.
      */
     leaveGroup(
         groupIdB64: string,
@@ -293,6 +335,50 @@ export class MlsService {
     ): Observable<MlsCommitOut> {
         return this.serialized(groupIdB64, () =>
             invoke<MlsCommitOut>('mls_leave_group', {groupIdB64, keyHandle})
+        );
+    }
+
+    /**
+     * Commit every pending proposal for a group - in practice, the Remove proposal a departing
+     * member left behind.
+     *
+     * Without this, {@link leaveGroup} can never complete: the leaver has erased their own state
+     * but the group still lists them, so it keeps encrypting to a member who cannot read any of it.
+     */
+    commitPendingProposals(
+        groupIdB64: string,
+        keyHandle: string,
+    ): Observable<MlsCommitOut> {
+        return this.serialized(groupIdB64, () =>
+            invoke<MlsCommitOut>('mls_commit_pending_proposals', {groupIdB64, keyHandle})
+        );
+    }
+
+    /**
+     * Apply a commit staged by {@link addMembers} / {@link removeMembers} /
+     * {@link commitPendingProposals}, once the server has accepted it.
+     *
+     * Safe to retry: merging with nothing staged is a no-op, so a client that published
+     * successfully and then died before merging can simply merge again on the next launch.
+     *
+     * @returns the group's epoch after the merge.
+     */
+    mergePendingCommit(groupIdB64: string): Observable<number> {
+        return this.serialized(groupIdB64, () =>
+            invoke<number>('mls_merge_pending_commit', {groupIdB64})
+        );
+    }
+
+    /**
+     * Discard a staged commit the server refused, leaving the group exactly where it was.
+     *
+     * This is the losing side of a concurrent-commit race. Applying a commit the server did not
+     * take would fork this device off the group permanently, so the commit is thrown away and
+     * re-issued against the epoch that actually won.
+     */
+    clearPendingCommit(groupIdB64: string): Observable<void> {
+        return this.serialized(groupIdB64, () =>
+            invoke<void>('mls_clear_pending_commit', {groupIdB64})
         );
     }
 

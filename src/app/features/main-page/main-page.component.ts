@@ -36,6 +36,7 @@ import {SocialWebsocketService} from '../../services/social-websocket.service';
 import {UserService} from '../../services/user.service';
 import {KeySetupDialogComponent} from '../key-setup/key-setup-dialog/key-setup-dialog.component';
 import {MlsService} from '../../services/mls.service';
+import {MlsSyncService} from '../../services/mls-sync.service';
 import {
     DeviceRegistrationModalComponent
 } from '../device-registration/device-registration-modal/device-registration-modal.component';
@@ -121,6 +122,7 @@ export class MainPageComponent implements OnDestroy {
     private userTokenService = inject(UserTokenService);
     private userService = inject(UserService);
     private mlsService = inject(MlsService);
+    private mlsSync = inject(MlsSyncService);
     private conversationService = inject(ConversationService);
     private richPresenceService = inject(RichPresenceService);
     private emailVerification = inject(EmailVerificationService);
@@ -193,20 +195,33 @@ export class MainPageComponent implements OnDestroy {
             }
         }));
 
-        this.actionSub.add(this.websocketService.welcomeObservable.subscribe(async (conversationId) => {
-            const keyHandle = this.mlsService.keyHandle();
-            if (!keyHandle) return;
+        // The push names a context but carries nothing else: the fetch is device-scoped, and the
+        // Welcome is only acknowledged once its join has actually worked.
+        this.actionSub.add(this.websocketService.welcomeObservable.subscribe(async () => {
             try {
-                const welcomes = await firstValueFrom(this.conversationService.getPendingWelcomes());
-                const match = welcomes.find(w => w.conversationId === conversationId);
-                if (match) {
-                    this.mlsService.joinGroup(match.welcome, keyHandle).subscribe({
-                        next: info => this.mlsService.registerGroupForConversation(match.conversationId, info.groupId),
-                        error: err => console.error('Failed to join MLS group from Welcome event', conversationId, err),
-                    });
-                }
+                await this.mlsSync.processPendingWelcomes();
             } catch (err) {
-                console.error('Failed to process Welcome event', conversationId, err);
+                console.error('Failed to process pending Welcomes', err);
+            }
+        }));
+
+        // A commit landed. The payload is a nudge only - group state advances by fetching commits
+        // above our own epoch and applying them in order, never in push-arrival order.
+        this.actionSub.add(this.websocketService.mlsCommitObservable.subscribe(async (event) => {
+            try {
+                await this.mlsSync.syncContext(event.contextId, event.isChannel);
+            } catch (err) {
+                console.error('Failed to apply MLS commits', event.contextId, err);
+            }
+        }));
+
+        // Encryption was switched on or off. Re-reading the state is what stops this client
+        // encrypting to a group that has been replaced, or sending plaintext into one that has not.
+        this.actionSub.add(this.websocketService.mlsStateChangedObservable.subscribe(async (event) => {
+            try {
+                await this.mlsSync.refreshState(event.contextId, event.isChannel);
+            } catch (err) {
+                console.error('Failed to refresh MLS state', event.contextId, err);
             }
         }));
     }
@@ -266,14 +281,12 @@ export class MainPageComponent implements OnDestroy {
             await firstValueFrom(this.userService.replenishKeyCount());
             this.keyHandle.set(handle);
             this.checkMasterKey();
-            this.conversationService.getPendingWelcomes().subscribe(w => {
-                for (const welcome of w) {
-                    this.mlsService.joinGroup(welcome.welcome, handle).subscribe({
-                        next: info => this.mlsService.registerGroupForConversation(welcome.conversationId, info.groupId),
-                        error: err => console.error('Failed to join MLS group for conversation', welcome.conversationId, err),
-                    });
-                }
-            })
+
+            // Join anything we were invited to while away, and replay every commit missed since.
+            // Failures here are deliberately not fatal to launch: an unreadable conversation is bad,
+            // a client that will not start is worse.
+            this.mlsSync.processPendingWelcomes()
+                .catch(err => console.error('Failed to process pending Welcomes at launch', err));
 
         } catch (err: any) {
             if (err?.kind === 'KeyNotFound') {

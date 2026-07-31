@@ -13,7 +13,8 @@ import {
     ViewChild,
 } from '@angular/core';
 import {DatePipe, NgClass} from '@angular/common';
-import {catchError, EMPTY, from, switchMap, tap} from 'rxjs';
+import {catchError, EMPTY, firstValueFrom, from, tap} from 'rxjs';
+import {HttpErrorResponse} from '@angular/common/http';
 
 import {ConversationDto} from '../../../../dtos/response/conversation.dto';
 import {ConversationEncryption} from '../../../../enums/conversation-encryption.enum';
@@ -27,6 +28,7 @@ import {Button} from 'primeng/button';
 
 import {MessagingService} from '../../../../services/messaging.service';
 import {MlsService} from '../../../../services/mls.service';
+import {MlsSyncService} from '../../../../services/mls-sync.service';
 import {MessageStore} from '../../../../stores/message.store';
 import {ConversationStore} from '../../../../stores/conversation.store';
 import {ProfileService} from '../../../../services/profile.service';
@@ -107,6 +109,7 @@ export class ConversationComponent implements AfterViewInit {
 
     // ── Call state ───────────────────────────────────────────────────────────
     private mlsService = inject(MlsService);
+    private mlsSync = inject(MlsSyncService);
     private profileService = inject(ProfileService);
 
     // ── Conversation meta ────────────────────────────────────────────────────
@@ -498,35 +501,13 @@ export class ConversationComponent implements AfterViewInit {
 
         const conversationId = this.conversation().id;
 
-        from(this.mlsService.getGroupIdForConversation(conversationId)).pipe(
-            switchMap(groupId => {
-                if (!groupId) throw new Error(`No MLS group found for conversation ${conversationId}`);
-                return this.mlsService.sendMessage(groupId, keyHandle, b64Content);
-            }),
-            switchMap(({ciphertext, epoch}) =>
-                from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(
-                    switchMap(deviceId =>
-                        this.messagingService.createMessage({
-                            content: ciphertext,
-                            channelId: undefined,
-                            conversationId,
-                            attachments,
-                            inReplyTo,
-                            mentions,
-                            roleMentions,
-                            mentionsEveryone,
-                            mentionsHere,
-                            encryptionState: MessageEncryptionState.Encrypted,
-                            mlsEpoch: epoch,
-                            senderDeviceId: deviceId,
-                        })
-                    )
-                )
-            ),
+        from(this.sendEncrypted(conversationId, keyHandle, b64Content, {
+            attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere,
+        })).pipe(
             tap(confirmed => {
-                // Keep the plaintext content for display -the server stores ciphertext,
-                // but we already have the plaintext and don't need to re-decrypt our own message.
-                // Cache it so it survives app restarts (MLS forward secrecy makes re-decryption impossible).
+                // Keep the plaintext for display. The server stores ciphertext and MLS ratchets
+                // forward only, so this is the one moment we can cache it - after this, our own
+                // message is as unreadable to us as anyone else's would be.
                 void this.mlsService.cacheMessage(confirmed.id, b64Content);
                 this.messageStore.confirmMessage(tempId, {...confirmed, content: b64Content});
                 this.messagingService.messageSentObservable.next({...confirmed, content: b64Content});
@@ -537,5 +518,56 @@ export class ConversationComponent implements AfterViewInit {
                 return EMPTY;
             }),
         ).subscribe();
+    }
+
+    /**
+     * Encrypts and posts, retrying once against refreshed state.
+     *
+     * The server refuses a message whose encryption does not match the context's - which is exactly
+     * what happens when encryption was toggled while this client was composing. That is a stale
+     * view, not a real failure, so it re-reads the state and sends again rather than surfacing an
+     * error the user can do nothing about.
+     */
+    private async sendEncrypted(
+        conversationId: string,
+        keyHandle: string,
+        b64Content: string,
+        rest: {
+            attachments: string[]; inReplyTo: string | undefined; mentions: string[];
+            roleMentions: string[]; mentionsEveryone: boolean; mentionsHere: boolean;
+        },
+    ): Promise<MessageDto> {
+        const deviceId = await this.mlsService.getOrCreateDeviceIdentifier();
+
+        const attempt = async (): Promise<MessageDto> => {
+            const generation = await this.mlsService.getKnownGeneration(conversationId);
+            if (generation === null) throw new Error(`Conversation ${conversationId} is not encrypted here`);
+
+            const groupId = await this.mlsService.getGroupId(conversationId, generation);
+            if (!groupId) throw new Error(`No MLS group found for conversation ${conversationId}`);
+
+            const {ciphertext, epoch} = await firstValueFrom(
+                this.mlsService.sendMessage(groupId, keyHandle, b64Content),
+            );
+
+            return firstValueFrom(this.messagingService.createMessage({
+                content: ciphertext,
+                channelId: undefined,
+                conversationId,
+                ...rest,
+                encryptionState: MessageEncryptionState.Encrypted,
+                mlsEpoch: epoch,
+                mlsGeneration: generation,
+                senderDeviceId: deviceId,
+            }));
+        };
+
+        try {
+            return await attempt();
+        } catch (err) {
+            if (!(err instanceof HttpErrorResponse) || err.status !== 409) throw err;
+            await this.mlsSync.refreshState(conversationId, false);
+            return attempt();
+        }
     }
 }

@@ -63,6 +63,10 @@ export interface MessageDto {
     encryptionState: MessageEncryptionState;
     mlsEpoch: number | undefined;
     mlsSequenceNumber: number | undefined;
+    /** Which encryption era of the context this ciphertext belongs to. Null on plaintext. */
+    mlsGeneration?: number | null;
+    /** Client-only: ciphertext this device can no longer read - MLS ratchets forward only. */
+    undecryptable?: boolean;
     senderDeviceId: string | undefined;
     type: MessageType;
     reactions?: MessageReaction[];

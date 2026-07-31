@@ -474,10 +474,12 @@ fn add_members_impl(
         let (commit_msg, welcome_msg, _group_info) = group
             .add_members(provider, &signer, &key_packages)
             .map_err(|e| map_mls_error(e))?;
-        group
-            .merge_pending_commit(provider)
-            .map_err(|e| e.to_string())?;
-        let epoch = group.epoch().as_u64();
+        // Deliberately *not* merged here. The server accepts exactly one commit per epoch, so a
+        // commit that loses that race must never have been applied locally - a group that advanced
+        // on a commit nobody else has is forked, and MLS gives no way to walk that back.
+        // The caller merges via `mls_merge_pending_commit` once the server has taken it, or
+        // discards via `mls_clear_pending_commit` when it has not.
+        let epoch = group.epoch().as_u64() + 1;
         let commit_bytes = commit_msg
             .tls_serialize_detached()
             .map_err(|e| e.to_string())?;
@@ -586,10 +588,8 @@ fn commit_pending_proposals_impl(
         let (commit_msg, welcome_opt, _group_info) = group
             .commit_to_pending_proposals(provider, &signer)
             .map_err(|e| map_mls_error(e))?;
-        group
-            .merge_pending_commit(provider)
-            .map_err(|e| e.to_string())?;
-        let epoch = group.epoch().as_u64();
+        // Staged, not merged - see add_members_impl for why.
+        let epoch = group.epoch().as_u64() + 1;
         let commit_bytes = commit_msg
             .tls_serialize_detached()
             .map_err(|e| e.to_string())?;
@@ -603,6 +603,46 @@ fn commit_pending_proposals_impl(
     mls.save_to_disk()
         .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
     Ok(commit_out)
+}
+
+// Second half of the two-phase commit dance. `add_members` / `remove_members` /
+// `commit_to_pending_proposals` stage a commit without applying it; exactly one of these two runs
+// afterwards, depending on whether the server took it.
+fn merge_pending_commit_impl(mls: &mut MlsState, group_id_b64: String) -> Result<u64, String> {
+    let group_id_bytes = B64.decode(&group_id_b64).map_err(|e| e.to_string())?;
+    let epoch = {
+        let MlsState {
+            provider, groups, ..
+        } = &mut *mls;
+        let group = groups
+            .get_mut(&group_id_bytes)
+            .ok_or_else(|| "GroupNotFound: group not found".to_string())?;
+        group
+            .merge_pending_commit(provider)
+            .map_err(|e| map_mls_error(e))?;
+        group.epoch().as_u64()
+    };
+    mls.save_to_disk()
+        .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
+    Ok(epoch)
+}
+
+fn clear_pending_commit_impl(mls: &mut MlsState, group_id_b64: String) -> Result<(), String> {
+    let group_id_bytes = B64.decode(&group_id_b64).map_err(|e| e.to_string())?;
+    {
+        let MlsState {
+            provider, groups, ..
+        } = &mut *mls;
+        let group = groups
+            .get_mut(&group_id_bytes)
+            .ok_or_else(|| "GroupNotFound: group not found".to_string())?;
+        group
+            .clear_pending_commit(provider.storage())
+            .map_err(|e| e.to_string())?;
+    }
+    mls.save_to_disk()
+        .map_err(|e| format!("MlsError: failed to persist state: {}", e))?;
+    Ok(())
 }
 
 fn export_group_info_impl(
@@ -868,10 +908,8 @@ fn remove_members_impl(
         let (commit_msg, welcome_opt, _group_info) = group
             .remove_members(provider, &signer, &members)
             .map_err(|e| map_mls_error(e))?;
-        group
-            .merge_pending_commit(provider)
-            .map_err(|e| e.to_string())?;
-        let epoch = group.epoch().as_u64();
+        // Staged, not merged - see add_members_impl for why.
+        let epoch = group.epoch().as_u64() + 1;
         let commit_bytes = commit_msg
             .tls_serialize_detached()
             .map_err(|e| e.to_string())?;
@@ -1059,6 +1097,27 @@ pub fn mls_commit_pending_proposals(
     commit_pending_proposals_impl(&mut mls, group_id_b64, key_handle)
 }
 
+/// Applies a commit staged by add/remove/commit-proposals, once the server has accepted it.
+/// Returns the group's epoch afterwards.
+#[tauri::command]
+pub fn mls_merge_pending_commit(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+) -> Result<u64, String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    merge_pending_commit_impl(&mut mls, group_id_b64)
+}
+
+/// Discards a staged commit the server refused, leaving the group exactly where it was.
+#[tauri::command]
+pub fn mls_clear_pending_commit(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+) -> Result<(), String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    clear_pending_commit_impl(&mut mls, group_id_b64)
+}
+
 #[tauri::command]
 pub fn mls_export_group_info(
     state: tauri::State<MlsStateHandle>,
@@ -1236,7 +1295,8 @@ pub fn mls_import_state(
 #[cfg(test)]
 mod integration_tests {
     use super::{
-        add_members_impl, commit_pending_proposals_impl, create_group_impl, delete_group_impl,
+        add_members_impl, clear_pending_commit_impl, commit_pending_proposals_impl,
+        create_group_impl, delete_group_impl, merge_pending_commit_impl,
         export_group_info_impl, export_state_impl, generate_key_packages_impl,
         generate_key_packages_with_handle_impl, get_group_info_impl, get_members_impl,
         import_state_impl, join_group_impl, leave_group_impl, load_signing_key_impl,
@@ -1289,6 +1349,9 @@ mod integration_tests {
             vec![bob_batch.key_packages[0].key_package.clone()],
         )
         .expect("alice add bob");
+        // Commits are staged, not applied - the server accepts one per epoch, so a commit that
+        // loses that race must never have touched local state. Here nothing can refuse it.
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("alice merges her own commit");
         join_group_impl(
             &mut bob,
             add_out.welcome.expect("welcome must be present"),
@@ -1594,6 +1657,7 @@ mod integration_tests {
             vec![bob_batch.key_packages[0].key_package.clone()],
         )
         .expect("should succeed");
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("alice merges add-bob");
         join_group_impl(&mut bob, add1.welcome.unwrap(), bob_batch.key_handle).expect("bob joins");
 
         let charlie_batch = generate_key_packages_impl(&mut charlie, "charlie".to_string(), 1)
@@ -1605,12 +1669,141 @@ mod integration_tests {
             vec![charlie_batch.key_packages[0].key_package.clone()],
         )
         .expect("should succeed");
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("alice merges add-charlie");
 
         let processed = process_message_impl(&mut bob, group_id, add2.commit)
             .expect("bob processes add-charlie commit");
         assert_eq!(processed.kind, "commit");
         assert_eq!(processed.added_members.len(), 1);
         assert_eq!(processed.added_members[0].identity, "charlie");
+    }
+
+    // ─── Staged commits ───────────────────────────────────────────────────────
+    //
+    // The server accepts exactly one commit per epoch. A commit that loses that race must never
+    // have been applied locally, because a group that advanced on a commit nobody else holds is
+    // forked and MLS offers no way back. So commits are staged and only merged once the server has
+    // taken them.
+
+    #[test]
+    fn add_members_does_not_advance_the_group_until_merged() {
+        let mut alice = make_mls();
+        let mut bob = make_mls();
+        let alice_batch =
+            generate_key_packages_impl(&mut alice, "alice".to_string(), 1).expect("should succeed");
+        let group_id = rand_group_id();
+        create_group_impl(&mut alice, group_id.clone(), alice_batch.key_handle.clone())
+            .expect("should succeed");
+        let bob_batch =
+            generate_key_packages_impl(&mut bob, "bob".to_string(), 1).expect("should succeed");
+
+        add_members_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle.clone(),
+            vec![bob_batch.key_packages[0].key_package.clone()],
+        )
+        .expect("should succeed");
+
+        let staged = get_group_info_impl(&alice, group_id.clone()).expect("should succeed");
+        assert_eq!(staged.epoch, 0, "staging must not move the epoch");
+        assert_eq!(staged.members.len(), 1, "staging must not add the member yet");
+
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("merge must succeed");
+
+        let merged = get_group_info_impl(&alice, group_id).expect("should succeed");
+        assert_eq!(merged.epoch, 1);
+        assert_eq!(merged.members.len(), 2);
+    }
+
+    #[test]
+    fn clearing_a_staged_commit_leaves_the_group_untouched() {
+        let mut alice = make_mls();
+        let mut bob = make_mls();
+        let alice_batch =
+            generate_key_packages_impl(&mut alice, "alice".to_string(), 1).expect("should succeed");
+        let group_id = rand_group_id();
+        create_group_impl(&mut alice, group_id.clone(), alice_batch.key_handle.clone())
+            .expect("should succeed");
+        let bob_batch =
+            generate_key_packages_impl(&mut bob, "bob".to_string(), 1).expect("should succeed");
+
+        add_members_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle.clone(),
+            vec![bob_batch.key_packages[0].key_package.clone()],
+        )
+        .expect("should succeed");
+        clear_pending_commit_impl(&mut alice, group_id.clone()).expect("clear must succeed");
+
+        // This is the losing side of a concurrent-commit race: the server took someone else's
+        // commit for this epoch, so ours is discarded and the group is exactly where it started.
+        let info = get_group_info_impl(&alice, group_id.clone()).expect("should succeed");
+        assert_eq!(info.epoch, 0);
+        assert_eq!(info.members.len(), 1);
+    }
+
+    #[test]
+    fn a_cleared_commit_can_be_reissued() {
+        let mut alice = make_mls();
+        let mut bob = make_mls();
+        let alice_batch =
+            generate_key_packages_impl(&mut alice, "alice".to_string(), 1).expect("should succeed");
+        let group_id = rand_group_id();
+        create_group_impl(&mut alice, group_id.clone(), alice_batch.key_handle.clone())
+            .expect("should succeed");
+        let bob_batch =
+            generate_key_packages_impl(&mut bob, "bob".to_string(), 2).expect("should succeed");
+
+        add_members_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle.clone(),
+            vec![bob_batch.key_packages[0].key_package.clone()],
+        )
+        .expect("first attempt");
+        clear_pending_commit_impl(&mut alice, group_id.clone()).expect("clear must succeed");
+
+        // Losing the race has to be recoverable, or a client that gets unlucky can never add anyone.
+        let retry = add_members_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle,
+            vec![bob_batch.key_packages[1].key_package.clone()],
+        )
+        .expect("retry after clearing must succeed");
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("merge must succeed");
+
+        assert!(retry.welcome.is_some());
+        assert_eq!(
+            get_members_impl(&alice, group_id)
+                .expect("should succeed")
+                .len(),
+            2
+        );
+    }
+
+    #[test]
+    fn merge_with_nothing_staged_does_not_advance_the_group() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+        let group_id = rand_group_id();
+        create_group_impl(&mut mls, group_id.clone(), batch.key_handle).expect("should succeed");
+
+        // OpenMLS treats this as a no-op rather than an error, which makes the merge safe to retry:
+        // a client that publishes successfully but crashes before merging can merge again on the
+        // next launch without having to know whether the first one landed.
+        let epoch = merge_pending_commit_impl(&mut mls, group_id.clone())
+            .expect("merging nothing is a no-op, not a failure");
+
+        assert_eq!(epoch, 0);
+        assert_eq!(
+            get_group_info_impl(&mls, group_id).expect("should succeed").epoch,
+            0,
+            "a merge with nothing staged must never move the epoch"
+        );
     }
 
     // ─── Remove members ───────────────────────────────────────────────────────
@@ -1632,6 +1825,7 @@ mod integration_tests {
             vec![bob_leaf],
         )
         .expect("remove must succeed");
+        merge_pending_commit_impl(&mut tp.alice, tp.group_id.clone()).expect("alice merges removal");
 
         let after = get_members_impl(&tp.alice, tp.group_id.clone()).expect("should succeed");
         assert_eq!(after.len(), 1, "only alice must remain after removing bob");
@@ -1677,6 +1871,8 @@ mod integration_tests {
             tp.alice_handle.clone(),
         )
         .expect("alice commits pending proposals");
+        merge_pending_commit_impl(&mut tp.alice, tp.group_id.clone())
+            .expect("alice merges the remove-bob commit");
         assert!(!commit_out.commit.is_empty());
 
         // Alice now has only herself in the group.
@@ -1784,7 +1980,8 @@ mod integration_tests {
             vec![bob_batch.key_packages[0].key_package.clone()],
         )
         .expect("alice add bob");
-        assert_eq!(add_out.epoch, 1);
+        assert_eq!(add_out.epoch, 1, "the epoch this commit will establish once merged");
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("alice merges add-bob");
 
         let bob_info = join_group_impl(
             &mut bob,
@@ -1830,6 +2027,7 @@ mod integration_tests {
             alice_batch.key_handle.clone(),
         )
         .expect("alice commits leave proposal");
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("alice merges remove-bob");
         assert!(!commit_out.commit.is_empty());
         assert_eq!(
             get_members_impl(&alice, group_id.clone())

@@ -1,7 +1,7 @@
 import {Component, computed, inject, model, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {NgClass} from '@angular/common';
-import {from, map, of, switchMap} from 'rxjs';
+import {firstValueFrom} from 'rxjs';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
@@ -11,6 +11,7 @@ import {PrimeTemplate} from 'primeng/api';
 import {RelationshipStore} from '../../../../../stores/relationship.store';
 import {ConversationService} from '../../../../../services/conversation.service';
 import {MlsService} from '../../../../../services/mls.service';
+import {MlsTransportService} from '../../../../../services/mls-transport.service';
 import {ConversationStore} from '../../../../../stores/conversation.store';
 import {NavigationService} from '../../../navigation.service';
 import {ProfileService} from '../../../../../services/profile.service';
@@ -32,6 +33,8 @@ export class NewConversationDialogComponent {
     readonly groupName = signal('');
     readonly encrypted = signal(false);
     readonly creating = signal(false);
+    /** Device names that could not be added for lack of key packages - shown after creation. */
+    readonly unreachableDevices = signal<string[]>([]);
     readonly filteredFriends = computed(() => {
         const q = this.search().toLowerCase();
         return q
@@ -45,6 +48,7 @@ export class NewConversationDialogComponent {
     readonly canCreate = computed(() => this.selectedIds().size >= 1 && !this.creating());
     private conversationService = inject(ConversationService);
     private mlsService = inject(MlsService);
+    private mlsTransport = inject(MlsTransportService);
     private conversationStore = inject(ConversationStore);
     private navService = inject(NavigationService);
     private profileService = inject(ProfileService);
@@ -106,72 +110,82 @@ export class NewConversationDialogComponent {
             return;
         }
 
-        const allUserIds = [ownId, ...Array.from(this.selectedIds())];
+        void this.buildAndCreate(members, name, ownId, keyHandle);
+    }
 
-        from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(
-            switchMap(ownDeviceId =>
-                this.conversationService.getMlsTokensForUserIds(allUserIds).pipe(
-                    map(({deviceTokens}) => ({ownDeviceId, deviceTokens}))
-                )
-            ),
-            switchMap(({ownDeviceId, deviceTokens}) => {
-                const otherTokens = deviceTokens.filter(t => t.deviceId !== ownDeviceId);
+    /**
+     * Builds the MLS group locally, then creates the conversation carrying it.
+     *
+     * The group is merged immediately rather than staged: it exists nowhere but this device until
+     * the conversation POST lands, so there is no concurrent committer to lose a race against. If
+     * that POST then fails, the local group is deleted - leaving it behind would have this device
+     * holding keys for a conversation that does not exist, and the next attempt would mint a second
+     * group for the same people.
+     */
+    private async buildAndCreate(
+        members: { userId: string }[],
+        name: string | undefined,
+        ownId: string,
+        keyHandle: string,
+    ): Promise<void> {
+        const groupIdBytes = crypto.getRandomValues(new Uint8Array(16));
+        const groupIdB64 = btoa(String.fromCharCode(...groupIdBytes));
 
-                const groupIdBytes = crypto.getRandomValues(new Uint8Array(16));
-                const groupIdB64 = btoa(String.fromCharCode(...groupIdBytes));
+        try {
+            const ownDeviceId = await this.mlsService.getOrCreateDeviceIdentifier();
+            const tokens = await firstValueFrom(
+                this.mlsTransport.consumeTokensForUsers([ownId, ...Array.from(this.selectedIds())]),
+            );
+            const invitees = tokens.deviceTokens.filter(t => t.deviceId !== ownDeviceId);
 
-                return this.mlsService.createGroup(groupIdB64, keyHandle).pipe(
-                    switchMap(() => {
-                        if (otherTokens.length === 0) {
-                            return of({
-                                groupIdB64,
-                                epoch: 0,
-                                deviceWelcomes: [] as DeviceWelcomeDto[],
-                                mlsGroupInfo: undefined as string | undefined
-                            });
-                        }
+            await firstValueFrom(this.mlsService.createGroup(groupIdB64, keyHandle));
 
-                        const keyPackagesB64 = otherTokens.map(t => t.token);
-                        return this.mlsService.addMembers(groupIdB64, keyHandle, keyPackagesB64).pipe(
-                            switchMap(commitOut => {
-                                const welcome = commitOut.welcome!;
-                                const deviceWelcomes: DeviceWelcomeDto[] = otherTokens.map(t => ({
-                                    deviceId: t.deviceId,
-                                    welcome,
-                                    userId: t.userId,
-                                }));
-                                return this.mlsService.exportGroupInfo(groupIdB64, keyHandle).pipe(
-                                    map(mlsGroupInfo => ({
-                                        groupIdB64,
-                                        epoch: commitOut.epoch,
-                                        deviceWelcomes,
-                                        mlsGroupInfo
-                                    }))
-                                );
-                            })
-                        );
-                    })
+            let epoch = 0;
+            let deviceWelcomes: DeviceWelcomeDto[] = [];
+            let mlsGroupInfo: string | undefined;
+
+            if (invitees.length > 0) {
+                const commitOut = await firstValueFrom(
+                    this.mlsService.addMembers(groupIdB64, keyHandle, invitees.map(t => t.token)),
                 );
-            }),
-            switchMap(({groupIdB64, epoch, deviceWelcomes, mlsGroupInfo}) =>
-                this.conversationService.createConversation({
-                    name,
-                    members,
-                    encryption: ConversationEncryption.Encrypted,
-                    deviceWelcomes,
-                    mlsGroupId: groupIdB64,
-                    mlsEpoch: epoch,
-                    mlsGroupInfo,
-                }).pipe(map(conv => ({conv, groupIdB64})))
-            )
-        ).subscribe({
-            next: ({conv, groupIdB64}) => {
-                void this.mlsService.registerGroupForConversation(conv.id, groupIdB64);
-                this.conversationStore.addConversation(conv);
-                this.navService.openConversation(conv);
-                this.close();
-            },
-            error: () => this.creating.set(false),
-        });
+                await firstValueFrom(this.mlsService.mergePendingCommit(groupIdB64));
+
+                epoch = commitOut.epoch;
+                deviceWelcomes = invitees.map(t => ({
+                    deviceId: t.deviceId,
+                    userId: t.userId,
+                    welcome: commitOut.welcome!,
+                }));
+                mlsGroupInfo = await firstValueFrom(this.mlsService.exportGroupInfo(groupIdB64, keyHandle));
+            }
+
+            const conv = await firstValueFrom(this.conversationService.createConversation({
+                name,
+                members,
+                encryption: ConversationEncryption.Encrypted,
+                deviceWelcomes,
+                mlsGroupId: groupIdB64,
+                mlsEpoch: epoch,
+                mlsGroupInfo,
+            }));
+
+            // The server mints generation 1 for a conversation created encrypted.
+            await this.mlsService.registerGroup(conv.id, 1, groupIdB64);
+
+            // Devices with no key package left were not added and never will be able to read this
+            // conversation. Saying so beats letting someone discover it when a reply never arrives.
+            const unreachable = tokens.unreachableDevices ?? [];
+            if (unreachable.length > 0) {
+                this.unreachableDevices.set(unreachable.map(d => d.deviceName));
+            }
+
+            this.conversationStore.addConversation(conv);
+            this.navService.openConversation(conv);
+            this.close();
+        } catch (err) {
+            console.error('Failed to create encrypted conversation', err);
+            await firstValueFrom(this.mlsService.deleteGroup(groupIdB64)).catch(() => undefined);
+            this.creating.set(false);
+        }
     }
 }
