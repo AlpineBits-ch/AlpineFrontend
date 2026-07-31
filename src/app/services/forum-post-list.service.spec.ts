@@ -276,6 +276,32 @@ describe('ForumPostListService realtime', () => {
         service.reloadIfStale('f2');
     });
 
+    /**
+     * Opening a post destroys the full-width list and creates the pane over the same forum.
+     * Angular doesn't promise the destroy runs first, and both claims name the same forum,
+     * so a release has to be identified by its token - otherwise the late destroy revokes
+     * the pane's claim and created posts silently stop appearing in it.
+     */
+    it('keeps the forum live when the outgoing mount point is destroyed after the incoming one', () => {
+        const {service, ctrl, ws} = setup();
+
+        service.reload('f1');
+        flushPosts(ctrl, [postFixture({id: 'p1'})]);
+
+        const list = service.setActiveForum('f1');
+        const pane = service.setActiveForum('f1');
+        service.releaseActiveForum(list);
+
+        ws.threadCreatedObservable.next({guildId: 'g1', parentChannelId: 'f1', channelId: 'new1'});
+        flushPosts(ctrl, [postFixture({id: 'p1'}), postFixture({id: 'new1'})]);
+        expect(service.stateFor('f1').posts.map(p => p.id)).toEqual(['p1', 'new1']);
+
+        // The live claim still releases normally, leaving nothing on screen to keep current.
+        service.releaseActiveForum(pane);
+        ws.threadCreatedObservable.next({guildId: 'g1', parentChannelId: 'f1', channelId: 'new2'});
+        expect(service.stateFor('f1').stale).toBe(true);
+    });
+
     it('drops an archived post when showArchived is false', () => {
         const {service, ctrl, ws} = setup();
 

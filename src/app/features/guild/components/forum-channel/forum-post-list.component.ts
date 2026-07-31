@@ -90,6 +90,9 @@ export class ForumPostListComponent implements OnDestroy {
 
     private ownMember = signal<SelfGuildMemberDto | null>(null);
 
+    /** This instance's claim on "the forum on screen"; handed back on destroy. */
+    private activeClaim = 0;
+
     /** Ticked so the cards' relative timestamps age without each pipe reading the clock. */
     protected nowTick = signal(0);
     private tickIntervalId = setInterval(() => this.nowTick.update(n => n + 1), 60_000);
@@ -175,8 +178,8 @@ export class ForumPostListComponent implements OnDestroy {
                 this.forumState.loadFor(forumId);
                 this.emojiStore.ensureLoaded(guildId);
                 // Only the forum on screen reloads on a post created in it; claim it, and
-                // release it again on destroy.
-                this.postList.setActiveForum(forumId);
+                // release that claim again on destroy.
+                this.activeClaim = this.postList.setActiveForum(forumId);
                 // A list that has already been fetched is reused as-is - that is what lets a
                 // second mount point open over the same forum without refetching. It only
                 // catches up if a post was created there while the user was elsewhere.
@@ -196,7 +199,7 @@ export class ForumPostListComponent implements OnDestroy {
 
     ngOnDestroy(): void {
         clearInterval(this.tickIntervalId);
-        this.postList.setActiveForum(null);
+        this.postList.releaseActiveForum(this.activeClaim);
     }
 
     // ── Loading ──────────────────────────────────────────────────────────────

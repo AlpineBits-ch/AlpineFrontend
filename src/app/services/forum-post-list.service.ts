@@ -68,6 +68,10 @@ export class ForumPostListService {
     /** The forum currently on screen, per the component that mounted it. */
     private activeForumId: string | null = null;
 
+    /** Identifies the live claim on activeForumId; 0 when nobody holds one. See setActiveForum. */
+    private activeClaim = 0;
+    private lastClaim = 0;
+
     private forumService = inject(ForumService);
     private forumState = inject(ForumStateService);
     private ws = inject(GuildWebsocketService);
@@ -117,11 +121,31 @@ export class ForumPostListService {
     }
 
     /**
-     * Which forum is on screen. Only that one reacts to a created post in realtime; the
-     * component that mounts a list sets it, and clears it (null) when it goes away.
+     * Claims a forum as the one on screen. Only that forum reacts to a created post in
+     * realtime; the rest are marked stale and catch up when next mounted.
+     *
+     * Returns a token the caller hands back to releaseActiveForum on destroy. Two mount
+     * points draw the same forum - the full-width list and the narrow pane - and opening a
+     * post destroys one while creating the other. Angular gives no guarantee the destroy
+     * runs first, and both claims carry the same forum id, so an id comparison can't tell
+     * the outgoing instance from the incoming one. The token can.
      */
-    setActiveForum(forumId: string | null): void {
+    setActiveForum(forumId: string): number {
         this.activeForumId = forumId;
+        this.activeClaim = ++this.lastClaim;
+        return this.activeClaim;
+    }
+
+    /**
+     * Drops the claim only if it is still the live one. A late destroy releasing a token
+     * that has already been superseded is a no-op - otherwise it would wipe the claim the
+     * incoming instance just made, and newly created posts would silently stop appearing
+     * live in a pane that looks perfectly healthy.
+     */
+    releaseActiveForum(claim: number): void {
+        if (this.activeClaim !== claim) return;
+        this.activeForumId = null;
+        this.activeClaim = 0;
     }
 
     // ── Loading ──────────────────────────────────────────────────────────────
@@ -155,7 +179,13 @@ export class ForumPostListService {
     }
 
     // ── Filters. Changing any of these invalidates the cursor, so every setter
-    // routes through a reload rather than mutating and hoping. ────────────────
+    // routes through a reload rather than mutating and hoping.
+    //
+    // Filters persist for the session and are deliberately never reset on reopening a
+    // forum. The forum view used to clear them on open, because they lived in the
+    // component and would otherwise have followed you into the next forum and silently
+    // hidden posts there. Keyed by forum id they can no longer leak that way, so a forum
+    // you come back to is simply the one you left. ────────────────────────────
     toggleTagFilter(forumId: string, tagId: string): void {
         const ids = this.stateFor(forumId).selectedTagIds;
         this.patch(forumId, {selectedTagIds: ids.includes(tagId) ? ids.filter(id => id !== tagId) : [...ids, tagId]});
@@ -171,16 +201,6 @@ export class ForumPostListService {
     toggleArchived(forumId: string): void {
         this.patch(forumId, {showArchived: !this.stateFor(forumId).showArchived});
         this.reload(forumId);
-    }
-
-    /**
-     * Filters belong to the forum you were looking at, not the one you just opened -
-     * carrying them across would silently hide posts in the new forum. No fetch: the
-     * caller pairs this with the reload that opening a forum does anyway, and a forum
-     * with nothing to reset stays unopened rather than gaining an entry.
-     */
-    resetFilters(forumId: string): void {
-        this.updateLoaded(forumId, s => ({...s, selectedTagIds: [], showArchived: false}));
     }
 
     // ── Post edits ───────────────────────────────────────────────────────────
