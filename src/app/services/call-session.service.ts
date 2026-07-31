@@ -24,6 +24,11 @@ export class CallSessionService {
      * stays true when no push-to-talk key is bound, so the mic is open by default.
      */
     readonly pttGateOpen = signal(true);
+    /**
+     * When the server has told us we are the only one left in the call, the moment it will
+     * force-end it. Null whenever that does not apply.
+     */
+    readonly aloneDeadline = signal<Date | null>(null);
     /** Quality of the running screen share, or null when not sharing. */
     readonly screenPreset = signal<StreamPreset | null>(null);
     /**
@@ -79,15 +84,28 @@ export class CallSessionService {
         // TODO(webrtc): inject CallWebRtcService and call .connect(callDto, conversationId)
     }
 
-    end(): void {
+    /**
+     * Hang up: removes the local user from the call, leaving it running for everyone else.
+     *
+     * @param silent skip the network call because the server has already torn this session down
+     *               (device takeover, or we are reacting to a `CallEnded` that already happened).
+     *               Calling leave then would be a pointless, possibly-erroring request against a
+     *               participant record that no longer exists.
+     */
+    end(silent = false): void {
         const s = this.session();
         if (!s) return;
         // Stop any active local media streams before tearing down
         s.participants.find(p => p.isLocal)?.videoStream?.getTracks().forEach(t => t.stop());
         s.screenShares.find(sh => sh.isLocal)?.stream?.getTracks().forEach(t => t.stop());
         // TODO(webrtc): disconnect all peer connections
-        this.voiceService.endCall(s.callId).subscribe();
+        if (!silent) this.voiceService.leaveCall(s.callId).subscribe();
         this.session.set(null);
+        this.aloneDeadline.set(null);
+    }
+
+    setAloneDeadline(deadline: Date | null): void {
+        this.aloneDeadline.set(deadline);
     }
 
     // ── Local controls ───────────────────────────────────────────────────────
@@ -344,6 +362,8 @@ export class CallSessionService {
         };
 
         this.session.update(st => st ? {...st, participants: [...st.participants, participant]} : st);
+        // Someone came back, so the server's force-end countdown no longer applies.
+        if ((this.session()?.participants.length ?? 0) > 1) this.aloneDeadline.set(null);
     }
 
     onParticipantLeft(userId: string): void {

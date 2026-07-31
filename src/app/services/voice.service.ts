@@ -69,8 +69,24 @@ export class VoiceService {
         return this.client.put<CallDto>(`${this.base}/call/${callId}/decline`, {});
     }
 
+    /**
+     * Ends the call for everyone. No UI action reaches this any more - the single hang-up button
+     * means {@link leaveCall}. Kept because the endpoint exists and the app may grow a host
+     * action; there is no host concept today.
+     */
     endCall(callId: string): Observable<CallDto> {
         return this.client.put<CallDto>(`${this.base}/call/${callId}/end`, {});
+    }
+
+    /**
+     * Removes only the local user. Dropping to zero connected participants ends the call
+     * server-side; dropping to one starts a grace period before it is force-ended.
+     *
+     * This is what hanging up now does, and it is the fix for the decline-here/end-there bug:
+     * leaving on one device no longer tears the call down for everyone else.
+     */
+    leaveCall(callId: string): Observable<CallDto> {
+        return this.client.put<CallDto>(`${this.base}/call/${callId}/leave`, {});
     }
 
     /** Authoritative current-state fetch - the catch-up path when a live

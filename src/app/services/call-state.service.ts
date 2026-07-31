@@ -116,7 +116,9 @@ export class CallStateService implements OnDestroy {
         this.pendingCallSub?.unsubscribe();
         this.pendingCallSub = null;
         if (this.pendingCallDto) {
-            this.voiceService.endCall(this.pendingCallDto.id).subscribe();
+            // Cancelling before anyone answers is "the only connected participant leaves", which
+            // the server models as leave - dropping to zero ends the call immediately.
+            this.voiceService.leaveCall(this.pendingCallDto.id).subscribe();
             this.pendingCallDto = null;
         }
         this.stopRingtone();
