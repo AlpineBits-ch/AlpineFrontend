@@ -72,6 +72,16 @@ impl RingReader {
     pub fn available_frames(&self) -> usize {
         self.consumer.occupied_len() / FRAME
     }
+
+    /// Pop as much as will fit, returning how many samples were actually available.
+    ///
+    /// The opposite policy to `read_frame`, and deliberately so: the output device callback is
+    /// handed a buffer it must fill completely, whatever size the host chose. Refusing a partial
+    /// read there would mean emitting nothing at all, so a short read becomes silence instead - a
+    /// gap the caller can count, rather than a stall.
+    pub fn pop_into(&mut self, out: &mut [f32]) -> usize {
+        self.consumer.pop_slice(out)
+    }
 }
 
 #[cfg(test)]
