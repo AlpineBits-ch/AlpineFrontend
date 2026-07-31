@@ -44,6 +44,7 @@ use crate::media::publisher::signalling::{SessionRole, Signalling, VoiceTarget};
 use chain::ChainConfig;
 use gate::{GateConfig, InputMode};
 use process::{NoiseSuppression, ProcessConfig};
+use mixer::Position;
 use session::{VoiceEvent, VoiceHandle};
 
 /// The one running voice session.
@@ -162,6 +163,10 @@ pub async fn voice_start(
     guild_id: Option<String>,
     channel_id: Option<String>,
     call_id: Option<String>,
+    // Isle proximity voice. Optional rather than a bare `bool` because Tauri deserialises each
+    // argument on its own, so an absent one is an error unless the type admits it - and the guild
+    // and call callers do not send this.
+    isle: Option<bool>,
     on_event: tauri::ipc::Channel<VoiceEvent>,
 ) -> Result<VoiceStartResult, String> {
     voice_stop();
@@ -172,7 +177,10 @@ pub async fn voice_start(
             channel_id,
         },
         (_, _, Some(call_id)) => VoiceTarget::Call { call_id },
-        _ => return Err("voice needs either guildId+channelId or callId".into()),
+        // Isle addresses no channel or call - a player has one proximity session - so it is the
+        // one target identified by the absence of ids rather than the presence of them.
+        _ if isle.unwrap_or(false) => VoiceTarget::Isle,
+        _ => return Err("voice needs guildId+channelId, callId, or isle".into()),
     };
 
     // Primary: this is the session the backend records as the participant's audio.
@@ -272,6 +280,40 @@ pub fn voice_set_user_volume(id: String, volume: f32) {
 #[tauri::command]
 pub fn voice_set_deafened(deafened: bool) {
     with_active(|h| h.set_deafened(deafened));
+}
+
+/// Turn positional audio on or off. Isle proximity voice only; guild channels and calls leave it
+/// off and every source stays centred.
+#[tauri::command]
+pub fn voice_set_spatial(enabled: bool) {
+    with_active(|h| h.set_spatial(enabled));
+}
+
+/// The audible radius in metres, beyond which a source is silent.
+///
+/// Comes from the server rather than being assumed here: it has to match the radius the backend
+/// uses to decide who is even subscribed, or players fade to nothing before they stop being sent,
+/// or - worse - stay audible right up to the moment they vanish.
+#[tauri::command]
+pub fn voice_set_max_distance(metres: f32) {
+    with_active(|h| h.set_max_distance(metres));
+}
+
+/// Place a participant relative to the listener, or un-place them by passing no coordinates.
+///
+/// Listener-relative, not world coordinates: the caller has already applied the listener's own
+/// position and facing. `+x` is their right, `+y` up, `+z` forward.
+#[tauri::command]
+pub fn voice_set_position(id: String, x: Option<f32>, y: Option<f32>, z: Option<f32>) {
+    let position = match (x, y, z) {
+        (Some(x), Some(y), Some(z)) if x.is_finite() && y.is_finite() && z.is_finite() => {
+            Some(Position { x, y, z })
+        }
+        // Either genuinely un-placed, or a garbled update. Both mean "do not pretend to know where
+        // this person is" - a NaN would otherwise reach the HRTF sampler.
+        _ => None,
+    };
+    with_active(|h| h.set_position(id.clone(), position));
 }
 
 /// A NaN volume reads as "unset" rather than "silent".

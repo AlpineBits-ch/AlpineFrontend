@@ -109,6 +109,8 @@ pub enum VoiceTarget {
     GuildChannel { guild_id: String, channel_id: String },
     /// A direct-message call.
     Call { call_id: String },
+    /// Isle proximity voice. One session per player, no channel or call to address.
+    Isle,
 }
 
 /// Whether this session is the one the backend should record as the participant's audio.
@@ -193,18 +195,27 @@ impl Signalling {
             VoiceTarget::Call { call_id } => {
                 format!("{}/api/v1/messaging/voice/calls/{call_id}", self.base_url)
             }
+            VoiceTarget::Isle => format!("{}/api/v1/isle/voice", self.base_url),
         }
     }
 
     /// URL for opening this Cloudflare session.
     ///
     /// The `primary` flag is load-bearing in both directions - see [`SessionRole`].
+    ///
+    /// Isle is the exception on both counts: it opens at `cf/session` rather than `session`, and
+    /// it has no `primary` concept because a player has exactly one proximity session. Sending the
+    /// flag anyway would be harmless but the path difference is not - see
+    /// `IsleVoiceApiService.createSession`.
     pub fn session_url(&self) -> String {
-        format!(
-            "{}/session?primary={}",
-            self.voice_base(),
-            self.role.as_query_value()
-        )
+        match self.target {
+            VoiceTarget::Isle => format!("{}/cf/session", self.voice_base()),
+            _ => format!(
+                "{}/session?primary={}",
+                self.voice_base(),
+                self.role.as_query_value()
+            ),
+        }
     }
 
     /// Open a Cloudflare session for this client's tracks alone.

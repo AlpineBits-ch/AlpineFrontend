@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 use super::capture;
 use super::chain::{CaptureChain, ChainConfig};
 use super::jitter::Packet;
-use super::mixer::Mixer;
+use super::mixer::{Mixer, Position};
 use super::playout;
 use super::receive::RemoteSource;
 use super::rtc::VoicePublication;
@@ -143,6 +143,18 @@ pub struct Control {
     /// Bits rather than a float because there is no `AtomicF32`, and an atomic rather than joining
     /// `pending_config` because that one belongs to the capture thread and this is read by playout.
     master_bits: AtomicU32,
+
+    /// Whether sources are placed in space rather than centred. Isle proximity voice only.
+    spatial: AtomicBool,
+    /// Audible radius in metres, as `f32` bits.
+    max_distance_bits: AtomicU32,
+    /// Listener-relative positions, keyed by source id. `None` un-places a source.
+    ///
+    /// Same shape as `gains`: a mutex the frame path only locks when `positions_dirty` says
+    /// something moved. Positions arrive far more often than gains - every player movement tick -
+    /// so leaving this to be polled per frame would put a lock on the audio path.
+    positions: Mutex<HashMap<String, Option<Position>>>,
+    positions_dirty: AtomicBool,
 }
 
 /// Written out rather than derived: every other field's zero value is the right default, and this
@@ -159,6 +171,11 @@ impl Default for Control {
             gains_dirty: AtomicBool::new(false),
             deafened: AtomicBool::new(false),
             master_bits: AtomicU32::new(1.0f32.to_bits()),
+            spatial: AtomicBool::new(false),
+            // Matches Mixer's own default. Isle overrides it from the server's audible radius.
+            max_distance_bits: AtomicU32::new(20.0f32.to_bits()),
+            positions: Mutex::new(HashMap::new()),
+            positions_dirty: AtomicBool::new(false),
         }
     }
 }
@@ -232,6 +249,50 @@ impl Control {
         self.deafened.store(deafened, Ordering::Relaxed);
     }
 
+    pub fn spatial(&self) -> bool {
+        self.spatial.load(Ordering::Relaxed)
+    }
+
+    pub fn set_spatial(&self, enabled: bool) {
+        self.spatial.store(enabled, Ordering::Relaxed);
+    }
+
+    pub fn max_distance(&self) -> f32 {
+        f32::from_bits(self.max_distance_bits.load(Ordering::Relaxed))
+    }
+
+    /// Audible radius in metres. Ignored unless positive and finite: zero or NaN would silence
+    /// every positioned source at once, which is indistinguishable from the game having stopped
+    /// sending positions.
+    pub fn set_max_distance(&self, metres: f32) {
+        if !metres.is_finite() || metres <= 0.0 {
+            return;
+        }
+        self.max_distance_bits.store(metres.to_bits(), Ordering::Relaxed);
+    }
+
+    pub fn set_position(&self, id: String, position: Option<Position>) {
+        if let Ok(mut guard) = self.positions.lock() {
+            guard.insert(id, position);
+            self.positions_dirty.store(true, Ordering::Release);
+        }
+    }
+
+    pub fn forget_position(&self, id: &str) {
+        if let Ok(mut guard) = self.positions.lock() {
+            guard.remove(id);
+            self.positions_dirty.store(true, Ordering::Release);
+        }
+    }
+
+    /// Every position that changed since the last call, or `None` when nothing moved.
+    fn take_positions(&self) -> Option<HashMap<String, Option<Position>>> {
+        if !self.positions_dirty.swap(false, Ordering::Acquire) {
+            return None;
+        }
+        self.positions.lock().ok().map(|p| p.clone())
+    }
+
     pub fn master(&self) -> f32 {
         f32::from_bits(self.master_bits.load(Ordering::Relaxed))
     }
@@ -296,6 +357,18 @@ impl VoiceHandle {
         self.control.set_master(gain);
     }
 
+    pub fn set_spatial(&self, enabled: bool) {
+        self.control.set_spatial(enabled);
+    }
+
+    pub fn set_max_distance(&self, metres: f32) {
+        self.control.set_max_distance(metres);
+    }
+
+    pub fn set_position(&self, id: String, position: Option<Position>) {
+        self.control.set_position(id, position);
+    }
+
     /// Pull one participant's track onto this session and start mixing them in.
     ///
     /// The source is created *before* the subscribe, so the mid-to-source mapping written inside
@@ -346,6 +419,9 @@ impl VoiceHandle {
             map.retain(|_, source_id| source_id != id);
         }
         self.control.forget_gain(id);
+        // Or a player who walked out of earshot keeps their last position in the table, and the
+        // mixer keeps a spatial convolution state for a source that no longer exists.
+        self.control.forget_position(id);
     }
 
     pub fn stop(&self) {
@@ -451,6 +527,13 @@ pub async fn start(
                 }
                 mixer.set_deafened(playout_control.deafened());
                 mixer.set_master(playout_control.master());
+                mixer.set_spatial(playout_control.spatial());
+                mixer.set_max_distance(playout_control.max_distance());
+                if let Some(positions) = playout_control.take_positions() {
+                    for (id, position) in positions {
+                        mixer.set_position(&id, position);
+                    }
+                }
 
                 // Collected into owned frames rather than borrowed from the map: `mix` wants a
                 // slice of slices, and producing them mutates each source, so the borrow cannot be
@@ -635,6 +718,64 @@ mod tests {
         control.set_master(0.5);
         control.set_master(f32::NAN);
         assert_eq!(control.master(), 0.5);
+    }
+
+    #[test]
+    fn spatial_is_off_until_asked_for() {
+        // Guild channels and calls never enable it, so the default decides their behaviour too.
+        let control = Control::default();
+        assert!(!control.spatial());
+        control.set_spatial(true);
+        assert!(control.spatial());
+    }
+
+    #[test]
+    fn positions_are_only_reported_once_per_change() {
+        // Positions arrive on every movement tick. The playout thread asks each frame, so handing
+        // it the table unconditionally would put a lock on the audio path 100 times a second.
+        let control = Control::default();
+        assert!(control.take_positions().is_none());
+
+        control.set_position("a".into(), Some(Position { x: 1.0, y: 0.0, z: 0.0 }));
+        let positions = control.take_positions().expect("a move was pending");
+        assert!(positions.contains_key("a"));
+        assert!(control.take_positions().is_none(), "the move was consumed");
+    }
+
+    #[test]
+    fn un_placing_a_participant_is_itself_a_change() {
+        let control = Control::default();
+        control.set_position("a".into(), Some(Position { x: 1.0, y: 0.0, z: 0.0 }));
+        control.take_positions();
+
+        control.set_position("a".into(), None);
+        let positions = control.take_positions().expect("un-placing must be reported");
+        assert_eq!(positions.get("a"), Some(&None));
+    }
+
+    #[test]
+    fn leaving_earshot_forgets_the_position_entirely() {
+        // Distinct from un-placing: the entry goes away rather than becoming None, so the mixer is
+        // not left holding spatial state for somebody who is gone.
+        let control = Control::default();
+        control.set_position("a".into(), Some(Position { x: 1.0, y: 0.0, z: 0.0 }));
+        control.take_positions();
+
+        control.forget_position("a");
+        let positions = control.take_positions().expect("removal must be reported");
+        assert!(!positions.contains_key("a"));
+    }
+
+    #[test]
+    fn a_nonsensical_audible_radius_is_ignored() {
+        // Zero or NaN would silence every positioned source at once, which looks exactly like the
+        // game having stopped sending positions - so the last usable radius is kept instead.
+        let control = Control::default();
+        control.set_max_distance(40.0);
+        for bad in [0.0, -5.0, f32::NAN, f32::INFINITY] {
+            control.set_max_distance(bad);
+            assert_eq!(control.max_distance(), 40.0, "rejected {bad}");
+        }
     }
 
     #[test]

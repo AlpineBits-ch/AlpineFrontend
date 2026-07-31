@@ -5,7 +5,15 @@ import {AudioSettings, AudioSettingsService} from './audio-settings.service';
 /** Which call surface the session belongs to. Mirrors the Rust `VoiceTarget`. */
 export type VoiceTarget =
     | {kind: 'guild'; guildId: string; channelId: string}
-    | {kind: 'call'; callId: string};
+    | {kind: 'call'; callId: string}
+    | {kind: 'isle'};
+
+/** A participant's position relative to the listener: +x right, +y up, +z forward, in metres. */
+export interface VoicePosition {
+    x: number;
+    y: number;
+    z: number;
+}
 
 /** One remote participant's meter, mirroring the Rust `RemoteLevel`. */
 export interface RemoteLevel {
@@ -142,6 +150,8 @@ export class VoiceEngineService {
             guildId: target.kind === 'guild' ? target.guildId : null,
             channelId: target.kind === 'guild' ? target.channelId : null,
             callId: target.kind === 'call' ? target.callId : null,
+            // Isle addresses no channel or call, so it is flagged rather than identified.
+            isle: target.kind === 'isle',
             onEvent: channel,
         });
 
@@ -191,6 +201,48 @@ export class VoiceEngineService {
     async setDeafened(deafened: boolean): Promise<void> {
         if (!isTauri()) return;
         await invoke('voice_set_deafened', {deafened});
+    }
+
+    // ── Positional audio (Isle proximity voice) ───────────────────────────────
+
+    /**
+     * Place sources in space rather than centring them.
+     *
+     * Off for guild channels and calls, where "where is this person" has no meaning. When on, the
+     * mixer convolves each source with the bundled HRTF sphere.
+     */
+    async setSpatial(enabled: boolean): Promise<void> {
+        if (!isTauri()) return;
+        await invoke('voice_set_spatial', {enabled});
+    }
+
+    /**
+     * The audible radius in metres. Beyond it a source is silent.
+     *
+     * Comes from the server so it matches the radius the backend uses to decide who is subscribed
+     * at all - otherwise players either fade out before they stop being sent, or stay at full
+     * volume until they abruptly vanish.
+     */
+    async setMaxDistance(metres: number): Promise<void> {
+        if (!isTauri()) return;
+        await invoke('voice_set_max_distance', {metres});
+    }
+
+    /**
+     * Move a participant, or un-place them by passing null.
+     *
+     * Listener-relative: the caller has already applied the listener's own position and facing.
+     * Called on every movement tick, so it deliberately does nothing but forward - Rust keeps the
+     * table and the playout thread picks up changes once per frame.
+     */
+    async setPosition(id: string, position: VoicePosition | null): Promise<void> {
+        if (!isTauri()) return;
+        await invoke('voice_set_position', {
+            id,
+            x: position?.x ?? null,
+            y: position?.y ?? null,
+            z: position?.z ?? null,
+        });
     }
 
     async setMute(muted: boolean): Promise<void> {
