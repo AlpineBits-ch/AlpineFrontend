@@ -1,5 +1,6 @@
 import {Component, inject, input, output} from '@angular/core';
-import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto';
+import {ChannelDto, ChannelType, isForumLike} from '../../../../../../dtos/response/guild.dto';
+import {ForumPostRowsComponent} from '../forum-post-rows/forum-post-rows.component';
 import {ChannelListDragService} from '../../channel-list-drag.service';
 import {ChannelMenuRequest, ParticipantMenuRequest} from '../channel-item.types';
 import {ChannelDropIndicatorComponent} from '../channel-drop-indicator/channel-drop-indicator.component';
@@ -13,7 +14,10 @@ import {VoiceChannelItemComponent} from '../voice-channel-item/voice-channel-ite
 @Component({
     selector: 'app-channel-list-items',
     host: {class: 'contents'},
-    imports: [ChannelDropIndicatorComponent, TextChannelItemComponent, VoiceChannelItemComponent],
+    imports: [
+        ChannelDropIndicatorComponent, TextChannelItemComponent, VoiceChannelItemComponent,
+        ForumPostRowsComponent,
+    ],
     templateUrl: './channel-list-items.component.html',
 })
 export class ChannelListItemsComponent {
@@ -26,5 +30,6 @@ export class ChannelListItemsComponent {
     readonly openParticipantMenu = output<ParticipantMenuRequest>();
 
     protected readonly ChannelType = ChannelType;
+    protected readonly isForumLike = isForumLike;
     protected drag = inject(ChannelListDragService);
 }

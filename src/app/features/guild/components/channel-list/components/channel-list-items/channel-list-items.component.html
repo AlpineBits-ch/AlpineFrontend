@@ -16,6 +16,12 @@
                 (openMenu)="openChannelMenu.emit({event: $event, channel})"
                 [canReorder]="canReorder()"
                 [channel]="channel"/>
+
+        <!-- A forum's recently-read and still-unread posts hang directly beneath it.
+             Renders nothing for a forum with neither, and nothing for any other type. -->
+        @if (isForumLike(channel.type)) {
+            <app-forum-post-rows [forum]="channel"/>
+        }
     }
 
     @if (drag.dropTargetId() === channel.id && drag.dropPos() === 'after') {

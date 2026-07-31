@@ -1,0 +1,62 @@
+@let rows = posts();
+
+@if (rows.length > 0) {
+    @let t = tree();
+
+    <div class="relative">
+
+        <!-- The connecting tree. One group, one opacity: overlapping branches would
+             otherwise double their alpha and light up every junction. -->
+        <svg [attr.height]="t.height" [attr.viewBox]="'0 0 22 ' + t.height"
+             class="absolute left-[10px] top-0 w-[22px] pointer-events-none" fill="none">
+            <defs>
+                <!-- Fades in over exactly the first row, so the trunk grows out of the forum
+                     above instead of starting on a blunt end. Beyond that it stays solid. -->
+                <linearGradient [attr.id]="gradientId" [attr.y2]="rowHeight" gradientUnits="userSpaceOnUse"
+                                x1="0" x2="0" y1="0">
+                    <stop offset="0" stop-color="#ffffff" stop-opacity="0"/>
+                    <stop offset="1" stop-color="#ffffff" stop-opacity="1"/>
+                </linearGradient>
+            </defs>
+            <g [attr.stroke]="'url(#' + gradientId + ')'" fill="none" opacity="0.22" stroke-linecap="round"
+               stroke-width="2.5">
+                <path [attr.d]="t.trunk"/>
+                @for (branch of t.branches; track $index) {
+                    <path [attr.d]="branch"/>
+                }
+            </g>
+        </svg>
+
+        @for (post of rows; track post.id) {
+            @let state = stateOf(post.id);
+            @let unread = state.isUnread || state.mentionCount > 0;
+
+            <button (click)="open(post)"
+                    [style.height.px]="rowHeight"
+                    class="w-full flex items-center text-left border-0 bg-transparent p-0 cursor-pointer group">
+
+                <!-- Unread pill, in the gutter left of the tree. -->
+                <span class="w-[10px] shrink-0 flex items-center">
+                    @if (unread && !isOpen(post.id)) {
+                        <span class="w-1 h-[9px] rounded-r-full bg-white"></span>
+                    }
+                </span>
+
+                <!-- Reserved for the tree drawn behind. -->
+                <span class="w-[22px] shrink-0"></span>
+
+                <span [class]="isOpen(post.id) ? 'bg-white/[0.08] text-white/95'
+                            : unread ? 'text-white/90 font-semibold group-hover:bg-white/[0.06]'
+                            : 'text-white/45 group-hover:bg-white/[0.06] group-hover:text-white/80'"
+                      class="flex-1 min-w-0 flex items-center gap-2 h-[26px] px-2 rounded-lg text-[0.775rem] transition-colors">
+                    <span class="truncate flex-1">{{ post.name }}</span>
+                    @if (state.mentionCount > 0) {
+                        <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                            {{ state.mentionCount }}
+                        </span>
+                    }
+                </span>
+            </button>
+        }
+    </div>
+}

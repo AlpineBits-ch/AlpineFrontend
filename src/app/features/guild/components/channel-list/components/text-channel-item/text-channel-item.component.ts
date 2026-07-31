@@ -1,6 +1,6 @@
 import {Component, computed, inject, input, output} from '@angular/core';
 import {NgClass} from '@angular/common';
-import {ChannelDto} from '../../../../../../dtos/response/guild.dto';
+import {ChannelDto, isForumLike} from '../../../../../../dtos/response/guild.dto';
 import {GuildReadStateService} from '../../../../../../services/guild-read-state.service';
 import {NavigationService} from '../../../../../main-page/navigation.service';
 import {ChannelListDragService} from '../../channel-list-drag.service';
@@ -24,7 +24,22 @@ export class TextChannelItemComponent {
     private navService = inject(NavigationService);
     private readStateService = inject(GuildReadStateService);
 
-    protected readState = computed(() => this.readStateService.getChannelState(this.channel().id));
+    /**
+     * A forum's own posts. Every message in a forum lives in one of these, never on the
+     * forum itself, so a forum row reading only its own id is permanently silent - it could
+     * never report a mention or an unread post. Empty for every other channel type, which
+     * leaves their read state exactly as it was.
+     */
+    private rollupIds = computed(() => {
+        const channel = this.channel();
+        if (!isForumLike(channel.type)) return [];
+        const ws = this.navService.workspace();
+        if (ws.type !== 'server') return [];
+        return ws.guild.channels.filter(c => c.parentChannelId === channel.id).map(c => c.id);
+    });
+
+    protected readState = computed(() =>
+        this.readStateService.aggregate([this.channel().id, ...this.rollupIds()]));
     protected isActive = computed(() => this.navService.isChannelActive(this.channel().id));
 
     /** `null` for Text, which renders a literal `#`. One table, no per-type ladder. */

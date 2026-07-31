@@ -66,6 +66,24 @@ export class GuildReadStateService {
         return this._channelStates()[channelId] ?? {isUnread: false, mentionCount: 0};
     }
 
+    /**
+     * One read state standing for a channel and its children. A forum carries no messages
+     * of its own - every message lives in one of its posts - so read straight off its own
+     * id it is permanently silent, and the row could never report activity inside it.
+     */
+    aggregate(channelIds: readonly string[]): ChannelReadState {
+        const states = this._channelStates();
+        let isUnread = false;
+        let mentionCount = 0;
+        for (const id of channelIds) {
+            const state = states[id];
+            if (!state) continue;
+            isUnread ||= state.isUnread;
+            mentionCount += state.mentionCount;
+        }
+        return {isUnread, mentionCount};
+    }
+
     hasAnyUnread(channelIds: string[]): boolean {
         const states = this._channelStates();
         return channelIds.some(id => states[id]?.isUnread ?? false);
