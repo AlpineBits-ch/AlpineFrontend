@@ -21,11 +21,19 @@ export interface CfTracksNewRequest {
 }
 
 export interface CfTrackResult {
-    mid: string;
+    /** Absent when the track failed - see errorCode/errorDescription. Never substitute a local
+     *  transceiver mid for a missing one: that is what turned a reported failure into a silent
+     *  one, leaving the participant marked subscribed and permanently inaudible. */
+    mid?: string;
     trackName: string;
     sessionId?: string;
     location?: string;
-    error?: string;
+    /** Cloudflare's per-track failure fields, relayed verbatim by the backend proxy. The proxy now
+     *  answers a response containing these with a 502 rather than passing it off as a success, so
+     *  in practice a failed track no longer reaches this client - they are declared because the
+     *  wire contract carries them. */
+    errorCode?: string;
+    errorDescription?: string;
 }
 
 export interface CfTracksNewResponse {

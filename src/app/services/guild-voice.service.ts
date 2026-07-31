@@ -38,11 +38,14 @@ export interface CfGuildTracksNewRequest {
 }
 
 export interface CfGuildTrackResult {
-    mid: string;
+    /** Absent when the track failed - see errorCode/errorDescription. */
+    mid?: string;
     trackName: string;
     sessionId?: string;
     location?: string;
-    error?: string | null;
+    /** Cloudflare's per-track failure fields - see the note on CfTrackResult in voice.service.ts. */
+    errorCode?: string;
+    errorDescription?: string;
 }
 
 export interface CfGuildTracksNewResponse {

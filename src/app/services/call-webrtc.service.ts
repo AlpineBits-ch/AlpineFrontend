@@ -586,16 +586,20 @@ export class CallWebRtcService {
             }]);
             console.log('[WebRTC] subscribeToTrack results', results);
 
-            // Map the MID (from CF response or our transceiver) so handleRemoteTrack can route it
-            const mid = results.find(r => r.trackName === trackName)?.mid ?? transceiver.mid;
-            console.log('[WebRTC] midMap set', mid, '→', {userId, kind});
-            if (mid) {
-                this.midMap.set(mid, {userId, kind, shareId});
-                this.processPendingTracks();
-            } else {
-                console.warn('[WebRTC] subscribeToTrack got no mid -CF likely had no active track for this name yet', {userId, trackName, kind});
-                if (kind === 'audio') this.subscribedAudioUserIds.delete(userId);
+            // Only Cloudflare's own mid can route this track. Falling back to `transceiver.mid`
+            // (as this used to) invents a mid for a subscription Cloudflare never set up: the
+            // entry goes into midMap, no media ever arrives on it, and because the dedupe guard
+            // above is left consumed, the live ParticipantJoined / syncParticipants / reconnect
+            // resync paths that could retry are all short-circuited. That is the "No audio
+            // received from this participant" state, and it lasted the whole call.
+            const mid = results.find(r => r.trackName === trackName)?.mid;
+            if (!mid) {
+                throw new Error(
+                    `Cloudflare returned no mid for ${kind} track "${trackName}" on session ${remoteCfSessionId}`);
             }
+            console.log('[WebRTC] midMap set', mid, '→', {userId, kind});
+            this.midMap.set(mid, {userId, kind, shareId});
+            this.processPendingTracks();
         } catch (e) {
             console.error('[WebRTC] subscribeToTrack failed', {userId, trackName, kind}, e);
             if (kind === 'audio') this.subscribedAudioUserIds.delete(userId);
