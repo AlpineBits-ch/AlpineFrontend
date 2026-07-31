@@ -37,7 +37,7 @@ pub const SAMPLE_RATE: u32 = 48_000;
 /// Duration of one [`FRAME`], in milliseconds.
 pub const FRAME_MS: u32 = 10;
 
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::media::publisher::rtc::IceServerConfig;
 use crate::media::publisher::signalling::{SessionRole, Signalling, VoiceTarget};
@@ -45,16 +45,34 @@ use chain::ChainConfig;
 use gate::{GateConfig, InputMode};
 use process::{NoiseSuppression, ProcessConfig};
 use mixer::Position;
-use session::{VoiceEvent, VoiceHandle};
+use rtc::VoicePublication;
+use session::{Control, Engine, VoiceEvent};
 
-/// The one running voice session.
+/// The client's one audio engine: one microphone, one set of speakers, one mixer.
 ///
-/// A user is in at most one call at a time, and a second capture would contend for the same
-/// microphone.
-static ACTIVE: OnceLock<Mutex<Option<VoiceHandle>>> = OnceLock::new();
+/// Absent until the first call starts and dropped when the last one ends, so nothing holds the
+/// devices open while the user is not in a call.
+static ENGINE: OnceLock<Mutex<Option<Engine>>> = OnceLock::new();
 
-fn active() -> &'static Mutex<Option<VoiceHandle>> {
-    ACTIVE.get_or_init(|| Mutex::new(None))
+fn engine() -> &'static Mutex<Option<Engine>> {
+    ENGINE.get_or_init(|| Mutex::new(None))
+}
+
+/// The guild-channel or DM-call publication.
+///
+/// Those two share a slot because they are mutually exclusive - you cannot be in a voice channel and
+/// a DM call at once - so starting either ends the other, exactly as before.
+const PRIMARY_SLOT: &str = "primary";
+
+/// Isle proximity voice, which runs *alongside* the primary call rather than replacing it. That is
+/// the whole reason slots exist.
+const ISLE_SLOT: &str = "isle";
+
+fn slot_for(target: &VoiceTarget) -> &'static str {
+    match target {
+        VoiceTarget::Isle => ISLE_SLOT,
+        _ => PRIMARY_SLOT,
+    }
 }
 
 /// How long the gate holds open after the signal drops below the threshold.
@@ -140,6 +158,12 @@ impl VoiceSettings {
 pub struct VoiceStartResult {
     pub cf_session_id: String,
     pub track_name: String,
+    /// Which publication this call became, to be handed back to every later command.
+    ///
+    /// Returned rather than derived on both sides: the frontend knows its own target and could work
+    /// the slot out itself, but then the mapping would exist in two places and a divergence would
+    /// present as commands silently addressing the wrong call.
+    pub slot: String,
 }
 
 /// Start capturing and publishing the microphone.
@@ -169,8 +193,6 @@ pub async fn voice_start(
     isle: Option<bool>,
     on_event: tauri::ipc::Channel<VoiceEvent>,
 ) -> Result<VoiceStartResult, String> {
-    voice_stop();
-
     let target = match (guild_id, channel_id, call_id) {
         (Some(guild_id), Some(channel_id), _) => VoiceTarget::GuildChannel {
             guild_id,
@@ -182,63 +204,122 @@ pub async fn voice_start(
         _ if isle.unwrap_or(false) => VoiceTarget::Isle,
         _ => return Err("voice needs guildId+channelId, callId, or isle".into()),
     };
+    let slot = slot_for(&target).to_owned();
 
     // Primary: this is the session the backend records as the participant's audio.
     let signalling = Signalling::new(api_base, token, device_id, target, SessionRole::Primary)?;
-    let handle = session::start(
-        settings.device_id.clone(),
-        settings.output_device_id.clone(),
-        ice_servers,
-        signalling,
-        settings.to_chain_config(),
-        on_event,
-    )
-    .await?;
 
-    // The chain config carries the input gain into `session::start`; the output slider has no such
-    // route, so it is applied here. Without this the mixer would sit at unity until the user next
-    // touched the slider, and a saved output volume would be ignored on every join.
-    handle.set_master(settings.master_gain());
-
-    let result = VoiceStartResult {
-        cf_session_id: handle.cf_session_id.clone(),
-        track_name: handle.track_name.clone(),
+    // Start the engine if this is the first call. `started_here` is kept so a connect that fails
+    // below can close the devices again rather than leaving the microphone open for a call that
+    // never happened.
+    let started_here = {
+        let mut guard = engine().lock().map_err(|_| "voice state poisoned")?;
+        let fresh = guard.is_none();
+        if fresh {
+            *guard = Some(Engine::start(
+                settings.device_id.clone(),
+                settings.output_device_id.clone(),
+                settings.to_chain_config(),
+            )?);
+        }
+        if let Some(engine) = guard.as_ref() {
+            // The chain config carries the input gain into `Engine::start`; the output slider has no
+            // such route, so it is applied here. Without this the mixer would sit at unity until the
+            // user next touched the slider, and a saved output volume would be ignored on join.
+            engine.control().set_master(settings.master_gain());
+        }
+        fresh
     };
 
-    if let Ok(mut guard) = active().lock() {
-        *guard = Some(handle);
-    }
-    Ok(result)
+    // Connected outside the lock: this is a full offer/answer round trip, and holding the engine
+    // mutex across it would block mute, push-to-talk and every other command for its duration.
+    let inner = match VoicePublication::start(signalling, ice_servers).await {
+        Ok(inner) => Arc::new(inner),
+        Err(e) => {
+            if started_here {
+                stop_engine_if_idle();
+            }
+            return Err(e);
+        }
+    };
+
+    let mut guard = engine().lock().map_err(|_| "voice state poisoned")?;
+    let Some(active) = guard.as_mut() else {
+        return Err("the voice engine stopped while this call was connecting".into());
+    };
+    let publication = active.attach(slot.clone(), inner, on_event);
+
+    Ok(VoiceStartResult {
+        cf_session_id: publication.cf_session_id.clone(),
+        track_name: publication.track_name.clone(),
+        slot,
+    })
 }
 
+/// End one call, or - with no slot - every call at once.
+///
+/// The slotless form is what a page reload uses: the webview that started the calls is gone, so
+/// there is nobody left to name them individually.
 #[tauri::command]
-pub fn voice_stop() {
-    if let Ok(mut guard) = active().lock() {
-        if let Some(handle) = guard.take() {
-            handle.stop();
+pub fn voice_stop(slot: Option<String>) {
+    if let Ok(mut guard) = engine().lock() {
+        if let Some(active) = guard.as_mut() {
+            match slot {
+                Some(slot) => active.unpublish(&slot),
+                None => active.stop(),
+            }
+        }
+    }
+    stop_engine_if_idle();
+}
+
+/// Close the devices once nothing is using them.
+///
+/// Separate from `voice_stop` because a failed join has to do the same thing, and because the check
+/// has to happen after the engine lock is released and retaken - `unpublish` is what empties it.
+fn stop_engine_if_idle() {
+    if let Ok(mut guard) = engine().lock() {
+        let idle = guard.as_ref().is_some_and(|active| active.is_empty());
+        if idle {
+            if let Some(mut active) = guard.take() {
+                active.stop();
+            }
         }
     }
 }
 
+/// Mute the microphone itself, for every call at once.
+///
+/// Engine-wide on purpose, unlike push-to-talk: muting is a statement about the microphone, and a
+/// mute that left you audible in another call would be the worst possible way to learn about slots.
 #[tauri::command]
 pub fn voice_set_mute(muted: bool) {
-    with_active(|h| h.set_muted(muted));
+    with_control(|control| control.set_muted(muted));
 }
 
+/// Open or close the microphone *for one call*.
+///
+/// Per publication, so proximity push-to-talk does not also key the guild channel. The microphone
+/// is captured once and stays live while any call wants it; this decides who the audio reaches.
 #[tauri::command]
-pub fn voice_set_ptt_open(open: bool) {
-    with_active(|h| h.set_ptt_down(open));
+pub fn voice_set_ptt_open(slot: String, open: bool) {
+    with_engine(|active| {
+        if let Some(publication) = active.publication(&slot) {
+            publication.set_open(open);
+            active.refresh_gate();
+        }
+    });
 }
 
 #[tauri::command]
 pub fn voice_set_processing(settings: VoiceSettings) {
     let config = settings.to_chain_config();
     let master = settings.master_gain();
-    with_active(|h| {
-        h.set_config(config);
+    with_engine(|active| {
+        active.set_config(config);
         // The output slider goes to the mixer, not the capture chain - it is the one setting here
         // that changes what you hear rather than what you send.
-        h.set_master(master);
+        active.control().set_master(master);
     });
 }
 
@@ -246,63 +327,64 @@ pub fn voice_set_processing(settings: VoiceSettings) {
 ///
 /// `id` is the key everything else uses - volume, levels, unsubscribe. For voice it is the user id;
 /// for a stream's audio it is `screen-audio-{shareId}`, so that muting someone's stream does not
-/// also mute their voice.
+/// also mute their voice. Ids are unique across calls, which is what lets one mixer serve them all.
 #[tauri::command]
 pub async fn voice_subscribe(
+    slot: String,
     id: String,
     cf_session_id: String,
     track_name: String,
 ) -> Result<(), String> {
-    // Cloned out of the lock rather than held across the await: `subscribe` does a full
-    // offer/answer round trip, and holding the session mutex across it would block mute, PTT and
-    // every other command for the duration.
-    let handle = {
-        let guard = active().lock().map_err(|_| "voice state poisoned")?;
-        match guard.as_ref() {
-            Some(handle) => handle.share(),
-            None => return Err("no voice session is running".into()),
+    // Cloned out of the lock rather than held across the await, for the same reason `voice_start`
+    // connects outside it.
+    let publication = {
+        let guard = engine().lock().map_err(|_| "voice state poisoned")?;
+        match guard.as_ref().and_then(|active| active.publication(&slot)) {
+            Some(publication) => publication,
+            None => return Err(format!("no voice session is running for {slot}")),
         }
     };
-    handle.subscribe(id, cf_session_id, track_name).await
+    publication.subscribe(id, cf_session_id, track_name).await
 }
 
 #[tauri::command]
-pub fn voice_unsubscribe(id: String) {
-    with_active(|h| h.unsubscribe(&id));
+pub fn voice_unsubscribe(slot: String, id: String) {
+    with_engine(|active| {
+        if let Some(publication) = active.publication(&slot) {
+            publication.unsubscribe(&id);
+        }
+    });
 }
 
 #[tauri::command]
 pub fn voice_set_user_volume(id: String, volume: f32) {
     let gain = clamp_volume(volume);
-    with_active(|h| h.set_gain(id, gain));
+    with_control(|control| control.set_gain(id.clone(), gain));
 }
 
 #[tauri::command]
 pub fn voice_set_deafened(deafened: bool) {
-    with_active(|h| h.set_deafened(deafened));
+    with_control(|control| control.set_deafened(deafened));
 }
 
-/// Turn positional audio on or off. Isle proximity voice only; guild channels and calls leave it
-/// off and every source stays centred.
-#[tauri::command]
-pub fn voice_set_spatial(enabled: bool) {
-    with_active(|h| h.set_spatial(enabled));
-}
-
-/// The audible radius in metres, beyond which a source is silent.
+/// The audible radius in metres, beyond which a positioned source is silent.
 ///
 /// Comes from the server rather than being assumed here: it has to match the radius the backend
 /// uses to decide who is even subscribed, or players fade to nothing before they stop being sent,
 /// or - worse - stay audible right up to the moment they vanish.
 #[tauri::command]
 pub fn voice_set_max_distance(metres: f32) {
-    with_active(|h| h.set_max_distance(metres));
+    with_control(|control| control.set_max_distance(metres));
 }
 
 /// Place a participant relative to the listener, or un-place them by passing no coordinates.
 ///
 /// Listener-relative, not world coordinates: the caller has already applied the listener's own
 /// position and facing. `+x` is their right, `+y` up, `+z` forward.
+///
+/// This is also the only spatial switch there is. Turning proximity audio off means un-placing
+/// every peer, not clearing a mode flag - one mixer serves the guild call and Isle at the same time,
+/// so a flag would have had to be right for both at once.
 #[tauri::command]
 pub fn voice_set_position(id: String, x: Option<f32>, y: Option<f32>, z: Option<f32>) {
     let position = match (x, y, z) {
@@ -313,7 +395,7 @@ pub fn voice_set_position(id: String, x: Option<f32>, y: Option<f32>, z: Option<
         // this person is" - a NaN would otherwise reach the HRTF sampler.
         _ => None,
     };
-    with_active(|h| h.set_position(id.clone(), position));
+    with_control(|control| control.set_position(id.clone(), position));
 }
 
 /// A NaN volume reads as "unset" rather than "silent".
@@ -339,12 +421,18 @@ fn screen_audio_id(share_id: &str) -> String {
     format!("screen-audio-{share_id}")
 }
 
-fn with_active(f: impl FnOnce(&VoiceHandle)) {
-    if let Ok(guard) = active().lock() {
-        if let Some(handle) = guard.as_ref() {
-            f(handle);
+fn with_engine(f: impl FnOnce(&mut Engine)) {
+    if let Ok(mut guard) = engine().lock() {
+        if let Some(active) = guard.as_mut() {
+            f(active);
         }
     }
+}
+
+/// For the settings that belong to the microphone, the speakers or the mixer rather than to any one
+/// call - they need no slot, because there is only ever one of each.
+fn with_control(f: impl FnOnce(&Control)) {
+    with_engine(|active| f(active.control()));
 }
 
 #[cfg(test)]

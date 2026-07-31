@@ -290,8 +290,11 @@ export class VoiceChannelService {
      */
     private syncMic(): void {
         const {isMuted} = this.localState();
+        // Mute is engine-wide - it is a statement about the microphone. The talk key is not: it goes
+        // through the RTC service, which knows which publication this channel's audio is on, so
+        // keying here cannot also open Isle proximity voice.
         void this.voiceEngine.setMute(isMuted);
-        void this.voiceEngine.setPttOpen(this.pttGateOpen());
+        this.rtc.setPttOpen(this.pttGateOpen());
     }
 
     async toggleCamera(): Promise<void> {

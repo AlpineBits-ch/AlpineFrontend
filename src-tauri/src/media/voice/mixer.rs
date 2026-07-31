@@ -9,6 +9,11 @@
 //!
 //! Isle proximity voice adds HRTF panning on top, replacing the WebAudio `PannerNode` that can no
 //! longer see the audio now that mixing happens here.
+//!
+//! Panning is decided per source rather than by a mode switch: a source with a position is placed,
+//! one without is centred. There is one mixer for the whole client, so a guild call and proximity
+//! voice can be running at once, and a global "spatial" flag would have had to be right for both at
+//! the same time - which it cannot be.
 
 use std::collections::HashMap;
 use std::io::Cursor;
@@ -92,7 +97,6 @@ pub struct Mixer {
     limiter_gain: f32,
     accumulator: Vec<f32>,
 
-    spatial_enabled: bool,
     positions: HashMap<String, Option<Position>>,
     spatial_state: HashMap<String, Spatial>,
     /// Raw HRIR sphere bytes, when a dataset is available.
@@ -117,7 +121,6 @@ impl Mixer {
             // Preallocated: `mix` runs every 10 ms and must not allocate.
             accumulator: vec![0.0; FRAME * 2],
 
-            spatial_enabled: false,
             positions: HashMap::new(),
             spatial_state: HashMap::new(),
             hrir_bytes: Some(BUNDLED_HRIR),
@@ -138,10 +141,10 @@ impl Mixer {
         self.deafened = deafened;
     }
 
-    pub fn set_spatial(&mut self, enabled: bool) {
-        self.spatial_enabled = enabled;
-    }
-
+    /// Place a source, or centre it by passing `None`.
+    ///
+    /// This is the only spatial switch there is. Turning proximity audio off is expressed by
+    /// un-placing every source, not by a mode flag - see the module note.
     pub fn set_position(&mut self, id: &str, position: Option<Position>) {
         self.positions.insert(id.to_owned(), position);
     }
@@ -180,13 +183,13 @@ impl Mixer {
             let position = self.positions.get(*id).copied().flatten();
 
             match position {
-                // Spatial mode with a known position: the only path that pans.
-                Some(position) if self.spatial_enabled => {
+                // A known position: the only path that pans.
+                Some(position) => {
                     self.render_spatial(id, samples, gain, position);
                 }
-                // Everything else lands in the centre at full level: spatial disabled, or a
-                // participant with no position at all (a guild call rather than proximity voice).
-                _ => {
+                // No position, so centred at full level - a guild or DM participant, or a
+                // proximity peer the game has not placed yet. Both may be in this same mix.
+                None => {
                     for (i, &s) in samples.iter().take(FRAME).enumerate() {
                         let v = if s.is_finite() { s * gain } else { 0.0 };
                         self.accumulator[i * 2] += v;
@@ -471,7 +474,6 @@ mod tests {
     #[test]
     fn a_source_on_the_left_is_louder_in_the_left_ear() {
         let mut m = Mixer::new();
-        m.set_spatial(true);
         m.set_position("a", Some(Position { x: -3.0, y: 0.0, z: 0.0 }));
         let a = constant(0.5);
         let mut out = vec![0.0f32; FRAME * 2];
@@ -484,7 +486,6 @@ mod tests {
     #[test]
     fn a_source_on_the_right_is_louder_in_the_right_ear() {
         let mut m = Mixer::new();
-        m.set_spatial(true);
         m.set_position("a", Some(Position { x: 3.0, y: 0.0, z: 0.0 }));
         let a = constant(0.5);
         let mut out = vec![0.0f32; FRAME * 2];
@@ -497,7 +498,6 @@ mod tests {
     #[test]
     fn a_source_in_front_is_roughly_centred() {
         let mut m = Mixer::new();
-        m.set_spatial(true);
         m.set_position("a", Some(Position { x: 0.0, y: 0.0, z: 2.0 }));
         let a = constant(0.5);
         let mut out = vec![0.0f32; FRAME * 2];
@@ -511,12 +511,10 @@ mod tests {
     #[test]
     fn distance_attenuates() {
         let mut near = Mixer::new();
-        near.set_spatial(true);
         near.set_max_distance(20.0);
         near.set_position("a", Some(Position { x: 0.0, y: 0.0, z: 1.0 }));
 
         let mut far = Mixer::new();
-        far.set_spatial(true);
         far.set_max_distance(20.0);
         far.set_position("a", Some(Position { x: 0.0, y: 0.0, z: 15.0 }));
 
@@ -539,7 +537,6 @@ mod tests {
     #[test]
     fn beyond_max_distance_is_silent() {
         let mut m = Mixer::new();
-        m.set_spatial(true);
         m.set_max_distance(10.0);
         m.set_position("a", Some(Position { x: 0.0, y: 0.0, z: 50.0 }));
         let a = constant(0.5);
@@ -561,7 +558,6 @@ mod tests {
     fn hrtf_sphere_places_sources_on_the_correct_side() {
         for (label, x, expect_right) in [("right", 3.0f32, true), ("left", -3.0f32, false)] {
             let mut m = Mixer::new();
-            m.set_spatial(true);
             m.set_position("a", Some(Position { x, y: 0.0, z: 0.0 }));
             let a = constant(0.5);
             let mut out = vec![0.0f32; FRAME * 2];
@@ -609,23 +605,67 @@ mod tests {
     }
 
     #[test]
-    fn spatial_disabled_falls_back_to_centre() {
+    fn un_placing_a_source_returns_it_to_the_centre() {
+        // How proximity audio is turned off: every source is un-placed, rather than a mode flag
+        // being cleared. There is one mixer for the whole client, so a flag would have had to be
+        // right for a guild call and for Isle simultaneously.
         let mut m = Mixer::new();
-        m.set_spatial(false);
         m.set_position("a", Some(Position { x: -5.0, y: 0.0, z: 0.0 }));
         let a = constant(0.5);
         let mut out = vec![0.0f32; FRAME * 2];
-        m.mix(&[("a", &a)], &mut out);
+        settle(&mut m, "a", &a, &mut out);
 
-        // Position is ignored entirely, so the source is centred and unattenuated.
-        assert!((out[0] - 0.5).abs() < 1e-6);
-        assert!((out[1] - 0.5).abs() < 1e-6);
+        m.set_position("a", None);
+        m.mix(&[("a", &a)], &mut out);
+        assert!((out[0] - 0.5).abs() < 1e-6, "got {}", out[0]);
+        assert!((out[1] - 0.5).abs() < 1e-6, "got {}", out[1]);
     }
 
     #[test]
-    fn a_positionless_source_is_centred_even_in_spatial_mode() {
+    fn a_guild_participant_and_a_placed_peer_share_one_mix() {
+        // The capability the per-source decision exists for: one mixer serves a guild call and Isle
+        // proximity voice at the same time. The guild participant must stay centred and unattenuated
+        // while the proximity peer is panned hard to one side.
         let mut m = Mixer::new();
-        m.set_spatial(true);
+        m.set_position("guild-user", None);
+        m.set_position("isle-peer", Some(Position { x: -4.0, y: 0.0, z: 0.0 }));
+
+        let guild = constant(0.5);
+        let isle = constant(0.0);
+        let mut out = vec![0.0f32; FRAME * 2];
+        for _ in 0..8 {
+            m.mix(&[("guild-user", &guild), ("isle-peer", &isle)], &mut out);
+        }
+
+        // The silent proximity peer contributes nothing, so the guild participant arrives intact in
+        // both ears - a global spatial flag would have panned them too.
+        assert!((out[0] - 0.5).abs() < 1e-4, "left {}", out[0]);
+        assert!((out[1] - 0.5).abs() < 1e-4, "right {}", out[1]);
+
+        // And the proximity peer is still panned despite sharing the mix with a centred source.
+        // Measured by mirroring the placement rather than against a fixed ratio: the guild source
+        // contributes equally to both ears either way, so it cancels out of the comparison - where
+        // a single-sided ratio would just be measuring how loud the guild participant happens to be.
+        let isle = constant(0.4);
+        let imbalance = |m: &mut Mixer, out: &mut Vec<f32>| {
+            for _ in 0..8 {
+                m.mix(&[("guild-user", &guild), ("isle-peer", &isle)], out);
+            }
+            let (l, r) = ear_energy(out);
+            l - r
+        };
+
+        let leftward = imbalance(&mut m, &mut out);
+        m.set_position("isle-peer", Some(Position { x: 4.0, y: 0.0, z: 0.0 }));
+        let rightward = imbalance(&mut m, &mut out);
+
+        assert!(leftward > 0.0, "a peer on the left must favour the left ear: {leftward}");
+        assert!(rightward < 0.0, "and mirrored, the right: {rightward}");
+    }
+
+    #[test]
+    fn a_positionless_source_is_never_panned() {
+        let mut m = Mixer::new();
         m.set_position("a", None);
         let a = constant(0.5);
         let mut out = vec![0.0f32; FRAME * 2];
@@ -639,7 +679,6 @@ mod tests {
     #[test]
     fn spatial_output_stays_finite() {
         let mut m = Mixer::new();
-        m.set_spatial(true);
         // The listener's own position: distance zero, which must not divide by zero.
         m.set_position("a", Some(Position { x: 0.0, y: 0.0, z: 0.0 }));
         let a = constant(0.9);

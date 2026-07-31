@@ -11,7 +11,7 @@ import {OAuthService} from 'angular-oauth2-oidc';
 import {bitrateFor, DEFAULT_STREAM_PRESET, StreamPreset} from '../models/stream-preset';
 import {solveGeometry} from '../models/capture-geometry';
 import {publishOptions, useRustPublisher} from './screen-publish';
-import {VoiceEngineService} from './voice-engine.service';
+import {VoiceEngineService, VoiceSession} from './voice-engine.service';
 import {ScreenPickerChoice} from './screen-picker.service';
 import {
     applyScreenEncoding,
@@ -97,6 +97,13 @@ export class VoiceRTCService {
     // ── WebRTC internals ───────────────────────────────────────────────────────
     private pc: RTCPeerConnection | null = null;
     private cfSessionId: string | null = null;
+    /**
+     * The Rust publication carrying this channel's audio.
+     *
+     * Held rather than looked up, because the engine now runs several calls at once and every
+     * command has to say which one it means. Isle proximity voice holds its own alongside this.
+     */
+    private voiceSession: VoiceSession | null = null;
     private setupDone = false;
 
     private localVideoTrack: MediaStreamTrack | null = null;
@@ -166,7 +173,7 @@ export class VoiceRTCService {
         // engine start waits on ICE gathering in Rust, and when that stalled, every subscribe
         // queued behind it forever and the only symptom was one-way silence with an empty console.
         try {
-            await this.voiceEngine.start(
+            this.voiceSession = await this.voiceEngine.start(
                 {kind: 'guild', guildId, channelId},
                 this.apiConfig.baseUrl(),
                 this.oauth.getAccessToken(),
@@ -237,9 +244,11 @@ export class VoiceRTCService {
         // which is the value it would match if it was the first attempt for that source.
         this.subscribeTokens.forEach((token, id) => this.subscribeTokens.set(id, token + 1));
 
-        // Stops capture, playout and every subscription in one call - the Rust session owns all of
-        // them, so there is nothing per-participant left to unwind here.
-        void this.voiceEngine.stop();
+        // Ends this channel's publication and every subscription on it in one call. Only this one:
+        // Isle proximity voice may be running on the same microphone and must survive leaving a
+        // guild channel.
+        if (this.voiceSession) void this.voiceEngine.stop(this.voiceSession);
+        this.voiceSession = null;
         this.engineUp.set(false);
         this.localVideoTrack?.stop();
         this.localScreenTrack?.stop();
@@ -272,10 +281,20 @@ export class VoiceRTCService {
         this.screenAudioMutedSignal.set(new Set());
     }
 
+    /**
+     * Open or close the microphone for this channel.
+     *
+     * Routed through here rather than called on the engine directly, because push-to-talk is now
+     * per call: the engine needs to be told *which* one, and this service is what holds it.
+     */
+    setPttOpen(open: boolean): void {
+        if (this.voiceSession) void this.voiceEngine.setPttOpen(this.voiceSession, open);
+    }
+
     /** Cleans up all per-participant resources when a remote user leaves. */
     cleanupParticipant(userId: string): void {
         // Drops their source from the mixer, their entry from the mid map, and their volume.
-        void this.voiceEngine.unsubscribe(userId);
+        void this.dropSource(userId);
         // Forget the session they were on, so rejoining resubscribes rather than being skipped as
         // a duplicate - a leave/rejoin almost always comes back on a new Cloudflare session.
         this.subscribedAudioSessions.delete(userId);
@@ -326,9 +345,24 @@ export class VoiceRTCService {
         await Promise.all(targets.map(target => this.subscribeOne(target)));
     }
 
+    /**
+     * Drop a source from this channel's publication.
+     *
+     * Null-safe because participants leave in paths that also run after teardown - a WS event that
+     * arrives just after the channel was left would otherwise reach for a session that is gone.
+     */
+    private async dropSource(id: string): Promise<void> {
+        if (this.voiceSession) await this.voiceEngine.unsubscribe(this.voiceSession, id);
+    }
+
     private async subscribeOne(
         target: { userId: string; cfSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' },
     ): Promise<void> {
+        // Captured once: the channel can be left mid-retry, and the loop below must not resubscribe
+        // onto a publication that has since been replaced by a different channel's.
+        const session = this.voiceSession;
+        if (!session) return;
+
         // Voice keys on the user; a stream's audio keys on its track name, so muting a stream
         // does not mute the voice of whoever is streaming.
         const id = target.kind === 'screenAudio' ? target.trackName : target.userId;
@@ -347,7 +381,7 @@ export class VoiceRTCService {
             console.warn('[voice] session id changed, resubscribing', {
                 id, from: previous, to: target.cfSessionId,
             });
-            await this.voiceEngine.unsubscribe(id);
+            await this.voiceEngine.unsubscribe(session, id);
             this.subscribedAudioSessions.delete(id);
         }
 
@@ -360,11 +394,11 @@ export class VoiceRTCService {
         for (let attempt = 0; ; attempt++) {
             if (this.subscribeTokens.get(id) !== token) return;
             try {
-                await this.voiceEngine.subscribe(id, target.cfSessionId, target.trackName);
+                await this.voiceEngine.subscribe(session, id, target.cfSessionId, target.trackName);
                 if (this.subscribeTokens.get(id) !== token) {
                     // Superseded while the call was in flight. Drop what we just took, or it
                     // outlives the participant it belongs to.
-                    await this.voiceEngine.unsubscribe(id);
+                    await this.voiceEngine.unsubscribe(session, id);
                     return;
                 }
                 // Only after it succeeds. Recording a failed subscribe would make the retry above
@@ -823,7 +857,7 @@ export class VoiceRTCService {
         } else if (trackName.startsWith('screen-audio-')) {
             // Drop the source, or a stopped stream keeps its slot in the mixer forever - silent,
             // but still popped and mixed on every frame.
-            void this.voiceEngine.unsubscribe(trackName);
+            void this.dropSource(trackName);
             this.remoteScreenAudioIds.delete(userId);
         } else if (trackName.startsWith('screen-')) {
             this.screenStreamsSignal.update(m => {

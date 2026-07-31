@@ -1,4 +1,4 @@
-import {effect, inject, Injectable, signal} from '@angular/core';
+import {computed, effect, inject, Injectable, signal} from '@angular/core';
 import {Channel, invoke, isTauri} from '@tauri-apps/api/core';
 import {AudioSettings, AudioSettingsService} from './audio-settings.service';
 
@@ -7,6 +7,22 @@ export type VoiceTarget =
     | {kind: 'guild'; guildId: string; channelId: string}
     | {kind: 'call'; callId: string}
     | {kind: 'isle'};
+
+/**
+ * A running publication - one peer connection to one SFU session.
+ *
+ * Returned by {@link VoiceEngineService.start} and handed back to every call that addresses it.
+ * `slot` is Rust's name for the publication and is deliberately opaque here: the frontend never
+ * constructs one, so it cannot address a call that does not exist or, worse, the wrong one.
+ *
+ * A guild channel and a DM call share a slot, because they are mutually exclusive; Isle proximity
+ * voice gets its own and runs alongside either.
+ */
+export interface VoiceSession {
+    readonly slot: string;
+    readonly cfSessionId: string;
+    readonly trackName: string;
+}
 
 /** A participant's position relative to the listener: +x right, +y up, +z forward, in metres. */
 export interface VoicePosition {
@@ -30,11 +46,6 @@ interface VoiceEvent {
     levels?: RemoteLevel[];
 }
 
-export interface VoiceStartResult {
-    cfSessionId: string;
-    trackName: string;
-}
-
 /**
  * A 0-100 slider position as a 0.0-1.0 gain.
  *
@@ -48,10 +59,15 @@ function asGain(percent: number): number {
 }
 
 /**
- * The Angular face of the Rust voice session.
+ * The Angular face of the Rust audio engine.
  *
  * Every call service talks to this rather than calling `invoke` directly, so the fact that there is
- * exactly one microphone and one session is enforced in one place.
+ * exactly one microphone and one set of speakers is enforced in one place - however many calls are
+ * running on top of them.
+ *
+ * The split between the methods that take a {@link VoiceSession} and those that do not is the whole
+ * model: a session addresses one call, everything else addresses the hardware. Muting the
+ * microphone is not something you do to a call.
  */
 @Injectable({providedIn: 'root'})
 export class VoiceEngineService {
@@ -61,12 +77,24 @@ export class VoiceEngineService {
      * Whether the local user is currently transmitting.
      *
      * The only speaking signal in the app. It replaces the two independent VAD `AudioContext`s,
-     * which disagreed with each other and with the gate that actually decided what was sent.
+     * which disagreed with each other and with the gate that actually decided what was sent. There
+     * is one microphone, so this is engine-wide rather than per call.
      */
     readonly speaking = signal(false);
     /** Input level, 0.0-1.0, for the microphone meter. */
     readonly level = signal(0);
-    readonly active = signal(false);
+
+    /** Slots with a call running on them. */
+    private readonly runningSlots = signal<ReadonlySet<string>>(new Set());
+    /** Whether any call is running at all - the engine holds the devices open exactly this long. */
+    readonly active = computed(() => this.runningSlots().size > 0);
+
+    /**
+     * Source ids pulled onto each slot, so stopping one call clears its meters and leaves any
+     * other call's participants alone. Rust keeps the authoritative version; this exists only to
+     * keep {@link remoteLevels} honest without waiting for the next levels event.
+     */
+    private readonly subscribedBySlot = new Map<string, Set<string>>();
 
     /**
      * Every remote participant's meter, keyed by source id.
@@ -74,6 +102,9 @@ export class VoiceEngineService {
      * The only remote speaking signal once playout moves to Rust: there are no `<audio>` elements
      * left for the webview to analyse, and this comes from the same decoded frames that reach the
      * speakers, so it cannot disagree with what is audible.
+     *
+     * Shared across calls, because ids are unique across calls and there is one mixer producing
+     * them. A guild participant and a proximity peer are both just entries here.
      */
     private readonly remoteLevelsSignal = signal<ReadonlyMap<string, RemoteLevel>>(new Map());
     readonly remoteLevels = this.remoteLevelsSignal.asReadonly();
@@ -83,22 +114,21 @@ export class VoiceEngineService {
         // appear to work and change nothing until the next rejoin - and the input-mode switch in
         // particular would be silently dead, because the gate that reads it now lives in Rust.
         //
-        // The input *device* is the exception: it is chosen when the capture stream is opened, so
-        // switching microphones still takes effect on the next join.
+        // The input and output *devices* are the exception: they are chosen when the engine opens
+        // them, so switching hardware takes effect once the last call ends and the engine restarts.
         effect(() => {
             const payload = this.payloadFrom(this.audioSettings.settings());
             if (!this.active() || !isTauri()) return;
             void invoke('voice_set_processing', {settings: payload});
         });
 
-        // A page reload does not unwind Rust. Without this the session keeps capturing and
+        // A page reload does not unwind Rust. Without this the engine keeps capturing and
         // publishing into the channel after the webview that started it is gone - audible to
         // everyone else, invisible here, and emitting events at a callback id that no longer
-        // exists ("[TAURI] Couldn't find callback id ..."). `voice_start` does stop a leftover
-        // session, but only once you get as far as joining again.
+        // exists ("[TAURI] Couldn't find callback id ...").
         if (isTauri()) {
             window.addEventListener('beforeunload', () => {
-                if (this.active()) void invoke('voice_stop');
+                if (this.active()) void this.stopAll();
             });
         }
     }
@@ -121,7 +151,7 @@ export class VoiceEngineService {
         apiBase: string,
         token: string,
         deviceId: string,
-    ): Promise<VoiceStartResult> {
+    ): Promise<VoiceSession> {
         const channel = new Channel<VoiceEvent>();
         channel.onmessage = event => {
             if (event.kind === 'error') {
@@ -136,7 +166,7 @@ export class VoiceEngineService {
             this.level.set(event.level);
         };
 
-        const result = await invoke<VoiceStartResult>('voice_start', {
+        const session = await invoke<VoiceSession>('voice_start', {
             settings: this.settingsPayload(),
             // None, deliberately. Cloudflare's SFU is publicly routable, so host candidates reach
             // it and it answers to whatever source address it sees - which is why the DM call path
@@ -155,41 +185,84 @@ export class VoiceEngineService {
             onEvent: channel,
         });
 
-        this.active.set(true);
-        return result;
+        // Rejoining the same slot replaces whatever was there, in Rust and here alike.
+        this.subscribedBySlot.set(session.slot, new Set());
+        this.runningSlots.update(slots => new Set(slots).add(session.slot));
+        return session;
     }
 
-    async stop(): Promise<void> {
-        this.active.set(false);
+    /** End one call. Every other call, and the microphone itself, keeps running. */
+    async stop(session: VoiceSession): Promise<void> {
+        this.forgetSlot(session.slot);
+        if (!isTauri()) return;
+        await invoke('voice_stop', {slot: session.slot});
+    }
+
+    /**
+     * End every call at once.
+     *
+     * For a page reload, where the webview that started them is gone and there is nobody left to
+     * name them individually. Ordinary hang-ups use {@link stop}.
+     */
+    async stopAll(): Promise<void> {
+        this.subscribedBySlot.clear();
+        this.runningSlots.set(new Set());
         this.speaking.set(false);
         this.level.set(0);
         this.remoteLevelsSignal.set(new Map());
         if (!isTauri()) return;
-        await invoke('voice_stop');
+        await invoke('voice_stop', {slot: null});
     }
 
     /**
      * Pull a participant's audio into the mix.
      *
-     * `id` is the key for volume, levels and unsubscribe. Voice uses the user id; a stream's audio
-     * uses its track name, so that muting someone's stream does not also mute their voice.
+     * `id` is the key for volume, levels and unsubscribe, and is unique across calls - which is
+     * what lets one mixer serve them all. Voice uses the user id; a stream's audio uses its track
+     * name, so that muting someone's stream does not also mute their voice.
      *
      * Rejects rather than resolving quietly on failure - nothing retries a subscribe, so a swallowed
      * error here is a participant who stays silent for the rest of the session.
      */
-    async subscribe(id: string, cfSessionId: string, trackName: string): Promise<void> {
+    async subscribe(
+        session: VoiceSession,
+        id: string,
+        cfSessionId: string,
+        trackName: string,
+    ): Promise<void> {
+        this.subscribedBySlot.get(session.slot)?.add(id);
         if (!isTauri()) return;
-        await invoke('voice_subscribe', {id, cfSessionId, trackName});
+        await invoke('voice_subscribe', {slot: session.slot, id, cfSessionId, trackName});
     }
 
-    async unsubscribe(id: string): Promise<void> {
-        this.remoteLevelsSignal.update(m => {
-            const n = new Map(m);
-            n.delete(id);
-            return n;
-        });
+    async unsubscribe(session: VoiceSession, id: string): Promise<void> {
+        this.subscribedBySlot.get(session.slot)?.delete(id);
+        this.dropLevel(id);
         if (!isTauri()) return;
-        await invoke('voice_unsubscribe', {id});
+        await invoke('voice_unsubscribe', {slot: session.slot, id});
+    }
+
+    /**
+     * Open or close the microphone *for one call*.
+     *
+     * Per call, not engine-wide: proximity push-to-talk must not also key the guild channel. The
+     * microphone is captured once and stays live while any call wants it; this decides who hears it.
+     */
+    async setPttOpen(session: VoiceSession, open: boolean): Promise<void> {
+        if (!isTauri()) return;
+        await invoke('voice_set_ptt_open', {slot: session.slot, open});
+    }
+
+    /**
+     * Mute the microphone itself, for every call at once.
+     *
+     * Engine-wide unlike push-to-talk, because muting is a statement about the microphone rather
+     * than about a conversation - a mute that left you audible somewhere else would be the worst
+     * possible way to discover that calls are separate.
+     */
+    async setMute(muted: boolean): Promise<void> {
+        if (!isTauri()) return;
+        await invoke('voice_set_mute', {muted});
     }
 
     /** Per-source volume, 0.0-1.0. */
@@ -206,18 +279,7 @@ export class VoiceEngineService {
     // ── Positional audio (Isle proximity voice) ───────────────────────────────
 
     /**
-     * Place sources in space rather than centring them.
-     *
-     * Off for guild channels and calls, where "where is this person" has no meaning. When on, the
-     * mixer convolves each source with the bundled HRTF sphere.
-     */
-    async setSpatial(enabled: boolean): Promise<void> {
-        if (!isTauri()) return;
-        await invoke('voice_set_spatial', {enabled});
-    }
-
-    /**
-     * The audible radius in metres. Beyond it a source is silent.
+     * The audible radius in metres. Beyond it a positioned source is silent.
      *
      * Comes from the server so it matches the radius the backend uses to decide who is subscribed
      * at all - otherwise players either fade out before they stop being sent, or stay at full
@@ -234,6 +296,11 @@ export class VoiceEngineService {
      * Listener-relative: the caller has already applied the listener's own position and facing.
      * Called on every movement tick, so it deliberately does nothing but forward - Rust keeps the
      * table and the playout thread picks up changes once per frame.
+     *
+     * This is also the only spatial switch there is. Turning proximity audio off means un-placing
+     * every peer, not clearing a mode flag: one mixer serves the guild call and Isle at the same
+     * time, so a flag would have had to be right for both at once. A source with no position is
+     * centred at full volume, which is exactly what a guild participant wants.
      */
     async setPosition(id: string, position: VoicePosition | null): Promise<void> {
         if (!isTauri()) return;
@@ -245,20 +312,34 @@ export class VoiceEngineService {
         });
     }
 
-    async setMute(muted: boolean): Promise<void> {
-        if (!isTauri()) return;
-        await invoke('voice_set_mute', {muted});
-    }
-
-    async setPttOpen(open: boolean): Promise<void> {
-        if (!isTauri()) return;
-        await invoke('voice_set_ptt_open', {open});
-    }
-
-    /** Push the current settings to a running session. Safe to call when nothing is running. */
+    /** Push the current settings to the engine. Safe to call when nothing is running. */
     async applySettings(): Promise<void> {
         if (!isTauri()) return;
         await invoke('voice_set_processing', {settings: this.settingsPayload()});
+    }
+
+    /** Drop a slot's local bookkeeping, including the meters of everyone who was on it. */
+    private forgetSlot(slot: string): void {
+        for (const id of this.subscribedBySlot.get(slot) ?? []) this.dropLevel(id);
+        this.subscribedBySlot.delete(slot);
+        this.runningSlots.update(slots => {
+            const next = new Set(slots);
+            next.delete(slot);
+            return next;
+        });
+        if (!this.active()) {
+            this.speaking.set(false);
+            this.level.set(0);
+        }
+    }
+
+    private dropLevel(id: string): void {
+        this.remoteLevelsSignal.update(m => {
+            if (!m.has(id)) return m;
+            const n = new Map(m);
+            n.delete(id);
+            return n;
+        });
     }
 
     /**
@@ -272,8 +353,8 @@ export class VoiceEngineService {
     private payloadFrom(s: AudioSettings) {
         return {
             deviceId: s.micId === 'default' ? null : s.micId,
-            // Chosen when the output stream opens, so like the microphone it takes effect on the
-            // next join rather than immediately.
+            // Chosen when the engine opens the device, so like the microphone it takes effect once
+            // the last call ends rather than immediately.
             outputDeviceId: s.speakerId === 'default' ? null : s.speakerId,
             noiseSuppression: s.noiseSuppressionMode,
             echoCancellation: s.echoCancellation,

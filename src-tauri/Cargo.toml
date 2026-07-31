@@ -117,6 +117,10 @@ jpeg-encoder = "0.6"
 base64 = "0.22"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
 webrtc = "0.14"
+# One encoded voice packet goes to every publication at once, so it is allocated once and the
+# handle cloned rather than the bytes copied per target. This is also what `webrtc::media::Sample`
+# takes, so the packet reaches the packetiser without a further copy.
+bytes = "1"
 # `libloading`, never `source`. Building OpenH264 from source produces a binary Cisco never
 # licensed, and the BSD source licence grants copyright but not patent rights. Only Cisco's own
 # precompiled binary carries their MPEG-LA royalty coverage, so it is fetched at runtime and loaded

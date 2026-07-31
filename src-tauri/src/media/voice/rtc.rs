@@ -434,10 +434,14 @@ impl VoicePublication {
     }
 
     /// Hand one encoded packet to the packetiser.
-    pub async fn write_packet(&self, packet: Vec<u8>) -> Result<(), String> {
+    ///
+    /// Takes `Bytes` rather than a `Vec` because the same packet goes to every publication at once:
+    /// the capture thread allocates it once and each publication clones the handle. `Sample` wants
+    /// `Bytes` anyway, so this also removes the copy that `Vec::into` used to make here.
+    pub async fn write_packet(&self, packet: bytes::Bytes) -> Result<(), String> {
         self.track
             .write_sample(&Sample {
-                data: packet.into(),
+                data: packet,
                 timestamp: SystemTime::now(),
                 duration: PACKET_DURATION,
                 ..Default::default()

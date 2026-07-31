@@ -3,7 +3,7 @@ import {firstValueFrom, Subscription} from 'rxjs';
 import {OAuthService} from 'angular-oauth2-oidc';
 import {ApiConfigService} from './api-config.service';
 import {DeviceIdentityService} from './device-identity.service';
-import {VoiceEngineService} from './voice-engine.service';
+import {VoiceEngineService, VoiceSession} from './voice-engine.service';
 import {CallSessionService} from './call-session.service';
 import {CfTrackNew, CfTrackResult, VoiceService} from './voice.service';
 import {ConnectionState, describeCallEndedReason, VoiceWebsocketService} from './voice-websocket.service';
@@ -91,6 +91,13 @@ export class CallWebRtcService {
     private pc: RTCPeerConnection | null = null;
     private cfSessionId: string | null = null;
     private callId: string | null = null;
+    /**
+     * The Rust publication carrying this call's audio.
+     *
+     * Held rather than looked up, because the engine now runs several calls at once and every
+     * command has to say which one it means. Isle proximity voice holds its own alongside this.
+     */
+    private voiceSession: VoiceSession | null = null;
     private videoSender: RTCRtpSender | null = null;
     private videoTrackName: string | null = null;
     private screenSender: RTCRtpSender | null = null;
@@ -169,8 +176,10 @@ export class CallWebRtcService {
         // participant, speaking and camera change, and each wake fired two IPC calls into Rust.
         effect(() => {
             const isMuted = this.localMuted();
+            // Mute is engine-wide - one microphone. The talk key is per call, so it names this
+            // call's publication and cannot also open Isle proximity voice.
             void this.voiceEngine.setMute(isMuted);
-            void this.voiceEngine.setPttOpen(this.callSession.pttGateOpen());
+            this.setPttOpen(this.callSession.pttGateOpen());
             if (isMuted === this.prevMuted) return;
             this.prevMuted = isMuted;
             if (this.callId) this.voiceWs.invokeMuteChange(this.callId, isMuted);
@@ -286,7 +295,7 @@ export class CallWebRtcService {
         // the other side resolves the track from the ParticipantJoined event the backend emits when
         // that session publishes "audio", and it carries the Rust session id.
         try {
-            await this.voiceEngine.start(
+            this.voiceSession = await this.voiceEngine.start(
                 {kind: 'call', callId},
                 this.apiConfig.baseUrl(),
                 this.oauth.getAccessToken(),
@@ -297,7 +306,8 @@ export class CallWebRtcService {
             return;
         }
         if (!this.callId) {
-            void this.voiceEngine.stop();
+            void this.voiceEngine.stop(this.voiceSession);
+            this.voiceSession = null;
             return;
         }
         this.engineUp.set(true);
@@ -307,14 +317,27 @@ export class CallWebRtcService {
         const isMuted = this.callSession.session()?.local.isMuted ?? false;
         this.prevMuted = isMuted;
         void this.voiceEngine.setMute(isMuted);
-        void this.voiceEngine.setPttOpen(this.callSession.pttGateOpen());
+        this.setPttOpen(this.callSession.pttGateOpen());
 
         this.startStatsPolling();
     }
 
+    /** Open or close the microphone for this call, leaving any other call's routing alone. */
+    private setPttOpen(open: boolean): void {
+        if (this.voiceSession) void this.voiceEngine.setPttOpen(this.voiceSession, open);
+    }
+
+    /** Drop a source from this call's publication. Null-safe: WS events outlive the call. */
+    private async dropSource(id: string): Promise<void> {
+        if (this.voiceSession) await this.voiceEngine.unsubscribe(this.voiceSession, id);
+    }
+
     private disconnect(): void {
         this.stopStatsPolling();
-        void this.voiceEngine.stop();
+        // Only this call. Isle proximity voice may be running on the same microphone and must
+        // survive hanging up.
+        if (this.voiceSession) void this.voiceEngine.stop(this.voiceSession);
+        this.voiceSession = null;
         this.engineUp.set(false);
         void this.rustMedia.stopScreenCapture();
         this.pc?.close();
@@ -513,12 +536,14 @@ export class CallWebRtcService {
     ): Promise<void> {
         if (kind === 'audio') {
             if (this.subscribedAudioUserIds.has(userId)) return;
+            const session = this.voiceSession;
+            if (!session) return;
             this.subscribedAudioUserIds.add(userId);
 
             // Audio never touches this peer connection now: it is pulled onto the Rust session,
             // decoded and mixed there, and played through the output device Rust owns.
             try {
-                await this.voiceEngine.subscribe(userId, remoteCfSessionId, trackName);
+                await this.voiceEngine.subscribe(session, userId, remoteCfSessionId, trackName);
                 this.participantsWithAudio.update(s => {
                     const n = new Set(s);
                     n.add(userId);
@@ -721,7 +746,7 @@ export class CallWebRtcService {
             if (!p.isLocal && !freshIds.has(p.userId)) {
                 this.callSession.onParticipantLeft(p.userId);
                 this.subscribedAudioUserIds.delete(p.userId);
-                void this.voiceEngine.unsubscribe(p.userId);
+                void this.dropSource(p.userId);
             }
         }
 
@@ -749,7 +774,7 @@ export class CallWebRtcService {
                 this.subscribedAudioUserIds.delete(e.userId);
                 // Drop their source, or they keep a slot in the mixer that is popped and mixed on
                 // every frame for the rest of the call.
-                void this.voiceEngine.unsubscribe(e.userId);
+                void this.dropSource(e.userId);
                 this.participantsWithAudio.update(s => {
                     const n = new Set(s);
                     n.delete(e.userId);
@@ -796,7 +821,7 @@ export class CallWebRtcService {
             this.voiceWs.callParticipantLeftObservable.subscribe(e => {
                 this.callSession.onParticipantLeft(e.userId);
                 this.subscribedAudioUserIds.delete(e.userId);
-                void this.voiceEngine.unsubscribe(e.userId);
+                void this.dropSource(e.userId);
                 this.participantsWithAudio.update(s => {
                     const n = new Set(s);
                     n.delete(e.userId);
