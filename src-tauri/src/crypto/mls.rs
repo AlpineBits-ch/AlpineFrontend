@@ -1526,7 +1526,7 @@ mod integration_tests {
             payload.clone(),
         )
         .expect("send must succeed");
-        let rx = process_message_impl(&mut tp.bob, tp.group_id, ct).expect("process must succeed");
+        let rx = process_message_impl(&mut tp.bob, tp.group_id, ct.ciphertext).expect("process must succeed");
         assert_eq!(rx.kind, "application");
         assert_eq!(rx.plaintext, Some(payload));
         assert!(!rx.self_removed);
@@ -1542,7 +1542,7 @@ mod integration_tests {
             B64.encode(b"hi"),
         )
         .expect("should succeed");
-        let rx = process_message_impl(&mut tp.bob, tp.group_id, ct).expect("should succeed");
+        let rx = process_message_impl(&mut tp.bob, tp.group_id, ct.ciphertext).expect("should succeed");
         assert_eq!(rx.sender_identity.as_deref(), Some("alice"));
     }
 
@@ -1559,7 +1559,7 @@ mod integration_tests {
             a_to_b.clone(),
         )
         .expect("alice send");
-        let r1 = process_message_impl(&mut tp.bob, tp.group_id.clone(), ct1).expect("bob receive");
+        let r1 = process_message_impl(&mut tp.bob, tp.group_id.clone(), ct1.ciphertext).expect("bob receive");
         assert_eq!(r1.plaintext, Some(a_to_b));
 
         let ct2 = send_message_impl(
@@ -1569,7 +1569,7 @@ mod integration_tests {
             b_to_a.clone(),
         )
         .expect("bob send");
-        let r2 = process_message_impl(&mut tp.alice, tp.group_id, ct2).expect("alice receive");
+        let r2 = process_message_impl(&mut tp.alice, tp.group_id, ct2.ciphertext).expect("alice receive");
         assert_eq!(r2.plaintext, Some(b_to_a));
     }
 
@@ -1802,7 +1802,7 @@ mod integration_tests {
             msg.clone(),
         )
         .expect("alice send");
-        let rx = process_message_impl(&mut bob, group_id.clone(), ct).expect("bob receive");
+        let rx = process_message_impl(&mut bob, group_id.clone(), ct.ciphertext).expect("bob receive");
         assert_eq!(rx.plaintext, Some(msg));
         assert_eq!(rx.sender_identity.as_deref(), Some("alice"));
 
@@ -1814,7 +1814,7 @@ mod integration_tests {
             reply.clone(),
         )
         .expect("bob send");
-        let rx2 = process_message_impl(&mut alice, group_id.clone(), ct2).expect("alice receive");
+        let rx2 = process_message_impl(&mut alice, group_id.clone(), ct2.ciphertext).expect("alice receive");
         assert_eq!(rx2.plaintext, Some(reply));
 
         // 6. Bob leaves: produces a Remove-self proposal; Alice commits it.
