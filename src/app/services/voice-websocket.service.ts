@@ -86,6 +86,61 @@ export interface WsScreenShareStopped {
 
 export interface WsCallEnded {
     callId: string;
+    reason?: 'Declined' | 'UserEnded' | 'AllParticipantsLeft' | 'AloneTimeout';
+}
+
+// ── Per-device call events ────────────────────────────────────────────────────
+//
+// The server now tells this client which *device* an action came from, so a second device of the
+// same user can stop ringing without the call ending for anyone.
+
+/** Some device of ours accepted the call - every other ringing device should stop. */
+export interface WsCallAccepted {
+    callId: string;
+    deviceId: string;
+}
+
+/** This device's ring was dismissed because another of ours dealt with the call. */
+export interface WsCallDeviceDismissed {
+    callId: string;
+    deviceId: string;
+}
+
+/** We joined the call on another device while still connected here. */
+export interface WsCallDeviceTakeover {
+    callId: string;
+    oldDeviceId: string;
+    newDeviceId: string;
+}
+
+/** Application-level departure, distinct from the WebRTC-level `call.ParticipantLeft`. */
+export interface WsCallParticipantLeft {
+    callId: string;
+    userId: string;
+}
+
+/** Only one participant is left; the server force-ends the call at `deadline`. */
+export interface WsCallAlone {
+    callId: string;
+    userId: string;
+    deadline: string;
+}
+
+/**
+ * Copy for the toast shown when a call ended for a reason the local user did not cause.
+ *
+ * Unknown and self-inflicted reasons fall back to the neutral phrasing rather than naming
+ * something the user did not do.
+ */
+export function describeCallEndedReason(reason?: string): string {
+    switch (reason) {
+        case 'Declined':
+            return 'Call declined';
+        case 'AloneTimeout':
+            return 'Call ended - no one rejoined';
+        default:
+            return 'Call ended';
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -104,6 +159,11 @@ export class VoiceWebsocketService {
     public screenShareStartedObservable = new Subject<WsScreenShareStarted>();
     public screenShareStoppedObservable = new Subject<WsScreenShareStopped>();
     public callEndedObservable = new Subject<WsCallEnded>();
+    public callAcceptedObservable = new Subject<WsCallAccepted>();
+    public callDeviceDismissedObservable = new Subject<WsCallDeviceDismissed>();
+    public callDeviceTakeoverObservable = new Subject<WsCallDeviceTakeover>();
+    public callParticipantLeftObservable = new Subject<WsCallParticipantLeft>();
+    public callAloneObservable = new Subject<WsCallAlone>();
     private realtime = inject(RealtimeConnectionService);
     private listenersSetUp = false;
 
@@ -159,5 +219,12 @@ export class VoiceWebsocketService {
         this.realtime.on('call.ScreenShareStarted', (d: WsScreenShareStarted) => this.screenShareStartedObservable.next(d));
         this.realtime.on('call.ScreenShareStopped', (d: WsScreenShareStopped) => this.screenShareStoppedObservable.next(d));
         this.realtime.on('call.CallEnded', (d: WsCallEnded) => this.callEndedObservable.next(d));
+
+        // ── Per-device call events ──────────────────────────────────────────────
+        this.realtime.on('call.CallAccepted', (d: WsCallAccepted) => this.callAcceptedObservable.next(d));
+        this.realtime.on('call.CallDeviceDismissed', (d: WsCallDeviceDismissed) => this.callDeviceDismissedObservable.next(d));
+        this.realtime.on('call.CallDeviceTakeover', (d: WsCallDeviceTakeover) => this.callDeviceTakeoverObservable.next(d));
+        this.realtime.on('call.CallParticipantLeft', (d: WsCallParticipantLeft) => this.callParticipantLeftObservable.next(d));
+        this.realtime.on('call.CallAlone', (d: WsCallAlone) => this.callAloneObservable.next(d));
     }
 }
