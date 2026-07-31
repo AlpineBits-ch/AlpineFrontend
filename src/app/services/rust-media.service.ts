@@ -50,14 +50,6 @@ export interface ScreenPublishResult {
     encoder: string;
 }
 
-export interface RustAudioSettings {
-    deviceId: string | null;
-    noiseSuppression: boolean;
-    autoGainControl: boolean;
-    /** VAD gating threshold 0–1, 0 = disabled */
-    vadThreshold: number;
-}
-
 interface AudioChunk {
     data: string;        // base64 f32-LE PCM
     sampleRate: number;
@@ -73,15 +65,6 @@ interface ScreenFrame {
 
 @Injectable({providedIn: 'root'})
 export class RustMediaService {
-    private audioCtx: AudioContext | null = null;
-    private workletNode: AudioWorkletNode | null = null;
-    private micDestination: MediaStreamAudioDestinationNode | null = null;
-    private audioChannel: Channel<AudioChunk> | null = null;
-    private micCaptureSettings: RustAudioSettings | null = null;
-    private lastMicChunkAt = 0;
-    private micWatchdog?: ReturnType<typeof setInterval>;
-    private micRestarting = false;
-
     private loopbackCtx: AudioContext | null = null;
     private loopbackWorklet: AudioWorkletNode | null = null;
     private loopbackDest: MediaStreamAudioDestinationNode | null = null;
@@ -323,109 +306,11 @@ export class RustMediaService {
         this.decodingFrame = false;
     }
 
-    // Always store the newest frame; if a decode is already running it will
-
-    /**
-     * Start Rust microphone capture with audio processing.
-     * Returns a MediaStreamTrack that can be added to an RTCPeerConnection.
-     */
-    async startMicCapture(settings: RustAudioSettings): Promise<MediaStreamTrack> {
-        await this.stopMicCapture();
-
-        const ctx = new AudioContext({sampleRate: 48_000});
-        this.audioCtx = ctx;
-        await ctx.resume(); // WebView2 may start the context suspended; force it running
-
-        await ctx.audioWorklet.addModule('/assets/audio-capture-processor.js');
-
-        const worklet = new AudioWorkletNode(ctx, 'audio-capture-processor', {
-            numberOfInputs: 0,
-            numberOfOutputs: 1,
-            outputChannelCount: [1],
-        });
-        this.workletNode = worklet;
-
-        const destination = ctx.createMediaStreamDestination();
-        this.micDestination = destination;
-        worklet.connect(destination);
-
-        const channel = new Channel<AudioChunk>();
-        this.audioChannel = channel;
-
-        channel.onmessage = (chunk) => {
-            this.lastMicChunkAt = Date.now();
-            this.feedAudio(chunk);
-        };
-
-        this.micCaptureSettings = settings;
-        await invoke('start_audio_capture', {settings: toRustAudioSettings(settings), onChunk: channel});
-
-        this.lastMicChunkAt = Date.now();
-        this.startMicWatchdog();
-
-        const track = destination.stream.getAudioTracks()[0];
-        if (!track) throw new Error('No audio track from worklet');
-        return track;
-    }
-
-    async stopMicCapture(): Promise<void> {
-        clearInterval(this.micWatchdog);
-        this.micWatchdog = undefined;
-        this.micCaptureSettings = null;
-        if (this.audioChannel) {
-            this.audioChannel.onmessage = () => {
-            };
-            this.audioChannel = null;
-        }
-        if (isTauri()) {
-            await invoke('stop_audio_capture').catch(() => {
-            });
-        }
-        this.workletNode?.disconnect();
-        this.workletNode = null;
-        this.micDestination = null;
-        this.audioCtx?.close().catch(() => {
-        });
-        this.audioCtx = null;
-    }
-
-    /**
-     * The Rust capture stream can die silently (device unplugged, a stalled
-     * cpal callback, an exclusive-mode conflict with another app) - the worklet
-     * just keeps outputting silence forever with nothing surfacing the failure,
-     * so the remote side simply stops hearing the user. Real silence (not
-     * talking) still produces chunks -the denoiser and batching run continuously
-     * regardless of the VAD gate -so a prolonged gap is a reliable dead-stream
-     * signal, not a false positive from the user just being quiet.
-     */
-    private startMicWatchdog(): void {
-        clearInterval(this.micWatchdog);
-        const STALL_MS = 2500;
-        this.micWatchdog = setInterval(() => {
-            if (Date.now() - this.lastMicChunkAt > STALL_MS) void this.restartStalledMicCapture();
-        }, 1000);
-    }
-
-    private async restartStalledMicCapture(): Promise<void> {
-        if (this.micRestarting || !this.micCaptureSettings || !this.audioChannel) return;
-        this.micRestarting = true;
-        console.warn('[RustMedia] mic capture stalled -no audio chunks received, restarting Rust stream');
-        try {
-            await invoke('stop_audio_capture').catch(() => {
-            });
-            await invoke('start_audio_capture', {
-                settings: toRustAudioSettings(this.micCaptureSettings),
-                onChunk: this.audioChannel,
-            });
-            this.lastMicChunkAt = Date.now();
-        } catch (e) {
-            console.error('[RustMedia] mic capture restart failed', e);
-        } finally {
-            this.micRestarting = false;
-        }
-    }
-
-    // ── Microphone capture ────────────────────────────────────────────────────
+    // ── System audio (loopback) capture ───────────────────────────────────────
+    //
+    // The only capture path left in the webview. The microphone moved to the Rust voice session,
+    // which captures, processes, encodes and publishes without a worklet or an AudioContext; this
+    // one stays because a screen share's audio is still published from here.
 
     async startLoopbackCapture(): Promise<MediaStreamTrack> {
         await this.stopLoopbackCapture();
@@ -524,15 +409,6 @@ export class RustMediaService {
             });
     }
 
-    private feedAudio(chunk: AudioChunk): void {
-        if (!this.workletNode) return;
-        try {
-            const raw = base64ToArrayBuffer(chunk.data);
-            this.workletNode.port.postMessage({type: 'samples', buffer: raw}, [raw]);
-        } catch { /* ignore decode errors */
-        }
-    }
-
     private feedLoopback(chunk: AudioChunk): void {
         if (!this.loopbackWorklet) return;
         try {
@@ -544,15 +420,6 @@ export class RustMediaService {
 }
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
-
-function toRustAudioSettings(settings: RustAudioSettings) {
-    return {
-        deviceId: settings.deviceId,
-        noiseSuppression: settings.noiseSuppression,
-        autoGainControl: settings.autoGainControl,
-        vadThreshold: settings.vadThreshold,
-    };
-}
 
 function base64ToArrayBuffer(b64: string): ArrayBuffer {
     const bin = atob(b64);

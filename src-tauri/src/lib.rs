@@ -378,7 +378,6 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
         "--remote-debugging-port=9222",
     );
     builder
-        .manage(media::audio::AudioCaptureState::default())
         .manage(media::audio::LoopbackCaptureState::default())
         .manage(media::screen::ScreenCaptureState::default())
         .manage(crypto::mls::MlsStateHandle::default())
@@ -419,8 +418,6 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             media::audio::enumerate_audio_devices,
             media::audio::enumerate_output_devices,
             media::camera::enumerate_camera_devices,
-            media::audio::start_audio_capture,
-            media::audio::stop_audio_capture,
             media::audio::start_loopback_capture,
             media::audio::stop_loopback_capture,
             media::screen::enumerate_screen_sources,
