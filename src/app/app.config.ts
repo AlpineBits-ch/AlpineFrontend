@@ -16,6 +16,7 @@ import {providePrimeNG} from "primeng/config";
 import {MessageService} from 'primeng/api';
 import {provideHttpClient, withInterceptors} from "@angular/common/http";
 import {tokenInterceptor} from "./interceptors/token-interceptor";
+import {deviceIdInterceptor} from "./interceptors/device-id-interceptor";
 import {timeoutInterceptor} from "./interceptors/timeout.interceptor";
 import {GlobalErrorHandler} from "./core/global-error-handler";
 import {ThemeService} from './services/theme.service';
@@ -45,7 +46,7 @@ export function storageFactory(): OAuthStorage {
 
 export const appConfig: ApplicationConfig = {
     providers: [
-        provideHttpClient(withInterceptors([tokenInterceptor, timeoutInterceptor])),
+        provideHttpClient(withInterceptors([tokenInterceptor, deviceIdInterceptor, timeoutInterceptor])),
         provideOAuthClient(),
         {provide: OAuthStorage, useFactory: storageFactory},
         {provide: ErrorHandler, useClass: GlobalErrorHandler},
