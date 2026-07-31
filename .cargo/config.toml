@@ -1,0 +1,11 @@
+# At the repository root on purpose. Cargo discovers `.cargo/config.toml` by walking up from the
+# *invocation* directory, not from the manifest - so a copy under `src-tauri/` would be picked up by
+# `tauri build` (which runs cargo there) but silently ignored by
+# `cargo test --manifest-path src-tauri/Cargo.toml` run from the root. Here, both find it.
+
+[env]
+# The libopus sources vendored by `audiopus_sys` declare `cmake_minimum_required(VERSION 3.1)`,
+# and CMake 4 removed compatibility with anything below 3.5 - so a modern CMake refuses to
+# configure them at all. This restores the old behaviour rather than requiring every developer to
+# pin an old CMake or export the variable by hand.
+CMAKE_POLICY_VERSION_MINIMUM = "3.5"

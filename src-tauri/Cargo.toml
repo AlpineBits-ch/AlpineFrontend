@@ -74,6 +74,13 @@ tauri-plugin-notifications = { version = "0.4.6", features = ["push-notification
 [target.x86_64-apple-ios.dependencies]
 tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
 
+# Upstream `webrtc-audio-processing-sys` cannot build with MSVC: its build script applies
+# `-std=c++17` and `-Wno-unused-parameter` unconditionally, and `cl` rejects the latter outright
+# (`D8021`), so Windows could not have echo cancellation at all. The vendored copy adds an MSVC
+# branch and nothing else - see the two comments marked `ALPINE PATCH` in its build.rs.
+[patch.crates-io]
+webrtc-audio-processing-sys = { path = "vendor/webrtc-audio-processing-sys" }
+
 [features]
 default = ["aec"]
 # Acoustic echo cancellation via WebRTC's AudioProcessing module. A cargo feature rather than a

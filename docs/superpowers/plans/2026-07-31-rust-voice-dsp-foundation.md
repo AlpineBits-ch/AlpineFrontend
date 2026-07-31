@@ -22,11 +22,21 @@
 
 ## Prerequisite (human, once per machine)
 
-> **Open decision — blocks Task 9 Step 6 onwards only.** `webrtc-audio-processing-sys` 2.1 **cannot build under MSVC**: its `build.rs` passes `-std=c++17` and `-Wno-unused-parameter` to the `cc` build unconditionally (lines 403–404, with only a macOS branch nearby), and `cl` rejects them with `D8021`. Every stage before that was made to work on Windows — the C++ library itself compiles — but this last step needs a patched crate, applied via `[patch.crates-io]` pointing at a fork with an MSVC branch. Confirm that approach before starting Task 9 Step 6. Tasks 1–8, and Task 9 up to Step 5, are unaffected and can proceed now.
+> **Status.** The crate is vendored and patched at `src-tauri/vendor/webrtc-audio-processing-sys/`
+> (two changes, both marked `ALPINE PATCH`), wired in through `[patch.crates-io]`. With that,
+> **the C++ library compiles and links on Windows/MSVC** — all 440 objects, plus symbol prefixing.
+> The remaining blocker is libclang for `bindgen` (item 7 below), which needs an admin install.
 >
-> Note that adopting each platform's own canceller instead is *not* a straight win: macOS `VoiceProcessingIO` is excellent and runs at 48 kHz, but Windows' Voice Capture DSP (`CLSID_CWMAudioAEC`) only cancels at 8–22 kHz, which would mean narrowband echo cancellation on the primary platform, and Linux has no OS canceller at all.
+> **The `apm` module in `process.rs` has therefore never been compiled.** Expect to fix type
+> mismatches against the real crate on the first successful build. The trait, `create`'s fallback
+> and all seven tests are verified against the passthrough and must not change.
+>
+> Adopting each platform's own canceller instead is *not* a straight win: macOS
+> `VoiceProcessingIO` is excellent and runs at 48 kHz, but Windows' Voice Capture DSP
+> (`CLSID_CWMAudioAEC`) only cancels at 8–22 kHz — narrowband echo cancellation on the primary
+> platform — and Linux has no OS canceller at all.
 
-The `aec` feature builds WebRTC's AudioProcessing module from C++ source with meson. Establishing this took ten distinct blockers on Windows; the requirements below are what made it progress, in order of discovery. **None of items 1–6 apply to macOS or Linux**, where meson finds the system compiler and the build is uneventful.
+The `aec` feature builds WebRTC's AudioProcessing module from C++ source with meson. Getting that far on Windows took eleven distinct blockers; the list below is what made it progress, in order of discovery. **None of them apply to macOS or Linux**, where meson finds the system compiler and the build is uneventful.
 
 **All platforms** — meson, ninja and Python:
 
@@ -49,7 +59,9 @@ Two further constraints, both discovered by hitting them:
 
 4. **`CXXFLAGS=/std:c++20`.** The crate's meson build does not raise the C++ standard for MSVC, but its vendored AGC2 sources use designated initializers, so the build stops at `error C7555: use of designated initializers requires at least '/std:c++20'`.
 5. **Keep the build path short.** Meson's nested build directories plus a long checkout path exceed Windows' 260-character `MAX_PATH`, and the failure is misleading: meson reports `ERROR: Compiler cl cannot compile programs`, while the underlying meson log shows `Cannot open source file: 'sanity_check_for_c.c'`. Either build from a short path or enable long-path support.
-6. **A `nm` on `PATH`.** After the C++ library builds, the build script shells out to GNU `nm` to enumerate symbols, and MSVC has no equivalent. Rust ships a compatible one: `rustup component add llvm-tools-preview`, then copy `llvm-nm.exe` to a directory on `PATH` under the name `nm.exe`.
+6. **A `nm` on `PATH`.** After the C++ library builds, the build script shells out to GNU `nm` to enumerate symbols, and MSVC has no equivalent. Rust ships a compatible one: `rustup component add llvm-tools-preview`, then copy `llvm-nm.exe` to a directory on `PATH` under the name `nm.exe`. The same component provides `rust-objcopy`, which the build script also needs — it prints a spurious "not found" warning because it tests an extensionless path, but the tool does run.
+7. **libclang, for `bindgen`.** The final step generates Rust bindings and fails with `Unable to find libclang`. Install LLVM (`choco install llvm -y`, admin) or set `LIBCLANG_PATH` to a directory containing `libclang.dll`.
+8. **A short `CARGO_TARGET_DIR`.** Related to item 5 but distinct: even from a normal checkout, the *object* paths reach 258 characters, right at the limit. `LongPathsEnabled=1` does not help, because `cl.exe` is a legacy tool that ignores it. Set `CARGO_TARGET_DIR` to something short (`C:\vt`) for Windows builds with this feature.
 
 A working Windows invocation therefore looks like:
 
