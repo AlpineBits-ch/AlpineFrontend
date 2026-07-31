@@ -1835,6 +1835,34 @@ git commit -m "refactor: reduce the JPEG frame path to a local preview"
 
 ---
 
+## Spike result (2026-07-31)
+
+Partially run. Two of the three unknowns are settled; the third needs a live backend.
+
+**Dependencies build.** `webrtc = "0.14"` and `openh264 = "0.9"` both compile in this workspace on
+Windows/MSVC. openh264's default `source` feature builds the Cisco library from source via `cc` and
+`nasm-rs` with no extra toolchain setup.
+
+**The encoder works.** `media::publisher::encoder_sw::SoftwareEncoder` is implemented and covered by
+five passing tests: the first frame is an IDR with an Annex-B start code, timestamps survive,
+a static scene's delta frame is smaller than its keyframe, `request_keyframe` forces an IDR, and
+ultrawide (1920×540) and portrait (606×1080) geometries encode. openh264 rejects `AdaptiveQuant` and
+`BackgroundDetection` for `ScreenContentRealTime`, so both are explicitly disabled.
+
+**Cloudflare interop is NOT verified.** Publishing H.264 from `webrtc-rs` to Cloudflare Realtime
+needs a live backend, a bearer token and a real guild/channel, none of which are available here. This
+remains the load-bearing risk for Tasks 14-15 and must be proven before either is built.
+
+**Licensing caveat, needs a decision before shipping.** Building OpenH264 from source does *not*
+carry Cisco's patent grant, which covers only their precompiled binary. Shipping the source build in
+a released product is a legal question, not a technical one. The `libloading` feature loads Cisco's
+signed binary at runtime instead, which is the license-safe route and is how Firefox does it. Either
+switch to `libloading` plus a download-on-install step, or rely on the Media Foundation hardware
+encoder on Windows and treat openh264 as a development fallback only.
+
+**Not built:** `encoder_mf.rs` (Media Foundation hardware encoder), `rtc.rs`, `signalling.rs`, the
+Tauri commands, and the frontend flag. Tasks 13 (partially), 14 and 15 remain open.
+
 ## Self-Review
 
 **Spec coverage:**
