@@ -58,6 +58,13 @@ jobs:
         run: |
           git submodule update --init --recursive
 
+      # The `aec` feature is on by default and builds WebRTC's AudioProcessing module from source,
+      # which shells out to meson and ninja (see src-tauri/Cargo.toml). Installed explicitly rather
+      # than relying on whatever the runner image happens to ship, so echo cancellation cannot
+      # silently stop building because an image changed. Python, which meson needs, is preinstalled.
+      - name: Install meson and ninja
+        run: pip install meson ninja
+
       - name: Install dependencies
         run: bun install
 
@@ -121,7 +128,10 @@ jobs:
             libsoup-3.0-dev \
             libgbm-dev \
             libasound2-dev \
-            patchelf
+            patchelf \
+            meson \
+            ninja-build \
+            pkg-config
 
       - name: Install dependencies
         run: bun install

@@ -83,9 +83,15 @@ webrtc-audio-processing-sys = { path = "vendor/webrtc-audio-processing-sys" }
 
 [features]
 default = ["aec"]
-# Acoustic echo cancellation via WebRTC's AudioProcessing module. A cargo feature rather than a
-# hard dependency because it needs meson, ninja and Python at build time: without them the build
-# still succeeds and media::voice::process falls back to its passthrough implementation.
+# Acoustic echo cancellation via WebRTC's AudioProcessing module.
+#
+# It builds that module from source, which needs meson, ninja and Python on PATH. Because it is on
+# by default, so does an ordinary `cargo build` or `tauri build` - the fallback in
+# media::voice::process is reached by turning the feature *off*, not by lacking the tools, and a
+# machine without them fails the build outright ("Failed to execute meson. Do you have it
+# installed?"). CI installs them explicitly; see .github/workflows/build.yml.
+#
+# Build without echo cancellation - and without those tools - via --no-default-features.
 aec = ["dep:webrtc-audio-processing"]
 
 [dev-dependencies]
