@@ -1,5 +1,5 @@
-import {inject, Injectable, signal} from '@angular/core';
-import {firstValueFrom, Observable, Subject} from 'rxjs';
+import {computed, inject, Injectable, signal} from '@angular/core';
+import {firstValueFrom, Subject} from 'rxjs';
 import {GuildVoiceService} from './guild-voice.service';
 import {AudioSettingsService} from './audio-settings.service';
 import {RustMediaService} from './rust-media.service';
@@ -18,7 +18,6 @@ import {
     CAMERA_KBPS,
     preferVideoCodecs,
     STREAM_AUDIO_KBPS,
-    VOICE_AUDIO_KBPS,
     withStartBitrate,
 } from './webrtc-encoding';
 
@@ -40,7 +39,23 @@ export interface ScreenPublishRestart {
 export class VoiceRTCService {
     private apiConfig = inject(ApiConfigService);
 
-    readonly rtcState = signal<RTCPeerConnectionState>('new');
+    private readonly pcState = signal<RTCPeerConnectionState>('new');
+    /** True once the Rust engine is capturing and publishing. See {@link rtcState}. */
+    private readonly engineUp = signal(false);
+
+    /**
+     * What the voice UI shows as the connection state.
+     *
+     * This peer connection no longer publishes anything, so while you are alone in a channel there
+     * is nothing to negotiate and it sits in `'new'` indefinitely - which the status bar reads as
+     * "connecting" and would never leave. What the user actually means by "am I connected" is
+     * whether their voice is going out, and that is the Rust engine. Once the connection has
+     * something to do, its own state takes over again, including its failures.
+     */
+    readonly rtcState = computed<RTCPeerConnectionState>(() => {
+        const pc = this.pcState();
+        return pc === 'new' && this.engineUp() ? 'connected' : pc;
+    });
     readonly participantsWithAudio = signal<Set<string>>(new Set());
     readonly localVideoStream = signal<MediaStream | null>(null);
     readonly localScreenStream = signal<MediaStream | null>(null);
@@ -69,17 +84,11 @@ export class VoiceRTCService {
     private cfSessionId: string | null = null;
     private setupDone = false;
 
-    private localAudioTrack: MediaStreamTrack | null = null;
-    /** A permanently-enabled clone of localAudioTrack, analysed for voice-activity/speaking
-     *  detection so the analyser keeps seeing real audio even while setMicEnabled() disables
-     *  the real (transmitted) localAudioTrack. See the identical comment in call-webrtc.service.ts. */
-    private vadProbeTrack: MediaStreamTrack | null = null;
     private localVideoTrack: MediaStreamTrack | null = null;
     private localScreenTrack: MediaStreamTrack | null = null;
     private localScreenAudioTrack: MediaStreamTrack | null = null;
     private screenShareId: string | null = null;
 
-    private cfAudioTrackName: string | null = null;
     private cfVideoTrackName: string | null = null;
 
     // Serialises all SDP offer/answer cycles to prevent races on concurrent track operations.
@@ -124,55 +133,32 @@ export class VoiceRTCService {
 
     // ── Connection setup / teardown ────────────────────────────────────────────
 
-    async connect(guildId: string, channelId: string, ownUserId: string): Promise<boolean> {
+    async connect(guildId: string, channelId: string): Promise<boolean> {
         this.setupDone = false;
 
-
-        // Block the negotiation queue until the initial publish completes so that
-        // GuildParticipantJoined WS events don't try to subscribe before the base
-        // offer/answer is done.
+        // Block the negotiation queue until the session exists, so that GuildParticipantJoined WS
+        // events don't try to subscribe before there is a session to subscribe on.
         let releaseQueue!: () => void;
         this.negotiationChain = new Promise<void>(resolve => {
             releaseQueue = resolve;
         });
 
         try {
-            // Get audio first -if mic is unavailable there's no point creating a PC.
-            let audioTrack: MediaStreamTrack;
+            // Start the microphone first - if it is unavailable there is no point creating a PC.
+            //
+            // Capture, processing and publishing all happen in Rust, on its own Cloudflare session.
+            // Nothing is added to this peer connection: other clients learn the track from the
+            // ParticipantJoined event the backend emits when that session publishes "audio", and it
+            // carries the Rust session id.
             try {
-                const s = this.audioSettings.settings();
-                const useRust = s.noiseSuppressionMode === 'enhanced' || await this.rustMedia.shouldUseRustAudio();
-                console.log(`[voice] audio path: ${useRust ? 'rust' : 'getUserMedia'} (noiseSuppression=${s.noiseSuppressionMode} micId=${s.micId})`);
-
-                if (useRust) {
-                    try {
-                        audioTrack = await this.rustMedia.startMicCapture({
-                            deviceId: s.micId === 'default' ? null : s.micId,
-                            noiseSuppression: s.noiseSuppressionMode !== 'none',
-                            autoGainControl: s.autoGainControl,
-                            vadThreshold: s.vadStrength,
-                        });
-                        console.log('[voice] Rust mic capture started');
-                    } catch (rustErr) {
-                        console.warn('[voice] Rust audio capture failed, falling back to getUserMedia:', rustErr);
-                        const stream = await navigator.mediaDevices.getUserMedia({
-                            audio: await this.audioSettings.buildAudioConstraint(),
-                            video: false,
-                        });
-                        audioTrack = stream.getAudioTracks()[0];
-                        console.log('[voice] getUserMedia fallback succeeded, track:', audioTrack.label);
-                    }
-                } else {
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        audio: await this.audioSettings.buildAudioConstraint(),
-                        video: false,
-                    });
-                    audioTrack = stream.getAudioTracks()[0];
-                    console.log('[voice] getUserMedia track:', audioTrack.label);
-                }
+                await this.voiceEngine.start(
+                    {kind: 'guild', guildId, channelId},
+                    this.apiConfig.baseUrl(),
+                    this.oauth.getAccessToken(),
+                );
+                this.engineUp.set(true);
             } catch (e) {
-                console.log(e)
-                console.log('ERROR SETTING UP PC')
+                console.error('[voice] Rust voice engine failed to start', e);
                 this.setupDone = true;
                 return false;
             }
@@ -180,39 +166,19 @@ export class VoiceRTCService {
             this.pc = new RTCPeerConnection({iceServers: environment.iceServers, bundlePolicy: 'max-bundle'});
             this.pc.ontrack = e => this.handleRemoteTrack(e);
             this.pc.onconnectionstatechange = () => {
-                console.log('on change', this.pc);
-                if (this.pc) this.rtcState.set(this.pc.connectionState);
+                if (this.pc) this.pcState.set(this.pc.connectionState);
             };
 
-            const localStream = new MediaStream([audioTrack]);
-            this.localAudioTrack = localStream.getAudioTracks()[0];
-            this.vadProbeTrack = this.localAudioTrack.clone();
-            this.setupVAD('local', ownUserId, new MediaStream([this.vadProbeTrack]));
-
-            const sender = this.pc.addTrack(this.localAudioTrack, localStream);
-            this.localSenders.set('audio', sender);
-
-            const {cfSessionId} = await firstValueFrom(this.guildVoiceSvc.createSession(guildId, channelId));
+            // Secondary: the Rust session opened above is the one carrying this participant's audio,
+            // and only one session per participant may claim that.
+            const {cfSessionId} = await firstValueFrom(
+                this.guildVoiceSvc.createSession(guildId, channelId, false));
             this.cfSessionId = cfSessionId;
 
-            const offer = await this.pc.createOffer();
-            await this.pc.setLocalDescription(offer);
-
-            const audioMid = this.pc.getTransceivers().find(t => t.sender === sender)?.mid ?? '0';
-
-            const publishResp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
-                cfSessionId,
-                sessionDescription: this.pc.localDescription!,
-                tracks: [{location: 'local', mid: audioMid, trackName: 'audio'}],
-            }));
-
-            this.cfAudioTrackName = publishResp.tracks[0]?.trackName ?? 'audio';
-            await this.pc.setRemoteDescription(publishResp.sessionDescription);
-            if (publishResp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
-            await applySimpleBitrate(sender, VOICE_AUDIO_KBPS);
-
-            await this.verifyRustVoiceIfEnabled(guildId, channelId, ownUserId);
-
+            // No offer/answer here. There is no local track to publish, and an offer carrying only
+            // unused recvonly m-lines asks Cloudflare to answer a subscription that was never
+            // requested. The first negotiation is now whatever the first subscribeAudio issues, and
+            // its m-lines match the tracks it asks for one-to-one.
             this.setupDone = true;
             return true;
 
@@ -224,10 +190,14 @@ export class VoiceRTCService {
         }
     }
 
-    /** Returns the names of all currently published local tracks (for the close-tracks API call). */
+    /**
+     * Names of all local tracks published on *this* connection's session, for the close-tracks call.
+     *
+     * The microphone is not among them: it lives on the Rust session, which closes its own track,
+     * exactly as the screen publisher does.
+     */
     getActiveTrackNames(): string[] {
         const names: string[] = [];
-        if (this.cfAudioTrackName) names.push(this.cfAudioTrackName);
         if (this.cfVideoTrackName) names.push(this.cfVideoTrackName);
         if (this.localScreenTrack && this.screenShareId) {
             names.push(`screen-${this.screenShareId}`);
@@ -252,19 +222,13 @@ export class VoiceRTCService {
         this.remoteScreenAudioEls.clear();
         this.localSenders.clear();
 
-        this.localAudioTrack?.stop();
-        this.vadProbeTrack?.stop();
-        this.vadProbeTrack = null;
-        void this.rustMedia.stopMicCapture();
-        // Harmless when the verification spike was never enabled, and essential when it was: a
-        // leaked Rust session would keep publishing after the channel is left.
         void this.voiceEngine.stop();
+        this.engineUp.set(false);
         this.localVideoTrack?.stop();
         this.localScreenTrack?.stop();
         void this.rustMedia.stopScreenCapture();
         this.localScreenAudioTrack?.stop();
 
-        this.localAudioTrack = null;
         this.localVideoTrack = null;
         this.localScreenTrack = null;
         this.localScreenAudioTrack = null;
@@ -273,12 +237,11 @@ export class VoiceRTCService {
         this.screenPreset.set(null);
 
         this.pc?.close();
-        this.rtcState.set('new');
+        this.pcState.set('new');
         this.participantsWithAudio.set(new Set());
         this.userVolumes.clear();
         this.pc = null;
         this.cfSessionId = null;
-        this.cfAudioTrackName = null;
         this.cfVideoTrackName = null;
         this.setupDone = false;
         this.midMeta.clear();
@@ -410,85 +373,6 @@ export class VoiceRTCService {
     }
 
     // ── Local media controls ───────────────────────────────────────────────────
-
-    setMicEnabled(enabled: boolean): void {
-        if (this.localAudioTrack) this.localAudioTrack.enabled = enabled;
-    }
-
-    /**
-     * TEMPORARY - phase 1 verification spike. See Task 9, Step 1 of
-     * `docs/superpowers/plans/2026-07-31-rust-voice-capture-publish.md`.
-     *
-     * Opens a *second* Cloudflare session from Rust that publishes the microphone with
-     * `primary=true`, so we can confirm the backend then records that session as the participant's
-     * audio. The entire cutover rests on that assumption and it has never been tested against a
-     * running backend.
-     *
-     * Opt-in, because it deliberately creates a second primary session and two microphone tracks:
-     *
-     *   localStorage.setItem('alpine.verifyRustVoice', '1')
-     *
-     * then rejoin the channel and read the console. Guild voice only - a DM call reacts to a second
-     * primary session with device-takeover and would hang up. Delete this once the cutover lands.
-     *
-     * No second client needed: the participant record is server state, so it can be read straight
-     * back with `getState`. That is the same record the backend hands to every other client.
-     */
-    private async verifyRustVoiceIfEnabled(
-        guildId: string,
-        channelId: string,
-        ownUserId: string,
-    ): Promise<void> {
-        if (localStorage.getItem('alpine.verifyRustVoice') !== '1') return;
-        if (!this.voiceEngine.available()) {
-            console.warn('[voice][verify] not running under Tauri, so there is no Rust engine');
-            return;
-        }
-
-        try {
-            const rust = await this.voiceEngine.start(
-                {kind: 'guild', guildId, channelId},
-                this.apiConfig.baseUrl(),
-                this.oauth.getAccessToken(),
-            );
-            console.log('[voice][verify] rust    session', rust.cfSessionId, 'track', rust.trackName);
-            console.log('[voice][verify] webview session', this.cfSessionId, 'track', this.cfAudioTrackName);
-
-            // Polled rather than read once: the backend may settle the record a moment after
-            // tracks/new returns, and a single early read would report the wrong answer confidently.
-            for (let attempt = 1; attempt <= 3; attempt++) {
-                await new Promise(resolve => setTimeout(resolve, 600));
-                const state = await firstValueFrom(this.guildVoiceSvc.getState(guildId, channelId));
-                const me = state.participants.find(p => p.userId === ownUserId);
-                if (!me) {
-                    console.log(`[voice][verify] attempt ${attempt}: own participant record not present yet`);
-                    continue;
-                }
-
-                // Dumped raw on the first pass: reading named fields assumes the DTO matches what
-                // the endpoint really returns, and an absent field is indistinguishable from a null
-                // one once it has been read through a typed interface.
-                if (attempt === 1) {
-                    console.log('[voice][verify] raw participant record:', JSON.stringify(me));
-                }
-
-                // Look for the session id anywhere in the record rather than at an assumed key.
-                const asRecord = me as unknown as Record<string, unknown>;
-                const matches = (id: string | null) =>
-                    id !== null && Object.entries(asRecord).filter(([, v]) => v === id).map(([k]) => k);
-
-                const rustKeys = matches(rust.cfSessionId);
-                const webviewKeys = matches(this.cfSessionId);
-                const verdict =
-                    rustKeys && rustKeys.length ? `RUST at ${rustKeys.join(',')} -> assumption HOLDS`
-                        : webviewKeys && webviewKeys.length ? `WEBVIEW at ${webviewKeys.join(',')} -> assumption FAILS`
-                            : 'NEITHER session id appears anywhere in the record';
-                console.log(`[voice][verify] attempt ${attempt}: ${verdict}`);
-            }
-        } catch (e) {
-            console.error('[voice][verify] rust voice failed to start', e);
-        }
-    }
 
     setDeafened(isDeafened: boolean): void {
         this._isDeafened = isDeafened;
@@ -904,7 +788,7 @@ export class VoiceRTCService {
                     n.add(meta.userId);
                     return n;
                 });
-                this.setupVAD(meta.userId, meta.userId, stream);
+                this.setupVAD(meta.userId, stream);
             }
         } else if (meta.kind === 'video') {
             this.videoStreamsSignal.update(m => {
@@ -960,39 +844,36 @@ export class VoiceRTCService {
         await this.pc.setRemoteDescription(resp.sessionDescription);
     }
 
-    private setupVAD(handle: string, userId: string, stream: MediaStream): void {
+    /**
+     * Drive a remote participant's speaking indicator from their incoming audio.
+     *
+     * Only ever remote now. The local speaking state comes from the Rust gate, which is the same
+     * decision that picks what actually gets transmitted - so the indicator and the transmission
+     * can no longer disagree, which they routinely did when a separate WebAudio analyser made its
+     * own judgement about the same microphone.
+     */
+    private setupVAD(userId: string, stream: MediaStream): void {
         try {
             const ctx = new AudioContext();
             const source = ctx.createMediaStreamSource(stream);
             const analyser = ctx.createAnalyser();
             analyser.fftSize = 256;
             source.connect(analyser);
-            // Time-domain RMS, not getByteFrequencyData averaged across every FFT
-            // bin -most of those 128 bins carry no voice energy (speech sits in a
-            // handful of low bins), so that average was diluted to ~1/4 of what the
-            // old MAX_VAD_AVG=60 assumed. That made the default 60% sensitivity's
-            // threshold sit right where normal speech straddles it, clipping words
-            // mid-syllable, and only sensitivities near 95-100% (threshold ~0) held
-            // the gate open reliably. RMS matches CallWebRtcService's speaking
-            // detection so both call paths interpret the slider identically.
+            // Time-domain RMS, not getByteFrequencyData averaged across every FFT bin - most of
+            // those 128 bins carry no voice energy (speech sits in a handful of low bins), so that
+            // average was diluted to ~1/4 of what the old MAX_VAD_AVG=60 assumed.
             const data = new Float32Array(analyser.fftSize);
-            const isLocal = handle === 'local';
-            const MAX_VAD_RMS = 0.05;
             const REMOTE_THRESHOLD = 0.02;
 
             const id = setInterval(() => {
                 analyser.getFloatTimeDomainData(data);
                 const rms = Math.sqrt(data.reduce((sum, v) => sum + v * v, 0) / data.length);
-                const threshold = isLocal
-                    ? MAX_VAD_RMS * (1 - this.audioSettings.settings().inputSensitivity / 100)
-                    : REMOTE_THRESHOLD;
-                const speaking = rms > threshold;
-                this.speakingChanges$.next({userId, isSpeaking: speaking});
+                this.speakingChanges$.next({userId, isSpeaking: rms > REMOTE_THRESHOLD});
             }, 50);
 
-            const prev = this.vadHandles.get(handle);
+            const prev = this.vadHandles.get(userId);
             if (prev) clearInterval(prev);
-            this.vadHandles.set(handle, id);
+            this.vadHandles.set(userId, id);
         } catch { /* AudioContext unavailable */
         }
     }

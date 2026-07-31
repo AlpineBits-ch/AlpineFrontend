@@ -91,9 +91,15 @@ export class VoiceService {
     //   → proxies to CF POST /sessions/new (no body)
     //   → stores the returned cfSessionId in the DB associated with userId + callId
     //   → returns { cfSessionId: string }
-    cfCreateSession(callId: string): Observable<{ cfSessionId: string }> {
+    /**
+     * `primary` decides whether the backend runs this session through `Call.ConnectDevice`, which
+     * is where device-takeover detection lives. The microphone is published from Rust on its own
+     * session, so the webview's session is secondary - a second primary session for the same user
+     * reads as a takeover and hangs up the call.
+     */
+    cfCreateSession(callId: string, primary = true): Observable<{ cfSessionId: string }> {
         return this.client.post<{ cfSessionId: string }>(
-            `${this.base}/calls/${callId}/session`, {}
+            `${this.base}/calls/${callId}/session?primary=${primary}`, {}
         );
     }
 

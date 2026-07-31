@@ -1,5 +1,8 @@
-import {effect, inject, Injectable, signal} from '@angular/core';
+import {computed, effect, inject, Injectable, signal} from '@angular/core';
 import {firstValueFrom, Subscription} from 'rxjs';
+import {OAuthService} from 'angular-oauth2-oidc';
+import {ApiConfigService} from './api-config.service';
+import {VoiceEngineService} from './voice-engine.service';
 import {CallSessionService} from './call-session.service';
 import {CfTrackNew, CfTrackResult, VoiceService} from './voice.service';
 import {ConnectionState, VoiceWebsocketService} from './voice-websocket.service';
@@ -13,7 +16,6 @@ import {
     applySimpleBitrate,
     CAMERA_KBPS,
     preferVideoCodecs,
-    VOICE_AUDIO_KBPS,
 } from './webrtc-encoding';
 
 export interface CallStats {
@@ -48,7 +50,21 @@ export class CallWebRtcService {
     // ── Stats polling ────────────────────────────────────────────────────────
     readonly stats = signal<CallStats | null>(null);
     // ── Connection state ──────────────────────────────────────────────────────
-    readonly rtcState = signal<RTCPeerConnectionState>('new');
+    private readonly pcState = signal<RTCPeerConnectionState>('new');
+    private readonly engineUp = signal(false);
+
+    /**
+     * What the call UI shows as the connection state.
+     *
+     * This peer connection only receives now, so until the other side publishes there is nothing to
+     * negotiate and it sits in `'new'` - which the call panel reads as "connecting" and would never
+     * leave. Whether your voice is going out is the Rust engine's business; once the connection has
+     * something to do, its own state takes over again, including its failures.
+     */
+    readonly rtcState = computed<RTCPeerConnectionState>(() => {
+        const pc = this.pcState();
+        return pc === 'new' && this.engineUp() ? 'connected' : pc;
+    });
     readonly participantsWithAudio = signal<Set<string>>(new Set());
     private callSession = inject(CallSessionService);
     private voiceService = inject(VoiceService);
@@ -56,17 +72,13 @@ export class CallWebRtcService {
     private audioSettings = inject(AudioSettingsService);
     private rustMedia = inject(RustMediaService);
     private screenPicker = inject(ScreenPickerService);
+    private voiceEngine = inject(VoiceEngineService);
+    private apiConfig = inject(ApiConfigService);
+    private oauth = inject(OAuthService);
     // ── WebRTC state ─────────────────────────────────────────────────────────
     private pc: RTCPeerConnection | null = null;
     private cfSessionId: string | null = null;
     private callId: string | null = null;
-    private audioTrack: MediaStreamTrack | null = null;
-    /** A clone of the local audio track, kept permanently enabled, so the speaking/VAD
-     *  analyser always sees real audio even while applyVadGate() disables the real
-     *  (transmitted) audioTrack - a disabled MediaStreamTrack outputs silence to ALL
-     *  its consumers including this analyser, so analysing the same track that gets
-     *  gated would make the gate unable to ever detect speech again once it closes. */
-    private vadProbeTrack: MediaStreamTrack | null = null;
     private videoSender: RTCRtpSender | null = null;
     private videoTrackName: string | null = null;
     private screenSender: RTCRtpSender | null = null;
@@ -85,22 +97,10 @@ export class CallWebRtcService {
     private prevConnState: ConnectionState | null = null;
     // Audio elements for remote participants -WebView2/Tauri requires explicit <audio> elements
     private readonly remoteAudio = new Map<string, HTMLAudioElement>();
-    // Local senders stored for on-the-fly bitrate updates
-    private audioSender: RTCRtpSender | null = null;
     // Per-user volume overrides (0–1.0), persisted for the call duration
     private readonly userVolumes = new Map<string, number>();
     // ontrack events that arrived before their midMap entry was written -replayed after subscribe completes
     private readonly pendingTracks: RTCTrackEvent[] = [];
-    // ── Speaking detection ───────────────────────────────────────────────────
-    private audioCtx: AudioContext | null = null;
-    private rafHandle: number | null = null;
-    private lastSpeaking = false;
-    private readonly SPEAKING_THRESHOLD = 0.02;
-    private readonly MAX_VAD_RMS = 0.05;
-    // Hold the transmit gate open for this long after the last frame that cleared
-    // threshold, so a brief RMS dip between syllables doesn't clip mid-word.
-    private readonly VAD_RELEASE_MS = 300;
-    private lastVadOpenAt = -Infinity;
 
     // ── Negotiation serialisation ────────────────────────────────────────────
     // RTCPeerConnection only allows one offer/answer exchange at a time. Queuing
@@ -148,33 +148,30 @@ export class CallWebRtcService {
             }
         });
 
-        // Apply local mute state + push-to-talk gate to the audio track. Only the
-        // deliberate mute toggle is broadcast to peers -the PTT gate is a purely
-        // local transmit gate, same as Isle proximity's syncMic.
+        // Apply local mute state + push-to-talk gate. Only the deliberate mute toggle is broadcast
+        // to peers - the PTT gate is a purely local transmit gate, same as Isle proximity's syncMic.
+        //
+        // Both go to the Rust engine as separate facts. They used to be collapsed into one
+        // `track.enabled`, which forced this effect to tiptoe around the voice-activity gate that
+        // was fighting it for the same boolean; there is now exactly one gate and it lives with the
+        // audio it gates.
         effect(() => {
             const s = this.callSession.session();
             if (!s) return;
             const isMuted = s.local.isMuted;
-            const gateOpen = this.callSession.pttGateOpen();
-            // In voice-activity mode, only ever force the track CLOSED here (mute
-            // or PTT-gate-closed) - never force it open. Opening is applyVadGate's
-            // job from the tick() loop, which re-evaluates every animation frame;
-            // if this effect also forced enabled=true on every unrelated session
-            // change (e.g. a remote participant's speaking/mute/camera event), it
-            // would momentarily re-open a track applyVadGate just closed, leaking
-            // up to one frame of live audio on every such event. Push-to-talk has
-            // no competing gate, so it keeps the original unconditional behavior.
-            const inVoiceActivity = this.audioSettings.settings().inputMode === 'voice-activity';
-            if (this.audioTrack) {
-                if (inVoiceActivity) {
-                    if (isMuted || !gateOpen) this.audioTrack.enabled = false;
-                } else {
-                    this.audioTrack.enabled = !isMuted && gateOpen;
-                }
-            }
+            void this.voiceEngine.setMute(isMuted);
+            void this.voiceEngine.setPttOpen(this.callSession.pttGateOpen());
             if (isMuted === this.prevMuted) return;
             this.prevMuted = isMuted;
             if (this.callId) this.voiceWs.invokeMuteChange(this.callId, isMuted);
+        });
+
+        // Own speaking state, straight from the Rust gate - the same decision that picks which
+        // frames are transmitted, so the indicator cannot disagree with what is actually sent.
+        effect(() => {
+            const speaking = this.voiceEngine.speaking();
+            const localId = this.callSession.session()?.participants.find(p => p.isLocal)?.userId;
+            if (localId) this.callSession.onSpeakingChanged(localId, speaking);
         });
 
         // Apply local deafen state to every remote audio element's volume - mirrors
@@ -233,26 +230,6 @@ export class CallWebRtcService {
         return this.userVolumes.get(userId) ?? 1;
     }
 
-    /**
-     * Continuously re-applies the voice-activity transmit gate. Runs every
-     * animation frame from the local speaking-detection tick() loop above, so it
-     * needs no separate polling loop. No-ops outside voice-activity mode or while
-     * deliberately muted - the mute effect (below) already forced enabled=false
-     * in that case and this must not override it.
-     */
-    private applyVadGate(rms: number): void {
-        if (this.audioSettings.settings().inputMode !== 'voice-activity') return;
-        if (!this.audioTrack) return;
-        const s = this.callSession.session();
-        if (!s || s.local.isMuted) return;
-        if (!this.callSession.pttGateOpen()) return;
-        const sensitivity = this.audioSettings.settings().inputSensitivity;
-        const threshold = this.MAX_VAD_RMS * (1 - sensitivity / 100);
-        const now = performance.now();
-        if (rms > threshold) this.lastVadOpenAt = now;
-        this.audioTrack.enabled = now - this.lastVadOpenAt < this.VAD_RELEASE_MS;
-    }
-
     // ── SDP offer/answer cycle ────────────────────────────────────────────────
 
     // Serialise all SDP exchanges through a promise chain so concurrent publish
@@ -266,7 +243,7 @@ export class CallWebRtcService {
         (window as any).__pc = this.pc;  // ← add this line
         this.pc.ontrack = (e) => this.handleRemoteTrack(e);
         this.pc.onconnectionstatechange = () => {
-            if (this.pc) this.rtcState.set(this.pc.connectionState);
+            if (this.pc) this.pcState.set(this.pc.connectionState);
         };
 
         // TODO(backend): Implement POST /api/v1/messaging/voice/calls/{callId}/session.
@@ -278,12 +255,14 @@ export class CallWebRtcService {
         //   4. Emit 'ParticipantJoined' via SignalR to all OTHER call members with:
         //        { userId, cfSessionId, audioTrackName: 'audio' }
         //      (you'll need to emit this AFTER the client publishes their audio track -see cfTracksNew)
-        const {cfSessionId} = await firstValueFrom(this.voiceService.cfCreateSession(callId));
+        // Secondary: the Rust session started below carries this participant's microphone, and a
+        // second primary session for the same user reads as a device takeover and ends the call.
+        const {cfSessionId} = await firstValueFrom(this.voiceService.cfCreateSession(callId, false));
         if (!this.callId) return;
         this.cfSessionId = cfSessionId;
 
-        // Set up WS listeners NOW -cfSessionId is ready and we need to be subscribed before
-        // publishAudioTrack triggers ExchangeParticipantJoined on the server, which sends
+        // Set up WS listeners NOW -cfSessionId is ready and we need to be subscribed before the
+        // Rust session's publish triggers ExchangeParticipantJoined on the server, which sends
         // ParticipantJoined back to us for any already-connected participants.
         this.setupWsListeners();
 
@@ -292,55 +271,40 @@ export class CallWebRtcService {
         // subscribeToTrack's dedupe guard makes this safe to race with the WS listener.
         void this.syncParticipants();
 
-        // Acquire microphone -use Rust pipeline when enhanced NS is on
-        let audioTrack: MediaStreamTrack;
+        // The microphone is captured, processed and published entirely in Rust, on its own
+        // Cloudflare session opened with primary=true. Nothing is added to this peer connection;
+        // the other side resolves the track from the ParticipantJoined event the backend emits when
+        // that session publishes "audio", and it carries the Rust session id.
         try {
-            const s = this.audioSettings.settings();
-            if (s.noiseSuppressionMode === 'enhanced' || await this.rustMedia.shouldUseRustAudio()) {
-                audioTrack = await this.rustMedia.startMicCapture({
-                    deviceId: s.micId === 'default' ? null : s.micId,
-                    noiseSuppression: s.noiseSuppressionMode !== 'none',
-                    autoGainControl: s.autoGainControl,
-                    vadThreshold: s.vadStrength,
-                });
-            } else {
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: await this.audioSettings.buildAudioConstraint(),
-                    video: false,
-                });
-                audioTrack = stream.getAudioTracks()[0];
-            }
-        } catch {
-            console.warn('[WebRTC] Microphone access denied -joining without audio');
+            await this.voiceEngine.start(
+                {kind: 'call', callId},
+                this.apiConfig.baseUrl(),
+                this.oauth.getAccessToken(),
+            );
+        } catch (e) {
+            console.error('[WebRTC] Rust voice engine failed to start -joining without audio', e);
             return;
         }
         if (!this.callId) {
-            audioTrack.stop();
+            void this.voiceEngine.stop();
             return;
         }
+        this.engineUp.set(true);
 
-        this.audioTrack = audioTrack;
-        // Apply current mute state immediately (user may have muted before connecting)
+        // Apply current mute state immediately - the user may have muted before connecting, and the
+        // engine starts with its talk key up, which in push-to-talk mode means the gate is shut.
         const isMuted = this.callSession.session()?.local.isMuted ?? false;
-        this.audioTrack.enabled = !isMuted && this.callSession.pttGateOpen();
         this.prevMuted = isMuted;
+        void this.voiceEngine.setMute(isMuted);
+        void this.voiceEngine.setPttOpen(this.callSession.pttGateOpen());
 
-        await this.publishAudioTrack(this.audioTrack);
-        if (!this.callId) return;
-
-        this.vadProbeTrack = this.audioTrack.clone();
-        this.startSpeakingDetection(new MediaStream([this.vadProbeTrack]));
         this.startStatsPolling();
     }
 
     private disconnect(): void {
-        if (this.rafHandle !== null) cancelAnimationFrame(this.rafHandle);
         this.stopStatsPolling();
-        this.audioCtx?.close().catch(() => void 0);
-        this.audioTrack?.stop();
-        this.vadProbeTrack?.stop();
-        this.vadProbeTrack = null;
-        void this.rustMedia.stopMicCapture();
+        void this.voiceEngine.stop();
+        this.engineUp.set(false);
         void this.rustMedia.stopScreenCapture();
         this.pc?.close();
         this.remoteAudio.forEach(a => {
@@ -348,17 +312,13 @@ export class CallWebRtcService {
             a.srcObject = null;
         });
         this.remoteAudio.clear();
-        this.audioSender = null;
         this.wsSubs.forEach(s => s.unsubscribe());
 
-        this.rtcState.set('new');
+        this.pcState.set('new');
         this.participantsWithAudio.set(new Set());
         this.pc = null;
         this.cfSessionId = null;
         this.callId = null;
-        this.audioTrack = null;
-        this.audioCtx = null;
-        this.rafHandle = null;
         this.videoSender = null;
         this.videoTrackName = null;
         this.screenSender = null;
@@ -370,7 +330,6 @@ export class CallWebRtcService {
         this.pendingTracks.length = 0;
         this.negotiationChain = Promise.resolve();
         this.wsSubs = [];
-        this.lastSpeaking = false;
         this.prevMuted = false;
         this.prevCameraOn = false;
         this.prevSharing = false;
@@ -453,18 +412,6 @@ export class CallWebRtcService {
             });
             throw e;
         }
-    }
-
-    private async publishAudioTrack(track: MediaStreamTrack): Promise<void> {
-        if (!this.pc) return;
-        const transceiver = this.pc.addTransceiver(track, {direction: 'sendonly'});
-        await this.offerAnswerCycle(() => [{
-            location: 'local',
-            mid: transceiver.mid ?? '0',
-            trackName: 'audio',
-        }]);
-        await applySimpleBitrate(transceiver.sender, VOICE_AUDIO_KBPS);
-        this.audioSender = transceiver.sender;
     }
 
     private async publishVideoTrack(stream: MediaStream): Promise<void> {
@@ -761,36 +708,6 @@ export class CallWebRtcService {
         this.prevStatsTs = now;
     }
 
-
-    // ── Speaking detection (local) ────────────────────────────────────────────
-
-    private startSpeakingDetection(stream: MediaStream): void {
-        try {
-            this.audioCtx = new AudioContext();
-            const source = this.audioCtx.createMediaStreamSource(stream);
-            const analyser = this.audioCtx.createAnalyser();
-            analyser.fftSize = 256;
-            source.connect(analyser);
-
-            const data = new Float32Array(analyser.fftSize);
-            const tick = () => {
-                analyser.getFloatTimeDomainData(data);
-                const rms = Math.sqrt(data.reduce((sum, v) => sum + v * v, 0) / data.length);
-                const speaking = rms > this.SPEAKING_THRESHOLD;
-                if (speaking !== this.lastSpeaking) {
-                    this.lastSpeaking = speaking;
-                    const s = this.callSession.session();
-                    const localId = s?.participants.find(p => p.isLocal)?.userId;
-                    if (localId) this.callSession.onSpeakingChanged(localId, speaking);
-                }
-                this.applyVadGate(rms);
-                this.rafHandle = requestAnimationFrame(tick);
-            };
-            this.rafHandle = requestAnimationFrame(tick);
-        } catch {
-            // AudioContext unavailable
-        }
-    }
 
     // ── Authoritative state reconciliation ────────────────────────────────────
 

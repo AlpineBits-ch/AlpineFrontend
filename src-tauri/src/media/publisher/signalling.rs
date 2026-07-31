@@ -139,7 +139,14 @@ impl Signalling {
         })
     }
 
-    /// Endpoint root, matching `GuildVoiceService.base()` and `VoiceService`'s call routes.
+    /// Endpoint root, matching `GuildVoiceService.base()` and `VoiceService.base`.
+    ///
+    /// These are *gateway* paths, not the backend controllers' own `[Route]`s. The YARP config
+    /// matches on a service segment and then strips it (`ProxyConfig.cs`: `/api/v1/guild/{**rest}`
+    /// -> `/api/v1/{**rest}`), so the segment after `v1` names the service and never appears in the
+    /// controller route. Deriving these from the controllers instead is how the call route came to
+    /// be missing its `messaging/` segment - the DM path 404'd at the gateway and never reached the
+    /// service at all.
     pub fn voice_base(&self) -> String {
         match &self.target {
             VoiceTarget::GuildChannel {
@@ -150,7 +157,7 @@ impl Signalling {
                 self.base_url
             ),
             VoiceTarget::Call { call_id } => {
-                format!("{}/api/v1/voice/calls/{call_id}", self.base_url)
+                format!("{}/api/v1/messaging/voice/calls/{call_id}", self.base_url)
             }
         }
     }
@@ -325,7 +332,7 @@ mod tests {
     fn the_role_applies_to_call_targets_too() {
         assert_eq!(
             call_with_role(SessionRole::Primary).session_url(),
-            "https://api.example.test/api/v1/voice/calls/call-1/session?primary=true"
+            "https://api.example.test/api/v1/messaging/voice/calls/call-1/session?primary=true"
         );
     }
 
@@ -346,10 +353,13 @@ mod tests {
 
     #[test]
     fn voice_base_matches_the_call_route() {
-        // Must stay identical to CloudflareController's [Route] in the backend.
+        // Must stay identical to `VoiceService.base` in voice.service.ts - the *gateway* path,
+        // which carries a `messaging/` segment that YARP strips before the request reaches
+        // CloudflareController. Matching the controller's own [Route] instead produces a URL that
+        // no gateway route matches.
         assert_eq!(
             call_signalling().voice_base(),
-            "https://api.example.test/api/v1/voice/calls/call-1"
+            "https://api.example.test/api/v1/messaging/voice/calls/call-1"
         );
     }
 

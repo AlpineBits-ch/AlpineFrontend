@@ -1,4 +1,4 @@
-import {computed, inject, Injectable, signal} from '@angular/core';
+import {computed, effect, inject, Injectable, signal} from '@angular/core';
 import {firstValueFrom} from 'rxjs';
 import {ChannelDto, ChannelType} from '../dtos/response/guild.dto';
 import {ProfileService} from './profile.service';
@@ -19,7 +19,7 @@ import {
 import {SoundSettingsService} from './sound-settings.service';
 import {VoiceRTCService} from './voice-rtc.service';
 import {StreamPreset} from '../models/stream-preset';
-import {AudioSettingsService} from './audio-settings.service';
+import {VoiceEngineService} from './voice-engine.service';
 
 export interface VoiceChannelParticipant {
     userId: string;
@@ -78,7 +78,7 @@ export class VoiceChannelService {
     private guildVoiceSvc = inject(GuildVoiceService);
     private guildWsSvc = inject(GuildWebsocketService);
     private soundSettings = inject(SoundSettingsService);
-    private audioSettings = inject(AudioSettingsService);
+    private voiceEngine = inject(VoiceEngineService);
     private channelParticipantsSignal = signal<Map<string, VoiceChannelParticipant[]>>(new Map());
     readonly channelParticipants = this.channelParticipantsSignal.asReadonly();
 
@@ -90,22 +90,24 @@ export class VoiceChannelService {
     private pendingJoinId: string | null = null;
     private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
-    // ── Voice-activity transmit gate hold time ─────────────────────────────────
-    // Without a release hold, a momentary dip in the VAD signal between syllables
-    // (unvoiced consonants, breath pauses) closed the gate mid-word - see
-    // applyVadGate below.
-    private lastSpeakingAt = -Infinity;
-    private readonly VAD_RELEASE_MS = 300;
-
     constructor() {
-        // Update participant speaking state from VAD events in VoiceRTCService
+        // Remote participants' speaking state, from the per-track analysers in VoiceRTCService.
         this.rtc.speakingChanges$.subscribe(({userId, isSpeaking}) => {
             const channelId = this.joinedChannelId();
             if (channelId) {
                 this.patchParticipant(channelId, userId, p => p.isSpeaking === isSpeaking ? p : {...p, isSpeaking});
             }
+        });
+
+        // Own speaking state, straight from the Rust gate. This is the same decision that picks
+        // which frames are transmitted, so the indicator cannot disagree with what is actually
+        // being sent - the release hold that used to live here is now part of that gate.
+        effect(() => {
+            const isSpeaking = this.voiceEngine.speaking();
+            const channelId = this.joinedChannelId();
             const ownId = this.profileService.ownProfile()?.userId;
-            if (channelId && userId === ownId) this.applyVadGate(isSpeaking);
+            if (!channelId || !ownId) return;
+            this.patchParticipant(channelId, ownId, p => p.isSpeaking === isSpeaking ? p : {...p, isSpeaking});
         });
 
         // Auto-stop screen share when the OS ends the screen track
@@ -200,7 +202,7 @@ export class VoiceChannelService {
                     return n;
                 });
                 this.soundSettings.playVoiceJoin();
-                const connected = await this.rtc.connect(channel.guildId, channel.id, ownId);
+                const connected = await this.rtc.connect(channel.guildId, channel.id);
                 if (!connected) {
                     console.error('VoiceChannelService: WebRTC connect() returned false -audio setup failed');
                     await this.doLeave(channel.guildId, channel.id, false);
@@ -210,6 +212,10 @@ export class VoiceChannelService {
                     this.joinedGuildName.set(null);
                     return;
                 }
+                // The engine starts with its talk key up, which in push-to-talk mode means the gate
+                // is shut. Nothing else calls syncMic until the user toggles something, so without
+                // this a push-to-talk user joins silent and has no way to tell why.
+                this.syncMic();
                 this.heartbeatTimer = setInterval(() => this.guildWsSvc.invokeVoiceHeartbeat(), 30_000);
             } catch (err) {
                 console.error('VoiceChannelService: join failed', err);
@@ -263,26 +269,18 @@ export class VoiceChannelService {
         this.syncLocal();
     }
 
-    /** The one place that gates the outgoing mic: deliberate mute + the PTT key. */
+    /**
+     * The one place that gates the outgoing mic: deliberate mute + the PTT key.
+     *
+     * Both go to the Rust engine, which owns the microphone. They stay separate there rather than
+     * being collapsed into one boolean as they were when this toggled a MediaStreamTrack: the
+     * engine's own voice-activity gate has to distinguish "the user muted" from "the talk key is
+     * up", and in voice-activity mode there is no talk key at all.
+     */
     private syncMic(): void {
         const {isMuted} = this.localState();
-        this.rtc.setMicEnabled(!isMuted && this.pttGateOpen());
-    }
-
-    /**
-     * Re-applies the voice-activity transmit gate. No-op outside voice-activity mode.
-     * Opens instantly on speech but holds open for VAD_RELEASE_MS after the last
-     * positive detection so a brief dip below threshold (a quiet consonant, a
-     * breath) doesn't clip the tail of a word.
-     */
-    private applyVadGate(isSpeaking: boolean): void {
-        if (this.audioSettings.settings().inputMode !== 'voice-activity') return;
-        const {isMuted} = this.localState();
-        if (isMuted) return;
-        if (!this.pttGateOpen()) return;
-        const now = Date.now();
-        if (isSpeaking) this.lastSpeakingAt = now;
-        this.rtc.setMicEnabled(now - this.lastSpeakingAt < this.VAD_RELEASE_MS);
+        void this.voiceEngine.setMute(isMuted);
+        void this.voiceEngine.setPttOpen(this.pttGateOpen());
     }
 
     async toggleCamera(): Promise<void> {
@@ -446,15 +444,6 @@ export class VoiceChannelService {
     private onParticipantJoined(e: WsGuildParticipantJoined): void {
         if (e.channelId !== this.joinedChannelId()) return;
         this.patchParticipant(e.channelId, e.userId, p => ({...p, cfSessionId: e.cfSessionId}));
-
-        // TEMPORARY - the receiving half of the phase 1 verification spike. This is the backend's
-        // answer to "which session is this participant's audio on", which is exactly the assumption
-        // the Rust voice cutover rests on. Delete alongside verifyRustVoiceIfEnabled.
-        console.log(
-            '[voice][verify] backend says user', e.userId,
-            'publishes audio on session', e.cfSessionId,
-            'track', e.audioTrackName,
-        );
 
         const guildId = this.joinedGuildId();
         if (guildId) {

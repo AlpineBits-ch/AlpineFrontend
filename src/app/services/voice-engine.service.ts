@@ -1,6 +1,6 @@
-import {inject, Injectable, signal} from '@angular/core';
+import {effect, inject, Injectable, signal} from '@angular/core';
 import {Channel, invoke, isTauri} from '@tauri-apps/api/core';
-import {AudioSettingsService} from './audio-settings.service';
+import {AudioSettings, AudioSettingsService} from './audio-settings.service';
 import {iceServers} from './screen-publish';
 
 /** Which call surface the session belongs to. Mirrors the Rust `VoiceTarget`. */
@@ -40,6 +40,20 @@ export class VoiceEngineService {
     /** Input level, 0.0-1.0, for the microphone meter. */
     readonly level = signal(0);
     readonly active = signal(false);
+
+    constructor() {
+        // Push settings changes into a running session. Without this the audio settings page would
+        // appear to work and change nothing until the next rejoin - and the input-mode switch in
+        // particular would be silently dead, because the gate that reads it now lives in Rust.
+        //
+        // The input *device* is the exception: it is chosen when the capture stream is opened, so
+        // switching microphones still takes effect on the next join.
+        effect(() => {
+            const payload = this.payloadFrom(this.audioSettings.settings());
+            if (!this.active() || !isTauri()) return;
+            void invoke('voice_set_processing', {settings: payload});
+        });
+    }
 
     /** Whether the Rust engine is available at all. */
     available(): boolean {
@@ -106,7 +120,10 @@ export class VoiceEngineService {
      * a mismatch is a setting that silently stops working rather than an error anyone sees.
      */
     private settingsPayload() {
-        const s = this.audioSettings.settings();
+        return this.payloadFrom(this.audioSettings.settings());
+    }
+
+    private payloadFrom(s: AudioSettings) {
         return {
             deviceId: s.micId === 'default' ? null : s.micId,
             noiseSuppression: s.noiseSuppressionMode,

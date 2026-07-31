@@ -74,8 +74,16 @@ export class GuildVoiceService {
         return this.client.get<VoiceStateDto>(this.base(guildId, channelId));
     }
 
-    createSession(guildId: string, channelId: string): Observable<{ cfSessionId: string }> {
-        return this.client.post<{ cfSessionId: string }>(`${this.base(guildId, channelId)}/session`, {});
+    /**
+     * Open a Cloudflare session.
+     *
+     * `primary` decides whether the backend runs this session through the device-connect path. The
+     * microphone is published from Rust on its own session, so the webview's session is secondary -
+     * it exists only to receive.
+     */
+    createSession(guildId: string, channelId: string, primary = true): Observable<{ cfSessionId: string }> {
+        return this.client.post<{ cfSessionId: string }>(
+            `${this.base(guildId, channelId)}/session?primary=${primary}`, {});
     }
 
     tracksNew(guildId: string, channelId: string, body: CfGuildTracksNewRequest): Observable<CfGuildTracksNewResponse> {

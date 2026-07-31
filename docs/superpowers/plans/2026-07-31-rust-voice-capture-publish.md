@@ -2160,7 +2160,21 @@ Verify, from the second client:
 
 </details>
 
-- [ ] **Step 2: Give `createSession` a role**
+- [x] **Step 1b (unplanned): Fix the DM call endpoint in Rust before relying on it**
+
+> `Signalling::voice_base` built the call route as `/api/v1/voice/calls/{id}` — the DM controller's
+> own `[Route]`. But these are *gateway* paths: `Echo/Proxy/ProxyConfig.cs:34` matches
+> `/api/v1/messaging/{**rest}` and rewrites it to `/api/v1/{**rest}`, so the segment after `v1`
+> names the service and never appears in the controller route. The guild path had it right
+> (`/api/v1/guild/guilds/...` against `[Route("api/v1/guilds/...")]`); the call path did not, and
+> would have 404'd at the gateway. Pre-existing — it also affects Rust screen publishing in a DM
+> call — but load-bearing for Step 4, so fixed first. The test now says why.
+>
+> Also checked, since Rust now creates the *primary* session: `DeviceIdResolver` treats a missing
+> `X-Device-Id` as `WasProvided: false` (not unknown) and buckets it as `"default"`. The frontend
+> sends that header nowhere, so Rust sending none is consistent and introduces no split-brain.
+
+- [x] **Step 2: Give `createSession` a role**
 
 In `src/app/services/guild-voice.service.ts`:
 
@@ -2180,7 +2194,23 @@ In `src/app/services/guild-voice.service.ts`:
 
 Make the equivalent change to the DM call service used by `call-webrtc.service.ts`.
 
-- [ ] **Step 3: Replace the microphone acquisition in `voice-rtc.service.ts`**
+- [x] **Step 3: Replace the microphone acquisition in `voice-rtc.service.ts`**
+
+> **Two deviations from the code below, both deliberate.**
+>
+> 1. **No pre-added recvonly transceiver.** `subscribeAudio` already adds one transceiver per
+>    target, so a pre-added spare would put an m-line in the offer that Cloudflare was never asked
+>    to allocate a track for. Keeping m-lines and requested tracks one-to-one is the shape the
+>    Calls API is built around. The connection simply does not negotiate until the first
+>    subscription — which is correct, because until then it has nothing to carry.
+> 2. **`rtcState` is now a `computed`.** Falling out of (1): alone in a channel the connection sits
+>    in `'new'` forever, and the status bar reads `'new'` as "connecting". It now reports
+>    `'connected'` when the peer connection has nothing to do *and* the Rust engine is up —
+>    which is what the user means by the question. Real connection states, failures included, still
+>    win once there is something to negotiate.
+>
+> Also: `connect()` lost its now-unused `ownUserId` parameter, and `setupVAD` lost its `'local'`
+> branch — local speaking now comes from the engine.
 
 Replace lines 137-176 (the whole `let audioTrack` block, including the `useRust` branch and both `getUserMedia` calls) with:
 
@@ -2225,15 +2255,48 @@ Also remove, in the same file:
 - `this.localAudioTrack?.stop()`, `this.vadProbeTrack?.stop()` and `void this.rustMedia.stopMicCapture()` in `teardown()` (lines 251-254), replaced with `void this.voiceEngine.stop()`.
 - `this.cfAudioTrackName` from `getActiveTrackNames()` — the Rust session closes its own track, exactly as the screen publisher does.
 
-- [ ] **Step 4: Make the same change in `call-webrtc.service.ts`**
+- [x] **Step 4: Make the same change in `call-webrtc.service.ts`**
 
 The structure differs but the shape of the change is identical: start the engine with `{kind: 'call', callId}`, create the session with `primary=false`, add a recvonly audio transceiver, publish no local audio track, and stop the engine in teardown. Read the file's own setup method rather than pattern-matching this diff onto it.
 
-- [ ] **Step 5: Point mute and push-to-talk at the engine**
+- [x] **Step 5: Point mute and push-to-talk at the engine**
 
 Find every existing caller that toggled `localAudioTrack.enabled` and route it to `voiceEngine.setMute` / `setPttOpen`. Muting by disabling a track no longer works, because there is no local track — and this fails *silently*, which makes it the most likely thing to be missed.
 
+> Done in `VoiceChannelService.syncMic()` and `CallWebRtcService`'s mute effect. Mute and the talk
+> key stay two separate facts rather than being collapsed into one boolean, because the engine's
+> voice-activity gate has to tell "muted" apart from "talk key up".
+>
+> **Three things this step turned up that the plan did not anticipate:**
+>
+> - **The gate had to be seeded on join.** `Control::default()` leaves `ptt_down` false, and in
+>   push-to-talk mode that means shut. Nothing called `syncMic` until the user toggled something, so
+>   a push-to-talk user would have joined silent with no indication why. `joinChannel` and
+>   `connect()` now push the state once, immediately after the engine starts.
+> - **Settings changes had to be pushed live.** The input-mode switch now reads in Rust, so without
+>   an effect feeding `voice_set_processing`, changing it mid-call would have silently done nothing
+>   until the next join. `VoiceEngineService` now watches the settings signal. The input *device* is
+>   still join-time only — it is chosen when the capture stream opens.
+> - **Two VAD implementations became one.** `applyVadGate` (both services), `startSpeakingDetection`,
+>   `vadProbeTrack` and `setupVAD('local', …)` are gone. The speaking indicator is now the same
+>   decision that picks which frames get transmitted, so the two can no longer disagree — which they
+>   did, because the analyser judged a *clone* of the track the gate was muting.
+>
+> `IsleVoiceRtcService.setMicEnabled` is untouched — Isle keeps its own path until phase 3.
+
 - [ ] **Step 6: Verify at runtime, with two clients**
+
+> **Not runnable here — this needs two clients and a live backend.** What is verified: 199 Rust
+> tests, `tsc --noEmit`, and a full `ng build` (so templates too). Every item below is unverified.
+>
+> Watch in particular:
+> - **The 425 window.** The webview's first `tracks/new` is now an all-remote pull on a fresh
+>   session — exactly the condition `VoiceState.cs:42-44` warns about. `TracksNewWithRetryAsync`
+>   (`GuildCloudflareController.cs:117-119`, `CloudflareController.cs:115-117`) should absorb it.
+>   If a participant is silently unheard on join, that is where to look.
+> - **An offer with no local m-lines.** Nothing negotiates until the first subscription now. If
+>   Cloudflare rejects a first offer that carries only recvonly m-lines, this is the step that finds
+>   out.
 
 - [ ] Both clients hear each other in a guild channel.
 - [ ] Both clients hear each other in a DM call.
@@ -2244,7 +2307,7 @@ Find every existing caller that toggled `localAudioTrack.enabled` and route it t
 - [ ] Leaving and rejoining works, twice in a row — this is where an orphaned session shows up.
 - [ ] A client on the **previous** build can still hear a client on the new build.
 
-- [ ] **Step 7: Remove the temporary logging from Step 1, then commit**
+- [x] **Step 7: Remove the temporary logging from Step 1, then commit**
 
 ```bash
 git add src/app/services/
