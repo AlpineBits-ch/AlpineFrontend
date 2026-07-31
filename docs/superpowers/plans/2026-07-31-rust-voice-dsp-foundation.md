@@ -22,14 +22,16 @@
 
 ## Prerequisite (human, once per machine)
 
-> **Status.** The crate is vendored and patched at `src-tauri/vendor/webrtc-audio-processing-sys/`
-> (two changes, both marked `ALPINE PATCH`), wired in through `[patch.crates-io]`. With that,
-> **the C++ library compiles and links on Windows/MSVC** — all 440 objects, plus symbol prefixing.
-> The remaining blocker is libclang for `bindgen` (item 7 below), which needs an admin install.
+> **Status: done and verified.** The crate is vendored and patched at
+> `src-tauri/vendor/webrtc-audio-processing-sys/` (four changes, each marked `ALPINE PATCH`), wired
+> in through `[patch.crates-io]`. `cargo test --features aec` builds the C++ library, links, and
+> passes **70 tests, 2 ignored**; without the feature the passthrough path passes 68.
 >
-> **The `apm` module in `process.rs` has therefore never been compiled.** Expect to fix type
-> mismatches against the real crate on the first successful build. The trait, `create`'s fallback
-> and all seven tests are verified against the passthrough and must not change.
+> Echo cancellation is verified behaviourally, not just structurally: `echo_from_the_render_stream_is_cancelled`
+> feeds a delayed, attenuated copy of the render stream back as the microphone signal and measures
+> **-27 dB** of cancellation after convergence. That test and `the_high_pass_filter_removes_a_dc_offset`
+> are the two that would fail if `create` ever silently fell back to `Passthrough` — every other
+> test in the file passes against either implementation, which is exactly why those two exist.
 >
 > Adopting each platform's own canceller instead is *not* a straight win: macOS
 > `VoiceProcessingIO` is excellent and runs at 48 kHz, but Windows' Voice Capture DSP
@@ -63,16 +65,34 @@ Two further constraints, both discovered by hitting them:
 7. **libclang, for `bindgen`.** The final step generates Rust bindings and fails with `Unable to find libclang`. Install LLVM (`choco install llvm -y`, admin) or set `LIBCLANG_PATH` to a directory containing `libclang.dll`.
 8. **A short `CARGO_TARGET_DIR`.** Related to item 5 but distinct: even from a normal checkout, the *object* paths reach 258 characters, right at the limit. `LongPathsEnabled=1` does not help, because `cl.exe` is a legacy tool that ignores it. Set `CARGO_TARGET_DIR` to something short (`C:\vt`) for Windows builds with this feature.
 
+The last two only surfaced once libclang was installed and the link step could finally run. Both are fixed in the vendored copy; they are recorded here because the symptoms point nowhere near the causes.
+
+9. **The wrapper archive must be symbol-prefixed under both its names.** To let several versions coexist, the build script renames every symbol in the built library to `v2_…` and rewrites the wrapper's references to match — but it only looks for the Unix name `libwebrtc_audio_processing_wrapper.a`. With MSVC, `cc` writes the archive twice, and rustc links the `.lib`, which upstream leaves unprefixed. Symptom: `LNK1120: 12 unresolved externals` naming `AudioProcessingBuilder`, `ResidualEchoDetector` and `AudioProcessingStats` — the wrapper's only out-of-line calls into the library. The patch prefixes every name `cc` may have emitted, and now hard-errors if it finds none rather than producing a library that cannot link.
+10. **`RTC_EXPORT` must not be `__declspec(dllexport)` in a static build.** The meson port defines `WEBRTC_ENABLE_SYMBOL_EXPORT` unconditionally, though `rtc_export.h` states the intent — *"When WebRTC is built as a static library the RTC_EXPORT macro expands to nothing"* — and upstream's own GN build gates it behind `rtc_enable_symbol_export || is_component_build` (`webrtc/BUILD.gn:153`). Under MSVC every object in the *static* archive then carries a `/EXPORT:` directive naming its original symbol. Those directives live in `.drectve` sections as strings, so they survive the renaming in item 9, and link.exe fails with ~156 `LNK2001`s trying to export names that no longer exist. Confusingly this only appears *after* item 9 is fixed: until the wrapper resolves, those objects are never pulled into the link and their directives never fire. The patch narrows the define to non-MSVC-or-shared, leaving Unix builds untouched.
+
+**When patching the bundled C++ tree, expect cargo to ignore you.** The build script declares `rerun-if-changed` only for the two wrapper sources, so an edit to `webrtc-audio-processing/meson.build` leaves the crate "fresh": meson never re-runs, the stale library is relinked, and the build fails with precisely the errors the edit was meant to fix. The vendored copy now declares the meson file too — but a change anywhere else in that tree still needs `cargo clean -p webrtc-audio-processing-sys`.
+
 A working Windows invocation therefore looks like:
 
 ```bat
 @echo off
 setlocal
-call "<vcvars64.bat located via vswhere>" >nul
-set "PATH=<dir containing the nm.exe shim>;C:\Program Files\Meson;C:\ProgramData\chocolatey\bin;C:\Program Files (x86)\Microsoft Visual Studio\Installer;%PATH%;C:\Program Files\Git\usr\bin"
-set "CXXFLAGS=/std:c++20"
+REM vcvars64.bat itself shells out to vswhere, so the Installer directory goes on PATH *before*
+REM the call, not after it.
+set "PATH=%PATH%;C:\Program Files (x86)\Microsoft Visual Studio\Installer"
+call "<vcvars64.bat located via vswhere>" >nul || exit /b 1
+
+set "PATH=%PATH%;C:\Program Files\Meson;<python dir>;C:\ProgramData\chocolatey\bin"
+set "PATH=%PATH%;<dir containing the nm.exe shim>"
+REM Git's coreutils supply `cp`. Last, because it also ships a `link.exe` that is not a linker.
+set "PATH=%PATH%;C:\Program Files\Git\usr\bin"
+
+set "LIBCLANG_PATH=C:\Program Files\LLVM\bin"
+set "CARGO_TARGET_DIR=C:\vt"
 cargo build
 ```
+
+No `CXXFLAGS` here: the vendored build script sets `/std:c++20` for MSVC itself, so this works from a plain Developer Command Prompt.
 
 macOS and Linux need none of items 1–5: meson finds clang or gcc directly, the shell already has `cp`, and neither has a `MAX_PATH` limit.
 

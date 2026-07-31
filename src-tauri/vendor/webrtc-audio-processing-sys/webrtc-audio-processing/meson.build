@@ -176,11 +176,23 @@ endif
 
 common_cflags = [
   '-DWEBRTC_LIBRARY_IMPL',
-  '-DWEBRTC_ENABLE_SYMBOL_EXPORT',
   # avoid windows.h/winsock2.h conflicts
   '-D_WINSOCKAPI_',
   '-DNDEBUG'
   ] + platform_cflags + os_cflags + arch_cflags
+
+# ALPINE PATCH: this define was applied unconditionally, but rtc_export.h states the intended
+# contract - "When WebRTC is built as a static library the RTC_EXPORT macro expands to nothing".
+# Under MSVC it instead expands to `__declspec(dllexport)`, so every object in the *static* archive
+# carries a `/EXPORT:` linker directive naming the symbol. Those directives are strings in .drectve
+# sections, so they survive the symbol prefixing that webrtc-audio-processing-sys applies to the
+# finished archive - and link.exe then fails with hundreds of LNK2001s trying to export names that
+# no longer exist. Narrowed to MSVC-static so Unix builds keep the visibility annotation they have
+# always had.
+if not (cc.get_define('_MSC_VER') != '' and get_option('default_library') == 'static')
+  common_cflags += ['-DWEBRTC_ENABLE_SYMBOL_EXPORT']
+endif
+
 common_cxxflags = common_cflags
 common_deps = os_deps + [absl_dep]
 webrtc_inc = include_directories('.')

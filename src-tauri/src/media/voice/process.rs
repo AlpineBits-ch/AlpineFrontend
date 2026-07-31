@@ -104,12 +104,19 @@ mod apm {
 
     pub struct Apm {
         inner: Processor,
+        /// The processor wants a mutable buffer, but the render frame belongs to the mixer. Kept as
+        /// a field rather than allocated per call: this runs on the audio thread every 10 ms, and
+        /// an allocator that stalls there is heard as a dropout.
+        render_scratch: Vec<f32>,
     }
 
     impl Apm {
         pub fn new(config: ProcessConfig) -> Result<Self, String> {
             let inner = Processor::new(SAMPLE_RATE).map_err(|e| e.to_string())?;
-            let apm = Self { inner };
+            let apm = Self {
+                inner,
+                render_scratch: vec![0.0; FRAME],
+            };
             apm.inner.set_config(Self::to_apm_config(config));
             Ok(apm)
         }
@@ -174,8 +181,10 @@ mod apm {
             if frame.len() != FRAME {
                 return;
             }
-            let mut scratch = frame.to_vec();
-            let _ = self.inner.process_render_frame([&mut scratch[..]]);
+            self.render_scratch.copy_from_slice(frame);
+            let _ = self
+                .inner
+                .process_render_frame([&mut self.render_scratch[..]]);
         }
 
         fn set_config(&mut self, config: ProcessConfig) {
@@ -256,5 +265,91 @@ mod tests {
         p.process_capture(&mut frame);
         assert_eq!(frame.len(), 37);
         assert!(frame.iter().all(|&s| s == 0.5));
+    }
+
+    /// Everything above passes against `Passthrough`, which is the point of the boundary - but it
+    /// also means they would all keep passing if `create` silently fell back after the APM failed
+    /// to initialise, leaving echo cancellation dead. These two assert on behaviour only the real
+    /// processor can produce.
+    #[cfg(feature = "aec")]
+    mod live {
+        use super::*;
+        use std::collections::VecDeque;
+
+        /// A deterministic LCG. Real noise matters here: a repeating buffer is a periodic signal,
+        /// which behaves quite differently through an adaptive filter.
+        fn noise_source() -> impl FnMut() -> f32 {
+            let mut state: u32 = 0x1234_5678;
+            move || {
+                state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                ((state >> 8) as f32 / 8_388_608.0) - 1.0
+            }
+        }
+
+        #[test]
+        fn the_high_pass_filter_removes_a_dc_offset() {
+            let mut p = create(ProcessConfig::default());
+            let mut last = vec![0.0f32; FRAME];
+            for _ in 0..50 {
+                let mut frame = vec![0.5f32; FRAME];
+                p.process_render(&vec![0.0f32; FRAME]);
+                p.process_capture(&mut frame);
+                last = frame;
+            }
+            let mean = last.iter().sum::<f32>() / FRAME as f32;
+            assert!(
+                mean.abs() < 0.05,
+                "a constant 0.5 input should have its DC removed, but the mean is still {mean:.4} - \
+                 `create` is returning the passthrough rather than the real processor"
+            );
+        }
+
+        #[test]
+        fn echo_from_the_render_stream_is_cancelled() {
+            let mut p = create(ProcessConfig {
+                echo_cancellation: true,
+                // Isolate the echo canceller: noise suppression and gain control would both change
+                // the level on their own and muddy what this is measuring.
+                noise_suppression: NoiseSuppression::Off,
+                auto_gain: false,
+            });
+            let mut noise = noise_source();
+            let mut in_flight: VecDeque<Vec<f32>> = VecDeque::new();
+            let (mut echo_energy, mut output_energy) = (0.0f64, 0.0f64);
+
+            // Four seconds. AEC3 adapts to the echo path rather than knowing it, so the measurement
+            // window is the tail, once it has converged.
+            for i in 0..400 {
+                let render: Vec<f32> = (0..FRAME).map(|_| noise() * 0.3).collect();
+                p.process_render(&render);
+                in_flight.push_back(render);
+
+                // Two frames of loudspeaker-to-microphone delay, attenuated by the room. There is
+                // no near-end talker at all, so ideally the output is silence.
+                let echo: Vec<f32> = if in_flight.len() > 2 {
+                    in_flight.pop_front().unwrap().iter().map(|s| s * 0.5).collect()
+                } else {
+                    vec![0.0; FRAME]
+                };
+
+                let mut capture = echo.clone();
+                p.process_capture(&mut capture);
+
+                if i >= 350 {
+                    echo_energy += echo.iter().map(|s| (*s as f64).powi(2)).sum::<f64>();
+                    output_energy += capture.iter().map(|s| (*s as f64).powi(2)).sum::<f64>();
+                }
+            }
+
+            // Measured at -27 dB on MSVC/x86-64. The bound is deliberately loose: the SIMD path
+            // differs per platform, and this is here to catch "AEC is not running at all" (which
+            // reads as 0 dB), not to pin down a number.
+            let attenuation_db = 10.0 * (output_energy / echo_energy).log10();
+            assert!(
+                attenuation_db < -10.0,
+                "the echo should be well below the level that reached the microphone, but the \
+                 output is only {attenuation_db:.1} dB down"
+            );
+        }
     }
 }

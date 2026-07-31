@@ -432,11 +432,33 @@ fn main() -> Result<()> {
     // build.rs is always included and doesn't have to be specified.
     println!("cargo:rerun-if-changed=src/wrapper.hpp");
     println!("cargo:rerun-if-changed=src/wrapper.cpp");
+    // ALPINE PATCH: upstream lists only the wrapper sources, because for them the bundled tree is a
+    // git submodule that never changes. This is a vendored copy that we do patch, and without this
+    // line cargo considers the crate fresh after such an edit: meson never re-runs, the stale
+    // library is relinked, and the build fails with exactly the errors the edit was meant to fix.
+    #[cfg(feature = "bundled")]
+    println!("cargo:rerun-if-changed=./webrtc-audio-processing/meson.build");
 
     // Prefix the wrapper library's references to webrtc symbols to match the renamed webrtc library.
-    let wrapper_lib = out_dir().join("libwebrtc_audio_processing_wrapper.a");
-    if wrapper_lib.exists() {
-        prefix_archive_symbols(&wrapper_lib, &renamed_symbols, SYMBOL_PREFIX)?;
+    //
+    // ALPINE PATCH: upstream only patches the `lib*.a` name. With MSVC, `cc` emits the archive
+    // twice - `webrtc_audio_processing_wrapper.lib` alongside the `.a` - and rustc links the `.lib`,
+    // which upstream leaves with unprefixed references. The result is 12 unresolved externals at
+    // link time (the wrapper's only out-of-line calls into the library). Patch every name `cc` may
+    // have produced, not just the Unix one.
+    let mut patched_any = false;
+    for name in ["libwebrtc_audio_processing_wrapper.a", "webrtc_audio_processing_wrapper.lib"] {
+        let wrapper_lib = out_dir().join(name);
+        if wrapper_lib.exists() {
+            prefix_archive_symbols(&wrapper_lib, &renamed_symbols, SYMBOL_PREFIX)?;
+            patched_any = true;
+        }
+    }
+    if !patched_any && !renamed_symbols.is_empty() {
+        // Silently skipping this is what made the failure so hard to read: the library gets renamed
+        // symbols, the wrapper keeps the originals, and the mismatch only surfaces as a wall of
+        // mangled names from the linker.
+        bail!("Symbols were prefixed in the webrtc library but no wrapper archive was found in {} to match - linking would fail with unresolved externals.", out_dir().display());
     }
 
     if cfg!(feature = "bundled") {
