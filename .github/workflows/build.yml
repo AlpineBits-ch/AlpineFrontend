@@ -72,6 +72,14 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      # Fails if a dependency was added without regenerating the notices. The output is
+      # platform-independent by construction, so this check is only run once, here.
+      - name: Check third-party notices are up to date
+        run: |
+          bun run licenses:test
+          bun run licenses
+          git diff --exit-code -- src/assets/THIRD-PARTY-NOTICES.md || (echo "::error::THIRD-PARTY-NOTICES.md is stale - run 'bun run licenses' and commit the result." && exit 1)
+
       - name: Build Tauri (Windows)
         env:
           RUSTC_WRAPPER: sccache

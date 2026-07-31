@@ -11,6 +11,7 @@ import {KeybindsSettingsComponent} from "./pages/keybinds-settings/keybinds-sett
 import {AppearanceSettingsComponent} from "./pages/appearance-settings/appearance-settings.component";
 import {SecuritySettingsComponent} from "./pages/security-settings/security-settings.component";
 import {DevicesSettingsComponent} from "./pages/devices-settings/devices-settings.component";
+import {AboutSettingsComponent} from "./pages/about-settings/about-settings.component";
 import {LogoutDialogComponent} from "../logout-dialog/logout-dialog.component";
 import {TranslateModule} from '@ngx-translate/core';
 
@@ -40,6 +41,7 @@ export interface SettingsNavGroup {
         AppearanceSettingsComponent,
         SecuritySettingsComponent,
         DevicesSettingsComponent,
+        AboutSettingsComponent,
         LogoutDialogComponent,
         TranslateModule,
     ],
@@ -69,6 +71,7 @@ export class SettingsModalComponent {
                 {id: 'keybinds', label: 'Keybinds', icon: 'pi pi-key'},
                 {id: 'appearance', label: 'Appearance', icon: 'pi pi-palette'},
                 {id: 'other', label: 'Other', icon: 'pi pi-cog'},
+                {id: 'about', label: 'About', icon: 'pi pi-info-circle'},
             ],
         },
     ];

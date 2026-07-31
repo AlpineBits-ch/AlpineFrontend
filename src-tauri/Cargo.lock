@@ -10,6 +10,7 @@ dependencies = [
  "argon2",
  "audioadapter-buffers",
  "base64 0.22.1",
+ "bytes",
  "bzip2-rs",
  "cpal",
  "getrandom 0.2.17",

@@ -87,11 +87,13 @@
   "private": true,
   "scripts": {
     "build": "ng build && bun run sentry:sourcemaps",
+    "licenses": "node scripts/generate-notices.js",
+    "licenses:test": "node --test scripts/generate-notices.test.js",
     "ng": "ng",
     "start": "ng serve",
     "tauri": "tauri",
     "watch": "ng build --watch --configuration development",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org alpinebits-klg --project venta-frontend ./dist && sentry-cli sourcemaps upload --org alpinebits-klg --project venta-frontend ./dist"
   },
-  "version": "3.0.147"
+  "version": "3.0.149"
 }

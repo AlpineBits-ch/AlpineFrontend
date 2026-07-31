@@ -1,0 +1,88 @@
+/*
+ * The notices are injected as HTML, so component styles cannot reach them without ::ng-deep.
+ * Everything is scoped under .notices to keep that piercing contained to this block.
+ */
+
+.notices {
+    max-height: 26rem;
+    overflow-y: auto;
+    /* Licence text is long and unwrapped; keep it from pushing the settings pane wide. */
+    overflow-wrap: anywhere;
+}
+
+.notices ::ng-deep h1 {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: rgb(255 255 255 / 0.75);
+    margin-bottom: 0.75rem;
+}
+
+.notices ::ng-deep h2 {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: rgb(255 255 255 / 0.6);
+    margin-top: 1.5rem;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.375rem;
+    border-bottom: 1px solid rgb(255 255 255 / 0.1);
+}
+
+.notices ::ng-deep h3,
+.notices ::ng-deep h4 {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: rgb(255 255 255 / 0.5);
+    margin-top: 1rem;
+    margin-bottom: 0.375rem;
+}
+
+.notices ::ng-deep p,
+.notices ::ng-deep li {
+    font-size: 0.6875rem;
+    line-height: 1.6;
+    color: rgb(255 255 255 / 0.4);
+    margin-bottom: 0.5rem;
+}
+
+.notices ::ng-deep ul,
+.notices ::ng-deep ol {
+    padding-left: 1.25rem;
+    list-style: disc;
+}
+
+.notices ::ng-deep a {
+    color: var(--color-brand-dim);
+    text-decoration: none;
+}
+
+.notices ::ng-deep a:hover {
+    text-decoration: underline;
+}
+
+.notices ::ng-deep blockquote {
+    border-left: 2px solid rgb(255 255 255 / 0.12);
+    padding-left: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.notices ::ng-deep pre {
+    background: rgb(0 0 0 / 0.25);
+    border: 1px solid rgb(255 255 255 / 0.08);
+    border-radius: 0.5rem;
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+    overflow-x: auto;
+}
+
+.notices ::ng-deep pre code {
+    font-family: 'Fira Code Variable', ui-monospace, monospace;
+    font-size: 0.625rem;
+    line-height: 1.5;
+    color: rgb(255 255 255 / 0.45);
+    white-space: pre-wrap;
+}
+
+.notices ::ng-deep hr {
+    border-color: rgb(255 255 255 / 0.08);
+    margin: 1rem 0;
+}
