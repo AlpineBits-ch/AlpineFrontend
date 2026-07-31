@@ -107,6 +107,11 @@ export class VoiceRTCService {
     // userId → the mixer source id of their stream's audio, so the per-stream mute can find it.
     private readonly remoteScreenAudioIds = new Map<string, string>();
 
+    // Mixer source id → the Cloudflare session we are currently pulling it from. Distinguishes a
+    // repeated announcement (skip) from a corrected one (resubscribe), which a bare "have we seen
+    // this user" set cannot do.
+    private readonly subscribedAudioSessions = new Map<string, string>();
+
     /**
      * Quality of the running screen share, or null when not sharing. Set by the picker and changed
      * by the in-call quality controls.
@@ -208,6 +213,7 @@ export class VoiceRTCService {
 
     teardown(): void {
         this.localSenders.clear();
+        this.subscribedAudioSessions.clear();
 
         // Stops capture, playout and every subscription in one call - the Rust session owns all of
         // them, so there is nothing per-participant left to unwind here.
@@ -248,6 +254,9 @@ export class VoiceRTCService {
     cleanupParticipant(userId: string): void {
         // Drops their source from the mixer, their entry from the mid map, and their volume.
         void this.voiceEngine.unsubscribe(userId);
+        // Forget the session they were on, so rejoining resubscribes rather than being skipped as
+        // a duplicate - a leave/rejoin almost always comes back on a new Cloudflare session.
+        this.subscribedAudioSessions.delete(userId);
 
         this.videoStreamsSignal.update(m => {
             const n = new Map(m);
@@ -289,8 +298,30 @@ export class VoiceRTCService {
             // Voice keys on the user; a stream's audio keys on its track name, so muting a stream
             // does not mute the voice of whoever is streaming.
             const id = target.kind === 'screenAudio' ? target.trackName : target.userId;
+
+            // A participant is announced twice: once live when they publish, and once more out of
+            // the stored record when *we* join and the backend backfills everyone already present.
+            // The two do not always agree - the live announcement carries the session id that was
+            // just passed in, the backfill reads whatever is on the participant row, which is stale
+            // if they rejoined. Acting on that difference is the only recovery path there is.
+            const previous = this.subscribedAudioSessions.get(id);
+            if (previous === target.cfSessionId) continue;
+            if (previous !== undefined) {
+                // The old subscription points at a session that is no longer publishing. Drop it,
+                // or the mixer keeps a dead source and Rust keeps a recvonly transceiver per
+                // announcement - one leaked m-line every time somebody rejoins.
+                console.warn('[voice] session id changed, resubscribing', {
+                    id, from: previous, to: target.cfSessionId,
+                });
+                await this.voiceEngine.unsubscribe(id);
+                this.subscribedAudioSessions.delete(id);
+            }
+
             try {
                 await this.voiceEngine.subscribe(id, target.cfSessionId, target.trackName);
+                // Only after it succeeds. Recording a failed subscribe would make the retry above
+                // skip the very announcement that could have carried a working session id.
+                this.subscribedAudioSessions.set(id, target.cfSessionId);
                 if (target.kind === 'screenAudio') {
                     this.remoteScreenAudioIds.set(target.userId, id);
                     // A stream that starts while its author is already muted must stay muted.
