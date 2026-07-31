@@ -16,18 +16,28 @@ export function useRustPublisher(): boolean {
 }
 
 /**
- * ICE servers for the Rust publisher, credentials included.
+ * STUN servers for the Rust publisher. TURN entries are deliberately dropped.
  *
- * The credentials cannot be dropped: `webrtc-rs` validates the configuration when the peer
- * connection is created and rejects a `turn:` URL with no username or credential, where a browser
- * accepts the same config and only fails later when TURN authentication is attempted.
+ * Cloudflare's SFU runs ICE-lite on public IPs, so reaching it needs no relay: the client's
+ * outbound packet creates the NAT mapping and the SFU answers on it. Symmetric NAT only defeats
+ * peer-to-peer hole punching, not a publicly addressable server, and Cloudflare configure STUN
+ * without TURN for exactly this reason. TURN would only earn its place on a network that blocks
+ * UDP outright.
+ *
+ * Dropping them is not merely tidy. `webrtc-rs` validates the configuration up front and rejects a
+ * `turn:` URL with no credentials, and this publish waits for ICE gathering to finish before
+ * offering - so relay entries that cannot authenticate would add their whole timeout to the start
+ * of every share.
  */
 export function iceServers(): IceServerConfig[] {
-    return environment.iceServers.map(server => ({
-        urls: Array.isArray(server.urls) ? server.urls : [server.urls],
-        username: server.username,
-        credential: server.credential,
-    }));
+    return environment.iceServers
+        .map(server => ({
+            urls: (Array.isArray(server.urls) ? server.urls : [server.urls])
+                .filter(url => url.startsWith('stun:')),
+            username: server.username,
+            credential: server.credential,
+        }))
+        .filter(server => server.urls.length > 0);
 }
 
 /**
