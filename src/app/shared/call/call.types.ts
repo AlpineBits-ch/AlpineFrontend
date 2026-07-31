@@ -19,6 +19,13 @@ export interface CallScreenShare {
     avatarLabel?: string;
     isLocal: boolean;
     stream?: MediaStream;
+    /**
+     * Data URL for the sharer's own tile when the Rust publisher owns the share.
+     *
+     * That path puts no MediaStream in the webview, so there is nothing to bind a `<video>` to;
+     * this is a low-rate thumbnail standing in for it.
+     */
+    previewSrc?: string | null;
     hasAudio?: boolean;
     isAudioMuted?: boolean;
     renderedFps?: number | null;

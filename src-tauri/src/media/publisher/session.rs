@@ -18,6 +18,27 @@ use crate::media::screen::{find_capture_source, run_capture_loop};
 /// than build a backlog and drift further behind real time.
 const FRAME_QUEUE: usize = 2;
 
+/// Width of the local self-preview, in pixels. It is a thumbnail in a tile, not the stream, so it
+/// is small enough that JPEG over IPC costs nothing meaningful next to the encode itself.
+const PREVIEW_WIDTH: u32 = 480;
+
+/// Interval between preview frames. Fast enough to read as live, slow enough to stay free.
+const PREVIEW_INTERVAL: Duration = Duration::from_millis(200);
+
+/// A downscaled frame for the sharer's own tile.
+///
+/// The publisher never puts a MediaStream in the webview - that is the point of it - so the local
+/// tile has nothing to render without this. JPEG is genuinely the right tool here: it is a
+/// thumbnail, decoded once per 200 ms.
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PreviewFrame {
+    /// base64-encoded JPEG.
+    pub data: String,
+    pub width: u32,
+    pub height: u32,
+}
+
 pub struct PublishHandle {
     stop_tx: Mutex<Option<std::sync::mpsc::SyncSender<()>>>,
     /// Read every frame by the capture loop, so a framerate change lands within one frame.
@@ -51,6 +72,30 @@ impl PublishHandle {
     }
 }
 
+/// Downscale the already-fitted frame and hand it to the webview for the local tile.
+fn emit_preview(frame: &RgbaImage, buf: &mut Vec<u8>, channel: &tauri::ipc::Channel<PreviewFrame>) {
+    let scale = PREVIEW_WIDTH as f32 / frame.width() as f32;
+    // Never upscale a source that is already smaller than the preview box.
+    let (width, height) = if scale >= 1.0 {
+        (frame.width(), frame.height())
+    } else {
+        (PREVIEW_WIDTH, (frame.height() as f32 * scale).round().max(1.0) as u32)
+    };
+
+    let thumb = image::DynamicImage::ImageRgba8(frame.clone())
+        .resize(width, height, image::imageops::FilterType::Triangle)
+        .to_rgb8();
+    let out_width = thumb.width();
+    let out_height = thumb.height();
+
+    crate::media::screen::encode_jpeg_into(&image::DynamicImage::ImageRgb8(thumb), 70, buf);
+    let _ = channel.send(PreviewFrame {
+        data: crate::media::screen::base64_encode(buf),
+        width: out_width,
+        height: out_height,
+    });
+}
+
 /// Start capturing, encoding and publishing a source.
 ///
 /// Returns once the track is live on Cloudflare, so the caller can tell other clients to subscribe.
@@ -64,6 +109,7 @@ pub async fn start(
     kbps: u32,
     ice_urls: Vec<String>,
     signalling: Signalling,
+    on_preview: tauri::ipc::Channel<PreviewFrame>,
 ) -> Result<PublishHandle, String> {
     let spec = EncoderSpec {
         width,
@@ -105,12 +151,21 @@ pub async fn start(
             };
 
             let mut timestamp_us: u64 = 0;
+            let mut jpeg_buf = Vec::with_capacity(64 * 1024);
+            let mut next_preview = std::time::Instant::now();
+
             run_capture_loop(source, capture_fps, stop_rx, move |rgba: RgbaImage, _w, _h| {
                 let current_fps = fps_arc.load(Ordering::Relaxed).max(1) as u64;
                 let frame_interval_us = 1_000_000 / current_fps;
 
                 // Fit before encoding: the source can change size mid-session, the encoder cannot.
                 let frame = fit_into(&rgba, width, height);
+
+                let now = std::time::Instant::now();
+                if now >= next_preview {
+                    next_preview = now + PREVIEW_INTERVAL;
+                    emit_preview(&frame, &mut jpeg_buf, &on_preview);
+                }
                 let outcome = encoder.encode(&frame, timestamp_us);
                 timestamp_us += frame_interval_us;
 

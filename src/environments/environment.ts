@@ -2,10 +2,10 @@ export const environment = {
     production: true,
     /**
      * Publish screen shares from Rust (hardware H.264, no JPEG round trip) instead of the
-     * canvas pipeline. Off until the path has been exercised against a live SFU; the canvas
-     * path stays the fallback and is what runs when this is false.
+     * canvas pipeline. The canvas path remains as the fallback and is what runs when this is
+     * false, so flipping it back is a one-line rollback if the publisher misbehaves.
      */
-    rustPublisher: false,
+    rustPublisher: true,
     apiUrl: 'https://api.venta.gg',
     klipyApiKey: 'urPFHj6XtUHQIo9G5XD3nvudiXcyRIiad68WfDV0DV8WmJXSFfxFC4PGqcRTXuL5',
     iceServers: [

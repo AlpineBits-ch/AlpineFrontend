@@ -55,6 +55,7 @@ export class CallPanelComponent implements OnInit, OnDestroy {
             avatarLabel: sh.displayName[0]?.toUpperCase() ?? '?',
             isLocal: sh.isLocal,
             stream: sh.stream,
+            previewSrc: sh.isLocal ? this.rustMedia.publishPreview() : null,
             hasAudio: false,  // DM screen share does not capture audio yet
             isAudioMuted: false,
         }))

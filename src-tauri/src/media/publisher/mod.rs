@@ -8,14 +8,13 @@
 //! Discord does the equivalent natively - OS capture into a hardware encoder, with frames never
 //! leaving the process - which is why their streams stay sharp on text.
 
-//! Status: the encoder layer is built and tested. The RTP publishing layer (a `webrtc-rs` peer
-//! connection publishing to Cloudflare Realtime through the backend's existing signalling
-//! endpoints) is designed but not yet implemented - see the plan referenced in
-//! `docs/superpowers/plans/2026-07-31-discord-parity-streaming.md`.
+//! The publish opens its own Cloudflare session, separate from the webview's, and asks the backend
+//! for it with `primary=false` so it is not recorded as the participant's audio session. Other
+//! clients subscribe through the TrackPublished event, which carries the publishing session's id,
+//! so they cannot tell which process produced the track.
 
-// The encoder layer is complete and tested, but nothing in the non-test build consumes it yet -
-// the RTP publishing layer that will is not written. Suppressed module-wide so the warnings return
-// in one go once it is wired up, rather than being annotated away item by item and forgotten.
+// A handful of accessors exist for diagnostics and for the paths not yet exercised (geometry
+// readback, encoder naming). Suppressed module-wide rather than annotated item by item.
 #![allow(dead_code)]
 
 pub mod encoder;
@@ -75,6 +74,7 @@ pub async fn start_screen_publish(
     guild_id: Option<String>,
     channel_id: Option<String>,
     call_id: Option<String>,
+    on_preview: tauri::ipc::Channel<session::PreviewFrame>,
 ) -> Result<PublishResult, String> {
     stop_screen_publish();
 
@@ -97,6 +97,7 @@ pub async fn start_screen_publish(
         kbps,
         ice_urls,
         signalling,
+        on_preview,
     )
     .await?;
 

@@ -32,6 +32,8 @@ export class CallSessionService {
     private screenSourceSize: { width: number; height: number } | null = null;
     /** True while the running share is owned by the Rust publisher rather than the webview. */
     private rustPublishing = false;
+    /** The picker choice behind the running publish, so a resolution change can rebuild it. */
+    private rustChoice: ScreenPickerChoice | null = null;
     private readonly oauth = inject(OAuthService);
     private readonly apiConfig = inject(ApiConfigService);
     private profileService = inject(ProfileService);
@@ -158,6 +160,7 @@ export class CallSessionService {
             } else {
                 void this.rustMedia.stopScreenCapture();
             }
+            this.rustChoice = null;
             this.screenPreset.set(null);
             this.screenSourceSize = null;
             this.session.update(st => st ? {
@@ -240,6 +243,7 @@ export class CallSessionService {
         this.screenPreset.set(choice.preset);
         this.screenSourceSize = {width: choice.sourceWidth, height: choice.sourceHeight};
         this.rustPublishing = true;
+        this.rustChoice = choice;
         this.session.update(st => st ? {
             ...st,
             screenShares: [...st.screenShares, {
@@ -247,6 +251,28 @@ export class CallSessionService {
             }],
             local: {...st.local, isSharing: true},
         } : st);
+    }
+
+    /**
+     * Rebuild the publish at a new resolution.
+     *
+     * The encoder is fixed to one geometry, so this restarts the publish. The share is replaced in
+     * session state under a new id, and CallWebRtcService's TrackPublished flow carries the new
+     * session to the other side.
+     */
+    private async restartRustPublish(preset: StreamPreset): Promise<void> {
+        const choice = this.rustChoice;
+        const ownId = this.profileService.ownProfile()?.userId ?? '';
+        if (!choice) return;
+
+        await this.rustMedia.stopScreenPublish();
+        this.rustPublishing = false;
+        this.session.update(st => st ? {
+            ...st,
+            screenShares: st.screenShares.filter(sh => !sh.isLocal),
+        } : st);
+
+        await this.startRustPublish({...choice, preset}, crypto.randomUUID(), ownId);
     }
 
     /**
@@ -262,13 +288,14 @@ export class CallSessionService {
         this.screenPreset.set(preset);
 
         if (this.rustPublishing) {
-            // Framerate is live; resolution and bitrate are baked into the encoder, so changing
-            // them means restarting the publish. Left to a follow-up rather than silently ignored.
+            // Framerate is live - the capture loop re-reads it every frame.
             if (preset.framerate !== previous.framerate) {
                 await this.rustMedia.setPublishFps(preset.framerate);
             }
-            if (preset.resolution !== previous.resolution) {
-                console.warn('[call] resolution changes need a publish restart; not yet wired');
+            // Resolution and bitrate are baked into the encoder at construction, so a change means
+            // tearing the publish down and starting a fresh one.
+            if (preset.resolution !== previous.resolution && this.rustChoice) {
+                await this.restartRustPublish(preset);
             }
             return;
         }

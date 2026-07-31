@@ -28,6 +28,13 @@ export interface ScreenPublishOptions {
     callId?: string;
 }
 
+interface PreviewFrame {
+    /** base64 JPEG. */
+    data: string;
+    width: number;
+    height: number;
+}
+
 export interface ScreenPublishResult {
     cfSessionId: string;
     trackName: string;
@@ -86,6 +93,15 @@ export class RustMediaService {
     private readonly _captureGeometry = signal<CaptureGeometry>({width: 1920, height: 1080});
     /** Fixed output size for the running session. Solved once, before capture starts. */
     readonly captureGeometry = this._captureGeometry.asReadonly();
+    private readonly _publishPreview = signal<string | null>(null);
+    /**
+     * Data URL of the sharer's own screen while the Rust publisher owns the share.
+     *
+     * The publisher puts no MediaStream in the webview, so the local tile renders this instead -
+     * a ~5 fps thumbnail rather than the stream itself.
+     */
+    readonly publishPreview = this._publishPreview.asReadonly();
+    private publishPreviewChannel: Channel<PreviewFrame> | null = null;
     private readonly _inboundFps = signal(0);
     /** Frames received from Rust per second. */
     readonly inboundFps = this._inboundFps.asReadonly();
@@ -202,7 +218,12 @@ export class RustMediaService {
      * for a track the webview published.
      */
     async startScreenPublish(options: ScreenPublishOptions): Promise<ScreenPublishResult> {
+        const preview = new Channel<PreviewFrame>();
+        preview.onmessage = frame => this._publishPreview.set(`data:image/jpeg;base64,${frame.data}`);
+        this.publishPreviewChannel = preview;
+
         return invoke<ScreenPublishResult>('start_screen_publish', {
+            onPreview: preview,
             sourceId: options.sourceId,
             shareId: options.shareId,
             width: options.width,
@@ -219,6 +240,12 @@ export class RustMediaService {
     }
 
     async stopScreenPublish(): Promise<void> {
+        if (this.publishPreviewChannel) {
+            this.publishPreviewChannel.onmessage = () => {
+            };
+            this.publishPreviewChannel = null;
+        }
+        this._publishPreview.set(null);
         if (!isTauri()) return;
         await invoke('stop_screen_publish').catch(() => {
         });

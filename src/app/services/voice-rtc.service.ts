@@ -26,6 +26,15 @@ export interface VoiceSpeakingChange {
     isSpeaking: boolean;
 }
 
+/**
+ * A publish that was rebuilt at a new resolution. The share id changed, so viewers have to be told
+ * to drop the old track and pick up the new one.
+ */
+export interface ScreenPublishRestart {
+    oldShareId: string;
+    newShareId: string;
+}
+
 @Injectable({providedIn: 'root'})
 export class VoiceRTCService {
     private apiConfig = inject(ApiConfigService);
@@ -107,6 +116,8 @@ export class VoiceRTCService {
     private screenSourceSize: { width: number; height: number } | null = null;
     /** True while the running share is owned by the Rust publisher rather than this connection. */
     private rustPublishing = false;
+    /** The picker choice behind the running publish, so a resolution change can rebuild it. */
+    private rustChoice: ScreenPickerChoice | null = null;
     private readonly oauth = inject(OAuthService);
 
     // ── Connection setup / teardown ────────────────────────────────────────────
@@ -552,6 +563,7 @@ export class VoiceRTCService {
             const shareId = this.screenShareId ?? 'share';
             await this.rustMedia.stopScreenPublish();
             this.rustPublishing = false;
+            this.rustChoice = null;
             this.screenShareId = null;
             this.screenSourceSize = null;
             this.screenPreset.set(null);
@@ -618,6 +630,7 @@ export class VoiceRTCService {
             console.log(`[voice] Rust publisher live on ${published.encoder}`, published);
             this.screenShareId = shareId;
             this.rustPublishing = true;
+            this.rustChoice = choice;
             return {shareId};
         } catch (e) {
             console.error('[voice] Rust publish failed', e);
@@ -633,23 +646,29 @@ export class VoiceRTCService {
      * A framerate change is free — the Rust capture loop reads it each frame. A resolution change
      * costs one renegotiation and keyframe, which is acceptable because the user asked for it.
      */
-    async setScreenPreset(preset: StreamPreset): Promise<void> {
+    async setScreenPreset(
+        preset: StreamPreset,
+        guildId?: string,
+        channelId?: string,
+    ): Promise<ScreenPublishRestart | null> {
         const previous = this.screenPreset() ?? DEFAULT_STREAM_PRESET;
         this.screenPreset.set(preset);
 
         if (this.rustPublishing) {
-            // Framerate is live; resolution and bitrate are baked into the encoder, so changing
-            // them means restarting the publish. Left to a follow-up rather than silently ignored.
+            // Framerate is live - the capture loop re-reads it every frame.
             if (preset.framerate !== previous.framerate) {
                 await this.rustMedia.setPublishFps(preset.framerate);
             }
-            if (preset.resolution !== previous.resolution) {
-                console.warn('[voice] resolution changes need a publish restart; not yet wired');
+            // Resolution and bitrate are baked into the encoder at construction, so changing them
+            // means a new encoder, a new session and therefore a new share id. The caller has to
+            // announce the swap; it cannot be done silently.
+            if (preset.resolution !== previous.resolution && guildId && channelId && this.rustChoice) {
+                return await this.restartRustPublish(guildId, channelId, preset);
             }
-            return;
+            return null;
         }
 
-        if (!this.localScreenTrack) return;
+        if (!this.localScreenTrack) return null;
 
         if (preset.framerate !== previous.framerate) {
             await this.rustMedia.setCaptureFps(preset.framerate);
@@ -660,6 +679,31 @@ export class VoiceRTCService {
         }
         const sender = this.localSenders.get('screenVideo');
         if (sender) await applyScreenEncoding(sender, preset);
+        return null;
+    }
+
+    /**
+     * Rebuild the publish at a new resolution.
+     *
+     * The encoder is fixed to one geometry, so this tears the publish down and starts a fresh one.
+     * That yields a new Cloudflare session and a new share id, which the caller must announce so
+     * viewers drop the old track and subscribe to the new one.
+     */
+    private async restartRustPublish(
+        guildId: string,
+        channelId: string,
+        preset: StreamPreset,
+    ): Promise<ScreenPublishRestart | null> {
+        const choice = this.rustChoice;
+        const oldShareId = this.screenShareId;
+        if (!choice || !oldShareId) return null;
+
+        await this.rustMedia.stopScreenPublish();
+        this.rustPublishing = false;
+
+        const started = await this.publishScreenFromRust(guildId, channelId, {...choice, preset});
+        if (!started) return null;
+        return {oldShareId, newShareId: started.shareId};
     }
 
     // ── Volume / per-user audio controls ──────────────────────────────────────

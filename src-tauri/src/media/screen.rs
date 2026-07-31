@@ -385,7 +385,7 @@ fn encode_jpeg(img: &DynamicImage, quality: u8) -> Vec<u8> {
     buf
 }
 
-fn encode_jpeg_into(img: &DynamicImage, quality: u8, buf: &mut Vec<u8>) {
+pub fn encode_jpeg_into(img: &DynamicImage, quality: u8, buf: &mut Vec<u8>) {
     use jpeg_encoder::ColorType;
     buf.clear();
     let w = img.width() as u16;
@@ -401,7 +401,7 @@ fn encode_jpeg_into(img: &DynamicImage, quality: u8, buf: &mut Vec<u8>) {
     };
 }
 
-fn base64_encode(data: &[u8]) -> String {
+pub fn base64_encode(data: &[u8]) -> String {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD.encode(data)
 }

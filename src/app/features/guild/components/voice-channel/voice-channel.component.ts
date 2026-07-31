@@ -68,6 +68,7 @@ export class VoiceChannelComponent {
             stream: (p.isLocal
                 ? this.voiceSvc.localScreenStream()
                 : this.voiceSvc.getScreenStream(p.userId)) ?? undefined,
+            previewSrc: p.isLocal ? this.rustMedia.publishPreview() : null,
             hasAudio: p.isLocal ? this.voiceSvc.localScreenHasAudio() : true,
             isAudioMuted: p.isLocal
                 ? this.voiceSvc.localScreenAudioMuted()
@@ -205,6 +206,6 @@ export class VoiceChannelComponent {
     }
 
     protected setScreenPreset(preset: StreamPreset): void {
-        void this.voiceSvc.rtc.setScreenPreset(preset);
+        void this.voiceSvc.setScreenPreset(preset);
     }
 }

@@ -20,6 +20,9 @@
                         @if (share.stream; as stream) {
                             <video [streamSrc]="stream" autoplay class="w-full h-full object-contain" muted
                                    playsinline></video>
+                        } @else if (share.previewSrc) {
+                            <img [src]="share.previewSrc" alt="Your screen"
+                                 class="w-full h-full object-contain"/>
                         } @else {
                             <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
                                 <i class="pi pi-desktop text-5xl"></i>

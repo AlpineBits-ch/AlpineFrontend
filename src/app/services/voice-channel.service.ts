@@ -18,6 +18,7 @@ import {
 } from './guild-websocket.service';
 import {SoundSettingsService} from './sound-settings.service';
 import {VoiceRTCService} from './voice-rtc.service';
+import {StreamPreset} from '../models/stream-preset';
 import {AudioSettingsService} from './audio-settings.service';
 
 export interface VoiceChannelParticipant {
@@ -318,6 +319,26 @@ export class VoiceChannelService {
             this.localState.update(s => ({...s, isScreenSharing: true}));
         }
         this.syncLocal();
+    }
+
+    /**
+     * Change stream quality mid-share.
+     *
+     * A resolution change on the Rust publisher rebuilds the encoder, which means a new session and
+     * a new share id; viewers are told to drop the old track and pick up the new one. Every other
+     * change is applied in place and announces nothing.
+     */
+    async setScreenPreset(preset: StreamPreset): Promise<void> {
+        const guildId = this.joinedGuildId();
+        const channelId = this.joinedChannelId();
+        if (!guildId || !channelId) return;
+
+        const restart = await this.rtc.setScreenPreset(preset, guildId, channelId);
+        if (!restart) return;
+
+        this.guildWsSvc.invokeVoiceScreenShareStopped(channelId, restart.oldShareId);
+        this.guildWsSvc.invokeVoiceScreenShareStarted(
+            channelId, restart.newShareId, `screen-${restart.newShareId}`);
     }
 
     setServerDeafened(userId: string, isDeafened: boolean): void {
