@@ -1290,6 +1290,31 @@ In `voice-channel.service.ts`: `setUserVolume` → `voiceEngine.setUserVolume(us
 
 ---
 
+> **Tasks 1-10 are implemented and pushed.** 229 Rust tests, `ng build` clean. Nothing below has
+> been run.
+
+### Blocker found during Task 10: the device id is about to become inconsistent
+
+A concurrent change adds `device-id-interceptor.ts`, which stamps `X-Device-Id` on every API
+request, and its own doc comment names **the Cloudflare session create** as one of the endpoints the
+backend validates it on.
+
+**The Rust engine sends no such header.** `DeviceIdResolver` treats a missing header as
+`WasProvided: false` and buckets it as `"default"` rather than rejecting it — so nothing fails
+loudly. But the Rust session is the *primary* one, and for a DM call `CreateSession(primary: true)`
+is what runs `Call.ConnectDevice`. So the call would be connected under device `"default"` while
+every other request from the same client — accept, decline, leave — carries the real id. That is
+precisely the split-brain the device id was introduced to prevent, and device-takeover detection
+compares those two values.
+
+**This supersedes the check recorded in phase 1's Step 1b**, which concluded there was no
+split-brain risk. That was true when the frontend sent the header nowhere. It no longer is.
+
+The fix is small and belongs on the Rust side: `Signalling` takes an optional device id and sends it
+as `X-Device-Id`, `voice_start` gains a parameter, and `VoiceEngineService.start` passes
+`await identity.deviceId()`. Not implemented here — the interceptor is still uncommitted work in
+someone else's tree, and racing it would produce a conflict rather than a fix. Coordinate first.
+
 ### Task 11: Verify at runtime, with two clients
 
 - [ ] Both clients hear each other in a guild channel, in **both** join orders.
