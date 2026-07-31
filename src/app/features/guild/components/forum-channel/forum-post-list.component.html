@@ -89,6 +89,7 @@
                     @for (post of posts(); track post.id) {
                         <app-forum-post-card (action)="onPostAction(post, $event)"
                                              (open)="openPost(post)"
+                                             [active]="compact() && post.id === openPostId()"
                                              [canModerate]="canModerate()"
                                              [emojiUrls]="emojiUrls()"
                                              [layout]="effectiveLayout()"

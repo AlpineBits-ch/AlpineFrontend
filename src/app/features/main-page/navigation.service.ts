@@ -122,6 +122,18 @@ export class NavigationService {
     }
 
     openChannel(channel: ChannelDto): void {
+        // A forum post brings its own post-list pane, which lives in the same slot as the
+        // wiki and events panels - see main-page.component.html. Opening one closes those
+        // two, exactly as openWiki closes the events panel. Ordinary channels don't, so
+        // browsing text channels with the wiki panel open still works.
+        //
+        // This keys on Thread rather than on forumParentOf: openChannel has no channel list
+        // to resolve the parent against, and a non-forum thread closing those panels is
+        // harmless.
+        if (channel.type === ChannelType.Thread) {
+            this.wikiPanelGuildId.set(null);
+            this.eventsPanelGuildId.set(null);
+        }
         this.mainView.set({type: 'channel', channel});
         this.mobileNavOpen.set(false);
         this.saveNav();

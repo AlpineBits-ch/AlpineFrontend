@@ -38,6 +38,15 @@
             <app-events-panel [guildId]="eventsGuildId" [memberPermissions]="eventsMemberPermissions()"/>
         }
 
+        <!-- Forum post list (second sidebar, same slot as the wiki and events panels).
+             Present only while a forum post is open, so browsing a forum keeps the full
+             width and Gallery layout stays useful. -->
+        @if (openPostForum(); as postForum) {
+            <div class="hidden lg:flex shrink-0 h-full w-80 bg-sidebar border-r border-white/[0.10]">
+                <app-forum-post-list [compact]="true" [forum]="postForum"/>
+            </div>
+        }
+
         <!-- Main content -->
         <div class="flex-1 min-w-0 overflow-hidden">
             @switch (view.type) {

@@ -29,6 +29,13 @@ export class ForumPostCardComponent {
     emojiUrls = input<Record<string, string>>({});
     /** Ticks so relative timestamps stay live without the pipe reading the clock itself. */
     nowTick = input(0);
+    /**
+     * This post is the one open in the main view. Only the narrow pane sets it - the
+     * full-width list has no open post to point at. Drawn as a ring rather than a
+     * background or border, both of which the card already sets and would then be
+     * settled by Tailwind's output order rather than by intent.
+     */
+    active = input(false);
 
     open = output<ForumPost>();
     action = output<PostAction>();

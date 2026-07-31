@@ -10,6 +10,8 @@ import {ConversationComponent} from '../messaging/components/conversation/conver
 import {ChannelComponent} from '../guild/components/channel/channel.component';
 import {VoiceChannelComponent} from '../guild/components/voice-channel/voice-channel.component';
 import {ForumChannelComponent} from '../guild/components/forum-channel/forum-channel.component';
+import {ForumPostListComponent} from '../guild/components/forum-channel/forum-post-list.component';
+import {forumParentOf} from '../guild/components/channel/channel-utils';
 import {ServerTaskbarComponent} from '../guild/components/server-taskbar/server-taskbar.component';
 import {ActivityFeedComponent} from './components/activity-feed/activity-feed.component';
 import {
@@ -73,6 +75,7 @@ import {GuildService} from '../../services/guild.service';
         WikiPanelComponent,
         OnboardingGateComponent,
         EventsPanelComponent,
+        ForumPostListComponent,
     ],
     templateUrl: './main-page.component.html',
     styleUrl: './main-page.component.css',
@@ -88,6 +91,18 @@ export class MainPageComponent implements OnDestroy {
     protected onboardingEnabled = computed(() => {
         const ws = this.navService.workspace();
         return ws.type === 'server' && guildHasFeature(ws.guild, GuildFeature.Onboarding);
+    });
+    /**
+     * The forum whose post list should sit beside the main view: non-null exactly when the
+     * open channel is a forum post. Desktop only - below `lg` the pane is hidden and the
+     * post keeps the whole screen, as it always has.
+     */
+    protected openPostForum = computed(() => {
+        const view = this.navService.mainView();
+        if (view.type !== 'channel') return null;
+        const ws = this.navService.workspace();
+        if (ws.type !== 'server') return null;
+        return forumParentOf(view.channel, ws.guild.channels);
     });
     protected router = inject(Router);
     protected showDeviceRegistration = signal(false);
