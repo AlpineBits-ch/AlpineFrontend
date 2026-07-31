@@ -45,10 +45,10 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-
+      # Deliberately sccache alone, not sccache + swatinem/rust-cache. Both store into the same
+      # 10 GB GitHub Actions cache, so they evict each other, and rust-cache saved a multi-gigabyte
+      # Tauri target/ directory on every run - paying the upload cost each time while rarely
+      # getting a hit. sccache's per-object entries are far smaller and survive the budget.
       - uses: mozilla-actions/sccache-action@v0.0.10
       - name: Force HTTPS for Submodules
         run: |
@@ -95,10 +95,7 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      - uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-
+      # See the note in release-windows: sccache alone, not alongside rust-cache.
       - uses: mozilla-actions/sccache-action@v0.0.10
       - name: Force HTTPS for Submodules
         run: |

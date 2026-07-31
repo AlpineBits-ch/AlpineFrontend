@@ -76,10 +76,6 @@ tauri-plugin-notifications = { version = "0.4.6", features = ["push-notification
 
 [dev-dependencies]
 
-[profile.release.package.wry]
-debug = true
-debug-assertions = true
-
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["native-tls", "json"] }
 tauri-plugin-autostart = "2"
