@@ -456,7 +456,7 @@ export class VoiceRTCService {
 
             // Polled rather than read once: the backend may settle the record a moment after
             // tracks/new returns, and a single early read would report the wrong answer confidently.
-            for (let attempt = 1; attempt <= 5; attempt++) {
+            for (let attempt = 1; attempt <= 3; attempt++) {
                 await new Promise(resolve => setTimeout(resolve, 600));
                 const state = await firstValueFrom(this.guildVoiceSvc.getState(guildId, channelId));
                 const me = state.participants.find(p => p.userId === ownUserId);
@@ -465,14 +465,25 @@ export class VoiceRTCService {
                     continue;
                 }
 
+                // Dumped raw on the first pass: reading named fields assumes the DTO matches what
+                // the endpoint really returns, and an absent field is indistinguishable from a null
+                // one once it has been read through a typed interface.
+                if (attempt === 1) {
+                    console.log('[voice][verify] raw participant record:', JSON.stringify(me));
+                }
+
+                // Look for the session id anywhere in the record rather than at an assumed key.
+                const asRecord = me as unknown as Record<string, unknown>;
+                const matches = (id: string | null) =>
+                    id !== null && Object.entries(asRecord).filter(([, v]) => v === id).map(([k]) => k);
+
+                const rustKeys = matches(rust.cfSessionId);
+                const webviewKeys = matches(this.cfSessionId);
                 const verdict =
-                    me.cfSessionId === rust.cfSessionId ? 'RUST   -> the cutover assumption HOLDS'
-                        : me.cfSessionId === this.cfSessionId ? 'WEBVIEW -> the cutover assumption FAILS'
-                            : 'NEITHER -> unexpected, report this';
-                console.log(
-                    `[voice][verify] attempt ${attempt}: backend records session`, me.cfSessionId,
-                    'track', me.audioTrackName, '=>', verdict,
-                );
+                    rustKeys && rustKeys.length ? `RUST at ${rustKeys.join(',')} -> assumption HOLDS`
+                        : webviewKeys && webviewKeys.length ? `WEBVIEW at ${webviewKeys.join(',')} -> assumption FAILS`
+                            : 'NEITHER session id appears anywhere in the record';
+                console.log(`[voice][verify] attempt ${attempt}: ${verdict}`);
             }
         } catch (e) {
             console.error('[voice][verify] rust voice failed to start', e);
