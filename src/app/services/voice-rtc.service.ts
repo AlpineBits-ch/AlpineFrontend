@@ -28,6 +28,20 @@ export interface VoiceSpeakingChange {
 }
 
 /**
+ * Backoff between attempts to pull a remote audio track, in milliseconds.
+ *
+ * Sized against the window this exists to cover. The backend announces a publisher as soon as
+ * Cloudflare accepts their `tracks/new`, which is one SDP answer before they have applied it,
+ * finished ICE and DTLS, and sent a packet; until then Cloudflare answers a pull with
+ * `not_found_track_error`. The backend already absorbs 1.5s of that, so the first retry is short -
+ * a healthy handshake is done well inside it - and the rest stretch out to cover a cold connect on
+ * a slow link without retrying into a failure that is never going to clear.
+ *
+ * Exported so the schedule is asserted rather than described.
+ */
+export const SUBSCRIBE_RETRY_DELAYS_MS = [500, 1500, 3000] as const;
+
+/**
  * A publish that was rebuilt at a new resolution. The share id changed, so viewers have to be told
  * to drop the old track and pick up the new one.
  */
@@ -111,6 +125,11 @@ export class VoiceRTCService {
     // repeated announcement (skip) from a corrected one (resubscribe), which a bare "have we seen
     // this user" set cannot do.
     private readonly subscribedAudioSessions = new Map<string, string>();
+
+    // Mixer source id → a token identifying the newest subscribe attempt for it. Bumped by every
+    // new announcement and by cleanup, so a retry that is still sleeping can tell it has been
+    // superseded and stop rather than subscribing on behalf of someone who already left.
+    private readonly subscribeTokens = new Map<string, number>();
 
     /**
      * Quality of the running screen share, or null when not sharing. Set by the picker and changed
@@ -214,6 +233,9 @@ export class VoiceRTCService {
     teardown(): void {
         this.localSenders.clear();
         this.subscribedAudioSessions.clear();
+        // Bumped, not cleared: a cleared map reads as token 0 to a retry that is still sleeping,
+        // which is the value it would match if it was the first attempt for that source.
+        this.subscribeTokens.forEach((token, id) => this.subscribeTokens.set(id, token + 1));
 
         // Stops capture, playout and every subscription in one call - the Rust session owns all of
         // them, so there is nothing per-participant left to unwind here.
@@ -257,6 +279,9 @@ export class VoiceRTCService {
         // Forget the session they were on, so rejoining resubscribes rather than being skipped as
         // a duplicate - a leave/rejoin almost always comes back on a new Cloudflare session.
         this.subscribedAudioSessions.delete(userId);
+        // Invalidate any retry still sleeping for them. Without this, someone who leaves during
+        // the backoff is resubscribed seconds later and stays in the mix until the next teardown.
+        this.subscribeTokens.set(userId, (this.subscribeTokens.get(userId) ?? 0) + 1);
 
         this.videoStreamsSignal.update(m => {
             const n = new Map(m);
@@ -294,31 +319,54 @@ export class VoiceRTCService {
     async subscribeAudio(
         targets: { userId: string; cfSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' }[],
     ): Promise<void> {
-        for (const target of targets) {
-            // Voice keys on the user; a stream's audio keys on its track name, so muting a stream
-            // does not mute the voice of whoever is streaming.
-            const id = target.kind === 'screenAudio' ? target.trackName : target.userId;
+        // Concurrently, because a subscribe now retries for several seconds before giving up.
+        // Sequentially, one participant losing the publish race would hold up everyone announced
+        // alongside them - which is exactly what happens when we join a busy channel and the
+        // backfill announces the whole room at once.
+        await Promise.all(targets.map(target => this.subscribeOne(target)));
+    }
 
-            // A participant is announced twice: once live when they publish, and once more out of
-            // the stored record when *we* join and the backend backfills everyone already present.
-            // The two do not always agree - the live announcement carries the session id that was
-            // just passed in, the backfill reads whatever is on the participant row, which is stale
-            // if they rejoined. Acting on that difference is the only recovery path there is.
-            const previous = this.subscribedAudioSessions.get(id);
-            if (previous === target.cfSessionId) continue;
-            if (previous !== undefined) {
-                // The old subscription points at a session that is no longer publishing. Drop it,
-                // or the mixer keeps a dead source and Rust keeps a recvonly transceiver per
-                // announcement - one leaked m-line every time somebody rejoins.
-                console.warn('[voice] session id changed, resubscribing', {
-                    id, from: previous, to: target.cfSessionId,
-                });
-                await this.voiceEngine.unsubscribe(id);
-                this.subscribedAudioSessions.delete(id);
-            }
+    private async subscribeOne(
+        target: { userId: string; cfSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' },
+    ): Promise<void> {
+        // Voice keys on the user; a stream's audio keys on its track name, so muting a stream
+        // does not mute the voice of whoever is streaming.
+        const id = target.kind === 'screenAudio' ? target.trackName : target.userId;
 
+        // A participant is announced twice: once live when they publish, and once more out of
+        // the stored record when *we* join and the backend backfills everyone already present.
+        // The two do not always agree - the live announcement carries the session id that was
+        // just passed in, the backfill reads whatever is on the participant row, which is stale
+        // if they rejoined. Acting on that difference is the only recovery path there is.
+        const previous = this.subscribedAudioSessions.get(id);
+        if (previous === target.cfSessionId) return;
+        if (previous !== undefined) {
+            // The old subscription points at a session that is no longer publishing. Drop it,
+            // or the mixer keeps a dead source and Rust keeps a recvonly transceiver per
+            // announcement - one leaked m-line every time somebody rejoins.
+            console.warn('[voice] session id changed, resubscribing', {
+                id, from: previous, to: target.cfSessionId,
+            });
+            await this.voiceEngine.unsubscribe(id);
+            this.subscribedAudioSessions.delete(id);
+        }
+
+        // Claim this source. A later announcement, or the participant leaving, invalidates the
+        // token and any attempt still sleeping between retries drops out instead of resurrecting
+        // a subscription for someone who is no longer here.
+        const token = (this.subscribeTokens.get(id) ?? 0) + 1;
+        this.subscribeTokens.set(id, token);
+
+        for (let attempt = 0; ; attempt++) {
+            if (this.subscribeTokens.get(id) !== token) return;
             try {
                 await this.voiceEngine.subscribe(id, target.cfSessionId, target.trackName);
+                if (this.subscribeTokens.get(id) !== token) {
+                    // Superseded while the call was in flight. Drop what we just took, or it
+                    // outlives the participant it belongs to.
+                    await this.voiceEngine.unsubscribe(id);
+                    return;
+                }
                 // Only after it succeeds. Recording a failed subscribe would make the retry above
                 // skip the very announcement that could have carried a working session id.
                 this.subscribedAudioSessions.set(id, target.cfSessionId);
@@ -335,11 +383,27 @@ export class VoiceRTCService {
                     const volume = this.userVolumes.get(target.userId);
                     if (volume !== undefined) void this.voiceEngine.setUserVolume(id, volume);
                 }
+                return;
             } catch (e) {
-                // Loud, and it stays loud. Nothing retries a subscribe, so this participant is
+                if (attempt < SUBSCRIBE_RETRY_DELAYS_MS.length) {
+                    // Expected, not exceptional. The backend announces a publisher the moment
+                    // Cloudflare accepts their tracks/new, which is one SDP answer *before* they
+                    // have finished ICE and DTLS and sent a packet - so an early subscribe gets
+                    // not_found_track_error for a track that is about to exist. The backend absorbs
+                    // 1.5s of that; a cold handshake on a slow link outlasts it.
+                    console.warn('[voice] subscribe failed, retrying', {
+                        id, attempt: attempt + 1, retryInMs: SUBSCRIBE_RETRY_DELAYS_MS[attempt],
+                    }, e);
+                    await new Promise(r => setTimeout(r, SUBSCRIBE_RETRY_DELAYS_MS[attempt]));
+                    continue;
+                }
+                // Loud, and it stays loud. The retries are exhausted, so this participant is
                 // unhearable until they republish - and a silent version of this exact failure is
                 // what cost a full debugging session in phase 1.
-                console.error('[voice] subscribe failed', {id, ...target}, e);
+                console.error('[voice] subscribe failed', {
+                    id, ...target, attempts: SUBSCRIBE_RETRY_DELAYS_MS.length + 1,
+                }, e);
+                return;
             }
         }
     }

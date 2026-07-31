@@ -26,7 +26,7 @@ use webrtc::track::track_local::TrackLocal;
 
 use webrtc::rtp_transceiver::rtp_codec::RTPCodecType;
 use webrtc::rtp_transceiver::rtp_transceiver_direction::RTCRtpTransceiverDirection;
-use webrtc::rtp_transceiver::RTCRtpTransceiverInit;
+use webrtc::rtp_transceiver::{RTCRtpTransceiver, RTCRtpTransceiverInit};
 
 use crate::media::publisher::rtc::IceServerConfig;
 use crate::media::publisher::signalling::{
@@ -92,6 +92,22 @@ fn subscription_tracks(sources: &[(String, String)]) -> Vec<RemoteTrack> {
             session_id: session_id.clone(),
         })
         .collect()
+}
+
+/// Retire transceivers added for a subscribe that then failed.
+///
+/// Stopping is the most that can be done: JSEP has no way to take an m-line back out of a session
+/// that has already offered it. A stopped one is offered as inactive and can be recycled by a later
+/// negotiation, which is what keeps a retried subscribe from growing the SDP without bound.
+///
+/// Failures are logged and swallowed. This only ever runs on a path that is already returning an
+/// error, and replacing the real reason a subscribe failed with a cleanup error would hide it.
+async fn stop_transceivers(transceivers: Vec<Arc<RTCRtpTransceiver>>) {
+    for transceiver in transceivers {
+        if let Err(e) = transceiver.stop().await {
+            eprintln!("[voice] could not stop a transceiver after a failed subscribe: {e}");
+        }
+    }
 }
 
 impl VoicePublication {
@@ -317,8 +333,15 @@ impl VoicePublication {
             return Ok(Vec::new());
         }
 
+        // Held rather than dropped on the floor: every one of these is an m-line in the next offer,
+        // and a subscribe that fails must not leave one behind. Subscribing is retried now (the
+        // publisher's first RTP packet can arrive after the announcement that it exists), so an
+        // un-rolled-back transceiver is no longer a one-off cost - it is one dead recvonly m-line
+        // per attempt, growing the SDP of every later renegotiation on this connection.
+        let mut added = Vec::with_capacity(sources.len());
         for _ in sources {
-            self.peer_connection
+            match self
+                .peer_connection
                 .add_transceiver_from_kind(
                     RTPCodecType::Audio,
                     Some(RTCRtpTransceiverInit {
@@ -327,9 +350,34 @@ impl VoicePublication {
                     }),
                 )
                 .await
-                .map_err(|e| e.to_string())?;
+            {
+                Ok(transceiver) => added.push(transceiver),
+                Err(e) => {
+                    stop_transceivers(added).await;
+                    return Err(e.to_string());
+                }
+            }
         }
 
+        match self.negotiate_subscription(sources, register).await {
+            Ok(mids) => Ok(mids),
+            Err(e) => {
+                stop_transceivers(added).await;
+                Err(e)
+            }
+        }
+    }
+
+    /// The offer/answer half of `subscribe`, split out so its caller can roll the transceivers back
+    /// on any failure without repeating the cleanup at each `?`.
+    async fn negotiate_subscription<F>(
+        &self,
+        sources: &[(String, String)],
+        register: F,
+    ) -> Result<Vec<String>, String>
+    where
+        F: FnOnce(&[String]),
+    {
         let offer = self
             .peer_connection
             .create_offer(None)
