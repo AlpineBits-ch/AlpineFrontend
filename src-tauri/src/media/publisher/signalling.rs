@@ -80,22 +80,26 @@ struct CloseTracksRequest<'a> {
     track_names: &'a [String],
 }
 
-/// Signalling client scoped to one guild voice channel.
+/// Which call surface a publish belongs to. The two have separate controllers and route shapes but
+/// identical request and response bodies, so only the endpoint root differs.
+#[derive(Debug, Clone)]
+pub enum VoiceTarget {
+    /// A guild voice channel.
+    GuildChannel { guild_id: String, channel_id: String },
+    /// A direct-message call.
+    Call { call_id: String },
+}
+
+/// Signalling client scoped to one voice channel or call.
 pub struct Signalling {
     client: reqwest::Client,
     base_url: String,
     token: String,
-    guild_id: String,
-    channel_id: String,
+    target: VoiceTarget,
 }
 
 impl Signalling {
-    pub fn new(
-        base_url: String,
-        token: String,
-        guild_id: String,
-        channel_id: String,
-    ) -> Result<Self, String> {
+    pub fn new(base_url: String, token: String, target: VoiceTarget) -> Result<Self, String> {
         let client = reqwest::Client::builder()
             .timeout(REQUEST_TIMEOUT)
             .build()
@@ -104,23 +108,39 @@ impl Signalling {
             client,
             base_url: base_url.trim_end_matches('/').to_owned(),
             token,
-            guild_id,
-            channel_id,
+            target,
         })
     }
 
-    /// Endpoint root, matching `GuildVoiceService.base()` on the frontend.
+    /// Endpoint root, matching `GuildVoiceService.base()` and `VoiceService`'s call routes.
     pub fn voice_base(&self) -> String {
-        format!(
-            "{}/api/v1/guild/guilds/{}/channels/{}/voice",
-            self.base_url, self.guild_id, self.channel_id
-        )
+        match &self.target {
+            VoiceTarget::GuildChannel {
+                guild_id,
+                channel_id,
+            } => format!(
+                "{}/api/v1/guild/guilds/{guild_id}/channels/{channel_id}/voice",
+                self.base_url
+            ),
+            VoiceTarget::Call { call_id } => {
+                format!("{}/api/v1/voice/calls/{call_id}", self.base_url)
+            }
+        }
     }
 
+    /// URL for opening this publisher's Cloudflare session.
+    ///
+    /// `primary=false` is load-bearing. Without it the backend records this session as the
+    /// participant's, which in a guild channel leaves later joiners subscribing to a session with
+    /// no audio, and in a DM call triggers device-takeover and hangs up the call being shared into.
+    pub fn session_url(&self) -> String {
+        format!("{}/session?primary=false", self.voice_base())
+    }
+
+    /// Open a Cloudflare session for the screen track alone.
     pub async fn create_session(&self) -> Result<String, String> {
-        let response: CreateSessionResponse = self
-            .post(&format!("{}/session", self.voice_base()), &serde_json::json!({}))
-            .await?;
+        let response: CreateSessionResponse =
+            self.post(&self.session_url(), &serde_json::json!({})).await?;
         Ok(response.cf_session_id)
     }
 
@@ -229,14 +249,27 @@ mod tests {
         Signalling::new(
             "https://api.example.test/".into(),
             "tok".into(),
-            "g1".into(),
-            "c1".into(),
+            VoiceTarget::GuildChannel {
+                guild_id: "g1".into(),
+                channel_id: "c1".into(),
+            },
+        )
+        .unwrap()
+    }
+
+    fn call_signalling() -> Signalling {
+        Signalling::new(
+            "https://api.example.test".into(),
+            "tok".into(),
+            VoiceTarget::Call {
+                call_id: "call-1".into(),
+            },
         )
         .unwrap()
     }
 
     #[test]
-    fn voice_base_matches_the_frontend_route() {
+    fn voice_base_matches_the_frontend_guild_route() {
         // Must stay identical to GuildVoiceService.base() in guild-voice.service.ts.
         assert_eq!(
             signalling().voice_base(),
@@ -245,8 +278,18 @@ mod tests {
     }
 
     #[test]
+    fn voice_base_matches_the_call_route() {
+        // Must stay identical to CloudflareController's [Route] in the backend.
+        assert_eq!(
+            call_signalling().voice_base(),
+            "https://api.example.test/api/v1/voice/calls/call-1"
+        );
+    }
+
+    #[test]
     fn trailing_slashes_on_the_base_url_do_not_double_up() {
         assert!(!signalling().voice_base().contains("//api/v1"));
+        assert!(!call_signalling().voice_base().contains("//api/v1"));
     }
 
     #[test]
@@ -329,5 +372,19 @@ mod tests {
         let parsed: CreateSessionResponse =
             serde_json::from_str(r#"{"cfSessionId": "abc123"}"#).unwrap();
         assert_eq!(parsed.cf_session_id, "abc123");
+    }
+
+    #[test]
+    fn session_requests_are_always_secondary() {
+        // Guards the one flag that keeps a screen publish from clobbering the participant's audio
+        // session (guild) or triggering device takeover (DM call). Asserted on both surfaces
+        // because each has its own backend controller.
+        for client in [signalling(), call_signalling()] {
+            assert!(
+                client.session_url().ends_with("/session?primary=false"),
+                "session URL must carry primary=false, got {}",
+                client.session_url()
+            );
+        }
     }
 }

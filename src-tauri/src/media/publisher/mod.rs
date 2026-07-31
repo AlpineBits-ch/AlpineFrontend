@@ -35,7 +35,7 @@ use std::sync::{Mutex, OnceLock};
 use tauri::Manager;
 
 use session::PublishHandle;
-use signalling::Signalling;
+use signalling::{Signalling, VoiceTarget};
 
 /// The one running publish, if any. Screen sharing is single-session by design: the UI offers no
 /// way to share two sources at once, and a second capture would contend for the same encoder.
@@ -71,12 +71,23 @@ pub async fn start_screen_publish(
     ice_urls: Vec<String>,
     api_base: String,
     token: String,
-    guild_id: String,
-    channel_id: String,
+    // Guild voice supplies guild_id + channel_id; a DM call supplies call_id instead.
+    guild_id: Option<String>,
+    channel_id: Option<String>,
+    call_id: Option<String>,
 ) -> Result<PublishResult, String> {
     stop_screen_publish();
 
-    let signalling = Signalling::new(api_base, token, guild_id, channel_id)?;
+    let target = match (guild_id, channel_id, call_id) {
+        (Some(guild_id), Some(channel_id), _) => VoiceTarget::GuildChannel {
+            guild_id,
+            channel_id,
+        },
+        (_, _, Some(call_id)) => VoiceTarget::Call { call_id },
+        _ => return Err("publish needs either guildId+channelId or callId".into()),
+    };
+
+    let signalling = Signalling::new(api_base, token, target)?;
     let handle = session::start(
         source_id,
         share_id,
