@@ -44,7 +44,7 @@
                         <div class="flex flex-col gap-0.5 min-w-0 flex-1">
                             <div class="flex items-center gap-2 min-w-0">
                                 <span class="text-[0.8125rem] text-text-primary truncate">{{ session.deviceName }}</span>
-                                @if (session.isCurrent) {
+                                @if (isThisDevice(session)) {
                                     <span class="shrink-0 text-[0.625rem] font-semibold uppercase tracking-wide text-online bg-online/10 border border-online/25 rounded-full px-2 py-0.5">
                                         {{ 'SETTINGS.DEVICES.THIS_DEVICE' | translate }}
                                     </span>
@@ -79,6 +79,21 @@
                                       [pTooltip]="'SETTINGS.DEVICES.REVOKE' | translate"
                                       [text]="true"
                                       icon="pi pi-sign-out"
+                                      severity="danger"
+                                      size="small"
+                                      styleClass="shrink-0"
+                                      tooltipPosition="left"/>
+                        }
+
+                        <!-- Signing a device out ends its session; forgetting it removes the
+                             device itself, along with its encryption keys and backup. -->
+                        @if (session.clientDeviceId) {
+                            <p-button (onClick)="confirmForget(session)"
+                                      [ariaLabel]="'SETTINGS.DEVICES.FORGET' | translate"
+                                      [loading]="forgetting() === session.clientDeviceId"
+                                      [pTooltip]="'SETTINGS.DEVICES.FORGET' | translate"
+                                      [text]="true"
+                                      icon="pi pi-trash"
                                       severity="danger"
                                       size="small"
                                       styleClass="shrink-0"
@@ -125,6 +140,46 @@
                 <p-button (onClick)="revoke()"
                           [label]="'SETTINGS.DEVICES.REVOKE_CONFIRM' | translate"
                           [loading]="!!revoking()"
+                          severity="danger"
+                          size="small"/>
+            </div>
+        </div>
+    }
+</p-dialog>
+
+<!-- Forget confirm -->
+<p-dialog [header]="'SETTINGS.DEVICES.FORGET_TITLE' | translate"
+          [closable]="!forgetting()"
+          [dismissableMask]="!forgetting()"
+          [draggable]="false"
+          [modal]="true"
+          [resizable]="false"
+          [style]="{width: '400px'}"
+          [visible]="!!pendingForget()"
+          (visibleChange)="$event || pendingForget.set(null)"
+          appendTo="body">
+    @if (pendingForget(); as session) {
+        <div class="flex flex-col gap-4 pt-1">
+            <p class="text-[0.8125rem] text-text-secondary">
+                {{ 'SETTINGS.DEVICES.FORGET_DESC' | translate: {device: session.deviceName} }}
+            </p>
+
+            <div class="flex items-start gap-3 bg-card border border-border rounded-lg px-4 py-3">
+                <i class="pi pi-exclamation-triangle text-offline shrink-0 mt-0.5"></i>
+                <p class="text-[0.8125rem] text-text-secondary">
+                    {{ 'SETTINGS.DEVICES.FORGET_WARNING' | translate }}
+                </p>
+            </div>
+
+            <div class="flex gap-3 justify-end">
+                <p-button (onClick)="pendingForget.set(null)"
+                          [disabled]="!!forgetting()"
+                          [label]="'SETTINGS.DEVICES.CANCEL' | translate"
+                          severity="secondary"
+                          size="small"/>
+                <p-button (onClick)="forget()"
+                          [label]="'SETTINGS.DEVICES.FORGET_CONFIRM' | translate"
+                          [loading]="!!forgetting()"
                           severity="danger"
                           size="small"/>
             </div>

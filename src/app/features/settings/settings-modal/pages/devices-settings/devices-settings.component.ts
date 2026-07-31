@@ -4,6 +4,8 @@ import {Dialog} from 'primeng/dialog';
 import {Tooltip} from 'primeng/tooltip';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {LoginSessionsService} from '../../../../../services/login-sessions.service';
+import {DeviceService} from '../../../../../services/device.service';
+import {DeviceIdentityService} from '../../../../../services/device-identity.service';
 import {ToastService} from '../../../../../services/toast.service';
 import {LoginSessionDto} from '../../../../../dtos/response/login-session.dto';
 import {DeviceType} from '../../../../../dtos/response/user-device.dto';
@@ -21,6 +23,11 @@ export class DevicesSettingsComponent {
     /** Id of the session a revoke request is currently in flight for. */
     protected revoking = signal<string | null>(null);
     protected pendingRevoke = signal<LoginSessionDto | null>(null);
+    /** Client device id of this installation, used to mark our own row. */
+    protected ownDeviceId = signal<string | null>(null);
+    /** Client device id a forget request is currently in flight for. */
+    protected forgetting = signal<string | null>(null);
+    protected pendingForget = signal<LoginSessionDto | null>(null);
 
     /** Current session first -it is the one the reader is trying to identify themselves against. */
     protected ordered = computed(() =>
@@ -28,11 +35,18 @@ export class DevicesSettingsComponent {
     );
 
     private sessionsService = inject(LoginSessionsService);
+    private deviceService = inject(DeviceService);
+    private deviceIdentity = inject(DeviceIdentityService);
     private toast = inject(ToastService);
     private translate = inject(TranslateService);
 
     constructor() {
         this.load();
+        // Marks the row belonging to this installation. `isCurrent` only identifies the token
+        // that made the request; this identifies the machine, which is what the user recognises.
+        void this.deviceIdentity.deviceId()
+            .then(id => this.ownDeviceId.set(id))
+            .catch(() => this.ownDeviceId.set(null));
     }
 
     protected load(): void {
@@ -73,6 +87,40 @@ export class DevicesSettingsComponent {
                 this.revoking.set(null);
                 this.pendingRevoke.set(null);
                 this.toast.httpError(this.translate.instant('SETTINGS.DEVICES.REVOKE_FAILED'), err);
+            },
+        });
+    }
+
+    protected isThisDevice(session: LoginSessionDto): boolean {
+        const own = this.ownDeviceId();
+        return session.isCurrent || (!!own && session.clientDeviceId === own);
+    }
+
+    protected confirmForget(session: LoginSessionDto): void {
+        this.pendingForget.set(session);
+    }
+
+    protected forget(): void {
+        const session = this.pendingForget();
+        if (!session?.clientDeviceId || this.forgetting()) return;
+
+        const clientDeviceId = session.clientDeviceId;
+        this.forgetting.set(clientDeviceId);
+        this.deviceService.deleteDevice(clientDeviceId).subscribe({
+            next: () => {
+                // Every session from that device is revoked server-side, so drop them all rather
+                // than only the row that was clicked.
+                this.sessions.update(list => list.filter(s => s.clientDeviceId !== clientDeviceId));
+                this.forgetting.set(null);
+                this.pendingForget.set(null);
+                this.toast.success(
+                    this.translate.instant('SETTINGS.DEVICES.FORGOTTEN', {device: session.deviceName}),
+                );
+            },
+            error: err => {
+                this.forgetting.set(null);
+                this.pendingForget.set(null);
+                this.toast.httpError(this.translate.instant('SETTINGS.DEVICES.FORGET_FAILED'), err);
             },
         });
     }

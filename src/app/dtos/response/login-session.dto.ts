@@ -15,4 +15,11 @@ export interface LoginSessionDto {
     lastUsedAt: string;
     /** True for the session whose access token made this request. */
     isCurrent: boolean;
+    /**
+     * The registered device this login came from; null for logins that sent none.
+     *
+     * This is what finally relates a session to a machine: `isCurrent` only identifies the token
+     * that made the request, so before this the sessions and devices lists were unrelatable.
+     */
+    clientDeviceId: string | null;
 }
