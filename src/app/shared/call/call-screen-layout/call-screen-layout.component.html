@@ -133,14 +133,8 @@
                     }
                 </div>
                 <span class="text-xs text-white/75 truncate max-w-[68px] text-center">{{ p.displayName }}</span>
-                @if (!p.isLocal && !participantsWithAudio().has(p.userId)) {
-                    <div class="flex items-center gap-0.5 text-[9px] font-semibold text-amber-400"
-                         title="No audio received">
-                        <svg fill="currentColor" height="8" viewBox="0 0 24 24" width="8">
-                            <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-                        </svg>
-                        No audio
-                    </div>
+                @if (!p.isLocal) {
+                    <app-call-audio-status [state]="audio.stateOf(p.userId)" variant="inline"/>
                 }
                 @if (!p.isLocal && share) {
                     <button

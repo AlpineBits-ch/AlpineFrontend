@@ -3,10 +3,12 @@ import {NgClass} from '@angular/common';
 import {CallParticipant, CallScreenLayoutContextMenuEvent, CallScreenShare} from '../call.types';
 import {AppAvatarComponent} from '../../../components/avatar/avatar.component';
 import {StreamSrcDirective} from '../../../directives/stream-src.directive';
+import {trackAudioWait} from '../audio-wait';
+import {CallAudioStatusComponent} from '../call-audio-status/call-audio-status.component';
 
 @Component({
     selector: 'app-call-screen-layout',
-    imports: [NgClass, AppAvatarComponent, StreamSrcDirective],
+    imports: [NgClass, AppAvatarComponent, StreamSrcDirective, CallAudioStatusComponent],
     templateUrl: './call-screen-layout.component.html',
     host: {
         class: 'flex flex-col min-h-0'
@@ -16,6 +18,8 @@ export class CallScreenLayoutComponent {
     screenShares = input.required<CallScreenShare[]>();
     participants = input.required<CallParticipant[]>();
     participantsWithAudio = input.required<Set<string>>();
+
+    protected readonly audio = trackAudioWait(this.participants, this.participantsWithAudio);
 
     participantContextMenu = output<CallScreenLayoutContextMenuEvent>();
     localAudioToggle = output<void>();

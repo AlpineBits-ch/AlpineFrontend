@@ -4,6 +4,7 @@ import {CallWebRtcService} from '../../../../../services/call-webrtc.service';
 import {RustMediaService} from '../../../../../services/rust-media.service';
 import {StreamPreset} from '../../../../../models/stream-preset';
 import {CallParticipant, CallParticipantMenuData, CallScreenShare} from '../../../../../shared/call/call.types';
+import {trackAudioWait} from '../../../../../shared/call/audio-wait';
 import {
   CallParticipantTileComponent
 } from '../../../../../shared/call/call-participant-tile/call-participant-tile.component';
@@ -70,6 +71,7 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     protected stats = this.callWebRtc.stats;
     protected rtcState = this.callWebRtc.rtcState;
     protected participantsWithAudio = this.callWebRtc.participantsWithAudio;
+    protected audio = trackAudioWait(this.callParticipants, this.participantsWithAudio);
     private durationInterval?: ReturnType<typeof setInterval>;
 
     // ── Shared-type projections ────────────────────────────────────────────────

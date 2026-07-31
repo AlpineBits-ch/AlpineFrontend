@@ -19,6 +19,7 @@ import {CallControlsBarComponent} from '../../../../shared/call/call-controls-ba
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {CallScreenLayoutComponent} from '../../../../shared/call/call-screen-layout/call-screen-layout.component';
 import {CallParticipant, CallParticipantMenuData, CallScreenShare} from '../../../../shared/call/call.types';
+import {trackAudioWait} from '../../../../shared/call/audio-wait';
 import {TranslateModule} from '@ngx-translate/core';
 
 @Component({
@@ -47,6 +48,7 @@ export class VoiceChannelComponent {
         this.voiceSvc.channelParticipants().get(this.channel().id) ?? [],
     );
     protected callParticipants = computed((): CallParticipant[] => this.participants());
+    protected audio = trackAudioWait(this.callParticipants, this.voiceSvc.participantsWithAudio);
 
     // ── Permission check ───────────────────────────────────────────────────────
     protected screenSharers = computed(() => {

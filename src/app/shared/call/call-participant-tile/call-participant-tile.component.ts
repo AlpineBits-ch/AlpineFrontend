@@ -3,15 +3,17 @@ import {NgClass} from '@angular/common';
 import {CallParticipant} from '../call.types';
 import {AppAvatarComponent} from '../../../components/avatar/avatar.component';
 import {StreamSrcDirective} from '../../../directives/stream-src.directive';
+import {AudioState} from '../audio-wait';
+import {CallAudioStatusComponent} from '../call-audio-status/call-audio-status.component';
 
 @Component({
     selector: 'app-call-participant-tile',
-    imports: [NgClass, AppAvatarComponent, StreamSrcDirective],
+    imports: [NgClass, AppAvatarComponent, StreamSrcDirective, CallAudioStatusComponent],
     templateUrl: './call-participant-tile.component.html',
 })
 export class CallParticipantTileComponent {
     participant = input.required<CallParticipant>();
-    hasAudio = input.required<boolean>();
+    audioState = input.required<AudioState>();
     videoStream = input<MediaStream | null>(null);
 
     contextMenu = output<MouseEvent>();

@@ -56,14 +56,8 @@
         <span class="text-sm font-medium text-white/85 truncate">{{ participant().displayName }}</span>
     </div>
 
-    <!-- No-audio badge -->
-    @if (!participant().isLocal && !hasAudio()) {
-        <div class="absolute bottom-3 right-3 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-400/[0.18] border border-amber-400/35 text-amber-400"
-             title="No audio received from this participant">
-            <svg fill="currentColor" height="8" viewBox="0 0 24 24" width="8">
-                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-            </svg>
-            No audio
-        </div>
+    <!-- Audio badge: quiet while the subscribe is still landing, amber once it is overdue -->
+    @if (!participant().isLocal) {
+        <app-call-audio-status [state]="audioState()" class="absolute bottom-3 right-3"/>
     }
 </div>

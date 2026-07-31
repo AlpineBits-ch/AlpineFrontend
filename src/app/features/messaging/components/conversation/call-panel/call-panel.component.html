@@ -61,9 +61,8 @@
             </div>
         }
 
-        <!-- ── No-audio warning ───────────────────────────────────────────────── -->
-        @let pwa = participantsWithAudio();
-        @if (s.participants.some(p => !p.isLocal && !pwa.has(p.userId))) {
+        <!-- ── No-audio warning (only once the grace window has passed) ───────── -->
+        @if (audio.anyStalled()) {
             <div class="conn-banner conn-banner--warn">
                 <svg class="shrink-0" fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
                     <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
@@ -149,7 +148,7 @@
                     @for (p of callParticipants(); track p.userId) {
                         <app-call-participant-tile
                                 (contextMenu)="onParticipantContextMenu($event, p)"
-                                [hasAudio]="participantsWithAudio().has(p.userId)"
+                                [audioState]="audio.stateOf(p.userId)"
                                 [participant]="p"
                                 [videoStream]="p.videoStream ?? null"
                         />

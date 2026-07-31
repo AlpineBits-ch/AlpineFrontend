@@ -51,9 +51,9 @@
                 </div>
             }
 
-            <!-- No-audio warning -->
-            @let pwa = voiceSvc.participantsWithAudio();
-            @if (participants().some(p => !p.isLocal && !pwa.has(p.userId))) {
+            <!-- No-audio warning. Held back until the grace window passes - a subscribe that is
+                 still landing is a loading state, and the tiles say so on their own. -->
+            @if (audio.anyStalled()) {
                 <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium bg-amber-400/10 border-b border-amber-400/20 text-amber-400">
                     <svg class="shrink-0" fill="currentColor" height="12" viewBox="0 0 24 24" width="12">
                         <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
@@ -81,7 +81,7 @@
                             @for (p of participants(); track p.userId) {
                                 <app-call-participant-tile
                                         (contextMenu)="onParticipantContextMenu($event, p)"
-                                        [hasAudio]="voiceSvc.participantsWithAudio().has(p.userId)"
+                                        [audioState]="audio.stateOf(p.userId)"
                                         [participant]="p"
                                         [videoStream]="p.isLocal ? voiceSvc.localVideoStream() : voiceSvc.getVideoStream(p.userId)"
                                 />
