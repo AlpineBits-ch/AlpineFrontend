@@ -5,7 +5,7 @@ use openh264::encoder::{
 use openh264::formats::{RgbaSliceU8, YUVBuffer};
 use openh264::{OpenH264API, Timestamp};
 
-use super::encoder::{EncodedChunk, VideoEncoder};
+use super::encoder::{EncodeOutcome, EncodedChunk, EncoderSpec, VideoEncoder};
 use super::openh264_blob;
 
 /// openh264 software encoder.
@@ -21,7 +21,13 @@ pub struct SoftwareEncoder {
 }
 
 impl SoftwareEncoder {
-    pub fn new(width: u32, height: u32, fps: u32, kbps: u32) -> Option<Self> {
+    pub fn new(spec: EncoderSpec) -> Option<Self> {
+        let EncoderSpec {
+            width,
+            height,
+            fps,
+            kbps,
+        } = spec;
         // H.264 4:2:0 needs even dimensions. The frontend's geometry solver already guarantees
         // this; rejecting rather than silently rounding keeps that contract honest.
         if width == 0 || height == 0 || width % 2 != 0 || height % 2 != 0 {
@@ -60,11 +66,11 @@ impl SoftwareEncoder {
 }
 
 impl VideoEncoder for SoftwareEncoder {
-    fn encode(&mut self, frame: &RgbaImage, timestamp_us: u64) -> Option<EncodedChunk> {
+    fn encode(&mut self, frame: &RgbaImage, timestamp_us: u64) -> EncodeOutcome {
         if frame.width() != self.width || frame.height() != self.height {
             // Geometry is fixed for the session; a mismatch means the capture side broke its
-            // contract, and encoding it anyway would corrupt the stream.
-            return None;
+            // contract. Encoding it anyway would corrupt the stream, and no retry will fix it.
+            return EncodeOutcome::Failed;
         }
 
         self.yuv.read_rgb(RgbaSliceU8::new(
@@ -72,22 +78,27 @@ impl VideoEncoder for SoftwareEncoder {
             (self.width as usize, self.height as usize),
         ));
 
-        let bitstream = self
+        let Ok(bitstream) = self
             .encoder
             .encode_at(&self.yuv, Timestamp::from_millis(timestamp_us / 1000))
-            .ok()?;
+        else {
+            return EncodeOutcome::Failed;
+        };
 
         let frame_type = bitstream.frame_type();
-        if matches!(frame_type, FrameType::Skip | FrameType::Invalid) {
-            return None;
+        // Skip is rate control doing its job; Invalid means the encoder rejected the input.
+        match frame_type {
+            FrameType::Skip => return EncodeOutcome::Skipped,
+            FrameType::Invalid => return EncodeOutcome::Failed,
+            _ => {}
         }
 
         let data = bitstream.to_vec();
         if data.is_empty() {
-            return None;
+            return EncodeOutcome::Skipped;
         }
 
-        Some(EncodedChunk {
+        EncodeOutcome::Chunk(EncodedChunk {
             data,
             is_keyframe: matches!(frame_type, FrameType::IDR | FrameType::I),
             timestamp_us,

@@ -19,8 +19,15 @@
 #![allow(dead_code)]
 
 pub mod encoder;
+pub mod fit;
 pub mod encoder_sw;
+#[cfg(target_os = "windows")]
+pub mod encoder_mf;
+pub mod nv12;
 pub mod openh264_blob;
+pub mod rtc;
+pub mod session;
+pub mod signalling;
 
 use std::path::PathBuf;
 

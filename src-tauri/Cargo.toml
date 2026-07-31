@@ -81,7 +81,7 @@ debug = true
 debug-assertions = true
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
-reqwest = { version = "0.12", default-features = false, features = ["native-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["native-tls", "json"] }
 tauri-plugin-autostart = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-window-state = "2"
@@ -114,6 +114,8 @@ nokhwa = { version = "0.10", default-features = false, features = ["input-v4l"] 
 tauri-plugin-notifications = "0.4.6"
 nokhwa = { version = "0.10", default-features = false, features = ["input-msmf"] }
 windows = { version = "0.58", features = [
+    "Win32_Media_MediaFoundation",
+    "Win32_Media_KernelStreaming",
     "implement",
     "Foundation",
     "Data_Xml_Dom",

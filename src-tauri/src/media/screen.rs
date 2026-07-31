@@ -65,13 +65,13 @@ impl Default for ScreenCaptureState {
 
 /// Owns a live WGC capture session for the duration of a streaming session.
 /// Created once per session -recreating it each frame causes heap corruption.
-enum CaptureHandle {
+pub enum CaptureHandle {
     Monitor(Monitor),
     Window(Window),
 }
 
 impl CaptureHandle {
-    fn capture(&self) -> Option<(RgbaImage, u32, u32)> {
+    pub fn capture(&self) -> Option<(RgbaImage, u32, u32)> {
         let img = match self {
             CaptureHandle::Monitor(m) => m.capture_image().ok()?,
             CaptureHandle::Window(w) => w.capture_image().ok()?,
@@ -81,7 +81,7 @@ impl CaptureHandle {
     }
 }
 
-fn find_capture_source(source_id: &str) -> Option<CaptureHandle> {
+pub fn find_capture_source(source_id: &str) -> Option<CaptureHandle> {
     // Hold the WGC lock for the entire enumeration so this cannot race with
     // enumerate_screen_sources or another find_capture_source call.
     let _guard = wgc_lock().lock().unwrap();
@@ -240,7 +240,6 @@ pub async fn start_screen_capture(
             let Some(source) = find_capture_source(&source_id) else {
                 return;
             };
-            let mut next_frame = std::time::Instant::now();
 
             let (encode_tx, encode_rx) = std::sync::mpsc::sync_channel::<(RgbaImage, u32, u32)>(1);
 
@@ -288,30 +287,45 @@ pub async fn start_screen_capture(
                     // encode_rx exhausted or on_frame closed -thread exits cleanly.
                 });
 
-            // Capture loop: reads fps each iteration so set_screen_capture_fps takes effect
-            // within one frame (worst-case latency = current frame duration).
-            loop {
-                let current_fps = fps_arc.load(Ordering::Relaxed).clamp(1, 60);
-                let interval = Duration::from_millis(1000 / current_fps as u64);
-                let now = std::time::Instant::now();
-                let wait = next_frame.saturating_duration_since(now);
-                match stop_rx.recv_timeout(wait) {
-                    Ok(_) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
-                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
-                }
-                next_frame += interval;
-
-                let Some((rgba, w, h)) = source.capture() else {
-                    continue;
-                };
+            run_capture_loop(source, fps_arc, stop_rx, |rgba, w, h| {
                 // Drop frame if encoder is still busy -freshness over buffering.
                 let _ = encode_tx.try_send((rgba, w, h));
-            }
+            });
             // Dropping encode_tx signals the encode thread to exit cleanly.
         })
         .map_err(|e| e.to_string())?;
 
     Ok(())
+}
+
+/// Drive a capture source at the requested rate until stopped, handing each frame to `on_frame`.
+///
+/// Shared by the JPEG preview path and the Rust publisher so both get identical pacing: the rate is
+/// re-read every iteration, which is what makes a mid-stream framerate change take effect within
+/// one frame instead of requiring a restart.
+pub fn run_capture_loop(
+    source: CaptureHandle,
+    fps: Arc<AtomicU32>,
+    stop_rx: std::sync::mpsc::Receiver<()>,
+    mut on_frame: impl FnMut(RgbaImage, u32, u32),
+) {
+    let mut next_frame = std::time::Instant::now();
+    loop {
+        let current_fps = fps.load(Ordering::Relaxed).clamp(1, 60);
+        let interval = Duration::from_millis(1000 / current_fps as u64);
+        let now = std::time::Instant::now();
+        let wait = next_frame.saturating_duration_since(now);
+        match stop_rx.recv_timeout(wait) {
+            Ok(_) | Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+        }
+        next_frame += interval;
+
+        let Some((rgba, w, h)) = source.capture() else {
+            continue;
+        };
+        on_frame(rgba, w, h);
+    }
 }
 
 #[tauri::command]
