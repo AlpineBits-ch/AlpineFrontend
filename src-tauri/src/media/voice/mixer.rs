@@ -40,6 +40,18 @@ impl Position {
     }
 }
 
+/// The HRIR sphere every mixer starts with: SADIE II subject D1, a Neumann KU100 dummy head, at
+/// 48 kHz.
+///
+/// Built from the Apache 2.0 measurements by `tools/hrir_sphere.rs` - see that file for why the
+/// conversion is needed and how the mesh is derived. Committed rather than fetched: the data is
+/// permissively licensed, so the runtime-download dance that OpenH264 needs for patent reasons
+/// buys nothing here except a network dependency in every build.
+///
+/// Costs about 120 ms to turn into a sphere, once, on whichever thread first enables spatial
+/// audio. That is call-setup latency, not per-frame work.
+const BUNDLED_HRIR: &[u8] = include_bytes!("../../../assets/hrir/sadie_d1_48k.bin");
+
 /// Constant-power stereo gains for a listener-relative position, used when no HRIR dataset is
 /// loaded.
 ///
@@ -108,7 +120,7 @@ impl Mixer {
             spatial_enabled: false,
             positions: HashMap::new(),
             spatial_state: HashMap::new(),
-            hrir_bytes: None,
+            hrir_bytes: Some(BUNDLED_HRIR),
             max_distance: 20.0,
             spatial_accumulator: vec![(0.0, 0.0); FRAME],
         }
@@ -543,20 +555,12 @@ mod tests {
     /// looks perfectly well-formed and mirrors every source, which is close to undetectable in
     /// code review and immediately obvious in a call.
     ///
-    /// Skips unless `HRIR_SPHERE` names a sphere, since the data is fetched rather than committed:
-    ///
-    /// ```text
-    /// HRIR_SPHERE=/path/to/sadie_d1_48k.bin cargo test hrtf_sphere_places
-    /// ```
+    /// Runs against the bundled sphere, so a regenerated or swapped dataset is caught here rather
+    /// than by someone noticing their friends are on the wrong side of a call.
     #[test]
     fn hrtf_sphere_places_sources_on_the_correct_side() {
-        let Ok(path) = std::env::var("HRIR_SPHERE") else { return };
-        let bytes: &'static [u8] =
-            Box::leak(std::fs::read(&path).expect("sphere").into_boxed_slice());
-
         for (label, x, expect_right) in [("right", 3.0f32, true), ("left", -3.0f32, false)] {
             let mut m = Mixer::new();
-            m.set_hrir(Some(bytes));
             m.set_spatial(true);
             m.set_position("a", Some(Position { x, y: 0.0, z: 0.0 }));
             let a = constant(0.5);
