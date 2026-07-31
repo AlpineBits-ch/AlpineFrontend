@@ -86,6 +86,12 @@ export interface WsVoiceScreenShareStopped {
     channelId: string;
 }
 
+/** We joined this voice channel from another device, so this one was removed from it. */
+export interface WsKickedByOtherDevice {
+    channelId: string;
+    guildId: string;
+}
+
 export interface WsMovedToChannel {
     channelId: string;
     guildId: string;
@@ -335,6 +341,7 @@ export class GuildWebsocketService {
     public voiceScreenShareStartedObservable = new Subject<WsVoiceScreenShareStarted>();
     public voiceScreenShareStoppedObservable = new Subject<WsVoiceScreenShareStopped>();
     public movedToChannelObservable = new Subject<WsMovedToChannel>();
+    public kickedByOtherDeviceObservable = new Subject<WsKickedByOtherDevice>();
     // ── Channel/category lifecycle ──────────────────────────────────────────────
     public channelCreatedObservable = new Subject<WsChannelCreated>();
     public channelDeletedObservable = new Subject<WsChannelDeleted>();
@@ -464,6 +471,7 @@ export class GuildWebsocketService {
         this.realtime.on('guild.voice.ScreenShareStarted', (d: WsVoiceScreenShareStarted) => this.voiceScreenShareStartedObservable.next(d));
         this.realtime.on('guild.voice.ScreenShareStopped', (d: WsVoiceScreenShareStopped) => this.voiceScreenShareStoppedObservable.next(d));
         this.realtime.on('guild.voice.MovedToChannel', (d: WsMovedToChannel) => this.movedToChannelObservable.next(d));
+        this.realtime.on('guild.voice.KickedByOtherDevice', (d: WsKickedByOtherDevice) => this.kickedByOtherDeviceObservable.next(d));
         this.realtime.on('guild.ChannelCreated', (d: WsChannelCreated) => this.channelCreatedObservable.next(d));
         this.realtime.on('guild.ChannelDeleted', (d: WsChannelDeleted) => this.channelDeletedObservable.next(d));
         this.realtime.on('guild.CategoryCreated', (d: WsCategoryCreated) => this.categoryCreatedObservable.next(d));

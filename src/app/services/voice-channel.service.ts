@@ -6,6 +6,7 @@ import {GuildVoiceService, VoiceParticipantDto} from './guild-voice.service';
 import {
     GuildWebsocketService,
     WsGuildParticipantJoined,
+    WsKickedByOtherDevice,
     WsGuildTrackClosed,
     WsGuildTrackPublished,
     WsMovedToChannel,
@@ -20,6 +21,7 @@ import {SoundSettingsService} from './sound-settings.service';
 import {VoiceRTCService} from './voice-rtc.service';
 import {StreamPreset} from '../models/stream-preset';
 import {VoiceEngineService} from './voice-engine.service';
+import {ToastService} from './toast.service';
 
 export interface VoiceChannelParticipant {
     userId: string;
@@ -79,6 +81,7 @@ export class VoiceChannelService {
     private guildWsSvc = inject(GuildWebsocketService);
     private soundSettings = inject(SoundSettingsService);
     private voiceEngine = inject(VoiceEngineService);
+    private toast = inject(ToastService);
     private channelParticipantsSignal = signal<Map<string, VoiceChannelParticipant[]>>(new Map());
     readonly channelParticipants = this.channelParticipantsSignal.asReadonly();
 
@@ -134,6 +137,7 @@ export class VoiceChannelService {
         this.guildWsSvc.voiceScreenShareStoppedObservable.subscribe(() => { /* TrackClosed handles cleanup */
         });
         this.guildWsSvc.movedToChannelObservable.subscribe(e => void this.onMovedToChannel(e));
+        this.guildWsSvc.kickedByOtherDeviceObservable.subscribe(e => void this.onKickedByOtherDevice(e));
     }
 
     // ── Voice state loading for sidebar ───────────────────────────────────────
@@ -401,6 +405,28 @@ export class VoiceChannelService {
             n.set(channelId, (n.get(channelId) ?? []).filter(p => !p.isLocal));
             return n;
         });
+    }
+
+    /**
+     * Mirrors {@link leaveChannel} with `silent: true` - the server already removed this device
+     * when the other one joined, so calling the leave endpoint would only produce a pointless
+     * request against a participant record that no longer exists.
+     *
+     * Before this event existed, joining from a second device left both fighting over one media
+     * session and the first device's audio silently broke.
+     */
+    private async onKickedByOtherDevice(e: WsKickedByOtherDevice): Promise<void> {
+        if (e.channelId !== this.joinedChannelId()) return;
+        const guildId = this.joinedGuildId();
+        if (!guildId) return;
+
+        await this.doLeave(guildId, e.channelId, true);
+        this.joinedChannelId.set(null);
+        this.joinedGuildId.set(null);
+        this.joinedChannelName.set(null);
+        this.joinedGuildName.set(null);
+        this.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false});
+        this.toast.info('You joined this channel from another device');
     }
 
     // ── SignalR event handlers ─────────────────────────────────────────────────
