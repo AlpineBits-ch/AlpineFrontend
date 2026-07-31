@@ -2101,7 +2101,41 @@ git commit -m "feat: Angular service for the Rust voice engine"
 
 **Ordering is load-bearing.** Start the Rust session *before* the webview creates its own. Two primary sessions at once is the state the backend's device-takeover logic reacts to, and in a DM call that hangs up the call.
 
-- [ ] **Step 1: Confirm the backend behaviour before changing anything**
+- [x] **Step 1: Confirm the backend behaviour before changing anything**
+
+> **Settled from the backend source (`RiderProjects/Echo`), not at runtime. The assumption holds,
+> and for a more specific reason than assumed.**
+>
+> `GuildCloudflareController.TracksNew` (line 95) looks for a track that is exactly
+> `{Location: "local", TrackName: "audio"}`. When it finds one it calls
+> `ExchangeParticipantJoined(channelId, body.CfSessionId)` (line 134), which sets **both**
+> `me.CfSessionId = cfSessionId` and `me.AudioTrackName = "audio"` (232-233) and announces that pair
+> to every other participant.
+>
+> So the participant's audio session is decided by **whichever session publishes a local track named
+> `"audio"`** — the `?primary=` flag only writes `CfSessionId` at session-creation time and is then
+> overwritten by the publish. Two consequences:
+>
+> 1. `voice::rtc::TRACK_NAME` **must** stay the literal `"audio"`. The backend keys on it. Its test
+>    already pins this, but the reason is stronger than "so old clients can resolve it".
+> 2. Ordering is not load-bearing after all. `AudioTrackName` gates the backfill announcement
+>    (line 279), so the window where `CfSessionId` points at a session with no audio announces
+>    nothing. Starting the Rust session first is still preferable, but it is no longer a correctness
+>    requirement.
+>
+> **The runtime spike could never have answered this**, and that is by design: `VoiceState.cs:42-44`
+> says the HTTP response omits both fields *"so clients discover them only via ParticipantJoined
+> events (prevents pulling remote tracks before pushing local, which causes Cloudflare 425)"*. The
+> spike read `undefined` for both because the backend deliberately leaves them out. Adding them to
+> `VoiceStateResponse` to make verification easier would reintroduce that bug class — do not.
+>
+> **Carry into Step 3:** after the cutover the webview publishes no local track at all, so its first
+> `tracks/new` is an all-remote pull on a fresh session — precisely the 425 condition that comment
+> describes. The backend already routes all-remote requests through `TracksNewWithRetryAsync`
+> (lines 117-119), which is what makes this safe. Verify it in Step 6 rather than assuming it.
+
+<details>
+<summary>Original runtime procedure, kept for reference — superseded by the source reading above</summary>
 
 This is the design's stated highest-risk assumption and it has not been tested. Add a temporary log and run a two-client call with the *current* build plus only the Rust session started alongside:
 
@@ -2123,6 +2157,8 @@ Verify, from the second client:
 3. Leaving and rejoining does not leave an orphaned session behind.
 
 **If (1) does not hold, stop.** The backend picks the primary session differently than assumed and this plan's remaining steps are wrong. Report what it actually reports rather than working around it.
+
+</details>
 
 - [ ] **Step 2: Give `createSession` a role**
 
