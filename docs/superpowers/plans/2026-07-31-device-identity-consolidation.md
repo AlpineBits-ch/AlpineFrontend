@@ -2987,31 +2987,32 @@ git commit -m "fix: leave the channel cleanly when another device takes it over"
 
 **Why:** guide §4.4. The accepting device is now excluded from the cancel push while its siblings receive it — the reverse of the old behaviour. A call UI that tore down an active call on a cancel push regardless of which device answered will now break in a new way.
 
-- [ ] **Step 1: Find the cancel-push path**
+- [x] **Step 1: Find the cancel-push path**
 
-```bash
-git grep -n "notification.action\|action\$\|notificationService" -- src/app
-```
+- [x] **Step 2: Decide and record**
 
-Follow `NotificationService.action$` and any push-triggered handler through to whatever touches `CallStateService` or `CallSessionService`.
+**Finding (2026-07-31): no change needed.** Nothing in the push path can tear down a call.
 
-- [ ] **Step 2: Decide and record**
+`NotificationService.action$` is fed from exactly two places — the Windows `notification-action` Tauri event (`notification.service.ts:115`) and the plugin's `onAction` on every other platform (`notification.service.ts:136`). It has two subscribers: one raises the window (`notification.service.ts:42`), and one reads `event.extra.conversationId` and opens that conversation (`main-page.component.ts:188`). Neither touches `CallStateService` or `CallSessionService`.
 
-If nothing in that path calls `callSession.end()` or clears `incomingCall` based on a push payload, there is nothing to fix — the ring is driven entirely by SignalR (`call.CallEnded` plus the new per-device events from Task 11), which is correct. Record that finding in the commit message and stop.
+Every call-teardown site is SignalR- or user-driven:
 
-If something does tear down an active call from a push, gate it on there being no active session for that call id — the accepting device is excluded server-side, so a cancel arriving *here* means another device answered, and the ring should be dismissed rather than the call ended.
+| Site | Trigger |
+|---|---|
+| `call-webrtc.service.ts:706,715` | `syncParticipants()` — authoritative REST fetch on reconnect |
+| `call-webrtc.service.ts:819` | `call.CallEnded` handler |
+| `call-state.service.ts:70` | `call.CallDeviceTakeover` handler |
+| `call-state.service.ts:94` | outgoing-call race resolving to `ended` |
+| `call-state.service.ts:193` | dev shortcut Ctrl+Alt+C |
+| `call-panel.component.ts:172` | the hang-up button |
 
-- [ ] **Step 3: Run the full suite**
+Likewise every `incomingCall.set(null)` is either a local action (accept/reject) or `dismissIncomingIfMatches`, which Task 11 drives from `CallEnded`, `CallAccepted` and `CallDeviceDismissed`.
 
-Run: `bun run ng test --watch=false`
-Expected: PASS.
+So the hazard guide §4.4 warns about — a sibling device receiving the cancel push and tearing down its own active call — cannot occur here: this client derives all call state from the hub and treats a push purely as a prompt to focus a conversation. Re-check this if a push payload is ever wired into call state.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 3: Run the full suite** — 864 tests pass.
 
-```bash
-git add -A
-git commit -m "chore: verify cancel-push handling against the new device exclusion"
-```
+- [x] **Step 4: Commit** — recorded here rather than in a code commit, since the audit changed no code.
 
 ---
 
