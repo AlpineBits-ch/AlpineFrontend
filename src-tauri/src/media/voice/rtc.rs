@@ -36,6 +36,13 @@ pub const TRACK_NAME: &str = "audio";
 /// One packet every 20 ms - the packetisation the encoder is configured for.
 const PACKET_DURATION: Duration = Duration::from_millis(20);
 
+/// How long to wait for ICE gathering before offering with what we have.
+///
+/// Generous, because exceeding it degrades connectivity, and stingy compared to "forever", which is
+/// what it was. Host candidates are immediate and server-reflexive ones arrive in well under a
+/// second on a working network.
+const GATHER_TIMEOUT: Duration = Duration::from_secs(5);
+
 /// How the microphone track is described in SDP.
 pub fn opus_capability() -> RTCRtpCodecCapability {
     RTCRtpCodecCapability {
@@ -121,12 +128,27 @@ impl VoicePublication {
 
         // Cloudflare needs a complete SDP, and there is no trickle path to the backend here, so
         // wait for ICE gathering before offering.
+        //
+        // Bounded, because this await used to be unbounded and sits on the path the webview blocks
+        // its whole negotiation queue behind: one unreachable STUN server and the caller never
+        // returns, every later subscribe queues forever, and the only symptom is silence with
+        // nothing in the console. Offering with the candidates gathered so far is strictly better
+        // than never offering - host and server-reflexive candidates arrive first, and a relay
+        // candidate that is still pending after this long is not going to save the connection.
         let mut gathering = peer_connection.gathering_complete_promise().await;
         peer_connection
             .set_local_description(offer)
             .await
             .map_err(|e| e.to_string())?;
-        let _ = gathering.recv().await;
+        if tokio::time::timeout(GATHER_TIMEOUT, gathering.recv())
+            .await
+            .is_err()
+        {
+            eprintln!(
+                "[voice] ICE gathering did not complete within {GATHER_TIMEOUT:?}; offering with \
+                 the candidates gathered so far"
+            );
+        }
 
         let local = peer_connection
             .local_description()

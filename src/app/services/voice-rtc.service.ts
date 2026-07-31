@@ -136,6 +136,31 @@ export class VoiceRTCService {
     async connect(guildId: string, channelId: string): Promise<boolean> {
         this.setupDone = false;
 
+        // Start the microphone first - if it is unavailable there is no point creating a PC.
+        //
+        // Capture, processing and publishing all happen in Rust, on its own Cloudflare session.
+        // Nothing is added to this peer connection: other clients learn the track from the
+        // ParticipantJoined event the backend emits when that session publishes "audio", and it
+        // carries the Rust session id.
+        //
+        // Deliberately *outside* the negotiation queue block below. Sending and receiving are
+        // independent here - the engine has its own session and its own peer connection - so a slow
+        // or wedged engine must not be able to hold up subscriptions on this one. It could: the
+        // engine start waits on ICE gathering in Rust, and when that stalled, every subscribe
+        // queued behind it forever and the only symptom was one-way silence with an empty console.
+        try {
+            await this.voiceEngine.start(
+                {kind: 'guild', guildId, channelId},
+                this.apiConfig.baseUrl(),
+                this.oauth.getAccessToken(),
+            );
+            this.engineUp.set(true);
+        } catch (e) {
+            console.error('[voice] Rust voice engine failed to start', e);
+            this.setupDone = true;
+            return false;
+        }
+
         // Block the negotiation queue until the session exists, so that GuildParticipantJoined WS
         // events don't try to subscribe before there is a session to subscribe on.
         let releaseQueue!: () => void;
@@ -144,25 +169,6 @@ export class VoiceRTCService {
         });
 
         try {
-            // Start the microphone first - if it is unavailable there is no point creating a PC.
-            //
-            // Capture, processing and publishing all happen in Rust, on its own Cloudflare session.
-            // Nothing is added to this peer connection: other clients learn the track from the
-            // ParticipantJoined event the backend emits when that session publishes "audio", and it
-            // carries the Rust session id.
-            try {
-                await this.voiceEngine.start(
-                    {kind: 'guild', guildId, channelId},
-                    this.apiConfig.baseUrl(),
-                    this.oauth.getAccessToken(),
-                );
-                this.engineUp.set(true);
-            } catch (e) {
-                console.error('[voice] Rust voice engine failed to start', e);
-                this.setupDone = true;
-                return false;
-            }
-
             this.pc = new RTCPeerConnection({iceServers: environment.iceServers, bundlePolicy: 'max-bundle'});
             this.pc.ontrack = e => this.handleRemoteTrack(e);
             this.pc.onconnectionstatechange = () => {

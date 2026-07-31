@@ -1,7 +1,6 @@
 import {effect, inject, Injectable, signal} from '@angular/core';
 import {Channel, invoke, isTauri} from '@tauri-apps/api/core';
 import {AudioSettings, AudioSettingsService} from './audio-settings.service';
-import {iceServers} from './screen-publish';
 
 /** Which call surface the session belongs to. Mirrors the Rust `VoiceTarget`. */
 export type VoiceTarget =
@@ -53,6 +52,17 @@ export class VoiceEngineService {
             if (!this.active() || !isTauri()) return;
             void invoke('voice_set_processing', {settings: payload});
         });
+
+        // A page reload does not unwind Rust. Without this the session keeps capturing and
+        // publishing into the channel after the webview that started it is gone - audible to
+        // everyone else, invisible here, and emitting events at a callback id that no longer
+        // exists ("[TAURI] Couldn't find callback id ..."). `voice_start` does stop a leftover
+        // session, but only once you get as far as joining again.
+        if (isTauri()) {
+            window.addEventListener('beforeunload', () => {
+                if (this.active()) void invoke('voice_stop');
+            });
+        }
     }
 
     /** Whether the Rust engine is available at all. */
@@ -77,8 +87,12 @@ export class VoiceEngineService {
 
         const result = await invoke<VoiceStartResult>('voice_start', {
             settings: this.settingsPayload(),
-            // The same helper the screen publisher uses, so both agree on which servers are usable.
-            iceServers: iceServers(),
+            // None, deliberately. Cloudflare's SFU is publicly routable, so host candidates reach
+            // it and it answers to whatever source address it sees - which is why the DM call path
+            // has never passed any (`call-webrtc.service.ts`, `new RTCPeerConnection` with only
+            // bundlePolicy). Passing STUN servers here, copied from the screen publisher, bought
+            // nothing and added the one step in ICE gathering that can block on the network.
+            iceServers: [],
             apiBase,
             token,
             guildId: target.kind === 'guild' ? target.guildId : null,
