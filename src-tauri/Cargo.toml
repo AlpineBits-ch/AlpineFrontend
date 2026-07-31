@@ -122,6 +122,10 @@ opus = "0.3"
 # HRTF panning for Isle proximity voice. The crate ships no impulse-response data; the sphere is
 # supplied separately. See media::voice::mixer.
 hrtf = "0.8"
+# A lock-free single-producer/single-consumer ring, for the hop between the cpal callback and the
+# capture thread. Hand-rolling this means hand-rolling the unsafe; this crate is the standard choice
+# for exactly this job and allocates only when constructed. See media::voice::ring.
+ringbuf = "0.4"
 # Echo cancellation, noise suppression and gain control. Optional because it builds a C++ library
 # with meson, and the toolchain is not present everywhere - a machine without it builds the
 # passthrough processor and loses echo cancellation rather than losing voice.
