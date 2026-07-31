@@ -136,8 +136,11 @@ export class IsleVoiceRtcService {
                 tracks: [{location: 'remote', sessionId: peerSessionId, trackName}],
             }));
 
+            // `mid` present is the real signal that Cloudflare set the subscription up; the error
+            // fields are belt-and-braces (the relay retries and then throws rather than handing us
+            // a failed track). The old `!t.error` check tested a field the backend never sent.
             for (const t of resp.tracks) {
-                if (t.mid && !t.error) this.midToUser.set(t.mid, userId);
+                if (t.mid && !t.errorCode) this.midToUser.set(t.mid, userId);
             }
 
             await this.pc.setRemoteDescription(resp.sessionDescription);

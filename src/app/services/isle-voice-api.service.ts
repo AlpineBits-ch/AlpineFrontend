@@ -38,11 +38,17 @@ export interface CfIsleTracksNewRequest {
 }
 
 export interface CfIsleTrackResult {
-    mid: string;
+    /** Absent when the track failed - see errorCode/errorDescription. */
+    mid?: string;
     trackName: string;
     sessionId?: string;
     location?: string;
-    error?: string | null;
+    /** Cloudflare's per-track failure fields - see the note on CfTrackResult in voice.service.ts.
+     *  The Isle relay retries a failed subscribe and then throws rather than relaying it, so a
+     *  track carrying these should not reach this client; they are declared because the wire
+     *  contract has them. */
+    errorCode?: string;
+    errorDescription?: string;
 }
 
 export interface CfIsleTracksNewResponse {
