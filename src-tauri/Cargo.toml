@@ -1,6 +1,6 @@
 [package]
 name = "Venta"
-version = "3.0.147"
+version = "3.0.148"
 description = ""
 authors = ["you"]
 edition = "2021"
@@ -80,6 +80,13 @@ tauri-plugin-notifications = { version = "0.4.6", features = ["push-notification
 # branch and nothing else - see the two comments marked `ALPINE PATCH` in its build.rs.
 [patch.crates-io]
 webrtc-audio-processing-sys = { path = "vendor/webrtc-audio-processing-sys" }
+
+# Upstream `hrtf` panics building its face BSP whenever debug assertions are on: its LCG guards the
+# multiply with `overflowing_mul` and then adds without wrapping. Whether it fires depends only on
+# the mesh, so a given HRIR sphere either always panics or never does - and `HrirSphere::new` runs
+# at runtime, so unpatched a debug build of the app crashes the moment spatial audio is enabled.
+# The vendored copy changes that one addition and nothing else - see `ALPINE PATCH` in its lib.rs.
+hrtf = { path = "vendor/hrtf" }
 
 [features]
 default = ["aec"]

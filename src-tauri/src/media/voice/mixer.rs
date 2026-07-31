@@ -538,6 +538,40 @@ mod tests {
         assert!(left + right < 1e-3, "an out-of-range source should be inaudible");
     }
 
+    /// Checks a generated HRIR sphere against the one property that cannot be eyeballed: which ear
+    /// a source ends up in. Getting SADIE's azimuth handedness backwards produces a sphere that
+    /// looks perfectly well-formed and mirrors every source, which is close to undetectable in
+    /// code review and immediately obvious in a call.
+    ///
+    /// Skips unless `HRIR_SPHERE` names a sphere, since the data is fetched rather than committed:
+    ///
+    /// ```text
+    /// HRIR_SPHERE=/path/to/sadie_d1_48k.bin cargo test hrtf_sphere_places
+    /// ```
+    #[test]
+    fn hrtf_sphere_places_sources_on_the_correct_side() {
+        let Ok(path) = std::env::var("HRIR_SPHERE") else { return };
+        let bytes: &'static [u8] =
+            Box::leak(std::fs::read(&path).expect("sphere").into_boxed_slice());
+
+        for (label, x, expect_right) in [("right", 3.0f32, true), ("left", -3.0f32, false)] {
+            let mut m = Mixer::new();
+            m.set_hrir(Some(bytes));
+            m.set_spatial(true);
+            m.set_position("a", Some(Position { x, y: 0.0, z: 0.0 }));
+            let a = constant(0.5);
+            let mut out = vec![0.0f32; FRAME * 2];
+            settle(&mut m, "a", &a, &mut out);
+            let (l, r) = ear_energy(&out);
+            eprintln!("{label}: left {l:.6} right {r:.6}");
+            if expect_right {
+                assert!(r > l * 1.2, "{label}: expected right-dominant, got l {l} r {r}");
+            } else {
+                assert!(l > r * 1.2, "{label}: expected left-dominant, got l {l} r {r}");
+            }
+        }
+    }
+
     #[test]
     fn panning_holds_power_constant_across_the_field() {
         // The reason this is cos/sin rather than a linear ramp. With linear gains a source walking
