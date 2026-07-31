@@ -17,7 +17,7 @@ import {DatePipe} from '@angular/common';
 import {HttpErrorResponse} from '@angular/common/http';
 import {catchError, debounceTime, EMPTY, Subject, tap} from 'rxjs';
 
-import {ChannelDto, ChannelType, isForumLike} from '../../../../dtos/response/guild.dto';
+import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 import {ForumTag} from '../../../../dtos/response/forum.dto';
 import {ForumService} from '../../../../services/forum.service';
 import {ForumStateService} from '../../../../services/forum-state.service';
@@ -33,7 +33,7 @@ import {MessageEncryptionState} from '../../../../enums/message-encryption-state
 import {MessageType} from '../../../../enums/message-type.enum';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
 import {isGroupedWithPrevious} from '../../../messaging/components/conversation/message-utils';
-import {classifyAutoModError} from './channel-utils';
+import {classifyAutoModError, forumParentOf} from './channel-utils';
 
 import {Button} from 'primeng/button';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
@@ -122,11 +122,7 @@ export class ChannelComponent implements AfterViewInit {
     private localIsLocked = signal<boolean | null>(null);
     private localTagIds = signal<string[] | null>(null);
 
-    protected parentForum = computed(() => {
-        const parentId = this.channel().parentChannelId;
-        if (!parentId || this.channel().type !== ChannelType.Thread) return null;
-        return this.guildChannels().find(c => c.id === parentId && isForumLike(c.type)) ?? null;
-    });
+    protected parentForum = computed(() => forumParentOf(this.channel(), this.guildChannels()));
 
     protected isForumPost = computed(() => this.parentForum() !== null);
     protected isLocked = computed(() => this.localIsLocked() ?? this.channel().isLocked ?? false);
