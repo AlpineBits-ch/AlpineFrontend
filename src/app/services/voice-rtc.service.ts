@@ -307,8 +307,24 @@ export class VoiceRTCService {
         channelId: string,
         targets: { userId: string; cfSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' }[],
     ): Promise<void> {
+        // Logged before the queue, not inside it: a subscribe that never runs and a subscribe that
+        // runs and fails are different bugs, and until now they looked identical from the console.
+        console.log('[voice] subscribeAudio queued', targets.map(t => ({
+            userId: t.userId, cfSessionId: t.cfSessionId, trackName: t.trackName, kind: t.kind ?? 'audio',
+        })));
+
         return this.enqueueNegotiation(async () => {
-            if (!this.pc || !this.cfSessionId) return;
+            // Loud, because this is unrecoverable and used to be silent: nothing retries a
+            // subscribe, so a connection that got this far without a session id means the
+            // participants named here are unhearable for the rest of the session.
+            if (!this.pc || !this.cfSessionId) {
+                console.error('[voice] cannot subscribe - no peer connection or session', {
+                    hasPc: !!this.pc,
+                    cfSessionId: this.cfSessionId,
+                    targets: targets.map(t => t.userId),
+                });
+                return;
+            }
 
             const entries = targets.map(t => ({
                 ...t,
@@ -329,10 +345,23 @@ export class VoiceRTCService {
                 })),
             }));
 
+            // A track without a mid is a *failed* subscribe wearing a 200. Cloudflare reports
+            // per-track failures inside a successful response, so this is what a "track not found"
+            // looks like from here - and since nothing in the guild path retries a subscribe and
+            // no HTTP fallback exists, whatever is skipped here is unhearable for the whole
+            // session. It used to be skipped without a word; the DM path already refuses to.
             resp.tracks.forEach((t, i) => {
-                if (t.mid && entries[i]) {
-                    this.midMeta.set(t.mid, {userId: entries[i].userId, kind: entries[i].kind});
+                const entry = entries[i];
+                if (t.mid && entry) {
+                    this.midMeta.set(t.mid, {userId: entry.userId, kind: entry.kind});
+                    return;
                 }
+                console.error('[voice] subscribe failed - no mid returned, this user stays silent', {
+                    userId: entry?.userId,
+                    trackName: t.trackName,
+                    errorCode: t.errorCode,
+                    errorDescription: t.errorDescription,
+                });
             });
 
             await this.pc.setRemoteDescription(resp.sessionDescription);
