@@ -2,7 +2,7 @@ import {TestBed} from '@angular/core/testing';
 import {HttpErrorResponse} from '@angular/common/http';
 import {Observable, of, throwError} from 'rxjs';
 import {MlsSyncService} from './mls-sync.service';
-import {MlsService} from './mls.service';
+import {MlsProcessedMessage, MlsService} from './mls.service';
 import {MlsTransportService} from './mls-transport.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {
@@ -59,14 +59,15 @@ function makeMls() {
             calls.push('joinGroup');
             return of({groupId: GROUP, epoch: 1, ownLeafIndex: 1, members: []});
         }),
-        processMessage: vi.fn((groupId: string) => {
-            calls.push('processMessage');
-            epochs.set(groupId, (epochs.get(groupId) ?? 0) + 1);
-            return of({
-                kind: 'commit', plaintext: null, selfRemoved: false,
-                addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: null,
-            });
-        }),
+        processMessage: vi.fn<(groupId: string, messageB64: string) => Observable<MlsProcessedMessage>>(
+            (groupId: string) => {
+                calls.push('processMessage');
+                epochs.set(groupId, (epochs.get(groupId) ?? 0) + 1);
+                return of({
+                    kind: 'commit', plaintext: null, selfRemoved: false,
+                    addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: null,
+                });
+            }),
         mergePendingCommit: vi.fn((groupId: string) => {
             calls.push('mergePendingCommit');
             epochs.set(groupId, (epochs.get(groupId) ?? 0) + 1);
