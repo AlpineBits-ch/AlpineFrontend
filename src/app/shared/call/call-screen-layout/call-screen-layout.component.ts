@@ -30,9 +30,56 @@ export class CallScreenLayoutComponent {
         this.maximizedId() === null && this.screenShares().length > 1 ? 'grid-cols-2' : 'grid-cols-1'
     );
     private readonly _zoom = signal<Record<string, number>>({});
+    private readonly _pan = signal<Record<string, { x: number; y: number }>>({});
+    private dragging: {
+        shareId: string;
+        startX: number;
+        startY: number;
+        originX: number;
+        originY: number;
+    } | null = null;
 
     protected getZoom(shareId: string): number {
         return this._zoom()[shareId] ?? 1;
+    }
+
+    protected getPan(shareId: string): { x: number; y: number } {
+        return this._pan()[shareId] ?? {x: 0, y: 0};
+    }
+
+    protected transformFor(shareId: string): string {
+        const {x, y} = this.getPan(shareId);
+        return `translate(${x}px, ${y}px) scale(${this.getZoom(shareId)})`;
+    }
+
+    /** Panning only means anything once the content is larger than its tile. */
+    protected startPan(shareId: string, event: MouseEvent): void {
+        if (this.getZoom(shareId) <= 1) return;
+        event.preventDefault();
+        const origin = this.getPan(shareId);
+        this.dragging = {
+            shareId,
+            startX: event.clientX,
+            startY: event.clientY,
+            originX: origin.x,
+            originY: origin.y,
+        };
+    }
+
+    protected movePan(event: MouseEvent): void {
+        const drag = this.dragging;
+        if (!drag) return;
+        this._pan.update(p => ({
+            ...p,
+            [drag.shareId]: {
+                x: drag.originX + (event.clientX - drag.startX),
+                y: drag.originY + (event.clientY - drag.startY),
+            },
+        }));
+    }
+
+    protected endPan(): void {
+        this.dragging = null;
     }
 
     protected getShareForUser(userId: string): CallScreenShare | undefined {
@@ -48,7 +95,12 @@ export class CallScreenLayoutComponent {
     protected zoomOut(shareId: string, event: MouseEvent): void {
         event.stopPropagation();
         const cur = this.getZoom(shareId);
-        if (cur > 1) this._zoom.update(z => ({...z, [shareId]: Math.max(1, +(cur - 0.25).toFixed(2))}));
+        if (cur <= 1) return;
+        const next = Math.max(1, +(cur - 0.25).toFixed(2));
+        this._zoom.update(z => ({...z, [shareId]: next}));
+        // Back at 1x the content fits the tile again, so any pan offset would only push it
+        // off-centre with no way to see what was hidden.
+        if (next === 1) this._pan.update(p => ({...p, [shareId]: {x: 0, y: 0}}));
     }
 
     protected toggleMaximize(shareId: string, event: MouseEvent): void {

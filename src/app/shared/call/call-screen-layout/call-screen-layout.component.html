@@ -5,19 +5,28 @@
         @for (share of displayedShares(); track share.shareId) {
             <div class="relative bg-black/80 rounded-xl overflow-hidden border border-white/[0.12] flex items-center justify-center min-h-0">
 
-                <!-- Zoomable content wrapper -->
-                <div [style.transform]="'scale(' + getZoom(share.shareId) + ')'"
-                     class="w-full h-full flex items-center justify-center"
-                     style="transition: transform 0.15s ease; transform-origin: center center">
-                    @if (share.stream; as stream) {
-                        <video [streamSrc]="stream" autoplay class="w-full h-full object-contain" muted
-                               playsinline></video>
-                    } @else {
-                        <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
-                            <i class="pi pi-desktop text-5xl"></i>
-                            <span>{{ share.isLocal ? 'Your screen' : share.displayName + "'s screen" }}</span>
-                        </div>
-                    }
+                <!-- Zoomable, pannable content. The tile clips the overflow, so zooming past 100%
+                     used to hide the edges with no way to reach them; this wrapper is the drag
+                     surface that lets them be panned into view. -->
+                <div (mousedown)="startPan(share.shareId, $event)"
+                     (mouseleave)="endPan()"
+                     (mousemove)="movePan($event)"
+                     (mouseup)="endPan()"
+                     [class.cursor-grab]="getZoom(share.shareId) > 1"
+                     class="absolute inset-0 overflow-hidden">
+                    <div [style.transform]="transformFor(share.shareId)"
+                         class="w-full h-full flex items-center justify-center"
+                         style="transition: transform 0.15s ease; transform-origin: center center">
+                        @if (share.stream; as stream) {
+                            <video [streamSrc]="stream" autoplay class="w-full h-full object-contain" muted
+                                   playsinline></video>
+                        } @else {
+                            <div class="flex flex-col items-center gap-3 text-white/20 select-none pointer-events-none">
+                                <i class="pi pi-desktop text-5xl"></i>
+                                <span>{{ share.isLocal ? 'Your screen' : share.displayName + "'s screen" }}</span>
+                            </div>
+                        }
+                    </div>
                 </div>
 
                 <!-- Top-left controls: LIVE + PiP + Maximize -->
