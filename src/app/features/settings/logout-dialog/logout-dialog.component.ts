@@ -9,6 +9,7 @@ import {AuthService} from '../../../services/auth.service';
 import {UserService} from '../../../services/user.service';
 import {MasterKeyService} from '../../../services/master-key.service';
 import {MlsService} from '../../../services/mls.service';
+import {UserTokenService} from '../../../services/user-token.service';
 
 type Step = 'export-prompt' | 'password' | 'no-export-warning' | 'processing';
 
@@ -31,6 +32,7 @@ export class LogoutDialogComponent {
     private userService = inject(UserService);
     private masterKeyService = inject(MasterKeyService);
     private mlsService = inject(MlsService);
+    private userTokenService = inject(UserTokenService);
     private router = inject(Router);
 
     protected onPasswordInput(event: Event): void {
@@ -130,6 +132,14 @@ export class LogoutDialogComponent {
 
     private doLogout(): void {
         this.visibleChange.emit(false);
+        // Fire-and-forget: a failed push cleanup must not strand the user in a session they
+        // asked to leave. `deregisterToken` already swallows its own errors.
+        //
+        // The device row itself is deliberately left alone - deleting it cascades away the MLS
+        // key packages *and* the encrypted backup, and logout has already wiped the local signing
+        // key, so the row is inert either way. Forgetting a device is an explicit action in
+        // settings, where the destruction is chosen rather than implied.
+        void this.userTokenService.deregisterToken();
         this.authService.logout();
         this.router.navigate(['/authentication']);
     }
