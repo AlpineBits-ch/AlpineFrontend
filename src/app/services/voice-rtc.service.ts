@@ -10,6 +10,7 @@ import {OAuthService} from 'angular-oauth2-oidc';
 import {bitrateFor, DEFAULT_STREAM_PRESET, StreamPreset} from '../models/stream-preset';
 import {solveGeometry} from '../models/capture-geometry';
 import {publishOptions, useRustPublisher} from './screen-publish';
+import {VoiceEngineService} from './voice-engine.service';
 import {ScreenPickerChoice} from './screen-picker.service';
 import {
     applyScreenEncoding,
@@ -52,6 +53,7 @@ export class VoiceRTCService {
     private guildVoiceSvc = inject(GuildVoiceService);
     private audioSettings = inject(AudioSettingsService);
     private rustMedia = inject(RustMediaService);
+    private voiceEngine = inject(VoiceEngineService);
     private screenPicker = inject(ScreenPickerService);
     private videoStreamsSignal = signal<Map<string, MediaStream>>(new Map());
     readonly videoStreams = this.videoStreamsSignal.asReadonly();
@@ -209,6 +211,8 @@ export class VoiceRTCService {
             if (publishResp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
             await applySimpleBitrate(sender, VOICE_AUDIO_KBPS);
 
+            await this.verifyRustVoiceIfEnabled(guildId, channelId);
+
             this.setupDone = true;
             return true;
 
@@ -252,6 +256,9 @@ export class VoiceRTCService {
         this.vadProbeTrack?.stop();
         this.vadProbeTrack = null;
         void this.rustMedia.stopMicCapture();
+        // Harmless when the verification spike was never enabled, and essential when it was: a
+        // leaked Rust session would keep publishing after the channel is left.
+        void this.voiceEngine.stop();
         this.localVideoTrack?.stop();
         this.localScreenTrack?.stop();
         void this.rustMedia.stopScreenCapture();
@@ -406,6 +413,46 @@ export class VoiceRTCService {
 
     setMicEnabled(enabled: boolean): void {
         if (this.localAudioTrack) this.localAudioTrack.enabled = enabled;
+    }
+
+    /**
+     * TEMPORARY - phase 1 verification spike. See Task 9, Step 1 of
+     * `docs/superpowers/plans/2026-07-31-rust-voice-capture-publish.md`.
+     *
+     * Opens a *second* Cloudflare session from Rust that publishes the microphone with
+     * `primary=true`, so we can confirm the backend then records that session as the participant's
+     * audio. The entire cutover rests on that assumption and it has never been tested against a
+     * running backend.
+     *
+     * Opt-in, because it deliberately creates a second primary session and two microphone tracks:
+     *
+     *   localStorage.setItem('alpine.verifyRustVoice', '1')
+     *
+     * then rejoin the channel and read the console. Guild voice only - a DM call reacts to a second
+     * primary session with device-takeover and would hang up. Delete this once the cutover lands.
+     */
+    private async verifyRustVoiceIfEnabled(guildId: string, channelId: string): Promise<void> {
+        if (localStorage.getItem('alpine.verifyRustVoice') !== '1') return;
+        if (!this.voiceEngine.available()) {
+            console.warn('[voice][verify] not running under Tauri, so there is no Rust engine');
+            return;
+        }
+
+        try {
+            const rust = await this.voiceEngine.start(
+                {kind: 'guild', guildId, channelId},
+                this.apiConfig.baseUrl(),
+                this.oauth.getAccessToken(),
+            );
+            console.log('[voice][verify] rust    session', rust.cfSessionId, 'track', rust.trackName);
+            console.log('[voice][verify] webview session', this.cfSessionId, 'track', this.cfAudioTrackName);
+            console.log(
+                '[voice][verify] from a SECOND client, check which of those two session ids the ' +
+                'participant record reports for this user. The cutover is only valid if it is the rust one.',
+            );
+        } catch (e) {
+            console.error('[voice][verify] rust voice failed to start', e);
+        }
     }
 
     setDeafened(isDeafened: boolean): void {
