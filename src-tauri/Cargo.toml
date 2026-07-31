@@ -74,6 +74,13 @@ tauri-plugin-notifications = { version = "0.4.6", features = ["push-notification
 [target.x86_64-apple-ios.dependencies]
 tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
 
+[features]
+default = ["aec"]
+# Acoustic echo cancellation via WebRTC's AudioProcessing module. A cargo feature rather than a
+# hard dependency because it needs meson, ninja and Python at build time: without them the build
+# still succeeds and media::voice::process falls back to its passthrough implementation.
+aec = ["dep:webrtc-audio-processing"]
+
 [dev-dependencies]
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
@@ -97,6 +104,22 @@ webrtc = "0.14"
 openh264 = { version = "0.9", default-features = false, features = ["libloading"] }
 bzip2-rs = "0.1"
 sha2 = "0.10"
+
+# ── Voice pipeline (media::voice) ─────────────────────────────────────────────
+# Band-limited resampling. Replaces the linear interpolator in media::audio, which had no
+# anti-aliasing filter at all, so a 44.1 kHz microphone folded its top octave into the voice band.
+rubato = "4"
+audioadapter-buffers = "4"
+# Opus, configured for VoIP with in-band FEC and DTX - see media::voice::codec.
+opus = "0.3"
+# HRTF panning for Isle proximity voice. The crate ships no impulse-response data; the sphere is
+# supplied separately. See media::voice::mixer.
+hrtf = "0.8"
+# Echo cancellation, noise suppression and gain control. Optional because it builds a C++ library
+# with meson, and the toolchain is not present everywhere - a machine without it builds the
+# passthrough processor and loses echo cancellation rather than losing voice.
+# See media::voice::process.
+webrtc-audio-processing = { version = "2.1", features = ["bundled"], optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-plugin-notifications = { version = "0.4.6", default-features = false }

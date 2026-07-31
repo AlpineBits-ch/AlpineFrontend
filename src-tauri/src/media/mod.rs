@@ -6,3 +6,7 @@ pub mod loopback_win;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 pub mod publisher;
 pub mod screen;
+/// Desktop-only, for the same reason as `publisher`: `opus`, `rubato` and `webrtc` are not
+/// mobile dependencies.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+pub mod voice;

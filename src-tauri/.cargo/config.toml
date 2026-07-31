@@ -1,0 +1,6 @@
+[env]
+# The libopus sources vendored by `audiopus_sys` declare `cmake_minimum_required(VERSION 3.1)`,
+# and CMake 4 removed compatibility with anything below 3.5 - so a modern CMake refuses to
+# configure them at all. This restores the old behaviour rather than requiring every developer to
+# pin an old CMake or export the variable by hand.
+CMAKE_POLICY_VERSION_MINIMUM = "3.5"
