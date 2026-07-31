@@ -211,7 +211,7 @@ export class VoiceRTCService {
             if (publishResp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
             await applySimpleBitrate(sender, VOICE_AUDIO_KBPS);
 
-            await this.verifyRustVoiceIfEnabled(guildId, channelId);
+            await this.verifyRustVoiceIfEnabled(guildId, channelId, ownUserId);
 
             this.setupDone = true;
             return true;
@@ -430,8 +430,15 @@ export class VoiceRTCService {
      *
      * then rejoin the channel and read the console. Guild voice only - a DM call reacts to a second
      * primary session with device-takeover and would hang up. Delete this once the cutover lands.
+     *
+     * No second client needed: the participant record is server state, so it can be read straight
+     * back with `getState`. That is the same record the backend hands to every other client.
      */
-    private async verifyRustVoiceIfEnabled(guildId: string, channelId: string): Promise<void> {
+    private async verifyRustVoiceIfEnabled(
+        guildId: string,
+        channelId: string,
+        ownUserId: string,
+    ): Promise<void> {
         if (localStorage.getItem('alpine.verifyRustVoice') !== '1') return;
         if (!this.voiceEngine.available()) {
             console.warn('[voice][verify] not running under Tauri, so there is no Rust engine');
@@ -446,10 +453,27 @@ export class VoiceRTCService {
             );
             console.log('[voice][verify] rust    session', rust.cfSessionId, 'track', rust.trackName);
             console.log('[voice][verify] webview session', this.cfSessionId, 'track', this.cfAudioTrackName);
-            console.log(
-                '[voice][verify] from a SECOND client, check which of those two session ids the ' +
-                'participant record reports for this user. The cutover is only valid if it is the rust one.',
-            );
+
+            // Polled rather than read once: the backend may settle the record a moment after
+            // tracks/new returns, and a single early read would report the wrong answer confidently.
+            for (let attempt = 1; attempt <= 5; attempt++) {
+                await new Promise(resolve => setTimeout(resolve, 600));
+                const state = await firstValueFrom(this.guildVoiceSvc.getState(guildId, channelId));
+                const me = state.participants.find(p => p.userId === ownUserId);
+                if (!me) {
+                    console.log(`[voice][verify] attempt ${attempt}: own participant record not present yet`);
+                    continue;
+                }
+
+                const verdict =
+                    me.cfSessionId === rust.cfSessionId ? 'RUST   -> the cutover assumption HOLDS'
+                        : me.cfSessionId === this.cfSessionId ? 'WEBVIEW -> the cutover assumption FAILS'
+                            : 'NEITHER -> unexpected, report this';
+                console.log(
+                    `[voice][verify] attempt ${attempt}: backend records session`, me.cfSessionId,
+                    'track', me.audioTrackName, '=>', verdict,
+                );
+            }
         } catch (e) {
             console.error('[voice][verify] rust voice failed to start', e);
         }
