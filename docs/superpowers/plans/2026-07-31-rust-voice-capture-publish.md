@@ -2298,14 +2298,45 @@ Find every existing caller that toggled `localAudioTrack.enabled` and route it t
 >   Cloudflare rejects a first offer that carries only recvonly m-lines, this is the step that finds
 >   out.
 
-- [ ] Both clients hear each other in a guild channel.
+> **Run 2026-07-31. Guild voice confirmed in both join orders, against a peer on the previous
+> build. Three bugs found, all in the first two minutes of real use — none of which any test in
+> this plan would have caught, because all three are about what happens when something is slow.**
+>
+> 1. **STUN servers passed to the Rust engine** (`voice-engine.service.ts`), copied from the screen
+>    publisher. Cloudflare's SFU is publicly routable and answers to the source address it sees —
+>    which is why `call-webrtc.service.ts` has never passed any. Bought nothing, added the one step
+>    in ICE gathering that can block on the network. *Found by the user asking why ICE was involved
+>    at all.*
+> 2. **`rtc::start` awaited `gathering_complete_promise` with no timeout**, so (1) had no upper
+>    bound. Now capped at 5s, offering with the candidates gathered so far.
+> 3. **`connect()` awaited the engine while holding the negotiation queue blocked** — so a slow
+>    engine start stalled subscriptions on a *different* peer connection, permanently. This is what
+>    turned a slow start into one-way silence. Sending and receiving are independent here; the
+>    engine start now happens outside that block.
+>
+> Plus a leak: a page reload does not unwind Rust, so a reloaded webview left a session capturing
+> and publishing into the channel — audible to everyone else, invisible locally. Now stopped on
+> `beforeunload`.
+>
+> **The debugging lesson worth keeping:** the symptom was silence with an empty console *and* empty
+> backend logs, and I spent three rounds theorising about which side dropped the event. The thing
+> that actually settled it was adding a log line before the negotiation queue and one after it —
+> "never subscribed" and "subscribed and failed" had been indistinguishable from outside. Commit
+> `6ed96e8` keeps those permanently.
+
+- [x] Both clients hear each other in a guild channel.
 - [ ] Both clients hear each other in a DM call.
 - [ ] Mute silences the far end, and the muted user's own speaking indicator goes out.
 - [ ] Push-to-talk transmits only while the key is down.
 - [ ] The speaking indicator matches who is actually talking.
 - [ ] Screen sharing still works, still with its own session, and its audio is unaffected.
 - [ ] Leaving and rejoining works, twice in a row — this is where an orphaned session shows up.
-- [ ] A client on the **previous** build can still hear a client on the new build.
+- [x] A client on the **previous** build can still hear a client on the new build.
+
+> **Still open.** Guild voice in both orders and old-build interop are confirmed; everything above
+> without a tick was not exercised. The DM call path is the one to worry about — it has had zero
+> runtime exposure and contains a URL (`/api/v1/messaging/voice/calls/...`) that has never once been
+> hit successfully, because it was wrong until this phase.
 
 - [x] **Step 7: Remove the temporary logging from Step 1, then commit**
 
