@@ -46,7 +46,7 @@ describe('channelIcon', () => {
 
     it('returns the icon for every other known type', () => {
         expect(channelIcon(ChannelType.Voice)).toBe('pi pi-volume-up');
-        expect(channelIcon(ChannelType.Forum)).toBe('pi pi-align-left');
+        expect(channelIcon(ChannelType.Forum)).toBe('pi pi-comments');
         expect(channelIcon(ChannelType.Media)).toBe('pi pi-images');
         expect(channelIcon(ChannelType.Announcement)).toBe('pi pi-megaphone');
         expect(channelIcon(ChannelType.List)).toBe('pi pi-check-square');

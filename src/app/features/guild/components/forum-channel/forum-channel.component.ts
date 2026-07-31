@@ -3,6 +3,7 @@ import {Button} from 'primeng/button';
 import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {ForumPostListComponent} from './forum-post-list.component';
+import {channelIcon} from '../../channel-types';
 
 /**
  * The full-width forum view: the channel header, and beneath it the post list. Everything
@@ -22,4 +23,6 @@ export class ForumChannelComponent {
     protected navService = inject(NavigationService);
 
     protected isMedia = computed(() => this.channel().type === ChannelType.Media);
+    /** From the shared table, so Forum and Media never drift from the rest of the app. */
+    protected icon = computed(() => channelIcon(this.channel().type));
 }

@@ -40,6 +40,7 @@ import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
 import {ForumTagChipComponent} from './forum-tag-chip.component';
 import {ForumTagPickerComponent} from './forum-tag-picker.component';
 import {ForumPostCardComponent, PostAction} from './forum-post-card.component';
+import {channelIcon} from '../../channel-types';
 
 /**
  * A forum's post list: the filter/sort toolbar, the tag filter bar, the posts themselves
@@ -98,6 +99,8 @@ export class ForumPostListComponent implements OnDestroy {
     private tickIntervalId = setInterval(() => this.nowTick.update(n => n + 1), 60_000);
 
     protected isMedia = computed(() => this.forum().type === ChannelType.Media);
+    /** From the shared table, so Forum and Media never drift from the rest of the app. */
+    protected icon = computed(() => channelIcon(this.forum().type));
 
     // ── Post list. All of it is held per forum in ForumPostListService. ───────
     protected posts = computed(() => this.postList.stateFor(this.forum().id).posts);

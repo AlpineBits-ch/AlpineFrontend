@@ -22,6 +22,8 @@ export class CreateChannelModalComponent {
     guildFeatures = input.required<GuildFeatureSet>();
 
     protected readonly ChannelType = ChannelType;
+    /** Each type button draws its own glyph from the table, so none of them can drift from it. */
+    protected readonly channelIcon = channelIcon;
     /**
      * Text has no module behind it - a guild without text channels would be an empty
      * room - so it is always offered. The rest each answer to one flag.

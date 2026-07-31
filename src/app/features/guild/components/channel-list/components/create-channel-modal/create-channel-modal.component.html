@@ -32,7 +32,7 @@
                                     (click)="type.set(ChannelType.Voice)"
                                     [ngClass]="type() === ChannelType.Voice ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'"
                                     class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer">
-                                <i class="pi pi-volume-up text-white/50"></i>
+                                <i [class]="channelIcon(ChannelType.Voice)" class="text-white/50"></i>
                                 <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_VOICE' | translate }}</span>
                                 <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_VOICE_DESC' | translate }}</span>
                             </button>
@@ -42,7 +42,7 @@
                                     (click)="type.set(ChannelType.Forum)"
                                     [ngClass]="type() === ChannelType.Forum ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'"
                                     class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer">
-                                <i class="pi pi-align-left text-white/50"></i>
+                                <i [class]="channelIcon(ChannelType.Forum)" class="text-white/50"></i>
                                 <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_FORUM' | translate }}</span>
                                 <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_FORUM_DESC' | translate }}</span>
                             </button>
@@ -52,7 +52,7 @@
                                     (click)="type.set(ChannelType.Announcement)"
                                     [ngClass]="type() === ChannelType.Announcement ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'"
                                     class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer">
-                                <i class="pi pi-megaphone text-white/50"></i>
+                                <i [class]="channelIcon(ChannelType.Announcement)" class="text-white/50"></i>
                                 <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_ANNOUNCEMENT' | translate }}</span>
                                 <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_ANNOUNCEMENT_DESC' | translate }}</span>
                             </button>
@@ -62,7 +62,7 @@
                                     (click)="type.set(ChannelType.Media)"
                                     [ngClass]="type() === ChannelType.Media ? 'border-brand/50 bg-brand/10' : 'border-white/[0.08] bg-white/[0.03]'"
                                     class="flex flex-col items-start gap-1 p-3 rounded-xl border transition-all cursor-pointer">
-                                <i class="pi pi-images text-white/50"></i>
+                                <i [class]="channelIcon(ChannelType.Media)" class="text-white/50"></i>
                                 <span class="text-sm font-medium text-white/80">{{ 'GUILD.CHANNEL_TYPE_MEDIA' | translate }}</span>
                                 <span class="text-[11px] text-white/35">{{ 'GUILD.CHANNEL_TYPE_MEDIA_DESC' | translate }}</span>
                             </button>

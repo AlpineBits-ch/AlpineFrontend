@@ -7,6 +7,7 @@ import {MentionCandidate, mentionCandidateId} from '../composer-utils';
 import {TwemojiComponent} from '../../../../../../components/twemoji/twemoji.component';
 import {UserNameStyleDirective} from '../../../../../../directives/user-name-style.directive';
 import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto';
+import {channelIcon as iconForType} from '../../../../../guild/channel-types';
 
 @Component({
     selector: 'app-suggestion-overlay',
@@ -30,4 +31,9 @@ export class SuggestionOverlayComponent {
 
     protected readonly mentionCandidateId = mentionCandidateId;
     protected readonly ChannelType = ChannelType;
+
+    /** Text has no glyph of its own, so it falls back to the hash it renders everywhere else. */
+    protected channelIcon(type: ChannelType): string {
+        return iconForType(type) ?? 'pi pi-hashtag';
+    }
 }

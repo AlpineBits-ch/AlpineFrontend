@@ -59,8 +59,10 @@ export const CHANNEL_META: readonly ChannelTypeMeta[] = [
         descKey: 'GUILD.CHANNEL_TYPE_TEXT_DESC',
     },
     {
+        // Shares pi-comments with Thread, deliberately: a forum post *is* a thread, and
+        // the two never appear as sibling rows - the sidebar draws posts without an icon.
         type: ChannelType.Forum,
-        icon: 'pi pi-align-left',
+        icon: 'pi pi-comments',
         feature: GuildFeature.Forums,
         labelKey: 'GUILD.CHANNEL_TYPE_FORUM',
         descKey: 'GUILD.CHANNEL_TYPE_FORUM_DESC',

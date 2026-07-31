@@ -6,6 +6,7 @@ import {InputText} from 'primeng/inputtext';
 import {Textarea} from 'primeng/textarea';
 import {ChannelDto, ChannelType} from '../../../../../../dtos/response/guild.dto';
 import {GuildService, UpdateChannelDto} from '../../../../../../services/guild.service';
+import {channelIcon} from '../../../../channel-types';
 import {TranslateModule} from '@ngx-translate/core';
 
 @Component({
@@ -24,6 +25,7 @@ export class ChannelOverviewComponent implements OnInit {
     saving = signal(false);
     dirty = signal(false);
     protected readonly ChannelType = ChannelType;
+    protected readonly channelIcon = channelIcon;
     private guildService = inject(GuildService);
 
     ngOnInit(): void {
