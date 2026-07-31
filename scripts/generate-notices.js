@@ -391,6 +391,31 @@ function repositoryUrl(manifest) {
  * binaries (rollup, lightningcss, the Tailwind oxide builds) only install on their own platform,
  * so a run on Windows cannot see the macOS ones. They are reported rather than ignored.
  */
+/**
+ * One entry per distinct `name@version`, however many places it is installed.
+ *
+ * The walk above is keyed by directory, because it has to be - the same name resolves to different
+ * versions at different depths, and following one would hide the other. But npm trees hoist, so the
+ * *same* version routinely lands in several directories, and keying the output that way listed
+ * `universalify 0.1.2` three times in one heading purely because of where it happened to be
+ * installed.
+ *
+ * That made the file depend on tree layout rather than on the dependency set. A fresh install and an
+ * incremental one produce different layouts from identical manifests, so the CI staleness check
+ * failed for people who had changed nothing - which is precisely the signal it exists to give.
+ *
+ * The first copy wins: same name, same version, same published tarball, so the licence text cannot
+ * differ between them.
+ */
+function dedupeByNameAndVersion(packages) {
+    const unique = new Map();
+    for (const entry of packages) {
+        const key = `${entry.name}@${entry.version}`;
+        if (!unique.has(key)) unique.set(key, entry);
+    }
+    return [...unique.values()];
+}
+
 function npmClosure(rootDir) {
     const rootManifest = readManifest(rootDir);
     const seen = new Map();
@@ -444,7 +469,7 @@ function npmClosure(rootDir) {
     for (const name of [...optional.keys()]) if (listedNames.has(name)) optional.delete(name);
 
     return {
-        packages: [...seen.values()],
+        packages: dedupeByNameAndVersion([...seen.values()]),
         optional: [...optional.entries()].sort((a, b) => a[0].localeCompare(b[0])),
         unresolved: [...unresolved].sort(),
     };
@@ -756,6 +781,7 @@ module.exports = {
     baseId,
     rustClosure,
     npmClosure,
+    dedupeByNameAndVersion,
     resolvePackageDir,
     declaredLicense,
     noticeFor,

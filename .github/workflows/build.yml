@@ -74,11 +74,26 @@ jobs:
 
       # Fails if a dependency was added without regenerating the notices. The output is
       # platform-independent by construction, so this check is only run once, here.
+      #
+      # Spelled out rather than `git diff --exit-code ... || (echo ... && exit 1)`. This step runs
+      # under PowerShell, where `&&` chains *commands* and `exit` is a language keyword, so the
+      # shorthand died with "The term 'exit' is not recognized as a name of a cmdlet" - masking
+      # whichever result the diff had actually produced.
+      #
+      # `--name-only` rather than `--exit-code` for the same class of reason: Actions runs this with
+      # `$ErrorActionPreference = 'stop'`, and pwsh 7.4 turns a non-zero native exit code into a
+      # terminating error, which would kill the step before the message below ever printed. This
+      # form always exits 0 and reports through its output instead.
       - name: Check third-party notices are up to date
         run: |
           bun run licenses:test
           bun run licenses
-          git diff --exit-code -- src/assets/THIRD-PARTY-NOTICES.md || (echo "::error::THIRD-PARTY-NOTICES.md is stale - run 'bun run licenses' and commit the result." && exit 1)
+          $stale = git diff --name-only -- src/assets/THIRD-PARTY-NOTICES.md
+          if ($stale) {
+            git diff -- src/assets/THIRD-PARTY-NOTICES.md
+            Write-Output "::error::THIRD-PARTY-NOTICES.md is stale - run 'bun run licenses' and commit the result."
+            exit 1
+          }
 
       - name: Build Tauri (Windows)
         env:

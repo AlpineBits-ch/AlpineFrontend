@@ -10914,9 +10914,9 @@ Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ## npm packages
 
-Bundled into the application frontend. 210 packages, 112 distinct notices.
+Bundled into the application frontend. 203 packages, 112 distinct notices.
 
-### @alloc/quick-lru 5.2.0, ansi-regex 5.0.1, ansi-regex 5.0.1, ansi-styles 4.3.0, camelcase 5.3.1, find-up 4.1.0, is-fullwidth-code-point 3.0.0, locate-path 5.0.0, p-limit 2.3.0, p-locate 4.1.0, p-try 2.2.0, path-exists 4.0.0, string-width 4.2.3, strip-ansi 6.0.1, strip-ansi 6.0.1, wrap-ansi 6.2.0
+### @alloc/quick-lru 5.2.0, ansi-regex 5.0.1, ansi-styles 4.3.0, camelcase 5.3.1, find-up 4.1.0, is-fullwidth-code-point 3.0.0, locate-path 5.0.0, p-limit 2.3.0, p-locate 4.1.0, p-try 2.2.0, path-exists 4.0.0, string-width 4.2.3, strip-ansi 6.0.1, wrap-ansi 6.2.0
 
 **Licence:** MIT
 **Source:** sindresorhus/quick-lru
@@ -11698,7 +11698,7 @@ Copyright (c) Tailwind Labs, Inc.
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### @tauri-apps/api 2.10.1, @tauri-apps/api 2.10.1, @tauri-apps/api 2.10.1, @tauri-apps/api 2.10.1, @tauri-apps/api 2.11.0
+### @tauri-apps/api 2.10.1, @tauri-apps/api 2.11.0
 
 **Licence:** Apache-2.0 OR MIT
 **Source:** git+https://github.com/tauri-apps/tauri.git
@@ -13275,7 +13275,7 @@ Copyright (c) 2018 Twitter, Inc.
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### universalify 0.1.2, universalify 0.1.2, universalify 0.1.2, universalify 0.2.0
+### universalify 0.1.2, universalify 0.2.0
 
 **Licence:** MIT
 **Source:** git+https://github.com/RyanZim/universalify.git

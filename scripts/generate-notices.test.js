@@ -19,6 +19,7 @@ const {
     demoteHeadings,
     fencedBlock,
     npmClosure,
+    dedupeByNameAndVersion,
     resolvePackageDir,
     declaredLicense,
     noticeFor,
@@ -134,6 +135,38 @@ test('the production closure excludes devDependencies but keeps runtime deps', (
     // typescript and vitest are devDependencies, and never reach a user.
     assert.ok(!names.has('typescript'), 'typescript is a devDependency and must not be listed');
     assert.ok(!names.has('vitest'), 'vitest is a devDependency and must not be listed');
+});
+
+test('a package installed in several places is listed once', () => {
+    // npm trees hoist, so the same name@version routinely lands in more than one directory. The walk
+    // is keyed by directory because it has to be - the same name resolves to different versions at
+    // different depths - but the output must not be, or it depends on tree layout rather than on the
+    // dependency set. It did: `@tauri-apps/api 2.10.1` appeared four times in one heading, and a
+    // fresh install and an incremental one produced different files from identical manifests, so the
+    // CI staleness check failed for people who had changed nothing.
+    const {packages} = npmClosure(REPO);
+    const counts = new Map();
+    for (const p of packages) {
+        const key = `${p.name}@${p.version}`;
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    const repeated = [...counts].filter(([, n]) => n > 1);
+    assert.deepStrictEqual(repeated, [], 'these were listed more than once');
+});
+
+test('distinct versions of one package are still listed separately', () => {
+    // The dedupe keys on name *and* version. Collapsing on name alone would drop a licence that
+    // genuinely changed between versions.
+    const packages = dedupeByNameAndVersion([
+        {name: 'universalify', version: '0.1.2', dir: '/a'},
+        {name: 'universalify', version: '0.1.2', dir: '/b/node_modules/universalify'},
+        {name: 'universalify', version: '0.2.0', dir: '/c'},
+    ]);
+    assert.deepStrictEqual(packages.map(p => `${p.name}@${p.version}`), [
+        'universalify@0.1.2',
+        'universalify@0.2.0',
+    ]);
+    assert.strictEqual(packages[0].dir, '/a', 'the first copy found wins');
 });
 
 test('licence declarations are read from every shape npm allows', () => {
