@@ -15,7 +15,7 @@ import {
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {DatePipe} from '@angular/common';
 import {HttpErrorResponse} from '@angular/common/http';
-import {catchError, debounceTime, EMPTY, Subject, tap} from 'rxjs';
+import {catchError, debounceTime, EMPTY, firstValueFrom, from, Subject, tap} from 'rxjs';
 
 import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 import {ForumTag} from '../../../../dtos/response/forum.dto';
@@ -34,6 +34,9 @@ import {MessageType} from '../../../../enums/message-type.enum';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
 import {isGroupedWithPrevious} from '../../../messaging/components/conversation/message-utils';
 import {classifyAutoModError, forumParentOf} from './channel-utils';
+import {MlsService} from '../../../../services/mls.service';
+import {MlsSyncService} from '../../../../services/mls-sync.service';
+import {toBase64} from '../../../../helpers/base64.helper';
 
 import {Button} from 'primeng/button';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
@@ -240,6 +243,8 @@ export class ChannelComponent implements AfterViewInit {
 
     // ── Search ───────────────────────────────────────────────────────────────
     private messagingService = inject(MessagingService);
+    private mlsService = inject(MlsService);
+    private mlsSync = inject(MlsSyncService);
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private guildWs = inject(GuildWebsocketService);
@@ -279,6 +284,17 @@ export class ChannelComponent implements AfterViewInit {
 
         effect(() => {
             this.messageStore.loadForChannel(this.channel().id);
+        });
+
+        effect(() => {
+            // Reconcile this channel's encryption before anything can be typed into it. A device
+            // that was offline when encryption was switched on holds no group and would otherwise
+            // send plaintext into a room everyone believes is encrypted - the server refuses that,
+            // but finding out on send is a worse experience than finding out on open. This also
+            // picks up a Welcome minted while we were away.
+            const channelId = this.channel().id;
+            this.mlsSync.refreshState(channelId, true)
+                .catch(err => console.error('Could not resolve channel encryption state', channelId, err));
         });
 
         effect(() => {
@@ -436,14 +452,16 @@ export class ChannelComponent implements AfterViewInit {
         const {content, attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere} = event;
         const tempId = crypto.randomUUID();
         const now = new Date();
+        const channelId = this.channel().id;
+        const b64Content = toBase64(content);
 
         this.replyingTo.set(null);
         this.autoModError.set(null);
 
         const optimistic: MessageDto = {
             id: tempId,
-            content: btoa(encodeURIComponent(content).replace(/%([0-9A-F]{2})/gi, (_, hex) => String.fromCharCode(parseInt(hex, 16)))),
-            channelId: this.channel().id,
+            content: b64Content,
+            channelId,
             conversationId: undefined,
             authorId: this.profileService.ownProfile()?.userId ?? '',
             createdAt: now,
@@ -465,18 +483,20 @@ export class ChannelComponent implements AfterViewInit {
 
         this.messageStore.addMessage(optimistic);
 
-        this.messagingService.createMessage({
-            content,
-            channelId: this.channel().id,
-            conversationId: undefined,
-            attachments,
-            inReplyTo,
-            mentions,
-            roleMentions,
-            mentionsEveryone,
-            mentionsHere,
-        }).pipe(
+        from(this.send(channelId, content, b64Content, {
+            attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere,
+        })).pipe(
             tap(confirmed => {
+                // An encrypted send comes back as ciphertext. We already hold the plaintext and MLS
+                // ratchets forward only, so this is the one moment it can be kept - after this our
+                // own message is as unreadable to us as anyone else's.
+                if (confirmed.encryptionState === MessageEncryptionState.Encrypted) {
+                    void this.mlsService.cacheMessage(confirmed.id, b64Content);
+                    const shown = {...confirmed, content: b64Content};
+                    this.messageStore.confirmMessage(tempId, shown);
+                    this.messagingService.messageSentObservable.next(shown);
+                    return;
+                }
                 this.messageStore.confirmMessage(tempId, confirmed);
                 this.messagingService.messageSentObservable.next(confirmed);
             }),
@@ -493,6 +513,68 @@ export class ChannelComponent implements AfterViewInit {
                 return EMPTY;
             }),
         ).subscribe();
+    }
+
+    /**
+     * Posts to the channel, encrypting when the channel is encrypted.
+     *
+     * The server refuses a message whose encryption does not match the channel's, which is what a
+     * client sees when encryption was toggled while it was composing - or when it has never heard
+     * about the toggle at all. That is a stale view rather than a real failure, so a conflict
+     * re-reads the channel's state and sends once more.
+     */
+    private async send(
+        channelId: string,
+        content: string,
+        b64Content: string,
+        rest: {
+            attachments: string[]; inReplyTo: string | undefined; mentions: string[];
+            roleMentions: string[]; mentionsEveryone: boolean; mentionsHere: boolean;
+        },
+    ): Promise<MessageDto> {
+        const attempt = async (): Promise<MessageDto> => {
+            const generation = await this.mlsService.getKnownGeneration(channelId);
+
+            if (generation === null) {
+                return firstValueFrom(this.messagingService.createMessage({
+                    content,
+                    channelId,
+                    conversationId: undefined,
+                    ...rest,
+                }));
+            }
+
+            const keyHandle = this.mlsService.keyHandle();
+            const groupId = await this.mlsService.getGroupId(channelId, generation);
+            if (!keyHandle || !groupId) {
+                throw new Error(`No MLS group held for encrypted channel ${channelId}`);
+            }
+
+            const {ciphertext, epoch} = await firstValueFrom(
+                this.mlsService.sendMessage(groupId, keyHandle, b64Content),
+            );
+
+            return firstValueFrom(this.messagingService.createMessage({
+                content: ciphertext,
+                channelId,
+                conversationId: undefined,
+                ...rest,
+                encryptionState: MessageEncryptionState.Encrypted,
+                mlsEpoch: epoch,
+                mlsGeneration: generation,
+                senderDeviceId: await this.mlsService.getOrCreateDeviceIdentifier(),
+            }));
+        };
+
+        try {
+            return await attempt();
+        } catch (err) {
+            if (!(err instanceof HttpErrorResponse) || err.status !== 409) throw err;
+            // Catches both directions: plaintext into a channel that was just encrypted, and
+            // ciphertext into one that was just turned back to plaintext.
+            await this.mlsSync.refreshState(channelId, true);
+            return attempt();
+        }
     }
 
     // ── Scroll handling ──────────────────────────────────────────────────────

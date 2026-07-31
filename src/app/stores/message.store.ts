@@ -358,6 +358,7 @@ export const MessageStore = signalStore(
             });
             messagingService
                 .getMessagesForChannel(channelId, 0, PAGE_SIZE)
+                .pipe(switchMap(messages => from(decryptMessages(messages, mlsService))))
                 .subscribe({
                     next: messages => {
                         patchState(store, addEntities(messages), {
@@ -393,6 +394,7 @@ export const MessageStore = signalStore(
             });
             messagingService
                 .getMessagesForChannel(channelId, meta.offset, PAGE_SIZE)
+                .pipe(switchMap(messages => from(decryptMessages(messages, mlsService))))
                 .subscribe({
                     next: messages => {
                         patchState(store, addEntities(messages), {
