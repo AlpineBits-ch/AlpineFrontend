@@ -170,24 +170,15 @@ export class ChannelEncryptionComponent {
     }
 
     /**
-     * Everyone who should hold keys for the new group.
+     * Everyone who should hold keys for the new group: exactly who can see the channel.
      *
-     * This is the guild's member list, which is an over-approximation for a channel with
-     * restrictive overwrites: those members would receive keys they arguably should not have. The
-     * roster the group actually needs is "who can ViewChannel here", which no endpoint exposes yet
-     * - so this is deliberately the *visible* limitation rather than a silent one, and private
-     * channels should not be encrypted until it is closed.
+     * Resolved server-side against the same permission logic that gates reads. This used to be the
+     * whole guild member list, which for a channel with restrictive overwrites handed group keys to
+     * people who cannot open the channel at all - readable traffic for a wider audience than the
+     * channel itself.
      */
-    private async channelMemberIds(): Promise<string[]> {
-        const ids: string[] = [];
-        for (let skip = 0; ; skip += MEMBER_PAGE) {
-            const page = await firstValueFrom(
-                this.guildService.getMembers(this.guild().id, skip, MEMBER_PAGE),
-            );
-            ids.push(...page.map(m => m.userId));
-            if (page.length < MEMBER_PAGE) break;
-        }
-        return ids;
+    private channelMemberIds(): Promise<string[]> {
+        return firstValueFrom(this.guildService.getChannelViewers(this.channel().id));
     }
 
     private reportFailure(err: unknown, fallback: string): void {

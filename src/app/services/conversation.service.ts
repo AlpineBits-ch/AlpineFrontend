@@ -33,6 +33,19 @@ export class ConversationService {
         return this.httpClient.get<ConversationDto>(this.apiConfig.baseUrl() + `/api/v1/messaging/conversations/${id}`);
     }
 
+    /**
+     * Adds someone to an existing group conversation.
+     *
+     * Roster only. For an encrypted conversation their devices still have to be admitted to the MLS
+     * group, which only a member's client can do - see {@link ConversationMemberService.addMember}
+     * for the pairing.
+     */
+    public addMember(conversationId: string, userId: string): Observable<ConversationDto> {
+        return this.httpClient.post<ConversationDto>(
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/conversations/${conversationId}/members`,
+            {userId});
+    }
+
     public deleteConversation(id: string): Observable<void> {
         return this.httpClient.delete<void>(this.apiConfig.baseUrl() + `/api/v1/messaging/conversations/${id}`);
     }

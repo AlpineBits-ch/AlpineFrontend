@@ -3,7 +3,7 @@ import {HttpClient} from '@angular/common/http';
 import {CategoryDto, ChannelDto, ChannelPermission, GuildDto, GuildKind, RoleDto,} from '../dtos/response/guild.dto';
 import {GuildVerificationLevel} from '../dtos/response/guild-safety.dto';
 import {environment} from '../../environments/environment';
-import {catchError, Observable, of, Subject, throwError} from 'rxjs';
+import {catchError, map, Observable, of, Subject, throwError} from 'rxjs';
 import {GuildMemberDto, RoleMemberDto, SelfGuildMemberDto} from '../dtos/response/member.dto';
 import {InviteDto} from "../dtos/response/invite.dto";
 import {CreateInviteDto} from "../dtos/request/create-invite.dto";
@@ -289,6 +289,21 @@ export class GuildService {
 
     deleteInvite(id: string): Observable<void> {
         return this.http.delete<void>(`${this.base}/invites/${id}`);
+    }
+
+    /**
+     * Who can actually see a channel - the guild members who hold ViewChannel here, after roles and
+     * channel overwrites are resolved.
+     *
+     * Exists for end-to-end encryption, which needs the exact roster: anyone handed group keys can
+     * read the traffic, so falling back to the whole member list is a confidentiality bug on any
+     * channel with restrictive overwrites, not a cosmetic one.
+     */
+    getChannelViewers(channelId: string): Observable<string[]> {
+        return this.http
+            .get<{ channelId: string; userIds: string[] }>(
+                `${this.base}/channels/${encodeURIComponent(channelId)}/viewers`)
+            .pipe(map(r => r.userIds));
     }
 
     getMembers(guildId: string, skip: number, take: number): Observable<GuildMemberDto[]> {
