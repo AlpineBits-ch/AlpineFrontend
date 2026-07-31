@@ -200,6 +200,66 @@ pub fn voice_set_processing(settings: VoiceSettings) {
     with_active(|h| h.set_config(config));
 }
 
+/// Subscribe to one participant's audio and start mixing them in.
+///
+/// `id` is the key everything else uses - volume, levels, unsubscribe. For voice it is the user id;
+/// for a stream's audio it is `screen-audio-{shareId}`, so that muting someone's stream does not
+/// also mute their voice.
+#[tauri::command]
+pub async fn voice_subscribe(
+    id: String,
+    cf_session_id: String,
+    track_name: String,
+) -> Result<(), String> {
+    // Cloned out of the lock rather than held across the await: `subscribe` does a full
+    // offer/answer round trip, and holding the session mutex across it would block mute, PTT and
+    // every other command for the duration.
+    let handle = {
+        let guard = active().lock().map_err(|_| "voice state poisoned")?;
+        match guard.as_ref() {
+            Some(handle) => handle.share(),
+            None => return Err("no voice session is running".into()),
+        }
+    };
+    handle.subscribe(id, cf_session_id, track_name).await
+}
+
+#[tauri::command]
+pub fn voice_unsubscribe(id: String) {
+    with_active(|h| h.unsubscribe(&id));
+}
+
+#[tauri::command]
+pub fn voice_set_user_volume(id: String, volume: f32) {
+    let gain = clamp_volume(volume);
+    with_active(|h| h.set_gain(id, gain));
+}
+
+#[tauri::command]
+pub fn voice_set_deafened(deafened: bool) {
+    with_active(|h| h.set_deafened(deafened));
+}
+
+/// A NaN volume reads as "unset" rather than "silent".
+///
+/// A slider that has never been touched, or a value lost in transit, must not mute someone - that
+/// failure is indistinguishable from the other side having gone quiet.
+fn clamp_volume(volume: f32) -> f32 {
+    if volume.is_nan() {
+        return 1.0;
+    }
+    volume.clamp(0.0, 1.0)
+}
+
+/// The source id a stream's audio is mixed under.
+///
+/// Distinct from the publisher's user id on purpose: voice and stream audio need independent
+/// volume, and keying both on the user would make muting one mute the other.
+#[allow(dead_code)]
+fn screen_audio_id(share_id: &str) -> String {
+    format!("screen-audio-{share_id}")
+}
+
 fn with_active(f: impl FnOnce(&VoiceHandle)) {
     if let Ok(guard) = active().lock() {
         if let Some(handle) = guard.as_ref() {
@@ -215,6 +275,39 @@ mod tests {
     #[test]
     fn frame_is_ten_milliseconds_at_the_pipeline_rate() {
         assert_eq!(FRAME as u32 * 1_000 / SAMPLE_RATE, FRAME_MS);
+    }
+
+    #[test]
+    fn a_volume_outside_the_slider_range_is_clamped() {
+        assert_eq!(clamp_volume(1.7), 1.0);
+        assert_eq!(clamp_volume(-0.2), 0.0);
+        assert_eq!(clamp_volume(0.5), 0.5);
+    }
+
+    #[test]
+    fn a_missing_volume_reads_as_full_rather_than_silent() {
+        // Muting on a bad value would be indistinguishable from the other side going quiet.
+        assert_eq!(clamp_volume(f32::NAN), 1.0);
+    }
+
+    #[test]
+    fn screen_audio_gets_its_own_source_id() {
+        // Voice and stream audio must be separately mutable; keying both on the user id would make
+        // muting someone's stream also mute their voice.
+        assert_eq!(screen_audio_id("share-1"), "screen-audio-share-1");
+        assert_ne!(screen_audio_id("user-1"), "user-1");
+    }
+
+    #[test]
+    fn settings_without_an_output_device_still_deserialise() {
+        // The field was added after the frontend shipped; a missing key must default rather than
+        // failing every voice_start with a deserialisation error.
+        let parsed: VoiceSettings = serde_json::from_str(
+            r#"{"deviceId":null,"noiseSuppression":"standard","echoCancellation":true,
+                "autoGainControl":true,"inputMode":"voice","sensitivity":0.5,"bitrateBps":null}"#,
+        )
+        .unwrap();
+        assert!(parsed.output_device_id.is_none());
     }
 
     fn settings() -> VoiceSettings {

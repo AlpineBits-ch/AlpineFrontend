@@ -221,6 +221,21 @@ pub struct VoiceHandle {
 }
 
 impl VoiceHandle {
+    /// A handle onto the same session, for work that must happen outside the global session lock.
+    ///
+    /// Subscribing is a full offer/answer round trip; holding the lock across it would block mute,
+    /// push-to-talk and every other command for its duration.
+    pub fn share(&self) -> Self {
+        Self {
+            control: Arc::clone(&self.control),
+            publication: Arc::clone(&self.publication),
+            sources: Arc::clone(&self.sources),
+            mids: Arc::clone(&self.mids),
+            cf_session_id: self.cf_session_id.clone(),
+            track_name: self.track_name.clone(),
+        }
+    }
+
     pub fn set_muted(&self, muted: bool) {
         self.control.set_muted(muted);
     }
