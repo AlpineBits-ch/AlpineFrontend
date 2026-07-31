@@ -225,6 +225,8 @@ mod webrtc {
             meson.env("CXXFLAGS", "/std:c++20");
         }
 
+        // See apply_msvc_env: without this, meson finds no compiler outside a developer prompt.
+        apply_msvc_env(&mut meson);
         let status = meson
             .arg("-Ddefault_library=static")
             .arg(webrtc_build_dir.as_os_str())
@@ -234,6 +236,8 @@ mod webrtc {
         assert!(status.success(), "Command failed: {:?}", &meson);
 
         let mut ninja = Command::new("ninja");
+        // ninja spawns `cl` for every translation unit, so it needs the same environment.
+        apply_msvc_env(&mut ninja);
         let status = ninja
             .current_dir(&webrtc_build_dir)
             .status()
@@ -241,6 +245,7 @@ mod webrtc {
         assert!(status.success(), "Command failed: {:?}", &ninja);
 
         let mut install = Command::new("ninja");
+        apply_msvc_env(&mut install);
         let status = install
             .current_dir(&webrtc_build_dir)
             .arg("install")
@@ -559,6 +564,47 @@ fn main() -> Result<()> {
 
     Ok(())
 }
+
+/// ALPINE PATCH: hand a command the MSVC environment, so meson and ninja can find a compiler.
+///
+/// Visual Studio's toolchain is deliberately absent from the ordinary PATH - `cl.exe`, `lib.exe`
+/// and `link.exe` exist only inside the environment `vcvars64.bat` sets up. Cargo does not care,
+/// because it locates `link.exe` itself through the Windows registry, so a plain `cargo build` of
+/// pure Rust works fine. meson has no such fallback: it simply fails to spawn `cl` and reports
+/// "[WinError 2] ... This is a Meson bug and should be reported!", which is really "I could not
+/// start a compiler" and sends you looking in entirely the wrong place.
+///
+/// `cc` exposes the same registry lookup cargo uses, so the build script can apply it here and
+/// `cargo build`, `cargo test` and `tauri dev` all work from any terminal rather than only from an
+/// "x64 Native Tools" prompt.
+#[cfg(windows)]
+fn apply_msvc_env(cmd: &mut Command) {
+    let target = env::var("TARGET").unwrap_or_default();
+    let Some(tool) = cc::windows_registry::find_tool(&target, "cl.exe") else {
+        // Nothing found: leave the command alone and let it fail on its own terms. Inside a
+        // developer prompt the environment is already correct anyway.
+        return;
+    };
+
+    for (key, value) in tool.env() {
+        if key.to_string_lossy().eq_ignore_ascii_case("PATH") {
+            // Prepended, never replaced. `cc`'s PATH carries the compiler; the inherited one
+            // carries meson, ninja and python, and dropping it would trade one missing tool
+            // for three.
+            let mut combined = value.clone();
+            if let Some(existing) = env::var_os("PATH") {
+                combined.push(";");
+                combined.push(existing);
+            }
+            cmd.env("PATH", combined);
+        } else {
+            cmd.env(key, value);
+        }
+    }
+}
+
+#[cfg(not(windows))]
+fn apply_msvc_env(_cmd: &mut Command) {}
 
 /// ALPINE PATCH: resolve `nm` from the active Rust toolchain instead of PATH.
 ///
