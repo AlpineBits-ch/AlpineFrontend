@@ -18,4 +18,13 @@ export class DeviceService {
     registerDevice(dto: RegisterDeviceDto): Observable<UserDeviceDto> {
         return this.http.post<UserDeviceDto>(this.base, dto);
     }
+
+    /**
+     * Removes the device and, by cascade, its MLS key packages, its encrypted backup and its
+     * push tokens; login sessions from that device are revoked. There was no removal path
+     * before this, which is why a reinstalled handset kept receiving push forever.
+     */
+    deleteDevice(clientDeviceId: string): Observable<void> {
+        return this.http.delete<void>(`${this.base}/client/${encodeURIComponent(clientDeviceId)}`);
+    }
 }

@@ -1,5 +1,9 @@
-import {Injectable} from '@angular/core';
+import {inject, Injectable, Injector} from '@angular/core';
+import {firstValueFrom, from, Observable, switchMap} from 'rxjs';
 import {LazyStore} from '@tauri-apps/plugin-store';
+import {secureStorage} from 'tauri-plugin-secure-storage-api';
+import {DeviceService} from './device.service';
+import {describeCurrentDevice} from './device-description';
 
 const STORE_FILE = 'settings.json';
 const DEVICE_ID_KEY = 'mls_device_id';
@@ -14,7 +18,20 @@ const DEVICE_ID_KEY = 'mls_device_id';
  */
 @Injectable({providedIn: 'root'})
 export class DeviceIdentityService {
+    private readonly injector = inject(Injector);
     private cached: Promise<string> | null = null;
+
+    /**
+     * Resolved on demand, not as a field.
+     *
+     * Reading the device id needs no HTTP at all - only registration does. Injecting
+     * `DeviceService` eagerly would drag `ApiConfigService` and `OAuthService` into every
+     * consumer's injector, which is how this first broke `MlsService`: 250 tests of a pure Tauri
+     * adapter suddenly needed an OAuth provider.
+     */
+    private get devices(): DeviceService {
+        return this.injector.get(DeviceService);
+    }
 
     /** Stable per-installation id. Resolved from the store once per app session. */
     deviceId(): Promise<string> {
@@ -35,6 +52,45 @@ export class DeviceIdentityService {
         const store = new LazyStore(STORE_FILE);
         await store.delete(DEVICE_ID_KEY);
         await store.save();
+    }
+
+    /**
+     * Idempotently (re)creates this device's server-side record.
+     *
+     * Deliberately re-registers with the signing key already in secure storage instead of
+     * generating a batch: `MlsService.generateKeyPackages` mints a *fresh* Ed25519 keypair, which
+     * would silently orphan this device from every MLS group it belongs to. Recovering a deleted
+     * device row must not cost the account its message history on this machine.
+     *
+     * @returns false when it could not register - the caller should fall through to its normal
+     *          error path rather than retry. The interactive `DeviceRegistrationModalComponent`
+     *          remains the only correct recovery when no signing key is stored at all.
+     */
+    async ensureRegistered(): Promise<boolean> {
+        try {
+            const deviceId = await this.deviceId();
+            const identityPublicKey = await secureStorage.getItem(`alpine_mls_${deviceId}_pub`);
+            if (!identityPublicKey) return false;
+
+            const {deviceName, deviceType} = describeCurrentDevice();
+            await firstValueFrom(this.devices.registerDevice({
+                clientDeviceId: deviceId,
+                deviceName,
+                deviceType,
+                identityPublicKey,
+            }));
+            return true;
+        } catch (err) {
+            console.error('Device re-registration failed', err);
+            return false;
+        }
+    }
+
+    /** "Forget this device" - see {@link DeviceService.deleteDevice} for what this destroys. */
+    unregister(): Observable<void> {
+        return from(this.deviceId()).pipe(
+            switchMap(deviceId => this.devices.deleteDevice(deviceId)),
+        );
     }
 
     private async resolve(): Promise<string> {

@@ -3,7 +3,7 @@ import {HttpClient, HttpErrorResponse} from '@angular/common/http';
 import {catchError, from, map, Observable, of, throwError} from 'rxjs';
 import {OAuthService, TokenResponse} from 'angular-oauth2-oidc';
 import {ApiConfigService} from './api-config.service';
-import {DeviceType} from '../dtos/response/user-device.dto';
+import {describeCurrentDevice} from './device-description';
 import {StartQrLoginDto} from '../dtos/request/qr-login.dto';
 import {QrLoginStartResponse, QrLoginStatus, QrLoginStatusResponse} from '../dtos/response/qr-login.dto';
 
@@ -85,42 +85,6 @@ function normalizeStatus(raw: string): QrPollResult {
     }
 }
 
-/**
- * Best-effort label for the sessions list and the phone's confirmation prompt. Parsed from
- * the user agent rather than a native API so it works identically in the browser and inside
- * the Tauri webview, where a failed plugin call would otherwise leave the phone approving
- * an anonymous "unknown device".
- */
-export function describeCurrentDevice(): StartQrLoginDto {
-    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-    const os = detectOs();
-
-    if (isTauri) {
-        return {deviceName: `Venta Desktop on ${os}`, deviceType: DeviceType.Desktop};
-    }
-    return {deviceName: `${detectBrowser()} on ${os}`, deviceType: DeviceType.Web};
-}
-
-function detectOs(): string {
-    const ua = navigator.userAgent;
-    if (/Windows NT 1[01]/.test(ua)) return 'Windows';
-    if (/Windows/.test(ua)) return 'Windows';
-    if (/Android/.test(ua)) return 'Android';
-    // iPadOS reports as Macintosh; the touch-point check is the standard way to tell them apart.
-    if (/iPhone|iPad|iPod/.test(ua)) return 'iOS';
-    if (/Mac OS X/.test(ua)) return navigator.maxTouchPoints > 1 ? 'iPadOS' : 'macOS';
-    if (/CrOS/.test(ua)) return 'ChromeOS';
-    if (/Linux/.test(ua)) return 'Linux';
-    return 'Unknown OS';
-}
-
-function detectBrowser(): string {
-    const ua = navigator.userAgent;
-    // Order matters: every Chromium browser also claims "Chrome", and Chrome claims "Safari".
-    if (/Edg\//.test(ua)) return 'Edge';
-    if (/OPR\//.test(ua)) return 'Opera';
-    if (/Firefox\//.test(ua)) return 'Firefox';
-    if (/Chrome\//.test(ua)) return 'Chrome';
-    if (/Safari\//.test(ua)) return 'Safari';
-    return 'Browser';
-}
+// `describeCurrentDevice` moved to ./device-description - three services need it now, and two of
+// them depend on each other through DI, so leaving it here would close an import cycle.
+export {describeCurrentDevice};

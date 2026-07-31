@@ -4,11 +4,15 @@
  * failure does not poison the cache for the rest of the session.
  */
 vi.mock('@tauri-apps/plugin-store');
+vi.mock('tauri-plugin-secure-storage-api', () => ({
+    secureStorage: {getItem: vi.fn(), setItem: vi.fn(), removeItem: vi.fn()},
+}));
 
 import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
-import {provideHttpClientTesting} from '@angular/common/http/testing';
+import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {LazyStore} from '@tauri-apps/plugin-store';
+import {secureStorage} from 'tauri-plugin-secure-storage-api';
 import {ApiConfigService} from './api-config.service';
 import {DeviceIdentityService} from './device-identity.service';
 
@@ -85,4 +89,64 @@ it('reset clears the persisted id and the cache', async () => {
 
     expect(store.delete).toHaveBeenCalledWith('mls_device_id');
     await expect(service.deviceId()).resolves.toBe('regenerated-id');
+});
+
+describe('registration', () => {
+    function withHttp() {
+        const service = setup();
+        return {service, ctrl: TestBed.inject(HttpTestingController)};
+    }
+
+    it('re-registers using the stored signing key, never a fresh one', async () => {
+        vi.mocked(secureStorage.getItem).mockResolvedValue('stored-public-key');
+        const {service, ctrl} = withHttp();
+
+        const result = service.ensureRegistered();
+        await new Promise<void>(r => setTimeout(r, 0));
+
+        const req = ctrl.expectOne('https://api.venta.gg/api/v1/identity/devices');
+        expect(req.request.method).toBe('POST');
+        expect(req.request.body.clientDeviceId).toBe('stored-device-id');
+        expect(req.request.body.identityPublicKey).toBe('stored-public-key');
+        expect(secureStorage.getItem).toHaveBeenCalledWith('alpine_mls_stored-device-id_pub');
+        req.flush({});
+
+        await expect(result).resolves.toBe(true);
+    });
+
+    it('reports failure rather than inventing a key when none is stored', async () => {
+        vi.mocked(secureStorage.getItem).mockResolvedValue(null);
+        const {service, ctrl} = withHttp();
+
+        await expect(service.ensureRegistered()).resolves.toBe(false);
+
+        ctrl.expectNone('https://api.venta.gg/api/v1/identity/devices');
+    });
+
+    it('reports failure when the registration request errors', async () => {
+        vi.mocked(secureStorage.getItem).mockResolvedValue('stored-public-key');
+        const {service, ctrl} = withHttp();
+
+        const result = service.ensureRegistered();
+        await new Promise<void>(r => setTimeout(r, 0));
+
+        ctrl.expectOne('https://api.venta.gg/api/v1/identity/devices')
+            .flush('nope', {status: 500, statusText: 'Server Error'});
+
+        await expect(result).resolves.toBe(false);
+    });
+
+    it('unregisters this device by its client device id', async () => {
+        const {service, ctrl} = withHttp();
+
+        service.unregister().subscribe();
+        // The url depends on an awaited store read, so let the microtask queue drain first.
+        await new Promise<void>(r => setTimeout(r, 0));
+
+        const req = ctrl.expectOne(
+            'https://api.venta.gg/api/v1/identity/devices/client/stored-device-id',
+        );
+        expect(req.request.method).toBe('DELETE');
+        req.flush(null);
+    });
 });
