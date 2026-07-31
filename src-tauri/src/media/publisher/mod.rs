@@ -34,7 +34,7 @@ use std::sync::{Mutex, OnceLock};
 use tauri::Manager;
 
 use session::PublishHandle;
-use signalling::{Signalling, VoiceTarget};
+use signalling::{SessionRole, Signalling, VoiceTarget};
 
 /// The one running publish, if any. Screen sharing is single-session by design: the UI offers no
 /// way to share two sources at once, and a second capture would contend for the same encoder.
@@ -87,7 +87,8 @@ pub async fn start_screen_publish(
         _ => return Err("publish needs either guildId+channelId or callId".into()),
     };
 
-    let signalling = Signalling::new(api_base, token, target)?;
+    // Secondary: the screen share must never be recorded as the participant's audio session.
+    let signalling = Signalling::new(api_base, token, target, SessionRole::Secondary)?;
     let handle = session::start(
         source_id,
         share_id,

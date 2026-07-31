@@ -90,16 +90,42 @@ pub enum VoiceTarget {
     Call { call_id: String },
 }
 
+/// Whether this session is the one the backend should record as the participant's audio.
+///
+/// Exactly one session per participant may be primary. The screen publisher is always secondary:
+/// marking it primary leaves later joiners in a guild channel subscribing to a session with no
+/// audio, and in a DM call triggers device-takeover and hangs up the call being shared into.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SessionRole {
+    Primary,
+    Secondary,
+}
+
+impl SessionRole {
+    fn as_query_value(self) -> &'static str {
+        match self {
+            SessionRole::Primary => "true",
+            SessionRole::Secondary => "false",
+        }
+    }
+}
+
 /// Signalling client scoped to one voice channel or call.
 pub struct Signalling {
     client: reqwest::Client,
     base_url: String,
     token: String,
     target: VoiceTarget,
+    role: SessionRole,
 }
 
 impl Signalling {
-    pub fn new(base_url: String, token: String, target: VoiceTarget) -> Result<Self, String> {
+    pub fn new(
+        base_url: String,
+        token: String,
+        target: VoiceTarget,
+        role: SessionRole,
+    ) -> Result<Self, String> {
         let client = reqwest::Client::builder()
             .timeout(REQUEST_TIMEOUT)
             .build()
@@ -109,6 +135,7 @@ impl Signalling {
             base_url: base_url.trim_end_matches('/').to_owned(),
             token,
             target,
+            role,
         })
     }
 
@@ -128,16 +155,18 @@ impl Signalling {
         }
     }
 
-    /// URL for opening this publisher's Cloudflare session.
+    /// URL for opening this Cloudflare session.
     ///
-    /// `primary=false` is load-bearing. Without it the backend records this session as the
-    /// participant's, which in a guild channel leaves later joiners subscribing to a session with
-    /// no audio, and in a DM call triggers device-takeover and hangs up the call being shared into.
+    /// The `primary` flag is load-bearing in both directions - see [`SessionRole`].
     pub fn session_url(&self) -> String {
-        format!("{}/session?primary=false", self.voice_base())
+        format!(
+            "{}/session?primary={}",
+            self.voice_base(),
+            self.role.as_query_value()
+        )
     }
 
-    /// Open a Cloudflare session for the screen track alone.
+    /// Open a Cloudflare session for this client's tracks alone.
     pub async fn create_session(&self) -> Result<String, String> {
         let response: CreateSessionResponse =
             self.post(&self.session_url(), &serde_json::json!({})).await?;
@@ -246,6 +275,10 @@ mod tests {
     use super::*;
 
     fn signalling() -> Signalling {
+        with_role(SessionRole::Secondary)
+    }
+
+    fn with_role(role: SessionRole) -> Signalling {
         Signalling::new(
             "https://api.example.test/".into(),
             "tok".into(),
@@ -253,19 +286,53 @@ mod tests {
                 guild_id: "g1".into(),
                 channel_id: "c1".into(),
             },
+            role,
         )
         .unwrap()
     }
 
     fn call_signalling() -> Signalling {
+        call_with_role(SessionRole::Secondary)
+    }
+
+    fn call_with_role(role: SessionRole) -> Signalling {
         Signalling::new(
             "https://api.example.test".into(),
             "tok".into(),
             VoiceTarget::Call {
                 call_id: "call-1".into(),
             },
+            role,
         )
         .unwrap()
+    }
+
+    #[test]
+    fn a_secondary_session_is_marked_non_primary() {
+        assert!(with_role(SessionRole::Secondary)
+            .session_url()
+            .ends_with("/voice/session?primary=false"));
+    }
+
+    #[test]
+    fn a_primary_session_claims_the_participants_audio() {
+        assert!(with_role(SessionRole::Primary)
+            .session_url()
+            .ends_with("/voice/session?primary=true"));
+    }
+
+    #[test]
+    fn the_role_applies_to_call_targets_too() {
+        assert_eq!(
+            call_with_role(SessionRole::Primary).session_url(),
+            "https://api.example.test/api/v1/voice/calls/call-1/session?primary=true"
+        );
+    }
+
+    #[test]
+    fn a_trailing_slash_on_the_base_url_is_not_doubled_in_the_session_url() {
+        assert!(!signalling().session_url().contains("//api/"));
+        assert!(!call_signalling().session_url().contains("//api/"));
     }
 
     #[test]
