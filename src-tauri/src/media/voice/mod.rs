@@ -70,6 +70,12 @@ const GATE_RELEASE_MS: u32 = 200;
 #[serde(rename_all = "camelCase")]
 pub struct VoiceSettings {
     pub device_id: Option<String>,
+    /// The speaker to play the mix through. `None` means the system default.
+    ///
+    /// Optional in the payload so a frontend that has not been updated still deserialises rather
+    /// than failing every `voice_start` with a missing-field error.
+    #[serde(default)]
+    pub output_device_id: Option<String>,
     /// "none" | "standard" | "enhanced"
     pub noise_suppression: String,
     pub echo_cancellation: bool,
@@ -150,6 +156,7 @@ pub async fn voice_start(
     let signalling = Signalling::new(api_base, token, target, SessionRole::Primary)?;
     let handle = session::start(
         settings.device_id.clone(),
+        settings.output_device_id.clone(),
         ice_servers,
         signalling,
         settings.to_chain_config(),
@@ -213,6 +220,7 @@ mod tests {
     fn settings() -> VoiceSettings {
         VoiceSettings {
             device_id: None,
+            output_device_id: None,
             noise_suppression: "standard".into(),
             echo_cancellation: true,
             auto_gain_control: true,

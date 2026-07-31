@@ -98,7 +98,6 @@ impl CaptureChain {
     }
 
     /// Feed the echo canceller a frame of what is about to be played.
-    #[allow(dead_code)]
     pub fn render_reference(&mut self, frame: &[f32]) {
         self.processor.process_render(frame);
     }

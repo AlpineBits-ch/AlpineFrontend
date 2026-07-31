@@ -300,7 +300,19 @@ impl VoicePublication {
     /// No ICE gathering wait here, deliberately: the connection is already established by the
     /// publish, and a subscribe is a renegotiation of it. Waiting again would reintroduce exactly
     /// the stall that wedged phase 1.
-    pub async fn subscribe(&self, sources: &[(String, String)]) -> Result<Vec<String>, String> {
+    ///
+    /// `register` is called with the mids **before** the answer is applied, and that ordering is the
+    /// whole reason it is a callback rather than something the caller does with the return value.
+    /// Cloudflare begins sending the moment `set_remote_description` lands, so a mid-to-participant
+    /// map written after this function returns loses the opening packets of every subscription.
+    pub async fn subscribe<F>(
+        &self,
+        sources: &[(String, String)],
+        register: F,
+    ) -> Result<Vec<String>, String>
+    where
+        F: FnOnce(&[String]),
+    {
         if sources.is_empty() {
             return Ok(Vec::new());
         }
@@ -356,6 +368,9 @@ impl VoicePublication {
                 response.tracks
             ));
         }
+
+        // Before the answer, not after. See the note on this function.
+        register(&mids);
 
         let answer = RTCSessionDescription::answer(response.session_description.sdp)
             .map_err(|e| e.to_string())?;
@@ -414,7 +429,10 @@ impl VoicePublication {
     }
 
     /// Close the track server-side and tear down the connection.
-    pub async fn stop(self) {
+    ///
+    /// Takes `&self` rather than `self` because the publication is shared: the writer task, the
+    /// playout side and the command handles all hold it through an `Arc`.
+    pub async fn stop(&self) {
         let _ = self
             .signalling
             .close_tracks(&self.cf_session_id, &[self.track_name.clone()])
