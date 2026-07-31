@@ -18,7 +18,9 @@
 - Header name is exactly `X-Device-Id`. Hub query param is exactly `deviceId`. Token-request form field is exactly `device_id`. QR-login body field is exactly `clientDeviceId`.
 - Toasts in this codebase are **not** translated (see `ToastService`'s own comment and `call-state.service.ts:101`). Use plain English strings in toasts. Only the settings UI uses `| translate`.
 - `src/assets/i18n/locales` is a **git submodule** (`git@github.com:AlpineBits-ch/venta-i18n.git`). Locale keys are flat, dot-separated. String changes need their own commit inside the submodule, then a pointer-bump commit in the parent repo.
-- Test command: `npx ng test`. Rust test command: `cargo test --manifest-path src-tauri/Cargo.toml`.
+- Test command: **`bun run ng test --watch=false`**. Not `npx ng test` — dependencies were installed with bun, which writes `.bunx`/`.exe` shims instead of the plain `ng` file npx looks for, so npx fails with "could not determine executable to run". Rust test command: `cargo test --manifest-path src-tauri/Cargo.toml`.
+- Baseline before this plan: 68 test files, 796 tests, all passing.
+- Do not bulk-edit files with PowerShell 5.1 string replacement: `Get-Content` reads a BOM-less UTF-8 file as ANSI and silently mangles every non-ASCII character. Use the Edit tool, or `[System.IO.File]::ReadAllText` with an explicit `UTF8Encoding($false)`.
 - Follow the existing file style: 4-space indent, single quotes, `inject()` over constructor params.
 
 ---
@@ -151,7 +153,7 @@ it('reset clears the persisted id and the cache', async () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: FAIL — cannot resolve `./device-identity.service`.
 
 - [ ] **Step 3: Create the service**
@@ -255,7 +257,7 @@ Delete the now-unused `LazyStore` usages only if no other reference remains — 
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: PASS — the five new tests plus the existing `mls.service.spec.ts` suite.
 
 - [ ] **Step 6: Commit**
@@ -358,7 +360,7 @@ describe('registration', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: FAIL — `service.ensureRegistered is not a function`.
 
 - [ ] **Step 3: Add the delete endpoint to `DeviceService`**
@@ -443,7 +445,7 @@ Add the methods:
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
@@ -619,7 +621,7 @@ it('does not attempt recovery on the device-registration endpoint itself', async
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: FAIL — cannot resolve `./device-id-interceptor`.
 
 - [ ] **Step 3: Create the interceptor**
@@ -716,7 +718,7 @@ to:
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: PASS. The existing `token-interceptor.spec.ts` suite must still pass — it configures its own interceptor list, so it is unaffected.
 
 - [ ] **Step 6: Commit**
@@ -1023,7 +1025,7 @@ with the import `import {DeviceIdentityService} from './device-identity.service'
 
 - [ ] **Step 8: Run the full suite**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: PASS. If any existing spec constructs `publishOptions` or calls `voiceEngine.start`, update its arguments.
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml`
@@ -1153,7 +1155,7 @@ it('connects without the parameter when the device id cannot be resolved', async
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: FAIL — the URL has no `?deviceId=`, and `on()` reaches the connection immediately because it is built in the constructor.
 
 - [ ] **Step 3: Rewrite the service**
@@ -1315,7 +1317,7 @@ export class RealtimeConnectionService {
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -1461,7 +1463,7 @@ it('does nothing on deregister when no token was ever registered', async () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: FAIL — the service posts to `device-token` with a bare `{token}`, and `deregisterToken` does not exist.
 
 - [ ] **Step 3: Rewrite the service**
@@ -1604,7 +1606,7 @@ The device row itself is deliberately **not** deleted here: `DELETE /identity/de
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: PASS.
 
 - [ ] **Step 6: Commit**
@@ -1733,7 +1735,7 @@ it('carries the client device id into the pairing', async () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: FAIL — `params.device_id` is undefined and the QR body has no `clientDeviceId`.
 
 - [ ] **Step 3: Add the device id to `AuthService.login`**
@@ -1827,7 +1829,7 @@ Add `switchMap` to the rxjs import (`from` is already imported).
 
 - [ ] **Step 5: Run test to verify it passes**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: PASS, including the existing `qr-login.service.spec.ts` cases.
 
 - [ ] **Step 6: Commit**
@@ -2047,10 +2049,10 @@ French:
 
 - [ ] **Step 5: Verify the build**
 
-Run: `npx ng build --configuration development`
+Run: `bun run ng build --configuration development`
 Expected: success. Template type-checking catches a mistyped signal or method name here, which `ng test` would not.
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: PASS.
 
 - [ ] **Step 6: Commit — submodule first, then the parent**
@@ -2162,7 +2164,7 @@ it('clears the alone deadline once someone rejoins', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: FAIL — `end()` calls `endCall`, and `setAloneDeadline` does not exist.
 
 - [ ] **Step 3: Add `leaveCall` to `VoiceService`**
@@ -2245,7 +2247,7 @@ to:
 
 - [ ] **Step 6: Run test to verify it passes**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: PASS.
 
 - [ ] **Step 7: Commit**
@@ -2341,7 +2343,7 @@ it.each([
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: FAIL — none of the new observables or `describeCallEndedReason` exist.
 
 - [ ] **Step 3: Add the types, observables and registrations**
@@ -2425,7 +2427,7 @@ Add the registrations in `setupListeners` after line 161:
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -2548,7 +2550,7 @@ it('ignores a takeover for a call we are not in', () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: FAIL — the ring stays up; no subscription handles these events.
 
 - [ ] **Step 3: Add the subscriptions**
@@ -2602,7 +2604,7 @@ Add the teardown in `ngOnDestroy` (line 126-132):
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
@@ -2654,7 +2656,7 @@ it('ignores an unparseable deadline rather than rendering "Invalid Date"', () =>
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: FAIL — cannot resolve `./alone-countdown`.
 
 - [ ] **Step 3: Create the formatter**
@@ -2759,10 +2761,10 @@ In `call-panel.component.html`, add after the connection-problem banner block (a
 
 - [ ] **Step 6: Run the tests and the build**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: PASS, including the existing call/voice suites.
 
-Run: `npx ng build --configuration development`
+Run: `bun run ng build --configuration development`
 Expected: success — this catches a template reference to a member that does not exist.
 
 - [ ] **Step 7: Manual visual check**
@@ -2886,7 +2888,7 @@ it('ignores a kick for a channel we are not in', async () => {
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: FAIL — nothing subscribes to `kickedByOtherDeviceObservable`.
 
 - [ ] **Step 3: Add the event to `GuildWebsocketService`**
@@ -2958,10 +2960,10 @@ Add the handler next to the other SignalR handlers (after `doLeave`, around line
 
 - [ ] **Step 5: Run the full suite**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: PASS.
 
-Run: `npx ng build --configuration development`
+Run: `bun run ng build --configuration development`
 Expected: success.
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml`
@@ -3001,7 +3003,7 @@ If something does tear down an active call from a push, gate it on there being n
 
 - [ ] **Step 3: Run the full suite**
 
-Run: `npx ng test`
+Run: `bun run ng test --watch=false`
 Expected: PASS.
 
 - [ ] **Step 4: Commit**
