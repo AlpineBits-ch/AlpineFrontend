@@ -48,8 +48,6 @@ tauri-plugin-secure-storage = "1.5.0"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-deep-link = "2"
-webrtc = "0.14"
-openh264 = "0.9"
 
 # Android
 [target.aarch64-linux-android.dependencies]
@@ -95,6 +93,14 @@ image = { version = "0.25", default-features = false, features = ["jpeg", "png"]
 jpeg-encoder = "0.6"
 base64 = "0.22"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+webrtc = "0.14"
+# `libloading`, never `source`. Building OpenH264 from source produces a binary Cisco never
+# licensed, and the BSD source licence grants copyright but not patent rights. Only Cisco's own
+# precompiled binary carries their MPEG-LA royalty coverage, so it is fetched at runtime and loaded
+# dynamically -see media::publisher::openh264_blob.
+openh264 = { version = "0.9", default-features = false, features = ["libloading"] }
+bzip2-rs = "0.1"
+sha2 = "0.10"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri-plugin-notifications = { version = "0.4.6", default-features = false }

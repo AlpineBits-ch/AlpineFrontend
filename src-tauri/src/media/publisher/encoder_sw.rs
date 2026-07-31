@@ -6,6 +6,7 @@ use openh264::formats::{RgbaSliceU8, YUVBuffer};
 use openh264::{OpenH264API, Timestamp};
 
 use super::encoder::{EncodedChunk, VideoEncoder};
+use super::openh264_blob;
 
 /// openh264 software encoder.
 ///
@@ -43,7 +44,12 @@ impl SoftwareEncoder {
             .adaptive_quantization(false)
             .background_detection(false);
 
-        let encoder = Encoder::with_api_config(OpenH264API::from_source(), config).ok()?;
+        // Cisco's precompiled binary, fetched at runtime -never a source build. See
+        // openh264_blob for why. `from_blob_path` re-checks the SHA-256 against the crate's
+        // baked-in list, so a tampered cache is rejected at load time as well as at download time.
+        let path = openh264_blob::ready_path()?;
+        let api = OpenH264API::from_blob_path(&path).ok()?;
+        let encoder = Encoder::with_api_config(api, config).ok()?;
         Some(Self {
             encoder,
             yuv: YUVBuffer::new(width as usize, height as usize),

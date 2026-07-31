@@ -325,6 +325,10 @@ pub fn run() {
         .setup(|_app| {
             #[cfg(target_os = "windows")]
             windows_notifications::setup("Alpine");
+            // Fetch Cisco's OpenH264 binary in the background. Unattended by design; screen
+            // sharing falls back to the webview's encoder if it never arrives.
+            #[cfg(desktop)]
+            media::publisher::spawn_provisioning(_app.handle());
             Ok(())
         })
         .plugin(tauri_plugin_os::init())
@@ -424,6 +428,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             media::screen::stop_screen_capture,
             media::screen::set_screen_capture_fps,
             media::screen::set_screen_capture_geometry,
+            media::publisher::openh264_status,
             rich_presence::scan_game_process,
             ptt_hook::ptt_supported,
             ptt_hook::ptt_set_binding,

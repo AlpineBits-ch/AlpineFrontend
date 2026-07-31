@@ -1853,12 +1853,28 @@ ultrawide (1920×540) and portrait (606×1080) geometries encode. openh264 rejec
 needs a live backend, a bearer token and a real guild/channel, none of which are available here. This
 remains the load-bearing risk for Tasks 14-15 and must be proven before either is built.
 
-**Licensing caveat, needs a decision before shipping.** Building OpenH264 from source does *not*
-carry Cisco's patent grant, which covers only their precompiled binary. Shipping the source build in
-a released product is a legal question, not a technical one. The `libloading` feature loads Cisco's
-signed binary at runtime instead, which is the license-safe route and is how Firefox does it. Either
-switch to `libloading` plus a download-on-install step, or rely on the Media Foundation hardware
-encoder on Windows and treat openh264 as a development fallback only.
+**Licensing: resolved.** Building OpenH264 from source does *not* carry Cisco's patent grant, which
+covers only their precompiled binary. The crate is now on `default-features = false,
+features = ["libloading"]` — `source` no longer appears anywhere in the dependency tree — and
+`media::publisher::openh264_blob` fetches Cisco's binary at runtime.
+
+Verified end to end on Windows x86_64: `https://ciscobinary.openh264.org/openh264-2.6.0-win64.dll.bz2`
+returns 452 KB over HTTPS, decompresses to 978 KB, and hashes to
+`2076cb56…b24691` — matching `openh264-sys2`'s baked-in list, so `from_blob_path` accepts it. With
+the cache cleared, the encoder tests re-download and pass.
+
+Design constraints this imposes:
+
+- **No mirroring or bundling.** A copy we redistribute is no longer the copy Cisco licensed, which
+  rules out the obvious reliability fix. Robustness comes from three retries with backoff, a
+  permanent hash-verified cache, and a graceful fallback instead.
+- **Unattended.** `spawn_provisioning` runs at startup off the main path; `openh264_status` retries
+  on demand so a transient outage at launch resolves itself later.
+- **Never a hard failure.** Without the codec, screen sharing keeps using the existing capture path,
+  where the webview encodes under Microsoft's own codec licence.
+- Cisco's FAQ frames the download as happening "at the time the product is installed"; we do it on
+  first run, which is how Firefox ships OpenH264. Whether first-run provisioning satisfies that
+  wording is a lawyer question, not an engineering one.
 
 **Not built:** `encoder_mf.rs` (Media Foundation hardware encoder), `rtc.rs`, `signalling.rs`, the
 Tauri commands, and the frontend flag. Tasks 13 (partially), 14 and 15 remain open.

@@ -9,6 +9,7 @@ dependencies = [
  "aes-gcm",
  "argon2",
  "base64 0.22.1",
+ "bzip2-rs",
  "cpal",
  "getrandom 0.2.17",
  "image",
@@ -24,6 +25,7 @@ dependencies = [
  "rsa",
  "serde",
  "serde_json",
+ "sha2",
  "sysinfo",
  "tauri",
  "tauri-build",
@@ -659,6 +661,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e748733b7cbc798e1434b6ac524f0c1ff2ab456fe201501e6497c8417a4fc33"
 dependencies = [
  "serde",
+]
+
+[[package]]
+name = "bzip2-rs"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "beeb59e7e4c811ab37cc73680c798c7a5da77fc9989c62b09138e31ee740f735"
+dependencies = [
+ "crc32fast",
+ "tinyvec",
 ]
 
 [[package]]
@@ -3939,15 +3951,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nasm-rs"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "706bf8a5e8c8ddb99128c3291d31bd21f4bcde17f0f4c20ec678d85c74faa149"
-dependencies = [
- "log",
-]
-
-[[package]]
 name = "native-tls"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4717,9 +4720,8 @@ version = "0.9.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75a8867e48183bbd9147380227448c065fe456eb30b0ebc68929809c36c30985"
 dependencies = [
- "cc",
- "nasm-rs",
- "walkdir",
+ "libloading 0.8.9",
+ "sha2",
 ]
 
 [[package]]
@@ -7469,6 +7471,12 @@ dependencies = [
  "displaydoc",
  "zerovec",
 ]
+
+[[package]]
+name = "tinyvec"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bb4ebadaa0af04fab11ae01eb5f9fdb5f9c5b875506e210e71c07873528baa7f"
 
 [[package]]
 name = "tls_codec"

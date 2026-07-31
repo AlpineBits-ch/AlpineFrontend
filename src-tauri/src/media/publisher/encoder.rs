@@ -24,7 +24,6 @@ pub trait VideoEncoder: Send {
     ///
     /// Which encoder was selected is the first thing worth knowing when a stream looks wrong, so
     /// the publishing layer logs this on session start.
-    #[allow(dead_code, reason = "consumed by the publishing layer, which is not built yet")]
     fn name(&self) -> &'static str;
 }
 
@@ -41,6 +40,27 @@ pub fn new_encoder(width: u32, height: u32, fps: u32, kbps: u32) -> Option<Box<d
 mod tests {
     use super::*;
 
+    /// Provision Cisco's OpenH264 into the build directory so the encoder can be exercised.
+    ///
+    /// The first run downloads it (~450 KB) and every run afterwards reuses the cache, so this is
+    /// network-dependent exactly once per checkout. It deliberately fails loudly rather than
+    /// skipping: a silently-skipped codec test is worse than no test.
+    fn provision() {
+        if super::super::openh264_blob::ready_path().is_some() {
+            return;
+        }
+        let cache = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/test-openh264");
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("tokio runtime");
+        runtime
+            .block_on(super::super::openh264_blob::ensure(cache))
+            .expect("OpenH264 must be provisioned for encoder tests (needs network on first run)");
+    }
+
+    use std::path::PathBuf;
+
     /// A frame with structure, not a flat colour: a flat frame compresses to almost nothing and
     /// makes the keyframe/delta size comparison meaningless.
     fn frame(width: u32, height: u32, shift: u32) -> RgbaImage {
@@ -52,6 +72,7 @@ mod tests {
 
     #[test]
     fn emits_a_keyframe_first() {
+        provision();
         let mut enc = new_encoder(320, 240, 30, 1000).expect("software encoder must be available");
         let chunk = enc.encode(&frame(320, 240, 0), 0).expect("first frame must encode");
 
@@ -62,6 +83,7 @@ mod tests {
 
     #[test]
     fn preserves_the_frame_timestamp() {
+        provision();
         let mut enc = new_encoder(320, 240, 30, 1000).unwrap();
         let chunk = enc.encode(&frame(320, 240, 0), 123_456).unwrap();
         assert_eq!(chunk.timestamp_us, 123_456);
@@ -69,6 +91,7 @@ mod tests {
 
     #[test]
     fn a_static_scene_costs_less_after_the_keyframe() {
+        provision();
         let mut enc = new_encoder(320, 240, 30, 1000).unwrap();
         let still = frame(320, 240, 0);
         let key = enc.encode(&still, 0).unwrap();
@@ -85,6 +108,7 @@ mod tests {
 
     #[test]
     fn request_keyframe_forces_an_idr() {
+        provision();
         let mut enc = new_encoder(320, 240, 30, 1000).unwrap();
         let still = frame(320, 240, 0);
         enc.encode(&still, 0).unwrap();
@@ -97,6 +121,7 @@ mod tests {
 
     #[test]
     fn encodes_odd_looking_but_even_geometries() {
+        provision();
         // Ultrawide and portrait shapes, the ones the old capture path used to distort.
         for (w, h) in [(1920u32, 540u32), (606, 1080)] {
             let mut enc = new_encoder(w, h, 30, 4000).unwrap();
