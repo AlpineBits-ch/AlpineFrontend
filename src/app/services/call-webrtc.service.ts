@@ -6,7 +6,8 @@ import {DeviceIdentityService} from './device-identity.service';
 import {VoiceEngineService} from './voice-engine.service';
 import {CallSessionService} from './call-session.service';
 import {CfTrackNew, CfTrackResult, VoiceService} from './voice.service';
-import {ConnectionState, VoiceWebsocketService} from './voice-websocket.service';
+import {ConnectionState, describeCallEndedReason, VoiceWebsocketService} from './voice-websocket.service';
+import {ToastService} from './toast.service';
 import {AudioSettingsService} from './audio-settings.service';
 import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
@@ -84,6 +85,7 @@ export class CallWebRtcService {
     private voiceEngine = inject(VoiceEngineService);
     private apiConfig = inject(ApiConfigService);
     private deviceIdentity = inject(DeviceIdentityService);
+    private toast = inject(ToastService);
     private oauth = inject(OAuthService);
     // ── WebRTC state ─────────────────────────────────────────────────────────
     private pc: RTCPeerConnection | null = null;
@@ -787,9 +789,35 @@ export class CallWebRtcService {
             this.voiceWs.screenShareStoppedObservable.subscribe(e =>
                 this.callSession.onScreenShareStopped(e.shareId)),
 
-            // Host ended the call
-            this.voiceWs.callEndedObservable.subscribe(() => {
-                this.callSession.end();
+            // Application-level departure. Handled alongside - not instead of - the WebRTC-level
+            // `call.ParticipantLeft`: onParticipantLeft is an idempotent array filter, so both
+            // firing for one departure is harmless, and which of the two the backend keeps once
+            // this ships is not knowable from here.
+            this.voiceWs.callParticipantLeftObservable.subscribe(e => {
+                this.callSession.onParticipantLeft(e.userId);
+                this.subscribedAudioUserIds.delete(e.userId);
+                void this.voiceEngine.unsubscribe(e.userId);
+                this.participantsWithAudio.update(s => {
+                    const n = new Set(s);
+                    n.delete(e.userId);
+                    return n;
+                });
+            }),
+
+            // Everyone else left; the server will force-end the call at this deadline.
+            this.voiceWs.callAloneObservable.subscribe(e => {
+                if (e.callId !== this.callId) return;
+                this.callSession.setAloneDeadline(new Date(e.deadline));
+            }),
+
+            // The call ended for someone else's reason - the server has already torn it down.
+            this.voiceWs.callEndedObservable.subscribe(e => {
+                // `wasActive` is what keeps a self-initiated hangup silent: clicking hang up
+                // nulls session() synchronously, before any CallEnded broadcast can arrive. So
+                // this only speaks up when the call ended for a reason the user did not cause.
+                const wasActive = !!this.callSession.session();
+                this.callSession.end(true);
+                if (wasActive) this.toast.info(describeCallEndedReason(e.reason));
             }),
         ];
     }

@@ -11,6 +11,7 @@ import {CallControlsBarComponent} from '../../../../../shared/call/call-controls
 import {CallScreenLayoutComponent} from '../../../../../shared/call/call-screen-layout/call-screen-layout.component';
 import {CallContextMenuComponent} from '../../../../../shared/call/call-context-menu/call-context-menu.component';
 import {StreamSrcDirective} from '../../../../../directives/stream-src.directive';
+import {formatAloneNotice} from './alone-countdown';
 
 interface FocusedStream {
     kind: 'camera' | 'share';
@@ -63,6 +64,8 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     private callSession = inject(CallSessionService);
     protected session = this.callSession.session;
     protected screenPreset = this.callSession.screenPreset;
+    /** Set only while the local user is the last one in the call. */
+    protected aloneNotice = computed(() => formatAloneNotice(this.callSession.aloneDeadline()));
     private callWebRtc = inject(CallWebRtcService);
     protected stats = this.callWebRtc.stats;
     protected rtcState = this.callWebRtc.rtcState;
