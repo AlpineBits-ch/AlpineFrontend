@@ -48,3 +48,12 @@ Thumbs.db
 
 # Superpowers subagent-driven-development scratch workspace
 .superpowers/
+
+# The SADIE II measurements the bundled HRIR sphere is built from.
+#
+# A 112 MB build input, not a source file: the sphere it produces
+# (src-tauri/assets/hrir/sadie_d1_48k.bin) is what ships, and it is committed. GitHub rejects any
+# push carrying a file this large, so an accidental `git add -A` here blocks the whole branch
+# rather than just adding weight. src-tauri/assets/hrir/NOTICE.md has the Zenodo record to fetch it
+# from and the command to regenerate the sphere.
+D1.zip
