@@ -1,7 +1,8 @@
 import {Component, computed, effect, HostListener, inject, OnDestroy, OnInit, signal} from '@angular/core';
 import {CallSessionService} from '../../../../../services/call-session.service';
 import {CallWebRtcService} from '../../../../../services/call-webrtc.service';
-import {RustMediaService, StreamResolution} from '../../../../../services/rust-media.service';
+import {RustMediaService} from '../../../../../services/rust-media.service';
+import {StreamPreset} from '../../../../../models/stream-preset';
 import {CallParticipant, CallParticipantMenuData, CallScreenShare} from '../../../../../shared/call/call.types';
 import {
   CallParticipantTileComponent
@@ -60,6 +61,7 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     );
     private callSession = inject(CallSessionService);
     protected session = this.callSession.session;
+    protected screenPreset = this.callSession.screenPreset;
     private callWebRtc = inject(CallWebRtcService);
     protected stats = this.callWebRtc.stats;
     protected rtcState = this.callWebRtc.rtcState;
@@ -158,12 +160,8 @@ export class CallPanelComponent implements OnInit, OnDestroy {
         void this.callSession.toggleScreenShare();
     }
 
-    protected setCaptureFps(fps: number): void {
-        void this.rustMedia.setCaptureFps(fps);
-    }
-
-    protected setScreenResolution(res: StreamResolution): void {
-        void this.rustMedia.setScreenResolution(res);
+    protected setScreenPreset(preset: StreamPreset): void {
+        void this.callSession.setScreenPreset(preset);
     }
 
     protected endCall(): void {

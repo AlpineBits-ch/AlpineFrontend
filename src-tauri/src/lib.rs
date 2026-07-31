@@ -423,7 +423,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             media::screen::start_screen_capture,
             media::screen::stop_screen_capture,
             media::screen::set_screen_capture_fps,
-            media::screen::set_screen_capture_resolution,
+            media::screen::set_screen_capture_geometry,
             rich_presence::scan_game_process,
             ptt_hook::ptt_supported,
             ptt_hook::ptt_set_binding,

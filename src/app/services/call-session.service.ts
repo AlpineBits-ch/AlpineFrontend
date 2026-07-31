@@ -7,6 +7,8 @@ import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
 import type {CallDto} from '../dtos/response/call.dto';
 import type {ActiveCallSession, CallParticipantUi, ScreenShareUi,} from './call-session.types';
+import {StreamPreset} from '../models/stream-preset';
+import {solveGeometry} from '../models/capture-geometry';
 
 @Injectable({providedIn: 'root'})
 export class CallSessionService {
@@ -17,6 +19,13 @@ export class CallSessionService {
      * stays true when no push-to-talk key is bound, so the mic is open by default.
      */
     readonly pttGateOpen = signal(true);
+    /** Quality of the running screen share, or null when not sharing. */
+    readonly screenPreset = signal<StreamPreset | null>(null);
+    /**
+     * Dimensions of the captured source, kept so a mid-stream resolution change re-solves from the
+     * original size rather than ratcheting down from the current output geometry.
+     */
+    private screenSourceSize: { width: number; height: number } | null = null;
     private profileService = inject(ProfileService);
     private conversationStore = inject(ConversationStore);
     private voiceService = inject(VoiceService);
@@ -135,6 +144,8 @@ export class CallSessionService {
             const localShare = s.screenShares.find(sh => sh.isLocal);
             localShare?.stream?.getTracks().forEach(t => t.stop());
             void this.rustMedia.stopScreenCapture();
+            this.screenPreset.set(null);
+            this.screenSourceSize = null;
             this.session.update(st => st ? {
                 ...st,
                 screenShares: st.screenShares.filter(sh => !sh.isLocal),
@@ -143,18 +154,20 @@ export class CallSessionService {
             // TODO(webrtc): remove screen share track from peer connections
         } else {
             // Show custom Rust-based screen picker instead of the system picker
-            const sourceId = await this.screenPicker.show();
-            if (!sourceId) return;
+            const choice = await this.screenPicker.show();
+            if (!choice) return;
 
-            const fps = Math.round(
-                (this.audioSettings.settings().screenVideoBitrate >= 8000) ? 30 : 15,
-            );
+            const {sourceId, preset, sourceWidth, sourceHeight} = choice;
+            // Solved once, before capture starts, and held for the session.
+            const geometry = solveGeometry(sourceWidth, sourceHeight, preset.resolution);
             let videoTrack: MediaStreamTrack;
             try {
-                videoTrack = await this.rustMedia.startScreenCapture(sourceId, fps);
+                videoTrack = await this.rustMedia.startScreenCapture(sourceId, geometry, preset.framerate);
             } catch {
                 return;
             }
+            this.screenPreset.set(preset);
+            this.screenSourceSize = {width: sourceWidth, height: sourceHeight};
 
             const stream = new MediaStream([videoTrack]);
             const shareId = crypto.randomUUID();
@@ -174,6 +187,27 @@ export class CallSessionService {
                 local: {...st.local, isSharing: true},
             } : st);
             // TODO(webrtc): add display media track to peer connections
+        }
+    }
+
+    /**
+     * Change stream quality mid-share.
+     *
+     * Only the capture side is handled here; CallWebRtcService watches {@link screenPreset} and
+     * re-applies the sender encoding itself. A framerate change is free - the Rust capture loop
+     * reads it each frame - while a resolution change costs one renegotiation and keyframe.
+     */
+    async setScreenPreset(preset: StreamPreset): Promise<void> {
+        const previous = this.screenPreset();
+        if (!previous) return;
+        this.screenPreset.set(preset);
+
+        if (preset.framerate !== previous.framerate) {
+            await this.rustMedia.setCaptureFps(preset.framerate);
+        }
+        if (preset.resolution !== previous.resolution && this.screenSourceSize) {
+            const {width, height} = this.screenSourceSize;
+            await this.rustMedia.setCaptureGeometry(solveGeometry(width, height, preset.resolution));
         }
     }
 

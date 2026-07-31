@@ -1,6 +1,12 @@
 import {Component, input, output} from '@angular/core';
 import {NgClass} from '@angular/common';
-import {StreamResolution} from '../../../services/rust-media.service';
+import {
+    FRAMERATE_OPTIONS,
+    RESOLUTION_LABELS,
+    StreamFramerate,
+    StreamPreset,
+    StreamResolution,
+} from '../../../models/stream-preset';
 
 @Component({
     selector: 'app-call-controls-bar',
@@ -15,10 +21,8 @@ export class CallControlsBarComponent {
     isScreenSharing = input.required<boolean>();
     screenHasAudio = input<boolean>(false);
     screenAudioMuted = input<boolean>(false);
-    captureFps = input<number | null>(null);
-    captureResolution = input<string | null>(null);
-    fpsList = input<readonly number[]>([5, 10, 15, 30]);
-    resolutionList = input<readonly StreamResolution[]>(['native', '1440p', '1080p', '720p', '480p']);
+    /** Quality of the running share, so the active resolution and framerate read as selected. */
+    preset = input<StreamPreset | null>(null);
     disconnectLabel = input<string>('Disconnect');
 
     // Action outputs
@@ -27,7 +31,29 @@ export class CallControlsBarComponent {
     cameraToggle = output<void>();
     screenShareToggle = output<void>();
     screenAudioToggle = output<void>();
-    fpsChange = output<number>();
-    resolutionChange = output<StreamResolution>();
+    /** Emitted with the whole preset - resolution and framerate are never changed independently. */
+    presetChange = output<StreamPreset>();
     disconnect = output<void>();
+
+    protected readonly resolutions = Object.entries(RESOLUTION_LABELS)
+        .map(([value, label]) => ({value: value as StreamResolution, label}));
+    protected readonly framerates = FRAMERATE_OPTIONS;
+
+    protected isResolution(resolution: StreamResolution): boolean {
+        return this.preset()?.resolution === resolution;
+    }
+
+    protected isFramerate(framerate: StreamFramerate): boolean {
+        return this.preset()?.framerate === framerate;
+    }
+
+    protected setResolution(resolution: StreamResolution): void {
+        const current = this.preset();
+        if (current) this.presetChange.emit({...current, resolution});
+    }
+
+    protected setFramerate(framerate: StreamFramerate): void {
+        const current = this.preset();
+        if (current) this.presetChange.emit({...current, framerate});
+    }
 }

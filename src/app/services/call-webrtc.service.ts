@@ -7,6 +7,14 @@ import {AudioSettingsService} from './audio-settings.service';
 import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
 import type {CallDto} from '../dtos/response/call.dto';
+import {DEFAULT_STREAM_PRESET, StreamPreset} from '../models/stream-preset';
+import {
+    applyScreenEncoding,
+    applySimpleBitrate,
+    CAMERA_KBPS,
+    preferVideoCodecs,
+    VOICE_AUDIO_KBPS,
+} from './webrtc-encoding';
 
 export interface CallStats {
     inboundKbps: number;
@@ -110,12 +118,11 @@ export class CallWebRtcService {
     private prevStatsTs = 0;
 
     constructor() {
-        // Apply bitrate changes on the fly whenever settings change.
+        // CallSessionService owns the preset (it also drives capture); re-apply the sender encoding
+        // whenever the user changes quality mid-share.
         effect(() => {
-            const s = this.audioSettings.settings();
-            void this.applyBitrate(this.audioSender, s.audioBitrate);
-            void this.applyBitrate(this.videoSender, s.videoBitrate);
-            void this.applyBitrate(this.screenSender, s.screenVideoBitrate);
+            const preset = this.callSession.screenPreset();
+            if (preset && this.screenSender) void applyScreenEncoding(this.screenSender, preset);
         });
 
         // Connect when a session starts; disconnect when it ends.
@@ -289,10 +296,10 @@ export class CallWebRtcService {
         let audioTrack: MediaStreamTrack;
         try {
             const s = this.audioSettings.settings();
-            if (s.enhancedNoiseSuppression || await this.rustMedia.shouldUseRustAudio()) {
+            if (s.noiseSuppressionMode === 'enhanced' || await this.rustMedia.shouldUseRustAudio()) {
                 audioTrack = await this.rustMedia.startMicCapture({
                     deviceId: s.micId === 'default' ? null : s.micId,
-                    noiseSuppression: s.noiseSuppression,
+                    noiseSuppression: s.noiseSuppressionMode !== 'none',
                     autoGainControl: s.autoGainControl,
                     vadThreshold: s.vadStrength,
                 });
@@ -456,7 +463,7 @@ export class CallWebRtcService {
             mid: transceiver.mid ?? '0',
             trackName: 'audio',
         }]);
-        await this.applyBitrate(transceiver.sender, this.audioSettings.settings().audioBitrate);
+        await applySimpleBitrate(transceiver.sender, VOICE_AUDIO_KBPS);
         this.audioSender = transceiver.sender;
     }
 
@@ -472,7 +479,7 @@ export class CallWebRtcService {
         }]);
         this.videoSender = transceiver.sender;
         this.videoTrackName = results[0]?.trackName ?? 'video';
-        await this.applyBitrate(transceiver.sender, this.audioSettings.settings().videoBitrate);
+        await applySimpleBitrate(transceiver.sender, CAMERA_KBPS);
         if (this.callId) this.voiceWs.invokeCameraChanged(this.callId, true);
     }
 
@@ -508,16 +515,7 @@ export class CallWebRtcService {
 
         // Prefer VP9 for screen sharing -better quality-per-bit means higher effective fps
         // at the same bitrate compared to VP8.
-        const caps = RTCRtpSender.getCapabilities('video')?.codecs ?? [];
-        const ordered = [
-            ...caps.filter(c => c.mimeType === 'video/VP9'),
-            ...caps.filter(c => c.mimeType === 'video/H264'),
-            ...caps.filter(c => c.mimeType !== 'video/VP9' && c.mimeType !== 'video/H264'),
-        ];
-        if (ordered.length) try {
-            transceiver.setCodecPreferences(ordered);
-        } catch {
-        }
+        preferVideoCodecs(transceiver, 'sender');
 
         const cfTrackName = `screen-${shareId}`;
         const results = await this.offerAnswerCycle(() => [{
@@ -528,8 +526,7 @@ export class CallWebRtcService {
         this.screenSender = transceiver.sender;
         this.screenTrackName = results[0]?.trackName ?? cfTrackName;
         this.screenShareId = shareId;
-        const fps = this.audioSettings.settings().screenVideoBitrate >= 8000 ? 30 : 15;
-        await this.applyBitrate(transceiver.sender, this.audioSettings.settings().screenVideoBitrate, 1.0, fps);
+        await applyScreenEncoding(transceiver.sender, this.callSession.screenPreset() ?? DEFAULT_STREAM_PRESET);
         if (this.callId) this.voiceWs.invokeScreenShareStarted(this.callId, shareId, this.screenTrackName);
     }
 
@@ -580,18 +577,7 @@ export class CallWebRtcService {
             const transceiver = this.pc.addTransceiver(mediaKind, {direction: 'recvonly'});
 
             // For video/screen tracks, prefer VP9 on the receive side for the same efficiency gains.
-            if (mediaKind === 'video') {
-                const caps = RTCRtpReceiver.getCapabilities('video')?.codecs ?? [];
-                const ordered = [
-                    ...caps.filter(c => c.mimeType === 'video/VP9'),
-                    ...caps.filter(c => c.mimeType === 'video/H264'),
-                    ...caps.filter(c => c.mimeType !== 'video/VP9' && c.mimeType !== 'video/H264'),
-                ];
-                if (ordered.length) try {
-                    transceiver.setCodecPreferences(ordered);
-                } catch {
-                }
-            }
+            if (mediaKind === 'video') preferVideoCodecs(transceiver, 'receiver');
 
             const results = await this.offerAnswerCycle(() => [{
                 location: 'remote',
@@ -771,20 +757,6 @@ export class CallWebRtcService {
         this.prevStatsTs = now;
     }
 
-    // ── Bitrate control ───────────────────────────────────────────────────────
-
-    private async applyBitrate(sender: RTCRtpSender | null, kbps: number, scaleResolutionDownBy?: number, maxFps?: number): Promise<void> {
-        if (!sender) return;
-        try {
-            const params = sender.getParameters();
-            if (!params.encodings?.length) params.encodings = [{}];
-            params.encodings[0].maxBitrate = kbps * 1000;
-            if (scaleResolutionDownBy !== undefined) params.encodings[0].scaleResolutionDownBy = scaleResolutionDownBy;
-            if (maxFps !== undefined) params.encodings[0].maxFramerate = maxFps;
-            await sender.setParameters(params);
-        } catch { /* setParameters not supported or call already ended */
-        }
-    }
 
     // ── Speaking detection (local) ────────────────────────────────────────────
 

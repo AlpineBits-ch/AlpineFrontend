@@ -13,15 +13,17 @@ export interface AudioSettings {
     speakerId: string;
     /** Selected camera ('' = none); same name-vs-web-id caveat as {@link micId}. */
     cameraId: string;
-    noiseSuppression: boolean;
+    /**
+     * Mirrors Discord's None / Standard / Krisp. 'standard' is the browser's own filter;
+     * 'enhanced' routes capture through the Rust RNNoise pipeline.
+     */
+    noiseSuppressionMode: 'none' | 'standard' | 'enhanced';
     echoCancellation: boolean;
     autoGainControl: boolean;
-    audioBitrate: number;
-    screenAudioBitrate: number;
-    videoBitrate: number;
-    screenVideoBitrate: number;
-    /** Use Rust-based capture pipeline with RNNoise noise suppression */
-    enhancedNoiseSuppression: boolean;
+    /** Microphone input gain, 0-100. */
+    inputVolume: number;
+    /** Output volume applied to remote audio, 0-100. */
+    outputVolume: number;
     /** VAD gating strength when enhanced NS is active (0 = off, 1 = aggressive) */
     vadStrength: number;
     /** Master output volume for Isle proximity voice (0–1). */
@@ -43,14 +45,11 @@ const DEFAULTS: AudioSettings = {
     micId: 'default',
     speakerId: 'default',
     cameraId: '',
-    noiseSuppression: true,
+    noiseSuppressionMode: 'standard',
     echoCancellation: true,
     autoGainControl: true,
-    audioBitrate: 64,
-    screenAudioBitrate: 256,
-    videoBitrate: 1500,
-    screenVideoBitrate: 4000,
-    enhancedNoiseSuppression: false,
+    inputVolume: 100,
+    outputVolume: 100,
     vadStrength: 0,
     proximityVolume: 1,
     proximityMicGain: 1,
@@ -88,7 +87,8 @@ export class AudioSettingsService {
             // `ideal`, not `exact`: if the mic vanished between resolution and
             // capture we'd rather get the default than fail the whole call.
             deviceId: deviceId ? {ideal: deviceId} : undefined,
-            noiseSuppression: s.noiseSuppression,
+            // 'enhanced' is handled by the Rust pipeline, so the browser filter stays off for it.
+            noiseSuppression: s.noiseSuppressionMode === 'standard',
             echoCancellation: s.echoCancellation,
             autoGainControl: s.autoGainControl,
         };
@@ -112,10 +112,43 @@ export class AudioSettingsService {
         try {
             const raw = localStorage.getItem(STORAGE_KEY);
             if (!raw) return {...DEFAULTS};
-            const parsed = JSON.parse(raw) as Partial<AudioSettings>;
-            return {...DEFAULTS, ...parsed};
+            return migrate(JSON.parse(raw) as Record<string, unknown>);
         } catch {
             return {...DEFAULTS};
         }
     }
+}
+
+/**
+ * Per-stream bitrates, removed when stream quality moved to resolution + framerate presets chosen
+ * at share time. Bitrate is now derived from the preset (see `models/stream-preset.ts`).
+ */
+const DROPPED_KEYS = [
+    'audioBitrate',
+    'screenAudioBitrate',
+    'videoBitrate',
+    'screenVideoBitrate',
+    'noiseSuppression',
+    'enhancedNoiseSuppression',
+];
+
+/**
+ * Fold a persisted settings blob onto the current shape.
+ *
+ * Runs on every construction, so it must be idempotent: a blob that has already been migrated
+ * carries `noiseSuppressionMode` and no legacy toggles, and must survive unchanged.
+ */
+function migrate(stored: Record<string, unknown>): AudioSettings {
+    const next: Record<string, unknown> = {...DEFAULTS, ...stored};
+
+    // Test the stored blob, not `next` - DEFAULTS always supplies a mode, so `next` is never
+    // missing one and the legacy toggles would be ignored.
+    if (stored['noiseSuppressionMode'] === undefined) {
+        next['noiseSuppressionMode'] = stored['enhancedNoiseSuppression'] === true
+            ? 'enhanced'
+            : stored['noiseSuppression'] === false ? 'none' : 'standard';
+    }
+
+    for (const key of DROPPED_KEYS) delete next[key];
+    return next as unknown as AudioSettings;
 }

@@ -326,18 +326,22 @@ pub fn set_screen_capture_fps(fps: u32, state: tauri::State<'_, ScreenCaptureSta
     state.fps.store(fps.clamp(1, 60), Ordering::Relaxed);
 }
 
-/// Set the maximum output resolution for the encode thread.
+/// Set the fixed output size for the encode thread.
+///
+/// The frontend solves this once per session from the source dimensions and the chosen resolution
+/// preset, so the value already preserves the source's aspect ratio. The previous command clamped
+/// each axis independently against a 480x270 floor and a 3840x2160 ceiling, which silently changed
+/// the aspect ratio of ultrawide and portrait sources. Only a sanity range is enforced here.
+///
 /// Takes effect within one frame interval -the encode thread reads these atomics each frame.
 #[tauri::command]
-pub fn set_screen_capture_resolution(
+pub fn set_screen_capture_geometry(
     width: u32,
     height: u32,
     state: tauri::State<'_, ScreenCaptureState>,
 ) {
-    state.max_w.store(width.clamp(480, 3840), Ordering::Relaxed);
-    state
-        .max_h
-        .store(height.clamp(270, 2160), Ordering::Relaxed);
+    state.max_w.store(width.clamp(2, 7680), Ordering::Relaxed);
+    state.max_h.store(height.clamp(2, 4320), Ordering::Relaxed);
 }
 
 fn stop_screen_capture_inner(state: &ScreenCaptureState) {

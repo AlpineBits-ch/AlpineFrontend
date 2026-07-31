@@ -1,4 +1,4 @@
-import {effect, inject, Injectable, signal} from '@angular/core';
+import {inject, Injectable, signal} from '@angular/core';
 import {firstValueFrom, Observable, Subject} from 'rxjs';
 import {GuildVoiceService} from './guild-voice.service';
 import {AudioSettingsService} from './audio-settings.service';
@@ -6,6 +6,17 @@ import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
 import {environment} from '../../environments/environment';
 import {ApiConfigService} from "./api-config.service";
+import {bitrateFor, DEFAULT_STREAM_PRESET, StreamPreset} from '../models/stream-preset';
+import {solveGeometry} from '../models/capture-geometry';
+import {
+    applyScreenEncoding,
+    applySimpleBitrate,
+    CAMERA_KBPS,
+    preferVideoCodecs,
+    STREAM_AUDIO_KBPS,
+    VOICE_AUDIO_KBPS,
+    withStartBitrate,
+} from './webrtc-encoding';
 
 export interface VoiceSpeakingChange {
     userId: string;
@@ -80,16 +91,17 @@ export class VoiceRTCService {
     // initialised with the correct volume without creating a circular dependency.
     private _isDeafened = false;
 
-    constructor() {
-        effect(() => {
-            const s = this.audioSettings.settings();
-            const screenFps = s.screenVideoBitrate >= 8000 ? 30 : 15;
-            void this.applyBitrate(this.localSenders.get('audio'), s.audioBitrate);
-            void this.applyBitrate(this.localSenders.get('video'), s.videoBitrate);
-            void this.applyBitrate(this.localSenders.get('screenVideo'), s.screenVideoBitrate, screenFps);
-            void this.applyBitrate(this.localSenders.get('screenAudio'), s.screenAudioBitrate);
-        });
-    }
+    /**
+     * Quality of the running screen share, or null when not sharing. Set by the picker and changed
+     * by the in-call quality controls.
+     */
+    readonly screenPreset = signal<StreamPreset | null>(null);
+    /**
+     * Dimensions of the captured source, kept so a mid-stream resolution change re-solves from the
+     * original size. Re-solving from the current output geometry would ratchet the picture down on
+     * every change.
+     */
+    private screenSourceSize: { width: number; height: number } | null = null;
 
     // ── Connection setup / teardown ────────────────────────────────────────────
 
@@ -110,14 +122,14 @@ export class VoiceRTCService {
             let audioTrack: MediaStreamTrack;
             try {
                 const s = this.audioSettings.settings();
-                const useRust = s.enhancedNoiseSuppression || await this.rustMedia.shouldUseRustAudio();
-                console.log(`[voice] audio path: ${useRust ? 'rust' : 'getUserMedia'} (enhancedNS=${s.enhancedNoiseSuppression} micId=${s.micId})`);
+                const useRust = s.noiseSuppressionMode === 'enhanced' || await this.rustMedia.shouldUseRustAudio();
+                console.log(`[voice] audio path: ${useRust ? 'rust' : 'getUserMedia'} (noiseSuppression=${s.noiseSuppressionMode} micId=${s.micId})`);
 
                 if (useRust) {
                     try {
                         audioTrack = await this.rustMedia.startMicCapture({
                             deviceId: s.micId === 'default' ? null : s.micId,
-                            noiseSuppression: s.noiseSuppression,
+                            noiseSuppression: s.noiseSuppressionMode !== 'none',
                             autoGainControl: s.autoGainControl,
                             vadThreshold: s.vadStrength,
                         });
@@ -178,7 +190,7 @@ export class VoiceRTCService {
             this.cfAudioTrackName = publishResp.tracks[0]?.trackName ?? 'audio';
             await this.pc.setRemoteDescription(publishResp.sessionDescription);
             if (publishResp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
-            await this.applyBitrate(sender, this.audioSettings.settings().audioBitrate);
+            await applySimpleBitrate(sender, VOICE_AUDIO_KBPS);
 
             this.setupDone = true;
             return true;
@@ -233,6 +245,8 @@ export class VoiceRTCService {
         this.localScreenTrack = null;
         this.localScreenAudioTrack = null;
         this.screenShareId = null;
+        this.screenSourceSize = null;
+        this.screenPreset.set(null);
 
         this.pc?.close();
         this.rtcState.set('new');
@@ -351,17 +365,7 @@ export class VoiceRTCService {
             if (!this.pc || !this.cfSessionId) return;
 
             const transceiver = this.pc.addTransceiver('video', {direction: 'recvonly'});
-            // Prefer VP9 on the receive side for the same efficiency gains.
-            const caps = RTCRtpReceiver.getCapabilities('video')?.codecs ?? [];
-            const ordered = [
-                ...caps.filter(c => c.mimeType === 'video/VP9'),
-                ...caps.filter(c => c.mimeType === 'video/H264'),
-                ...caps.filter(c => c.mimeType !== 'video/VP9' && c.mimeType !== 'video/H264'),
-            ];
-            if (ordered.length) try {
-                transceiver.setCodecPreferences(ordered);
-            } catch {
-            }
+            preferVideoCodecs(transceiver, 'receiver');
 
             const offer = await this.pc.createOffer();
             await this.pc.setLocalDescription(offer);
@@ -398,7 +402,12 @@ export class VoiceRTCService {
         if (!this.pc || !this.cfSessionId) return null;
 
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({video: true, audio: false});
+            // Honour the camera picked in settings; this used to hardcode `video: true` and always
+            // open the system default.
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: await this.audioSettings.buildVideoConstraint(),
+                audio: false,
+            });
             this.localVideoTrack = stream.getVideoTracks()[0];
             this.localVideoStream.set(new MediaStream([this.localVideoTrack]));
 
@@ -417,7 +426,7 @@ export class VoiceRTCService {
                 cfTrackName = this.cfVideoTrackName = resp.tracks[0]?.trackName ?? 'video';
                 await this.pc.setRemoteDescription(resp.sessionDescription);
                 if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
-                await this.applyBitrate(sender, this.audioSettings.settings().videoBitrate);
+                await applySimpleBitrate(sender, CAMERA_KBPS);
                 this.localSenders.set('video', sender);
             });
             return cfTrackName;
@@ -445,19 +454,26 @@ export class VoiceRTCService {
         if (!this.pc || !this.cfSessionId) return null;
 
         try {
-            const sourceId = await this.screenPicker.show();
-            if (!sourceId) return null;
+            const choice = await this.screenPicker.show();
+            if (!choice) return null;
 
-            const fps = Math.round(this.audioSettings.settings().screenVideoBitrate >= 8000 ? 30 : 15);
-            const videoTrack = await this.rustMedia.startScreenCapture(sourceId, fps);
+            const {sourceId, preset, shareAudio, sourceWidth, sourceHeight} = choice;
+            this.screenPreset.set(preset);
+            this.screenSourceSize = {width: sourceWidth, height: sourceHeight};
+
+            // Solved once, before capture starts, and held for the session.
+            const geometry = solveGeometry(sourceWidth, sourceHeight, preset.resolution);
+            const videoTrack = await this.rustMedia.startScreenCapture(sourceId, geometry, preset.framerate);
             this.localScreenTrack = videoTrack;
             this.localScreenStream.set(new MediaStream([videoTrack]));
 
             let audioTrack: MediaStreamTrack | null = null;
-            try {
-                audioTrack = await this.rustMedia.startLoopbackCapture();
-            } catch {
-                console.warn('[ScreenShare] Loopback audio unavailable');
+            if (shareAudio) {
+                try {
+                    audioTrack = await this.rustMedia.startLoopbackCapture();
+                } catch {
+                    console.warn('[ScreenShare] Loopback audio unavailable');
+                }
             }
             this.localScreenAudioTrack = audioTrack;
             this.localScreenHasAudio.set(audioTrack !== null);
@@ -479,21 +495,15 @@ export class VoiceRTCService {
 
                 // VP9 for screen sharing: better quality-per-bit at the same bitrate vs VP8.
                 const videoTransceiver = this.pc.getTransceivers().find(t => t.sender === videoSender);
-                if (videoTransceiver) {
-                    const caps = RTCRtpSender.getCapabilities('video')?.codecs ?? [];
-                    const ordered = [
-                        ...caps.filter(c => c.mimeType === 'video/VP9'),
-                        ...caps.filter(c => c.mimeType === 'video/H264'),
-                        ...caps.filter(c => c.mimeType !== 'video/VP9' && c.mimeType !== 'video/H264'),
-                    ];
-                    if (ordered.length) try {
-                        videoTransceiver.setCodecPreferences(ordered);
-                    } catch {
-                    }
-                }
+                if (videoTransceiver) preferVideoCodecs(videoTransceiver, 'sender');
 
                 const offer = await this.pc.createOffer();
-                await this.pc.setLocalDescription(offer);
+                // Open near the target rate instead of letting congestion control ramp from
+                // ~300 kbps over the first half-minute.
+                await this.pc.setLocalDescription({
+                    type: offer.type,
+                    sdp: withStartBitrate(offer.sdp ?? '', bitrateFor(preset)),
+                });
 
                 const videoMid = this.pc.getTransceivers().find(t => t.sender === videoSender)?.mid ?? '0';
                 const tracks: { location: 'local'; mid: string; trackName: string }[] = [
@@ -511,10 +521,10 @@ export class VoiceRTCService {
                 }));
                 await this.pc.setRemoteDescription(resp.sessionDescription);
                 if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
-                await this.applyBitrate(videoSender, this.audioSettings.settings().screenVideoBitrate, fps);
+                await applyScreenEncoding(videoSender, preset);
                 this.localSenders.set('screenVideo', videoSender);
                 if (audioSender) {
-                    await this.applyBitrate(audioSender, this.audioSettings.settings().screenAudioBitrate);
+                    await applySimpleBitrate(audioSender, STREAM_AUDIO_KBPS);
                     this.localSenders.set('screenAudio', audioSender);
                 }
             });
@@ -553,6 +563,8 @@ export class VoiceRTCService {
 
         this.localScreenTrack = null;
         this.screenShareId = null;
+        this.screenSourceSize = null;
+        this.screenPreset.set(null);
         this.localSenders.delete('screenVideo');
         this.localSenders.delete('screenAudio');
         this.localScreenStream.set(null);
@@ -560,6 +572,28 @@ export class VoiceRTCService {
         this.localScreenAudioMuted.set(false);
 
         return {shareId};
+    }
+
+    /**
+     * Change stream quality mid-share, the way Discord's stream-settings cog does.
+     *
+     * A framerate change is free — the Rust capture loop reads it each frame. A resolution change
+     * costs one renegotiation and keyframe, which is acceptable because the user asked for it.
+     */
+    async setScreenPreset(preset: StreamPreset): Promise<void> {
+        const previous = this.screenPreset() ?? DEFAULT_STREAM_PRESET;
+        this.screenPreset.set(preset);
+        if (!this.localScreenTrack) return;
+
+        if (preset.framerate !== previous.framerate) {
+            await this.rustMedia.setCaptureFps(preset.framerate);
+        }
+        if (preset.resolution !== previous.resolution && this.screenSourceSize) {
+            const {width, height} = this.screenSourceSize;
+            await this.rustMedia.setCaptureGeometry(solveGeometry(width, height, preset.resolution));
+        }
+        const sender = this.localSenders.get('screenVideo');
+        if (sender) await applyScreenEncoding(sender, preset);
     }
 
     // ── Volume / per-user audio controls ──────────────────────────────────────
@@ -771,15 +805,4 @@ export class VoiceRTCService {
         }
     }
 
-    private async applyBitrate(sender: RTCRtpSender | undefined, kbps: number, maxFps?: number): Promise<void> {
-        if (!sender) return;
-        try {
-            const params = sender.getParameters();
-            if (!params.encodings?.length) params.encodings = [{}];
-            params.encodings[0].maxBitrate = kbps * 1000;
-            if (maxFps !== undefined) params.encodings[0].maxFramerate = maxFps;
-            await sender.setParameters(params);
-        } catch { /* setParameters not supported or call already ended */
-        }
-    }
 }

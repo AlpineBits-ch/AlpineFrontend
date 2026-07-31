@@ -8,7 +8,7 @@ import {Button} from 'primeng/button';
 import {RadioButton} from 'primeng/radiobutton';
 import {TranslateModule} from '@ngx-translate/core';
 import {invoke} from '@tauri-apps/api/core';
-import {AudioSettingsService} from '../../../../../services/audio-settings.service';
+import {AudioSettings, AudioSettingsService} from '../../../../../services/audio-settings.service';
 import {IsleProximityService} from '../../../../../services/isle-proximity.service';
 import {StreamSrcDirective} from '../../../../../directives/stream-src.directive';
 
@@ -28,10 +28,7 @@ interface DeviceOption {
     value: string;
 }
 
-interface BitrateOption {
-    label: string;
-    value: number;
-}
+type NoiseSuppressionMode = AudioSettings['noiseSuppressionMode'];
 
 @Component({
     selector: 'app-voice-video-settings',
@@ -47,30 +44,11 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     readonly micOptions = signal<DeviceOption[]>([{label: 'Default', value: 'default'}]);
     readonly speakerOptions = signal<DeviceOption[]>([{label: 'Default', value: 'default'}]);
     readonly cameraOptions = signal<DeviceOption[]>([{label: 'None', value: ''}]);
-    readonly audioBitrateOptions: BitrateOption[] = [
-        {label: 'Low · 32 kbps', value: 32},
-        {label: 'Normal · 64 kbps', value: 64},
-        {label: 'High · 128 kbps', value: 128},
-        {label: 'Maximum · 320 kbps', value: 320},
-        {label: 'Ultra · 510 kbps', value: 510},
-    ];
-    readonly screenAudioBitrateOptions: BitrateOption[] = [
-        {label: 'Normal · 128 kbps', value: 128},
-        {label: 'High · 256 kbps', value: 256},
-        {label: 'Maximum · 320 kbps', value: 320},
-        {label: 'Ultra · 510 kbps', value: 510},
-    ];
-    readonly videoBitrateOptions: BitrateOption[] = [
-        {label: 'Low · 500 kbps', value: 500},
-        {label: 'Normal · 1.5 Mbps', value: 1500},
-        {label: 'High · 4 Mbps', value: 4000},
-        {label: 'Ultra · 8 Mbps', value: 8000},
-    ];
-    readonly screenVideoBitrateOptions: BitrateOption[] = [
-        {label: 'Low · 1.5 Mbps', value: 1500},
-        {label: 'Normal · 4 Mbps', value: 4000},
-        {label: 'High · 8 Mbps', value: 8000},
-        {label: 'Ultra · 15 Mbps', value: 15000},
+    /** Mirrors Discord's None / Standard / Krisp. */
+    readonly noiseSuppressionOptions: { label: string; value: NoiseSuppressionMode }[] = [
+        {label: 'None', value: 'none'},
+        {label: 'Standard', value: 'standard'},
+        {label: 'Enhanced (RNNoise)', value: 'enhanced'},
     ];
     readonly inputModeOptions: {value: 'voice-activity' | 'push-to-talk'; label: string; desc: string}[] = [
         {value: 'voice-activity', label: 'Voice Activity', desc: 'Transmit automatically when your mic level crosses the sensitivity threshold below'},
@@ -128,12 +106,28 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         }
     }
 
-    get noiseSuppression(): boolean {
-        return this.audioSettings.settings().noiseSuppression;
+    get noiseSuppressionMode(): NoiseSuppressionMode {
+        return this.audioSettings.settings().noiseSuppressionMode;
     }
 
-    set noiseSuppression(v: boolean) {
-        this.audioSettings.update({noiseSuppression: v});
+    set noiseSuppressionMode(v: NoiseSuppressionMode) {
+        this.audioSettings.update({noiseSuppressionMode: v});
+    }
+
+    get inputVolume(): number {
+        return this.audioSettings.settings().inputVolume;
+    }
+
+    set inputVolume(v: number) {
+        this.audioSettings.update({inputVolume: v});
+    }
+
+    get outputVolume(): number {
+        return this.audioSettings.settings().outputVolume;
+    }
+
+    set outputVolume(v: number) {
+        this.audioSettings.update({outputVolume: v});
     }
 
     get inputMode(): 'voice-activity' | 'push-to-talk' {
@@ -169,46 +163,6 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     }
 
     // ── Mic test state ───────────────────────────────────────────────────────
-
-    get audioBitrate(): number {
-        return this.audioSettings.settings().audioBitrate;
-    }
-
-    set audioBitrate(v: number) {
-        this.audioSettings.update({audioBitrate: v});
-    }
-
-    get screenAudioBitrate(): number {
-        return this.audioSettings.settings().screenAudioBitrate;
-    }
-
-    set screenAudioBitrate(v: number) {
-        this.audioSettings.update({screenAudioBitrate: v});
-    }
-
-    get videoBitrate(): number {
-        return this.audioSettings.settings().videoBitrate;
-    }
-
-    set videoBitrate(v: number) {
-        this.audioSettings.update({videoBitrate: v});
-    }
-
-    get screenVideoBitrate(): number {
-        return this.audioSettings.settings().screenVideoBitrate;
-    }
-
-    set screenVideoBitrate(v: number) {
-        this.audioSettings.update({screenVideoBitrate: v});
-    }
-
-    get enhancedNoiseSuppression(): boolean {
-        return this.audioSettings.settings().enhancedNoiseSuppression;
-    }
-
-    set enhancedNoiseSuppression(v: boolean) {
-        this.audioSettings.update({enhancedNoiseSuppression: v});
-    }
 
     get vadStrength(): number {
         return Math.round(this.audioSettings.settings().vadStrength * 100);

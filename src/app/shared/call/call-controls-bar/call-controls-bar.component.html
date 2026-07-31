@@ -59,29 +59,29 @@
         </button>
     }
 
-    <!-- FPS + Resolution selectors -visible only while sharing -->
-    @if (isScreenSharing()) {
+    <!-- Stream quality -visible only while sharing. Bitrate is derived from the pair, never set. -->
+    @if (isScreenSharing() && preset()) {
         <div class="flex items-center gap-0.5 bg-white/[0.05] rounded-lg px-1 py-1 border border-white/[0.08]">
-            @for (fps of fpsList(); track fps) {
+            @for (res of resolutions; track res.value) {
                 <button
-                        (click)="fpsChange.emit(fps)"
-                        [ngClass]="captureFps() === fps
+                        (click)="setResolution(res.value)"
+                        [ngClass]="isResolution(res.value)
             ? 'bg-brand text-white'
             : 'bg-transparent text-white/45 hover:text-white/75 hover:bg-white/[0.07]'"
-                        [title]="fps + ' fps'"
-                        class="px-2 py-1 rounded text-xs font-mono transition-all border-0 cursor-pointer leading-none active:scale-90">{{ fps }}
+                        [title]="res.label"
+                        class="px-2 py-1 rounded text-xs font-mono transition-all border-0 cursor-pointer leading-none active:scale-90">{{ res.label }}
                 </button>
             }
         </div>
         <div class="flex items-center gap-0.5 bg-white/[0.05] rounded-lg px-1 py-1 border border-white/[0.08]">
-            @for (res of resolutionList(); track res) {
+            @for (fps of framerates; track fps) {
                 <button
-                        (click)="resolutionChange.emit(res)"
-                        [ngClass]="captureResolution() === res
+                        (click)="setFramerate(fps)"
+                        [ngClass]="isFramerate(fps)
             ? 'bg-brand text-white'
             : 'bg-transparent text-white/45 hover:text-white/75 hover:bg-white/[0.07]'"
-                        [title]="res"
-                        class="px-2 py-1 rounded text-xs font-mono transition-all border-0 cursor-pointer leading-none active:scale-90">{{ res }}
+                        [title]="fps + ' fps'"
+                        class="px-2 py-1 rounded text-xs font-mono transition-all border-0 cursor-pointer leading-none active:scale-90">{{ fps }}
                 </button>
             }
         </div>

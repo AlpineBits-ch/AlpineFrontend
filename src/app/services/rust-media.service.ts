@@ -1,6 +1,7 @@
 import {Injectable, signal} from '@angular/core';
 import {Channel, invoke, isTauri} from '@tauri-apps/api/core';
 import {platform} from '@tauri-apps/plugin-os';
+import {CaptureGeometry} from '../models/capture-geometry';
 
 export interface ScreenSource {
     id: string;
@@ -10,16 +11,6 @@ export interface ScreenSource {
     width: number;
     height: number;
 }
-
-export type StreamResolution = 'native' | '1440p' | '1080p' | '720p' | '480p';
-
-const RESOLUTION_DIMS: Record<StreamResolution, [number, number]> = {
-    native: [3840, 2160],
-    '1440p': [2560, 1440],
-    '1080p': [1920, 1080],
-    '720p': [1280, 720],
-    '480p': [854, 480],
-};
 
 export interface RustAudioSettings {
     deviceId: string | null;
@@ -69,9 +60,9 @@ export class RustMediaService {
     private readonly _captureFps = signal(15);
     /** Currently requested capture rate (set via startScreenCapture / setCaptureFps). */
     readonly captureFps = this._captureFps.asReadonly();
-    private readonly _captureResolution = signal<StreamResolution>('1080p');
-    /** Currently selected output resolution preset. */
-    readonly captureResolution = this._captureResolution.asReadonly();
+    private readonly _captureGeometry = signal<CaptureGeometry>({width: 1920, height: 1080});
+    /** Fixed output size for the running session. Solved once, before capture starts. */
+    readonly captureGeometry = this._captureGeometry.asReadonly();
     private readonly _inboundFps = signal(0);
     /** Frames received from Rust per second. */
     readonly inboundFps = this._inboundFps.asReadonly();
@@ -113,13 +104,16 @@ export class RustMediaService {
     // ── Screen capture ────────────────────────────────────────────────────────
 
     /**
-     * Start Rust screen capture for the given source.
-     * Returns a MediaStreamTrack backed by a canvas capture stream.
+     * Start Rust screen capture for the given source at a fixed output size.
+     *
+     * Returns a MediaStreamTrack backed by a canvas capture stream. The geometry must already be
+     * solved (see {@link solveGeometry}) — it is locked in for the life of the session.
      */
-    async startScreenCapture(sourceId: string, fps = 15): Promise<MediaStreamTrack> {
+    async startScreenCapture(sourceId: string, geometry: CaptureGeometry, fps = 30): Promise<MediaStreamTrack> {
         await this.stopScreenCapture();
 
         this._captureFps.set(fps);
+        this._captureGeometry.set(geometry);
         this.inboundFrameCount = 0;
         this.renderedFrameCount = 0;
         this.fpsInterval = setInterval(() => {
@@ -129,10 +123,13 @@ export class RustMediaService {
             this.renderedFrameCount = 0;
         }, 1000);
 
-        // Create an off-screen canvas to receive frames
+        // Sized once, from the solved geometry, and never resized. Resizing a canvas that
+        // captureStream() is already attached to changes the track's dimensions mid-session, which
+        // forces a renegotiation and a keyframe — that is what used to tear the stream whenever a
+        // shared window was resized, and what made the first frame's size decide the aspect ratio.
         const canvas = document.createElement('canvas');
-        canvas.width = 1920;
-        canvas.height = 1080;
+        canvas.width = geometry.width;
+        canvas.height = geometry.height;
         const ctx = canvas.getContext('2d')!;
         this.screenCanvas = canvas;
         this.screenCtx = ctx;
@@ -150,17 +147,23 @@ export class RustMediaService {
             this.queueFrame(frame);
         };
 
-        const [maxW, maxH] = RESOLUTION_DIMS[this._captureResolution()];
-        await invoke('set_screen_capture_resolution', {width: maxW, height: maxH}).catch(() => {
+        await invoke('set_screen_capture_geometry', {
+            width: geometry.width,
+            height: geometry.height,
+        }).catch(() => {
         });
         await invoke('start_screen_capture', {sourceId, fps, onFrame: channel});
 
         const track = stream.getVideoTracks()[0];
         if (!track) throw new Error('No video track from canvas');
-        // 'motion' → MAINTAIN_FRAMERATE degradation: encoder reduces resolution before FPS.
-        // 'detail' (old value) → MAINTAIN_RESOLUTION: encoder drops FPS first, causing ~2fps.
+        // 'detail' — screen content is text and UI. Paired with maintain-resolution degradation on
+        // the sender (see applyScreenEncoding), the encoder drops frames under congestion instead
+        // of shedding resolution. The old 'motion' hint did the opposite, which is why streams
+        // looked soft and took tens of seconds to sharpen. That combination previously starved
+        // framerate only because bitrate was chosen independently of resolution and fps; the
+        // stream preset now couples all three.
         try {
-            (track as any).contentHint = 'motion';
+            (track as { contentHint?: string }).contentHint = 'detail';
         } catch {
         }
         return track;
@@ -174,12 +177,23 @@ export class RustMediaService {
         });
     }
 
-    /** Change the output resolution cap. Takes effect within one frame. */
-    async setScreenResolution(res: StreamResolution): Promise<void> {
-        this._captureResolution.set(res);
+    /**
+     * Change the fixed output size mid-session.
+     *
+     * Unlike the per-frame resize this replaced, this is a deliberate act: it costs one
+     * renegotiation and keyframe, and only happens when the user picks a different resolution.
+     */
+    async setCaptureGeometry(geometry: CaptureGeometry): Promise<void> {
+        this._captureGeometry.set(geometry);
+        if (this.screenCanvas) {
+            this.screenCanvas.width = geometry.width;
+            this.screenCanvas.height = geometry.height;
+        }
         if (!isTauri()) return;
-        const [w, h] = RESOLUTION_DIMS[res];
-        await invoke('set_screen_capture_resolution', {width: w, height: h}).catch(() => {
+        await invoke('set_screen_capture_geometry', {
+            width: geometry.width,
+            height: geometry.height,
+        }).catch(() => {
         });
     }
 
@@ -382,11 +396,18 @@ export class RustMediaService {
                     return;
                 }
                 const c = this.screenCanvas as HTMLCanvasElement;
-                if (c.width !== bitmap.width || c.height !== bitmap.height) {
-                    c.width = bitmap.width;
-                    c.height = bitmap.height;
+                const ctx = this.screenCtx as CanvasRenderingContext2D;
+                // The canvas size is fixed for the session. A source whose own aspect ratio drifts
+                // — a window being resized or maximised mid-share — is letterboxed into the fixed
+                // frame rather than changing the track's dimensions.
+                const scale = Math.min(c.width / bitmap.width, c.height / bitmap.height);
+                const dw = bitmap.width * scale;
+                const dh = bitmap.height * scale;
+                if (dw < c.width || dh < c.height) {
+                    ctx.fillStyle = '#000';
+                    ctx.fillRect(0, 0, c.width, c.height);
                 }
-                (this.screenCtx as CanvasRenderingContext2D).drawImage(bitmap, 0, 0);
+                ctx.drawImage(bitmap, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh);
                 // Signal a new frame to the video track (captureStream(0) only captures on demand).
                 (this.screenStream?.getVideoTracks()[0] as any)?.requestFrame?.();
                 this.renderedFrameCount++;

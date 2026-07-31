@@ -11,7 +11,9 @@
             <div class="flex items-center justify-between px-5 py-4 border-b border-border-subtle shrink-0">
                 <div>
                     <h2 class="text-sm font-semibold text-text-primary">Share your screen</h2>
-                    <p class="text-xs text-text-muted mt-0.5">Pick a monitor or window to share</p>
+                    <p class="text-xs text-text-muted mt-0.5">
+                        {{ step() === 'quality' ? 'Choose the quality to stream at' : 'Pick a screen or application to share' }}
+                    </p>
                 </div>
                 <button (click)="cancel()"
                         class="flex items-center justify-center w-7 h-7 rounded-lg text-text-muted
@@ -20,93 +22,145 @@
                 </button>
             </div>
 
-            <!-- Tabs -->
-            <div class="flex gap-1 px-5 pt-3 shrink-0">
-                <button (click)="activeTab.set('monitors')"
-                        [class.bg-brand]="activeTab() === 'monitors'"
-                        [class.hover:text-text-secondary]="activeTab() !== 'monitors'"
-                        [class.text-text-muted]="activeTab() !== 'monitors'"
-                        [class.text-white]="activeTab() === 'monitors'"
-                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer">
-                    Displays
-                </button>
-                <button (click)="activeTab.set('windows')"
-                        [class.bg-brand]="activeTab() === 'windows'"
-                        [class.hover:text-text-secondary]="activeTab() !== 'windows'"
-                        [class.text-text-muted]="activeTab() !== 'windows'"
-                        [class.text-white]="activeTab() === 'windows'"
-                        class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer">
-                    Windows
-                </button>
-            </div>
+            @if (step() === 'source') {
+                <!-- Tabs -->
+                <div class="flex gap-1 px-5 pt-3 shrink-0">
+                    <button (click)="activeTab.set('monitors')"
+                            [class.bg-brand]="activeTab() === 'monitors'"
+                            [class.hover:text-text-secondary]="activeTab() !== 'monitors'"
+                            [class.text-text-muted]="activeTab() !== 'monitors'"
+                            [class.text-white]="activeTab() === 'monitors'"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer">
+                        Screens
+                    </button>
+                    <button (click)="activeTab.set('windows')"
+                            [class.bg-brand]="activeTab() === 'windows'"
+                            [class.hover:text-text-secondary]="activeTab() !== 'windows'"
+                            [class.text-text-muted]="activeTab() !== 'windows'"
+                            [class.text-white]="activeTab() === 'windows'"
+                            class="px-3 py-1.5 rounded-lg text-xs font-medium transition-colors cursor-pointer">
+                        Applications
+                    </button>
+                </div>
 
-            <!-- Source grid -->
-            <div class="flex-1 overflow-y-auto px-5 py-3 min-h-0"
-                 style="scrollbar-width:thin;scrollbar-color:rgba(255,255,255,0.08) transparent">
+                <!-- Source grid -->
+                <div class="flex-1 overflow-y-auto px-5 py-3 min-h-0 thin-scrollbar">
 
-                @if (picker.loading()) {
-                    <div class="flex flex-col items-center justify-center gap-3 py-12 text-text-muted">
-                        <i class="pi pi-spin pi-spinner text-2xl"></i>
-                        <span class="text-xs">Capturing previews…</span>
-                    </div>
-                } @else {
-                    @let list = activeTab() === 'monitors' ? monitors : windows;
-
-                    @if (list.length === 0) {
-                        <div class="flex flex-col items-center justify-center gap-2 py-12 text-text-muted">
-                            <i class="pi pi-desktop text-2xl"></i>
-                            <span class="text-xs">No {{ activeTab() }} found</span>
+                    @if (picker.loading()) {
+                        <div class="flex flex-col items-center justify-center gap-3 py-12 text-text-muted">
+                            <i class="pi pi-spin pi-spinner text-2xl"></i>
+                            <span class="text-xs">Capturing previews…</span>
                         </div>
                     } @else {
-                        <div class="grid grid-cols-3 gap-3">
-                            @for (source of list; track source.id) {
-                                <button (click)="select(source)"
-                                        [class.border-border-subtle]="selectedId() !== source.id"
-                                        [class.border-brand]="selectedId() === source.id"
-                                        [class.ring-1]="selectedId() === source.id"
-                                        [class.ring-brand]="selectedId() === source.id"
-                                        class="relative flex flex-col rounded-xl border-2 overflow-hidden
+                        @let list = activeTab() === 'monitors' ? monitors : windows;
+
+                        @if (list.length === 0) {
+                            <div class="flex flex-col items-center justify-center gap-2 py-12 text-text-muted">
+                                <i class="pi pi-desktop text-2xl"></i>
+                                <span class="text-xs">No {{ activeTab() === 'monitors' ? 'screens' : 'applications' }}
+                                    found</span>
+                            </div>
+                        } @else {
+                            <div class="grid grid-cols-3 gap-3">
+                                @for (source of list; track source.id) {
+                                    <button (click)="select(source)"
+                                            [class.border-border-subtle]="selectedSource()?.id !== source.id"
+                                            [class.border-brand]="selectedSource()?.id === source.id"
+                                            [class.ring-1]="selectedSource()?.id === source.id"
+                                            [class.ring-brand]="selectedSource()?.id === source.id"
+                                            class="relative flex flex-col rounded-xl border-2 overflow-hidden
                          transition-all cursor-pointer group text-left">
 
-                                    <!-- Thumbnail -->
-                                    <div class="relative w-full bg-card" style="aspect-ratio:16/10">
-                                        @if (thumbSrc(source)) {
-                                            <img [src]="thumbSrc(source)"
-                                                 alt=""
-                                                 class="w-full h-full object-cover"/>
-                                        } @else {
-                                            <div class="flex items-center justify-center w-full h-full text-text-muted">
-                                                <i class="pi pi-desktop text-2xl"></i>
-                                            </div>
-                                        }
-                                        <!-- Selection tick -->
-                                        @if (selectedId() === source.id) {
-                                            <div class="absolute top-1.5 right-1.5 flex items-center justify-center
+                                        <!-- Thumbnail. Uses the source's own aspect ratio with
+                                             object-contain, so an ultrawide or portrait source is
+                                             represented honestly rather than centre-cropped. -->
+                                        <div class="relative w-full bg-card"
+                                             [style.aspect-ratio]="aspect(source)">
+                                            @if (thumbSrc(source)) {
+                                                <img [src]="thumbSrc(source)"
+                                                     alt=""
+                                                     class="w-full h-full object-contain"/>
+                                            } @else {
+                                                <div class="flex items-center justify-center w-full h-full text-text-muted">
+                                                    <i class="pi pi-desktop text-2xl"></i>
+                                                </div>
+                                            }
+                                            <!-- Selection tick -->
+                                            @if (selectedSource()?.id === source.id) {
+                                                <div class="absolute top-1.5 right-1.5 flex items-center justify-center
                                   w-5 h-5 rounded-full bg-brand">
-                                                <i class="pi pi-check text-[10px] text-white"></i>
-                                            </div>
-                                        }
-                                    </div>
+                                                    <i class="pi pi-check text-[0.625rem] text-white"></i>
+                                                </div>
+                                            }
+                                        </div>
 
-                                    <!-- Label -->
-                                    <div class="px-2.5 py-2 bg-card">
-                                        <p class="text-xs font-medium text-text-primary truncate leading-snug">{{ source.name }}</p>
-                                        @if (source.isMonitor) {
-                                            <p class="text-[10px] text-text-muted mt-0.5">{{ source.width }}
-                                                ×{{ source.height }}</p>
-                                        }
-                                    </div>
+                                        <!-- Label -->
+                                        <div class="px-2.5 py-2 bg-card">
+                                            <p class="text-xs font-medium text-text-primary truncate leading-snug">{{ source.name }}</p>
+                                            @if (source.isMonitor) {
+                                                <p class="text-[0.625rem] text-text-muted mt-0.5">{{ source.width }}
+                                                    ×{{ source.height }}</p>
+                                            }
+                                        </div>
+                                    </button>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            } @else {
+                <!-- Quality step -->
+                <div class="flex-1 overflow-y-auto min-h-0 flex flex-col gap-5 px-5 py-4 thin-scrollbar">
+                    <div class="flex flex-col gap-2">
+                        <div class="flex items-center justify-between">
+                            <label class="text-xs font-medium text-text-muted uppercase tracking-wide">Resolution</label>
+                            <span class="text-[0.625rem] text-text-muted tabular-nums">{{ outputLabel() }}</span>
+                        </div>
+                        <div class="flex gap-2">
+                            @for (r of resolutions; track r.value) {
+                                <button (click)="resolution.set(r.value)"
+                                        [class.bg-brand]="resolution() === r.value"
+                                        [class.text-white]="resolution() === r.value"
+                                        [class.text-text-muted]="resolution() !== r.value"
+                                        class="flex-1 px-3 py-2 rounded-lg text-xs font-medium border border-border-subtle
+                                               transition-colors cursor-pointer">
+                                    {{ r.label }}
                                 </button>
                             }
                         </div>
-                    }
-                }
-            </div>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        <label class="text-xs font-medium text-text-muted uppercase tracking-wide">Frame Rate</label>
+                        <div class="flex gap-2">
+                            @for (f of framerates; track f) {
+                                <button (click)="framerate.set(f)"
+                                        [class.bg-brand]="framerate() === f"
+                                        [class.text-white]="framerate() === f"
+                                        [class.text-text-muted]="framerate() !== f"
+                                        class="flex-1 px-3 py-2 rounded-lg text-xs font-medium border border-border-subtle
+                                               transition-colors cursor-pointer">
+                                    {{ f }} FPS
+                                </button>
+                            }
+                        </div>
+                    </div>
+
+                    <label class="flex items-center justify-between bg-white/[0.03] border border-border-subtle
+                                  rounded-xl px-4 py-3 cursor-pointer">
+                        <div>
+                            <p class="text-sm text-text-primary">Share system audio</p>
+                            <p class="text-xs text-text-muted mt-0.5">Include sound playing on this computer</p>
+                        </div>
+                        <p-toggleswitch (ngModelChange)="shareAudio.set($event)" [ngModel]="shareAudio()"/>
+                    </label>
+                </div>
+            }
 
             <!-- Live preview -shown when a source is selected and 1 fps capture is running -->
             @if (previewStream()) {
                 <div class="shrink-0 px-5 pb-3">
-                    <p class="text-[10px] font-medium text-text-muted mb-1.5 uppercase tracking-wide">Preview</p>
+                    <p class="text-[0.625rem] font-medium text-text-muted mb-1.5 uppercase tracking-wide">Preview</p>
                     <div class="relative w-full bg-black rounded-xl overflow-hidden" style="aspect-ratio:16/9">
                         <video #livePreview autoplay class="w-full h-full object-contain" muted
                                playsinline></video>
@@ -115,23 +169,19 @@
             }
 
             <!-- Footer -->
-            <div class="flex items-center justify-end gap-2 px-5 py-3.5 border-t border-border-subtle shrink-0">
-                <button (click)="cancel()"
+            <div class="flex items-center justify-between px-5 py-3.5 border-t border-border-subtle shrink-0">
+                <button (click)="step() === 'quality' ? back() : cancel()"
                         class="px-4 py-1.5 rounded-lg text-xs font-medium text-text-secondary
                  border border-border-subtle hover:bg-white/[0.05] transition-colors cursor-pointer">
-                    Cancel
+                    {{ step() === 'quality' ? 'Back' : 'Cancel' }}
                 </button>
-                <button (click)="confirm()"
-                        [class.bg-brand]="!!selectedId()"
-                        [class.bg-white
-                        [class.cursor-not-allowed]="!selectedId()"
-                        [class.hover:bg-brand-hover]="!!selectedId()"
-                        [class.opacity-40]="!selectedId()"
-                        [class.text-white]="!!selectedId()"
-                        [disabled]="!selectedId()"
-                        class="px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer/10]=!selectedId()"
-                [class.text-text-muted]="!selectedId()">
-                Share
+                <button (click)="step() === 'quality' ? goLive() : toQuality()"
+                        [class.cursor-not-allowed]="!selectedSource()"
+                        [class.opacity-40]="!selectedSource()"
+                        [disabled]="!selectedSource()"
+                        class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-brand text-white
+                               hover:bg-brand-hover transition-colors cursor-pointer">
+                    {{ step() === 'quality' ? 'Go Live' : 'Next' }}
                 </button>
             </div>
         </div>

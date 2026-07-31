@@ -8,7 +8,8 @@ import {GuildService} from '../../../../services/guild.service';
 import {GuildVoiceService} from '../../../../services/guild-voice.service';
 import {GuildMemberDto} from '../../../../dtos/response/member.dto';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
-import {RustMediaService, StreamResolution} from '../../../../services/rust-media.service';
+import {RustMediaService} from '../../../../services/rust-media.service';
+import {StreamPreset} from '../../../../models/stream-preset';
 import {VoiceChannelLobbyComponent} from './voice-channel-lobby.component';
 import {CallContextMenuComponent} from '../../../../shared/call/call-context-menu/call-context-menu.component';
 import {
@@ -203,11 +204,7 @@ export class VoiceChannelComponent {
         this.voiceSvc.toggleScreenAudioMute(userId);
     }
 
-    protected setCaptureFps(fps: number): void {
-        void this.rustMedia.setCaptureFps(fps);
-    }
-
-    protected setScreenResolution(res: StreamResolution): void {
-        void this.rustMedia.setScreenResolution(res);
+    protected setScreenPreset(preset: StreamPreset): void {
+        void this.voiceSvc.rtc.setScreenPreset(preset);
     }
 }
