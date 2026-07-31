@@ -4,8 +4,8 @@ import {DomSanitizer, SafeHtml} from '@angular/platform-browser';
 import {Button} from 'primeng/button';
 import {marked} from 'marked';
 import DOMPurify from 'dompurify';
-import {getVersion} from '@tauri-apps/api/app';
 import {UpdateService} from '../../../../../services/update.service';
+import {AppInfoService} from '../../../../../services/app-info.service';
 
 /**
  * Served from the frontend bundle rather than as a Tauri resource, so it also exists under
@@ -35,20 +35,12 @@ type NoticesState = 'idle' | 'loading' | 'ready' | 'error';
 })
 export class AboutSettingsComponent {
     protected readonly updateService = inject(UpdateService);
+    protected readonly appInfo = inject(AppInfoService);
     private readonly http = inject(HttpClient);
     private readonly sanitizer = inject(DomSanitizer);
 
-    protected readonly version = signal('');
     protected readonly noticesState = signal<NoticesState>('idle');
     protected readonly notices = signal<SafeHtml>('');
-
-    constructor() {
-        // Rejects outside a Tauri window - under `ng serve` there is no app to ask. The version is
-        // simply omitted there rather than shown as a stale hardcoded string.
-        getVersion()
-            .then(version => this.version.set(version))
-            .catch(() => this.version.set(''));
-    }
 
     /**
      * Fetched and rendered on demand. The notices run to roughly 600 kB covering some 1,100

@@ -8,7 +8,7 @@
       {
         "label": "echo",
         "height": 800,
-        "title": "Echo",
+        "title": "Venta",
         "width": 1200,
         "minWidth": 900,
         "minHeight": 600,
@@ -62,7 +62,7 @@
   },
   "identifier": "com.alpinebits.venta",
   "productName": "Venta",
-  "version": "3.0.150",
+  "version": "3.0.151",
   "plugins": {
     "deep-link": {
       "desktop": {

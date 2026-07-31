@@ -4,6 +4,7 @@ import {Select} from 'primeng/select';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule} from '@ngx-translate/core';
 import {UserSettingsService} from '../../../../../services/user-settings.service';
+import {AppInfoService} from '../../../../../services/app-info.service';
 
 @Component({
     selector: 'app-other-settings',
@@ -25,4 +26,5 @@ export class OtherSettingsComponent {
         {label: 'Developer mode', desc: 'Show additional debug information and tools.'},
     ];
     protected readonly userSettings = inject(UserSettingsService);
+    protected readonly appInfo = inject(AppInfoService);
 }

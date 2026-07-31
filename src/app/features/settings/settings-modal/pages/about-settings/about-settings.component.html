@@ -6,11 +6,10 @@
             Application</h2>
 
         <div class="bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-4 flex flex-col gap-1.5">
-            <p class="text-sm font-semibold text-white/70">Alpine</p>
-            @if (version()) {
-                <p class="text-xs text-white/30">Version {{ version() }}</p>
+            <p class="text-sm font-semibold text-white/70">{{ appInfo.productName() }}</p>
+            @if (appInfo.version()) {
+                <p class="text-xs text-white/30">Version {{ appInfo.version() }}</p>
             }
-            <p class="text-xs text-white/20 mt-1">Built with Angular · Tauri · PrimeNG</p>
         </div>
 
         <div class="flex items-center gap-3">
@@ -44,7 +43,7 @@
             Third-party software</h2>
 
         <p class="text-xs text-white/35 leading-relaxed">
-            Alpine is built on open-source software. The notices below reproduce the copyright and
+            {{ appInfo.productName() }} is built on open-source software. The notices below reproduce the copyright and
             licence terms of every package it includes, as those licences require.
         </p>
 

@@ -6,6 +6,7 @@ import {EntropyModalComponent} from '../entropy-modal/entropy-modal.component';
 import {UserService} from '../../../services/user.service';
 import {MasterKeyService} from '../../../services/master-key.service';
 import {PlatformService} from '../../../services/platform.service';
+import {AppInfoService} from '../../../services/app-info.service';
 import {catchError, EMPTY, filter, from, switchMap, take, tap} from 'rxjs';
 import {TranslateModule} from '@ngx-translate/core';
 
@@ -26,6 +27,7 @@ export class KeySetupDialogComponent {
     protected password = signal('');
     protected errorMsg = signal('');
 
+    protected readonly appInfo = inject(AppInfoService);
     private userService = inject(UserService);
     private masterKeyService = inject(MasterKeyService);
     private platformService = inject(PlatformService);
