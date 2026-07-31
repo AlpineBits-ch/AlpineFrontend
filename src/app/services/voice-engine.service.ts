@@ -7,11 +7,19 @@ export type VoiceTarget =
     | {kind: 'guild'; guildId: string; channelId: string}
     | {kind: 'call'; callId: string};
 
+/** One remote participant's meter, mirroring the Rust `RemoteLevel`. */
+export interface RemoteLevel {
+    id: string;
+    level: number;
+    speaking: boolean;
+}
+
 interface VoiceEvent {
-    kind: 'speaking' | 'error';
+    kind: 'speaking' | 'levels' | 'error';
     speaking: boolean;
     level: number;
     message?: string;
+    levels?: RemoteLevel[];
 }
 
 export interface VoiceStartResult {
@@ -39,6 +47,16 @@ export class VoiceEngineService {
     /** Input level, 0.0-1.0, for the microphone meter. */
     readonly level = signal(0);
     readonly active = signal(false);
+
+    /**
+     * Every remote participant's meter, keyed by source id.
+     *
+     * The only remote speaking signal once playout moves to Rust: there are no `<audio>` elements
+     * left for the webview to analyse, and this comes from the same decoded frames that reach the
+     * speakers, so it cannot disagree with what is audible.
+     */
+    private readonly remoteLevelsSignal = signal<ReadonlyMap<string, RemoteLevel>>(new Map());
+    readonly remoteLevels = this.remoteLevelsSignal.asReadonly();
 
     constructor() {
         // Push settings changes into a running session. Without this the audio settings page would
@@ -81,6 +99,10 @@ export class VoiceEngineService {
                 console.error('[voice] engine error:', event.message);
                 return;
             }
+            if (event.kind === 'levels') {
+                this.remoteLevelsSignal.set(new Map((event.levels ?? []).map(l => [l.id, l])));
+                return;
+            }
             this.speaking.set(event.speaking);
             this.level.set(event.level);
         };
@@ -109,8 +131,44 @@ export class VoiceEngineService {
         this.active.set(false);
         this.speaking.set(false);
         this.level.set(0);
+        this.remoteLevelsSignal.set(new Map());
         if (!isTauri()) return;
         await invoke('voice_stop');
+    }
+
+    /**
+     * Pull a participant's audio into the mix.
+     *
+     * `id` is the key for volume, levels and unsubscribe. Voice uses the user id; a stream's audio
+     * uses its track name, so that muting someone's stream does not also mute their voice.
+     *
+     * Rejects rather than resolving quietly on failure - nothing retries a subscribe, so a swallowed
+     * error here is a participant who stays silent for the rest of the session.
+     */
+    async subscribe(id: string, cfSessionId: string, trackName: string): Promise<void> {
+        if (!isTauri()) return;
+        await invoke('voice_subscribe', {id, cfSessionId, trackName});
+    }
+
+    async unsubscribe(id: string): Promise<void> {
+        this.remoteLevelsSignal.update(m => {
+            const n = new Map(m);
+            n.delete(id);
+            return n;
+        });
+        if (!isTauri()) return;
+        await invoke('voice_unsubscribe', {id});
+    }
+
+    /** Per-source volume, 0.0-1.0. */
+    async setUserVolume(id: string, volume: number): Promise<void> {
+        if (!isTauri()) return;
+        await invoke('voice_set_user_volume', {id, volume});
+    }
+
+    async setDeafened(deafened: boolean): Promise<void> {
+        if (!isTauri()) return;
+        await invoke('voice_set_deafened', {deafened});
     }
 
     async setMute(muted: boolean): Promise<void> {
@@ -140,6 +198,9 @@ export class VoiceEngineService {
     private payloadFrom(s: AudioSettings) {
         return {
             deviceId: s.micId === 'default' ? null : s.micId,
+            // Chosen when the output stream opens, so like the microphone it takes effect on the
+            // next join rather than immediately.
+            outputDeviceId: s.speakerId === 'default' ? null : s.speakerId,
             noiseSuppression: s.noiseSuppressionMode,
             echoCancellation: s.echoCancellation,
             autoGainControl: s.autoGainControl,

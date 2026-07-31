@@ -91,11 +91,18 @@ export class VoiceChannelService {
     private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
     constructor() {
-        // Remote participants' speaking state, from the per-track analysers in VoiceRTCService.
-        this.rtc.speakingChanges$.subscribe(({userId, isSpeaking}) => {
+        // Remote participants' speaking state, from the Rust mixer.
+        //
+        // These come from the same decoded frames that reach the speakers, so the indicator cannot
+        // disagree with what is audible - which it could when each `<audio>` element had its own
+        // WebAudio analyser making an independent judgement.
+        effect(() => {
+            const levels = this.voiceEngine.remoteLevels();
             const channelId = this.joinedChannelId();
-            if (channelId) {
-                this.patchParticipant(channelId, userId, p => p.isSpeaking === isSpeaking ? p : {...p, isSpeaking});
+            if (!channelId) return;
+            for (const [userId, level] of levels) {
+                this.patchParticipant(channelId, userId, p =>
+                    p.isSpeaking === level.speaking ? p : {...p, isSpeaking: level.speaking});
             }
         });
 
@@ -445,12 +452,9 @@ export class VoiceChannelService {
         if (e.channelId !== this.joinedChannelId()) return;
         this.patchParticipant(e.channelId, e.userId, p => ({...p, cfSessionId: e.cfSessionId}));
 
-        const guildId = this.joinedGuildId();
-        if (guildId) {
-            void this.rtc.subscribeAudio(guildId, e.channelId, [{
-                userId: e.userId, cfSessionId: e.cfSessionId, trackName: e.audioTrackName,
-            }]);
-        }
+        void this.rtc.subscribeAudio([{
+            userId: e.userId, cfSessionId: e.cfSessionId, trackName: e.audioTrackName,
+        }]);
     }
 
     private onTrackPublished(e: WsGuildTrackPublished): void {
@@ -459,7 +463,7 @@ export class VoiceChannelService {
         if (!guildId) return;
 
         if (e.kind === 'screenAudio') {
-            void this.rtc.subscribeAudio(guildId, e.channelId, [{
+            void this.rtc.subscribeAudio([{
                 userId: e.userId, cfSessionId: e.cfSessionId, trackName: e.trackName, kind: 'screenAudio',
             }]);
         } else {

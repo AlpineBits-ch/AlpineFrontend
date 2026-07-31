@@ -63,7 +63,6 @@ export class VoiceRTCService {
     // ── Signals ────────────────────────────────────────────────────────────────
     readonly localScreenHasAudio = signal<boolean>(false);
     readonly localScreenAudioMuted = signal<boolean>(false);
-    readonly speakingChanges$ = new Subject<VoiceSpeakingChange>();
     readonly screenEnded$ = new Subject<void>();
     private guildVoiceSvc = inject(GuildVoiceService);
     private audioSettings = inject(AudioSettingsService);
@@ -94,25 +93,17 @@ export class VoiceRTCService {
     // Serialises all SDP offer/answer cycles to prevent races on concurrent track operations.
     private negotiationChain: Promise<void> = Promise.resolve();
 
-    // Maps a remote transceiver MID → { userId, kind }
-    private midMeta = new Map<string, { userId: string; kind: 'audio' | 'video' | 'screen' | 'screenAudio' }>();
-
-    // Audio playback elements -WebView2/Tauri requires explicit <audio> elements
-    private remoteAudioEls = new Map<string, HTMLAudioElement>();
-    private remoteScreenAudioEls = new Map<string, HTMLAudioElement>();
-
-    // Per-user volume overrides (0–1.0)
-    private readonly userVolumes = new Map<string, number>();
+    // Maps a remote transceiver MID → { userId, kind }. Video only: audio no longer arrives here.
+    private midMeta = new Map<string, { userId: string; kind: 'video' | 'screen' }>();
 
     // Track local senders so bitrate can be changed on the fly
     private readonly localSenders = new Map<string, RTCRtpSender>();
 
-    // VAD interval handles keyed by userId (or 'local')
-    private vadHandles = new Map<string, ReturnType<typeof setInterval>>();
+    // Per-user volume, 0-1. The slider position lives here; the gain it produces lives in Rust.
+    private readonly userVolumes = new Map<string, number>();
 
-    // Mirrors the deafen state from VoiceChannelService so new audio elements are
-    // initialised with the correct volume without creating a circular dependency.
-    private _isDeafened = false;
+    // userId → the mixer source id of their stream's audio, so the per-stream mute can find it.
+    private readonly remoteScreenAudioIds = new Map<string, string>();
 
     /**
      * Quality of the running screen share, or null when not sharing. Set by the picker and changed
@@ -213,21 +204,10 @@ export class VoiceRTCService {
     }
 
     teardown(): void {
-        this.vadHandles.forEach(h => clearInterval(h));
-        this.vadHandles.clear();
-
-        this.remoteAudioEls.forEach(a => {
-            a.pause();
-            a.srcObject = null;
-        });
-        this.remoteAudioEls.clear();
-        this.remoteScreenAudioEls.forEach(a => {
-            a.pause();
-            a.srcObject = null;
-        });
-        this.remoteScreenAudioEls.clear();
         this.localSenders.clear();
 
+        // Stops capture, playout and every subscription in one call - the Rust session owns all of
+        // them, so there is nothing per-participant left to unwind here.
         void this.voiceEngine.stop();
         this.engineUp.set(false);
         this.localVideoTrack?.stop();
@@ -245,7 +225,6 @@ export class VoiceRTCService {
         this.pc?.close();
         this.pcState.set('new');
         this.participantsWithAudio.set(new Set());
-        this.userVolumes.clear();
         this.pc = null;
         this.cfSessionId = null;
         this.cfVideoTrackName = null;
@@ -264,25 +243,8 @@ export class VoiceRTCService {
 
     /** Cleans up all per-participant resources when a remote user leaves. */
     cleanupParticipant(userId: string): void {
-        const audio = this.remoteAudioEls.get(userId);
-        if (audio) {
-            audio.pause();
-            audio.srcObject = null;
-            this.remoteAudioEls.delete(userId);
-        }
-
-        const screenAudio = this.remoteScreenAudioEls.get(userId);
-        if (screenAudio) {
-            screenAudio.pause();
-            screenAudio.srcObject = null;
-            this.remoteScreenAudioEls.delete(userId);
-        }
-
-        const vad = this.vadHandles.get(userId);
-        if (vad) {
-            clearInterval(vad);
-            this.vadHandles.delete(userId);
-        }
+        // Drops their source from the mixer, their entry from the mid map, and their volume.
+        void this.voiceEngine.unsubscribe(userId);
 
         this.videoStreamsSignal.update(m => {
             const n = new Map(m);
@@ -308,71 +270,44 @@ export class VoiceRTCService {
 
     // ── Track subscription ─────────────────────────────────────────────────────
 
-    subscribeAudio(
-        guildId: string,
-        channelId: string,
+    /**
+     * Pull remote audio into the Rust mixer.
+     *
+     * Nothing is added to this peer connection any more: audio arrives on the Rust session, is
+     * decoded, jitter-buffered and mixed there, and leaves through the output device Rust opened.
+     * This connection now carries video and screen video only.
+     *
+     * `guildId`/`channelId` are gone from the signature - the Rust session already knows its target.
+     */
+    async subscribeAudio(
         targets: { userId: string; cfSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' }[],
     ): Promise<void> {
-        // Logged before the queue, not inside it: a subscribe that never runs and a subscribe that
-        // runs and fails are different bugs, and until now they looked identical from the console.
-        console.log('[voice] subscribeAudio queued', targets.map(t => ({
-            userId: t.userId, cfSessionId: t.cfSessionId, trackName: t.trackName, kind: t.kind ?? 'audio',
-        })));
-
-        return this.enqueueNegotiation(async () => {
-            // Loud, because this is unrecoverable and used to be silent: nothing retries a
-            // subscribe, so a connection that got this far without a session id means the
-            // participants named here are unhearable for the rest of the session.
-            if (!this.pc || !this.cfSessionId) {
-                console.error('[voice] cannot subscribe - no peer connection or session', {
-                    hasPc: !!this.pc,
-                    cfSessionId: this.cfSessionId,
-                    targets: targets.map(t => t.userId),
-                });
-                return;
-            }
-
-            const entries = targets.map(t => ({
-                ...t,
-                kind: t.kind ?? ('audio' as const),
-                transceiver: this.pc!.addTransceiver('audio', {direction: 'recvonly'}),
-            }));
-
-            const offer = await this.pc.createOffer();
-            await this.pc.setLocalDescription(offer);
-
-            const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
-                cfSessionId: this.cfSessionId,
-                sessionDescription: this.pc.localDescription!,
-                tracks: entries.map(e => ({
-                    location: 'remote' as const,
-                    trackName: e.trackName,
-                    sessionId: e.cfSessionId,
-                })),
-            }));
-
-            // A track without a mid is a *failed* subscribe wearing a 200. Cloudflare reports
-            // per-track failures inside a successful response, so this is what a "track not found"
-            // looks like from here - and since nothing in the guild path retries a subscribe and
-            // no HTTP fallback exists, whatever is skipped here is unhearable for the whole
-            // session. It used to be skipped without a word; the DM path already refuses to.
-            resp.tracks.forEach((t, i) => {
-                const entry = entries[i];
-                if (t.mid && entry) {
-                    this.midMeta.set(t.mid, {userId: entry.userId, kind: entry.kind});
-                    return;
+        for (const target of targets) {
+            // Voice keys on the user; a stream's audio keys on its track name, so muting a stream
+            // does not mute the voice of whoever is streaming.
+            const id = target.kind === 'screenAudio' ? target.trackName : target.userId;
+            try {
+                await this.voiceEngine.subscribe(id, target.cfSessionId, target.trackName);
+                if (target.kind === 'screenAudio') {
+                    this.remoteScreenAudioIds.set(target.userId, id);
+                    // A stream that starts while its author is already muted must stay muted.
+                    if (this.screenAudioMutedSignal().has(target.userId)) {
+                        void this.voiceEngine.setUserVolume(id, 0);
+                    }
+                } else {
+                    this.participantsWithAudio.update(s => new Set(s).add(target.userId));
+                    // Re-apply the stored slider position: Rust starts every source at unity, and a
+                    // volume set before this participant joined would otherwise be silently lost.
+                    const volume = this.userVolumes.get(target.userId);
+                    if (volume !== undefined) void this.voiceEngine.setUserVolume(id, volume);
                 }
-                console.error('[voice] subscribe failed - no mid returned, this user stays silent', {
-                    userId: entry?.userId,
-                    trackName: t.trackName,
-                    errorCode: t.errorCode,
-                    errorDescription: t.errorDescription,
-                });
-            });
-
-            await this.pc.setRemoteDescription(resp.sessionDescription);
-            if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
-        });
+            } catch (e) {
+                // Loud, and it stays loud. Nothing retries a subscribe, so this participant is
+                // unhearable until they republish - and a silent version of this exact failure is
+                // what cost a full debugging session in phase 1.
+                console.error('[voice] subscribe failed', {id, ...target}, e);
+            }
+        }
     }
 
     subscribeVideo(
@@ -409,11 +344,14 @@ export class VoiceRTCService {
 
     // ── Local media controls ───────────────────────────────────────────────────
 
+    /**
+     * One call, because the mixer silences everything at once rather than per element.
+     *
+     * Note this deafens *output only* - the capture chain is untouched, so deafen still does not
+     * stop you transmitting. Mute is a separate control, as it was before.
+     */
     setDeafened(isDeafened: boolean): void {
-        this._isDeafened = isDeafened;
-        this.remoteAudioEls.forEach((a, userId) => {
-            a.volume = isDeafened ? 0 : (this.userVolumes.get(userId) ?? 1);
-        });
+        void this.voiceEngine.setDeafened(isDeafened);
     }
 
     async publishCamera(guildId: string, channelId: string): Promise<string | null> {
@@ -709,11 +647,14 @@ export class VoiceRTCService {
 
     // ── Volume / per-user audio controls ──────────────────────────────────────
 
+    /**
+     * The UI still owns the slider position, because Rust has no reason to remember it across a
+     * rejoin. Rust owns what it *does*, which is a gain in the mixer.
+     */
     setUserVolume(userId: string, volume: number): void {
         const clamped = Math.max(0, Math.min(1, volume));
         this.userVolumes.set(userId, clamped);
-        const audio = this.remoteAudioEls.get(userId);
-        if (audio && !this._isDeafened) audio.volume = clamped;
+        void this.voiceEngine.setUserVolume(userId, clamped);
     }
 
     getUserVolume(userId: string): number {
@@ -724,10 +665,17 @@ export class VoiceRTCService {
         return this.screenAudioMutedSignal().has(userId);
     }
 
+    /**
+     * Mutes a *stream's* audio, not the streamer's voice.
+     *
+     * Those are separate sources in the mixer - `screen-audio-{shareId}` against the user id - which
+     * is why this can key on the share rather than the person. Muting someone's stream while still
+     * hearing them talk over it is the whole point.
+     */
     toggleScreenAudioMute(userId: string): void {
         const willMute = !this.screenAudioMutedSignal().has(userId);
-        const audio = this.remoteScreenAudioEls.get(userId);
-        if (audio) audio.volume = willMute ? 0 : 1;
+        const shareId = this.remoteScreenAudioIds.get(userId);
+        if (shareId) void this.voiceEngine.setUserVolume(shareId, willMute ? 0 : 1);
         this.screenAudioMutedSignal.update(s => {
             const n = new Set(s);
             willMute ? n.add(userId) : n.delete(userId);
@@ -771,12 +719,10 @@ export class VoiceRTCService {
                 return n;
             });
         } else if (trackName.startsWith('screen-audio-')) {
-            const audio = this.remoteScreenAudioEls.get(userId);
-            if (audio) {
-                audio.pause();
-                audio.srcObject = null;
-                this.remoteScreenAudioEls.delete(userId);
-            }
+            // Drop the source, or a stopped stream keeps its slot in the mixer forever - silent,
+            // but still popped and mixed on every frame.
+            void this.voiceEngine.unsubscribe(trackName);
+            this.remoteScreenAudioIds.delete(userId);
         } else if (trackName.startsWith('screen-')) {
             this.screenStreamsSignal.update(m => {
                 const n = new Map(m);
@@ -789,7 +735,6 @@ export class VoiceRTCService {
     // ── Private helpers ────────────────────────────────────────────────────────
 
     private handleRemoteTrack(event: RTCTrackEvent): void {
-        console.log(event);
         const mid = event.transceiver.mid;
         if (!mid) return;
         const meta = this.midMeta.get(mid);
@@ -797,35 +742,9 @@ export class VoiceRTCService {
 
         const stream = event.streams[0] ?? new MediaStream([event.track]);
 
-        if (meta.kind === 'audio' || meta.kind === 'screenAudio') {
-            const elMap = meta.kind === 'screenAudio' ? this.remoteScreenAudioEls : this.remoteAudioEls;
-
-            let audio = elMap.get(meta.userId);
-            if (!audio) {
-                audio = new Audio();
-                audio.autoplay = true;
-                elMap.set(meta.userId, audio);
-            } else {
-                audio.pause();
-            }
-            audio.srcObject = stream;
-            audio.volume = meta.kind === 'audio'
-                ? (this._isDeafened ? 0 : (this.userVolumes.get(meta.userId) ?? 1))
-                : (this.screenAudioMutedSignal().has(meta.userId) ? 0 : 1);
-
-            void this.routeToSelectedSpeaker(audio);
-            void audio.play().catch(() => {
-            });
-
-            if (meta.kind === 'audio') {
-                this.participantsWithAudio.update(s => {
-                    const n = new Set(s);
-                    n.add(meta.userId);
-                    return n;
-                });
-                this.setupVAD(meta.userId, stream);
-            }
-        } else if (meta.kind === 'video') {
+        // No audio branch: audio never reaches this connection now. It is pulled, decoded and mixed
+        // on the Rust session and played through the output device Rust owns.
+        if (meta.kind === 'video') {
             this.videoStreamsSignal.update(m => {
                 const n = new Map(m);
                 n.set(meta.userId, stream);
@@ -837,29 +756,6 @@ export class VoiceRTCService {
                 n.set(meta.userId, stream);
                 return n;
             });
-        }
-    }
-
-    /**
-     * Point a remote-audio element at the selected speaker (best-effort).
-     *
-     * The stored `speakerId` is a platform device name, so it has to be resolved
-     * to a web sink id first -handing the raw name to `setSinkId` throws
-     * `NotFoundError`. An unresolvable or dead device just leaves the element on
-     * the system default.
-     */
-    private async routeToSelectedSpeaker(el: HTMLAudioElement): Promise<void> {
-        const setSinkId = (el as HTMLAudioElement & {
-            setSinkId?: (id: string) => Promise<void>
-        }).setSinkId;
-        if (typeof setSinkId !== 'function') return;
-
-        const sinkId = await this.audioSettings.resolveSpeakerSinkId();
-        if (!sinkId) return;
-        try {
-            await setSinkId.call(el, sinkId);
-        } catch (e) {
-            console.warn('[voice] setSinkId failed; using the default output', e);
         }
     }
 
@@ -877,40 +773,6 @@ export class VoiceRTCService {
         await this.pc.setLocalDescription(offer);
         const resp = await firstValueFrom(this.guildVoiceSvc.renegotiate(guildId, channelId, this.cfSessionId, offer));
         await this.pc.setRemoteDescription(resp.sessionDescription);
-    }
-
-    /**
-     * Drive a remote participant's speaking indicator from their incoming audio.
-     *
-     * Only ever remote now. The local speaking state comes from the Rust gate, which is the same
-     * decision that picks what actually gets transmitted - so the indicator and the transmission
-     * can no longer disagree, which they routinely did when a separate WebAudio analyser made its
-     * own judgement about the same microphone.
-     */
-    private setupVAD(userId: string, stream: MediaStream): void {
-        try {
-            const ctx = new AudioContext();
-            const source = ctx.createMediaStreamSource(stream);
-            const analyser = ctx.createAnalyser();
-            analyser.fftSize = 256;
-            source.connect(analyser);
-            // Time-domain RMS, not getByteFrequencyData averaged across every FFT bin - most of
-            // those 128 bins carry no voice energy (speech sits in a handful of low bins), so that
-            // average was diluted to ~1/4 of what the old MAX_VAD_AVG=60 assumed.
-            const data = new Float32Array(analyser.fftSize);
-            const REMOTE_THRESHOLD = 0.02;
-
-            const id = setInterval(() => {
-                analyser.getFloatTimeDomainData(data);
-                const rms = Math.sqrt(data.reduce((sum, v) => sum + v * v, 0) / data.length);
-                this.speakingChanges$.next({userId, isSpeaking: rms > REMOTE_THRESHOLD});
-            }, 50);
-
-            const prev = this.vadHandles.get(userId);
-            if (prev) clearInterval(prev);
-            this.vadHandles.set(userId, id);
-        } catch { /* AudioContext unavailable */
-        }
     }
 
 }

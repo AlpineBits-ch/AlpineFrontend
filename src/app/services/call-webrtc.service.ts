@@ -103,8 +103,6 @@ export class CallWebRtcService {
     // event and a reconcile-on-reconnect backfill can race for the same user).
     private readonly subscribedAudioUserIds = new Set<string>();
     private prevConnState: ConnectionState | null = null;
-    // Audio elements for remote participants -WebView2/Tauri requires explicit <audio> elements
-    private readonly remoteAudio = new Map<string, HTMLAudioElement>();
     // Per-user volume overrides (0–1.0), persisted for the call duration
     private readonly userVolumes = new Map<string, number>();
     // ontrack events that arrived before their midMap entry was written -replayed after subscribe completes
@@ -192,10 +190,7 @@ export class CallWebRtcService {
         // VoiceRTCService.setDeafened for the guild path. Narrowed to `localDeafened` for the same
         // reason as the mute effect above.
         effect(() => {
-            const isDeafened = this.localDeafened();
-            this.remoteAudio.forEach((audio, userId) => {
-                audio.volume = isDeafened ? 0 : (this.userVolumes.get(userId) ?? 1);
-            });
+            void this.voiceEngine.setDeafened(this.localDeafened());
         });
 
         // Publish or unpublish the local camera track when the user toggles it.
@@ -234,9 +229,7 @@ export class CallWebRtcService {
     setUserVolume(userId: string, volume: number): void {
         const clamped = Math.max(0, Math.min(1, volume));
         this.userVolumes.set(userId, clamped);
-        const audio = this.remoteAudio.get(userId);
-        const isDeafened = this.callSession.session()?.local.isDeafened ?? false;
-        if (audio && !isDeafened) audio.volume = clamped;
+        void this.voiceEngine.setUserVolume(userId, clamped);
     }
 
     getUserVolume(userId: string): number {
@@ -320,11 +313,6 @@ export class CallWebRtcService {
         this.engineUp.set(false);
         void this.rustMedia.stopScreenCapture();
         this.pc?.close();
-        this.remoteAudio.forEach(a => {
-            a.pause();
-            a.srcObject = null;
-        });
-        this.remoteAudio.clear();
         this.wsSubs.forEach(s => s.unsubscribe());
 
         this.pcState.set('new');
@@ -518,11 +506,31 @@ export class CallWebRtcService {
         kind: 'audio' | 'video' | 'screen',
         shareId?: string,
     ): Promise<void> {
-        if (!this.pc) return;
         if (kind === 'audio') {
             if (this.subscribedAudioUserIds.has(userId)) return;
             this.subscribedAudioUserIds.add(userId);
+
+            // Audio never touches this peer connection now: it is pulled onto the Rust session,
+            // decoded and mixed there, and played through the output device Rust owns.
+            try {
+                await this.voiceEngine.subscribe(userId, remoteCfSessionId, trackName);
+                this.participantsWithAudio.update(s => {
+                    const n = new Set(s);
+                    n.add(userId);
+                    return n;
+                });
+                const volume = this.userVolumes.get(userId);
+                if (volume !== undefined) await this.voiceEngine.setUserVolume(userId, volume);
+            } catch (e) {
+                console.error('[WebRTC] audio subscribe failed', {userId, trackName}, e);
+                // Roll the guard back, exactly as the video path does below: every retry route -
+                // live ParticipantJoined, the syncParticipants backfill, the reconnect resync - is
+                // gated behind it, so leaving it consumed makes one failure permanent.
+                this.subscribedAudioUserIds.delete(userId);
+            }
+            return;
         }
+        if (!this.pc) return;
         // Everything below is a network round trip (or more than one, via CF
         // renegotiation) that can throw or transiently fail -most likely on a cold
         // app start (fresh CF session, cold DNS/TLS). If we don't roll back the
@@ -533,11 +541,9 @@ export class CallWebRtcService {
         // attempt here would have zero chance of ever being retried.
         try {
             console.log('[WebRTC] subscribeToTrack', {userId, remoteCfSessionId, trackName, kind});
-            const mediaKind = kind === 'audio' ? 'audio' : 'video';
-            const transceiver = this.pc.addTransceiver(mediaKind, {direction: 'recvonly'});
-
-            // For video/screen tracks, prefer VP9 on the receive side for the same efficiency gains.
-            if (mediaKind === 'video') preferVideoCodecs(transceiver, 'receiver');
+            // Only video reaches this connection now; audio returned above.
+            const transceiver = this.pc.addTransceiver('video', {direction: 'recvonly'});
+            preferVideoCodecs(transceiver, 'receiver');
 
             const results = await this.offerAnswerCycle(() => [{
                 location: 'remote',
@@ -562,7 +568,6 @@ export class CallWebRtcService {
             this.processPendingTracks();
         } catch (e) {
             console.error('[WebRTC] subscribeToTrack failed', {userId, trackName, kind}, e);
-            if (kind === 'audio') this.subscribedAudioUserIds.delete(userId);
         }
     }
 
@@ -594,72 +599,13 @@ export class CallWebRtcService {
 
         const stream = event.streams[0] ?? new MediaStream([event.track]);
 
-        if (info.kind === 'audio') {
-            const existing = this.remoteAudio.get(info.userId);
-            if (existing) {
-                existing.pause();
-                existing.srcObject = null;
-            }
-
-            const element = new Audio();
-            element.srcObject = stream;
-            element.autoplay = true;
-            const isDeafened = this.callSession.session()?.local.isDeafened ?? false;
-            element.volume = isDeafened ? 0 : (this.userVolumes.get(info.userId) ?? 1);
-            void this.routeToSelectedSpeaker(element);
-            void element.play().catch(e => {
-                console.error('[WebRTC] remote audio element failed to play', {userId: info.userId}, e);
-            });
-
-            this.remoteAudio.set(info.userId, element);
-            this.participantsWithAudio.update(s => {
-                const n = new Set(s);
-                n.add(info.userId);
-                return n;
-            });
-
-            event.track.onended = () => {
-                const el = this.remoteAudio.get(info.userId);
-                if (el) {
-                    el.pause();
-                    el.srcObject = null;
-                    this.remoteAudio.delete(info.userId);
-                }
-                this.participantsWithAudio.update(s => {
-                    const n = new Set(s);
-                    n.delete(info.userId);
-                    return n;
-                });
-            };
-        } else if (info.kind === 'video') {
+        // No audio branch: audio is mixed and played in Rust, and never routed here.
+        if (info.kind === 'video') {
             this.callSession.onCameraChanged(info.userId, true, stream);
             event.track.onended = () => this.callSession.onCameraChanged(info.userId, false);
         } else if (info.kind === 'screen' && info.shareId) {
             this.callSession.onScreenShareStarted(info.shareId, info.userId, stream);
             event.track.onended = () => this.callSession.onScreenShareStopped(info.shareId!);
-        }
-    }
-
-    /**
-     * Point a remote-audio element at the selected speaker (best-effort).
-     *
-     * The stored `speakerId` is a platform device name, so it has to be resolved
-     * to a web sink id first -handing the raw name to `setSinkId` throws
-     * `NotFoundError`. An unresolvable or dead device just leaves the element on
-     * the system default.
-     */
-    private async routeToSelectedSpeaker(el: HTMLAudioElement): Promise<void> {
-        const setSinkId = (el as HTMLAudioElement & {
-            setSinkId?: (id: string) => Promise<void>
-        }).setSinkId;
-        if (typeof setSinkId !== 'function') return;
-
-        const sinkId = await this.audioSettings.resolveSpeakerSinkId();
-        if (!sinkId) return;
-        try {
-            await setSinkId.call(el, sinkId);
-        } catch (e) {
-            console.warn('[call] setSinkId failed; using the default output', e);
         }
     }
 
@@ -770,6 +716,7 @@ export class CallWebRtcService {
             if (!p.isLocal && !freshIds.has(p.userId)) {
                 this.callSession.onParticipantLeft(p.userId);
                 this.subscribedAudioUserIds.delete(p.userId);
+                void this.voiceEngine.unsubscribe(p.userId);
             }
         }
 
@@ -795,6 +742,9 @@ export class CallWebRtcService {
             this.voiceWs.participantLeftObservable.subscribe(e => {
                 this.callSession.onParticipantLeft(e.userId);
                 this.subscribedAudioUserIds.delete(e.userId);
+                // Drop their source, or they keep a slot in the mixer that is popped and mixed on
+                // every frame for the rest of the call.
+                void this.voiceEngine.unsubscribe(e.userId);
                 this.participantsWithAudio.update(s => {
                     const n = new Set(s);
                     n.delete(e.userId);
