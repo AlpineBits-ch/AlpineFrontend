@@ -339,25 +339,38 @@ mod webrtc {
             && matches!((from.modified(), to.modified()), (Ok(f), Ok(t)) if t >= f)
     }
 
+    // ALPINE PATCH: these were `webrtc-audio-processing` and `webrtc-audio-processing-build`.
+    //
+    // Shortened because MSVC cannot compile abseil at the original names. meson writes source paths
+    // into build.ninja relative to the build directory, so cl is handed
+    // `../webrtc-audio-processing/subprojects/abseil-cpp-<ver>/absl/strings/internal/str_format/
+    // float_conversion.cc`, and Windows measures that against MAX_PATH *before* resolving the `..`.
+    // Under cargo's own nesting (target/debug/build/<crate>-<hash>/out/) the unresolved form runs
+    // just past 260 characters, so the longest few abseil files - and only those - fail with
+    // "C1083: Cannot open source file". c1xx does not honour the long-path opt-in, so
+    // LongPathsEnabled does not save it.
+    //
+    // 32 characters shaved off the pair, which puts the worst case comfortably inside the limit.
     fn webrtc_source_dir() -> PathBuf {
-        out_dir().join("webrtc-audio-processing")
+        out_dir().join("wap-src")
     }
 
     fn webrtc_build_dir() -> PathBuf {
-        out_dir().join("webrtc-audio-processing-build")
+        out_dir().join("wap-build")
     }
 
     /// Extract defined (non-external) symbols from a static library using nm.
     fn get_defined_symbols(archive_path: &std::path::Path) -> Result<Vec<String>> {
-        let output = Command::new("nm")
+        let nm = determine_nm_path();
+        let output = Command::new(&nm)
             .arg("--defined-only")
             .arg("--format=posix")
             .arg(archive_path)
             .output()
-            .context("Failed to execute nm")?;
+            .with_context(|| format!("Failed to execute {}", nm.display()))?;
 
         if !output.status.success() {
-            anyhow::bail!("nm failed: {}", String::from_utf8_lossy(&output.stderr));
+            anyhow::bail!("{} failed: {}", nm.display(), String::from_utf8_lossy(&output.stderr));
         }
 
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -547,6 +560,41 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+/// ALPINE PATCH: resolve `nm` from the active Rust toolchain instead of PATH.
+///
+/// The bundled build lists a static library's symbols before prefixing them, and Windows ships no
+/// `nm` - so the build got as far as compiling all of abseil and the AudioProcessing module, then
+/// died with "Failed to execute nm". rustup's llvm-tools component installs `llvm-nm` beside the
+/// `rust-objcopy` this file already resolves the same way, and it accepts the same
+/// `--defined-only --format=posix` flags.
+///
+/// Falls back to a bare `nm` when the component is absent, which is what every host did before.
+fn determine_nm_path() -> PathBuf {
+    let fallback = || PathBuf::from("nm");
+
+    let Some(bin_dir) = toolchain_bin_dir() else {
+        return fallback();
+    };
+    let llvm_nm = bin_dir.join(if cfg!(windows) { "llvm-nm.exe" } else { "llvm-nm" });
+    if llvm_nm.exists() {
+        llvm_nm
+    } else {
+        fallback()
+    }
+}
+
+/// Where rustup's llvm-tools component puts its binaries, if that can be worked out at all.
+fn toolchain_bin_dir() -> Option<PathBuf> {
+    let rustc = env::var("RUSTC").unwrap_or_else(|_| "rustc".to_string());
+    let output = Command::new(&rustc).arg("--print").arg("sysroot").output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let sysroot = PathBuf::from(String::from_utf8(output.stdout).ok()?.trim());
+    let host = env::var("HOST").ok()?;
+    Some(sysroot.join("lib").join("rustlib").join(host).join("bin"))
+}
+
 /// Reliably determine a path to objcopy binary bundled with the active Rust toolchain (rust-objcopy)
 fn determine_objcopy_path() -> Result<PathBuf> {
     // 1. Get the rustc command (this might be a path or just "rustc")
@@ -570,7 +618,14 @@ fn determine_objcopy_path() -> Result<PathBuf> {
     // We use HOST because that is where the compiler (and tools) are running.
     let host = env::var("HOST").context("HOST env var not found")?;
 
-    let objcopy = sysroot.join("lib").join("rustlib").join(host).join("bin").join("rust-objcopy");
+    // ALPINE PATCH: `.exe` on Windows, or the existence check below always fails and reports a
+    // missing llvm-tools component that is in fact installed.
+    let objcopy = sysroot
+        .join("lib")
+        .join("rustlib")
+        .join(host)
+        .join("bin")
+        .join(if cfg!(windows) { "rust-objcopy.exe" } else { "rust-objcopy" });
 
     // Optional: verification
     if !objcopy.exists() {
