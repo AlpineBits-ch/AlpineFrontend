@@ -110,6 +110,12 @@ button, a, [role="button"], input, select, textarea, label {
   50% { box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.6); }
 }
 
+/* Put this on the avatar element itself — a wrapper around an inline-level
+   avatar is as tall as its line box, which makes the ring an oval. */
+.speaking-ring {
+  animation: speaking-ring 1.4s ease-in-out infinite;
+}
+
 /**
  * Alpine Design System -Tailwind v4 theme tokens
  *

@@ -3,11 +3,9 @@
 <div (click)="open.emit()"
      (contextmenu)="openMenu.emit($event)"
      class="flex items-center gap-2 pl-7 pr-2 py-0.5 rounded-md hover:bg-white/[0.04] cursor-pointer transition-colors">
-    <div [ngClass]="p.isSpeaking ? 'rounded-full' : ''"
-         [style.animation]="p.isSpeaking ? 'speaking-ring 1.4s ease-in-out infinite' : 'none'"
-         class="flex shrink-0 rounded-full">
+    <div class="flex shrink-0">
         <app-avatar [label]="p.avatarLabel" [userId]="p.userId"
-                    styleClass="!w-5 !h-5 !text-[9px]"/>
+                    [styleClass]="p.isSpeaking ? '!w-5 !h-5 !text-[9px] speaking-ring' : '!w-5 !h-5 !text-[9px]'"/>
     </div>
     <span [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/55'"
           class="text-[13px] flex-1 truncate">
