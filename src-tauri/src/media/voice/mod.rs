@@ -21,6 +21,7 @@ pub mod jitter;
 pub mod mixer;
 pub mod playout;
 pub mod process;
+pub mod receive;
 pub mod resample;
 pub mod ring;
 pub mod rtc;
