@@ -84,7 +84,20 @@ pub struct VoiceSettings {
     pub input_mode: String,
     /// 0.0-1.0, matching the sensitivity slider.
     pub sensitivity: f32,
+    /// Microphone slider, 0.0-1.0. How loud everyone else hears you.
+    ///
+    /// Defaulted, like `output_device_id`, so a frontend that predates it still deserialises - and
+    /// it defaults to unity rather than `f32::default()`, which is silence.
+    #[serde(default = "unity")]
+    pub input_volume: f32,
+    /// Output slider, 0.0-1.0. How loud you hear everyone else.
+    #[serde(default = "unity")]
+    pub output_volume: f32,
     pub bitrate_bps: Option<i32>,
+}
+
+fn unity() -> f32 {
+    1.0
 }
 
 impl VoiceSettings {
@@ -112,7 +125,12 @@ impl VoiceSettings {
             },
             // 64 kbps mono Opus is transparent for speech; more buys nothing audible.
             bitrate_bps: self.bitrate_bps.unwrap_or(64_000),
+            input_gain: clamp_volume(self.input_volume),
         }
+    }
+
+    fn master_gain(&self) -> f32 {
+        clamp_volume(self.output_volume)
     }
 }
 
@@ -169,6 +187,11 @@ pub async fn voice_start(
     )
     .await?;
 
+    // The chain config carries the input gain into `session::start`; the output slider has no such
+    // route, so it is applied here. Without this the mixer would sit at unity until the user next
+    // touched the slider, and a saved output volume would be ignored on every join.
+    handle.set_master(settings.master_gain());
+
     let result = VoiceStartResult {
         cf_session_id: handle.cf_session_id.clone(),
         track_name: handle.track_name.clone(),
@@ -202,7 +225,13 @@ pub fn voice_set_ptt_open(open: bool) {
 #[tauri::command]
 pub fn voice_set_processing(settings: VoiceSettings) {
     let config = settings.to_chain_config();
-    with_active(|h| h.set_config(config));
+    let master = settings.master_gain();
+    with_active(|h| {
+        h.set_config(config);
+        // The output slider goes to the mixer, not the capture chain - it is the one setting here
+        // that changes what you hear rather than what you send.
+        h.set_master(master);
+    });
 }
 
 /// Subscribe to one participant's audio and start mixing them in.
@@ -249,6 +278,9 @@ pub fn voice_set_deafened(deafened: bool) {
 ///
 /// A slider that has never been touched, or a value lost in transit, must not mute someone - that
 /// failure is indistinguishable from the other side having gone quiet.
+///
+/// Used for the per-user volume and for both settings sliders, since all three arrive over IPC as
+/// whatever the webview chose to send.
 fn clamp_volume(volume: f32) -> f32 {
     if volume.is_nan() {
         return 1.0;
@@ -324,8 +356,58 @@ mod tests {
             auto_gain_control: true,
             input_mode: "voice".into(),
             sensitivity: 0.5,
+            input_volume: 1.0,
+            output_volume: 1.0,
             bitrate_bps: None,
         }
+    }
+
+    #[test]
+    fn the_volume_sliders_default_to_unity_when_absent() {
+        // Same reasoning as outputDeviceId above, with a sharper failure: `f32::default()` is 0.0,
+        // so a frontend that predates these fields would deserialise into a muted microphone and a
+        // silent mixer rather than a missing setting.
+        let parsed: VoiceSettings = serde_json::from_str(
+            r#"{"deviceId":null,"noiseSuppression":"standard","echoCancellation":true,
+                "autoGainControl":true,"inputMode":"voice","sensitivity":0.5,"bitrateBps":null}"#,
+        )
+        .unwrap();
+        assert_eq!(parsed.input_volume, 1.0);
+        assert_eq!(parsed.output_volume, 1.0);
+    }
+
+    #[test]
+    fn the_input_slider_becomes_the_chain_gain() {
+        let mut s = settings();
+        s.input_volume = 0.4;
+        assert_eq!(s.to_chain_config().input_gain, 0.4);
+    }
+
+    #[test]
+    fn the_output_slider_becomes_the_master_gain() {
+        let mut s = settings();
+        s.output_volume = 0.3;
+        assert_eq!(s.master_gain(), 0.3);
+    }
+
+    #[test]
+    fn the_two_sliders_do_not_cross_over() {
+        // They are separate paths - one scales what is sent, the other what is heard - and reading
+        // the wrong field would be invisible until someone set them differently.
+        let mut s = settings();
+        s.input_volume = 0.2;
+        s.output_volume = 0.8;
+        assert_eq!(s.to_chain_config().input_gain, 0.2);
+        assert_eq!(s.master_gain(), 0.8);
+    }
+
+    #[test]
+    fn a_broken_slider_value_does_not_mute_anyone() {
+        let mut s = settings();
+        s.input_volume = f32::NAN;
+        s.output_volume = f32::NAN;
+        assert_eq!(s.to_chain_config().input_gain, 1.0);
+        assert_eq!(s.master_gain(), 1.0);
     }
 
     #[test]

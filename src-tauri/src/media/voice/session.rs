@@ -5,7 +5,7 @@
 //! packets cross to the async side over a bounded channel, exactly as the screen publisher does.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -125,7 +125,6 @@ fn reference_from(stereo: &[f32]) -> Vec<f32> {
 ///
 /// Atomics rather than a mutex: the capture thread reads these every 10 ms on a deadline, and it
 /// must never wait on a UI thread that happens to be holding a lock.
-#[derive(Default)]
 pub struct Control {
     muted: AtomicBool,
     ptt_down: AtomicBool,
@@ -139,6 +138,29 @@ pub struct Control {
     gains: Mutex<HashMap<String, f32>>,
     gains_dirty: AtomicBool,
     deafened: AtomicBool,
+    /// Master output volume as raw `f32` bits, 0.0-1.0.
+    ///
+    /// Bits rather than a float because there is no `AtomicF32`, and an atomic rather than joining
+    /// `pending_config` because that one belongs to the capture thread and this is read by playout.
+    master_bits: AtomicU32,
+}
+
+/// Written out rather than derived: every other field's zero value is the right default, and this
+/// one's is silence. A derived `Default` would ship a session whose output volume starts at zero.
+impl Default for Control {
+    fn default() -> Self {
+        Self {
+            muted: AtomicBool::new(false),
+            ptt_down: AtomicBool::new(false),
+            stopped: AtomicBool::new(false),
+            pending_config: Mutex::new(None),
+            dirty: AtomicBool::new(false),
+            gains: Mutex::new(HashMap::new()),
+            gains_dirty: AtomicBool::new(false),
+            deafened: AtomicBool::new(false),
+            master_bits: AtomicU32::new(1.0f32.to_bits()),
+        }
+    }
 }
 
 impl Control {
@@ -209,6 +231,20 @@ impl Control {
     pub fn set_deafened(&self, deafened: bool) {
         self.deafened.store(deafened, Ordering::Relaxed);
     }
+
+    pub fn master(&self) -> f32 {
+        f32::from_bits(self.master_bits.load(Ordering::Relaxed))
+    }
+
+    /// Master output volume, 0.0-1.0. Anything not finite is ignored rather than stored: a NaN here
+    /// would multiply the whole mix to NaN and silence every participant at once.
+    pub fn set_master(&self, gain: f32) {
+        if !gain.is_finite() {
+            return;
+        }
+        self.master_bits
+            .store(gain.clamp(0.0, 1.0).to_bits(), Ordering::Relaxed);
+    }
 }
 
 pub struct VoiceHandle {
@@ -254,6 +290,10 @@ impl VoiceHandle {
 
     pub fn set_deafened(&self, deafened: bool) {
         self.control.set_deafened(deafened);
+    }
+
+    pub fn set_master(&self, gain: f32) {
+        self.control.set_master(gain);
     }
 
     /// Pull one participant's track onto this session and start mixing them in.
@@ -410,6 +450,7 @@ pub async fn start(
                     }
                 }
                 mixer.set_deafened(playout_control.deafened());
+                mixer.set_master(playout_control.master());
 
                 // Collected into owned frames rather than borrowed from the map: `mix` wants a
                 // slice of slices, and producing them mutates each source, so the borrow cannot be
@@ -567,6 +608,36 @@ mod tests {
     }
 
     #[test]
+    fn master_volume_starts_at_unity() {
+        // The one field whose zero value is wrong. A derived `Default` would start every session
+        // silent, and it would look like a broken output device rather than a settings bug.
+        assert_eq!(Control::default().master(), 1.0);
+    }
+
+    #[test]
+    fn master_volume_round_trips_and_clamps() {
+        let control = Control::default();
+        control.set_master(0.25);
+        assert_eq!(control.master(), 0.25);
+
+        control.set_master(4.0);
+        assert_eq!(control.master(), 1.0, "above unity is clamped, not amplified");
+
+        control.set_master(-1.0);
+        assert_eq!(control.master(), 0.0);
+    }
+
+    #[test]
+    fn a_nan_master_volume_is_ignored() {
+        // It would multiply the whole mix to NaN, silencing everyone at once with no way back
+        // except rejoining - so the last good value is kept instead.
+        let control = Control::default();
+        control.set_master(0.5);
+        control.set_master(f32::NAN);
+        assert_eq!(control.master(), 0.5);
+    }
+
+    #[test]
     fn deafen_defaults_off_and_round_trips() {
         let control = Control::default();
         assert!(!control.deafened());
@@ -641,6 +712,7 @@ mod tests {
                 release_ms: 200,
             },
             bitrate_bps: 32_000,
+            input_gain: 1.0,
         });
 
         let taken = control.take_config().expect("a pending config must be applied");

@@ -21,6 +21,9 @@ pub struct ChainConfig {
     pub processing: ProcessConfig,
     pub gate: GateConfig,
     pub bitrate_bps: i32,
+    /// What the microphone slider is worth, 0.0-1.0. Applied to what is sent, not to what is
+    /// measured: see `process_frame`.
+    pub input_gain: f32,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -155,6 +158,19 @@ impl CaptureChain {
             level: rms,
         };
 
+        // Applied here, after the gate and after the meter reads `rms`, so the slider changes only
+        // how loud everyone else hears you.
+        //
+        // Ahead of the processor it would fight AGC, which measures the signal and undoes exactly
+        // this kind of gain. Ahead of the gate it would double as a second sensitivity control -
+        // turning yourself down would stop the gate opening and cut you off entirely - and it would
+        // move the input meter, which is the thing people watch while setting the sensitivity
+        // slider next to it.
+        if self.config.input_gain != 1.0 {
+            let gain = self.config.input_gain;
+            self.frame.iter_mut().for_each(|s| *s *= gain);
+        }
+
         self.packet_buffer.extend_from_slice(&self.frame);
         if self.packet_buffer.len() < PACKET_SAMPLES {
             return;
@@ -202,6 +218,7 @@ mod tests {
                 release_ms: 200,
             },
             bitrate_bps: 64_000,
+            input_gain: 1.0,
         }
     }
 
@@ -219,6 +236,96 @@ mod tests {
         let mut packets = Vec::new();
         let status = chain.push(input, &mut |p: &[u8]| packets.push(p.to_vec()));
         (packets, status)
+    }
+
+    /// Peak amplitude of everything `chain` emits for `input`, decoded back to PCM.
+    ///
+    /// Round-tripped through Opus rather than inspecting the frame directly, because the gain has
+    /// to survive the encoder to be worth anything - the slider's job is what the far end hears.
+    fn decoded_peak(chain: &mut CaptureChain, input: &[f32]) -> f32 {
+        use super::super::codec::VoiceDecoder;
+        let (packets, _) = collect(chain, input);
+        let mut decoder = VoiceDecoder::new().unwrap();
+        let mut pcm = vec![0.0f32; PACKET_SAMPLES];
+        let mut peak = 0.0f32;
+        for packet in &packets {
+            let n = decoder.decode(packet, &mut pcm).unwrap();
+            for s in &pcm[..n] {
+                peak = peak.max(s.abs());
+            }
+        }
+        peak
+    }
+
+    #[test]
+    fn the_input_slider_scales_what_is_sent() {
+        let full = decoded_peak(
+            &mut CaptureChain::new(SAMPLE_RATE, config()).unwrap(),
+            &tone(SAMPLE_RATE as usize / 10, 0),
+        );
+
+        let half = decoded_peak(
+            &mut CaptureChain::new(
+                SAMPLE_RATE,
+                ChainConfig {
+                    input_gain: 0.5,
+                    ..config()
+                },
+            )
+            .unwrap(),
+            &tone(SAMPLE_RATE as usize / 10, 0),
+        );
+
+        // Opus is lossy, so this is a ratio check with room, not an equality.
+        assert!(
+            half < full * 0.65 && half > full * 0.35,
+            "half gain should roughly halve the peak: full {full}, half {half}"
+        );
+    }
+
+    #[test]
+    fn the_input_slider_does_not_move_the_meter() {
+        // The meter sits directly above the sensitivity slider in the UI. If turning the microphone
+        // down also moved the meter, the two controls would chase each other: you would lower the
+        // volume, watch the bar shrink, and raise the sensitivity to compensate.
+        let mut loud = CaptureChain::new(SAMPLE_RATE, config()).unwrap();
+        let mut quiet = CaptureChain::new(
+            SAMPLE_RATE,
+            ChainConfig {
+                input_gain: 0.1,
+                ..config()
+            },
+        )
+        .unwrap();
+
+        let input = tone(PACKET_SAMPLES, 0);
+        let (_, loud_status) = collect(&mut loud, &input);
+        let (_, quiet_status) = collect(&mut quiet, &input);
+
+        assert!(
+            (loud_status.level - quiet_status.level).abs() < 1e-6,
+            "the meter reads the microphone, not the slider: {} vs {}",
+            loud_status.level,
+            quiet_status.level
+        );
+    }
+
+    #[test]
+    fn the_input_slider_does_not_double_as_a_gate() {
+        // Applied before the gate, a low setting would read as silence and cut transmission
+        // entirely - the slider would stop being a volume control and start being a mute.
+        let mut chain = CaptureChain::new(
+            SAMPLE_RATE,
+            ChainConfig {
+                input_gain: 0.05,
+                ..config()
+            },
+        )
+        .unwrap();
+
+        let (packets, status) = collect(&mut chain, &tone(PACKET_SAMPLES, 0));
+        assert!(status.speaking, "a quiet slider is not a closed gate");
+        assert_eq!(packets.len(), 1, "and it still transmits");
     }
 
     #[test]

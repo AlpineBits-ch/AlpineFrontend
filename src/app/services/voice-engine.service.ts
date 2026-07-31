@@ -28,6 +28,18 @@ export interface VoiceStartResult {
 }
 
 /**
+ * A 0-100 slider position as a 0.0-1.0 gain.
+ *
+ * Guards the value rather than trusting it: these come from persisted settings, and a corrupted or
+ * absent entry that arrives as NaN would multiply a whole frame to NaN in Rust - silencing either
+ * the microphone or every remote participant until the next rejoin. Rust clamps again on receipt;
+ * this keeps the bad value from being sent at all.
+ */
+function asGain(percent: number): number {
+    return Number.isFinite(percent) ? Math.min(1, Math.max(0, percent / 100)) : 1;
+}
+
+/**
  * The Angular face of the Rust voice session.
  *
  * Every call service talks to this rather than calling `invoke` directly, so the fact that there is
@@ -220,6 +232,10 @@ export class VoiceEngineService {
             // suppression was on - sending that one instead would leave the gate at its least
             // sensitive setting by default and cut off anyone speaking quietly.
             sensitivity: Math.min(1, Math.max(0, s.inputSensitivity / 100)),
+            // Both sliders are stored 0-100 and consumed as gains. Until now nothing read either of
+            // them: the microphone and output volume controls moved, saved, and changed nothing.
+            inputVolume: asGain(s.inputVolume),
+            outputVolume: asGain(s.outputVolume),
             bitrateBps: null,
         };
     }
