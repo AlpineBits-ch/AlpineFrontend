@@ -67,7 +67,7 @@ pub async fn start_screen_publish(
     height: u32,
     fps: u32,
     kbps: u32,
-    ice_urls: Vec<String>,
+    ice_servers: Vec<rtc::IceServerConfig>,
     api_base: String,
     token: String,
     // Guild voice supplies guild_id + channel_id; a DM call supplies call_id instead.
@@ -95,7 +95,7 @@ pub async fn start_screen_publish(
         height,
         fps,
         kbps,
-        ice_urls,
+        ice_servers,
         signalling,
         on_preview,
     )

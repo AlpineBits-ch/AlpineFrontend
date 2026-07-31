@@ -107,7 +107,7 @@ pub async fn start(
     height: u32,
     fps: u32,
     kbps: u32,
-    ice_urls: Vec<String>,
+    ice_servers: Vec<crate::media::publisher::rtc::IceServerConfig>,
     signalling: Signalling,
     on_preview: tauri::ipc::Channel<PreviewFrame>,
 ) -> Result<PublishHandle, String> {
@@ -121,7 +121,7 @@ pub async fn start(
         .ok_or_else(|| "no H.264 encoder available (OpenH264 not provisioned?)".to_string())?;
     let encoder_name = encoder.name();
 
-    let publication = Publication::start(signalling, &share_id, ice_urls).await?;
+    let publication = Publication::start(signalling, &share_id, ice_servers).await?;
     let cf_session_id = publication.cf_session_id.clone();
     let track_name = publication.track_name.clone();
 

@@ -22,6 +22,21 @@ use webrtc::track::track_local::TrackLocal;
 
 use super::signalling::{LocalTrack, SessionDescription, Signalling};
 
+/// One ICE server, mirroring the browser's `RTCIceServer`.
+///
+/// Credentials travel with the URLs rather than being dropped: `webrtc-rs` validates the
+/// configuration up front and refuses a `turn:` URL with no credentials, where a browser accepts
+/// the same config and only fails later when TURN authentication is actually attempted.
+#[derive(serde::Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct IceServerConfig {
+    pub urls: Vec<String>,
+    #[serde(default)]
+    pub username: Option<String>,
+    #[serde(default)]
+    pub credential: Option<String>,
+}
+
 /// A live publication: the peer connection, the track being fed, and the identifiers other clients
 /// need in order to subscribe.
 pub struct Publication {
@@ -40,7 +55,7 @@ impl Publication {
     pub async fn start(
         signalling: Signalling,
         share_id: &str,
-        ice_urls: Vec<String>,
+        ice_servers: Vec<IceServerConfig>,
     ) -> Result<Self, String> {
         let mut media_engine = MediaEngine::default();
         media_engine
@@ -57,10 +72,15 @@ impl Publication {
             .build();
 
         let config = RTCConfiguration {
-            ice_servers: vec![RTCIceServer {
-                urls: ice_urls,
-                ..Default::default()
-            }],
+            ice_servers: ice_servers
+                .into_iter()
+                .map(|server| RTCIceServer {
+                    urls: server.urls,
+                    username: server.username.unwrap_or_default(),
+                    credential: server.credential.unwrap_or_default(),
+                    ..Default::default()
+                })
+                .collect(),
             ..Default::default()
         };
 

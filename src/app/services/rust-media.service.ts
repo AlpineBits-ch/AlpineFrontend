@@ -12,6 +12,12 @@ export interface ScreenSource {
     height: number;
 }
 
+export interface IceServerConfig {
+    urls: string[];
+    username?: string;
+    credential?: string;
+}
+
 export interface ScreenPublishOptions {
     sourceId: string;
     shareId: string;
@@ -19,7 +25,7 @@ export interface ScreenPublishOptions {
     height: number;
     fps: number;
     kbps: number;
-    iceUrls: string[];
+    iceServers: IceServerConfig[];
     apiBase: string;
     token: string;
     /** Guild voice supplies guildId + channelId; a DM call supplies callId instead. */
@@ -230,7 +236,7 @@ export class RustMediaService {
             height: options.height,
             fps: options.fps,
             kbps: options.kbps,
-            iceUrls: options.iceUrls,
+            iceServers: options.iceServers,
             apiBase: options.apiBase,
             token: options.token,
             guildId: options.guildId ?? null,

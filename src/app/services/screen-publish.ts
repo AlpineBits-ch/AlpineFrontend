@@ -3,7 +3,7 @@ import {environment} from '../../environments/environment';
 import {bitrateFor, StreamPreset} from '../models/stream-preset';
 import {solveGeometry} from '../models/capture-geometry';
 import {ScreenPickerChoice} from './screen-picker.service';
-import {ScreenPublishOptions} from './rust-media.service';
+import {IceServerConfig, ScreenPublishOptions} from './rust-media.service';
 
 /**
  * Whether screen shares should be published from Rust rather than through the canvas pipeline.
@@ -15,11 +15,19 @@ export function useRustPublisher(): boolean {
     return environment.rustPublisher && isTauri();
 }
 
-/** ICE server URLs flattened for the Rust publisher, which takes a plain list. */
-export function iceUrls(): string[] {
-    return environment.iceServers.flatMap(server =>
-        Array.isArray(server.urls) ? server.urls : [server.urls],
-    );
+/**
+ * ICE servers for the Rust publisher, credentials included.
+ *
+ * The credentials cannot be dropped: `webrtc-rs` validates the configuration when the peer
+ * connection is created and rejects a `turn:` URL with no username or credential, where a browser
+ * accepts the same config and only fails later when TURN authentication is attempted.
+ */
+export function iceServers(): IceServerConfig[] {
+    return environment.iceServers.map(server => ({
+        urls: Array.isArray(server.urls) ? server.urls : [server.urls],
+        username: server.username,
+        credential: server.credential,
+    }));
 }
 
 /**
@@ -45,7 +53,7 @@ export function publishOptions(
         height,
         fps: preset.framerate,
         kbps: bitrateFor(preset),
-        iceUrls: iceUrls(),
+        iceServers: iceServers(),
         apiBase,
         token,
         ...target,
