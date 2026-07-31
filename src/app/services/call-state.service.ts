@@ -40,6 +40,7 @@ export class CallStateService implements OnDestroy {
     private pendingCallSub: Subscription | null = null;
     private sub: Subscription;
     private incomingEndedSub: Subscription;
+    private deviceSubs: Subscription;
 
     constructor() {
         this.sub = this.ws.incomingCallObservable.subscribe(call => {
@@ -51,11 +52,25 @@ export class CallStateService implements OnDestroy {
         // accepted/declined - nothing else clears the incoming-call overlay/ringtone
         // in that case, so without this the card and ringing would persist forever
         // and a subsequent Accept click would silently fail against a dead call.
-        this.incomingEndedSub = this.ws.callEndedObservable.subscribe(({callId}) => {
-            if (this.incomingCall()?.call.id !== callId) return;
-            this.stopRingtone();
-            this.incomingCall.set(null);
-        });
+        this.incomingEndedSub = this.ws.callEndedObservable.subscribe(({callId}) =>
+            this.dismissIncomingIfMatches(callId));
+
+        // Three further ways this device's ring stops without it being the one that acted.
+        // Without these the card and ringtone persist after another of the user's devices deals
+        // with the call, and a later Accept click fails silently against a call that moved on.
+        this.deviceSubs = new Subscription();
+        this.deviceSubs.add(this.ws.callAcceptedObservable.subscribe(({callId}) =>
+            this.dismissIncomingIfMatches(callId)));
+        this.deviceSubs.add(this.ws.callDeviceDismissedObservable.subscribe(({callId}) =>
+            this.dismissIncomingIfMatches(callId)));
+        this.deviceSubs.add(this.ws.callDeviceTakeoverObservable.subscribe(({callId}) => {
+            if (this.callSession.session()?.callId !== callId) return;
+            // The server has already moved the session to the other device, so tear down
+            // silently - calling leave here would drop us out of the call we just joined there.
+            this.callSession.end(true);
+            this.toast.info('You joined this call on another device');
+        }));
+
         document.addEventListener('keydown', this.devKeyHandler);
     }
 
@@ -130,7 +145,15 @@ export class CallStateService implements OnDestroy {
         this.stopRingtone();
         this.sub.unsubscribe();
         this.incomingEndedSub.unsubscribe();
+        this.deviceSubs.unsubscribe();
         document.removeEventListener('keydown', this.devKeyHandler);
+    }
+
+    /** Shared by every event that ends this device's ring without this device having acted. */
+    private dismissIncomingIfMatches(callId: string): void {
+        if (this.incomingCall()?.call.id !== callId) return;
+        this.stopRingtone();
+        this.incomingCall.set(null);
     }
 
     private readonly devKeyHandler = (e: KeyboardEvent) => this.handleDevShortcut(e);
