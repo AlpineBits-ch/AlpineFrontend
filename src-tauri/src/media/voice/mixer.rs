@@ -40,6 +40,29 @@ impl Position {
     }
 }
 
+/// Constant-power stereo gains for a listener-relative position, used when no HRIR dataset is
+/// loaded.
+///
+/// Only the lateral component is used: `+x` is the listener's right. There is no elevation cue and
+/// front cannot be told from back, both of which need measured impulse responses - but left/right
+/// placement does not, and that is the cue proximity chat leans on hardest.
+///
+/// Constant power, not linear. With linear gains a source moving past the listener audibly dips at
+/// centre, because two half-amplitude channels carry less power than one at full amplitude.
+/// `cos`/`sin` of a quarter-turn keeps `l² + r² == 1` at every pan position.
+fn stereo_pan(position: Position) -> (f32, f32) {
+    let distance = position.distance();
+    if !distance.is_finite() || distance <= f32::EPSILON {
+        // Standing on the listener. There is no direction to derive, and dividing by this would
+        // produce NaN gains that silence the whole mix.
+        return (std::f32::consts::FRAC_1_SQRT_2, std::f32::consts::FRAC_1_SQRT_2);
+    }
+
+    let pan = (position.x / distance).clamp(-1.0, 1.0);
+    let angle = (pan + 1.0) * std::f32::consts::FRAC_PI_4;
+    (angle.cos(), angle.sin())
+}
+
 /// Per-source HRTF state. The processor keeps a convolution tail between frames, so every source
 /// needs its own; sharing one would smear speakers into each other.
 struct Spatial {
@@ -191,11 +214,15 @@ impl Mixer {
         }
 
         let Some(bytes) = self.hrir_bytes else {
-            // No dataset: distance-attenuated centre, rather than dropping the speaker entirely.
+            // No dataset: pan across the stereo field instead. Everything below this point needs
+            // measured impulse responses, but left/right placement does not, and it is the cue
+            // that carries most of the value in proximity chat - "who just walked up behind me"
+            // matters less than "who is talking on my left".
+            let (left_gain, right_gain) = stereo_pan(position);
             for (i, &s) in samples.iter().take(FRAME).enumerate() {
                 let v = if s.is_finite() { s * gain * distance_gain } else { 0.0 };
-                self.spatial_accumulator[i].0 += v;
-                self.spatial_accumulator[i].1 += v;
+                self.spatial_accumulator[i].0 += v * left_gain;
+                self.spatial_accumulator[i].1 += v * right_gain;
             }
             return;
         };
@@ -430,7 +457,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs an HRIR dataset; without one spatial sources are centred"]
     fn a_source_on_the_left_is_louder_in_the_left_ear() {
         let mut m = Mixer::new();
         m.set_spatial(true);
@@ -444,7 +470,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "needs an HRIR dataset; without one spatial sources are centred"]
     fn a_source_on_the_right_is_louder_in_the_right_ear() {
         let mut m = Mixer::new();
         m.set_spatial(true);
@@ -511,6 +536,38 @@ mod tests {
 
         let (left, right) = ear_energy(&out);
         assert!(left + right < 1e-3, "an out-of-range source should be inaudible");
+    }
+
+    #[test]
+    fn panning_holds_power_constant_across_the_field() {
+        // The reason this is cos/sin rather than a linear ramp. With linear gains a source walking
+        // past the listener loses about 3 dB at centre and audibly dips - the artefact that makes
+        // naive panning sound like a hole in the middle of the world.
+        for x in [-4.0f32, -1.0, -0.2, 0.0, 0.2, 1.0, 4.0] {
+            let (l, r) = stereo_pan(Position { x, y: 0.0, z: 1.0 });
+            let power = l * l + r * r;
+            assert!(
+                (power - 1.0).abs() < 1e-5,
+                "power {power} at x {x} should stay at unity"
+            );
+        }
+    }
+
+    #[test]
+    fn panning_is_symmetric_about_the_listener() {
+        let (left_l, left_r) = stereo_pan(Position { x: -2.0, y: 0.0, z: 1.0 });
+        let (right_l, right_r) = stereo_pan(Position { x: 2.0, y: 0.0, z: 1.0 });
+        assert!((left_l - right_r).abs() < 1e-6, "mirrored positions must mirror gains");
+        assert!((left_r - right_l).abs() < 1e-6);
+    }
+
+    #[test]
+    fn panning_a_source_at_the_listener_does_not_produce_nan() {
+        // distance == 0 divides by zero if guarded carelessly, and a NaN gain here would not just
+        // break this source - it propagates through the accumulator and silences the whole mix.
+        let (l, r) = stereo_pan(Position { x: 0.0, y: 0.0, z: 0.0 });
+        assert!(l.is_finite() && r.is_finite());
+        assert!((l - r).abs() < 1e-6, "no direction means no pan");
     }
 
     #[test]
