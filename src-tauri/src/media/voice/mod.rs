@@ -22,6 +22,7 @@ pub mod mixer;
 pub mod process;
 pub mod resample;
 pub mod ring;
+pub mod rtc;
 
 /// Samples in one frame of mono audio - 10 ms at 48 kHz.
 pub const FRAME: usize = 480;
