@@ -3,6 +3,7 @@ import * as signalR from '@microsoft/signalr';
 import {AuthService} from './auth.service';
 import {NotificationService, NotificationSound} from './notification.service';
 import {ApiConfigService} from './api-config.service';
+import {DeviceIdentityService} from './device-identity.service';
 
 export enum ConnectionState {
     Connected,
@@ -18,42 +19,37 @@ export enum ConnectionState {
  * Event and method names are domain-prefixed (`conversation.*`, `presence.*`,
  * `call.*`, `guild.*`, `guild.voice.*`) so a single pipe can carry all of them.
  *
- * Feature services register their handlers via {@link on} and send via
- * {@link invoke}; they keep their own public observables so consumers are
- * unaffected by the consolidation.
+ * The connection is built on first {@link start} rather than in the constructor: the URL carries
+ * a `deviceId` the server buckets per-device events by (`call.CallDeviceDismissed`,
+ * `call.CallDeviceTakeover`, `guild.voice.KickedByOtherDevice`), and resolving it is async.
+ * Handlers registered before then are queued and replayed, because every consuming service
+ * relies on {@link on} being safe to call before {@link start}.
  */
 @Injectable({providedIn: 'root'})
 export class RealtimeConnectionService {
     public readonly connectionState = signal(ConnectionState.Disconnected);
-    private readonly hubConnection: signalR.HubConnection;
+    private hubConnection: signalR.HubConnection | null = null;
+    private pendingHandlers: { event: string; handler: (...args: any[]) => void }[] = [];
     private readonly authService = inject(AuthService);
     private readonly notificationService = inject(NotificationService);
     private readonly apiConfig = inject(ApiConfigService);
+    private readonly deviceIdentity = inject(DeviceIdentityService);
     private starting?: Promise<void>;
     private reconnectNotified = false;
 
-    constructor() {
-        this.hubConnection = new signalR.HubConnectionBuilder()
-            .withUrl(this.apiConfig.baseUrl() + '/api/v1/ws/hub', {
-                accessTokenFactory: () => this.authService.ensureValidToken(),
-            })
-            .withAutomaticReconnect({
-                nextRetryDelayInMilliseconds: retryContext =>
-                    Math.min(1000 * Math.pow(2, retryContext.previousRetryCount), 60_000),
-            })
-            .build();
-
-        this.wireLifecycle();
-    }
-
     /** Register a server → client event handler. Safe to call before or after {@link start}. */
     on(event: string, handler: (...args: any[]) => void): void {
-        this.hubConnection.on(event, handler);
+        if (this.hubConnection) {
+            this.hubConnection.on(event, handler);
+            return;
+        }
+        this.pendingHandlers.push({event, handler});
     }
 
     /** Remove all handlers for an event. */
     off(event: string): void {
-        this.hubConnection.off(event);
+        this.pendingHandlers = this.pendingHandlers.filter(h => h.event !== event);
+        this.hubConnection?.off(event);
     }
 
     /**
@@ -61,6 +57,7 @@ export class RealtimeConnectionService {
      * -errors are logged so callers can treat it as fire-and-forget.
      */
     async invoke(method: string, ...args: unknown[]): Promise<void> {
+        if (!this.hubConnection) return;
         if (this.hubConnection.state !== signalR.HubConnectionState.Connected) return;
         try {
             await this.hubConnection.invoke(method, ...args);
@@ -71,10 +68,11 @@ export class RealtimeConnectionService {
 
     /** Idempotent: starts the connection once; concurrent callers share one attempt. */
     async start(): Promise<void> {
-        if (this.hubConnection.state === signalR.HubConnectionState.Connected) return;
+        if (this.hubConnection?.state === signalR.HubConnectionState.Connected) return;
         if (this.starting) return this.starting;
 
-        this.starting = this.hubConnection.start()
+        this.starting = this.build()
+            .then(connection => connection.start())
             .then(() => {
                 this.connectionState.set(ConnectionState.Connected);
             })
@@ -89,8 +87,45 @@ export class RealtimeConnectionService {
         return this.starting;
     }
 
-    private wireLifecycle(): void {
-        this.hubConnection.onreconnecting(() => {
+    private async build(): Promise<signalR.HubConnection> {
+        if (this.hubConnection) return this.hubConnection;
+
+        const connection = new signalR.HubConnectionBuilder()
+            .withUrl(await this.hubUrl(), {
+                accessTokenFactory: () => this.authService.ensureValidToken(),
+            })
+            .withAutomaticReconnect({
+                nextRetryDelayInMilliseconds: retryContext =>
+                    Math.min(1000 * Math.pow(2, retryContext.previousRetryCount), 60_000),
+            })
+            .build();
+
+        this.hubConnection = connection;
+        this.wireLifecycle(connection);
+
+        for (const {event, handler} of this.pendingHandlers) connection.on(event, handler);
+        this.pendingHandlers = [];
+
+        return connection;
+    }
+
+    /**
+     * A device id we cannot resolve degrades to no query parameter rather than failing the
+     * connection. The hub applies no validation - it just falls back to the `default` bucket -
+     * so a broken store costs per-device event routing, not the whole realtime layer.
+     */
+    private async hubUrl(): Promise<string> {
+        const base = `${this.apiConfig.baseUrl()}/api/v1/ws/hub`;
+        try {
+            return `${base}?deviceId=${encodeURIComponent(await this.deviceIdentity.deviceId())}`;
+        } catch (err) {
+            console.error('Realtime: could not resolve device id, connecting without it', err);
+            return base;
+        }
+    }
+
+    private wireLifecycle(connection: signalR.HubConnection): void {
+        connection.onreconnecting(() => {
             if (!this.reconnectNotified) {
                 this.reconnectNotified = true;
                 this.notificationService.createNotification({
@@ -103,12 +138,12 @@ export class RealtimeConnectionService {
             this.connectionState.set(ConnectionState.Connecting);
         });
 
-        this.hubConnection.onreconnected(() => {
+        connection.onreconnected(() => {
             this.reconnectNotified = false;
             this.connectionState.set(ConnectionState.Connected);
         });
 
-        this.hubConnection.onclose(() => {
+        connection.onclose(() => {
             this.reconnectNotified = false;
             this.connectionState.set(ConnectionState.Disconnected);
         });
