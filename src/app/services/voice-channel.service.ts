@@ -447,6 +447,15 @@ export class VoiceChannelService {
         if (e.channelId !== this.joinedChannelId()) return;
         this.patchParticipant(e.channelId, e.userId, p => ({...p, cfSessionId: e.cfSessionId}));
 
+        // TEMPORARY - the receiving half of the phase 1 verification spike. This is the backend's
+        // answer to "which session is this participant's audio on", which is exactly the assumption
+        // the Rust voice cutover rests on. Delete alongside verifyRustVoiceIfEnabled.
+        console.log(
+            '[voice][verify] backend says user', e.userId,
+            'publishes audio on session', e.cfSessionId,
+            'track', e.audioTrackName,
+        );
+
         const guildId = this.joinedGuildId();
         if (guildId) {
             void this.rtc.subscribeAudio(guildId, e.channelId, [{
