@@ -48,6 +48,8 @@ tauri-plugin-secure-storage = "1.5.0"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tauri-plugin-deep-link = "2"
+webrtc = "0.14"
+openh264 = "0.9"
 
 # Android
 [target.aarch64-linux-android.dependencies]
