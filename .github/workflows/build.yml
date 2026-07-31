@@ -58,13 +58,12 @@ jobs:
         run: |
           git submodule update --init --recursive
 
-      # The `aec` feature is on by default and builds WebRTC's AudioProcessing module from source,
-      # which shells out to meson and ninja (see src-tauri/Cargo.toml). Installed explicitly rather
-      # than relying on whatever the runner image happens to ship, so echo cancellation cannot
-      # silently stop building because an image changed. Python, which meson needs, is preinstalled.
-      - name: Install meson and ninja
-        run: pip install meson ninja
-
+      # No meson/ninja install here, deliberately. This job was not the one that failed, and meson
+      # 1.11.0 - what `pip install meson` gives you today - cannot configure this project on MSVC at
+      # all: abseil's meson.build asks for the appleframeworks dependency with `required: false`,
+      # and meson crashes looking it up instead of reporting it missing ("This is a Meson bug and
+      # should be reported!"). Installing it unpinned would swap whatever version this runner is
+      # already building with for one known not to work.
       - name: Install dependencies
         run: bun install
 
@@ -111,6 +110,14 @@ jobs:
       - name: Update Submodules
         run: |
           git submodule update --init --recursive
+      # meson, ninja-build: the `aec` feature is on by default and builds WebRTC's AudioProcessing
+      # module from source through them (see src-tauri/Cargo.toml), which is what this job was
+      # failing on. From apt rather than pip on purpose - 24.04 ships meson 1.3, and meson 1.11 has
+      # a bug that breaks this same build elsewhere.
+      #
+      # pkg-config: the build script probes for a system abseil (>= 20240722) before falling back to
+      # the copy meson fetches. Ubuntu's is older than that, so the fallback is what actually gets
+      # used, but without pkg-config the probe cannot even run.
       - name: Install system dependencies
         run: |
           sudo apt-get update

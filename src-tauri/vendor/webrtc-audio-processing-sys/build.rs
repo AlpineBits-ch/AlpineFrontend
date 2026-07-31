@@ -198,12 +198,12 @@ mod webrtc {
         );
 
         // Copy the sources to under out directory so that we can patch it without consequences.
-        let mut cp = Command::new("cp");
-        // Copy recursively, preserve attributes. Use trailing dot trick to prevent creating
-        // `webrtc-audio-processing/webrtc-audio-processing` nesting on a 2nd invocation.
-        cp.arg("-a").arg(bundled_source_path.join(".")).arg(&webrtc_source_dir);
-        let status = cp.status().context("executing cp")?;
-        assert!(status.success(), "Command failed: {:?}", &cp);
+        //
+        // ALPINE PATCH: upstream shells out to `cp -a`, which does not exist on Windows, so the
+        // bundled build died with "executing cp: program not found" before meson was ever reached -
+        // the MSVC support the rest of this file adds could never actually run. Copying in Rust
+        // needs no external tool on any platform.
+        copy_dir_contents(&bundled_source_path, &webrtc_source_dir)?;
 
         #[cfg(feature = "experimental-unlink-ns")]
         apply_patch("unlink-multichannel-noise-suppression-filters.patch")?;
@@ -287,6 +287,56 @@ mod webrtc {
         }
 
         bail!("Cannot find {static_lib_filename} in {lib_dirs:?} to prefix its symbols.");
+    }
+
+    /// ALPINE PATCH: portable stand-in for `cp -a <from>/. <to>`.
+    ///
+    /// Copies the *contents* of `from` into `to`, matching the trailing-dot trick upstream used to
+    /// stop a second invocation nesting `webrtc-audio-processing/webrtc-audio-processing`.
+    ///
+    /// Files already present at the same length and no older than their source are left untouched.
+    /// Rewriting them would push their mtime forward on every build-script run, and ninja decides
+    /// what to recompile from mtimes - so a blind copy would rebuild the whole C++ tree each time.
+    fn copy_dir_contents(from: &std::path::Path, to: &std::path::Path) -> Result<()> {
+        std::fs::create_dir_all(to).with_context(|| format!("creating {}", to.display()))?;
+
+        for entry in std::fs::read_dir(from).with_context(|| format!("reading {}", from.display()))?
+        {
+            let entry = entry?;
+            let source = entry.path();
+            let destination = to.join(entry.file_name());
+
+            if entry.file_type()?.is_dir() {
+                copy_dir_contents(&source, &destination)?;
+                continue;
+            }
+
+            if is_up_to_date(&source, &destination) {
+                continue;
+            }
+
+            // Removed rather than overwritten: `fs::copy` carries permissions across, so a second
+            // run would otherwise fail on anything that arrived read-only.
+            if destination.exists() {
+                std::fs::remove_file(&destination)
+                    .with_context(|| format!("replacing {}", destination.display()))?;
+            }
+            std::fs::copy(&source, &destination).with_context(|| {
+                format!("copying {} to {}", source.display(), destination.display())
+            })?;
+        }
+
+        Ok(())
+    }
+
+    /// Whether `destination` already holds a copy of `source`. Conservative: anything unreadable or
+    /// ambiguous reports false and gets copied again.
+    fn is_up_to_date(source: &std::path::Path, destination: &std::path::Path) -> bool {
+        let (Ok(from), Ok(to)) = (source.metadata(), destination.metadata()) else {
+            return false;
+        };
+        from.len() == to.len()
+            && matches!((from.modified(), to.modified()), (Ok(f), Ok(t)) if t >= f)
     }
 
     fn webrtc_source_dir() -> PathBuf {
