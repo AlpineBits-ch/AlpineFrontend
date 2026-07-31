@@ -56,6 +56,8 @@ export interface PublishMlsCommitDto {
     /** Refreshed GroupInfo so a device that falls too far behind can rejoin by external commit. */
     groupInfo?: Base64 | null;
     welcomes: DeviceWelcomeDto[];
+    /** Join requests this commit admits; the server closes them only once it lands. */
+    fulfilledJoinRequestIds?: string[];
 }
 
 export interface MlsCommitPublishedDto {

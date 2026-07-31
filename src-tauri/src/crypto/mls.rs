@@ -18,6 +18,7 @@ use openmls::prelude::{
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use rand::RngCore;
+use sha2::{Digest, Sha256};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid; // This usually brings in SenderRatchetConfiguration
 const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
@@ -605,6 +606,72 @@ fn commit_pending_proposals_impl(
     Ok(commit_out)
 }
 
+/// Everything a reviewer needs to decide whether a key package really belongs to who it claims.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MlsKeyPackageInfo {
+    /// Identity from the BasicCredential - the user id the package claims.
+    pub identity: String,
+    /// Long-lived Ed25519 signature key (base64).
+    pub signature_public_key: String,
+    /// Human-comparable fingerprint of the *signature* key.
+    ///
+    /// Deliberately not a hash of the key package: that changes with every package a device mints,
+    /// so two people reading it to each other would never agree on anything. The signature key is
+    /// the device's stable identity, so this is the value that means something out of band.
+    pub signature_key_fingerprint: String,
+    /// SHA-256 of the key package bytes, hex. Binds an approval to these exact bytes.
+    pub key_package_hash: String,
+}
+
+/// Renders a fingerprint as five-character groups, which is what makes it readable aloud without
+/// losing your place. Uppercase hex over the SHA-256 of the key, truncated to 40 bits per group.
+fn format_fingerprint(bytes: &[u8]) -> String {
+    let digest = Sha256::digest(bytes);
+    digest
+        .iter()
+        .take(10)
+        .map(|b| format!("{:02X}", b))
+        .collect::<String>()
+        .as_bytes()
+        .chunks(5)
+        .map(|c| String::from_utf8_lossy(c).into_owned())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+fn inspect_key_package_impl(
+    mls: &MlsState,
+    key_package_b64: String,
+) -> Result<MlsKeyPackageInfo, String> {
+    let kp_bytes = B64.decode(&key_package_b64).map_err(|e| e.to_string())?;
+    let kp_in = KeyPackageIn::tls_deserialize(&mut &kp_bytes[..]).map_err(|e| e.to_string())?;
+
+    // Validated, not merely parsed. A reviewer must never be shown an identity lifted from a
+    // malformed or expired package that would then be rejected at add time - or worse, be talked
+    // into approving one whose signature does not actually check out.
+    let key_package = kp_in
+        .validate(mls.provider.crypto(), ProtocolVersion::Mls10)
+        .map_err(|e| map_mls_error(e))?;
+
+    let leaf = key_package.leaf_node();
+    let identity = BasicCredential::try_from(leaf.credential().clone())
+        .map(|bc| String::from_utf8_lossy(bc.identity()).into_owned())
+        .unwrap_or_default();
+
+    let signature_key = leaf.signature_key().as_slice().to_vec();
+
+    Ok(MlsKeyPackageInfo {
+        identity,
+        signature_public_key: B64.encode(&signature_key),
+        signature_key_fingerprint: format_fingerprint(&signature_key),
+        key_package_hash: Sha256::digest(&kp_bytes)
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect(),
+    })
+}
+
 // Second half of the two-phase commit dance. `add_members` / `remove_members` /
 // `commit_to_pending_proposals` stage a commit without applying it; exactly one of these two runs
 // afterwards, depending on whether the server took it.
@@ -1097,6 +1164,17 @@ pub fn mls_commit_pending_proposals(
     commit_pending_proposals_impl(&mut mls, group_id_b64, key_handle)
 }
 
+/// Inspects a key package so a reviewer can check who it really belongs to before vouching for it,
+/// and so the committing client can confirm the bytes match what was approved.
+#[tauri::command]
+pub fn mls_inspect_key_package(
+    state: tauri::State<MlsStateHandle>,
+    key_package_b64: String,
+) -> Result<MlsKeyPackageInfo, String> {
+    let mls = state.lock().map_err(|e| e.to_string())?;
+    inspect_key_package_impl(&mls, key_package_b64)
+}
+
 /// Applies a commit staged by add/remove/commit-proposals, once the server has accepted it.
 /// Returns the group's epoch afterwards.
 #[tauri::command]
@@ -1296,7 +1374,7 @@ pub fn mls_import_state(
 mod integration_tests {
     use super::{
         add_members_impl, clear_pending_commit_impl, commit_pending_proposals_impl,
-        create_group_impl, delete_group_impl, merge_pending_commit_impl,
+        create_group_impl, delete_group_impl, inspect_key_package_impl, merge_pending_commit_impl,
         export_group_info_impl, export_state_impl, generate_key_packages_impl,
         generate_key_packages_with_handle_impl, get_group_info_impl, get_members_impl,
         import_state_impl, join_group_impl, leave_group_impl, load_signing_key_impl,
@@ -1676,6 +1754,105 @@ mod integration_tests {
         assert_eq!(processed.kind, "commit");
         assert_eq!(processed.added_members.len(), 1);
         assert_eq!(processed.added_members[0].identity, "charlie");
+    }
+
+    // ─── Key package inspection ───────────────────────────────────────────────
+    //
+    // What a reviewer is shown before vouching for someone's admission to an encrypted room.
+
+    #[test]
+    fn inspect_reports_the_identity_the_package_claims() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+
+        let info = inspect_key_package_impl(&mls, batch.key_packages[0].key_package.clone())
+            .expect("inspect must succeed");
+
+        assert_eq!(info.identity, "alice");
+        assert!(!info.signature_key_fingerprint.is_empty());
+    }
+
+    #[test]
+    fn fingerprint_is_stable_across_a_devices_key_packages() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 3).expect("should succeed");
+
+        let fingerprints: Vec<String> = batch
+            .key_packages
+            .iter()
+            .map(|kp| {
+                inspect_key_package_impl(&mls, kp.key_package.clone())
+                    .expect("inspect must succeed")
+                    .signature_key_fingerprint
+            })
+            .collect();
+
+        // This is the whole point of fingerprinting the signature key rather than the package: a
+        // value that changed with every package could never be read out and compared over a call.
+        assert_eq!(fingerprints[0], fingerprints[1]);
+        assert_eq!(fingerprints[1], fingerprints[2]);
+    }
+
+    #[test]
+    fn fingerprint_differs_between_devices() {
+        let mut alice = make_mls();
+        let mut bob = make_mls();
+        let a = generate_key_packages_impl(&mut alice, "alice".to_string(), 1).expect("ok");
+        let b = generate_key_packages_impl(&mut bob, "bob".to_string(), 1).expect("ok");
+
+        let fa = inspect_key_package_impl(&alice, a.key_packages[0].key_package.clone())
+            .expect("ok")
+            .signature_key_fingerprint;
+        let fb = inspect_key_package_impl(&bob, b.key_packages[0].key_package.clone())
+            .expect("ok")
+            .signature_key_fingerprint;
+
+        assert_ne!(fa, fb);
+    }
+
+    #[test]
+    fn key_package_hash_differs_per_package_and_matches_the_bytes() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 2).expect("should succeed");
+
+        let first = inspect_key_package_impl(&mls, batch.key_packages[0].key_package.clone())
+            .expect("ok");
+        let second = inspect_key_package_impl(&mls, batch.key_packages[1].key_package.clone())
+            .expect("ok");
+        let repeat = inspect_key_package_impl(&mls, batch.key_packages[0].key_package.clone())
+            .expect("ok");
+
+        // Per-package, so it can bind an approval to exact bytes; deterministic, so the committer
+        // can re-derive and compare rather than trusting what it was handed.
+        assert_ne!(first.key_package_hash, second.key_package_hash);
+        assert_eq!(first.key_package_hash, repeat.key_package_hash);
+    }
+
+    #[test]
+    fn inspect_rejects_a_malformed_package() {
+        let mls = make_mls();
+
+        // A reviewer must never be shown an identity lifted from something that would be refused at
+        // add time - or be talked into vouching for a package whose signature does not check out.
+        assert!(inspect_key_package_impl(&mls, B64.encode(b"not a key package")).is_err());
+    }
+
+    #[test]
+    fn fingerprint_is_grouped_for_reading_aloud() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+
+        let info = inspect_key_package_impl(&mls, batch.key_packages[0].key_package.clone())
+            .expect("ok");
+
+        let groups: Vec<&str> = info.signature_key_fingerprint.split('-').collect();
+        assert_eq!(groups.len(), 4, "20 hex chars in groups of five");
+        assert!(groups.iter().all(|g| g.len() == 5));
+        assert!(info.signature_key_fingerprint.chars().all(|c| c.is_ascii_hexdigit() || c == '-'));
     }
 
     // ─── Staged commits ───────────────────────────────────────────────────────

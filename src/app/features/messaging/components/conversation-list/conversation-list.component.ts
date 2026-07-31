@@ -37,6 +37,7 @@ import {ConversationService} from '../../../../services/conversation.service';
 import {MessagingWebsocketService} from '../../../../services/messaging-websocket.service';
 import {ConversationUtilsService} from '../../../../services/conversation-utils.service';
 import {MlsService} from '../../../../services/mls.service';
+import {MlsSyncService} from '../../../../services/mls-sync.service';
 
 import {ConversationStore} from '../../../../stores/conversation.store';
 import {MessageStore} from '../../../../stores/message.store';
@@ -143,6 +144,7 @@ export class ConversationListComponent {
     // Only depends on previewMessages + conversationStore (for lastReadMessageId).
     private messagingWs = inject(MessagingWebsocketService);
     private mlsService = inject(MlsService);
+    private mlsSync = inject(MlsSyncService);
     private confirmationService = inject(ConfirmationService);
 
     constructor() {
@@ -258,17 +260,25 @@ export class ConversationListComponent {
             acceptButtonProps: {severity: 'danger', size: 'small'},
             rejectButtonProps: {severity: 'secondary', outlined: true, size: 'small'},
             accept: () => {
-                this.conversationService.deleteConversation(conv.id).subscribe({
-                    next: () => {
-                        this.conversationStore.removeConversation(conv.id);
-                        this.messageStore.removeMessagesForConversation(conv.id);
-                        if (this.selectedId() === conv.id) {
-                            this.navService.showHome();
-                        }
-                        this.toast.success('Conversation deleted', {detail: name});
-                    },
-                    error: (err) => this.toast.httpError('Failed to delete conversation', err),
-                });
+                // Leave the MLS group first. It drops this device's keys immediately, so even if
+                // the server call below fails we have already given up the ability to read anything
+                // sent afterwards - which is the half that matters for our own forward secrecy.
+                // Doing it after would leave the keys behind whenever the request failed.
+                void this.mlsSync.leaveContext(conv.id, false)
+                    .catch(err => console.error('Could not leave the MLS group', conv.id, err))
+                    .finally(() => {
+                        this.conversationService.deleteConversation(conv.id).subscribe({
+                            next: () => {
+                                this.conversationStore.removeConversation(conv.id);
+                                this.messageStore.removeMessagesForConversation(conv.id);
+                                if (this.selectedId() === conv.id) {
+                                    this.navService.showHome();
+                                }
+                                this.toast.success('Conversation deleted', {detail: name});
+                            },
+                            error: (err) => this.toast.httpError('Failed to delete conversation', err),
+                        });
+                    });
             },
         });
     }

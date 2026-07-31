@@ -31,6 +31,9 @@ interface StagedCommit {
      * up holding a leaf in a group whose Welcome was lost on the way.
      */
     deviceWelcomes: DeviceWelcomeDto[];
+
+    /** Join requests this commit admits. Closed by the server only when the commit lands. */
+    fulfilledJoinRequestIds?: string[];
 }
 
 /**
@@ -64,6 +67,9 @@ export class MlsSyncService {
      * fails and looks like corruption.
      */
     private readonly queues = new Map<string, Promise<unknown>>();
+
+    /** Contexts that picked up a Remove proposal during catch-up and still owe a commit for it. */
+    private readonly pendingProposalContexts = new Set<string>();
 
     // -------------------------------------------------------------------------
     // Welcomes
@@ -129,8 +135,18 @@ export class MlsSyncService {
      * Pages until the server stops returning a full page, so a device that was offline across more
      * commits than one page holds still converges rather than silently stopping partway.
      */
-    syncContext(contextId: string, isChannel: boolean): Promise<void> {
-        return this.serialized(contextId, () => this.syncContextInner(contextId, isChannel));
+    async syncContext(contextId: string, isChannel: boolean): Promise<void> {
+        await this.serialized(contextId, () => this.syncContextInner(contextId, isChannel));
+
+        // Outside the queue, because committing publishes and publishing takes the same queue.
+        if (this.pendingProposalContexts.delete(contextId)) {
+            try {
+                await this.commitPendingProposals(contextId, isChannel);
+            } catch (err) {
+                // Any other member can do this instead; leaving it undone only delays the removal.
+                console.error('Could not commit pending proposals', contextId, err);
+            }
+        }
     }
 
     private async syncContextInner(contextId: string, isChannel: boolean): Promise<void> {
@@ -177,6 +193,16 @@ export class MlsSyncService {
         commitB64: string,
     ): Promise<boolean> {
         const processed = await firstValueFrom(this.mls.processMessage(groupId, commitB64));
+
+        if (processed.kind === 'proposal') {
+            // A departing member's Remove-self proposal. MLS does not let anyone commit their own
+            // removal, so until a remaining member turns this into a commit the group keeps
+            // encrypting to someone who has already thrown their keys away. Queued rather than
+            // committed inline: we are mid-catch-up here, and publishing needs the queue this
+            // method is already holding.
+            this.pendingProposalContexts.add(contextId);
+            return false;
+        }
 
         if (processed.kind !== 'commit') return false;
 
@@ -243,6 +269,7 @@ export class MlsSyncService {
             senderDeviceId: await this.deviceIdentity.deviceId(),
             generation,
             welcomes: staged.deviceWelcomes,
+            fulfilledJoinRequestIds: staged.fulfilledJoinRequestIds ?? [],
         };
 
         try {

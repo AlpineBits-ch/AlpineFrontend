@@ -269,6 +269,44 @@ describe('MlsSyncService', () => {
             expect(transport.getCommits).not.toHaveBeenCalled();
         });
 
+        it('commits a departing member\'s proposal rather than leaving it hanging', async () => {
+            const {sync, mls, transport} = setup();
+            mls.registry.set(`${CONTEXT}#1`, GROUP);
+            mls.activeGeneration.set(CONTEXT, 1);
+            transport.getCommits
+                .mockReturnValueOnce(of([commit(1)]))
+                .mockReturnValue(of([]));
+            mls.processMessage.mockReturnValue(of({
+                kind: 'proposal', plaintext: null, selfRemoved: false,
+                addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: null,
+            }));
+
+            await sync.syncContext(CONTEXT, false);
+
+            // MLS does not let anyone commit their own removal. Until a remaining member turns the
+            // proposal into a commit, the group keeps encrypting to someone who has already thrown
+            // their keys away.
+            expect(mls.commitPendingProposals).toHaveBeenCalled();
+        });
+
+        it('does not re-commit a proposal on the next sync', async () => {
+            const {sync, mls, transport} = setup();
+            mls.registry.set(`${CONTEXT}#1`, GROUP);
+            mls.activeGeneration.set(CONTEXT, 1);
+            transport.getCommits
+                .mockReturnValueOnce(of([commit(1)]))
+                .mockReturnValue(of([]));
+            mls.processMessage.mockReturnValue(of({
+                kind: 'proposal', plaintext: null, selfRemoved: false,
+                addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: null,
+            }));
+
+            await sync.syncContext(CONTEXT, false);
+            await sync.syncContext(CONTEXT, false);
+
+            expect(mls.commitPendingProposals).toHaveBeenCalledTimes(1);
+        });
+
         it('tears down local state when a commit removes this device', async () => {
             const {sync, mls, transport} = setup();
             mls.registry.set(`${CONTEXT}#1`, GROUP);

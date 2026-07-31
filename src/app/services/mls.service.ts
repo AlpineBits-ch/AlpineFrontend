@@ -65,6 +65,23 @@ export interface MlsKeyPackageBatch {
     keyHandle: string;
 }
 
+/** What a reviewer is shown before vouching for someone's admission. */
+export interface MlsKeyPackageInfo {
+    /** The user id this package claims, from its BasicCredential. */
+    identity: string;
+    /** Long-lived Ed25519 signature key (base64). */
+    signaturePublicKey: string;
+    /**
+     * Human-comparable fingerprint of the *signature* key, in five-character groups.
+     *
+     * Stable across every key package a device mints, which is what makes it usable out of band -
+     * a per-package value would differ on every request and two people could never agree on it.
+     */
+    signatureKeyFingerprint: string;
+    /** SHA-256 of the key package bytes (hex). Binds an approval to these exact bytes. */
+    keyPackageHash: string;
+}
+
 export interface MlsMemberInfo {
     leafIndex: number;
     identity: string;
@@ -352,6 +369,16 @@ export class MlsService {
         return this.serialized(groupIdB64, () =>
             invoke<MlsCommitOut>('mls_commit_pending_proposals', {groupIdB64, keyHandle})
         );
+    }
+
+    /**
+     * Inspect a key package before vouching for it, or before adding it.
+     *
+     * Validated, not merely parsed - a reviewer must never be shown an identity lifted from
+     * something that would be refused at add time.
+     */
+    inspectKeyPackage(keyPackageB64: string): Observable<MlsKeyPackageInfo> {
+        return from(invoke<MlsKeyPackageInfo>('mls_inspect_key_package', {keyPackageB64}));
     }
 
     /**
