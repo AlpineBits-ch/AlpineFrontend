@@ -1,9 +1,10 @@
-import {Injectable, signal} from '@angular/core';
+import {inject, Injectable, signal} from '@angular/core';
 import {invoke} from '@tauri-apps/api/core';
 import {from, Observable, of} from 'rxjs';
 import {map, switchMap} from 'rxjs/operators';
 import {LazyStore} from '@tauri-apps/plugin-store';
 import {secureStorage} from 'tauri-plugin-secure-storage-api';
+import {DeviceIdentityService} from './device-identity.service';
 
 // ---------------------------------------------------------------------------
 // Typed error system
@@ -138,6 +139,7 @@ export class MlsService {
     private readonly _groupQueues = new Map<string, Promise<unknown>>();
     private readonly _groupRegistry = new LazyStore('mls-group-registry.json');
     private readonly _messageCache = new LazyStore('mls-message-cache.json');
+    private readonly deviceIdentity = inject(DeviceIdentityService);
 
     // -------------------------------------------------------------------------
     // Group registry -maps conversationId → MLS groupId (persisted)
@@ -562,26 +564,16 @@ export class MlsService {
         );
     }
 
-    async getOrCreateDeviceIdentifier(): Promise<string> {
-        const store = new LazyStore('settings.json');
-        const KEY = 'mls_device_id';
-
-        let deviceId = await store.get<{ value: string }>(KEY);
-
-        if (!deviceId) {
-            deviceId = {value: crypto.randomUUID()};
-            await store.set(KEY, deviceId);
-            await store.save();
-        }
-
-        return deviceId.value;
+    /**
+     * @deprecated Prefer `DeviceIdentityService.deviceId()`. Kept so existing MLS call sites
+     * keep reading the one identifier rather than growing a second one.
+     */
+    getOrCreateDeviceIdentifier(): Promise<string> {
+        return this.deviceIdentity.deviceId();
     }
 
-    async deleteDeviceIdentifier(): Promise<void> {
-        const store = new LazyStore('settings.json');
-        const KEY = 'mls_device_id';
-        await store.delete(KEY);
-        await store.save();
+    deleteDeviceIdentifier(): Promise<void> {
+        return this.deviceIdentity.reset();
     }
 
     /**
