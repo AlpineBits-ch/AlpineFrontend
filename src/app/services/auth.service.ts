@@ -1,9 +1,11 @@
 import {inject, Injectable} from '@angular/core';
 import {HttpClient} from "@angular/common/http";
-import {catchError, from, Observable, tap, throwError} from "rxjs";
+import {catchError, from, Observable, switchMap, tap, throwError} from "rxjs";
 import {environment} from "../../environments/environment";
 import {OAuthService, TokenResponse} from "angular-oauth2-oidc";
 import {ApiConfigService} from "./api-config.service";
+import {DeviceIdentityService} from "./device-identity.service";
+import {describeCurrentDevice} from "./device-description";
 
 @Injectable({
     providedIn: 'root',
@@ -12,6 +14,7 @@ export class AuthService {
     private http = inject(HttpClient);
     private oauthService = inject(OAuthService);
     private apiConfig = inject(ApiConfigService);
+    private deviceIdentity = inject(DeviceIdentityService);
     private _activeRefresh: Promise<string> | null = null;
 
     public register(email: string, username: string, password: string, birthdate: Date): Observable<unknown> {
@@ -32,7 +35,19 @@ export class AuthService {
         const parameters: Record<string, string> = {username, password};
         if (mfaCode) parameters['mfa_code'] = mfaCode;
 
-        return from(this.oauthService.fetchTokenUsingGrant('password', parameters)).pipe(
+        const {deviceName, deviceType} = describeCurrentDevice();
+        parameters['device_name'] = deviceName;
+        parameters['device_type'] = deviceType;
+
+        // The device id links this session to the registered device, which is what lets revoking
+        // the session also kill that device's push. A first login on a fresh install necessarily
+        // happens before the device can be registered and the server ignores an unknown id, so an
+        // unresolvable id is no reason to block signing in - it links from the next login onward.
+        return from(this.deviceIdentity.deviceId().catch(() => null)).pipe(
+            switchMap(deviceId => {
+                if (deviceId) parameters['device_id'] = deviceId;
+                return from(this.oauthService.fetchTokenUsingGrant('password', parameters));
+            }),
             tap({
                 error: (err) => console.error('Login failed', err)
             }),

@@ -1,8 +1,9 @@
 import {inject, Injectable} from '@angular/core';
 import {HttpClient, HttpErrorResponse} from '@angular/common/http';
-import {catchError, from, map, Observable, of, throwError} from 'rxjs';
+import {catchError, from, map, Observable, of, switchMap, throwError} from 'rxjs';
 import {OAuthService, TokenResponse} from 'angular-oauth2-oidc';
 import {ApiConfigService} from './api-config.service';
+import {DeviceIdentityService} from './device-identity.service';
 import {describeCurrentDevice} from './device-description';
 import {StartQrLoginDto} from '../dtos/request/qr-login.dto';
 import {QrLoginStartResponse, QrLoginStatus, QrLoginStatusResponse} from '../dtos/response/qr-login.dto';
@@ -28,14 +29,28 @@ export class QrLoginService {
     private http = inject(HttpClient);
     private oauthService = inject(OAuthService);
     private apiConfig = inject(ApiConfigService);
+    private deviceIdentity = inject(DeviceIdentityService);
 
     private get base(): string {
         return this.apiConfig.baseUrl() + '/api/v1/identity/qr-login';
     }
 
-    /** Mints a pairing code valid for `expiresInSeconds`. Call again rather than reusing an expired one. */
+    /**
+     * Mints a pairing code valid for `expiresInSeconds`. Call again rather than reusing an
+     * expired one.
+     *
+     * The device id rides along through the pairing and is attached to the session minted at
+     * `/connect/token`, so a QR login is linked to its device the same way a password login is.
+     * An unresolvable id is dropped rather than blocking the pairing - the server ignores an
+     * absent one.
+     */
     start(device: StartQrLoginDto = describeCurrentDevice()): Observable<QrLoginStartResponse> {
-        return this.http.post<QrLoginStartResponse>(`${this.base}/start`, device);
+        return from(this.deviceIdentity.deviceId().catch(() => null)).pipe(
+            switchMap(clientDeviceId => this.http.post<QrLoginStartResponse>(
+                `${this.base}/start`,
+                clientDeviceId ? {...device, clientDeviceId} : device,
+            )),
+        );
     }
 
     /**
