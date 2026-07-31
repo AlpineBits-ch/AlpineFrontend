@@ -89,10 +89,19 @@ export class VoiceEngineService {
     }
 
     /**
-     * `apiBase` and `token` are passed in rather than read here, matching how the screen publisher
-     * is called. Rust owns neither session lifetime nor token refresh.
+     * `apiBase`, `token` and `deviceId` are passed in rather than read here, matching how the
+     * screen publisher is called. Rust owns neither session lifetime nor token refresh.
+     *
+     * `deviceId` must be the same value the webview's `X-Device-Id` header carries: this is the
+     * *primary* session, so a mismatch splits one user across two device buckets with their
+     * microphone in the wrong one.
      */
-    async start(target: VoiceTarget, apiBase: string, token: string): Promise<VoiceStartResult> {
+    async start(
+        target: VoiceTarget,
+        apiBase: string,
+        token: string,
+        deviceId: string,
+    ): Promise<VoiceStartResult> {
         const channel = new Channel<VoiceEvent>();
         channel.onmessage = event => {
             if (event.kind === 'error') {
@@ -117,6 +126,7 @@ export class VoiceEngineService {
             iceServers: [],
             apiBase,
             token,
+            deviceId,
             guildId: target.kind === 'guild' ? target.guildId : null,
             channelId: target.kind === 'guild' ? target.channelId : null,
             callId: target.kind === 'call' ? target.callId : null,

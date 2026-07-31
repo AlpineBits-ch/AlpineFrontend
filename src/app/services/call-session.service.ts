@@ -13,6 +13,7 @@ import {solveGeometry} from '../models/capture-geometry';
 import {publishOptions, useRustPublisher} from './screen-publish';
 import {ScreenPickerChoice} from './screen-picker.service';
 import {ApiConfigService} from './api-config.service';
+import {DeviceIdentityService} from './device-identity.service';
 
 @Injectable({providedIn: 'root'})
 export class CallSessionService {
@@ -36,6 +37,7 @@ export class CallSessionService {
     private rustChoice: ScreenPickerChoice | null = null;
     private readonly oauth = inject(OAuthService);
     private readonly apiConfig = inject(ApiConfigService);
+    private readonly deviceIdentity = inject(DeviceIdentityService);
     private profileService = inject(ProfileService);
     private conversationStore = inject(ConversationStore);
     private voiceService = inject(VoiceService);
@@ -230,9 +232,14 @@ export class CallSessionService {
 
         try {
             const published = await this.rustMedia.startScreenPublish(
-                publishOptions(choice, shareId, this.apiConfig.baseUrl(), this.oauth.getAccessToken(), {
-                    callId,
-                }),
+                publishOptions(
+                    choice,
+                    shareId,
+                    this.apiConfig.baseUrl(),
+                    this.oauth.getAccessToken(),
+                    await this.deviceIdentity.deviceId(),
+                    {callId},
+                ),
             );
             console.log(`[call] Rust publisher live on ${published.encoder}`, published);
         } catch (e) {

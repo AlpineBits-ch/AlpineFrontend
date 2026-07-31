@@ -51,6 +51,7 @@ export function publishOptions(
     shareId: string,
     apiBase: string,
     token: string,
+    deviceId: string,
     target: {guildId: string; channelId: string} | {callId: string},
 ): ScreenPublishOptions {
     const preset: StreamPreset = choice.preset;
@@ -66,6 +67,7 @@ export function publishOptions(
         iceServers: iceServers(),
         apiBase,
         token,
+        deviceId,
         ...target,
     };
 }

@@ -6,6 +6,7 @@ import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
 import {environment} from '../../environments/environment';
 import {ApiConfigService} from "./api-config.service";
+import {DeviceIdentityService} from "./device-identity.service";
 import {OAuthService} from 'angular-oauth2-oidc';
 import {bitrateFor, DEFAULT_STREAM_PRESET, StreamPreset} from '../models/stream-preset';
 import {solveGeometry} from '../models/capture-geometry';
@@ -38,6 +39,7 @@ export interface ScreenPublishRestart {
 @Injectable({providedIn: 'root'})
 export class VoiceRTCService {
     private apiConfig = inject(ApiConfigService);
+    private deviceIdentity = inject(DeviceIdentityService);
 
     private readonly pcState = signal<RTCPeerConnectionState>('new');
     /** True once the Rust engine is capturing and publishing. See {@link rtcState}. */
@@ -144,6 +146,7 @@ export class VoiceRTCService {
                 {kind: 'guild', guildId, channelId},
                 this.apiConfig.baseUrl(),
                 this.oauth.getAccessToken(),
+                await this.deviceIdentity.deviceId(),
             );
             this.engineUp.set(true);
         } catch (e) {
@@ -561,10 +564,14 @@ export class VoiceRTCService {
         const shareId = crypto.randomUUID();
         try {
             const published = await this.rustMedia.startScreenPublish(
-                publishOptions(choice, shareId, this.apiConfig.baseUrl(), this.oauth.getAccessToken(), {
-                    guildId,
-                    channelId,
-                }),
+                publishOptions(
+                    choice,
+                    shareId,
+                    this.apiConfig.baseUrl(),
+                    this.oauth.getAccessToken(),
+                    await this.deviceIdentity.deviceId(),
+                    {guildId, channelId},
+                ),
             );
             console.log(`[voice] Rust publisher live on ${published.encoder}`, published);
             this.screenShareId = shareId;

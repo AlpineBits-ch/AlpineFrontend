@@ -70,6 +70,10 @@ pub async fn start_screen_publish(
     ice_servers: Vec<rtc::IceServerConfig>,
     api_base: String,
     token: String,
+    // The same `X-Device-Id` the webview sends. Lower stakes than the voice engine's primary
+    // session, but this path hits CreateSession too, so leaving it unstamped would move the
+    // split rather than close it.
+    device_id: String,
     // Guild voice supplies guild_id + channel_id; a DM call supplies call_id instead.
     guild_id: Option<String>,
     channel_id: Option<String>,
@@ -88,7 +92,7 @@ pub async fn start_screen_publish(
     };
 
     // Secondary: the screen share must never be recorded as the participant's audio session.
-    let signalling = Signalling::new(api_base, token, target, SessionRole::Secondary)?;
+    let signalling = Signalling::new(api_base, token, device_id, target, SessionRole::Secondary)?;
     let handle = session::start(
         source_id,
         share_id,

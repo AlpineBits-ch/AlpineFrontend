@@ -135,6 +135,11 @@ pub async fn voice_start(
     ice_servers: Vec<IceServerConfig>,
     api_base: String,
     token: String,
+    // The same `X-Device-Id` the webview sends - the *installation*, not the microphone
+    // (`settings.device_id` below is the capture device). This session is the primary one, so a
+    // mismatch here puts the participant's audio in a different device bucket than the rest of
+    // the client and reads as a takeover of their own call.
+    device_id: String,
     // Guild voice supplies guild_id + channel_id; a DM call supplies call_id instead.
     guild_id: Option<String>,
     channel_id: Option<String>,
@@ -153,7 +158,7 @@ pub async fn voice_start(
     };
 
     // Primary: this is the session the backend records as the participant's audio.
-    let signalling = Signalling::new(api_base, token, target, SessionRole::Primary)?;
+    let signalling = Signalling::new(api_base, token, device_id, target, SessionRole::Primary)?;
     let handle = session::start(
         settings.device_id.clone(),
         settings.output_device_id.clone(),

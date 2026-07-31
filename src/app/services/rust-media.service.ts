@@ -28,6 +28,8 @@ export interface ScreenPublishOptions {
     iceServers: IceServerConfig[];
     apiBase: string;
     token: string;
+    /** Same `X-Device-Id` the webview sends; Rust must not appear as a second device. */
+    deviceId: string;
     /** Guild voice supplies guildId + channelId; a DM call supplies callId instead. */
     guildId?: string;
     channelId?: string;
@@ -239,6 +241,7 @@ export class RustMediaService {
             iceServers: options.iceServers,
             apiBase: options.apiBase,
             token: options.token,
+            deviceId: options.deviceId,
             guildId: options.guildId ?? null,
             channelId: options.channelId ?? null,
             callId: options.callId ?? null,

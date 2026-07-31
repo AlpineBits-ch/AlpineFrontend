@@ -2,6 +2,7 @@ import {computed, effect, inject, Injectable, signal, untracked} from '@angular/
 import {firstValueFrom, Subscription} from 'rxjs';
 import {OAuthService} from 'angular-oauth2-oidc';
 import {ApiConfigService} from './api-config.service';
+import {DeviceIdentityService} from './device-identity.service';
 import {VoiceEngineService} from './voice-engine.service';
 import {CallSessionService} from './call-session.service';
 import {CfTrackNew, CfTrackResult, VoiceService} from './voice.service';
@@ -82,6 +83,7 @@ export class CallWebRtcService {
     private screenPicker = inject(ScreenPickerService);
     private voiceEngine = inject(VoiceEngineService);
     private apiConfig = inject(ApiConfigService);
+    private deviceIdentity = inject(DeviceIdentityService);
     private oauth = inject(OAuthService);
     // ── WebRTC state ─────────────────────────────────────────────────────────
     private pc: RTCPeerConnection | null = null;
@@ -286,6 +288,7 @@ export class CallWebRtcService {
                 {kind: 'call', callId},
                 this.apiConfig.baseUrl(),
                 this.oauth.getAccessToken(),
+                await this.deviceIdentity.deviceId(),
             );
         } catch (e) {
             console.error('[WebRTC] Rust voice engine failed to start -joining without audio', e);

@@ -136,6 +136,7 @@ pub struct Signalling {
     client: reqwest::Client,
     base_url: String,
     token: String,
+    device_id: String,
     target: VoiceTarget,
     role: SessionRole,
 }
@@ -144,6 +145,7 @@ impl Signalling {
     pub fn new(
         base_url: String,
         token: String,
+        device_id: String,
         target: VoiceTarget,
         role: SessionRole,
     ) -> Result<Self, String> {
@@ -155,9 +157,20 @@ impl Signalling {
             client,
             base_url: base_url.trim_end_matches('/').to_owned(),
             token,
+            device_id,
             target,
             role,
         })
+    }
+
+    /// The device this client acts as, sent as `X-Device-Id` on every request.
+    ///
+    /// Must be the id the webview sends on its own requests. `DeviceIdResolver` buckets a missing
+    /// header as `"default"`, so omitting it here while the webview sends a real id splits one
+    /// user across two devices - with the *primary* session, the one carrying the microphone, in
+    /// the anonymous bucket.
+    pub fn device_id(&self) -> &str {
+        &self.device_id
     }
 
     /// Endpoint root, matching `GuildVoiceService.base()` and `VoiceService.base`.
@@ -262,10 +275,13 @@ impl Signalling {
         track_names: &[String],
     ) -> Result<(), String> {
         let url = format!("{}/cf/tracks/close", self.voice_base());
+        // Builds its own request rather than going through `send`, so the header has to be
+        // repeated here - this is the path that would otherwise silently drop it.
         let response = self
             .client
             .put(&url)
             .bearer_auth(&self.token)
+            .header("X-Device-Id", &self.device_id)
             .json(&CloseTracksRequest {
                 cf_session_id,
                 track_names,
@@ -304,6 +320,7 @@ impl Signalling {
     ) -> Result<R, String> {
         let response = request
             .bearer_auth(&self.token)
+            .header("X-Device-Id", &self.device_id)
             .json(body)
             .send()
             .await
@@ -333,6 +350,7 @@ mod tests {
         Signalling::new(
             "https://api.example.test/".into(),
             "tok".into(),
+            "dev-1".into(),
             VoiceTarget::GuildChannel {
                 guild_id: "g1".into(),
                 channel_id: "c1".into(),
@@ -350,12 +368,21 @@ mod tests {
         Signalling::new(
             "https://api.example.test".into(),
             "tok".into(),
+            "dev-1".into(),
             VoiceTarget::Call {
                 call_id: "call-1".into(),
             },
             role,
         )
         .unwrap()
+    }
+
+    /// The webview stamps every API request with this header. If Rust does not, the backend sees
+    /// two devices for one user - and the one holding the *primary* session is the anonymous
+    /// `default` bucket, which reads as a takeover of the user's own call.
+    #[test]
+    fn carries_the_device_id() {
+        assert_eq!(signalling().device_id(), "dev-1");
     }
 
     #[test]
