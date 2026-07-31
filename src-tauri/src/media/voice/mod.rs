@@ -12,6 +12,7 @@
 //! both WebRTC's AudioProcessing frame and RNNoise's frame, so no stage has to rebuffer against
 //! another.
 
+pub mod capture;
 pub mod codec;
 pub mod denoise;
 pub mod gate;
