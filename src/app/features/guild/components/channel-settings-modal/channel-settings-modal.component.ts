@@ -5,6 +5,7 @@ import {Button} from 'primeng/button';
 import {ChannelDto, GuildDto, isForumLike} from '../../../../dtos/response/guild.dto';
 import {ChannelOverviewComponent} from './pages/channel-overview/channel-overview.component';
 import {ChannelPermissionsComponent} from './pages/channel-permissions/channel-permissions.component';
+import {ChannelEncryptionComponent} from './pages/channel-encryption/channel-encryption.component';
 import {ForumSettingsComponent} from './pages/forum-settings/forum-settings.component';
 import {GuildService} from '../../../../services/guild.service';
 import {PrimeTemplate} from "primeng/api";
@@ -18,7 +19,7 @@ interface NavItem {
 
 @Component({
     selector: 'app-channel-settings-modal',
-    imports: [NgClass, Dialog, Button, ChannelOverviewComponent, ChannelPermissionsComponent, ForumSettingsComponent, PrimeTemplate, TranslateModule],
+    imports: [NgClass, Dialog, Button, ChannelOverviewComponent, ChannelPermissionsComponent, ChannelEncryptionComponent, ForumSettingsComponent, PrimeTemplate, TranslateModule],
     templateUrl: './channel-settings-modal.component.html',
 })
 export class ChannelSettingsModalComponent {
@@ -37,6 +38,7 @@ export class ChannelSettingsModalComponent {
         const items: NavItem[] = [
             {id: 'overview', label: 'CHANNEL_SETTINGS.NAV.OVERVIEW', icon: 'pi pi-sliders-h'},
             {id: 'permissions', label: 'CHANNEL_SETTINGS.NAV.PERMISSIONS', icon: 'pi pi-lock'},
+            {id: 'encryption', label: 'CHANNEL_SETTINGS.NAV.ENCRYPTION', icon: 'pi pi-shield'},
         ];
         const channel = this.channel();
         if (channel && isForumLike(channel.type)) {

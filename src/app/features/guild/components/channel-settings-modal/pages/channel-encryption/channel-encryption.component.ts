@@ -1,0 +1,142 @@
+import {Component, computed, inject, input, signal} from '@angular/core';
+import {NgClass} from '@angular/common';
+import {Button} from 'primeng/button';
+import {TranslateModule} from '@ngx-translate/core';
+import {firstValueFrom} from 'rxjs';
+import {HttpErrorResponse} from '@angular/common/http';
+import {ChannelDto, GuildDto} from '../../../../../../dtos/response/guild.dto';
+import {ChannelEncryptionService} from '../../../../../../services/channel-encryption.service';
+import {GuildService} from '../../../../../../services/guild.service';
+import {MlsToggleConflictDto} from '../../../../../../dtos/mls.dto';
+
+/** One page of members per request; a channel roster past this is paged through. */
+const MEMBER_PAGE = 100;
+
+@Component({
+    selector: 'app-channel-encryption',
+    imports: [NgClass, Button, TranslateModule],
+    templateUrl: './channel-encryption.component.html',
+})
+export class ChannelEncryptionComponent {
+    channel = input.required<ChannelDto>();
+    guild = input.required<GuildDto>();
+
+    protected readonly encrypted = signal(false);
+    protected readonly generation = signal<number | null>(null);
+    /** Past eras whose messages are still in the channel but are no longer readable by new members. */
+    protected readonly terminatedCount = signal(0);
+    protected readonly busy = signal(false);
+    protected readonly loading = signal(true);
+    protected readonly error = signal<string | null>(null);
+    protected readonly retryAfterSeconds = signal<number | null>(null);
+    /** Devices that could not be added when enabling - they cannot read anything sent from now on. */
+    protected readonly unreachable = signal<string[]>([]);
+    protected readonly confirmingDisable = signal(false);
+
+    protected readonly statusLabel = computed(() =>
+        this.encrypted() ? 'CHANNEL_SETTINGS.ENCRYPTION.ON' : 'CHANNEL_SETTINGS.ENCRYPTION.OFF');
+
+    private readonly encryption = inject(ChannelEncryptionService);
+    private readonly guildService = inject(GuildService);
+
+    constructor() {
+        void this.refresh();
+    }
+
+    protected async refresh(): Promise<void> {
+        this.loading.set(true);
+        try {
+            const state = await this.encryption.state(this.channel().id);
+            this.encrypted.set(state.encrypted);
+            this.generation.set(state.activeGeneration ?? null);
+            this.terminatedCount.set(state.generations.filter(g => g.state === 'Terminated').length);
+        } catch {
+            this.error.set('CHANNEL_SETTINGS.ENCRYPTION.LOAD_FAILED');
+        } finally {
+            this.loading.set(false);
+        }
+    }
+
+    protected async enable(): Promise<void> {
+        if (this.busy()) return;
+        this.busy.set(true);
+        this.error.set(null);
+        this.retryAfterSeconds.set(null);
+        this.unreachable.set([]);
+
+        try {
+            const memberIds = await this.channelMemberIds();
+            const result = await this.encryption.enable(this.channel().id, memberIds);
+
+            this.encrypted.set(true);
+            this.generation.set(result.generation);
+            this.unreachable.set(result.unreachableDevices.map(d => d.deviceName));
+        } catch (err) {
+            this.reportFailure(err, 'CHANNEL_SETTINGS.ENCRYPTION.ENABLE_FAILED');
+        } finally {
+            this.busy.set(false);
+        }
+    }
+
+    protected async disable(): Promise<void> {
+        if (this.busy()) return;
+        this.busy.set(true);
+        this.error.set(null);
+        this.retryAfterSeconds.set(null);
+        this.confirmingDisable.set(false);
+
+        try {
+            const result = await this.encryption.disable(this.channel().id);
+            this.encrypted.set(false);
+            this.generation.set(null);
+            if (result.terminatedGeneration !== null) {
+                this.terminatedCount.update(n => n + 1);
+            }
+        } catch (err) {
+            this.reportFailure(err, 'CHANNEL_SETTINGS.ENCRYPTION.DISABLE_FAILED');
+        } finally {
+            this.busy.set(false);
+        }
+    }
+
+    /**
+     * Everyone who should hold keys for the new group.
+     *
+     * This is the guild's member list, which is an over-approximation for a channel with
+     * restrictive overwrites: those members would receive keys they arguably should not have. The
+     * roster the group actually needs is "who can ViewChannel here", which no endpoint exposes yet
+     * - so this is deliberately the *visible* limitation rather than a silent one, and private
+     * channels should not be encrypted until it is closed.
+     */
+    private async channelMemberIds(): Promise<string[]> {
+        const ids: string[] = [];
+        for (let skip = 0; ; skip += MEMBER_PAGE) {
+            const page = await firstValueFrom(
+                this.guildService.getMembers(this.guild().id, skip, MEMBER_PAGE),
+            );
+            ids.push(...page.map(m => m.userId));
+            if (page.length < MEMBER_PAGE) break;
+        }
+        return ids;
+    }
+
+    private reportFailure(err: unknown, fallback: string): void {
+        if (err instanceof HttpErrorResponse && err.status === 409) {
+            const conflict = err.error as MlsToggleConflictDto;
+            if (conflict?.retryAfterSeconds) {
+                // Toggling churns every client's group state; the server spaces them out so clients
+                // can reach a steady state rather than thrashing.
+                this.retryAfterSeconds.set(conflict.retryAfterSeconds);
+                return;
+            }
+            // Someone else already flipped it. Re-reading is more useful than an error.
+            void this.refresh();
+            return;
+        }
+        if (err instanceof HttpErrorResponse && err.status === 403) {
+            this.error.set('CHANNEL_SETTINGS.ENCRYPTION.FORBIDDEN');
+            return;
+        }
+        this.error.set(fallback);
+    }
+}
