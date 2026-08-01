@@ -42,6 +42,16 @@ export interface MlsCommitDto {
     senderUserId: string;
     senderDeviceId: string;
     createdAt: string;
+    /**
+     * True when this row is a bare Remove proposal rather than a commit.
+     *
+     * Read from the wire rather than inferred from what the engine makes of the bytes. A proposal
+     * advances nobody's epoch, so counting one as progress re-fetches it from the same
+     * `sinceEpoch` forever. The server's epoch index is also filtered on `is_proposal = false`, so
+     * a proposal and the real commit behind it legitimately share an epoch - the sequence check has
+     * to know which is which *before* it looks at the number.
+     */
+    isProposal?: boolean;
 }
 
 export interface PublishMlsCommitDto {
@@ -58,6 +68,15 @@ export interface PublishMlsCommitDto {
     welcomes: DeviceWelcomeDto[];
     /** Join requests this commit admits; the server closes them only once it lands. */
     fulfilledJoinRequestIds?: string[];
+    /**
+     * Set when the payload is a bare Remove proposal a departing device published for someone else
+     * to commit, rather than a commit.
+     *
+     * The server does not advance the group's epoch for it. Omitting the flag is what produced the
+     * non-terminating catch-up: the epoch moved to a number no client could ever reach, so every
+     * member re-fetched the same proposal forever and no later commit was accepted again.
+     */
+    isProposal?: boolean;
 }
 
 export interface MlsCommitPublishedDto {
@@ -65,6 +84,15 @@ export interface MlsCommitPublishedDto {
     conversationId?: string | null;
     generation: number;
     epoch: number;
+    /** Echoes whether the stored row was a proposal, so a successful publish is not mistaken for
+     * the group having moved. */
+    isProposal?: boolean;
+    /**
+     * True when the server already held this exact commit from this device and returned the stored
+     * row rather than writing a second one. The publish succeeded - the client must keep its
+     * merged state rather than treating it as a lost race and discarding it.
+     */
+    duplicate?: boolean;
 }
 
 export enum MlsGenerationState {
@@ -152,6 +180,25 @@ export interface MlsDeviceTokenDto {
     deviceId: string;
     userId: string;
     token: Base64;
+    /**
+     * True when the only package left for the device was its reusable last-resort one.
+     *
+     * Worth saying out loud: a leaf admitted on a last-resort package has no forward secrecy from
+     * that point back, because the same init key can seal more than one Welcome. It is still far
+     * better than the device being unreachable.
+     */
+    isLastResort?: boolean;
+    /**
+     * The device's certificate, issued by its owner's account identity key, travelling with the
+     * key package so the server cannot pair one device's package with another's certificate.
+     *
+     * Carried through but **not validated here** - certificate enforcement is deliberately not
+     * implemented on this client yet, and validating without the three-state policy that gates it
+     * would have clients proposing the removal of every device in the field. See contract §H.4/§I.1.
+     */
+    certificate?: Base64 | null;
+    certificateExpiresAt?: string | null;
+    certificateIdentityKeyVersion?: number | null;
 }
 
 export interface UnreachableDeviceDto {

@@ -113,11 +113,18 @@ export class MlsTransportService {
         );
     }
 
-    /** Marks Welcomes consumed - only after the join actually succeeded. */
-    ackWelcomes(welcomeIds: string[]): Observable<AckWelcomesResultDto> {
+    /**
+     * Marks Welcomes consumed - only after the join actually succeeded.
+     *
+     * `deviceId` scopes the ack to this device's own leaves. Scoped by user alone, one device could
+     * acknowledge a Welcome addressed to another's leaf: bytes it cannot use, and which the owning
+     * device then never sees again, leaving that device permanently outside the group with nothing
+     * to indicate why.
+     */
+    ackWelcomes(welcomeIds: string[], deviceId: string): Observable<AckWelcomesResultDto> {
         return this.http.post<AckWelcomesResultDto>(
             `${this.base}/conversations/welcomes/ack`,
-            {welcomeIds},
+            {welcomeIds, deviceId},
         );
     }
 

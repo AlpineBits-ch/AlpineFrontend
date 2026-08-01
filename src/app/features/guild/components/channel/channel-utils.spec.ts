@@ -1,7 +1,7 @@
 import {describe, expect, it} from 'vitest';
 import {HttpErrorResponse} from '@angular/common/http';
 import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
-import {classifyAutoModError, forumParentOf} from './channel-utils';
+import {classifyAutoModError, forumParentOf, mayPostCleartext} from './channel-utils';
 
 function makeError(status: number, error: unknown): HttpErrorResponse {
     return new HttpErrorResponse({status, error});
@@ -95,5 +95,31 @@ describe('forumParentOf', () => {
     it('returns null against an empty channel list', () => {
         const post = chan({id: 'p6', type: ChannelType.Thread, parentChannelId: 'f1'});
         expect(forumParentOf(post, [])).toBeNull();
+    });
+});
+
+describe('mayPostCleartext', () => {
+    it('allows cleartext in a channel that is genuinely plaintext', () => {
+        expect(mayPostCleartext(null, 'plain')).toBe(true);
+    });
+
+    it('refuses cleartext when the channel is encrypted and we cannot participate', () => {
+        // The bug this exists for: holding no local generation looked exactly like "not
+        // encrypted", so the composer posted the message in the clear. The server refuses it -
+        // but only after the plaintext has already left the machine.
+        expect(mayPostCleartext(null, 'locked-out')).toBe(false);
+    });
+
+    it('refuses cleartext when we are in the group but have no generation recorded', () => {
+        // A torn registry write or a wipe mid-session lands here. Sending plaintext into an
+        // encrypted channel is never the safe interpretation of an inconsistent local state.
+        expect(mayPostCleartext(null, 'joined')).toBe(false);
+    });
+
+    it('refuses cleartext whenever a generation is held, whatever the resolved state says', () => {
+        // Holding a generation is direct evidence the channel is encrypted for this device, and it
+        // outranks a resolved state that may simply be stale.
+        expect(mayPostCleartext(1, 'plain')).toBe(false);
+        expect(mayPostCleartext(0, 'plain')).toBe(false);
     });
 });

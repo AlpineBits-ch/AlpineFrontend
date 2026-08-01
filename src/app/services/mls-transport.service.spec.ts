@@ -88,12 +88,14 @@ describe('MlsTransportService', () => {
             req.flush([]);
         });
 
-        it('acknowledges by id', () => {
+        it('acknowledges by id, scoped to this device', () => {
             const {service, ctrl} = setup();
-            service.ackWelcomes(['pewe_1', 'pewe_2']).subscribe();
+            service.ackWelcomes(['pewe_1', 'pewe_2'], 'device-a').subscribe();
             const req = ctrl.expectOne(`${MLS}/conversations/welcomes/ack`);
             expect(req.request.method).toBe('POST');
-            expect(req.request.body).toEqual({welcomeIds: ['pewe_1', 'pewe_2']});
+            // Scoped by user alone, one device could acknowledge a Welcome addressed to another
+            // device's leaf - bytes it cannot use, and which the owning device then never sees.
+            expect(req.request.body).toEqual({welcomeIds: ['pewe_1', 'pewe_2'], deviceId: 'device-a'});
             req.flush({acknowledged: 2});
         });
     });

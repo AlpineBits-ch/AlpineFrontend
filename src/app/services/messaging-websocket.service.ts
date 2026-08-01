@@ -9,6 +9,7 @@ import {OnlineStatus} from '../dtos/response/profile.dto';
 import {ProfileService} from "./profile.service";
 import {MlsService} from './mls.service';
 import {MlsSyncService} from './mls-sync.service';
+import {MlsHealthService} from './mls-health.service';
 import {ConversationService} from './conversation.service';
 import {fromBase64} from "../helpers/base64.helper";
 import {ConnectionState, RealtimeConnectionService} from "./realtime-connection.service";
@@ -117,6 +118,24 @@ interface MessageCreatedPayload {
     embedsJson: string | undefined;
 }
 
+/**
+ * Normalizes an MLS push into "which context, and what kind of context".
+ *
+ * These pushes now fan out to channels as well as conversations, so the kind has to come from
+ * which id the payload carries rather than from an assumption about who is listening. A client
+ * that treated a channel commit as a conversation one would fetch commits from the wrong route
+ * and quietly never catch up.
+ */
+export function toContextEvent(
+    payload: { contextId?: string; conversationId?: string | null; channelId?: string | null; generation: number },
+): MlsContextEvent {
+    return {
+        contextId: payload.contextId ?? payload.conversationId ?? payload.channelId ?? '',
+        isChannel: !!payload.channelId,
+        generation: payload.generation,
+    };
+}
+
 @Injectable({
     providedIn: 'root',
 })
@@ -144,6 +163,7 @@ export class MessagingWebsocketService {
     private profileService = inject(ProfileService);
     private mlsService = inject(MlsService);
     private mlsSync = inject(MlsSyncService);
+    private mlsHealth = inject(MlsHealthService);
     private conversationService = inject(ConversationService);
     private readonly _rawMessageCreated$ = new Subject<MessageCreatedPayload>();
     private listenersSetUp = false;
@@ -225,20 +245,28 @@ export class MessagingWebsocketService {
             this.conversationCreatedObservable.next(conversationId);
         });
 
+        // Emitted for channel contexts too now, where it previously went to nobody. The context is
+        // whatever `contextId` names and the kind is decided by which id came with it - a channel
+        // commit must never be taken to imply conversation membership.
         this.realtime.on('conversation.MlsCommit', (payload: MlsCommitPushPayload) => {
-            this.mlsCommitObservable.next({
-                contextId: payload.contextId ?? payload.conversationId ?? payload.channelId ?? '',
-                isChannel: !!payload.channelId,
-                generation: payload.generation,
-            });
+            this.mlsCommitObservable.next(toContextEvent(payload));
+        });
+
+        // A device was removed from the account and has to be committed out of every group it holds
+        // a leaf in. Nothing is applied here: this only prompts the ordered catch-up, which is what
+        // discovers the removal and produces the commit for it.
+        this.realtime.on('conversation.MlsDeviceRemoved', (payload: MlsCommitPushPayload) => {
+            this.mlsCommitObservable.next(toContextEvent(payload));
+        });
+
+        // A device joined a group. Interesting only as a prompt to re-read the roster - the
+        // membership change itself arrives as a commit through the ordered fetch.
+        this.realtime.on('conversation.MlsDeviceAdmitted', (payload: MlsCommitPushPayload) => {
+            this.mlsCommitObservable.next(toContextEvent(payload));
         });
 
         this.realtime.on('conversation.MlsStateChanged', (payload: MlsStateChangedPushPayload) => {
-            this.mlsStateChangedObservable.next({
-                contextId: payload.contextId ?? payload.conversationId ?? payload.channelId ?? '',
-                isChannel: !!payload.channelId,
-                generation: payload.generation,
-            });
+            this.mlsStateChangedObservable.next(toContextEvent(payload));
         });
 
         this.realtime.on('conversation.Welcome', (conversationId: string) => {
@@ -266,8 +294,9 @@ export class MessagingWebsocketService {
     private async handleMessageCreated(data: MessageCreatedPayload): Promise<void> {
         const encryptionState = data.encryptionState ?? MessageEncryptionState.Plain;
 
-        console.log('incomming msg', data)
         let content = data.content;
+        /** Set when the ciphertext could not be turned into readable content on this device. */
+        let undecryptable = false;
 
         const contextId = data.conversationId ?? data.channelId;
 
@@ -299,22 +328,38 @@ export class MessagingWebsocketService {
                 }
             }
 
+            const isChannel = !!data.channelId;
+            let plaintext: string | null = null;
+
             if (groupId) {
-                const cached = await this.mlsService.getCachedMessage(data.messageId);
-                if (cached) {
-                    content = cached;
-                } else {
-                    try {
-                        const processed = await firstValueFrom(this.mlsService.processMessage(groupId, fromBase64(data.content)));
-                        if (processed.kind === 'application' && processed.plaintext) {
-                            content = processed.plaintext;
-                            console.log('received: ' + processed.plaintext)
-                            void this.mlsService.cacheMessage(data.messageId, processed.plaintext);
-                        }
-                    } catch (err) {
-                        console.error('Failed to decrypt incoming MLS message', err);
-                    }
+                plaintext = await this.mlsService.getCachedMessage(data.messageId);
+
+                if (!plaintext) {
+                    // Through the sync service so the decrypt takes the context queue: issued
+                    // straight from here it could interleave between the stage and the merge of a
+                    // two-phase commit. It also applies the roster check, which had no call sites
+                    // at all before this.
+                    plaintext = await this.mlsSync.decryptMessage(
+                        contextId,
+                        isChannel,
+                        groupId,
+                        fromBase64(data.content),
+                        data.messageId,
+                        data.authorId,
+                    );
+                    if (plaintext) void this.mlsService.cacheMessage(data.messageId, plaintext);
                 }
+            } else {
+                this.mlsHealth.recordFailure(contextId, isChannel, 'not-admitted');
+            }
+
+            if (plaintext) {
+                content = plaintext;
+            } else {
+                // Never the raw wire value. Handing base64 ciphertext to the UI as if it were a
+                // message is how an unreadable conversation looked like a working one - the user
+                // saw gibberish and nothing anywhere said this device could not read the context.
+                undecryptable = true;
             }
         }
 
@@ -325,6 +370,8 @@ export class MessagingWebsocketService {
         } catch {
             body = content;
         }
+        // A notification whose body is ciphertext is worse than no notification body at all.
+        if (undecryptable) body = '';
 
         const extra: Record<string, string> = {};
         if (data.conversationId) extra['conversationId'] = data.conversationId;
@@ -350,6 +397,7 @@ export class MessagingWebsocketService {
             senderDeviceId: data.senderDeviceId,
             type: MessageType.Message,
             embedsJson: data.embedsJson,
+            undecryptable,
         });
 
         if (!this.markNotified(data.messageId)) return;

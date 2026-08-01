@@ -20,4 +20,13 @@ export interface UserDeviceDto {
     lastSeen: Date | null;
     createdAt: Date;
     updatedAt: Date;
+    /**
+     * Set on a registration response when the submitted identity key differed from the stored one,
+     * so the server replaced it and purged this device's key packages.
+     *
+     * The client must re-upload. The purged packages were minted under a signing key that no longer
+     * exists, and any Welcome sealed to one of them would be undecryptable by the very device it
+     * was addressed to.
+     */
+    identityRotated?: boolean;
 }

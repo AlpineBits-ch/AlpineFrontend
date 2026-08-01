@@ -2,7 +2,8 @@ import {TestBed} from '@angular/core/testing';
 import {HttpErrorResponse} from '@angular/common/http';
 import {Observable, of, throwError} from 'rxjs';
 import {MlsSyncService} from './mls-sync.service';
-import {MlsProcessedMessage, MlsService} from './mls.service';
+import {MlsProcessedMessage, MlsReplayedMessage, MlsService} from './mls.service';
+import {MlsHealthService} from './mls-health.service';
 import {MlsTransportService} from './mls-transport.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {
@@ -79,10 +80,12 @@ function makeMls() {
         }),
         exportGroupInfo: vi.fn(() => of('Z3JvdXBpbmZv')),
         deleteGroup: vi.fn(() => of(undefined)),
-        addMembers: vi.fn(() => of({commit: 'Y29tbWl0', welcome: 'd2VsY29tZQ==', epoch: 1})),
-        removeMembers: vi.fn(() => of({commit: 'Y29tbWl0', welcome: null, epoch: 1})),
-        commitPendingProposals: vi.fn(() => of({commit: 'Y29tbWl0', welcome: null, epoch: 1})),
-        leaveGroup: vi.fn(() => of({commit: 'cHJvcG9zYWw=', welcome: null, epoch: 0})),
+        addMembers: vi.fn(() => of({commit: 'Y29tbWl0', welcome: 'd2VsY29tZQ==', epoch: 1, groupInfo: 'ZnJlc2hpbmZv'})),
+        removeMembers: vi.fn(() => of({commit: 'Y29tbWl0', welcome: null, epoch: 1, groupInfo: 'ZnJlc2hpbmZv'})),
+        commitPendingProposals: vi.fn(() => of({commit: 'Y29tbWl0', welcome: null, epoch: 1, groupInfo: 'ZnJlc2hpbmZv'})),
+        leaveGroup: vi.fn(() => of({commit: 'cHJvcG9zYWw=', welcome: null, epoch: 0, groupInfo: null})),
+        drainPendingMessages: vi.fn<(groupId: string) => Observable<MlsReplayedMessage[]>>(() => of([])),
+        getMembers: vi.fn(() => of([{leafIndex: 0, identity: 'user-2', encryptionKey: '', signatureKey: ''}])),
     };
 }
 
@@ -115,10 +118,11 @@ function setup() {
             {provide: MlsService, useValue: mls},
             {provide: MlsTransportService, useValue: transport},
             {provide: DeviceIdentityService, useValue: {deviceId: async () => DEVICE_ID}},
+            MlsHealthService,
         ],
     });
 
-    return {sync: TestBed.inject(MlsSyncService), mls, transport};
+    return {sync: TestBed.inject(MlsSyncService), mls, transport, health: TestBed.inject(MlsHealthService)};
 }
 
 function welcome(overrides: Partial<PendingWelcomeDto> = {}): PendingWelcomeDto {
@@ -158,7 +162,7 @@ describe('MlsSyncService', () => {
             await sync.processPendingWelcomes();
 
             expect(mls.joinGroup).toHaveBeenCalled();
-            expect(transport.ackWelcomes).toHaveBeenCalledWith(['pewe_1']);
+            expect(transport.ackWelcomes).toHaveBeenCalledWith(['pewe_1'], DEVICE_ID);
         });
 
         it('leaves a failed join unacknowledged so it can be retried', async () => {
@@ -185,7 +189,7 @@ describe('MlsSyncService', () => {
 
             await sync.processPendingWelcomes();
 
-            expect(transport.ackWelcomes).toHaveBeenCalledWith(['pewe_good']);
+            expect(transport.ackWelcomes).toHaveBeenCalledWith(['pewe_good'], DEVICE_ID);
         });
 
         it('acknowledges a generation it already joined instead of re-joining forever', async () => {
@@ -197,7 +201,7 @@ describe('MlsSyncService', () => {
 
             // A previous run joined but died before acking. Re-joining would fail every time.
             expect(mls.joinGroup).not.toHaveBeenCalled();
-            expect(transport.ackWelcomes).toHaveBeenCalledWith(['pewe_1']);
+            expect(transport.ackWelcomes).toHaveBeenCalledWith(['pewe_1'], DEVICE_ID);
         });
 
         it('does nothing while the session is locked', async () => {
@@ -305,6 +309,120 @@ describe('MlsSyncService', () => {
             await sync.syncContext(CONTEXT, false);
 
             expect(mls.commitPendingProposals).toHaveBeenCalledTimes(1);
+        });
+
+        it('terminates when the server keeps returning a proposal that consumed no epoch', async () => {
+            const {sync, mls, transport} = setup();
+            mls.registry.set(`${CONTEXT}#1`, GROUP);
+            mls.activeGeneration.set(CONTEXT, 1);
+
+            // What the real server does - and what the old `[]`-on-the-second-call mock hid.
+            // Processing a proposal advances nobody's MLS epoch, so the same row comes back from
+            // the same `sinceEpoch` forever. Counting it as progress meant the loop never
+            // terminated and issued an unbounded stream of requests.
+            transport.getCommits.mockReturnValue(of([commit(1)]));
+            mls.processMessage.mockReturnValue(of({
+                kind: 'proposal', plaintext: null, selfRemoved: false,
+                addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: null,
+            }));
+
+            await sync.syncContext(CONTEXT, false);
+
+            expect(mls.processMessage).toHaveBeenCalledTimes(1);
+            expect(transport.getCommits).toHaveBeenCalledTimes(1);
+        });
+
+        it('keeps paging past a proposal to the commit behind it', async () => {
+            const {sync, mls, transport} = setup();
+            mls.registry.set(`${CONTEXT}#1`, GROUP);
+            mls.activeGeneration.set(CONTEXT, 1);
+
+            // The proposal does not claim epoch 1, so the real commit that follows it is also at
+            // epoch 1 and must still be applied. Treating the proposal as progress would have gone
+            // looking for epoch 2 next and stopped at the gap.
+            transport.getCommits
+                .mockReturnValueOnce(of([commit(1), commit(1)]))
+                .mockReturnValue(of([]));
+            mls.processMessage
+                .mockReturnValueOnce(of({
+                    kind: 'proposal', plaintext: null, selfRemoved: false,
+                    addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: null,
+                }))
+                .mockReturnValue(of({
+                    kind: 'commit', plaintext: null, selfRemoved: false,
+                    addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: 1,
+                }));
+
+            await sync.syncContext(CONTEXT, false);
+
+            expect(mls.processMessage).toHaveBeenCalledTimes(2);
+        });
+
+        it('trusts the server\'s isProposal flag rather than what the bytes turn out to be', async () => {
+            const {sync, mls, transport} = setup();
+            mls.registry.set(`${CONTEXT}#1`, GROUP);
+            mls.activeGeneration.set(CONTEXT, 1);
+
+            // The flagged row claims no epoch - the server's epoch index is filtered on
+            // `is_proposal = false` - so the real commit behind it legitimately carries the *same*
+            // epoch number. Inferring proposal-ness from the engine's verdict would mean applying
+            // the bytes before being able to decide, which is exactly backwards.
+            transport.getCommits
+                .mockReturnValueOnce(of([
+                    {...commit(1), isProposal: true},
+                    {...commit(1), commit: 'cmVhbGNvbW1pdA=='},
+                ]))
+                .mockReturnValue(of([]));
+
+            await sync.syncContext(CONTEXT, false);
+
+            const applied = mls.processMessage.mock.calls.map(c => c[1]);
+            expect(applied).toEqual(['Y29tbWl01', 'cmVhbGNvbW1pdA==']);
+        });
+
+        it('does not let a stale proposal abort the commits behind it', async () => {
+            const {sync, mls, transport} = setup();
+            mls.registry.set(`${CONTEXT}#1`, GROUP);
+            mls.activeGeneration.set(CONTEXT, 1);
+            transport.getCommits
+                .mockReturnValueOnce(of([
+                    {...commit(1), isProposal: true},
+                    {...commit(1), commit: 'cmVhbGNvbW1pdA=='},
+                ]))
+                .mockReturnValue(of([]));
+            // A proposal is only valid in the epoch it was built against, so one arriving after the
+            // group moved on simply fails - and must not take the whole catch-up down with it.
+            mls.processMessage
+                .mockReturnValueOnce(throwError(() => new Error('WrongEpoch')))
+                .mockReturnValue(of({
+                    kind: 'commit', plaintext: null, selfRemoved: false,
+                    addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: 1,
+                }));
+
+            await sync.syncContext(CONTEXT, false);
+
+            expect(mls.processMessage).toHaveBeenCalledTimes(2);
+        });
+
+        it('replays messages that arrived before the commit that made them readable', async () => {
+            const {sync, mls, transport} = setup();
+            mls.registry.set(`${CONTEXT}#1`, GROUP);
+            mls.activeGeneration.set(CONTEXT, 1);
+            transport.getCommits
+                .mockReturnValueOnce(of([commit(1)]))
+                .mockReturnValue(of([]));
+            mls.drainPendingMessages.mockReturnValue(of([
+                {messageId: 'msg-1', plaintext: 'aGk=', senderIdentity: 'user-2', epoch: 1},
+            ]));
+
+            const seen: string[] = [];
+            sync.replayedMessages.subscribe(e => seen.push(...e.messages.map(m => m.messageId!)));
+
+            await sync.syncContext(CONTEXT, false);
+
+            // A message decrypts from the wire exactly once, so one that raced ahead of its commit
+            // was lost outright rather than merely delayed.
+            expect(seen).toEqual(['msg-1']);
         });
 
         it('tears down local state when a commit removes this device', async () => {
@@ -425,6 +543,197 @@ describe('MlsSyncService', () => {
             expect(dto.welcomes).toHaveLength(1);
             expect(dto.generation).toBe(1);
         });
+
+        it('keeps the merged state when the publish landed but the merge threw', async () => {
+            const {sync, mls} = setup();
+            seedGroup(mls);
+            mls.mergePendingCommit.mockReturnValue(throwError(() => new Error('disk full')));
+
+            await expect(sync.publish(CONTEXT, false, async () => ({
+                commit: 'Y29tbWl0', epoch: 1, deviceWelcomes: [],
+            }))).rejects.toBeInstanceOf(Error);
+
+            // The server has the commit. Discarding ours here - which the single catch around both
+            // calls used to do - leaves this device permanently behind a commit everyone else
+            // applied, and MLS has no way to rejoin an epoch you refused.
+            expect(mls.clearPendingCommit).not.toHaveBeenCalled();
+        });
+
+        it('re-publishes rather than discarding when the response is lost', async () => {
+            const {sync, mls, transport} = setup();
+            seedGroup(mls);
+            // A dropped response is indistinguishable from a rejection at the client. Publishing is
+            // idempotent on (senderDeviceId, generation, epoch, payload) precisely so asking again
+            // resolves it; the old code resolved it by throwing away a commit the server had taken.
+            transport.publishCommit
+                .mockReturnValueOnce(throwError(() => new HttpErrorResponse({status: 0})))
+                .mockReturnValueOnce(of({contextId: CONTEXT, generation: 1, epoch: 1, duplicate: true}));
+
+            const ok = await sync.publish(CONTEXT, false, async () => ({
+                commit: 'Y29tbWl0', epoch: 1, deviceWelcomes: [],
+            }));
+
+            expect(ok).toBe(true);
+            expect(transport.publishCommit).toHaveBeenCalledTimes(2);
+            expect(mls.clearPendingCommit).not.toHaveBeenCalled();
+            expect(mls.mergePendingCommit).toHaveBeenCalledWith(GROUP);
+        });
+
+        it('treats a duplicate replay as the success it is', async () => {
+            const {sync, mls, transport} = setup();
+            seedGroup(mls);
+            transport.publishCommit
+                .mockReturnValueOnce(throwError(() => new HttpErrorResponse({status: 0})))
+                // `duplicate: true` is the server saying it matched this exact payload from this
+                // device and returned the row it already held. The publish landed; only the
+                // response was lost. Reading it as a lost race is what discarded commits the group
+                // had already applied.
+                .mockReturnValueOnce(of({
+                    contextId: CONTEXT, generation: 1, epoch: 1, duplicate: true, isProposal: false,
+                }));
+
+            const ok = await sync.publish(CONTEXT, false, async () => ({
+                commit: 'Y29tbWl0', epoch: 1, deviceWelcomes: [],
+            }));
+
+            expect(ok).toBe(true);
+            expect(mls.mergePendingCommit).toHaveBeenCalledTimes(1);
+            expect(mls.clearPendingCommit).not.toHaveBeenCalled();
+        });
+
+        it('publishes the GroupInfo the commit produced, not an exported one', async () => {
+            const {sync, mls, transport} = setup();
+            seedGroup(mls);
+
+            await sync.publish(CONTEXT, false, async () => ({
+                commit: 'Y29tbWl0', epoch: 1, deviceWelcomes: [], groupInfo: 'ZnJlc2hpbmZv',
+            }));
+
+            // An exported GroupInfo describes the epoch the group is on *now*, and the commit is
+            // deliberately staged rather than merged at this point - so exporting here published a
+            // blob one epoch stale, and a device recovering by external commit landed behind the
+            // group it was trying to rejoin.
+            const dto = transport.publishCommit.mock.calls[0][2];
+            expect(dto.groupInfo).toBe('ZnJlc2hpbmZv');
+            expect(mls.exportGroupInfo).not.toHaveBeenCalled();
+        });
+
+        it('re-applies a commit of ours the server hands back on catch-up without forking', async () => {
+            const {sync, mls, transport} = setup();
+            seedGroup(mls);
+            transport.publishCommit
+                .mockReturnValueOnce(throwError(() => new HttpErrorResponse({status: 409, error: {}})))
+                .mockReturnValueOnce(of({contextId: CONTEXT, generation: 1, epoch: 2}));
+            // The catch-up between the two attempts replays whatever won the epoch.
+            transport.getCommits
+                .mockReturnValueOnce(of([commit(1)]))
+                .mockReturnValue(of([]));
+
+            const ok = await sync.publish(CONTEXT, false, async () => ({
+                commit: 'Y29tbWl0', epoch: 1, deviceWelcomes: [],
+            }));
+
+            expect(ok).toBe(true);
+            // Discarded once for the lost race, merged once for the attempt that won. Merging a
+            // commit the server refused, or discarding one it took, are both unrecoverable.
+            expect(mls.clearPendingCommit).toHaveBeenCalledTimes(1);
+            expect(mls.mergePendingCommit).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    describe('reading', () => {
+        function seedGroup(mls: ReturnType<typeof makeMls>) {
+            mls.registry.set(`${CONTEXT}#1`, GROUP);
+            mls.activeGeneration.set(CONTEXT, 1);
+        }
+
+        it('returns the plaintext when the sender is a current member', async () => {
+            const {sync, mls} = setup();
+            seedGroup(mls);
+            mls.processMessage.mockReturnValue(of({
+                kind: 'application', plaintext: 'aGk=', selfRemoved: false,
+                addedMembers: [], removedLeafIndices: [], senderIdentity: 'user-2', epoch: null,
+            }));
+
+            const plaintext = await sync.decryptMessage(
+                CONTEXT, false, GROUP, 'Y2lwaGVy', 'msg-1', 'user-2');
+
+            expect(plaintext).toBe('aGk=');
+        });
+
+        it('refuses a message whose credential names someone outside the group', async () => {
+            const {sync, mls} = setup();
+            seedGroup(mls);
+            mls.processMessage.mockReturnValue(of({
+                kind: 'application', plaintext: 'aGk=', selfRemoved: false,
+                addedMembers: [], removedLeafIndices: [], senderIdentity: 'mallory', epoch: null,
+            }));
+
+            const plaintext = await sync.decryptMessage(
+                CONTEXT, false, GROUP, 'Y2lwaGVy', 'msg-1');
+
+            // A compromised server replaying a valid ciphertext under a spoofed credential is what
+            // this guard is for. It had no call sites at all before, so it guarded nothing.
+            expect(plaintext).toBeNull();
+        });
+
+        it('refuses a message whose credential disagrees with the claimed author', async () => {
+            const {sync, mls} = setup();
+            seedGroup(mls);
+            mls.processMessage.mockReturnValue(of({
+                kind: 'application', plaintext: 'aGk=', selfRemoved: false,
+                addedMembers: [], removedLeafIndices: [], senderIdentity: 'user-2', epoch: null,
+            }));
+
+            // Only the credential inside the ciphertext is authenticated; the author on the
+            // envelope is the server's word. A disagreement means neither is safe to attribute.
+            const plaintext = await sync.decryptMessage(
+                CONTEXT, false, GROUP, 'Y2lwaGVy', 'msg-1', 'user-9');
+
+            expect(plaintext).toBeNull();
+        });
+
+        it('reports a context as unreadable after repeated decrypt failures', async () => {
+            const {sync, mls, health} = setup();
+            seedGroup(mls);
+            mls.processMessage.mockReturnValue(throwError(() => new Error('WrongEpoch')));
+
+            for (let i = 0; i < 3; i++) {
+                await sync.decryptMessage(CONTEXT, false, GROUP, 'Y2lwaGVy', `msg-${i}`);
+            }
+
+            // Every one of these used to be a bare `catch {}`. A device that could read nothing
+            // looked exactly like one with nothing to read.
+            expect(health.isBroken(CONTEXT)).toBe(true);
+        });
+
+        it('says nothing about a context that reads fine', async () => {
+            const {sync, mls, health} = setup();
+            seedGroup(mls);
+            mls.processMessage.mockReturnValue(of({
+                kind: 'application', plaintext: 'aGk=', selfRemoved: false,
+                addedMembers: [], removedLeafIndices: [], senderIdentity: 'user-2', epoch: null,
+            }));
+
+            await sync.decryptMessage(CONTEXT, false, GROUP, 'Y2lwaGVy', 'msg-1', 'user-2');
+
+            expect(health.hasFailures()).toBe(false);
+        });
+
+        it('does not treat an early message as a failure', async () => {
+            const {sync, mls, health} = setup();
+            seedGroup(mls);
+            mls.processMessage.mockReturnValue(of({
+                kind: 'buffered', plaintext: null, selfRemoved: false,
+                addedMembers: [], removedLeafIndices: [], senderIdentity: null, epoch: 5,
+            }));
+
+            const plaintext = await sync.decryptMessage(CONTEXT, false, GROUP, 'Y2lwaGVy', 'msg-1');
+
+            // It is held, not lost - the drain replays it once its commit lands.
+            expect(plaintext).toBeNull();
+            expect(health.hasFailures()).toBe(false);
+        });
     });
 
     describe('membership', () => {
@@ -469,6 +778,20 @@ describe('MlsSyncService', () => {
             // Our own forward secrecy does not depend on anyone else committing the removal.
             expect(mls.leaveGroup).toHaveBeenCalled();
             expect(mls.clearActiveGeneration).toHaveBeenCalledWith(CONTEXT);
+        });
+
+        it('marks the leave payload as a proposal so it cannot claim an epoch', async () => {
+            const {sync, mls, transport} = setup();
+            mls.registry.set(`${CONTEXT}#1`, GROUP);
+            mls.activeGeneration.set(CONTEXT, 1);
+
+            await sync.leaveContext(CONTEXT, false);
+
+            // Unflagged, the server advanced the group to an epoch no client ever reaches, so every
+            // member's catch-up re-fetched the same proposal forever and no commit was accepted
+            // again - the group could never gain a member after anyone left it.
+            const dto = transport.publishCommit.mock.calls[0][2];
+            expect(dto.isProposal).toBe(true);
         });
     });
 

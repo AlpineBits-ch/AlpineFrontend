@@ -33,7 +33,7 @@ import {MessageEncryptionState} from '../../../../enums/message-encryption-state
 import {MessageType} from '../../../../enums/message-type.enum';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
 import {isGroupedWithPrevious} from '../../../messaging/components/conversation/message-utils';
-import {classifyAutoModError, forumParentOf} from './channel-utils';
+import {classifyAutoModError, forumParentOf, mayPostCleartext} from './channel-utils';
 import {MlsService} from '../../../../services/mls.service';
 import {MlsSyncService} from '../../../../services/mls-sync.service';
 import {ChannelAccessBannerComponent} from './channel-access-banner.component';
@@ -571,6 +571,15 @@ export class ChannelComponent implements AfterViewInit {
             const generation = await this.mlsService.getKnownGeneration(channelId);
 
             if (generation === null) {
+                // Refused here rather than by the server: the server's rejection arrives only after
+                // the plaintext has left this machine, which is the part that cannot be undone.
+                // The conversation composer has always thrown in this situation; this makes the two
+                // agree. See `mayPostCleartext` for why the two conditions are not the same.
+                if (!mayPostCleartext(generation, this.encryptionState())) {
+                    throw new Error(
+                        `Channel ${channelId} is encrypted and this device holds no group for it`);
+                }
+
                 return firstValueFrom(this.messagingService.createMessage({
                     content,
                     channelId,

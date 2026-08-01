@@ -16,6 +16,29 @@ export function classifyAutoModError(err: HttpErrorResponse | null | undefined):
     return body.reason === 'rate_limited' ? 'rate_limited' : 'blocked_word';
 }
 
+/** What this device knows about a channel's encryption, from its own point of view. */
+export type ChannelEncryptionState = 'plain' | 'joined' | 'locked-out';
+
+/**
+ * Whether a message may be posted to this channel as cleartext.
+ *
+ * <p>"This device holds no MLS generation for the channel" and "the channel is not encrypted" are
+ * different statements, and treating the first as the second put plaintext on the wire into a
+ * channel that is encrypted server-side. The server refuses it - but only after the plaintext has
+ * already left the machine, which is the part that cannot be taken back.</p>
+ *
+ * <p>By the time this is consulted the encryption state has been resolved and any waiting Welcome
+ * joined, so anything other than `plain` means this device genuinely cannot participate.</p>
+ */
+export function mayPostCleartext(
+    localGeneration: number | null,
+    state: ChannelEncryptionState,
+): boolean {
+    // Holding a generation means the channel is encrypted for us, whatever the resolved state says.
+    if (localGeneration !== null) return false;
+    return state === 'plain';
+}
+
 /**
  * The forum a post belongs to, or null if this channel isn't a forum post.
  *

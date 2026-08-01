@@ -5,7 +5,6 @@ import {HttpClient} from "@angular/common/http";
 import {environment} from "../../environments/environment";
 import {ConversationDto} from "../dtos/response/conversation.dto";
 import {MlsDeviceTokenDto} from "../dtos/response/mls-device-token.dto";
-import {PendingWelcomeDto} from "../dtos/response/pending-welcome.dto";
 import {ApiConfigService} from "./api-config.service";
 
 @Injectable({
@@ -21,9 +20,12 @@ export class ConversationService {
         return this.httpClient.post<ConversationDto>(this.apiConfig.baseUrl() + '/api/v1/messaging/conversations', createConversationDto);
     }
 
-    public getPendingWelcomes(): Observable<PendingWelcomeDto[]> {
-        return this.httpClient.get<PendingWelcomeDto[]>(this.apiConfig.baseUrl() + '/api/v1/messaging/conversations/welcomes');
-    }
+    // The un-scoped `GET /conversations/welcomes` is deliberately not exposed here. It selected the
+    // legacy contract, where the server matched on user alone and consumed on read - so one device
+    // could burn the single-use init key of a Welcome addressed to a *different* device of the same
+    // user, which then never saw it again and stayed permanently outside that group. The route
+    // still exists for clients in the field (contract §I.3); this client uses the device-scoped
+    // `MlsTransportService.getPendingWelcomes` only.
 
     public getConversations(offset: number, limit: number): Observable<ConversationDto[]> {
         return this.httpClient.get<ConversationDto[]>(this.apiConfig.baseUrl() + `/api/v1/messaging/conversations?offset=${offset}&limit=${limit}`);

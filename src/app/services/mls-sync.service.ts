@@ -1,8 +1,9 @@
 import {inject, Injectable} from '@angular/core';
 import {HttpErrorResponse} from '@angular/common/http';
 import {firstValueFrom, Subject} from 'rxjs';
-import {MlsService} from './mls.service';
+import {MlsReplayedMessage, MlsService} from './mls.service';
 import {MlsTransportService} from './mls-transport.service';
+import {MlsHealthService} from './mls-health.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {
     DeviceWelcomeDto,
@@ -34,6 +35,14 @@ interface StagedCommit {
 
     /** Join requests this commit admits. Closed by the server only when the commit lands. */
     fulfilledJoinRequestIds?: string[];
+
+    /**
+     * GroupInfo for the epoch this commit establishes, as produced by the commit itself.
+     *
+     * Not exported separately: an export can only describe the epoch the group is on now, and the
+     * commit is staged rather than merged at this point.
+     */
+    groupInfo?: string | null;
 }
 
 /**
@@ -55,8 +64,17 @@ export class MlsSyncService {
     /** Emits whenever a context's group changed - membership, or being removed from it. */
     readonly contextChanged = new Subject<MlsContextChanged>();
 
+    /**
+     * Messages that arrived before the commit that made them readable, now decrypted.
+     *
+     * Without this they were dropped: a message decrypts from the wire exactly once, so an
+     * application message that raced ahead of its commit was unreadable for good.
+     */
+    readonly replayedMessages = new Subject<{ contextId: string; messages: MlsReplayedMessage[] }>();
+
     private readonly mls = inject(MlsService);
     private readonly transport = inject(MlsTransportService);
+    private readonly health = inject(MlsHealthService);
     private readonly deviceIdentity = inject(DeviceIdentityService);
 
     /**
@@ -96,7 +114,7 @@ export class MlsSyncService {
             if (await this.joinFromWelcome(welcome, keyHandle)) joined.push(welcome.id);
         }
 
-        if (joined.length > 0) await firstValueFrom(this.transport.ackWelcomes(joined));
+        if (joined.length > 0) await firstValueFrom(this.transport.ackWelcomes(joined, deviceId));
     }
 
     /** @returns whether the join succeeded and the Welcome may be acknowledged. */
@@ -118,8 +136,13 @@ export class MlsSyncService {
             // The Welcome drops us in at its own epoch; anything committed since has to be replayed
             // before we can read current traffic.
             await this.syncContext(welcome.contextId, isChannel);
+            this.health.recordSuccess(welcome.contextId);
             return true;
         } catch (err) {
+            // Counted and surfaced, not logged and forgotten. A device that can never join logged
+            // one line per launch and told its owner nothing, so the only reportable symptom was
+            // "sometimes messages don't arrive".
+            this.health.recordFailure(welcome.contextId, isChannel, 'join-failed', err);
             console.error('Failed to join MLS group from Welcome', welcome.contextId, err);
             return false;
         }
@@ -136,7 +159,10 @@ export class MlsSyncService {
      * commits than one page holds still converges rather than silently stopping partway.
      */
     async syncContext(contextId: string, isChannel: boolean): Promise<void> {
-        await this.serialized(contextId, () => this.syncContextInner(contextId, isChannel));
+        await this.serialized(contextId, async () => {
+            await this.syncContextInner(contextId, isChannel);
+            await this.replayBufferedMessages(contextId);
+        });
 
         // Outside the queue, because committing publishes and publishing takes the same queue.
         if (this.pendingProposalContexts.delete(contextId)) {
@@ -171,27 +197,85 @@ export class MlsSyncService {
             if (commits.length === 0) return;
 
             let applied = 0;
-            for (const commit of commits) {
+            for (const entry of commits) {
+                // The server says which rows are proposals rather than the client inferring it from
+                // what the engine makes of the bytes. A proposal claims no epoch - the server's
+                // epoch index is filtered on `is_proposal = false` - so it is exempt from the
+                // sequence check, and the real commit behind it legitimately carries the same
+                // epoch number.
+                if (entry.isProposal) {
+                    await this.applyProposal(contextId, isChannel, groupId, entry.commit);
+                    continue;
+                }
+
                 // Strictly sequential. A gap means the page started above our epoch, which should be
                 // impossible - stopping is safer than applying out of order.
-                if (commit.epoch !== epoch + applied + 1) break;
+                if (entry.epoch !== epoch + applied + 1) break;
 
-                const removed = await this.applyCommit(contextId, isChannel, groupId, commit.commit);
-                applied++;
-                if (removed) return;
+                const outcome = await this.applyCommit(contextId, isChannel, groupId, entry.commit);
+                if (outcome === 'self-removed') return;
+
+                // Belt to the flag's braces: a server that predates it, or a payload the engine
+                // reads as a proposal regardless, must still not count as progress. Counting one
+                // meant the next page was fetched from the same `sinceEpoch`, returned the same
+                // row, and counted it again - the loop never terminated, and every later commit was
+                // refused forever, so the group could never gain a member again.
+                if (outcome === 'commit') applied++;
             }
 
             if (applied === 0) return;
         }
     }
 
-    /** @returns true when the commit removed *this* device from the group. */
+    /**
+     * Hands back any message that arrived ahead of the commits just applied.
+     *
+     * Runs inside the context queue, immediately after catch-up, because that is the only moment
+     * the group is known to have moved.
+     */
+    private async replayBufferedMessages(contextId: string): Promise<void> {
+        const groupId = await this.mls.getActiveGroupId(contextId);
+        if (!groupId) return;
+
+        try {
+            const messages = await firstValueFrom(this.mls.drainPendingMessages(groupId));
+            if (messages.length > 0) this.replayedMessages.next({contextId, messages});
+        } catch (err) {
+            // Losing the buffer is bad but not worth failing a catch-up over - the commits that
+            // were just applied are the part that keeps this device in the group.
+            console.error('Could not replay buffered MLS messages', contextId, err);
+        }
+    }
+
+    /**
+     * Queues a departing member's Remove proposal for someone to commit.
+     *
+     * Failures are swallowed on purpose. A proposal is only valid in the epoch it was built
+     * against, so one that arrives after the group has moved on is simply stale - and letting that
+     * abort the catch-up would stop this device applying the commits it actually needs.
+     */
+    private async applyProposal(
+        contextId: string,
+        isChannel: boolean,
+        groupId: string,
+        proposalB64: string,
+    ): Promise<void> {
+        try {
+            await firstValueFrom(this.mls.processMessage(groupId, proposalB64));
+            // Committed outside the queue this method is holding - see syncContext.
+            this.pendingProposalContexts.add(contextId);
+        } catch (err) {
+            console.warn('Ignoring an MLS proposal this device cannot apply', contextId, err);
+        }
+    }
+
+    /** What a fetched entry turned out to be, and whether it left us in the group. */
     private async applyCommit(
         contextId: string,
         isChannel: boolean,
         groupId: string,
         commitB64: string,
-    ): Promise<boolean> {
+    ): Promise<'commit' | 'proposal' | 'self-removed'> {
         const processed = await firstValueFrom(this.mls.processMessage(groupId, commitB64));
 
         if (processed.kind === 'proposal') {
@@ -201,10 +285,10 @@ export class MlsSyncService {
             // committed inline: we are mid-catch-up here, and publishing needs the queue this
             // method is already holding.
             this.pendingProposalContexts.add(contextId);
-            return false;
+            return 'proposal';
         }
 
-        if (processed.kind !== 'commit') return false;
+        if (processed.kind !== 'commit') return 'proposal';
 
         if (processed.selfRemoved) {
             // We are out. The group's keys are useless from here, and holding them would only let a
@@ -215,15 +299,94 @@ export class MlsSyncService {
             } catch (err) {
                 console.error('Failed to delete group after removal', contextId, err);
             }
+            this.health.recordFailure(contextId, isChannel, 'removed');
             this.contextChanged.next({contextId, isChannel, selfRemoved: true});
-            return true;
+            return 'self-removed';
         }
 
         if (processed.addedMembers.length > 0 || processed.removedLeafIndices.length > 0) {
             this.contextChanged.next({contextId, isChannel, selfRemoved: false});
         }
 
-        return false;
+        return 'commit';
+    }
+
+    // -------------------------------------------------------------------------
+    // Reading
+    // -------------------------------------------------------------------------
+
+    /**
+     * Decrypts one application message, in order with everything else happening to the context.
+     *
+     * <p>Two things this fixes. First, ordering: decrypts used to be issued straight from the
+     * socket handler and from history paging, outside the per-context queue that commits run under,
+     * so an application decrypt could interleave between the stage and the merge of a two-phase
+     * commit. Second, the sender check: `verifySenderInRoster` existed with no call sites, so the
+     * documented anti-spoofing guard was applied on no decrypt path at all.</p>
+     *
+     * @returns the plaintext (base64), or null when the message is not readable on this device.
+     */
+    async decryptMessage(
+        contextId: string,
+        isChannel: boolean,
+        groupId: string,
+        ciphertextB64: string,
+        messageId: string,
+        expectedSenderUserId?: string,
+    ): Promise<string | null> {
+        return this.serialized(contextId, async () => {
+            let processed;
+            try {
+                processed = await firstValueFrom(
+                    this.mls.processMessage(groupId, ciphertextB64, messageId),
+                );
+            } catch (err) {
+                // Routine at the edge of the ratchet - a message paged in from beyond its reach can
+                // never be decrypted - so it is counted rather than shouted about. What matters is
+                // whether failures keep accruing without a success in between.
+                this.health.recordFailure(contextId, isChannel, 'decrypt-failed', err);
+                return null;
+            }
+
+            // Early, not broken: it is held and replayed once its commit lands.
+            if (processed.kind === 'buffered') return null;
+            if (processed.kind !== 'application' || !processed.plaintext) return null;
+
+            if (!await this.senderIsInRoster(groupId, processed.senderIdentity, expectedSenderUserId)) {
+                // A compromised server replaying a valid ciphertext under a spoofed credential is
+                // exactly what the roster check is for. Refusing to render it is the whole point.
+                this.health.recordFailure(contextId, isChannel, 'decrypt-failed',
+                    `sender ${processed.senderIdentity} is not in the group roster`);
+                return null;
+            }
+
+            this.health.recordSuccess(contextId);
+            return processed.plaintext;
+        });
+    }
+
+    /**
+     * Whether the credential the message carried belongs to a current member.
+     *
+     * <p>The identity in an MLS credential is the *user* id, not the device id, so this cannot tell
+     * one of a user's devices from another - a limit worth stating rather than implying. It does
+     * rule out a credential for someone who is not in the group at all, which is the case a
+     * malicious server can otherwise manufacture.</p>
+     */
+    private async senderIsInRoster(
+        groupId: string,
+        senderIdentity: string | null,
+        expectedSenderUserId?: string,
+    ): Promise<boolean> {
+        if (!senderIdentity) return false;
+
+        // The server's claim about who sent it must agree with the credential inside the ciphertext.
+        // Only the latter is authenticated, so a mismatch means the two disagree and neither is
+        // safe to attribute.
+        if (expectedSenderUserId && senderIdentity !== expectedSenderUserId) return false;
+
+        const members = await firstValueFrom(this.mls.getMembers(groupId));
+        return members.some(m => m.identity === senderIdentity);
     }
 
     // -------------------------------------------------------------------------
@@ -270,25 +433,71 @@ export class MlsSyncService {
             generation,
             welcomes: staged.deviceWelcomes,
             fulfilledJoinRequestIds: staged.fulfilledJoinRequestIds ?? [],
+            // Straight from the commit, which is the only source that describes the epoch the
+            // commit *establishes*. Exporting one here instead described the epoch the group is
+            // still on - the commit has deliberately not been merged yet - so every published
+            // GroupInfo was one behind and a device recovering by external commit landed stale.
+            groupInfo: staged.groupInfo ?? null,
         };
 
-        try {
-            dto.groupInfo = await firstValueFrom(
-                this.mls.exportGroupInfo(groupId, this.mls.keyHandle()!),
-            );
-        } catch {
-            // A refreshed GroupInfo only helps devices that fall too far behind to replay. Losing
-            // it is a degraded recovery path, not a reason to abandon the commit.
-        }
+        if (!(await this.publishCommitIdempotently(contextId, isChannel, dto, groupId))) return false;
 
+        // Past this point the server holds the commit, so the local group *must* advance to match.
+        // Discarding here - which is what the single try/catch around both calls used to do - left
+        // this device permanently behind a commit everyone else had applied, with no way back:
+        // MLS has no mechanism for rejoining an epoch you refused.
+        await firstValueFrom(this.mls.mergePendingCommit(groupId));
+        return true;
+    }
+
+    /**
+     * Publishes, and works out whether the server took it even when the response never arrived.
+     *
+     * Publishing is idempotent on (senderDeviceId, generation, epoch, payload), so re-sending the
+     * same bytes either confirms the stored row or reports the epoch as taken. That is the whole
+     * point: a lost response used to be indistinguishable from a rejection, and the client
+     * resolved it by discarding a commit the server had actually accepted.
+     *
+     * @returns true when the commit is on the server; false when the epoch was lost and the caller
+     *          should catch up and re-issue.
+     */
+    private async publishCommitIdempotently(
+        contextId: string,
+        isChannel: boolean,
+        dto: PublishMlsCommitDto,
+        groupId: string,
+    ): Promise<boolean> {
         try {
             await firstValueFrom(this.transport.publishCommit(contextId, isChannel, dto));
-            await firstValueFrom(this.mls.mergePendingCommit(groupId));
             return true;
         } catch (err) {
-            await this.discardStagedCommit(groupId);
-            if (!this.isEpochConflict(err)) throw err;
-            return false;
+            if (this.isEpochConflict(err)) {
+                await this.discardStagedCommit(groupId);
+                return false;
+            }
+
+            try {
+                const result = await firstValueFrom(
+                    this.transport.publishCommit(contextId, isChannel, dto),
+                );
+                // `duplicate` means the server matched this exact payload from this device and
+                // returned the row it already held. That is a *success*, and the distinction is
+                // what the flag is for: the first attempt did land, the response was simply lost,
+                // and treating it as a lost race is what used to discard a commit the group had
+                // already applied.
+                if (result.duplicate) {
+                    console.info('The first publish landed after all; keeping the staged commit',
+                        contextId);
+                }
+                return true;
+            } catch (retryErr) {
+                // Two failures. Either it never landed or we cannot find out - and a staged commit
+                // left behind blocks every later operation on this group, so the group is restored
+                // to a usable state and the caller is told plainly.
+                await this.discardStagedCommit(groupId);
+                if (this.isEpochConflict(retryErr)) return false;
+                throw retryErr;
+            }
         }
     }
 
@@ -343,6 +552,7 @@ export class MlsSyncService {
             return {
                 commit: out.commit,
                 epoch: out.epoch,
+                groupInfo: out.groupInfo,
                 deviceWelcomes: invitees.map(t => ({
                     deviceId: t.deviceId,
                     userId: t.userId,
@@ -365,7 +575,7 @@ export class MlsSyncService {
         const published = await this.publish(contextId, isChannel, async () => {
             const groupId = (await this.mls.getActiveGroupId(contextId))!;
             const out = await firstValueFrom(this.mls.removeMembers(groupId, keyHandle, leafIndices));
-            return {commit: out.commit, epoch: out.epoch, deviceWelcomes: []};
+            return {commit: out.commit, epoch: out.epoch, groupInfo: out.groupInfo, deviceWelcomes: []};
         });
 
         if (!published) throw new Error('Could not remove members - the group moved on twice');
@@ -393,6 +603,11 @@ export class MlsSyncService {
         // The proposal is not a commit and does not claim an epoch, so it cannot go through the
         // epoch-ordered publish path. It rides the commit channel because that is the only fanout
         // the group has; a member picks it up and commits it.
+        //
+        // `isProposal` is what stops it poisoning the epoch counter. Without the flag the server
+        // advanced the group to an epoch no client ever reached, so every member's catch-up
+        // re-fetched the same proposal forever and no commit was ever accepted again - the group
+        // could never gain a member after anyone left it.
         const state = await firstValueFrom(this.transport.getState(contextId, isChannel));
         try {
             await firstValueFrom(this.transport.publishCommit(contextId, isChannel, {
@@ -401,6 +616,7 @@ export class MlsSyncService {
                 senderDeviceId: await this.deviceIdentity.deviceId(),
                 generation,
                 welcomes: [],
+                isProposal: true,
             }));
         } catch (err) {
             // Nothing to undo: local state is already gone, which is the part that matters for our
@@ -424,7 +640,7 @@ export class MlsSyncService {
         await this.publish(contextId, isChannel, async () => {
             const groupId = (await this.mls.getActiveGroupId(contextId))!;
             const out = await firstValueFrom(this.mls.commitPendingProposals(groupId, keyHandle));
-            return {commit: out.commit, epoch: out.epoch, deviceWelcomes: []};
+            return {commit: out.commit, epoch: out.epoch, groupInfo: out.groupInfo, deviceWelcomes: []};
         });
     }
 

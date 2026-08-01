@@ -1,0 +1,25 @@
+{
+  "alphabet": "23456789ABCDEFGHJKMNPQRSTUVWXYZ",
+  "masterKey": "CejIu+1mgKKLfXj/DGuCJR7rpeG5LsUng0PQN3h8T8c=",
+  "password": "fixture-password",
+  "passwordWrapping": {
+    "argon2Iterations": 3,
+    "argon2Memory": 65536,
+    "argon2Parallelism": 1,
+    "cipherText": "cvXPN+piYbBnufObSAeCZprvtsu0gJZ89hY7GfIo8Uq7IhOLnLl61hTGbnVRKN3Z",
+    "iv": "39XYQJF9ReKeAsAH",
+    "salt": "vvDv3QK8dLZgnxOWhPtKwQ==",
+    "version": 1
+  },
+  "producedBy": "alpine",
+  "recoveryCode": "WDSZ-YJ8D-FH5J-Z4RW-T6E2-QVMG-ZM22-4QBK",
+  "recoveryCodeWrapping": {
+    "argon2Iterations": 3,
+    "argon2Memory": 65536,
+    "argon2Parallelism": 1,
+    "cipherText": "B1HAUTrf+6DOSd08rDWuJ4i8qMPEGBV0CtS0Foa4oYKMoCggTkjdVzhxG6osi526",
+    "iv": "eAOaK/gzymx2Relz",
+    "salt": "Ez7nYPJ+qJPYaZmPkgPukg==",
+    "version": 1
+  }
+}

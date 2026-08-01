@@ -2,7 +2,7 @@ import {Component, EventEmitter, inject, Input, Output, signal} from '@angular/c
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {InputText} from 'primeng/inputtext';
-import {EMPTY, from, switchMap, tap, throwError} from 'rxjs';
+import {EMPTY, from, of, switchMap, tap, throwError} from 'rxjs';
 import {catchError, map} from 'rxjs/operators';
 import {UserService} from '../../../services/user.service';
 import {DeviceService} from '../../../services/device.service';
@@ -65,6 +65,26 @@ export class DeviceRegistrationModalComponent {
                                         deviceType,
                                         identityPublicKey: batch.signingPublicKey,
                                     }).pipe(
+                                        // Contract §A. This path has just minted a *fresh* Ed25519
+                                        // keypair, so anything the server still holds for this
+                                        // device id was sealed to a signing key that no longer
+                                        // exists - and a Welcome addressed to one of those packages
+                                        // is undecryptable by the very device it was meant for.
+                                        //
+                                        // The server purges them itself when it sees the key change
+                                        // (`identityRotated`), but this runs regardless: it is
+                                        // idempotent, and against a server that predates that
+                                        // behaviour it is the only thing standing between a
+                                        // re-registered device and a stock of dead key packages.
+                                        switchMap(device => this.deviceService.resetKeyPackages(deviceId).pipe(
+                                            catchError(err => {
+                                                console.error(
+                                                    'Could not reset stale key packages after minting a new identity',
+                                                    err);
+                                                return of({deletedCount: 0});
+                                            }),
+                                            map(() => device),
+                                        )),
                                         switchMap(() => this.mlsService.persistSigningKey(deviceId, batch, user.id)),
                                         map(() => batch.keyHandle),
                                     ),

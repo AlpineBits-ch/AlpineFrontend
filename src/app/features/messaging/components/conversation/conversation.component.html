@@ -284,6 +284,12 @@
 
     <!-- Composer -->
     <footer class="shrink-0">
+        <!--
+          Shown only once this conversation is genuinely unreadable on this device. Without it, a
+          device that could never join looked exactly like a conversation with nothing in it, and
+          the only symptom its owner could report was "sometimes messages don't arrive".
+        -->
+        <app-mls-unreadable-banner (relink)="relinkDevice()" [contextId]="conversation().id"/>
         <app-composer (cancelReply)="onCancelReply()" (message)="createMessage($event)" (typing)="onTyping()"
                       [conversationMembers]="conversationMemberCandidates()"
                       [replyTo]="replyingTo()" autofocus

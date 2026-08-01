@@ -1,5 +1,5 @@
 import {inject, Injectable, signal} from '@angular/core';
-import {invoke} from '@tauri-apps/api/core';
+import {invoke, isTauri} from '@tauri-apps/api/core';
 import {from, Observable, of} from 'rxjs';
 import {map, switchMap} from 'rxjs/operators';
 import {LazyStore} from '@tauri-apps/plugin-store';
@@ -109,6 +109,15 @@ export interface MlsCommitOut {
     welcome: string | null;
     /** Group epoch after this commit was applied */
     epoch: number;
+    /**
+     * GroupInfo for the epoch this commit *establishes*, produced by the commit itself.
+     *
+     * Publish this rather than calling {@link MlsService.exportGroupInfo}: an exported GroupInfo can
+     * only describe the epoch the group is on right now, and a commit is deliberately not merged
+     * until the server accepts it - so every published GroupInfo used to be one epoch stale, and a
+     * device recovering by external commit landed behind the group it was rejoining.
+     */
+    groupInfo: string | null;
 }
 
 /**
@@ -131,7 +140,12 @@ export interface MlsRejoinOut {
  * - `"proposal"` -a pending proposal has been queued; a commit is needed next.
  */
 export interface MlsProcessedMessage {
-    kind: 'application' | 'commit' | 'proposal';
+    /**
+     * `"buffered"` means the message is from an epoch this device has not reached yet. It is held
+     * rather than dropped - the wire copy decrypts exactly once - and
+     * {@link MlsService.drainPendingMessages} returns it after the missing commits are applied.
+     */
+    kind: 'application' | 'commit' | 'proposal' | 'buffered';
     /** Decrypted application data (base64), only set when kind === "application" */
     plaintext: string | null;
     /** True when the commit removed the local member from the group */
@@ -142,6 +156,78 @@ export interface MlsProcessedMessage {
     senderIdentity: string | null;
     /** Epoch after applying the commit, only set when kind === "commit" */
     epoch: number | null;
+}
+
+/** A message that arrived early and became readable once its commit was applied. */
+export interface MlsReplayedMessage {
+    /** The id supplied when the message was first handed to {@link MlsService.processMessage}. */
+    messageId: string | null;
+    /** Decrypted bytes, base64. */
+    plaintext: string;
+    senderIdentity: string | null;
+    epoch: number;
+}
+
+/** What `mls_import_backup` hands back once the §D envelope has been opened and applied. */
+export interface MlsBackupImportResult {
+    userId: string;
+    /** The device the backup was taken on - not necessarily this one. */
+    deviceId: string;
+    createdAt: string;
+    appVersion: string;
+    identity: string;
+    /** Session handle for the restored signing key, immediately usable. */
+    keyHandle: string;
+    /**
+     * False on a new device. Cloning ratchet state onto a second concurrently-live device reuses
+     * sender-ratchet generations - openmls treats the repeat as a replay, so at least one device
+     * becomes unable to send - and voids forward secrecy for that leaf.
+     */
+    engineRestored: boolean;
+    groupRegistry: Record<string, string | number>;
+    messageCache: Record<string, string>;
+}
+
+/**
+ * Every MLS operation goes through the Rust engine, which exists only inside Tauri.
+ *
+ * Guarded explicitly rather than left to chance: the app happens not to boot in a browser today,
+ * so nothing here was ever reached from one - but "it crashes earlier" is not an access control.
+ * A web build that got this far would silently hold no keys and, without this, would report
+ * success for operations that never happened.
+ */
+export class MlsUnavailableError extends Error {
+    constructor() {
+        super('MLS is unavailable: this build has no local MLS engine.');
+    }
+}
+
+function requireTauri(): void {
+    if (!isTauri()) throw new MlsUnavailableError();
+}
+
+/** One sealed entry in the plaintext message cache. */
+interface CachedMessage {
+    v: 1;
+    /** When it was cached, for pruning. */
+    at: number;
+    /** AES-GCM nonce, base64. */
+    iv: string;
+    /** Sealed plaintext, base64. */
+    ct: string;
+}
+
+function toB64(bytes: Uint8Array): string {
+    let binary = '';
+    for (const byte of bytes) binary += String.fromCharCode(byte);
+    return btoa(binary);
+}
+
+function fromB64(b64: string): ArrayBuffer {
+    const binary = atob(b64);
+    const out = new Uint8Array(new ArrayBuffer(binary.length));
+    for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+    return out.buffer;
 }
 
 // ---------------------------------------------------------------------------
@@ -157,6 +243,7 @@ export class MlsService {
     private readonly _groupRegistry = new LazyStore('mls-group-registry.json');
     private readonly _messageCache = new LazyStore('mls-message-cache.json');
     private readonly deviceIdentity = inject(DeviceIdentityService);
+    private _cacheKey: Promise<CryptoKey> | null = null;
 
     // -------------------------------------------------------------------------
     // Group registry - maps (contextId, generation) → MLS groupId (persisted)
@@ -213,17 +300,111 @@ export class MlsService {
     }
 
     // -------------------------------------------------------------------------
-    // Plaintext message cache -MLS keys are ephemeral; cache decrypted content
-    // so history can be displayed after restart without re-decryption.
+    // Message cache -MLS ratchets forward only, so a message decrypts from the wire exactly once.
+    // Without this, paging back through history shows nothing.
+    //
+    // It therefore holds the plaintext of every message this device has ever read, which made it a
+    // larger at-rest exposure than the ciphertext on the server. Sealed under the same OS
+    // keychain-held key as the engine state, and bounded - it used to grow without limit for the
+    // life of the installation.
     // -------------------------------------------------------------------------
 
+    /** Entries kept before the oldest are dropped. Roughly a year of an active conversation. */
+    private static readonly MESSAGE_CACHE_LIMIT = 5_000;
+
     async cacheMessage(messageId: string, plaintextB64: string): Promise<void> {
-        await this._messageCache.set(messageId, plaintextB64);
+        const sealed = await this.seal(plaintextB64);
+        await this._messageCache.set(messageId, {v: 1, at: Date.now(), ...sealed} satisfies CachedMessage);
+        await this.pruneMessageCache();
         await this._messageCache.save();
     }
 
     async getCachedMessage(messageId: string): Promise<string | null> {
-        return (await this._messageCache.get<string>(messageId)) ?? null;
+        const entry = await this._messageCache.get<CachedMessage | string>(messageId);
+        if (!entry) return null;
+
+        // Entries written before the cache was sealed are bare base64. Read once, rewritten sealed,
+        // rather than discarded - they are the only copy of that message's plaintext.
+        if (typeof entry === 'string') {
+            await this.cacheMessage(messageId, entry);
+            return entry;
+        }
+
+        try {
+            return await this.unseal(entry);
+        } catch {
+            // A cache entry we cannot open is no worse than a cache miss: the message renders as
+            // undecryptable rather than as garbage.
+            return null;
+        }
+    }
+
+    /** Drops the plaintext cache. Part of every local-wipe path. */
+    async clearMessageCache(): Promise<void> {
+        await this._messageCache.clear();
+        await this._messageCache.save();
+    }
+
+    private async pruneMessageCache(): Promise<void> {
+        const entries = await this._messageCache.entries<CachedMessage | string>();
+        if (entries.length <= MlsService.MESSAGE_CACHE_LIMIT) return;
+
+        const aged = entries
+            .map(([id, value]) => ({id, at: typeof value === 'string' ? 0 : value.at ?? 0}))
+            .sort((a, b) => a.at - b.at);
+
+        // Oldest first. Losing the oldest plaintext is the least bad outcome available: those
+        // messages are the least likely to be scrolled back to, and the ratchet cannot recover any
+        // of them either way.
+        const excess = aged.slice(0, entries.length - MlsService.MESSAGE_CACHE_LIMIT);
+        for (const {id} of excess) await this._messageCache.delete(id);
+    }
+
+    private async seal(plaintextB64: string): Promise<{ iv: string; ct: string }> {
+        const key = await this.cacheKey();
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const ct = await crypto.subtle.encrypt(
+            {name: 'AES-GCM', iv},
+            key,
+            new TextEncoder().encode(plaintextB64),
+        );
+        return {iv: toB64(iv), ct: toB64(new Uint8Array(ct))};
+    }
+
+    private async unseal(entry: CachedMessage): Promise<string> {
+        const key = await this.cacheKey();
+        const plain = await crypto.subtle.decrypt(
+            {name: 'AES-GCM', iv: fromB64(entry.iv)},
+            key,
+            fromB64(entry.ct),
+        );
+        return new TextDecoder().decode(plain);
+    }
+
+    private async cacheKey(): Promise<CryptoKey> {
+        this._cacheKey ??= this.localStateKey().then(raw =>
+            crypto.subtle.importKey('raw', fromB64(raw), 'AES-GCM', false, ['encrypt', 'decrypt']),
+        );
+        return this._cacheKey;
+    }
+
+    /**
+     * The 32-byte key the engine state and the message cache are both sealed under, held by the OS
+     * keychain and never written to disk beside what it protects.
+     *
+     * Minted on first use. A device that somehow loses it loses the local cache and has to
+     * re-register, which is recoverable; leaving every private key in cleartext on disk is not.
+     */
+    private async localStateKey(): Promise<string> {
+        const deviceId = await this.deviceIdentity.deviceId();
+        const name = `alpine_mls_${deviceId}_statekey`;
+
+        const existing = await secureStorage.getItem(name);
+        if (existing) return existing;
+
+        const minted = toB64(crypto.getRandomValues(new Uint8Array(32)));
+        await secureStorage.setItem(name, minted);
+        return minted;
     }
 
     /**
@@ -237,7 +418,7 @@ export class MlsService {
         signingPrivateKeyB64: string,
         identity: string,
     ): Observable<string> {
-        return from(invoke<string>('mls_load_signing_key', {
+        return from(this.call<string>('mls_load_signing_key', {
             signingPublicKeyB64,
             signingPrivateKeyB64,
             identity,
@@ -253,7 +434,7 @@ export class MlsService {
      * Call this on session lock / logout to clear key material from memory.
      */
     unloadSigningKey(keyHandle: string): Observable<void> {
-        return from(invoke<void>('mls_unload_signing_key', {keyHandle}));
+        return from(this.call<void>('mls_unload_signing_key', {keyHandle}));
     }
 
     /**
@@ -264,7 +445,7 @@ export class MlsService {
      * The returned `keyHandle` is immediately usable this session.
      */
     generateKeyPackages(identity: string, count: number): Observable<MlsKeyPackageBatch> {
-        return from(invoke<MlsKeyPackageBatch>('generate_mls_key_packages', {identity, count}));
+        return from(this.call<MlsKeyPackageBatch>('generate_mls_key_packages', {identity, count}));
     }
 
     // -------------------------------------------------------------------------
@@ -282,7 +463,7 @@ export class MlsService {
      * @param count      Number of key packages to generate.
      */
     generateAdditionalKeyPackages(keyHandle: string, count: number): Observable<KeyPackageResult[]> {
-        return from(invoke<KeyPackageResult[]>('mls_generate_key_packages_with_handle', {keyHandle, count}));
+        return from(this.call<KeyPackageResult[]>('mls_generate_key_packages_with_handle', {keyHandle, count}));
     }
 
     /**
@@ -296,7 +477,7 @@ export class MlsService {
         keyHandle: string,
     ): Observable<MlsGroupInfo> {
         return this.serialized(groupIdB64, () =>
-            invoke<MlsGroupInfo>('mls_create_group', {groupIdB64, keyHandle})
+            this.call<MlsGroupInfo>('mls_create_group', {groupIdB64, keyHandle})
         );
     }
 
@@ -318,7 +499,7 @@ export class MlsService {
         keyPackagesB64: string[],
     ): Observable<MlsCommitOut> {
         return this.serialized(groupIdB64, () =>
-            invoke<MlsCommitOut>('mls_add_members', {groupIdB64, keyHandle, keyPackagesB64})
+            this.call<MlsCommitOut>('mls_add_members', {groupIdB64, keyHandle, keyPackagesB64})
         );
     }
 
@@ -332,7 +513,7 @@ export class MlsService {
         welcomeB64: string,
         keyHandle: string,
     ): Observable<MlsGroupInfo> {
-        return from(invoke<MlsGroupInfo>('mls_join_group', {welcomeB64, keyHandle}));
+        return from(this.call<MlsGroupInfo>('mls_join_group', {welcomeB64, keyHandle}));
     }
 
     /**
@@ -351,7 +532,7 @@ export class MlsService {
         keyHandle: string,
     ): Observable<MlsCommitOut> {
         return this.serialized(groupIdB64, () =>
-            invoke<MlsCommitOut>('mls_leave_group', {groupIdB64, keyHandle})
+            this.call<MlsCommitOut>('mls_leave_group', {groupIdB64, keyHandle})
         );
     }
 
@@ -367,7 +548,7 @@ export class MlsService {
         keyHandle: string,
     ): Observable<MlsCommitOut> {
         return this.serialized(groupIdB64, () =>
-            invoke<MlsCommitOut>('mls_commit_pending_proposals', {groupIdB64, keyHandle})
+            this.call<MlsCommitOut>('mls_commit_pending_proposals', {groupIdB64, keyHandle})
         );
     }
 
@@ -379,7 +560,7 @@ export class MlsService {
      * drain the supply and eventually leave this device unaddable to any group.
      */
     ownFingerprint(keyHandle: string): Observable<string> {
-        return from(invoke<string>('mls_signing_key_fingerprint', {keyHandle}));
+        return from(this.call<string>('mls_signing_key_fingerprint', {keyHandle}));
     }
 
     /**
@@ -389,7 +570,7 @@ export class MlsService {
      * something that would be refused at add time.
      */
     inspectKeyPackage(keyPackageB64: string): Observable<MlsKeyPackageInfo> {
-        return from(invoke<MlsKeyPackageInfo>('mls_inspect_key_package', {keyPackageB64}));
+        return from(this.call<MlsKeyPackageInfo>('mls_inspect_key_package', {keyPackageB64}));
     }
 
     /**
@@ -403,7 +584,7 @@ export class MlsService {
      */
     mergePendingCommit(groupIdB64: string): Observable<number> {
         return this.serialized(groupIdB64, () =>
-            invoke<number>('mls_merge_pending_commit', {groupIdB64})
+            this.call<number>('mls_merge_pending_commit', {groupIdB64})
         );
     }
 
@@ -416,7 +597,7 @@ export class MlsService {
      */
     clearPendingCommit(groupIdB64: string): Observable<void> {
         return this.serialized(groupIdB64, () =>
-            invoke<void>('mls_clear_pending_commit', {groupIdB64})
+            this.call<void>('mls_clear_pending_commit', {groupIdB64})
         );
     }
 
@@ -428,7 +609,7 @@ export class MlsService {
         groupIdB64: string,
         keyHandle: string,
     ): Observable<string> {
-        return from(invoke<string>('mls_export_group_info', {groupIdB64, keyHandle}));
+        return from(this.call<string>('mls_export_group_info', {groupIdB64, keyHandle}));
     }
 
     /**
@@ -441,7 +622,7 @@ export class MlsService {
         groupInfoB64: string,
         keyHandle: string,
     ): Observable<MlsRejoinOut> {
-        return from(invoke<MlsRejoinOut>('mls_rejoin_group', {groupInfoB64, keyHandle}));
+        return from(this.call<MlsRejoinOut>('mls_rejoin_group', {groupInfoB64, keyHandle}));
     }
 
     /**
@@ -449,12 +630,16 @@ export class MlsService {
      * Call this after being removed, after `leaveGroup`, or for GDPR erasure.
      */
     deleteGroup(groupIdB64: string): Observable<void> {
-        return from(
-            invoke<void>('mls_delete_group', {groupIdB64}).then(v => {
-                this._groupQueues.delete(groupIdB64);
-                return v;
-            })
-        );
+        // Serialized like every other mutation. Deleting outside the queue could tear the group out
+        // from under a decrypt or a staged commit that was already in flight for it, which reads as
+        // corruption rather than as the removal it is.
+        return this.serialized(groupIdB64, () =>
+            this.call<void>('mls_delete_group', {groupIdB64}),
+        ).pipe(map(() => {
+            // Dropped only after the delete lands, so a queued operation behind it still runs
+            // against the same chain rather than jumping ahead of it.
+            this._groupQueues.delete(groupIdB64);
+        }));
     }
 
     /**
@@ -469,7 +654,7 @@ export class MlsService {
         plaintextB64: string,
     ): Observable<{ ciphertext: string; epoch: number }> {
         return this.serialized(groupIdB64, () =>
-            invoke<{ ciphertext: string; epoch: number }>('mls_send_message', {groupIdB64, keyHandle, plaintextB64})
+            this.call<{ ciphertext: string; epoch: number }>('mls_send_message', {groupIdB64, keyHandle, plaintextB64})
         );
     }
 
@@ -490,9 +675,23 @@ export class MlsService {
     processMessage(
         groupIdB64: string,
         messageB64: string,
+        messageId?: string,
     ): Observable<MlsProcessedMessage> {
         return this.serialized(groupIdB64, () =>
-            invoke<MlsProcessedMessage>('mls_process_message', {groupIdB64, messageB64})
+            this.call<MlsProcessedMessage>('mls_process_message', {groupIdB64, messageB64, messageId})
+        );
+    }
+
+    /**
+     * Returns messages that arrived before the commit that made them readable.
+     *
+     * Call after a catch-up has applied commits. Usually empty; when it is not, each entry is a
+     * message that would otherwise have been lost outright - a message decrypts from the wire
+     * exactly once, so the alternative to holding it was dropping it.
+     */
+    drainPendingMessages(groupIdB64: string): Observable<MlsReplayedMessage[]> {
+        return this.serialized(groupIdB64, () =>
+            this.call<MlsReplayedMessage[]>('mls_drain_pending_messages', {groupIdB64})
         );
     }
 
@@ -554,13 +753,13 @@ export class MlsService {
         leafIndices: number[],
     ): Observable<MlsCommitOut> {
         return this.serialized(groupIdB64, () =>
-            invoke<MlsCommitOut>('mls_remove_members', {groupIdB64, keyHandle, leafIndices})
+            this.call<MlsCommitOut>('mls_remove_members', {groupIdB64, keyHandle, leafIndices})
         );
     }
 
     /** Return the current member list for a group. */
     getMembers(groupIdB64: string): Observable<MlsMemberInfo[]> {
-        return from(invoke<MlsMemberInfo[]>('mls_get_members', {groupIdB64}));
+        return from(this.call<MlsMemberInfo[]>('mls_get_members', {groupIdB64}));
     }
 
     // -------------------------------------------------------------------------
@@ -569,7 +768,7 @@ export class MlsService {
 
     /** Return current group metadata (epoch, own leaf index, members). */
     getGroupInfo(groupIdB64: string): Observable<MlsGroupInfo> {
-        return from(invoke<MlsGroupInfo>('mls_get_group_info', {groupIdB64}));
+        return from(this.call<MlsGroupInfo>('mls_get_group_info', {groupIdB64}));
     }
 
     /**
@@ -581,7 +780,13 @@ export class MlsService {
      * @returns `true` when state was restored from disk, `false` when starting fresh.
      */
     initStorage(): Observable<boolean> {
-        return from(invoke<boolean>('mls_init_storage'));
+        // The key is fetched here rather than passed in so no caller can forget it and quietly
+        // leave the state file in the clear.
+        return from(
+            this.localStateKey().then(stateKeyB64 =>
+                this.call<boolean>('mls_init_storage', {stateKeyB64}),
+            ),
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -597,7 +802,7 @@ export class MlsService {
      * cleared separately if needed.
      */
     clearStorage(): Observable<void> {
-        return from(invoke<void>('mls_clear_storage'));
+        return from(this.call<void>('mls_clear_storage'));
     }
 
     /**
@@ -608,7 +813,7 @@ export class MlsService {
      * `importState` on a new device to restore.
      */
     exportState(encryptionKeyB64: string): Observable<string> {
-        return from(invoke<string>('mls_export_state', {encryptionKeyB64}));
+        return from(this.call<string>('mls_export_state', {encryptionKeyB64}));
     }
 
     /**
@@ -619,7 +824,92 @@ export class MlsService {
      * `autoUnlock` separately to re-establish the signing key session handle.
      */
     importState(encryptedB64: string, encryptionKeyB64: string): Observable<void> {
-        return from(invoke<void>('mls_import_state', {encryptedB64, encryptionKeyB64}));
+        return from(this.call<void>('mls_import_state', {encryptedB64, encryptionKeyB64}));
+    }
+
+    // -------------------------------------------------------------------------
+    // Key backup (contract §D)
+    //
+    // `exportState` above covers the openmls provider store and nothing else, which is why it can
+    // restore nothing on its own: it omits the signing keypair, the device id, the group registry
+    // (without which restored groups are unaddressable) and the message cache. These two assemble
+    // and open the full envelope Rust-side, because the signing key deliberately never crosses IPC.
+    // -------------------------------------------------------------------------
+
+    /**
+     * Seals everything needed to restore this device into one passphrase-protected envelope.
+     *
+     * @param includeMessageCache plaintext message history. Excluded from the cloud target by
+     *        default - it is the most sensitive thing in the envelope and also the thing users most
+     *        want back, so the choice is made explicitly rather than for them.
+     */
+    async exportBackup(
+        passphrase: string,
+        userId: string,
+        appVersion: string,
+        includeMessageCache: boolean,
+    ): Promise<string> {
+        const keyHandle = this.keyHandle();
+        if (!keyHandle) throw new Error('MLS session is locked');
+
+        const deviceId = await this.deviceIdentity.deviceId();
+        const groupRegistry = Object.fromEntries(
+            await this._groupRegistry.entries<string | number>(),
+        );
+
+        const messageCache = includeMessageCache ? await this.readMessageCachePlain() : undefined;
+
+        return this.call<string>('mls_export_backup', {
+            passphrase,
+            userId,
+            deviceId,
+            appVersion,
+            keyHandle,
+            groupRegistry,
+            messageCache,
+        });
+    }
+
+    /**
+     * Opens a backup envelope and applies it, then restores the registry and message cache locally.
+     *
+     * The engine is restored only when the blob was taken on *this* device id - see the Rust side
+     * for why cloning ratchet state onto a second live device is unsafe. On a new device the
+     * caller must re-register, replenish key packages, and get itself re-admitted.
+     */
+    async importBackup(blob: string, passphrase: string, expectedUserId: string): Promise<MlsBackupImportResult> {
+        const currentDeviceId = await this.deviceIdentity.deviceId();
+
+        const result = await this.call<MlsBackupImportResult>('mls_import_backup', {
+            blob,
+            passphrase,
+            expectedUserId,
+            currentDeviceId,
+        });
+
+        // Without the registry every context reads as unencrypted, whatever the engine holds.
+        for (const [key, value] of Object.entries(result.groupRegistry)) {
+            await this._groupRegistry.set(key, value);
+        }
+        await this._groupRegistry.save();
+
+        for (const [messageId, plaintextB64] of Object.entries(result.messageCache)) {
+            await this.cacheMessage(messageId, plaintextB64);
+        }
+
+        this.keyHandle.set(result.keyHandle);
+        return result;
+    }
+
+    private async readMessageCachePlain(): Promise<Record<string, string>> {
+        const entries = await this._messageCache.entries<CachedMessage | string>();
+        const out: Record<string, string> = {};
+
+        for (const [messageId] of entries) {
+            const plain = await this.getCachedMessage(messageId);
+            if (plain) out[messageId] = plain;
+        }
+        return out;
     }
 
     /**
@@ -652,11 +942,22 @@ export class MlsService {
      */
     autoUnlock(deviceId: string): Observable<string> {
         return from(
+            // A keychain that is momentarily unavailable - locked, service not started, a
+            // transient DBus or Credential Manager failure - is not the same thing as a device
+            // that has never registered. Collapsing the two sent every hiccup to the registration
+            // modal, which mints a *fresh* signing key and orphans the device from every group it
+            // belongs to. That is unrecoverable; waiting and retrying is not.
             Promise.all([
                 secureStorage.getItem(this.secureKey(deviceId, 'pub')),
                 secureStorage.getItem(this.secureKey(deviceId, 'priv')),
                 secureStorage.getItem(this.secureKey(deviceId, 'identity')),
-            ]),
+            ]).catch((cause: unknown) => {
+                const err: MlsTypedError = {
+                    kind: 'MlsError',
+                    message: `Secure storage is unavailable: ${cause instanceof Error ? cause.message : String(cause)}`,
+                };
+                throw err;
+            }),
         ).pipe(
             switchMap(([pub, priv, identity]) => {
                 if (!pub || !priv || !identity) {
@@ -698,6 +999,16 @@ export class MlsService {
 
     deleteDeviceIdentifier(): Promise<void> {
         return this.deviceIdentity.reset();
+    }
+
+    /**
+     * Every call into the Rust engine goes through here, so the Tauri guard cannot be forgotten on
+     * a new command. Fails closed: outside Tauri there is no engine, and reporting success for an
+     * operation that never happened is worse than refusing it.
+     */
+    private call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+        requireTauri();
+        return invoke<T>(command, args);
     }
 
     /**

@@ -92,6 +92,64 @@
         <p-toggleswitch (ngModelChange)="encrypted.set($event)" [ngModel]="encrypted()"/>
     </div>
 
+    <!--
+      Creation stops here rather than reporting this after the fact. A device with no key package
+      left is not added to the group and never will be, so it can never read anything sent in this
+      conversation - which its owner would otherwise discover only when a reply never arrived.
+    -->
+    @if (unreachableDevices().length > 0) {
+        <div class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+            <p class="text-sm font-medium text-amber-200">Some devices can't be included</p>
+            <p class="mt-1 text-[11px] leading-snug text-white/60">
+                These devices have no encryption keys left on the server. They will not be able to
+                read anything sent in this conversation, now or later:
+            </p>
+            <ul class="mt-2 list-disc pl-5 text-[11px] text-white/70">
+                @for (name of unreachableDevices(); track name) {
+                    <li>{{ name }}</li>
+                }
+            </ul>
+            <div class="mt-3 flex items-center justify-end gap-2">
+                <p-button (onClick)="cancelUnreachable()" [text]="true" label="Cancel"
+                          severity="secondary" size="small"/>
+                <p-button (onClick)="createWithoutUnreachableDevices()" label="Create anyway"
+                          severity="warn" size="small"/>
+            </div>
+        </div>
+    }
+
+    <!--
+      Reported by the server once the conversation already existed. Shown here rather than dismissed
+      along with the dialog: "some of these people cannot read this" is not something to report by
+      closing the only surface that could report it.
+    -->
+    @if (createdWarning(); as warning) {
+        <div class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3">
+            <p class="text-sm font-medium text-amber-200">Conversation created, with gaps</p>
+            @if (warning.devices.length > 0) {
+                <p class="mt-1 text-[11px] leading-snug text-white/60">
+                    These devices registered too late to be included, and will not be able to read
+                    anything sent here:
+                </p>
+                <ul class="mt-2 list-disc pl-5 text-[11px] text-white/70">
+                    @for (name of warning.devices; track name) {
+                        <li>{{ name }}</li>
+                    }
+                </ul>
+            }
+            @if (warning.lastResortCount > 0) {
+                <p class="mt-2 text-[11px] leading-snug text-white/60">
+                    {{ warning.lastResortCount }} device(s) joined using a reusable backup key. They
+                    can read this conversation, but that key seals more than one invitation, so
+                    their messages lose the usual forward secrecy.
+                </p>
+            }
+            <div class="mt-3 flex justify-end">
+                <p-button (onClick)="close()" label="Got it" severity="secondary" size="small"/>
+            </div>
+        </div>
+    }
+
     <ng-template pTemplate="footer">
         <div class="flex items-center justify-end gap-2 pt-1">
             <p-button (onClick)="close()" [text]="true" label="Cancel" severity="secondary" size="small"/>

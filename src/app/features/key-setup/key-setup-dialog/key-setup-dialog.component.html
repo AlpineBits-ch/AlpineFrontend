@@ -61,6 +61,124 @@
                 <app-entropy-modal (done)="onEntropyDone($event)"/>
             </div>
         }
+        <!--
+          Shown once, and never again. The recovery code is the only credential that survives a
+          password reset: without it a reset leaves the master key sealed under a password the user
+          has by definition forgotten, and every backup becomes permanently unopenable. That is why
+          the consequence is stated here, before they can continue, rather than in a help article
+          they would read only after losing everything.
+        -->
+        @case ('recovery-code') {
+            <div class="ks-panel">
+                <div class="ks-icon-wrap">
+                    <div class="ks-icon-ring">
+                        <i class="pi pi-key text-2xl" style="color: var(--color-brand-dim)"></i>
+                    </div>
+                </div>
+
+                <h2 class="ks-title">Save your recovery code</h2>
+                <p class="ks-subtitle">
+                    Write this down and keep it somewhere safe. It is the only way back into your
+                    encrypted messages if you ever forget your password.
+                </p>
+
+                <div class="my-4 rounded-xl border border-white/[0.08] bg-black/30 px-4 py-3">
+                    <code class="block select-all break-all text-center font-mono text-[0.95rem]
+                                 leading-7 tracking-[0.12em] text-white/90">{{ recoveryCode() }}</code>
+                </div>
+
+                <p-button
+                        (onClick)="copyRecoveryCode()"
+                        [icon]="copied() ? 'pi pi-check' : 'pi pi-copy'"
+                        [label]="copied() ? 'Copied' : 'Copy code'"
+                        [text]="true"
+                        severity="secondary"
+                        size="small"
+                        styleClass="w-full justify-center"
+                />
+
+                <div class="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.08] px-4 py-3">
+                    <p class="m-0 text-[0.8125rem] font-medium text-amber-200">
+                        If you lose both your password and this code, your encrypted history cannot
+                        be recovered.
+                    </p>
+                    <p class="m-0 mt-1 text-xs text-white/55">
+                        Not by us and not by anyone else — nobody but you can decrypt it. This code
+                        is shown once and is not stored anywhere you can look it up later.
+                    </p>
+                </div>
+
+                @if (errorMsg()) {
+                    <p class="ks-error">
+                        <i class="pi pi-exclamation-circle mr-1.5"></i>{{ errorMsg() }}
+                    </p>
+                }
+
+                <p-button
+                        (onClick)="toConfirmStep()"
+                        icon="pi pi-arrow-right"
+                        iconPos="right"
+                        label="I've saved it"
+                        styleClass="w-full justify-center mt-3"
+                />
+            </div>
+        }
+
+        <!--
+          A confirmation step rather than a checkbox. "I've saved it" is trivial to click through,
+          and the cost of being wrong is the entire encrypted history of the account.
+        -->
+        @case ('confirm-code') {
+            <div class="ks-panel">
+                <div class="ks-icon-wrap">
+                    <div class="ks-icon-ring">
+                        <i class="pi pi-check-circle text-2xl" style="color: var(--color-brand-dim)"></i>
+                    </div>
+                </div>
+
+                <h2 class="ks-title">Confirm your recovery code</h2>
+                <p class="ks-subtitle">
+                    Type it back in so we know you really have it. Hyphens and capitalisation don't
+                    matter.
+                </p>
+
+                <div class="ks-field">
+                    <label class="ks-label">Recovery code</label>
+                    <input
+                            (input)="onConfirmationInput($event)"
+                            (keydown.enter)="onConfirmCode()"
+                            [value]="confirmation()"
+                            class="w-full font-mono"
+                            placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
+                            type="text"
+                    />
+                </div>
+
+                @if (errorMsg()) {
+                    <p class="ks-error">
+                        <i class="pi pi-exclamation-circle mr-1.5"></i>{{ errorMsg() }}
+                    </p>
+                }
+
+                <div class="mt-2 flex gap-2">
+                    <p-button
+                            (onClick)="backToCode()"
+                            [text]="true"
+                            label="Show code again"
+                            severity="secondary"
+                            styleClass="justify-center"
+                    />
+                    <p-button
+                            (onClick)="onConfirmCode()"
+                            icon="pi pi-arrow-right"
+                            iconPos="right"
+                            label="Finish setup"
+                            styleClass="flex-1 justify-center"
+                    />
+                </div>
+            </div>
+        }
+
         @case ('processing') {
             <div class="ks-panel ks-centered">
                 <div class="ks-spinner-ring">

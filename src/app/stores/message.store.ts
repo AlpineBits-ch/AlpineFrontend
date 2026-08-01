@@ -13,6 +13,8 @@ import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
 import {MessageType} from '../enums/message-type.enum';
 import {MessagingService} from '../services/messaging.service';
 import {MlsService} from '../services/mls.service';
+import {MlsSyncService} from '../services/mls-sync.service';
+import {MlsHealthService} from '../services/mls-health.service';
 import {
     MessageDeletedEvent,
     MessagePinnedEvent,
@@ -84,7 +86,12 @@ function reactionMatches(r: MessageReaction, event: ReactionEvent): boolean {
  * cache or not at all - `undecryptable` is set so the UI can say so plainly instead of rendering
  * base64 at the user.
  */
-async function decryptMessages(messages: MessageDto[], mlsService: MlsService): Promise<MessageDto[]> {
+async function decryptMessages(
+    messages: MessageDto[],
+    mlsService: MlsService,
+    mlsSync: MlsSyncService,
+    health: MlsHealthService,
+): Promise<MessageDto[]> {
     const result: MessageDto[] = [];
     for (const msg of messages) {
         const contextId = msg.conversationId ?? msg.channelId;
@@ -107,21 +114,32 @@ async function decryptMessages(messages: MessageDto[], mlsService: MlsService): 
             ? null
             : await mlsService.getGroupId(contextId, generation);
 
+        const isChannel = !!msg.channelId;
+
         if (!groupId) {
+            // Distinct from a decrypt failure: this device was never admitted to the era the
+            // message belongs to, which is a state the user can act on by re-linking.
+            health.recordFailure(contextId, isChannel, 'not-admitted');
             result.push({...msg, undecryptable: true});
             continue;
         }
 
-        try {
-            const processed = await firstValueFrom(mlsService.processMessage(groupId, fromBase64(msg.content)));
-            if (processed.kind === 'application' && processed.plaintext) {
-                void mlsService.cacheMessage(msg.id, processed.plaintext);
-                result.push({...msg, content: processed.plaintext});
-                continue;
-            }
-        } catch {
-            // Expected when paging past the ratchet's reach - not an error worth logging per message.
+        // Through the sync service: history paging used to call the engine directly, so a decrypt
+        // could interleave between the stage and the merge of a two-phase commit for the same
+        // group. It also carries the roster check, which had no call sites at all before this.
+        const plaintext = await mlsSync.decryptMessage(
+            contextId, isChannel, groupId, fromBase64(msg.content), msg.id, msg.authorId,
+        );
+
+        if (plaintext) {
+            void mlsService.cacheMessage(msg.id, plaintext);
+            result.push({...msg, content: plaintext});
+            continue;
         }
+
+        // Ordinary when paging past the ratchet's reach, and permanent when it happens: MLS
+        // decrypts from the wire exactly once. `undecryptable` is what lets the UI say so rather
+        // than rendering base64 at the reader.
         result.push({...msg, undecryptable: true});
     }
     return result;
@@ -132,7 +150,7 @@ export const MessageStore = signalStore(
     withEntities<MessageDto>(),
     withState<MessageState>({conversationMeta: {}, searchEntries: {}, channelMeta: {}, channelSearchEntries: {}}),
 
-    withMethods((store, messagingService = inject(MessagingService), mlsService = inject(MlsService)) => ({
+    withMethods((store, messagingService = inject(MessagingService), mlsService = inject(MlsService), mlsSync = inject(MlsSyncService), mlsHealth = inject(MlsHealthService)) => ({
         loadForConversation(conversationId: string): void {
             // Already fetched -no-op
             if (store.conversationMeta()[conversationId]) return;
@@ -147,7 +165,7 @@ export const MessageStore = signalStore(
 
             messagingService
                 .getMessagesForConversation(conversationId, 0, PAGE_SIZE)
-                .pipe(switchMap(messages => from(decryptMessages(messages, mlsService))))
+                .pipe(switchMap(messages => from(decryptMessages(messages, mlsService, mlsSync, mlsHealth))))
                 .subscribe({
                     next: messages => {
                         patchState(store, addEntities(messages), {
@@ -190,7 +208,7 @@ export const MessageStore = signalStore(
 
             messagingService
                 .getMessagesForConversation(conversationId, meta.offset, PAGE_SIZE)
-                .pipe(switchMap(messages => from(decryptMessages(messages, mlsService))))
+                .pipe(switchMap(messages => from(decryptMessages(messages, mlsService, mlsSync, mlsHealth))))
                 .subscribe({
                     next: messages => {
                         patchState(store, addEntities(messages), {
@@ -358,7 +376,7 @@ export const MessageStore = signalStore(
             });
             messagingService
                 .getMessagesForChannel(channelId, 0, PAGE_SIZE)
-                .pipe(switchMap(messages => from(decryptMessages(messages, mlsService))))
+                .pipe(switchMap(messages => from(decryptMessages(messages, mlsService, mlsSync, mlsHealth))))
                 .subscribe({
                     next: messages => {
                         patchState(store, addEntities(messages), {
@@ -394,7 +412,7 @@ export const MessageStore = signalStore(
             });
             messagingService
                 .getMessagesForChannel(channelId, meta.offset, PAGE_SIZE)
-                .pipe(switchMap(messages => from(decryptMessages(messages, mlsService))))
+                .pipe(switchMap(messages => from(decryptMessages(messages, mlsService, mlsSync, mlsHealth))))
                 .subscribe({
                     next: messages => {
                         patchState(store, addEntities(messages), {

@@ -2,7 +2,7 @@ import {Component, EventEmitter, inject, Input, Output, signal} from '@angular/c
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PasswordDirective} from 'primeng/password';
-import {from, of, switchMap, take} from 'rxjs';
+import {catchError, from, of, switchMap, take} from 'rxjs';
 import {TranslateModule} from '@ngx-translate/core';
 import {Router} from '@angular/router';
 import {AuthService} from '../../../services/auth.service';
@@ -10,6 +10,8 @@ import {UserService} from '../../../services/user.service';
 import {MasterKeyService} from '../../../services/master-key.service';
 import {MlsService} from '../../../services/mls.service';
 import {UserTokenService} from '../../../services/user-token.service';
+import {DeviceService} from '../../../services/device.service';
+import {AppInfoService} from '../../../services/app-info.service';
 
 type Step = 'export-prompt' | 'password' | 'no-export-warning' | 'processing';
 
@@ -32,8 +34,10 @@ export class LogoutDialogComponent {
     private userService = inject(UserService);
     private masterKeyService = inject(MasterKeyService);
     private mlsService = inject(MlsService);
+    private deviceService = inject(DeviceService);
     private userTokenService = inject(UserTokenService);
     private router = inject(Router);
+    private readonly appInfo = inject(AppInfoService);
 
     protected onPasswordInput(event: Event): void {
         this.password.set((event.target as HTMLInputElement).value);
@@ -88,18 +92,20 @@ export class LogoutDialogComponent {
             take(1),
             switchMap(user => {
                 if (!user.encryptedMasterKey) throw new Error('no-key');
-                return from(this.masterKeyService.decryptMasterKey(user.encryptedMasterKey, this.password()));
-            }),
-            switchMap(rawKey => {
-                const keyB64 = btoa(String.fromCharCode(...rawKey));
-                return this.mlsService.exportState(keyB64);
+                // The password is only proof of ownership here; the blob is sealed under the
+                // passphrase-derived key inside the Rust command, not under the master key.
+                return from(this.masterKeyService.decryptMasterKey(user.encryptedMasterKey, this.password()))
+                    .pipe(switchMap(() => from(this.exportBackup(user.id))));
             }),
         ).subscribe({
             next: blob => {
-                // TODO: Dominic -cloud backup / additional export targets
+                // The full §D envelope, not `exportState`: that covered the openmls provider store
+                // alone and omitted the signing keypair, the device id, the group registry and the
+                // message cache - which is why the old export could restore precisely nothing, and
+                // why this flow used to delete the signing key moments after "backing it up".
                 const a = document.createElement('a');
-                a.href = `data:application/octet-stream;base64,${blob}`;
-                a.download = `alpine-keys-${new Date().toISOString().slice(0, 10)}.enc`;
+                a.href = `data:application/octet-stream;base64,${btoa(blob)}`;
+                a.download = `venta-keys-${new Date().toISOString().slice(0, 10)}.venta-keys`;
                 a.click();
                 this.clearMlsAndLogout();
             },
@@ -113,6 +119,15 @@ export class LogoutDialogComponent {
         });
     }
 
+    /**
+     * The local-file export target. Includes the message cache: this is the user's own disk, and
+     * plaintext history is the thing they most want back - the cloud target excludes it by default
+     * precisely because that tradeoff should not be made silently on their behalf.
+     */
+    private exportBackup(userId: string): Promise<string> {
+        return this.mlsService.exportBackup(this.password(), userId, this.appInfo.version(), true);
+    }
+
     private clearMlsAndLogout(): void {
         from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(
             switchMap(deviceId => {
@@ -122,6 +137,14 @@ export class LogoutDialogComponent {
                     switchMap(() => this.mlsService.clearStoredSigningKey(deviceId)),
                     switchMap(() => this.mlsService.clearStorage()),
                     switchMap(() => from(this.mlsService.clearGroupRegistry())),
+                    switchMap(() => from(this.mlsService.clearMessageCache())),
+                    // Contract §A. Without this the server keeps handing out key packages whose
+                    // private halves were just deleted, and every Welcome sealed to one of them is
+                    // undecryptable by the device it was meant for - including after a fresh login
+                    // on this same machine, which keeps its device id.
+                    switchMap(() => this.deviceService.resetKeyPackages(deviceId).pipe(
+                        catchError(() => of(undefined)),
+                    )),
                 );
             }),
         ).subscribe({

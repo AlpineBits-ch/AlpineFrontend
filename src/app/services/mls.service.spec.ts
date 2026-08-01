@@ -11,11 +11,34 @@
  *   3. Return an Observable that resolves to the value `invoke` resolves to.
  *   4. Surface any rejection from `invoke` as an Observable error.
  */
-vi.mock('@tauri-apps/api/core');
+// `isTauri` is stubbed true because these tests exercise the in-Tauri path. The fail-closed guard
+// that depends on it has its own tests - see "outside Tauri" at the end of this file.
+vi.mock('@tauri-apps/api/core', () => ({
+    invoke: vi.fn(),
+    isTauri: vi.fn(() => true),
+}));
+vi.mock('tauri-plugin-secure-storage-api', () => ({
+    secureStorage: {
+        getItem: vi.fn(async () => 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='),
+        setItem: vi.fn(async () => undefined),
+        removeItem: vi.fn(async () => undefined),
+    },
+}));
+vi.mock('@tauri-apps/plugin-store', () => ({
+    LazyStore: class {
+        private readonly values = new Map<string, unknown>();
+        async get<T>(key: string) { return this.values.get(key) as T | undefined; }
+        async set(key: string, value: unknown) { this.values.set(key, value); }
+        async delete(key: string) { this.values.delete(key); }
+        async entries<T>() { return [...this.values.entries()] as [string, T][]; }
+        async clear() { this.values.clear(); }
+        async save() { }
+    },
+}));
 
 import {TestBed} from '@angular/core/testing';
 import {firstValueFrom} from 'rxjs';
-import {invoke} from '@tauri-apps/api/core';
+import {invoke, isTauri} from '@tauri-apps/api/core';
 
 import {
     KeyPackageResult,
@@ -78,12 +101,14 @@ const COMMIT_WITH_WELCOME: MlsCommitOut = {
     commit: 'Y29tbWl0',
     welcome: 'd2VsY29tZQ==',
     epoch: 1,
+    groupInfo: null
 };
 
 const COMMIT_NO_WELCOME: MlsCommitOut = {
     commit: 'Y29tbWl0',
     welcome: null,
     epoch: 2,
+    groupInfo: null
 };
 
 const APP_MESSAGE: MlsProcessedMessage = {
@@ -777,7 +802,7 @@ describe('MlsService', () => {
 
     describe('leaveGroup', () => {
         const GID = 'Z3JvdXAxMjM=';
-        const LEAVE_COMMIT: MlsCommitOut = {commit: 'bGVhdmU=', welcome: null, epoch: 5};
+        const LEAVE_COMMIT: MlsCommitOut = {commit: 'bGVhdmU=', welcome: null, epoch: 5, groupInfo: null};
 
         it('returns an Observable', () => {
             mockInvoke(LEAVE_COMMIT);
@@ -1117,10 +1142,14 @@ describe('MlsService', () => {
             expect(callArgs()['messageB64']).toBe(MSG);
         });
 
-        it('passes exactly 2 keys to invoke', async () => {
+        it('passes the group, the message and the message id', async () => {
             mockInvoke(APP_MESSAGE);
-            await firstValueFrom(service.processMessage(GID, MSG));
-            expect(Object.keys(callArgs()).sort()).toEqual(['groupIdB64', 'messageB64'].sort());
+            await firstValueFrom(service.processMessage(GID, MSG, 'msg-1'));
+            expect(Object.keys(callArgs()).sort())
+                .toEqual(['groupIdB64', 'messageB64', 'messageId'].sort());
+            // The id is what lets a buffered future-epoch message be attributed to the row it came
+            // from when it is replayed; without it the plaintext surfaces with nothing to attach.
+            expect(callArgs()['messageId']).toBe('msg-1');
         });
 
         // Application message discrimination
@@ -1918,10 +1947,13 @@ describe('MlsService', () => {
             expect(callCmd()).toBe('mls_init_storage');
         });
 
-        it('passes no args to invoke (AppHandle resolved by Rust)', async () => {
+        it('passes the state key so the file is never written in the clear', async () => {
             mockInvoke(true);
             await firstValueFrom(service.initStorage());
-            expect(callArgs()).toBeUndefined();
+            // Fetched inside the service rather than taken as a parameter, so no caller can forget
+            // it and quietly leave every private key on disk as plain JSON.
+            expect(Object.keys(callArgs())).toEqual(['stateKeyB64']);
+            expect(callArgs()['stateKeyB64']).toBeTruthy();
         });
 
         it('resolves with true when state was restored from disk', async () => {
@@ -2088,6 +2120,7 @@ describe('MlsService', () => {
             commit: 'YWRkQ29tbWl0',
             welcome: 'd2VsY29tZQ==',
             epoch: 1,
+            groupInfo: null,
         };
 
         const JOINED_GROUP: MlsGroupInfo = {
@@ -2124,12 +2157,14 @@ describe('MlsService', () => {
             commit: 'cmVtb3ZlQ29tbWl0',
             welcome: null,
             epoch: 2,
+            groupInfo: null,
         };
 
         const LEAVE_COMMIT: MlsCommitOut = {
             commit: 'bGVhdmVDb21taXQ=',
             welcome: null,
             epoch: 3,
+            groupInfo: null,
         };
 
         it('generate → replenish → create → add → join → send → receive → remove → leave → delete', async () => {
@@ -2235,6 +2270,84 @@ describe('MlsService', () => {
 
             // Verify every lifecycle step produced exactly one invoke call
             expect(invokeStub).toHaveBeenCalledTimes(13);
+        });
+    });
+    // ─────────────────────────────────────────────────────────────────────────
+    // Message cache at rest
+    //
+    // It holds the plaintext of every message this device has ever read, which made it a larger
+    // at-rest exposure than the ciphertext sitting on the server, and it grew without limit for
+    // the life of the installation.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    describe('message cache', () => {
+        it('round-trips a cached plaintext', async () => {
+            await service.cacheMessage('msg-1', 'aGVsbG8=');
+            expect(await service.getCachedMessage('msg-1')).toBe('aGVsbG8=');
+        });
+
+        it('does not store the plaintext where a disk reader can find it', async () => {
+            await service.cacheMessage('msg-1', 'aGVsbG8=');
+
+            const raw = (service as unknown as { _messageCache: { get(k: string): Promise<unknown> } })
+                ._messageCache;
+            const stored = await raw.get('msg-1') as { iv: string; ct: string };
+
+            expect(stored.iv).toBeTruthy();
+            expect(stored.ct).toBeTruthy();
+            expect(JSON.stringify(stored)).not.toContain('aGVsbG8=');
+        });
+
+        it('reads an entry written before the cache was sealed', async () => {
+            const raw = (service as unknown as {
+                _messageCache: { set(k: string, v: unknown): Promise<void> }
+            })._messageCache;
+            // Bare base64 is what shipped. Discarding those entries would throw away the only copy
+            // of that message's plaintext - MLS decrypts from the wire exactly once.
+            await raw.set('legacy', 'bGVnYWN5');
+
+            expect(await service.getCachedMessage('legacy')).toBe('bGVnYWN5');
+        });
+
+        it('returns null rather than garbage for an entry it cannot open', async () => {
+            const raw = (service as unknown as {
+                _messageCache: { set(k: string, v: unknown): Promise<void> }
+            })._messageCache;
+            await raw.set('broken', {v: 1, at: Date.now(), iv: 'AAAAAAAAAAAAAAAA', ct: 'AAAA'});
+
+            // No worse than a cache miss: the message renders as undecryptable.
+            expect(await service.getCachedMessage('broken')).toBeNull();
+        });
+
+        it('clears every entry on a wipe', async () => {
+            await service.cacheMessage('msg-1', 'aGVsbG8=');
+            await service.clearMessageCache();
+            expect(await service.getCachedMessage('msg-1')).toBeNull();
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Fail-closed outside Tauri
+    // ─────────────────────────────────────────────────────────────────────────
+
+    describe('outside Tauri', () => {
+        const GID = 'Z3JvdXAxMjM=';
+
+        it('refuses every engine call rather than reporting success', async () => {
+            vi.mocked(isTauri).mockReturnValue(false);
+            try {
+                // The app happens not to boot in a browser today, so nothing here was ever reached
+                // from one - but 'it crashes earlier' is not an access control, and a build that
+                // got this far would report success for operations that never happened.
+                // Thrown where the call is made, not surfaced later as a rejected stream: a
+                // caller that never subscribes must not be able to believe the work was queued.
+                expect(() => service.getMembers(GID)).toThrow(/MLS is unavailable/);
+                await expect(firstValueFrom(service.processMessage(GID, 'bXNn')))
+                    .rejects.toThrow(/MLS is unavailable/);
+                expect(invokeStub).not.toHaveBeenCalled();
+            } finally {
+                vi.mocked(isTauri).mockReturnValue(true);
+            }
         });
     });
 });

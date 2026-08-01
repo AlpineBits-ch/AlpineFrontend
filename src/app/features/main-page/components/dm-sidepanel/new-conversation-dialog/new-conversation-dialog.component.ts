@@ -33,8 +33,20 @@ export class NewConversationDialogComponent {
     readonly groupName = signal('');
     readonly encrypted = signal(false);
     readonly creating = signal(false);
-    /** Device names that could not be added for lack of key packages - shown after creation. */
+    /**
+     * Device names that cannot be added for lack of key packages.
+     *
+     * Non-empty means creation has been *stopped* and is waiting on a decision, not that it
+     * already happened - see {@link acceptedUnreachable}.
+     */
     readonly unreachableDevices = signal<string[]>([]);
+    /** Set when the user has seen the unreachable list and chosen to create anyway. */
+    readonly acceptedUnreachable = signal(false);
+    /**
+     * Coverage problems the server reported *after* the conversation existed - devices it could not
+     * reach, and devices admitted on a reusable last-resort key package.
+     */
+    readonly createdWarning = signal<{ devices: string[]; lastResortCount: number } | null>(null);
     readonly filteredFriends = computed(() => {
         const q = this.search().toLowerCase();
         return q
@@ -99,6 +111,23 @@ export class NewConversationDialogComponent {
         this.search.set('');
         this.encrypted.set(false);
         this.creating.set(false);
+        this.unreachableDevices.set([]);
+        this.acceptedUnreachable.set(false);
+        this.createdWarning.set(null);
+    }
+
+    /** "Create anyway" - those devices stay unable to read the conversation, and the user knows. */
+    createWithoutUnreachableDevices(): void {
+        this.acceptedUnreachable.set(true);
+        this.unreachableDevices.set([]);
+        this.create();
+    }
+
+    /** "Cancel" from the unreachable-devices prompt. */
+    cancelUnreachable(): void {
+        this.unreachableDevices.set([]);
+        this.acceptedUnreachable.set(false);
+        this.creating.set(false);
     }
 
     private createEncrypted(members: { userId: string }[], name: string | undefined): void {
@@ -144,6 +173,18 @@ export class NewConversationDialogComponent {
             let deviceWelcomes: DeviceWelcomeDto[] = [];
             let mlsGroupInfo: string | undefined;
 
+            // Devices with no key package left cannot be added, and nothing later will fix that:
+            // they will never be able to read a word of this conversation. Creating anyway used to
+            // happen silently, with the names shown afterwards as a footnote - so the person who
+            // could not read it found out when a reply never came.
+            const unreachable = tokens.unreachableDevices ?? [];
+            if (unreachable.length > 0 && !this.acceptedUnreachable()) {
+                this.unreachableDevices.set(unreachable.map(d => d.deviceName));
+                await firstValueFrom(this.mlsService.deleteGroup(groupIdB64)).catch(() => undefined);
+                this.creating.set(false);
+                return;
+            }
+
             if (invitees.length > 0) {
                 const commitOut = await firstValueFrom(
                     this.mlsService.addMembers(groupIdB64, keyHandle, invitees.map(t => t.token)),
@@ -156,7 +197,12 @@ export class NewConversationDialogComponent {
                     userId: t.userId,
                     welcome: commitOut.welcome!,
                 }));
-                mlsGroupInfo = await firstValueFrom(this.mlsService.exportGroupInfo(groupIdB64, keyHandle));
+                // The commit's own GroupInfo, which describes the epoch it establishes. Exporting
+                // one separately works here only because the merge above has already happened -
+                // taking it from the commit keeps this path identical to the publish path, where
+                // the merge deliberately comes later and an export would be an epoch stale.
+                mlsGroupInfo = commitOut.groupInfo
+                    ?? await firstValueFrom(this.mlsService.exportGroupInfo(groupIdB64, keyHandle));
             }
 
             const conv = await firstValueFrom(this.conversationService.createConversation({
@@ -167,21 +213,38 @@ export class NewConversationDialogComponent {
                 mlsGroupId: groupIdB64,
                 mlsEpoch: epoch,
                 mlsGroupInfo,
+                // Explicit, per contract §E7: the server is permissive during the transition, so
+                // it would create either way. Sending the flag records that a human was shown the
+                // list and chose to go ahead.
+                allowPartialDeviceCoverage: unreachable.length > 0 ? true : undefined,
             }));
 
             // The server mints generation 1 for a conversation created encrypted.
             await this.mlsService.registerGroup(conv.id, 1, groupIdB64);
 
-            // Devices with no key package left were not added and never will be able to read this
-            // conversation. Saying so beats letting someone discover it when a reply never arrives.
-            const unreachable = tokens.unreachableDevices ?? [];
-            if (unreachable.length > 0) {
-                this.unreachableDevices.set(unreachable.map(d => d.deviceName));
-            }
-
             this.conversationStore.addConversation(conv);
             this.navService.openConversation(conv);
-            this.close();
+
+            // Read again off the creation response. The server re-checks reachability per device at
+            // the moment it creates, so a device that registered between our own check and this
+            // call shows up only here - and is just as unable to read the conversation.
+            //
+            // A last-resort package is a weaker warning, not a failure: the device *can* read the
+            // conversation, but its leaf has no forward secrecy from that point back, because the
+            // same init key can seal more than one Welcome.
+            const missedByServer = (conv.unreachableDevices ?? []).map(d => d.deviceName);
+            const onLastResort = invitees.filter(t => t.isLastResort).length;
+
+            if (missedByServer.length === 0 && onLastResort === 0) {
+                this.close();
+                return;
+            }
+
+            // The conversation exists and is open behind the dialog; this stays up until it is
+            // acknowledged, because "some of these people cannot read this" is not something to
+            // report by dismissing the only surface that could report it.
+            this.createdWarning.set({devices: missedByServer, lastResortCount: onLastResort});
+            this.creating.set(false);
         } catch (err) {
             console.error('Failed to create encrypted conversation', err);
             await firstValueFrom(this.mlsService.deleteGroup(groupIdB64)).catch(() => undefined);

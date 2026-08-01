@@ -27,4 +27,19 @@ export class DeviceService {
     deleteDevice(clientDeviceId: string): Observable<void> {
         return this.http.delete<void>(`${this.base}/client/${encodeURIComponent(clientDeviceId)}`);
     }
+
+    /**
+     * Throws away every key package the server holds for this device (contract §A).
+     *
+     * **Must run before re-uploading on any path that wipes local MLS state.** The replenish count
+     * is derived purely from server rows, while the private init keys live only in the local store
+     * - so after a wipe the server still answers "you have plenty", the client uploads nothing, and
+     * every Welcome sealed to those orphaned packages is undecryptable by the very device it was
+     * addressed to. Idempotent; leaves the device row, push tokens and sessions alone.
+     */
+    resetKeyPackages(clientDeviceId: string): Observable<{ deletedCount: number }> {
+        return this.http.delete<{ deletedCount: number }>(
+            `${this.base}/client/${encodeURIComponent(clientDeviceId)}/key-packages`,
+        );
+    }
 }

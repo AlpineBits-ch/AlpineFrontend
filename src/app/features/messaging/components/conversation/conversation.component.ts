@@ -28,6 +28,7 @@ import {Button} from 'primeng/button';
 
 import {MessagingService} from '../../../../services/messaging.service';
 import {MlsService} from '../../../../services/mls.service';
+import {MlsUnreadableBannerComponent} from '../../../../components/mls-unreadable-banner/mls-unreadable-banner.component';
 import {MlsSyncService} from '../../../../services/mls-sync.service';
 import {MessageStore} from '../../../../stores/message.store';
 import {ConversationStore} from '../../../../stores/conversation.store';
@@ -62,6 +63,7 @@ import {PinnedMessagesPanelComponent} from '../pinned-messages-panel/pinned-mess
         CallPanelComponent, NgClass, DatePipe,
         UserStatusDotComponent, TypingDotsComponent, HighlightPipe,
         TranslateModule, AppAvatarComponent, PinnedMessagesPanelComponent,
+        MlsUnreadableBannerComponent,
     ],
     templateUrl: './conversation.component.html',
     styleUrl: './conversation.component.css',
@@ -518,6 +520,23 @@ export class ConversationComponent implements AfterViewInit {
                 return EMPTY;
             }),
         ).subscribe();
+    }
+
+    /**
+     * Tries to get this device readable again, from the banner.
+     *
+     * Re-reads the conversation's state, which joins from any Welcome that is waiting and replays
+     * the commits missed since - the common case, where the device was simply behind. It
+     * deliberately does *not* mint a new signing key: that is what orphans a device from every
+     * group it belongs to, and it is never the right response to "I could not read this".
+     */
+    protected async relinkDevice(): Promise<void> {
+        const conversationId = this.conversation().id;
+        try {
+            await this.mlsSync.refreshState(conversationId, false);
+        } catch (err) {
+            console.error('Re-link attempt failed', conversationId, err);
+        }
     }
 
     /**

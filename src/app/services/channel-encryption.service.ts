@@ -75,7 +75,12 @@ export class ChannelEncryptionService {
                     userId: t.userId,
                     welcome: commitOut.welcome!,
                 }));
-                groupInfo = await firstValueFrom(this.mls.exportGroupInfo(groupIdB64, keyHandle));
+                // The commit's own GroupInfo describes the epoch it establishes. Exporting one
+                // works here only because the merge above has already happened; taking it from the
+                // commit keeps this identical to the publish path, where the merge deliberately
+                // comes later and an export would be an epoch stale.
+                groupInfo = commitOut.groupInfo
+                    ?? await firstValueFrom(this.mls.exportGroupInfo(groupIdB64, keyHandle));
             }
 
             const result: MlsToggleResultDto = await firstValueFrom(

@@ -171,6 +171,7 @@ export class MlsJoinRequestService {
             return {
                 commit: out.commit,
                 epoch: out.epoch,
+                groupInfo: out.groupInfo,
                 deviceWelcomes: [{
                     deviceId: request.requesterDeviceId,
                     userId: request.requesterUserId,

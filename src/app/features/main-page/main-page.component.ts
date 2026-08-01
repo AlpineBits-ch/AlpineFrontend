@@ -35,8 +35,14 @@ import {GuildWebsocketService} from '../../services/guild-websocket.service';
 import {SocialWebsocketService} from '../../services/social-websocket.service';
 import {UserService} from '../../services/user.service';
 import {KeySetupDialogComponent} from '../key-setup/key-setup-dialog/key-setup-dialog.component';
+import {
+    MasterKeyRecoveryDialogComponent
+} from '../key-setup/master-key-recovery-dialog/master-key-recovery-dialog.component';
+import {MasterKeyStateService} from '../../services/master-key-state.service';
 import {MlsService} from '../../services/mls.service';
 import {MlsSyncService} from '../../services/mls-sync.service';
+import {MlsHealthService} from '../../services/mls-health.service';
+import {DeviceService} from '../../services/device.service';
 import {
     DeviceRegistrationModalComponent
 } from '../device-registration/device-registration-modal/device-registration-modal.component';
@@ -72,6 +78,7 @@ import {GuildService} from '../../services/guild.service';
         GuildMemberListComponent,
         DeviceRegistrationModalComponent,
         KeySetupDialogComponent,
+        MasterKeyRecoveryDialogComponent,
         WikiComponent,
         WikiPanelComponent,
         OnboardingGateComponent,
@@ -108,6 +115,13 @@ export class MainPageComponent implements OnDestroy {
     protected router = inject(Router);
     protected showDeviceRegistration = signal(false);
     protected showKeySetup = signal(false);
+    /** A password reset left the encryption key unopenable, or the account has no recovery code. */
+    protected showMasterKeyRecovery = signal(false);
+    /**
+     * The key store could not be reached. Deliberately *not* the same state as "this device is not
+     * registered" - see {@link initLaunchSequence} for why conflating them is unrecoverable.
+     */
+    protected keyUnlockFailed = signal(false);
     /** Serialized permission string for the events panel -re-fetched whenever it's opened for a guild, mirroring the ownMember-fetch pattern used by every other permission-gated guild panel. */
     protected eventsMemberPermissions = signal('');
     @ViewChild(QuickSettingsComponent) private quickSettings!: QuickSettingsComponent;
@@ -123,6 +137,9 @@ export class MainPageComponent implements OnDestroy {
     private userService = inject(UserService);
     private mlsService = inject(MlsService);
     private mlsSync = inject(MlsSyncService);
+    private mlsHealth = inject(MlsHealthService);
+    private masterKeyState = inject(MasterKeyStateService);
+    private deviceService = inject(DeviceService);
     private conversationService = inject(ConversationService);
     private richPresenceService = inject(RichPresenceService);
     private emailVerification = inject(EmailVerificationService);
@@ -268,13 +285,11 @@ export class MainPageComponent implements OnDestroy {
     private async initLaunchSequence(): Promise<void> {
 
         const deviceId = await this.mlsService.getOrCreateDeviceIdentifier();
-        console.log('Device ID:', deviceId);
         try {
             await firstValueFrom(this.mlsService.initStorage());
         } catch (storageErr) {
             console.error('MLS state corrupted -wiping and starting fresh:', storageErr);
-            await firstValueFrom(this.mlsService.clearStorage());
-            await this.mlsService.clearGroupRegistry();
+            await this.wipeLocalMlsState(deviceId);
         }
         try {
             const handle = await firstValueFrom(this.mlsService.autoUnlock(deviceId));
@@ -290,14 +305,51 @@ export class MainPageComponent implements OnDestroy {
 
         } catch (err: any) {
             if (err?.kind === 'KeyNotFound') {
+                // Genuinely no key stored: registering is the right move.
                 this.showDeviceRegistration.set(true);
             } else {
-                this.showDeviceRegistration.set(true);
-
-                console.error('Failed to unlock device keys:', err);
+                // Anything else - a locked keychain, a credential service that has not started, a
+                // transient DBus failure - is *not* evidence that this device is unregistered.
+                // Sending it to the registration modal mints a fresh Ed25519 keypair over live
+                // group state, which orphans the device from every group it belongs to and cannot
+                // be undone. Waiting and retrying can.
+                this.keyUnlockFailed.set(true);
+                console.error('Could not reach the key store; not re-registering:', err);
             }
         } finally {
             this.appReady.markReady();
+        }
+    }
+
+    /** Retry after a transient key-store failure, without minting anything. */
+    protected async retryUnlock(): Promise<void> {
+        this.keyUnlockFailed.set(false);
+        await this.initLaunchSequence();
+    }
+
+    /**
+     * Clears every trace of local MLS state, and tells the server to do the same with the key
+     * packages it is still handing out for this device.
+     *
+     * That last step is the one that is easy to miss and expensive to omit: the replenish count is
+     * derived purely from server rows, while the private init keys live only here. Wiping locally
+     * and leaving ~100 unconsumed packages on the server means the server answers "you have
+     * plenty", nothing is re-uploaded, and every Welcome sealed to those packages is undecryptable
+     * by the very device it was addressed to - silently, and for good.
+     */
+    private async wipeLocalMlsState(deviceId: string): Promise<void> {
+        await firstValueFrom(this.mlsService.clearStorage());
+        await this.mlsService.clearGroupRegistry();
+        await this.mlsService.clearMessageCache();
+        this.mlsHealth.clear();
+
+        try {
+            await firstValueFrom(this.deviceService.resetKeyPackages(deviceId));
+        } catch (err) {
+            // Not fatal to launch, but it does mean this device stays unreachable until the reset
+            // succeeds, so it is surfaced rather than swallowed.
+            this.mlsHealth.recordFailure(deviceId, false, 'not-admitted', err);
+            console.error('Could not reset server-side key packages after a local wipe', err);
         }
     }
 
@@ -309,7 +361,13 @@ export class MainPageComponent implements OnDestroy {
                     this.emailVerification.show(user.email || this.resolveEmail());
                     return;
                 }
-                if (!user.encryptedMasterKey) this.showKeySetup.set(true);
+                if (!user.encryptedMasterKey) {
+                    this.showKeySetup.set(true);
+                    return;
+                }
+                // Having a master key and being able to *open* it are different questions, and the
+                // second one used to go unasked until a restore failed months later.
+                void this.checkMasterKeyHealth();
             },
             error: err => {
                 const status = (err as any)?.status;
@@ -320,6 +378,21 @@ export class MainPageComponent implements OnDestroy {
                 }
             },
         });
+    }
+
+    /**
+     * Asks whether a password reset has left the master key unopenable, and surfaces the repair.
+     *
+     * Runs on every unlock rather than only after a reset, because the reset may well have happened
+     * on another device or in a browser - this client would otherwise never hear about it.
+     */
+    private async checkMasterKeyHealth(): Promise<void> {
+        try {
+            const action = await this.masterKeyState.refresh();
+            if (action !== 'ok' && action !== 'not-set-up') this.showMasterKeyRecovery.set(true);
+        } catch (err) {
+            console.error('Could not check master key health', err);
+        }
     }
 
     private resolveEmail(): string {

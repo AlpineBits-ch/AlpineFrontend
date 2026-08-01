@@ -105,6 +105,10 @@ default = ["aec"]
 aec = ["dep:webrtc-audio-processing"]
 
 [dev-dependencies]
+# The MLS persistence tests write real state files. The crash-safety behaviour they cover -
+# atomic replace, a truncated state file, a group listed but missing - is not observable
+# without one, which is why none of it was tested before.
+tempfile = "3"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 reqwest = { version = "0.12", default-features = false, features = ["native-tls", "json"] }
