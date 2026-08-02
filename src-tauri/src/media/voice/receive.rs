@@ -75,7 +75,11 @@ impl RemoteSource {
         self.level > SPEAKING_THRESHOLD
     }
 
-    #[cfg(test)]
+    /// How many packets are waiting in the jitter buffer.
+    ///
+    /// No longer test-only: `voice_stats` reports it, because a subscribed participant with an
+    /// empty buffer and one whose packets decode to silence are indistinguishable from the level
+    /// alone, and they have completely different causes.
     pub fn buffered_packets(&self) -> usize {
         self.buffer.len()
     }

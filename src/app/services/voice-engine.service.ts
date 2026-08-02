@@ -61,6 +61,48 @@ export interface RemoteLevel {
     speaking: boolean;
 }
 
+/** One publication's transport counters. Mirrors the Rust `PublicationReport`. */
+export interface PublicationStats {
+    slot: string;
+    cfSessionId: string;
+    trackName: string;
+    open: boolean;
+    peerState: string;
+    iceState: string;
+    packetsSent: number;
+    packetsDropped: number;
+    writeErrors: number;
+    tracksOpened: number;
+    rtpReceived: number;
+    rtpRouted: number;
+    rtpUnmapped: number;
+    subscribed: string[];
+    midRoutes: [string, string][];
+}
+
+/** One remote participant as the mixer sees them. Mirrors the Rust `SourceReport`. */
+export interface SourceStats {
+    id: string;
+    level: number;
+    bufferedPackets: number;
+}
+
+/** Mirrors the Rust `VoiceStats`. */
+export interface VoiceStats {
+    running: boolean;
+    framesCaptured: number;
+    captureRms: number;
+    packetsEncoded: number;
+    muted: boolean;
+    gateOpen: boolean;
+    playoutFrames: number;
+    mixRms: number;
+    deafened: boolean;
+    masterVolume: number;
+    sources: SourceStats[];
+    publications: PublicationStats[];
+}
+
 interface VoiceEvent {
     kind: 'speaking' | 'levels' | 'error';
     speaking: boolean;
@@ -159,6 +201,19 @@ export class VoiceEngineService {
     /** Whether the Rust engine is available at all. */
     available(): boolean {
         return isTauri();
+    }
+
+    /**
+     * A snapshot of every counter in the Rust pipeline.
+     *
+     * For diagnosing the failure mode where the call signals correctly and carries no audio: each
+     * stage reports success to the one above it, so the only way to find the break is to look at
+     * what actually moved between them. Read two of these a second apart - the deltas are the
+     * signal, the totals are not. See `__voiceStats()` in `debug.ts`.
+     */
+    async stats(): Promise<VoiceStats | null> {
+        if (!isTauri()) return null;
+        return await invoke<VoiceStats>('voice_stats');
     }
 
     /**

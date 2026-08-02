@@ -37,6 +37,7 @@ pub const SAMPLE_RATE: u32 = 48_000;
 /// Duration of one [`FRAME`], in milliseconds.
 pub const FRAME_MS: u32 = 10;
 
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use crate::media::publisher::rtc::IceServerConfig;
@@ -345,6 +346,164 @@ pub async fn voice_subscribe(
         }
     };
     publication.subscribe(id, cf_session_id, track_name).await
+}
+
+/// One publication's transport counters, for [`voice_stats`].
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct PublicationReport {
+    pub slot: String,
+    pub cf_session_id: String,
+    pub track_name: String,
+    /// Whether captured audio is currently routed to this call.
+    pub open: bool,
+    pub peer_state: String,
+    pub ice_state: String,
+    pub packets_sent: u64,
+    pub packets_dropped: u64,
+    pub write_errors: u64,
+    pub tracks_opened: u64,
+    pub rtp_received: u64,
+    pub rtp_routed: u64,
+    pub rtp_unmapped: u64,
+    pub subscribed: Vec<String>,
+    /// `mid -> source id`, the routing table inbound RTP is matched against.
+    pub mid_routes: Vec<(String, String)>,
+}
+
+/// One remote participant as the mixer currently sees them.
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceReport {
+    pub id: String,
+    pub level: f32,
+    pub buffered_packets: usize,
+}
+
+/// A snapshot of every boundary in the voice pipeline.
+#[derive(serde::Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceStats {
+    pub running: bool,
+    // Capture half.
+    pub frames_captured: u64,
+    pub capture_rms: f32,
+    pub packets_encoded: u64,
+    pub muted: bool,
+    /// Whether any publication currently wants the microphone - the engine-wide gate.
+    pub gate_open: bool,
+    // Playout half.
+    pub playout_frames: u64,
+    pub mix_rms: f32,
+    pub deafened: bool,
+    pub master_volume: f32,
+    pub sources: Vec<SourceReport>,
+    pub publications: Vec<PublicationReport>,
+}
+
+/// Read every counter in the pipeline at once.
+///
+/// Exists because "the call connects and nobody can hear anything" had no observable cause: each
+/// stage reported success to the one above it, and the failure was always in the gaps between them.
+/// Read two snapshots a second apart - it is the deltas that matter, not the totals. `running:
+/// false` means no engine at all, which is a different problem from every counter sitting at zero.
+#[tauri::command]
+pub fn voice_stats() -> VoiceStats {
+    let guard = match engine().lock() {
+        Ok(guard) => guard,
+        // A poisoned lock means an audio thread panicked. Reported rather than hidden behind a
+        // default snapshot, because it is itself the answer.
+        Err(_) => {
+            return VoiceStats {
+                running: false,
+                frames_captured: 0,
+                capture_rms: 0.0,
+                packets_encoded: 0,
+                muted: false,
+                gate_open: false,
+                playout_frames: 0,
+                mix_rms: 0.0,
+                deafened: false,
+                master_volume: 0.0,
+                sources: Vec::new(),
+                publications: Vec::new(),
+            }
+        }
+    };
+    let Some(active) = guard.as_ref() else {
+        return VoiceStats {
+            running: false,
+            frames_captured: 0,
+            capture_rms: 0.0,
+            packets_encoded: 0,
+            muted: false,
+            gate_open: false,
+            playout_frames: 0,
+            mix_rms: 0.0,
+            deafened: false,
+            master_volume: 0.0,
+            sources: Vec::new(),
+            publications: Vec::new(),
+        };
+    };
+
+    let stats = active.stats();
+    let control = active.control();
+    let publications = active
+        .publications()
+        .into_iter()
+        .map(|(slot, publication)| {
+            let counters = publication.stats();
+            PublicationReport {
+                slot,
+                cf_session_id: publication.cf_session_id.clone(),
+                track_name: publication.track_name.clone(),
+                open: publication.open(),
+                peer_state: counters
+                    .peer_state
+                    .lock()
+                    .map(|s| s.clone())
+                    .unwrap_or_else(|_| "poisoned".into()),
+                ice_state: counters
+                    .ice_state
+                    .lock()
+                    .map(|s| s.clone())
+                    .unwrap_or_else(|_| "poisoned".into()),
+                packets_sent: counters.packets_sent.load(Ordering::Relaxed),
+                packets_dropped: counters.packets_dropped.load(Ordering::Relaxed),
+                write_errors: counters.write_errors.load(Ordering::Relaxed),
+                tracks_opened: counters.tracks_opened.load(Ordering::Relaxed),
+                rtp_received: counters.rtp_received.load(Ordering::Relaxed),
+                rtp_routed: counters.rtp_routed.load(Ordering::Relaxed),
+                rtp_unmapped: counters.rtp_unmapped.load(Ordering::Relaxed),
+                subscribed: publication.subscribed_ids(),
+                mid_routes: publication.mid_routes(),
+            }
+        })
+        .collect();
+
+    VoiceStats {
+        running: true,
+        frames_captured: stats.frames_captured.load(Ordering::Relaxed),
+        capture_rms: stats.capture_rms(),
+        packets_encoded: stats.packets_encoded.load(Ordering::Relaxed),
+        muted: control.muted(),
+        gate_open: control.ptt_down(),
+        playout_frames: stats.playout_frames.load(Ordering::Relaxed),
+        mix_rms: stats.mix_rms(),
+        deafened: control.deafened(),
+        master_volume: control.master(),
+        sources: active
+            .source_report()
+            .into_iter()
+            .map(|(id, level, buffered_packets)| SourceReport {
+                id,
+                level,
+                buffered_packets,
+            })
+            .collect(),
+        publications,
+    }
 }
 
 #[tauri::command]

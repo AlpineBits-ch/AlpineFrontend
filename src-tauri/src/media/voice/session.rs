@@ -15,7 +15,7 @@
 //! packets cross to the async side over bounded channels, exactly as the screen publisher does.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -28,7 +28,7 @@ use super::jitter::Packet;
 use super::mixer::{Mixer, Position, SpatialModel};
 use super::playout;
 use super::receive::RemoteSource;
-use super::rtc::VoicePublication;
+use super::rtc::{PublicationStats, VoicePublication};
 use super::{FRAME, FRAME_MS};
 
 /// How many encoded packets may queue between the capture thread and one publication's writer.
@@ -68,11 +68,55 @@ type Sources = Arc<Mutex<HashMap<String, RemoteSource>>>;
 /// both have a mid `"0"`; a single map would route one call's audio into the other's participant.
 type MidMap = Arc<Mutex<HashMap<String, String>>>;
 
+/// Engine-wide counters, for `voice_stats`.
+///
+/// The capture and playout halves of the pipeline both used to be completely unobservable: a dead
+/// microphone, a gate that never opened and a mixer producing silence all presented identically as
+/// "the call works but nobody can hear anything". These separate them.
+#[derive(Default)]
+pub struct EngineStats {
+    /// 10 ms frames the capture chain has taken from the device. Zero means the input device is
+    /// producing nothing, whatever the settings page shows.
+    pub frames_captured: AtomicU64,
+    /// RMS of the most recent captured frame, as raw `f32` bits - the level *before* the gate, so a
+    /// live microphone behind a shut gate is distinguishable from a dead one.
+    pub capture_rms_bits: AtomicU32,
+    /// Opus packets the chain has produced. Frames captured but no packets means the gate never
+    /// opened - mute, push-to-talk, or the sensitivity threshold.
+    pub packets_encoded: AtomicU64,
+    /// Frames the playout thread has mixed and written to the output device.
+    pub playout_frames: AtomicU64,
+    /// RMS of the most recent mixed frame. Non-zero here with silence in the room means the output
+    /// device is the problem, not the pipeline feeding it.
+    pub mix_rms_bits: AtomicU32,
+}
+
+impl EngineStats {
+    fn store_rms(slot: &AtomicU32, frame: &[f32]) {
+        if frame.is_empty() {
+            return;
+        }
+        let sum: f32 = frame.iter().map(|s| s * s).sum();
+        slot.store((sum / frame.len() as f32).sqrt().to_bits(), Ordering::Relaxed);
+    }
+
+    pub fn capture_rms(&self) -> f32 {
+        f32::from_bits(self.capture_rms_bits.load(Ordering::Relaxed))
+    }
+
+    pub fn mix_rms(&self) -> f32 {
+        f32::from_bits(self.mix_rms_bits.load(Ordering::Relaxed))
+    }
+}
+
 /// Where captured audio goes, and whether it is going there right now.
 struct Sink {
     slot: String,
     open: Arc<AtomicBool>,
     packets: tokio::sync::mpsc::Sender<Bytes>,
+    /// The publication's own counters, so a packet dropped at this hop is attributed to the call it
+    /// was meant for rather than to the engine as a whole.
+    stats: Arc<PublicationStats>,
 }
 
 type Sinks = Arc<Mutex<Vec<Sink>>>;
@@ -400,6 +444,40 @@ impl Publication {
         self.open.load(Ordering::Relaxed)
     }
 
+    /// This publication's transport counters.
+    pub fn stats(&self) -> Arc<PublicationStats> {
+        self.inner.stats()
+    }
+
+    /// Source ids currently pulled onto this publication.
+    pub fn subscribed_ids(&self) -> Vec<String> {
+        match self.subscribed.lock() {
+            Ok(subscribed) => {
+                let mut ids: Vec<String> = subscribed.iter().cloned().collect();
+                ids.sort();
+                ids
+            }
+            Err(_) => Vec::new(),
+        }
+    }
+
+    /// The mid-to-source routing table, as `mid -> id`.
+    ///
+    /// Reported because it is the join between two halves that are each individually healthy: RTP
+    /// arrives keyed by mid, sources are keyed by id, and if this table disagrees with either the
+    /// audio is dropped with nothing to show for it.
+    pub fn mid_routes(&self) -> Vec<(String, String)> {
+        match self.mids.lock() {
+            Ok(map) => {
+                let mut routes: Vec<(String, String)> =
+                    map.iter().map(|(m, id)| (m.clone(), id.clone())).collect();
+                routes.sort();
+                routes
+            }
+            Err(_) => Vec::new(),
+        }
+    }
+
     pub fn set_open(&self, open: bool) {
         self.open.store(open, Ordering::Relaxed);
     }
@@ -480,6 +558,7 @@ pub struct Engine {
     sources: Sources,
     sinks: Sinks,
     events: Events,
+    stats: Arc<EngineStats>,
     publications: HashMap<String, Arc<Publication>>,
     /// The input mode the capture chain is running in, so a publication starting mid-call knows
     /// whether to open immediately or wait for a key press.
@@ -506,6 +585,8 @@ impl Engine {
         let sources: Sources = Arc::new(Mutex::new(HashMap::new()));
         let sinks: Sinks = Arc::new(Mutex::new(Vec::new()));
         let events: Events = Arc::new(Mutex::new(Vec::new()));
+        let stats = Arc::new(EngineStats::default());
+        eprintln!("[voice] engine started: input {input_hz} Hz, output {_output_hz} Hz");
 
         // Bounded and dropped rather than blocked on: the canceller wants the frame about to be
         // played, so a stale backlog is worse than a gap.
@@ -517,6 +598,7 @@ impl Engine {
         let playout_control = Arc::clone(&control);
         let playout_sources = Arc::clone(&sources);
         let playout_events = Arc::clone(&events);
+        let playout_stats = Arc::clone(&stats);
         std::thread::Builder::new()
             .name("voice-playout".into())
             .spawn(move || {
@@ -584,6 +666,8 @@ impl Engine {
                         .map(|(id, frame)| (id.as_str(), frame.as_slice()))
                         .collect();
                     mixer.mix(&borrowed, &mut mixed);
+                    playout_stats.playout_frames.fetch_add(1, Ordering::Relaxed);
+                    EngineStats::store_rms(&playout_stats.mix_rms_bits, &mixed);
 
                     // The reference goes to the capture chain *before* the frame reaches the
                     // speakers, because AEC3 has to know what is about to come out of them. The
@@ -609,6 +693,7 @@ impl Engine {
         let capture_control = Arc::clone(&control);
         let capture_sinks = Arc::clone(&sinks);
         let capture_events = Arc::clone(&events);
+        let capture_stats = Arc::clone(&stats);
         std::thread::Builder::new()
             .name("voice-capture".into())
             .spawn(move || {
@@ -646,7 +731,10 @@ impl Engine {
                     // Drain everything the device produced, which may be more or fewer than one
                     // frame.
                     while reader.read_frame(&mut frame) {
+                        capture_stats.frames_captured.fetch_add(1, Ordering::Relaxed);
+                        EngineStats::store_rms(&capture_stats.capture_rms_bits, &frame);
                         let status = chain.push(&frame, &mut |packet: &[u8]| {
+                            capture_stats.packets_encoded.fetch_add(1, Ordering::Relaxed);
                             // Copied once into a refcounted buffer, then handed to each publication
                             // by cloning the handle. The alternative - a `to_vec()` per target -
                             // allocates per call for bytes nobody mutates.
@@ -659,7 +747,14 @@ impl Engine {
                                     // try_send, not send: dropping under backpressure keeps latency
                                     // bounded, and a closed channel means that publication's writer
                                     // task has already ended.
-                                    let _ = sink.packets.try_send(shared.clone());
+                                    match sink.packets.try_send(shared.clone()) {
+                                        Ok(()) => {}
+                                        Err(_) => {
+                                            sink.stats
+                                                .packets_dropped
+                                                .fetch_add(1, Ordering::Relaxed);
+                                        }
+                                    }
                                 }
                             }
                         });
@@ -681,6 +776,7 @@ impl Engine {
             sources,
             sinks,
             events,
+            stats,
             publications: HashMap::new(),
             input_mode: config.gate.mode,
         })
@@ -688,6 +784,39 @@ impl Engine {
 
     pub fn control(&self) -> &Arc<Control> {
         &self.control
+    }
+
+    pub fn stats(&self) -> &Arc<EngineStats> {
+        &self.stats
+    }
+
+    /// Every running publication with the slot it occupies, for reporting.
+    pub fn publications(&self) -> Vec<(String, Arc<Publication>)> {
+        let mut all: Vec<(String, Arc<Publication>)> = self
+            .publications
+            .iter()
+            .map(|(slot, publication)| (slot.clone(), Arc::clone(publication)))
+            .collect();
+        all.sort_by(|a, b| a.0.cmp(&b.0));
+        all
+    }
+
+    /// Every source in the mix, with the meter and buffer depth the playout thread sees.
+    ///
+    /// Buffer depth is what separates "this participant is subscribed but nothing is arriving" from
+    /// "packets arrive and decode to silence" - the two look the same from a level of zero.
+    pub fn source_report(&self) -> Vec<(String, f32, usize)> {
+        match self.sources.lock() {
+            Ok(sources) => {
+                let mut report: Vec<(String, f32, usize)> = sources
+                    .iter()
+                    .map(|(id, source)| (id.clone(), source.level(), source.buffered_packets()))
+                    .collect();
+                report.sort_by(|a, b| a.0.cmp(&b.0));
+                report
+            }
+            Err(_) => Vec::new(),
+        }
     }
 
     pub fn publication(&self, slot: &str) -> Option<Arc<Publication>> {
@@ -743,17 +872,27 @@ impl Engine {
         let mids: MidMap = Arc::new(Mutex::new(HashMap::new()));
         let inbound_sources = Arc::clone(&self.sources);
         let inbound_mids = Arc::clone(&mids);
+        let inbound_stats = inner.stats();
         let started = Instant::now();
         tokio::spawn(async move {
             while let Some((mid, packet)) = inbound_rx.recv().await {
                 let Some(id) = inbound_mids.lock().ok().and_then(|map| map.get(&mid).cloned())
                 else {
+                    // Counted rather than only skipped. This `continue` is where a mid-mapping
+                    // fault turns into silence: the packets arrive, the connection is healthy, and
+                    // every layer above reports success while the audio goes in the bin.
+                    inbound_stats.rtp_unmapped.fetch_add(1, Ordering::Relaxed);
                     continue;
                 };
                 let arrival_ms = started.elapsed().as_millis() as u64;
                 if let Ok(mut sources) = inbound_sources.lock() {
                     if let Some(source) = sources.get_mut(&id) {
                         source.push(packet, arrival_ms);
+                        inbound_stats.rtp_routed.fetch_add(1, Ordering::Relaxed);
+                    } else {
+                        // Mapped to a source that is no longer in the mix - the same silent loss,
+                        // one layer further down.
+                        inbound_stats.rtp_unmapped.fetch_add(1, Ordering::Relaxed);
                     }
                 }
             }
@@ -764,6 +903,7 @@ impl Engine {
                 slot: slot.clone(),
                 open: Arc::clone(&open),
                 packets: packet_tx,
+                stats: inner.stats(),
             });
         }
         if let Ok(mut events) = self.events.lock() {

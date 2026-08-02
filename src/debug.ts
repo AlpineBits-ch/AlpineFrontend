@@ -16,6 +16,7 @@
 import { ApplicationRef } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { OAuthService } from 'angular-oauth2-oidc';
+import { VoiceEngineService, VoiceStats } from './app/services/voice-engine.service';
 
 const TOKEN_KEY = 'access_token';
 const STORED_AT_KEY = 'access_token_stored_at';
@@ -81,12 +82,106 @@ export function registerDebugHelpers(appRef: ApplicationRef): void {
     });
   };
 
+  const voiceEngine = injector.get(VoiceEngineService);
+
+  // Where the voice pipeline actually stops, for the failure that looks like nothing at all: the
+  // call connects, subscribes return Ok, the UI says "connected", and no audio moves in either
+  // direction. Every stage reports success to the one above it, so the break is only visible as
+  // which counters stop advancing. Sampled twice because the deltas are the signal - a call that
+  // has been up for a minute has large totals whether or not anything is flowing right now.
+  (window as any).__voiceStats = async (seconds = 2): Promise<void> => {
+    const before = await voiceEngine.stats();
+    if (!before) {
+      console.error('[debug] not running under Tauri - there is no Rust engine to ask');
+      return;
+    }
+    if (!before.running) {
+      console.warn('[debug] no voice engine is running - join a call first');
+      return;
+    }
+
+    await new Promise(r => setTimeout(r, seconds * 1000));
+    const after = await voiceEngine.stats();
+    if (!after?.running) {
+      console.warn('[debug] the engine stopped while sampling');
+      return;
+    }
+
+    const perSecond = (a: number, b: number) => +((b - a) / seconds).toFixed(1);
+
+    console.log(`%c[debug] voice pipeline over ${seconds}s`, 'color: cyan; font-weight: bold');
+    console.table({
+      'capture frames/s': perSecond(before.framesCaptured, after.framesCaptured),
+      'capture RMS': +after.captureRms.toFixed(4),
+      'packets encoded/s': perSecond(before.packetsEncoded, after.packetsEncoded),
+      'muted': after.muted,
+      'gate open': after.gateOpen,
+      'playout frames/s': perSecond(before.playoutFrames, after.playoutFrames),
+      'mix RMS': +after.mixRms.toFixed(4),
+      'deafened': after.deafened,
+      'master volume': after.masterVolume,
+    });
+
+    console.table(after.publications.map((p, i) => ({
+      slot: p.slot,
+      peer: p.peerState,
+      ice: p.iceState,
+      open: p.open,
+      'sent/s': perSecond(before.publications[i]?.packetsSent ?? 0, p.packetsSent),
+      dropped: p.packetsDropped,
+      'writeErr': p.writeErrors,
+      tracks: p.tracksOpened,
+      'rtpIn/s': perSecond(before.publications[i]?.rtpReceived ?? 0, p.rtpReceived),
+      'routed/s': perSecond(before.publications[i]?.rtpRouted ?? 0, p.rtpRouted),
+      unmapped: p.rtpUnmapped,
+      subscribed: p.subscribed.join(','),
+      midRoutes: p.midRoutes.map(([mid, id]) => `${mid}→${id}`).join(' '),
+    })));
+
+    if (after.sources.length) console.table(after.sources);
+    else console.warn('[debug] no remote sources in the mix - nobody is subscribed');
+
+    // Say where it stops rather than leaving three tables to be read against each other.
+    const out: string[] = [];
+    if (perSecond(before.framesCaptured, after.framesCaptured) === 0) {
+      out.push('the input device is producing no frames');
+    } else if (after.captureRms < 0.0005) {
+      out.push('the microphone is delivering silence (wrong device, or muted in the OS)');
+    } else if (perSecond(before.packetsEncoded, after.packetsEncoded) === 0) {
+      out.push(after.muted ? 'muted' : 'the gate is never opening (push-to-talk, or sensitivity)');
+    } else if (after.publications.every(p => p.packetsSent === 0)) {
+      out.push('packets are encoded but no publication is accepting them');
+    } else if (after.publications.some(p => p.peerState !== 'connected')) {
+      out.push('packets are being written to a connection that is not connected');
+    }
+
+    const inbound: string[] = [];
+    const rtpIn = after.publications.reduce((n, p) => n + p.rtpReceived, 0);
+    if (!after.publications.some(p => p.subscribed.length)) {
+      inbound.push('nobody is subscribed');
+    } else if (rtpIn === 0) {
+      inbound.push('subscribed, but the SFU has sent no RTP at all');
+    } else if (after.publications.some(p => p.rtpUnmapped > 0 && p.rtpRouted === 0)) {
+      inbound.push('RTP is arriving but every packet fails the mid lookup');
+    } else if (after.sources.every(s => s.bufferedPackets === 0 && s.level === 0)) {
+      inbound.push('RTP is routed but the jitter buffers are empty');
+    } else if (after.mixRms < 0.0005) {
+      inbound.push(after.deafened ? 'deafened' : 'sources have audio but the mix is silent');
+    }
+
+    console.log(
+      `%c[debug] outbound: ${out[0] ?? 'flowing'}\n[debug] inbound:  ${inbound[0] ?? 'flowing'}`,
+      'color: orange',
+    );
+  };
+
   console.log(
     '%c[debug] Token helpers loaded:\n' +
     '  __showTokenState()           -print token timing\n' +
     '  __expireToken()              -corrupt token → next call 401s\n' +
     '  __expireTokenConcurrent(n)   -corrupt + fire n parallel requests\n' +
-    '  __fireTokenExpiresEvent()    -fire token_expires event directly',
+    '  __fireTokenExpiresEvent()    -fire token_expires event directly\n' +
+    '  __voiceStats(seconds)        -where the voice pipeline stops (run while in a call)',
     'color: cyan',
   );
 }

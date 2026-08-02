@@ -448,6 +448,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             media::voice::voice_set_processing,
             media::voice::voice_subscribe,
             media::voice::voice_unsubscribe,
+            media::voice::voice_stats,
             media::voice::voice_set_user_volume,
             media::voice::voice_set_deafened,
             media::voice::voice_set_spatial_model,

@@ -8,6 +8,7 @@
 //! matters is the session role: voice is the *primary* session, because the backend records the
 //! primary session as the participant's audio.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
@@ -24,6 +25,8 @@ use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample;
 use webrtc::track::track_local::TrackLocal;
 
+use webrtc::ice_transport::ice_connection_state::RTCIceConnectionState;
+use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
 use webrtc::rtp_transceiver::rtp_codec::RTPCodecType;
 use webrtc::rtp_transceiver::rtp_transceiver_direction::RTCRtpTransceiverDirection;
 use webrtc::rtp_transceiver::{RTCRtpTransceiver, RTCRtpTransceiverInit};
@@ -70,11 +73,56 @@ pub fn opus_capability() -> RTCRtpCodecCapability {
 /// before the consumer exists - see the note in `start`.
 type PacketSink = Arc<std::sync::Mutex<Option<tokio::sync::mpsc::Sender<(String, Packet)>>>>;
 
+/// Counters for one publication, for `voice_stats`.
+///
+/// Every one of these exists because the corresponding failure was previously silent. A voice call
+/// that is signalled correctly but transports nothing looked exactly like a working call from the
+/// frontend's side: `subscribe` returns `Ok`, the UI reports "connected", and no log says otherwise.
+/// These are what tell "the SFU never sent us anything" apart from "it sent packets we could not
+/// route" apart from "we routed them and the mixer dropped them".
+#[derive(Default)]
+pub struct PublicationStats {
+    /// Encoded microphone packets handed to this publication's writer task.
+    pub packets_sent: AtomicU64,
+    /// Packets dropped because the writer's queue was full - playout or network is behind.
+    pub packets_dropped: AtomicU64,
+    /// `write_packet` failures. Non-zero means the track stopped accepting samples.
+    pub write_errors: AtomicU64,
+    /// `on_track` firings - one per subscribed remote track that actually opened.
+    pub tracks_opened: AtomicU64,
+    /// RTP packets read off subscribed tracks. Zero while subscribes succeed means the
+    /// handshake completed but no media is arriving.
+    pub rtp_received: AtomicU64,
+    /// Packets whose mid matched a subscribed source and reached its jitter buffer.
+    pub rtp_routed: AtomicU64,
+    /// Packets discarded because their mid was in no source map. The inbound task drops these
+    /// with a bare `continue`, so without this counter a mid-mapping bug is invisible.
+    pub rtp_unmapped: AtomicU64,
+    /// Latest peer-connection and ICE states, as webrtc-rs reports them.
+    pub peer_state: std::sync::Mutex<String>,
+    pub ice_state: std::sync::Mutex<String>,
+}
+
+impl PublicationStats {
+    fn set_peer_state(&self, state: &RTCPeerConnectionState) {
+        if let Ok(mut guard) = self.peer_state.lock() {
+            *guard = state.to_string();
+        }
+    }
+
+    fn set_ice_state(&self, state: &RTCIceConnectionState) {
+        if let Ok(mut guard) = self.ice_state.lock() {
+            *guard = state.to_string();
+        }
+    }
+}
+
 pub struct VoicePublication {
     peer_connection: Arc<RTCPeerConnection>,
     track: Arc<TrackLocalStaticSample>,
     signalling: Signalling,
     packet_sink: PacketSink,
+    stats: Arc<PublicationStats>,
     /// Serialises offer/answer cycles on this connection.
     ///
     /// The webview subscribes concurrently on purpose - `subscribeAudio` fans its targets out with
@@ -180,20 +228,49 @@ impl VoicePublication {
             while rtp_sender.read(&mut buf).await.is_ok() {}
         });
 
+        let stats = Arc::new(PublicationStats::default());
+
+        // Until now nothing on this connection reported whether it ever came up. Signalling
+        // succeeding and media flowing are independent, and only the first of them was observable:
+        // a connection that negotiated cleanly and then failed its handshake presented as a working
+        // call with no audio and an empty console. These say which of the two happened.
+        //
+        // Logged as well as recorded, so a state change is visible in order rather than only as
+        // whatever the last value was when someone asked.
+        let peer_stats = Arc::clone(&stats);
+        peer_connection.on_peer_connection_state_change(Box::new(move |state| {
+            peer_stats.set_peer_state(&state);
+            eprintln!("[voice] peer connection state: {state}");
+            Box::pin(async {})
+        }));
+
+        let ice_stats = Arc::clone(&stats);
+        peer_connection.on_ice_connection_state_change(Box::new(move |state| {
+            ice_stats.set_ice_state(&state);
+            eprintln!("[voice] ICE connection state: {state}");
+            Box::pin(async {})
+        }));
+
         // Installed now, before any subscription exists, because Cloudflare starts sending as soon
         // as it answers a pull. A handler added per-subscription races the first packets of that
         // subscription, and those are exactly the packets the jitter buffer needs to start cleanly.
         let packet_sink: PacketSink = Arc::new(std::sync::Mutex::new(None));
         let handler_sink = Arc::clone(&packet_sink);
+        let track_stats = Arc::clone(&stats);
         peer_connection.on_track(Box::new(move |track, _receiver, transceiver| {
             let sink = Arc::clone(&handler_sink);
+            let stats = Arc::clone(&track_stats);
             Box::pin(async move {
                 let Some(mid) = transceiver.mid().map(|m| m.to_string()) else {
+                    eprintln!("[voice] a remote track opened with no mid - its audio cannot be routed");
                     return;
                 };
+                stats.tracks_opened.fetch_add(1, Ordering::Relaxed);
+                eprintln!("[voice] remote track opened on mid {mid}");
                 loop {
                     match track.read_rtp().await {
                         Ok((rtp, _)) => {
+                            stats.rtp_received.fetch_add(1, Ordering::Relaxed);
                             // Cloned out of the lock rather than held across the send: the sink is
                             // written once at startup, and holding a std mutex across an await is
                             // how a deadlock gets written by accident.
@@ -301,6 +378,7 @@ impl VoicePublication {
             track,
             signalling,
             packet_sink,
+            stats,
             negotiation: tokio::sync::Mutex::new(()),
             cf_session_id,
             track_name,
@@ -311,6 +389,12 @@ impl VoicePublication {
         }
 
         Ok(publication)
+    }
+
+    /// Counters for this publication. Shared, so the session's capture fan-out and inbound task
+    /// report into the same set the transport does.
+    pub fn stats(&self) -> Arc<PublicationStats> {
+        Arc::clone(&self.stats)
     }
 
     /// Route every RTP packet on every subscribed track into `sink`, keyed by mid.
@@ -460,7 +544,8 @@ impl VoicePublication {
     /// the capture thread allocates it once and each publication clones the handle. `Sample` wants
     /// `Bytes` anyway, so this also removes the copy that `Vec::into` used to make here.
     pub async fn write_packet(&self, packet: bytes::Bytes) -> Result<(), String> {
-        self.track
+        let result = self
+            .track
             .write_sample(&Sample {
                 data: packet,
                 timestamp: SystemTime::now(),
@@ -468,7 +553,12 @@ impl VoicePublication {
                 ..Default::default()
             })
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string());
+        match &result {
+            Ok(()) => self.stats.packets_sent.fetch_add(1, Ordering::Relaxed),
+            Err(_) => self.stats.write_errors.fetch_add(1, Ordering::Relaxed),
+        };
+        result
     }
 
     /// Deliberately does **not** take `negotiation` itself.
