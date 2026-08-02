@@ -1,4 +1,4 @@
-import {inject, Injectable} from '@angular/core';
+import {inject, Injectable, signal} from '@angular/core';
 import {HttpClient, HttpErrorResponse} from '@angular/common/http';
 import {firstValueFrom, Observable} from 'rxjs';
 import {ApiConfigService} from './api-config.service';
@@ -70,6 +70,35 @@ export interface MlsRelinkStatus {
 }
 
 /**
+ * A context the launch-time §B sweep may ask to be admitted to.
+ *
+ * <p>`serverSaysEncrypted` decides only whether to *ask*. It is never allowed to decide that
+ * something is plaintext - that direction belongs to the local encryption floor, which the sweep
+ * consults precisely so a server answering "not encrypted" for a context this device has encrypted
+ * does not quietly remove it from the candidate set.</p>
+ */
+export interface MlsAdmissionCandidate {
+    contextId: string;
+    isChannel: boolean;
+    serverSaysEncrypted: boolean;
+}
+
+/** What one launch-time sweep did, for the log. */
+export interface MlsSweepOutcome {
+    /** Contexts the sweep did network work for. The rest were excluded by free local checks. */
+    probed: number;
+    /** Admission requests submitted. */
+    requested: number;
+    /** Contexts that already had this device's request open, and were left alone. */
+    alreadyPending: number;
+    /** Contexts that turned out to be readable after a catch-up. */
+    recovered: number;
+    failed: number;
+    /** Eligible contexts left for the next launch because the per-launch cap was reached. */
+    deferred: number;
+}
+
+/**
  * Turns an outcome into the sentence shown beside the button.
  *
  * <p>Exported rather than duplicated in each host: conversations and channels reached the same
@@ -132,12 +161,43 @@ function describeRequestFailure(err: unknown): string {
  */
 @Injectable({providedIn: 'root'})
 export class MlsJoinRequestService {
+    /**
+     * How many contexts one launch-time sweep will do network work for.
+     *
+     * <p>A cap rather than a spread: the eligible set is whatever this device is locked out of, the
+     * excluded contexts cost nothing to skip, and anything past the cap is simply picked up by the
+     * next launch or by the user opening it. Spreading over time would need a scheduler and would
+     * still be firing requests minutes after launch, which is harder to reason about and no kinder
+     * to the server. Within the cap, a context that already has this device's request open is not
+     * asked again - see {@link relink}.</p>
+     */
+    static readonly MAX_CONTEXTS_PER_SWEEP = 10;
+
     private http = inject(HttpClient);
     private apiConfig = inject(ApiConfigService);
     private mls = inject(MlsService);
     private sync = inject(MlsSyncService);
     private health = inject(MlsHealthService);
     private deviceIdentity = inject(DeviceIdentityService);
+
+    /**
+     * The last re-link outcome per context, so the banner can render it wherever it came from.
+     *
+     * <p>Owned here rather than by each host because the launch sweep asks on behalf of contexts
+     * nobody is looking at. Without a shared place to put the answer, a sweep that submitted an
+     * admission request would be exactly as silent as the exclusion it is fixing - the user would
+     * open the conversation days later and see only the same banner.</p>
+     */
+    private readonly _status = signal<Record<string, MlsRelinkStatus>>({});
+
+    /** Reactive: read it from a `computed` in the component that renders the banner. */
+    statusOf(contextId: string): MlsRelinkStatus | null {
+        return this._status()[contextId] ?? null;
+    }
+
+    private setStatus(contextId: string, status: MlsRelinkStatus): void {
+        this._status.update(current => ({...current, [contextId]: status}));
+    }
 
     private base(contextId: string, isChannel: boolean): string {
         const collection = isChannel ? 'channels' : 'conversations';
@@ -221,6 +281,13 @@ export class MlsJoinRequestService {
      * `not-admitted`, so the banner stays up and stays accurate.</p>
      */
     async relink(contextId: string, isChannel: boolean): Promise<MlsRelinkOutcome> {
+        this.setStatus(contextId, {tone: 'working', message: 'Checking this device...'});
+        const outcome = await this.resolveRelink(contextId, isChannel);
+        this.setStatus(contextId, describeRelinkOutcome(outcome));
+        return outcome;
+    }
+
+    private async resolveRelink(contextId: string, isChannel: boolean): Promise<MlsRelinkOutcome> {
         // Cheapest first, and it is the common case: catch up on missed commits, and join from a
         // Welcome that is already waiting. Deliberately not a new signing key - that orphans this
         // device from every group it is in, and is never the right response to "I could not read".
@@ -255,6 +322,93 @@ export class MlsJoinRequestService {
         } catch (err) {
             return {state: 'failed', message: describeRequestFailure(err)};
         }
+    }
+
+    /**
+     * Contract §B discovery, at launch: asks to be admitted to everything this device should be
+     * able to read and holds no group for.
+     *
+     * <p><b>Why this exists rather than leaving it to the banner.</b> Without it, exclusion is
+     * discovered one conversation at a time, by the user opening each one and reading a notice -
+     * which is no use at all to somebody who does not know which conversations they are missing
+     * from, and no use whatsoever for the ones they never open. A device stranded by a bug stays
+     * stranded until it is noticed. That is not self-healing; this is.</p>
+     *
+     * <p><b>Cheap when nothing is wrong.</b> Every exclusion is decided by
+     * {@link shouldProbe} first, and all three of its checks read local state. A healthy device
+     * therefore does the whole sweep with zero requests.</p>
+     *
+     * <p>Reuses {@link relink} per context rather than reimplementing the ceremony, so the
+     * dedupe against an outstanding request, the failure wording and the status the banner reads
+     * are the same ones the button produces.</p>
+     */
+    async sweepForAdmission(candidates: MlsAdmissionCandidate[]): Promise<MlsSweepOutcome> {
+        const outcome: MlsSweepOutcome = {
+            probed: 0, requested: 0, alreadyPending: 0, recovered: 0, failed: 0, deferred: 0,
+        };
+
+        // No signing key loaded means no key package to offer and nothing to join with. Asking
+        // would fail on every candidate and leave a wall of failures behind it.
+        if (!this.mls.keyHandle()) return outcome;
+
+        for (const candidate of candidates) {
+            if (!(await this.shouldProbe(candidate))) continue;
+
+            if (outcome.probed >= MlsJoinRequestService.MAX_CONTEXTS_PER_SWEEP) {
+                outcome.deferred++;
+                continue;
+            }
+
+            outcome.probed++;
+
+            // Sequential on purpose. These are recovery requests for a device that is already
+            // locked out; a burst of them in parallel is exactly the shape the server's consume and
+            // join-request limits exist to refuse, and arriving faster helps nobody.
+            const result = await this.relink(candidate.contextId, candidate.isChannel);
+
+            switch (result.state) {
+                case 'requested':
+                    outcome.requested++;
+                    break;
+                case 'pending':
+                    outcome.alreadyPending++;
+                    break;
+                case 'recovered':
+                    outcome.recovered++;
+                    break;
+                case 'failed':
+                    outcome.failed++;
+                    break;
+                case 'not-encrypted':
+                    break;
+            }
+        }
+
+        return outcome;
+    }
+
+    /**
+     * Whether a candidate is worth a network round trip. Every check here is local.
+     *
+     * @returns false for the three cases where asking would be wrong, not merely wasteful.
+     */
+    private async shouldProbe(candidate: MlsAdmissionCandidate): Promise<boolean> {
+        // Already in the group. The overwhelmingly common answer, and it costs nothing.
+        if (await this.mls.getActiveGroupId(candidate.contextId)) return false;
+
+        // Nothing to join. The floor outranks the wire (§L.6), so a context this device has held a
+        // group for stays a candidate even when the server now calls it plaintext - that claim is
+        // the one thing the floor exists to disbelieve.
+        if (!candidate.serverSaysEncrypted
+            && await this.mls.getEncryptionFloor(candidate.contextId) === null) {
+            return false;
+        }
+
+        // Someone removed this device on purpose. §E9 says surface it and offer a re-link; a sweep
+        // that asked to be let back in on every launch would turn a deliberate removal into a
+        // recurring approval prompt for the person who performed it, which is both spam and a way
+        // to wear down a decision that was made once.
+        return this.health.healthOf(candidate.contextId)?.reason !== 'removed';
     }
 
     /**

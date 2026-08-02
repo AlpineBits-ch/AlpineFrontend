@@ -231,6 +231,136 @@ describe('MlsJoinRequestService.relink', () => {
     });
 });
 
+describe('MlsJoinRequestService.sweepForAdmission', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    const conversation = (id: string, serverSaysEncrypted = true) =>
+        ({contextId: id, isChannel: false, serverSaysEncrypted});
+
+    const routeFor = (id: string) =>
+        `${ORIGIN}/api/v1/messaging/conversations/${id}/mls/join-requests`;
+
+    it('asks to be admitted to a conversation this device holds no group for', async () => {
+        const {service, ctrl} = setup({groupAfterRefresh: null});
+
+        const sweep = service.sweepForAdmission([conversation('c1')]);
+        (await waitForRequest(ctrl, routeFor('c1'), 'GET')).flush([]);
+        (await waitForRequest(ctrl, routeFor('c1'), 'POST')).flush(pendingRequest());
+
+        expect(await sweep).toMatchObject({probed: 1, requested: 1, failed: 0});
+    });
+
+    it('does not re-request for a conversation that already has an open request', async () => {
+        const {service, ctrl} = setup({groupAfterRefresh: null});
+
+        const sweep = service.sweepForAdmission([conversation(CONVERSATION)]);
+        (await waitForRequest(ctrl, CONVERSATION_BASE, 'GET')).flush([pendingRequest()]);
+
+        expect(await sweep).toMatchObject({probed: 1, requested: 0, alreadyPending: 1});
+        // The dedupe is the point: a sweep that resubmitted would file one request per launch, for
+        // ever, into an approval queue a human has to read.
+        ctrl.expectNone(req => req.method === 'POST');
+    });
+
+    it('costs nothing at all when this device is in every group', async () => {
+        const {service, ctrl, refreshState} = setup({groupAfterRefresh: 'Z3JvdXA='});
+
+        const outcome = await service.sweepForAdmission(
+            [conversation('c1'), conversation('c2'), conversation('c3')]);
+
+        expect(outcome.probed).toBe(0);
+        expect(refreshState).not.toHaveBeenCalled();
+        ctrl.expectNone(() => true);
+    });
+
+    it('skips a plaintext conversation without a round trip', async () => {
+        const {service, ctrl, refreshState} = setup({groupAfterRefresh: null, floor: null});
+
+        const outcome = await service.sweepForAdmission([conversation('c1', false)]);
+
+        expect(outcome.probed).toBe(0);
+        expect(refreshState).not.toHaveBeenCalled();
+        ctrl.expectNone(() => true);
+    });
+
+    it('still probes one the server calls plaintext below this device\'s floor', async () => {
+        const {service, ctrl} = setup({groupAfterRefresh: null, encrypted: false, floor: 2});
+
+        const sweep = service.sweepForAdmission([conversation(CONVERSATION, false)]);
+        (await waitForRequest(ctrl, CONVERSATION_BASE, 'GET')).flush([]);
+        (await waitForRequest(ctrl, CONVERSATION_BASE, 'POST')).flush(pendingRequest());
+
+        expect((await sweep).requested).toBe(1);
+    });
+
+    it('does not ask to be let back into a context it was deliberately removed from', async () => {
+        const {service, ctrl, health} = setup({groupAfterRefresh: null});
+        health.recordFailure(CONVERSATION, false, 'removed');
+
+        const outcome = await service.sweepForAdmission([conversation(CONVERSATION)]);
+
+        expect(outcome.probed).toBe(0);
+        ctrl.expectNone(() => true);
+    });
+
+    it('stops after the per-launch cap and defers the rest', async () => {
+        const {service, ctrl} = setup({groupAfterRefresh: null});
+        const cap = MlsJoinRequestService.MAX_CONTEXTS_PER_SWEEP;
+
+        const ids = Array.from({length: cap + 3}, (_, i) => `c${i}`);
+        const sweep = service.sweepForAdmission(ids.map(id => conversation(id)));
+
+        for (let i = 0; i < cap; i++) {
+            (await waitForRequest(ctrl, routeFor(ids[i]), 'GET')).flush([]);
+            (await waitForRequest(ctrl, routeFor(ids[i]), 'POST')).flush(pendingRequest());
+        }
+
+        const outcome = await sweep;
+        expect(outcome.probed).toBe(cap);
+        expect(outcome.deferred).toBe(3);
+        // Nothing fired for the deferred ones - they wait for the next launch.
+        ctrl.expectNone(() => true);
+    });
+
+    it('does nothing while the MLS session is locked', async () => {
+        const {service, ctrl} = setup({groupAfterRefresh: null, locked: true});
+
+        const outcome = await service.sweepForAdmission([conversation(CONVERSATION)]);
+
+        // Every request would fail for want of a key package, leaving a wall of failures behind.
+        expect(outcome).toMatchObject({probed: 0, requested: 0, failed: 0});
+        ctrl.expectNone(() => true);
+    });
+
+    it('leaves the outcome where the banner will find it', async () => {
+        const {service, ctrl} = setup({groupAfterRefresh: null});
+
+        const sweep = service.sweepForAdmission([conversation(CONVERSATION)]);
+        (await waitForRequest(ctrl, CONVERSATION_BASE, 'GET')).flush([]);
+        (await waitForRequest(ctrl, CONVERSATION_BASE, 'POST')).flush(pendingRequest());
+        await sweep;
+
+        // A sweep nobody can see is as silent as the exclusion it is fixing.
+        expect(service.statusOf(CONVERSATION)).toEqual({
+            tone: 'pending',
+            message: expect.stringContaining('Asked to be admitted'),
+        });
+    });
+
+    it('carries on past a conversation whose request is refused', async () => {
+        const {service, ctrl} = setup({groupAfterRefresh: null});
+
+        const sweep = service.sweepForAdmission([conversation('c1'), conversation('c2')]);
+
+        (await waitForRequest(ctrl, routeFor('c1'), 'GET')).flush(
+            'nope', {status: 500, statusText: 'Server Error'});
+        (await waitForRequest(ctrl, routeFor('c2'), 'GET')).flush([]);
+        (await waitForRequest(ctrl, routeFor('c2'), 'POST')).flush(pendingRequest());
+
+        expect(await sweep).toMatchObject({probed: 2, failed: 1, requested: 1});
+    });
+});
+
 /**
  * `relink` awaits several promises between HTTP calls, so a request is not necessarily open on the
  * tick the test asks for it. Yields until it is rather than sprinkling arbitrary waits.

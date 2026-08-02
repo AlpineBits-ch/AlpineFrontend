@@ -16,6 +16,9 @@ function steps(overrides: Partial<MlsLaunchSteps> = {}) {
         processWelcomes: async () => {
             calls.push('processWelcomes');
         },
+        sweepForAdmission: async () => {
+            calls.push('sweepForAdmission');
+        },
     };
     return {calls, steps: {...base, ...overrides}};
 }
@@ -32,12 +35,15 @@ describe('runMlsLaunch', () => {
 
         const outcome = await runMlsLaunch(s);
 
-        expect(calls).toEqual(['unlock', 'checkMasterKey', 'replenish', 'processWelcomes']);
+        expect(calls).toEqual([
+            'unlock', 'checkMasterKey', 'replenish', 'processWelcomes', 'sweepForAdmission',
+        ]);
         expect(outcome).toEqual({
             handle: 'handle',
             needsRegistration: false,
             keyStoreUnreachable: false,
             keyPackagesFailed: false,
+            admissionSweepFailed: false,
         });
     });
 
@@ -108,8 +114,55 @@ describe('runMlsLaunch', () => {
 
         expect(outcome.needsRegistration).toBe(true);
         expect(outcome.keyStoreUnreachable).toBe(false);
-        // Nothing past the unlock: there is no session to replenish or join with.
+        // Nothing past the unlock: there is no session to replenish, join or ask with.
         expect(calls).toEqual(['unlock']);
+    });
+
+    it('runs the admission sweep only after Welcomes have been taken', async () => {
+        const {calls, steps: s} = steps();
+
+        await runMlsLaunch(s);
+
+        // Asking to be admitted to something a waiting Welcome was about to fix is a request
+        // nobody needs to review.
+        expect(calls.indexOf('sweepForAdmission'))
+            .toBeGreaterThan(calls.indexOf('processWelcomes'));
+    });
+
+    it('reports a failed admission sweep without disturbing the steps before it', async () => {
+        const {calls, steps: s} = steps({
+            sweepForAdmission: async () => {
+                throw new Error('conversation list unavailable');
+            },
+        });
+
+        const outcome = await runMlsLaunch(s);
+
+        expect(outcome.admissionSweepFailed).toBe(true);
+        expect(outcome.keyPackagesFailed).toBe(false);
+        expect(outcome.keyStoreUnreachable).toBe(false);
+        expect(outcome.handle).toBe('handle');
+        expect(calls).toContain('checkMasterKey');
+        expect(calls).toContain('replenish');
+        expect(calls).toContain('processWelcomes');
+    });
+
+    it('still sweeps when the key-package upload and the Welcomes both fail', async () => {
+        const {calls, steps: s} = steps({
+            replenish: async () => {
+                throw httpFailure;
+            },
+            processWelcomes: async () => {
+                throw new Error('join failed');
+            },
+        });
+
+        const outcome = await runMlsLaunch(s);
+
+        // The stranded-device case: nothing else worked, so discovery is the only thing left that
+        // can get this device back in.
+        expect(calls).toContain('sweepForAdmission');
+        expect(outcome.admissionSweepFailed).toBe(false);
     });
 
     it('never asks for registration on an unreachable key store', async () => {

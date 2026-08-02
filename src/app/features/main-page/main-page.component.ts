@@ -57,6 +57,8 @@ import {EmailVerificationService} from '../../services/email-verification.servic
 import {AppReadyService} from '../../services/app-ready.service';
 import {GuildService} from '../../services/guild.service';
 import {runMlsLaunch} from './mls-launch';
+import {MlsJoinRequestService} from '../../services/mls-join-request.service';
+import {ConversationEncryption} from '../../enums/conversation-encryption.enum';
 
 @Component({
     selector: 'app-main-page',
@@ -154,6 +156,9 @@ export class MainPageComponent implements OnDestroy {
     private emailVerification = inject(EmailVerificationService);
     private appReady = inject(AppReadyService);
     private guildService = inject(GuildService);
+    private joinRequests = inject(MlsJoinRequestService);
+    /** Conversations read for the launch-time §B sweep. Filtering them costs no requests. */
+    private static readonly SWEEP_PAGE_SIZE = 100;
     private actionSub = new Subscription();
 
     constructor() {
@@ -306,6 +311,7 @@ export class MainPageComponent implements OnDestroy {
             replenish: () => firstValueFrom(this.userService.replenishKeyCount()),
             checkMasterKey: () => this.checkMasterKey(),
             processWelcomes: () => this.mlsSync.processPendingWelcomes(),
+            sweepForAdmission: () => this.sweepForAdmission(),
         });
 
         if (outcome.handle) this.keyHandle.set(outcome.handle);
@@ -317,6 +323,43 @@ export class MainPageComponent implements OnDestroy {
         this.keyPackagesFailed.set(outcome.keyPackagesFailed);
 
         this.appReady.markReady();
+    }
+
+    /**
+     * Contract §B discovery, for conversations.
+     *
+     * <p>Enumerates this account's conversations and hands them to
+     * {@link MlsJoinRequestService.sweepForAdmission}, which decides locally which of them this
+     * device is locked out of and asks to be admitted to those. Without it, exclusion is only ever
+     * discovered by the user opening an affected conversation and reading a banner - which does
+     * nothing for someone who does not know which conversations they are missing from, and nothing
+     * at all for the ones they never open.</p>
+     *
+     * <p><b>Conversations only, deliberately.</b> §B's discovery step is written in terms of the
+     * conversation list, channels already carry an explicit ask affordance in
+     * `ChannelAccessBannerComponent`, and enumerating every channel of every guild at launch is a
+     * different order of magnitude of work for a case the user is already given a button for.</p>
+     *
+     * <p>The page is generous because the filtering is free - every exclusion the sweep makes is a
+     * local store read - and the sweep caps the number of contexts it will actually probe.</p>
+     */
+    private async sweepForAdmission(): Promise<void> {
+        const conversations = await firstValueFrom(
+            this.conversationService.getConversations(0, MainPageComponent.SWEEP_PAGE_SIZE),
+        );
+
+        const outcome = await this.joinRequests.sweepForAdmission(conversations.map(c => ({
+            contextId: c.id,
+            isChannel: false,
+            // Only ever used to decide whether to *ask*. The sweep consults the local encryption
+            // floor for the other direction, so a server calling an encrypted conversation
+            // plaintext cannot quietly drop it from the candidate set.
+            serverSaysEncrypted: c.encryptionState === ConversationEncryption.Encrypted,
+        })));
+
+        if (outcome.probed > 0) {
+            console.info('MLS admission sweep', outcome);
+        }
     }
 
     /**

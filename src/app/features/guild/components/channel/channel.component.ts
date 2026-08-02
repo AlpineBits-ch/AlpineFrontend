@@ -36,11 +36,7 @@ import {isGroupedWithPrevious} from '../../../messaging/components/conversation/
 import {ChannelEncryptionState, classifyAutoModError, forumParentOf, mayPostCleartext} from './channel-utils';
 import {MlsService} from '../../../../services/mls.service';
 import {MlsSyncService} from '../../../../services/mls-sync.service';
-import {
-    describeRelinkOutcome,
-    MlsJoinRequestService,
-    MlsRelinkStatus,
-} from '../../../../services/mls-join-request.service';
+import {MlsJoinRequestService} from '../../../../services/mls-join-request.service';
 import {ChannelAccessBannerComponent} from './channel-access-banner.component';
 import {MlsUnreadableBannerComponent} from '../../../../components/mls-unreadable-banner/mls-unreadable-banner.component';
 import {readableContent, UNDECRYPTABLE_SHORT} from '../../../../helpers/message-content.helper';
@@ -124,8 +120,8 @@ export class ChannelComponent implements AfterViewInit {
      */
     protected encryptionState = signal<ChannelEncryptionState>('plain');
     protected isLockedOut = computed(() => this.encryptionState() === 'locked-out');
-    /** What the last "Re-link device" press achieved. Rendered by the banner that offered it. */
-    protected readonly relinkStatus = signal<MlsRelinkStatus | null>(null);
+    /** What the last re-link attempt for this channel achieved, as the banner should render it. */
+    protected readonly relinkStatus = computed(() => this.joinRequests.statusOf(this.channel().id));
     protected showFollowDialog = signal(false);
 
     // ── Forum post state ─────────────────────────────────────────────────────
@@ -549,10 +545,7 @@ export class ChannelComponent implements AfterViewInit {
      */
     protected async relinkDevice(): Promise<void> {
         const channelId = this.channel().id;
-        this.relinkStatus.set({tone: 'working', message: 'Checking this device...'});
-
-        const outcome = await this.joinRequests.relink(channelId, true);
-        this.relinkStatus.set(describeRelinkOutcome(outcome));
+        await this.joinRequests.relink(channelId, true);
 
         // Re-derive the composer's view from what the re-link actually left behind, rather than
         // from a second refresh: `relink` has already reconciled state and, where it could, asked

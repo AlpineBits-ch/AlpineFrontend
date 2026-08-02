@@ -1,12 +1,12 @@
 /**
  * What has to happen, and in what order, before this device can read encrypted contexts.
  *
- * <p>Lifted out of `MainPageComponent` as a plain function over four callbacks, because the bug it
+ * <p>Lifted out of `MainPageComponent` as a plain function over its steps, because the bug it
  * exists to prevent is entirely about control flow and was invisible while it lived inside a
  * component nothing could construct without half the application.</p>
  */
 
-/** The four steps, injected so the ordering can be exercised without an Angular anything. */
+/** The steps, injected so the ordering can be exercised without an Angular anything. */
 export interface MlsLaunchSteps {
     /** Loads this device's signing key from the OS key store. Rejects with `{kind}` on failure. */
     unlock: () => Promise<string>;
@@ -16,6 +16,15 @@ export interface MlsLaunchSteps {
     checkMasterKey: () => void;
     /** Joins every group this device has been invited to while it was away. */
     processWelcomes: () => Promise<void>;
+    /**
+     * Contract §B discovery: asks to be admitted to everything this device should be able to read
+     * and holds no group for.
+     *
+     * <p>Deliberately last. It is the only step whose work is proportional to the number of
+     * conversations, and it is the least urgent - a Welcome already waiting has to be taken before
+     * this device starts asking to be re-added to anything.</p>
+     */
+    sweepForAdmission: () => Promise<void>;
 }
 
 export interface MlsLaunchOutcome {
@@ -45,6 +54,16 @@ export interface MlsLaunchOutcome {
      * None of the three depends on another, so none may take another down.</p>
      */
     keyPackagesFailed: boolean;
+    /**
+     * The §B discovery sweep did not complete.
+     *
+     * <p>Isolated and reported rather than thrown, for the same reason as everything else here: the
+     * sweep runs after the steps that decide whether this device can read anything at all, and a
+     * failure to *discover* an exclusion must not undo the ones that were already fixed. Its own
+     * per-context outcomes are surfaced through the banner by `MlsJoinRequestService`, so this flag
+     * is for the log.</p>
+     */
+    admissionSweepFailed: boolean;
 }
 
 export async function runMlsLaunch(steps: MlsLaunchSteps): Promise<MlsLaunchOutcome> {
@@ -58,6 +77,7 @@ export async function runMlsLaunch(steps: MlsLaunchSteps): Promise<MlsLaunchOutc
             needsRegistration: kind === 'KeyNotFound',
             keyStoreUnreachable: kind !== 'KeyNotFound',
             keyPackagesFailed: false,
+            admissionSweepFailed: false,
         };
     }
 
@@ -72,10 +92,19 @@ export async function runMlsLaunch(steps: MlsLaunchSteps): Promise<MlsLaunchOutc
             console.error('Failed to process pending Welcomes at launch', err)),
     ]);
 
+    // Last, alone, and after the two above have settled - it decides what to ask for from the group
+    // state they leave behind, and asking to be admitted to something a Welcome was about to fix is
+    // a request nobody needs to review.
+    const swept = await steps.sweepForAdmission().then(() => true, (err: unknown) => {
+        console.error('The MLS admission sweep did not complete', err);
+        return false;
+    });
+
     return {
         handle,
         needsRegistration: false,
         keyStoreUnreachable: false,
         keyPackagesFailed: !replenished,
+        admissionSweepFailed: !swept,
     };
 }

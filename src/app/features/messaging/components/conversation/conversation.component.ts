@@ -30,11 +30,7 @@ import {MessagingService} from '../../../../services/messaging.service';
 import {MlsService} from '../../../../services/mls.service';
 import {MlsUnreadableBannerComponent} from '../../../../components/mls-unreadable-banner/mls-unreadable-banner.component';
 import {MlsSyncService} from '../../../../services/mls-sync.service';
-import {
-    describeRelinkOutcome,
-    MlsJoinRequestService,
-    MlsRelinkStatus,
-} from '../../../../services/mls-join-request.service';
+import {MlsJoinRequestService} from '../../../../services/mls-join-request.service';
 import {MlsHealthService} from '../../../../services/mls-health.service';
 import {MessageStore} from '../../../../stores/message.store';
 import {ConversationStore} from '../../../../stores/conversation.store';
@@ -121,8 +117,15 @@ export class ConversationComponent implements AfterViewInit {
     private mlsSync = inject(MlsSyncService);
     private mlsHealth = inject(MlsHealthService);
     private joinRequests = inject(MlsJoinRequestService);
-    /** What the last "Re-link device" press achieved. Rendered by the banner that offered it. */
-    protected readonly relinkStatus = signal<MlsRelinkStatus | null>(null);
+    /**
+     * What the last re-link attempt for this conversation achieved.
+     *
+     * <p>Read from the service rather than held here, because the launch-time §B sweep asks on
+     * behalf of conversations nobody has open. A request it submitted has to still be visible when
+     * the user eventually opens the conversation, or the sweep is as silent as the exclusion.</p>
+     */
+    protected readonly relinkStatus = computed(
+        () => this.joinRequests.statusOf(this.conversation().id));
     private profileService = inject(ProfileService);
 
     // ── Conversation meta ────────────────────────────────────────────────────
@@ -590,11 +593,7 @@ export class ConversationComponent implements AfterViewInit {
      * group it belongs to, and is never the right response to "I could not read this".</p>
      */
     protected async relinkDevice(): Promise<void> {
-        const conversationId = this.conversation().id;
-        this.relinkStatus.set({tone: 'working', message: 'Checking this device...'});
-
-        const outcome = await this.joinRequests.relink(conversationId, false);
-        this.relinkStatus.set(describeRelinkOutcome(outcome));
+        await this.joinRequests.relink(this.conversation().id, false);
     }
 
     /**
