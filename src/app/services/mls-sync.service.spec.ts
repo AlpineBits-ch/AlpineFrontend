@@ -28,6 +28,10 @@ const GROUP = 'Z3JvdXA=';
 function makeMls() {
     const registry = new Map<string, string>();
     const activeGeneration = new Map<string, number>();
+    // The monotonic high-water mark: written by `registerGroup`, and deliberately *not* removed by
+    // `clearActiveGeneration`. That asymmetry is the whole of C1's fix, so the double reproduces it
+    // rather than stubbing the getter to a constant.
+    const encryptionFloor = new Map<string, number>();
     const epochs = new Map<string, number>();
     const calls: string[] = [];
 
@@ -35,6 +39,7 @@ function makeMls() {
         calls,
         registry,
         activeGeneration,
+        encryptionFloor,
         epochs,
 
         keyHandle: () => 'handle',
@@ -48,9 +53,16 @@ function makeMls() {
         registerGroup: vi.fn(async (contextId: string, generation: number, groupId: string) => {
             registry.set(`${contextId}#${generation}`, groupId);
             activeGeneration.set(contextId, generation);
+            const floor = encryptionFloor.get(contextId);
+            if (floor === undefined || floor < generation) encryptionFloor.set(contextId, generation);
         }),
         clearActiveGeneration: vi.fn(async (contextId: string) => {
             activeGeneration.delete(contextId);
+        }),
+        getEncryptionFloor: vi.fn(async (contextId: string) =>
+            encryptionFloor.get(contextId) ?? null),
+        clearEncryptionFloor: vi.fn(async (contextId: string) => {
+            encryptionFloor.delete(contextId);
         }),
 
         getGroupInfo: vi.fn((groupId: string) => of({
@@ -800,17 +812,72 @@ describe('MlsSyncService', () => {
     });
 
     describe('state reconciliation', () => {
-        it('forgets the active generation when the context turned plaintext', async () => {
-            const {sync, mls, transport} = setup();
-            mls.registry.set(`${CONTEXT}#1`, GROUP);
-            mls.activeGeneration.set(CONTEXT, 1);
+        it('forgets the active generation when a never-encrypted context reports plaintext',
+            async () => {
+                const {sync, mls, transport} = setup();
+                // Registry seeded directly, without `registerGroup`, so no floor exists - this is
+                // a context this device has never actually encrypted anything in.
+                mls.registry.set(`${CONTEXT}#1`, GROUP);
+                mls.activeGeneration.set(CONTEXT, 1);
+                transport.getState.mockReturnValue(of({
+                    contextId: CONTEXT, encrypted: false, generations: [],
+                }));
+
+                await sync.refreshState(CONTEXT, false);
+
+                expect(mls.clearActiveGeneration).toHaveBeenCalledWith(CONTEXT);
+            });
+
+        // ─── C1: the server must not be able to switch encryption off ─────────
+        //
+        // `state.encrypted` is a server field. Clearing the active generation on it made
+        // `getKnownGeneration` return null, which made `mayPostCleartext(null, 'plain')` return
+        // true, which put the next composed message on the wire in the clear. No group keys were
+        // needed and no MLS property was broken; the client simply stopped using them because it
+        // was asked to.
+
+        it('refuses to clear the generation when the context has ever been encrypted here',
+            async () => {
+                const {sync, mls, transport} = setup();
+                await mls.registerGroup(CONTEXT, 1, GROUP);
+                transport.getState.mockReturnValue(of({
+                    contextId: CONTEXT, encrypted: false, generations: [],
+                }));
+
+                await sync.refreshState(CONTEXT, false);
+
+                expect(mls.clearActiveGeneration).not.toHaveBeenCalled();
+                expect(await mls.getKnownGeneration(CONTEXT)).toBe(1);
+            });
+
+        it('reports a claimed downgrade as a failure the user can see', async () => {
+            const {sync, mls, transport, health} = setup();
+            await mls.registerGroup(CONTEXT, 1, GROUP);
             transport.getState.mockReturnValue(of({
                 contextId: CONTEXT, encrypted: false, generations: [],
             }));
 
             await sync.refreshState(CONTEXT, false);
 
-            expect(mls.clearActiveGeneration).toHaveBeenCalledWith(CONTEXT);
+            expect(health.healthOf(CONTEXT)?.reason).toBe('downgraded');
+            // Immediately broken, not after three strikes: there is no "hiccup" reading of this,
+            // and the user has to see it before they type the next message.
+            expect(health.isBroken(CONTEXT)).toBe(true);
+        });
+
+        it('keeps the floor even after the group is gone locally', async () => {
+            const {sync, mls, transport} = setup();
+            await mls.registerGroup(CONTEXT, 1, GROUP);
+            await mls.clearActiveGeneration(CONTEXT);
+            transport.getState.mockReturnValue(of({
+                contextId: CONTEXT, encrypted: false, generations: [],
+            }));
+
+            await sync.refreshState(CONTEXT, false);
+
+            // The device holds no group any more - removed, or wiped - and still must not compose
+            // in the clear here. The floor outlives the keys on purpose.
+            expect(await mls.getEncryptionFloor(CONTEXT)).toBe(1);
         });
 
         it('looks for a Welcome when the context moved to a generation we never joined', async () => {

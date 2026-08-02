@@ -1,0 +1,16 @@
+{
+  "alphabet": "23456789ABCDEFGHJKMNPQRSTUVWXYZ",
+  "masterKey": "vx7KehVuRIar88y7F6bYglwjDfVKK0sJf8SDBtxlZS4=",
+  "normalized": "PVK8XHXZTXTEZJ9VCTQKQQANR7RXAGJD",
+  "producedBy": "venta-mobile",
+  "recoveryCode": "PVK8-XHXZ-TXTE-ZJ9V-CTQK-QQAN-R7RX-AGJD",
+  "recoveryCodeWrapping": {
+    "argon2Iterations": 3,
+    "argon2Memory": 65536,
+    "argon2Parallelism": 1,
+    "cipherText": "xUEIAfFKF3WjDSHSXYagyPF/3WcsutuoFfNnjCK+CArSrb5K2K0nWS9FjG8ndV0+",
+    "iv": "zyPNZUmm0kYADyq3",
+    "salt": "bBxwWSUus9Vffiu4lua7fA==",
+    "version": 1
+  }
+}

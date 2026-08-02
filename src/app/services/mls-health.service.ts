@@ -9,7 +9,16 @@ export type MlsFailureReason =
     /** We hold the group but a message would not decrypt. */
     | 'decrypt-failed'
     /** Someone else's commit removed this device from the group. */
-    | 'removed';
+    | 'removed'
+    /**
+     * The server reports this context as unencrypted, and this device knows better.
+     *
+     * <p>A context that has ever been encrypted here carries a monotonic floor that nothing on the
+     * wire can lower (§L.6). The server answering `{encrypted: false}` above that floor is either a
+     * downgrade attempt or a disable this device has not been told about through a path it trusts -
+     * and the two are indistinguishable from here, so both refuse cleartext.</p>
+     */
+    | 'downgraded';
 
 export interface MlsContextHealth {
     contextId: string;
@@ -63,6 +72,10 @@ export class MlsHealthService {
         if (!health) return false;
         return health.reason === 'removed'
             || health.reason === 'not-admitted'
+            // Immediately, not after three. There is no "hiccup" reading of a server that claims a
+            // context this device has encrypted is now plaintext, and the user has to see it before
+            // they type the next message rather than after the third one.
+            || health.reason === 'downgraded'
             || health.failures >= MlsHealthService.BROKEN_AFTER;
     }
 

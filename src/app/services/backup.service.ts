@@ -13,6 +13,18 @@ export interface MasterKeyWrappingDto {
     salt: string;
     iv: string;
     cipherText: string;
+    /**
+     * `HKDF-SHA256(masterKey, "", "venta.masterkey.verifier.v1", 32)`, base64. **Contract §L.11.**
+     *
+     * <p><b>Required on a key-establishing or rotating write</b> - the server refuses one without
+     * it, and that refusal is a hard 400 the moment Echo deploys. It was declared here and never
+     * populated, so first-time E2EE setup would have failed for every new account with
+     * "Something went wrong. Please try again." and no way out of the loop.</p>
+     *
+     * <p>Optional on the type because the same shape is read back from `GET`, where accounts that
+     * predate §L.11 have none. Echo backfills those on the additive same-version path, which is why
+     * the retrofit must not rotate: rotation orphans every backup blob.</p>
+     */
     publicVerifier?: string | null;
 }
 
@@ -116,6 +128,10 @@ export function toWrappingDto(key: EncryptedMasterKey): MasterKeyWrappingDto {
         salt: key.salt,
         iv: key.iv,
         cipherText: key.cipherText,
+        // Carried through rather than re-derived. It comes from the engine, which is the only place
+        // that holds the master key - deriving it here would put those 32 bytes in the host
+        // language on a path that otherwise keeps them inside Rust (§L.11).
+        publicVerifier: key.publicVerifier ?? null,
     };
 }
 
@@ -129,5 +145,6 @@ export function fromWrappingDto(dto: MasterKeyWrappingDto, version: number): Enc
         argon2Memory: dto.memoryKiB,
         argon2Parallelism: dto.parallelism,
         version,
+        publicVerifier: dto.publicVerifier ?? null,
     };
 }

@@ -17,7 +17,7 @@ export function classifyAutoModError(err: HttpErrorResponse | null | undefined):
 }
 
 /** What this device knows about a channel's encryption, from its own point of view. */
-export type ChannelEncryptionState = 'plain' | 'joined' | 'locked-out';
+export type ChannelEncryptionState = 'plain' | 'joined' | 'locked-out' | 'downgraded';
 
 /**
  * Whether a message may be posted to this channel as cleartext.
@@ -29,11 +29,20 @@ export type ChannelEncryptionState = 'plain' | 'joined' | 'locked-out';
  *
  * <p>By the time this is consulted the encryption state has been resolved and any waiting Welcome
  * joined, so anything other than `plain` means this device genuinely cannot participate.</p>
+ *
+ * @param encryptionFloor the highest generation this device has *ever* held a group for here.
+ *        Non-null is a veto that outranks every other argument, including a resolved state of
+ *        `plain`: the state is computed from a server field, and a server that answers
+ *        `{encrypted: false}` for a context this device has been encrypting to would otherwise
+ *        clear the active generation and get the next message posted in the clear. The floor is
+ *        the only input here the server cannot move.
  */
 export function mayPostCleartext(
     localGeneration: number | null,
     state: ChannelEncryptionState,
+    encryptionFloor: number | null = null,
 ): boolean {
+    if (encryptionFloor !== null) return false;
     // Holding a generation means the channel is encrypted for us, whatever the resolved state says.
     if (localGeneration !== null) return false;
     return state === 'plain';

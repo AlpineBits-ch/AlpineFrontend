@@ -3805,19 +3805,7 @@ mod integration_tests {
     /// this was written, would have read 25 and passed.
     #[test]
     fn the_tauri_command_surface_is_present() {
-        let source = include_str!("mls.rs");
-
-        // Only an attribute directly followed by a `pub fn` counts, which is what excludes the
-        // string literals in this test and in the doc comments above.
-        let found: std::collections::BTreeSet<&str> = source
-            .split("#[tauri::command]")
-            .skip(1)
-            .filter_map(|rest| {
-                let decl = rest.trim_start();
-                let name = decl.strip_prefix("pub fn ")?;
-                Some(&name[..name.find('(')?])
-            })
-            .collect();
+        let found = tauri_command_names(include_str!("mls.rs"));
 
         let expected: std::collections::BTreeSet<&str> = [
             "generate_mls_key_packages",
@@ -3874,6 +3862,443 @@ mod integration_tests {
              `invoke_handler` blocks in lib.rs - defining a command without registering it \
              compiles cleanly and fails only when the frontend calls it."
         );
+    }
+
+    /// The same exact-set assertion for `crypto.rs`, which the original pin did not cover.
+    ///
+    /// It was scoped to this file because this file was the one that got overwritten. That is a
+    /// reason to have written it, not a reason to have stopped there: the master-key surface is
+    /// smaller, changes less often, and is the one nothing else would notice losing - every command
+    /// on it sits on a path a user reaches once, under stress, after a password reset.
+    #[test]
+    fn the_crypto_command_surface_is_present() {
+        let found = tauri_command_names(include_str!("crypto.rs"));
+
+        let expected: std::collections::BTreeSet<&str> = [
+            "decrypt_master_key",
+            "generate_key",
+            "generate_key_pairs",
+            "generate_recovery_code",
+            "normalize_recovery_code_checked",
+            "rewrap_master_key",
+            "setup_master_key",
+            "setup_master_key_dual",
+        ]
+        .into_iter()
+        .collect();
+
+        assert_eq!(
+            found, expected,
+            "crypto.rs's Tauri surface has drifted. Every name here must also appear in both \
+             `invoke_handler` blocks in lib.rs."
+        );
+    }
+
+    /// Every argument a `#[tauri::command]` requires must be supplied at its TypeScript call site.
+    ///
+    /// <p><b>This is the check whose absence hid C2.</b> `rewrap_master_key` takes five arguments
+    /// and was invoked with three: `from_kind` and `to_kind` are `CredentialKind`, which has no
+    /// `Default` and is not `Option`, so *every* call failed during argument deserialization -
+    /// before a single line of crypto ran. No Alpine user could obtain a recovery code, and a user
+    /// mid-recovery holding a correct code was told it was wrong. The compiler cannot see across
+    /// the IPC boundary, `the_tauri_command_surface_is_present` pinned names only, and
+    /// `master-key-state.service.spec.ts` mocks `MasterKeyService` wholesale - so a command that
+    /// failed 100% of the time was invisible to a green suite in two languages.</p>
+    ///
+    /// <p>Both directions are asserted. A missing <i>required</i> argument is the fatal case; an
+    /// extra TypeScript key is asserted too, because a renamed parameter shows up that way and is
+    /// equally fatal. `Option<T>` parameters may be omitted - Tauri deserializes an absent key as
+    /// `None`, which is exactly what `CredentialKind` could not do.</p>
+    #[test]
+    fn the_tauri_argument_names_match_the_typescript_call_sites() {
+        let typescript = typescript_sources();
+        assert!(
+            !typescript.is_empty(),
+            "no TypeScript sources found under ../src - this test would pass vacuously"
+        );
+
+        let mut uncalled: Vec<String> = Vec::new();
+        let mut problems: Vec<String> = Vec::new();
+
+        for source in [include_str!("mls.rs"), include_str!("crypto.rs")] {
+            for (command, params) in tauri_command_signatures(source) {
+                let required: std::collections::BTreeSet<String> = params
+                    .iter()
+                    .filter(|(_, optional)| !optional)
+                    .map(|(name, _)| name.clone())
+                    .collect();
+                let known: std::collections::BTreeSet<String> =
+                    params.iter().map(|(name, _)| name.clone()).collect();
+
+                let mut called = false;
+                for (path, invocations) in &typescript {
+                    for supplied in invocations
+                        .iter()
+                        .filter(|(invoked, _)| *invoked == command)
+                        .map(|(_, args)| args)
+                    {
+                        called = true;
+
+                        let missing: Vec<_> = required.difference(&supplied).collect();
+                        if !missing.is_empty() {
+                            problems.push(format!(
+                                "{path}: `{command}` is invoked without {missing:?}. Every one is \
+                                 a required Rust parameter, so the call fails at argument \
+                                 deserialization and never reaches the command body."
+                            ));
+                        }
+
+                        let unknown: Vec<_> = supplied.difference(&known).collect();
+                        if !unknown.is_empty() {
+                            problems.push(format!(
+                                "{path}: `{command}` is invoked with {unknown:?}, which the Rust \
+                                 signature does not declare. A renamed parameter looks exactly \
+                                 like this."
+                            ));
+                        }
+                    }
+                }
+
+                if !called {
+                    uncalled.push(command);
+                }
+            }
+        }
+
+        assert!(problems.is_empty(), "\n{}", problems.join("\n"));
+
+        // Reported, not failed. A command with no caller is dead weight rather than a break -
+        // today that is `mls_current_state_dir`, mobile's shape ported for parity, which Alpine's
+        // desktop process has no equivalent hazard to guard against.
+        //
+        // `mls_rejoin_group` *is* reachable from `MlsService.rejoinGroup`, which itself has no
+        // production caller. That is deliberate and must stay so until §H.4's certificate
+        // validation lands: external-committing on a server-supplied GroupInfo is exactly what that
+        // section exists to stop, so the unwired primitive is the safe state, not an oversight.
+        if !uncalled.is_empty() {
+            eprintln!("Tauri commands with no TypeScript call site: {uncalled:?}");
+        }
+    }
+
+    // ─── Parsing helpers for the three tests above ────────────────────────────
+
+    /// Names of every `#[tauri::command] pub fn` in `source`.
+    ///
+    /// Only an attribute directly followed by `pub fn` counts, which is what excludes the string
+    /// literals in these tests and in the doc comments around them.
+    fn tauri_command_names(source: &str) -> std::collections::BTreeSet<&str> {
+        source
+            .split("#[tauri::command]")
+            .skip(1)
+            .filter_map(|rest| {
+                let decl = rest.trim_start();
+                let name = decl.strip_prefix("pub fn ")?;
+                Some(&name[..name.find('(')?])
+            })
+            .collect()
+    }
+
+    /// `(command, [(camelCaseArgName, isOptional)])` for every command in `source`.
+    ///
+    /// Tauri injects `State`, `AppHandle` and `Window` itself, so those never travel over IPC and
+    /// are dropped. Everything else has to be supplied by the caller.
+    fn tauri_command_signatures(source: &str) -> Vec<(String, Vec<(String, bool)>)> {
+        source
+            .split("#[tauri::command]")
+            .skip(1)
+            .filter_map(|rest| {
+                let decl = rest.trim_start();
+                let after_fn = decl.strip_prefix("pub fn ")?;
+                let open = after_fn.find('(')?;
+                let name = after_fn[..open].to_string();
+
+                let close = matching_paren(after_fn, open)?;
+                let params = split_top_level(&after_fn[open + 1..close])
+                    .into_iter()
+                    .filter_map(|param| {
+                        let (ident, ty) = param.split_once(':')?;
+                        let ty = ty.trim();
+                        if ty.contains("State<") || ty.contains("AppHandle") || ty.contains("Window")
+                        {
+                            return None;
+                        }
+                        Some((to_camel_case(ident.trim()), ty.starts_with("Option<")))
+                    })
+                    .collect();
+
+                Some((name, params))
+            })
+            .collect()
+    }
+
+    fn matching_paren(text: &str, open: usize) -> Option<usize> {
+        let mut depth = 0usize;
+        for (i, b) in text.as_bytes().iter().enumerate().skip(open) {
+            match b {
+                b'(' => depth += 1,
+                b')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return Some(i);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    /// Splits on commas that are not inside `<>`, `()` or `[]`.
+    ///
+    /// `Option<Vec<u8>>` and `Map<String, JsonValue>` both contain punctuation a naive
+    /// `split(',')` would tear in half.
+    fn split_top_level(list: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut depth = 0i32;
+        let mut current = String::new();
+        for c in list.chars() {
+            match c {
+                '<' | '(' | '[' => {
+                    depth += 1;
+                    current.push(c);
+                }
+                '>' | ')' | ']' => {
+                    depth -= 1;
+                    current.push(c);
+                }
+                ',' if depth == 0 => {
+                    if !current.trim().is_empty() {
+                        out.push(current.trim().to_string());
+                    }
+                    current.clear();
+                }
+                _ => current.push(c),
+            }
+        }
+        if !current.trim().is_empty() {
+            out.push(current.trim().to_string());
+        }
+        out
+    }
+
+    fn to_camel_case(snake: &str) -> String {
+        let mut out = String::with_capacity(snake.len());
+        let mut upper_next = false;
+        for c in snake.chars() {
+            if c == '_' {
+                upper_next = true;
+            } else if upper_next {
+                out.extend(c.to_uppercase());
+                upper_next = false;
+            } else {
+                out.push(c);
+            }
+        }
+        out
+    }
+
+    /// Every IPC invocation found in every `.ts` file under `../src`, excluding specs.
+    ///
+    /// Specs assert *about* command names rather than invoking them, and a partial-argument
+    /// assertion in one would read as a broken call site.
+    type Invocation = (String, std::collections::BTreeSet<String>);
+    fn typescript_sources() -> Vec<(String, Vec<Invocation>)> {
+        fn walk(dir: &std::path::Path, out: &mut Vec<(String, Vec<Invocation>)>) {
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                return;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    walk(&path, out);
+                } else if path.extension().and_then(|e| e.to_str()) == Some("ts")
+                    && !path.to_string_lossy().ends_with(".spec.ts")
+                {
+                    if let Ok(text) = std::fs::read_to_string(&path) {
+                        out.push((
+                            path.file_name().unwrap().to_string_lossy().into_owned(),
+                            invocations_in(&text),
+                        ));
+                    }
+                }
+            }
+        }
+
+        let mut out = Vec::new();
+        walk(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("..")
+                .join("src"),
+            &mut out,
+        );
+        out
+    }
+
+    /// `(command, argument keys)` for every `invoke` / `call` / `callOptional` in one file.
+    ///
+    /// <p>Anchored on the *callee*, not on the command string. Searching for the bare literal also
+    /// found `new MlsFeatureUnavailableError('mls_export_backup')`, whose `)` reads as a zero-argument
+    /// invocation - a false report of the exact failure this test exists to detect, which is the
+    /// one kind of false positive that would get the whole test deleted.</p>
+    ///
+    /// <p>An invocation with no argument object - `invoke('mls_clear_storage')` - yields an empty
+    /// set rather than nothing, so a command that later gains a required parameter still fails.</p>
+    fn invocations_in(text: &str) -> Vec<Invocation> {
+        const CALLEES: [&str; 3] = ["invoke", "call", "callOptional"];
+        let bytes = text.as_bytes();
+        let mut out = Vec::new();
+        let mut i = 0usize;
+
+        // ASCII only, deliberately. `(0xC2 as char)` is 'Â', which `is_alphanumeric()` accepts -
+        // so a UTF-8 lead byte inside a doc comment read as an identifier character and the slice
+        // below then landed mid-codepoint.
+        let is_ident = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'$';
+
+        while i < bytes.len() {
+            if !is_ident(bytes[i]) || (i > 0 && is_ident(bytes[i - 1])) {
+                i += 1;
+                continue;
+            }
+            let start = i;
+            while i < bytes.len() && is_ident(bytes[i]) {
+                i += 1;
+            }
+            let ident = &text[start..i];
+            if !CALLEES.contains(&ident) {
+                continue;
+            }
+
+            let mut j = i;
+            let skip_ws = |j: &mut usize| {
+                while *j < bytes.len() && (bytes[*j] as char).is_whitespace() {
+                    *j += 1;
+                }
+            };
+
+            // An explicit type argument - `invoke<MlsBackupImportResult>(...)` - sits between the
+            // callee and the parenthesis. Depth-counted, because `call<Record<string, unknown>>`
+            // nests.
+            skip_ws(&mut j);
+            if bytes.get(j) == Some(&b'<') {
+                let mut depth = 0i32;
+                while j < bytes.len() {
+                    match bytes[j] {
+                        b'<' => depth += 1,
+                        b'>' => {
+                            depth -= 1;
+                            if depth == 0 {
+                                j += 1;
+                                break;
+                            }
+                        }
+                        _ => {}
+                    }
+                    j += 1;
+                }
+            }
+
+            skip_ws(&mut j);
+            if bytes.get(j) != Some(&b'(') {
+                continue;
+            }
+            j += 1;
+            skip_ws(&mut j);
+
+            // A non-literal first argument is the declaration of `call` itself, or a dynamic
+            // dispatch. Nothing to check either way.
+            let Some(quote @ (b'\'' | b'"')) = bytes.get(j).copied() else {
+                continue;
+            };
+            j += 1;
+            let name_start = j;
+            while j < bytes.len() && bytes[j] != quote {
+                j += 1;
+            }
+            let command = text[name_start..j].to_string();
+            j += 1;
+
+            skip_ws(&mut j);
+            match bytes.get(j).copied() {
+                Some(b')') => out.push((command, Default::default())),
+                Some(b',') => {
+                    j += 1;
+                    skip_ws(&mut j);
+                    if bytes.get(j) == Some(&b'{') {
+                        if let Some(keys) = object_literal_keys(text, j) {
+                            out.push((command, keys));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        out
+    }
+
+    /// Top-level keys of the JS object literal starting at `text[start] == '{'`.
+    ///
+    /// Handles shorthand (`{groupIdB64}`), `key: value`, nesting, strings and line comments -
+    /// everything the real call sites use, and nothing they do not.
+    fn object_literal_keys(text: &str, start: usize) -> Option<std::collections::BTreeSet<String>> {
+        let bytes = text.as_bytes();
+        let mut keys = std::collections::BTreeSet::new();
+        let mut i = start + 1;
+        let mut depth = 1i32;
+        let mut expect_key = true;
+
+        while i < bytes.len() {
+            let c = bytes[i] as char;
+            match c {
+                '{' | '[' | '(' => {
+                    depth += 1;
+                    i += 1;
+                    expect_key = false;
+                }
+                '}' | ']' | ')' => {
+                    depth -= 1;
+                    i += 1;
+                    if depth == 0 {
+                        return Some(keys);
+                    }
+                    expect_key = false;
+                }
+                ',' if depth == 1 => {
+                    i += 1;
+                    expect_key = true;
+                }
+                '\'' | '"' | '`' => {
+                    let quote = c;
+                    i += 1;
+                    while i < bytes.len() && bytes[i] as char != quote {
+                        i += if bytes[i] == b'\\' { 2 } else { 1 };
+                    }
+                    i += 1;
+                    expect_key = false;
+                }
+                '/' if bytes.get(i + 1) == Some(&b'/') => {
+                    while i < bytes.len() && bytes[i] != b'\n' {
+                        i += 1;
+                    }
+                }
+                _ if c.is_whitespace() => i += 1,
+                _ => {
+                    // ASCII only - see `invocations_in`. A multi-byte lead byte that passes
+                    // `char::is_alphanumeric` makes the slice below land mid-codepoint.
+                    let is_ident = |b: u8| b.is_ascii_alphanumeric() || b == b'_' || b == b'$';
+                    if expect_key && depth == 1 && is_ident(bytes[i]) {
+                        let begin = i;
+                        while i < bytes.len() && is_ident(bytes[i]) {
+                            i += 1;
+                        }
+                        keys.insert(text[begin..i].to_string());
+                    } else {
+                        i += 1;
+                    }
+                    expect_key = false;
+                }
+            }
+        }
+        None
     }
 
     /// The crypto dependencies both engines share must be pinned to the same versions.

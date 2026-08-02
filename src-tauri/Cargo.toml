@@ -24,6 +24,12 @@ path = "src/bin/bench_screen.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
+# NOTE: `devtools` is enabled unconditionally, so the inspector is compiled into **release** builds.
+# Cargo has no debug-only feature selection, so removing it safely means splitting the release
+# pipeline (`default = ["devtools"]` here plus `--no-default-features` in CI) - a build-system
+# change, not verifiable from a dev machine, and left deliberately rather than half-done. Flagged so
+# whoever owns that pipeline makes the split. What made it actively harmful was the console output
+# beside it: no message path logs plaintext any more.
 tauri = { version = "2", features = [ "devtools"] }
 tauri-plugin-opener = "2"
 # Key-package fingerprints in crypto::mls, so it has to be available on mobile too - this

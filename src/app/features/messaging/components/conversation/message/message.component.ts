@@ -48,6 +48,15 @@ import {UserNameStyleDirective} from '../../../../../directives/user-name-style.
 import {EmojiSelection} from './reaction-picker/reaction-picker.component';
 import {ToastService} from '../../../../../services/toast.service';
 
+/**
+ * Shown in place of any body this device could not authenticate.
+ *
+ * Deliberately not the raw bytes. Rendering them showed base64 for a failed decrypt - which is how
+ * an unreadable conversation looked like a working one - and, for a message the server merely
+ * labelled `Plain`, showed the injected text itself under a real member's name.
+ */
+const UNDECRYPTABLE_PLACEHOLDER = '[This message could not be verified on this device]';
+
 @Component({
     selector: 'app-message',
     imports: [
@@ -294,6 +303,7 @@ export class MessageComponent {
     protected readonly replySnippet = computed(() => {
         const msg = this.replyMessage();
         if (!msg) return '';
+        if (msg.undecryptable) return UNDECRYPTABLE_PLACEHOLDER;
         try {
             const bytes = Uint8Array.from(atob(msg.content), c => c.charCodeAt(0));
             return new TextDecoder().decode(bytes).slice(0, 80);
@@ -302,7 +312,22 @@ export class MessageComponent {
         }
     });
     private emojiDataService = inject(EmojiDataService);
+    /**
+     * True when nothing readable may be shown for this message.
+     *
+     * <p>Set by every read path that could not authenticate the content: a decrypt that failed, a
+     * context this device was never admitted to, and - since §L.9 - a message the server declares
+     * cleartext inside a context this device has encrypted.</p>
+     */
+    public readonly isUndecryptable = computed(() => !!this.message().undecryptable);
+
     public content = computed(() => {
+        // <b>The flag had no consumer.</b> `undecryptable` was set in three places and read
+        // nowhere, so an unauthenticated body was still decoded and rendered - as base64 garbage
+        // for a failed decrypt, and as the attacker's own words for a message the server simply
+        // labelled `Plain`. Refusing to produce the text is what makes the flag mean something.
+        if (this.isUndecryptable()) return UNDECRYPTABLE_PLACEHOLDER;
+
         const bytes = Uint8Array.from(atob(this.message().content), c => c.charCodeAt(0));
         const decoded = new TextDecoder().decode(bytes);
         return this.emojiDataService.resolveShortcodes(decoded);
@@ -459,7 +484,15 @@ export class MessageComponent {
                 // Keep the plaintext locally. The server now holds ciphertext and MLS ratchets
                 // forward only, so this is the one moment the edit is still readable to us.
                 if (wasEncrypted) {
-                    void this.mlsService.cacheMessage(updated.id, toBase64(text));
+                    // Keyed on context and generation as well as the id - `updated.id` is the
+                    // server's, and the cache must not be addressable by it alone.
+                    const original = this.message();
+                    const contextId = original.conversationId ?? original.channelId;
+                    if (contextId) {
+                        void this.mlsService.cacheMessage(
+                            contextId, original.mlsGeneration ?? null, updated.id, toBase64(text),
+                            original.authorId);
+                    }
                     this.messageStore.applyMessageUpdate({...updated, content: toBase64(text)});
                 } else {
                     this.messageStore.applyMessageUpdate(updated);

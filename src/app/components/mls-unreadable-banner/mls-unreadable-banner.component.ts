@@ -52,6 +52,8 @@ export class MlsUnreadableBannerComponent {
                 return 'This device has not been added to the conversation';
             case 'join-failed':
                 return 'This device could not join the conversation';
+            case 'downgraded':
+                return 'Encryption for this conversation is being reported as switched off';
             default:
                 return 'This device cannot read this conversation';
         }
@@ -68,6 +70,13 @@ export class MlsUnreadableBannerComponent {
             case 'join-failed':
                 return 'The invitation for this device could not be used. Re-linking mints fresh '
                     + 'keys and asks to be admitted again.';
+            case 'downgraded':
+                // Stated as a refusal rather than a warning: nothing will be sent in the clear
+                // here, and the user needs to know why their message did not go rather than
+                // discovering later that it went unencrypted.
+                return 'This device has encrypted messages here before, so it will not send '
+                    + 'anything in the clear. Nothing has been sent unencrypted. If encryption was '
+                    + 'genuinely turned off, turn it off from this device to confirm.';
             default:
                 return 'Recent messages could not be decrypted on this device.';
         }

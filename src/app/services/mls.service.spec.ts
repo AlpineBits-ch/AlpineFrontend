@@ -2188,48 +2188,167 @@ describe('MlsService', () => {
     // ─────────────────────────────────────────────────────────────────────────
 
     describe('message cache', () => {
+        const CTX_A = 'conversation-a';
+        const CTX_B = 'conversation-b';
+
+        function rawCache() {
+            return (service as unknown as {
+                _messageCache: {
+                    get(k: string): Promise<unknown>;
+                    set(k: string, v: unknown): Promise<void>;
+                    entries(): Promise<[string, unknown][]>;
+                }
+            })._messageCache;
+        }
+
         it('round-trips a cached plaintext', async () => {
-            await service.cacheMessage('msg-1', 'aGVsbG8=');
-            expect(await service.getCachedMessage('msg-1')).toBe('aGVsbG8=');
+            await service.cacheMessage(CTX_A, 3, 'msg-1', 'aGVsbG8=');
+            expect(await service.getCachedMessage(CTX_A, 3, 'msg-1')).toBe('aGVsbG8=');
         });
 
         it('does not store the plaintext where a disk reader can find it', async () => {
-            await service.cacheMessage('msg-1', 'aGVsbG8=');
+            await service.cacheMessage(CTX_A, 3, 'msg-1', 'aGVsbG8=');
 
-            const raw = (service as unknown as { _messageCache: { get(k: string): Promise<unknown> } })
-                ._messageCache;
-            const stored = await raw.get('msg-1') as { iv: string; ct: string };
+            const stored = await rawCache().get('conversation-a#3#msg-1') as {
+                iv: string; ct: string
+            };
 
             expect(stored.iv).toBeTruthy();
             expect(stored.ct).toBeTruthy();
             expect(JSON.stringify(stored)).not.toContain('aGVsbG8=');
         });
 
-        it('reads an entry written before the cache was sealed', async () => {
-            const raw = (service as unknown as {
-                _messageCache: { set(k: string, v: unknown): Promise<void> }
-            })._messageCache;
-            // Bare base64 is what shipped. Discarding those entries would throw away the only copy
-            // of that message's plaintext - MLS decrypts from the wire exactly once.
-            await raw.set('legacy', 'bGVnYWN5');
+        // ─── H1: the cache key must not be the server's to choose ─────────────
+        //
+        // `messageId` is assigned by the server. Keyed on it alone, a server that reuses an id it
+        // has already seen in another context gets this device to render one thread's plaintext
+        // inside another - with no decryption, so `senderMatchesClaimedAuthor` (the only author
+        // binding on this client) never runs. On the history path the lookup even precedes group
+        // resolution, so the reader need not be a member of the context the id came from.
 
-            expect(await service.getCachedMessage('legacy')).toBe('bGVnYWN5');
+        it('keys on the context, so a replayed id from another conversation is a miss', async () => {
+            await service.cacheMessage(CTX_A, 3, 'shared-id', 'c2VjcmV0');
+
+            expect(await service.getCachedMessage(CTX_B, 3, 'shared-id')).toBeNull();
         });
 
+        it('keys on the generation, so an id replayed across an era is a miss', async () => {
+            await service.cacheMessage(CTX_A, 3, 'shared-id', 'c2VjcmV0');
+
+            expect(await service.getCachedMessage(CTX_A, 4, 'shared-id')).toBeNull();
+        });
+
+        it('writes the exact composite key venta-mobile writes', async () => {
+            // Byte-identical to mobile's `_cacheKey`, `'?'` placeholder included. The legacy
+            // bare-id entries have to drain on both platforms in step, and a key shape that differs
+            // by one character makes that impossible to reason about.
+            await service.cacheMessage(CTX_A, 3, 'msg-1', 'aGVsbG8=');
+            await service.cacheMessage(CTX_A, null, 'msg-2', 'aGVsbG8=');
+
+            const keys = (await rawCache().entries()).map(([k]) => k);
+            expect(keys).toContain('conversation-a#3#msg-1');
+            expect(keys).toContain('conversation-a#?#msg-2');
+        });
+
+        it('refuses a hit the server now attributes to a different author', async () => {
+            await service.cacheMessage(CTX_A, 3, 'msg-1', 'c2VjcmV0', 'alice');
+
+            expect(await service.getCachedMessage(CTX_A, 3, 'msg-1', 'alice')).toBe('c2VjcmV0');
+            // The entry is genuine; the claim about it is not. A hit skips the decryptor, so this
+            // is the only place that binding can be re-applied.
+            expect(await service.getCachedMessage(CTX_A, 3, 'msg-1', 'mallory')).toBeNull();
+        });
+
+        it('serves an entry with no recorded author, which cannot be checked', async () => {
+            await service.cacheMessage(CTX_A, 3, 'msg-1', 'aGVsbG8=');
+            expect(await service.getCachedMessage(CTX_A, 3, 'msg-1', 'alice')).toBe('aGVsbG8=');
+        });
+
+        it('reads an entry written before the cache was sealed', async () => {
+            // Bare base64 is what shipped. Discarding those entries would throw away the only copy
+            // of that message's plaintext - MLS decrypts from the wire exactly once.
+            await rawCache().set('legacy', 'bGVnYWN5');
+
+            expect(await service.getCachedMessage(CTX_A, 3, 'legacy')).toBe('bGVnYWN5');
+        });
+
+        it('promotes a legacy bare-id entry onto the composite key and drops the bare one',
+            async () => {
+                await rawCache().set('legacy', 'bGVnYWN5');
+                await service.getCachedMessage(CTX_A, 3, 'legacy', 'alice');
+
+                // Draining, not carrying forever: two keys for one message is two copies of the
+                // plaintext, and the bare one is the exploitable one. Mobile drains the same way,
+                // and the two must not diverge.
+                const keys = (await rawCache().entries()).map(([k]) => k);
+                expect(keys).toContain('conversation-a#3#legacy');
+                expect(keys).not.toContain('legacy');
+            });
+
         it('returns null rather than garbage for an entry it cannot open', async () => {
-            const raw = (service as unknown as {
-                _messageCache: { set(k: string, v: unknown): Promise<void> }
-            })._messageCache;
-            await raw.set('broken', {v: 1, at: Date.now(), iv: 'AAAAAAAAAAAAAAAA', ct: 'AAAA'});
+            await rawCache().set(
+                'conversation-a#3#broken',
+                {v: 1, at: Date.now(), iv: 'AAAAAAAAAAAAAAAA', ct: 'AAAA'});
 
             // No worse than a cache miss: the message renders as undecryptable.
-            expect(await service.getCachedMessage('broken')).toBeNull();
+            expect(await service.getCachedMessage(CTX_A, 3, 'broken')).toBeNull();
         });
 
         it('clears every entry on a wipe', async () => {
-            await service.cacheMessage('msg-1', 'aGVsbG8=');
+            await service.cacheMessage(CTX_A, 3, 'msg-1', 'aGVsbG8=');
             await service.clearMessageCache();
-            expect(await service.getCachedMessage('msg-1')).toBeNull();
+            expect(await service.getCachedMessage(CTX_A, 3, 'msg-1')).toBeNull();
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // C1: the monotonic encryption floor
+    //
+    // Encryption state used to come from the server and nothing local ever disagreed with it. A
+    // server answering `{encrypted: false}` for a context this device had been encrypting to got
+    // the active generation cleared, and the next composed message went out in the clear.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    describe('encryption floor', () => {
+        const CTX = 'context-1';
+
+        it('is null for a context that has never been encrypted here', async () => {
+            expect(await service.getEncryptionFloor(CTX)).toBeNull();
+        });
+
+        it('is recorded the moment a group is registered', async () => {
+            await service.registerGroup(CTX, 2, 'Z3JvdXA=');
+            expect(await service.getEncryptionFloor(CTX)).toBe(2);
+        });
+
+        it('survives clearing the active generation', async () => {
+            await service.registerGroup(CTX, 2, 'Z3JvdXA=');
+            await service.clearActiveGeneration(CTX);
+
+            // This is the whole fix. `clearActiveGeneration` is what a server-reported downgrade
+            // triggered, and after it `getKnownGeneration` returned null and cleartext was
+            // permitted. The floor is proof that was already on disk and never consulted.
+            expect(await service.getKnownGeneration(CTX)).toBeNull();
+            expect(await service.getEncryptionFloor(CTX)).toBe(2);
+        });
+
+        it('only ever rises', async () => {
+            await service.registerGroup(CTX, 5, 'Z3JvdXA1');
+            // Re-registering an older era - which a Welcome for a past generation does - must not
+            // lower the mark.
+            await service.registerGroup(CTX, 3, 'Z3JvdXAz');
+            expect(await service.getEncryptionFloor(CTX)).toBe(5);
+        });
+
+        it('is lowered only by an explicit local disable', async () => {
+            await service.registerGroup(CTX, 2, 'Z3JvdXA=');
+            await service.clearEncryptionFloor(CTX);
+            expect(await service.getEncryptionFloor(CTX)).toBeNull();
+        });
+
+        it('does not leak between contexts', async () => {
+            await service.registerGroup(CTX, 2, 'Z3JvdXA=');
+            expect(await service.getEncryptionFloor('other-context')).toBeNull();
         });
     });
 

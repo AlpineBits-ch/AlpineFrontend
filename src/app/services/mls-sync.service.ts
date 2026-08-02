@@ -661,6 +661,22 @@ export class MlsSyncService {
         const known = await this.mls.getKnownGeneration(contextId);
 
         if (!state.encrypted) {
+            // Against the monotonic floor first, and the floor wins. Clearing the active
+            // generation here is what used to make `getKnownGeneration` return null, which made
+            // `mayPostCleartext` return true, which put the next composed message on the wire in
+            // the clear - on nothing more than the server saying so. The floor is written when a
+            // group is registered and is never deleted except by an explicit local disable, so a
+            // context above it stays encrypted from this device's point of view no matter what the
+            // wire claims. (§L.6, applied to encryption state.)
+            const floor = await this.mls.getEncryptionFloor(contextId);
+            if (floor !== null) {
+                this.health.recordFailure(
+                    contextId, isChannel, 'downgraded',
+                    `the server reports this context as unencrypted, but this device has held an `
+                    + `MLS group for it up to generation ${floor}`);
+                return state;
+            }
+
             if (known !== null) await this.mls.clearActiveGeneration(contextId);
             return state;
         }

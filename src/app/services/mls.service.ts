@@ -1,6 +1,6 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {invoke, isTauri} from '@tauri-apps/api/core';
-import {from, Observable, of} from 'rxjs';
+import {firstValueFrom, from, Observable, of} from 'rxjs';
 import {map, switchMap} from 'rxjs/operators';
 import {LazyStore} from '@tauri-apps/plugin-store';
 import {secureStorage} from 'tauri-plugin-secure-storage-api';
@@ -179,6 +179,15 @@ export interface MlsBackupImportResult {
     /** Session handle for the restored signing key, immediately usable. */
     keyHandle: string;
     /**
+     * The restored signing keypair, base64.
+     *
+     * <p>Handed back because this pair lives in the OS keychain, not in the engine's store:
+     * `autoUnlock` reads it from there on every cold start, so a restore that only loaded it into
+     * memory would work until the app was next killed and then look exactly like lost keys.</p>
+     */
+    signingPublicKey: string;
+    signingPrivateKey: string;
+    /**
      * False on a new device. Cloning ratchet state onto a second concurrently-live device reuses
      * sender-ratchet generations - openmls treats the repeat as a replay, so at least one device
      * becomes unable to send - and voids forward secrecy for that leaf.
@@ -239,6 +248,15 @@ interface CachedMessage {
     iv: string;
     /** Sealed plaintext, base64. */
     ct: string;
+    /**
+     * The user id the plaintext was authenticated as when it was decrypted.
+     *
+     * <p>Recorded so a cache hit can be re-checked against the author the server claims *this*
+     * time. `senderMatchesClaimedAuthor` is the only binding between ciphertext and displayed
+     * author on this client, and it runs on the decrypt path - which a cache hit skips entirely.
+     * Without this, a hit is an unauthenticated render.</p>
+     */
+    author?: string;
 }
 
 function toB64(bytes: Uint8Array): string {
@@ -287,9 +305,68 @@ export class MlsService {
         return `${contextId}#active`;
     }
 
+    /**
+     * Key under which the **high-water mark** lives: the highest generation this device has ever
+     * held a group for in this context.
+     *
+     * Deliberately a different key from `#active`, and deliberately never deleted by any of the
+     * paths that clear `#active`. See {@link getEncryptionFloor}.
+     */
+    private static encryptionFloorKey(contextId: string): string {
+        return `${contextId}#floor`;
+    }
+
     async registerGroup(contextId: string, generation: number, mlsGroupId: string): Promise<void> {
         await this._groupRegistry.set(MlsService.groupKey(contextId, generation), mlsGroupId);
         await this._groupRegistry.set(MlsService.activeGenerationKey(contextId), generation);
+        await this.raiseEncryptionFloor(contextId, generation);
+        await this._groupRegistry.save();
+    }
+
+    // -------------------------------------------------------------------------
+    // Encryption floor - monotonic, and the one thing the server cannot lower
+    //
+    // Encryption state arrived from the server and nothing local ever disagreed with it. A server
+    // that answered `{encrypted: false}` for a context this device had been encrypting to got
+    // `clearActiveGeneration` called, `getKnownGeneration` then returned null, and the very next
+    // composed message went out as **plaintext** - into a conversation whose whole point was that
+    // it could not. No group keys required, no MLS property broken; the client simply stopped
+    // using them because it was asked to.
+    //
+    // The proof was already on disk. `clearActiveGeneration` keeps the `contextId#<generation>`
+    // mapping on purpose - the old era's messages still need those keys - and nothing ever looked
+    // at it. This is §L.6's monotonic floor applied to encryption state: the highest generation
+    // ever seen, written once, never deleted, and consulted before anything is composed in the
+    // clear.
+    // -------------------------------------------------------------------------
+
+    /**
+     * The highest generation this device has ever held a group for, or null if never encrypted.
+     *
+     * <p>A non-null value means this context <b>was</b> encrypted here, whatever the server says
+     * now. Cleartext composition must be refused above it.</p>
+     */
+    async getEncryptionFloor(contextId: string): Promise<number | null> {
+        return (await this._groupRegistry.get<number>(MlsService.encryptionFloorKey(contextId))) ?? null;
+    }
+
+    /** Raises the floor. Monotonic - a lower generation is ignored rather than written. */
+    private async raiseEncryptionFloor(contextId: string, generation: number): Promise<void> {
+        const current = await this.getEncryptionFloor(contextId);
+        if (current !== null && current >= generation) return;
+        await this._groupRegistry.set(MlsService.encryptionFloorKey(contextId), generation);
+    }
+
+    /**
+     * Lowers the floor, so this context may be composed in the clear again.
+     *
+     * <p><b>Only ever from an explicit, user-confirmed disable.</b> Nothing the server sends may
+     * reach this: "the server says it is off now" is precisely the claim the floor exists to
+     * refuse. The per-generation group mappings are kept, because the messages from the encrypted
+     * era are still in the history and still need those keys.</p>
+     */
+    async clearEncryptionFloor(contextId: string): Promise<void> {
+        await this._groupRegistry.delete(MlsService.encryptionFloorKey(contextId));
         await this._groupRegistry.save();
     }
 
@@ -336,31 +413,113 @@ export class MlsService {
     /** Entries kept before the oldest are dropped. Roughly a year of an active conversation. */
     private static readonly MESSAGE_CACHE_LIMIT = 5_000;
 
-    async cacheMessage(messageId: string, plaintextB64: string): Promise<void> {
+    /**
+     * Cache key: context, generation and id together. **The same shape venta-mobile writes.**
+     *
+     * <p><b>`messageId` is chosen by the server.</b> Keyed on the id alone - which is what this
+     * client did - a server that reuses an id it has already seen in another context gets this
+     * device to render one thread's plaintext inside another, attributed to whoever the server
+     * names. Nothing is decrypted on a cache hit, so no MLS property is broken and the only author
+     * binding this client has (`senderMatchesClaimedAuthor`, on the decrypt path) is skipped
+     * entirely. On the history path the lookup precedes group resolution, so the victim need not
+     * even be a member of the context the id is replayed into.</p>
+     *
+     * <p>Byte-identical to mobile's `_cacheKey` on purpose, `'?'` placeholder included: the legacy
+     * bare-id entries have to drain on both platforms in step, and a key shape that differs by one
+     * character makes that impossible to reason about.</p>
+     */
+    private static cacheKey(contextId: string, generation: number | null, messageId: string): string {
+        return `${contextId}#${generation ?? '?'}#${messageId}`;
+    }
+
+    /**
+     * Records a decrypted plaintext.
+     *
+     * @param authorId the user id the decryptor authenticated. Stored, and re-checked on every hit.
+     */
+    async cacheMessage(
+        contextId: string,
+        generation: number | null,
+        messageId: string,
+        plaintextB64: string,
+        authorId?: string,
+    ): Promise<void> {
         const sealed = await this.seal(plaintextB64);
-        await this._messageCache.set(messageId, {v: 1, at: Date.now(), ...sealed} satisfies CachedMessage);
+        await this._messageCache.set(
+            MlsService.cacheKey(contextId, generation, messageId),
+            {v: 1, at: Date.now(), ...sealed, author: authorId} satisfies CachedMessage,
+        );
+        // The bare-id entry this supersedes, if any. Dropped rather than left to age out: two keys
+        // for one message is two copies of the plaintext, and the bare one is the exploitable one.
+        await this._messageCache.delete(messageId);
         await this.pruneMessageCache();
         await this._messageCache.save();
     }
 
-    async getCachedMessage(messageId: string): Promise<string | null> {
-        const entry = await this._messageCache.get<CachedMessage | string>(messageId);
-        if (!entry) return null;
+    /**
+     * Plaintext for a message, or null.
+     *
+     * <p>A wrong `generation` or a wrong `contextId` is a **miss**, not a wrong answer, which is
+     * the whole point of the composite key.</p>
+     *
+     * @param expectedAuthorId who the server says wrote it *this time*. A hit recorded under a
+     *        different author is refused: the entry may be genuine and the claim about it is not.
+     */
+    async getCachedMessage(
+        contextId: string,
+        generation: number | null,
+        messageId: string,
+        expectedAuthorId?: string,
+    ): Promise<string | null> {
+        const key = MlsService.cacheKey(contextId, generation, messageId);
+        const entry = await this._messageCache.get<CachedMessage | string>(key);
+        if (entry) return this.openCacheEntry(entry, contextId, generation, messageId, expectedAuthorId);
 
+        // Written before the key carried the context and generation. Read as a fallback, then
+        // rewritten under the composite key, so the legacy shape drains away instead of being
+        // carried forever - the same draining fallback mobile keeps, and it must be removed on
+        // both platforms together or one of them loses history the other still has.
+        const legacy = await this._messageCache.get<CachedMessage | string>(messageId);
+        if (!legacy) return null;
+        return this.openCacheEntry(legacy, contextId, generation, messageId, expectedAuthorId);
+    }
+
+    private async openCacheEntry(
+        entry: CachedMessage | string,
+        contextId: string,
+        generation: number | null,
+        messageId: string,
+        expectedAuthorId?: string,
+    ): Promise<string | null> {
         // Entries written before the cache was sealed are bare base64. Read once, rewritten sealed,
         // rather than discarded - they are the only copy of that message's plaintext.
         if (typeof entry === 'string') {
-            await this.cacheMessage(messageId, entry);
+            await this.cacheMessage(contextId, generation, messageId, entry, expectedAuthorId);
             return entry;
         }
 
+        // Refused rather than served. The stored author is the one the decryptor authenticated
+        // against the MLS leaf; a differing claim now means the server is captioning one member's
+        // words with another member's name, which is the same attack the decrypt path already
+        // refuses. Entries with no recorded author predate this and cannot be checked.
+        if (expectedAuthorId && entry.author && entry.author !== expectedAuthorId) return null;
+
+        let plaintext: string;
         try {
-            return await this.unseal(entry);
+            plaintext = await this.unseal(entry);
         } catch {
             // A cache entry we cannot open is no worse than a cache miss: the message renders as
             // undecryptable rather than as garbage.
             return null;
         }
+
+        // Promote a legacy or author-less entry onto the composite key, now that the caller has
+        // told us which context and generation it belongs to.
+        const key = MlsService.cacheKey(contextId, generation, messageId);
+        if (!(await this._messageCache.get(key)) || (!entry.author && expectedAuthorId)) {
+            await this.cacheMessage(contextId, generation, messageId, plaintext, expectedAuthorId);
+        }
+        return plaintext;
     }
 
     /** Drops the plaintext cache. Part of every local-wipe path. */
@@ -891,21 +1050,52 @@ export class MlsService {
         }
         await this._groupRegistry.save();
 
-        for (const [messageId, plaintextB64] of Object.entries(result.messageCache)) {
-            await this.cacheMessage(messageId, plaintextB64);
+        // Written back under whatever key the export carried. A backup taken before the composite
+        // key existed holds bare ids, and those stay bare rather than being guessed into a context
+        // they may not belong to - the draining fallback in `getCachedMessage` picks them up the
+        // first time a caller does know the context, which is the only moment that is knowable.
+        for (const [key, plaintextB64] of Object.entries(result.messageCache)) {
+            await this.writeSealedCacheEntry(key, plaintextB64);
         }
+        await this._messageCache.save();
+
+        // Into the keychain, not just into this session. `autoUnlock` reads the pair from
+        // `alpine_mls_{deviceId}_*` on every cold start, so an import that set only the session
+        // handle would restore a device that worked until the app was next killed and then looked
+        // exactly like lost keys - which is the one failure mode a restore exists to end.
+        await firstValueFrom(this.persistSigningKey(currentDeviceId, {
+            signingPublicKey: result.signingPublicKey,
+            signingPrivateKey: result.signingPrivateKey,
+            keyPackages: [],
+            keyHandle: result.keyHandle,
+        }, result.identity));
 
         this.keyHandle.set(result.keyHandle);
         return result;
+    }
+
+    /** Seals `plaintextB64` under the exact key given, bypassing composite-key construction. */
+    private async writeSealedCacheEntry(key: string, plaintextB64: string): Promise<void> {
+        const sealed = await this.seal(plaintextB64);
+        await this._messageCache.set(key, {v: 1, at: Date.now(), ...sealed} satisfies CachedMessage);
     }
 
     private async readMessageCachePlain(): Promise<Record<string, string>> {
         const entries = await this._messageCache.entries<CachedMessage | string>();
         const out: Record<string, string> = {};
 
-        for (const [messageId] of entries) {
-            const plain = await this.getCachedMessage(messageId);
-            if (plain) out[messageId] = plain;
+        // Keyed by the *stored* key, composite or legacy-bare, so a restore reproduces the cache it
+        // was taken from rather than collapsing every context's copy of one id onto each other.
+        for (const [key, value] of entries) {
+            if (typeof value === 'string') {
+                out[key] = value;
+                continue;
+            }
+            try {
+                out[key] = await this.unseal(value);
+            } catch {
+                // An entry this device can no longer open is not worth exporting.
+            }
         }
         return out;
     }

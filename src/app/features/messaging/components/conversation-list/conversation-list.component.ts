@@ -185,7 +185,12 @@ export class ConversationListComponent {
                         // Populate decrypted preview text from MLS cache for encrypted messages.
                         for (const msg of reversed) {
                             if (msg.encryptionState === MessageEncryptionState.Encrypted) {
-                                const cached = await this.mlsService.getCachedMessage(msg.id);
+                                // Context, generation and claimed author all go into the lookup:
+                                // the cache is keyed on more than the server-chosen `messageId`
+                                // precisely so a preview cannot pick up another conversation's
+                                // plaintext for a replayed id.
+                                const cached = await this.mlsService.getCachedMessage(
+                                    c.id, msg.mlsGeneration ?? null, msg.id, msg.authorId);
                                 if (cached) {
                                     try {
                                         const bytes = Uint8Array.from(atob(cached), c => c.charCodeAt(0));

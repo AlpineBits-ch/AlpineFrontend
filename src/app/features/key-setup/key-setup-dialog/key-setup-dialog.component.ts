@@ -3,8 +3,9 @@ import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PasswordDirective} from 'primeng/password';
 import {EntropyModalComponent} from '../entropy-modal/entropy-modal.component';
+import {HttpErrorResponse} from '@angular/common/http';
 import {UserService} from '../../../services/user.service';
-import {MasterKeyService} from '../../../services/master-key.service';
+import {MasterKeyEngineError, MasterKeyService} from '../../../services/master-key.service';
 import {BackupService, toWrappingDto} from '../../../services/backup.service';
 import {PlatformService} from '../../../services/platform.service';
 import {AppInfoService} from '../../../services/app-info.service';
@@ -120,11 +121,35 @@ export class KeySetupDialogComponent {
     /**
      * Checks the retyped code before anything is generated.
      *
-     * Compared with formatting and case folded away, matching what the KDF does with it - otherwise
-     * a user who typed their code correctly but without the hyphens would be told it was wrong.
+     * <p>Folded through the **engine's** normaliser, not a local one. This used to call a private
+     * `normalizeCode()` that stripped non-alphanumerics and upper-cased and validated neither the
+     * length nor the alphabet - a second, weaker copy of rules that decide which key gets derived.
+     * Two copies drift, and the drift surfaces as a correct code being called wrong, or as a
+     * subtly different key. `normalize_recovery_code_checked` exists precisely so TypeScript need
+     * not keep one.</p>
      */
-    protected onConfirmCode(): void {
-        if (normalizeCode(this.confirmation()) !== normalizeCode(this.recoveryCode())) {
+    protected async onConfirmCode(): Promise<void> {
+        let typed: string;
+        let expected: string;
+        try {
+            [typed, expected] = await Promise.all([
+                this.masterKeyService.normalizeRecoveryCode(this.confirmation()),
+                this.masterKeyService.normalizeRecoveryCode(this.recoveryCode()),
+            ]);
+        } catch (err) {
+            // A code we just generated always normalises, so this is the typed one being malformed
+            // - unless the engine itself refused, which is reported as itself rather than as a
+            // mistyped code.
+            if (err instanceof MasterKeyEngineError) {
+                console.error('Recovery-code check could not run', err.detail);
+                this.errorMsg.set('This device could not check the code. ' + err.detail);
+                return;
+            }
+            this.errorMsg.set("That doesn't match. Check the code and try again.");
+            return;
+        }
+
+        if (typed !== expected) {
             this.errorMsg.set("That doesn't match. Check the code and try again.");
             return;
         }
@@ -157,6 +182,12 @@ export class KeySetupDialogComponent {
 
         from(this.masterKeyService.setupDualWrapped(this.password(), this.recoveryCode(), entropy)).pipe(
             switchMap(dual => this.backupService.putRecoveryKey({
+                // `toWrappingDto` carries `publicVerifier` through from the engine. It is not
+                // optional on this write: this is the key-establishing one, and Echo hard-refuses
+                // it without the field. Nothing derived it before, so first-time E2EE setup would
+                // have 400'd for every new account the moment the server deployed - and the
+                // `catchError` below turned that into "Something went wrong. Please try again.",
+                // which is an unbreakable loop rather than an error. (§L.11)
                 ...toWrappingDto(dual.passwordWrapping),
                 version: dual.passwordWrapping.version,
                 password: this.password(),
@@ -170,8 +201,11 @@ export class KeySetupDialogComponent {
                 this.confirmation.set('');
                 setTimeout(() => this.setupComplete.emit(), 1600);
             }),
-            catchError(() => {
-                this.errorMsg.set('Something went wrong. Please try again.');
+            catchError((err: unknown) => {
+                // Surfaced, not swallowed. The server's 400 says exactly what is wrong with the
+                // envelope, and collapsing every failure into one sentence is why a hard,
+                // permanent, every-account refusal was indistinguishable from a flaky network.
+                this.errorMsg.set(describeSetupFailure(err));
                 this.step.set('password');
                 return EMPTY;
             }),
@@ -179,7 +213,27 @@ export class KeySetupDialogComponent {
     }
 }
 
-/** Folds grouping, whitespace and case, mirroring what the Rust side does before the KDF. */
-function normalizeCode(input: string): string {
-    return input.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+/**
+ * The most specific thing that can honestly be said about a failed key-establishing write.
+ *
+ * Prefers the server's own message: `PUT /backup/recovery-key` refuses a first write with no
+ * `publicVerifier`, a mismatched pair of verifiers, or a cipherText that differs at an unchanged
+ * version - all of them client bugs, all of them actionable, and none of them survivable as
+ * "please try again".
+ */
+function describeSetupFailure(err: unknown): string {
+    console.error('Encryption setup failed', err);
+
+    if (err instanceof MasterKeyEngineError) {
+        return `This device could not prepare the keys. ${err.detail}`;
+    }
+    if (err instanceof HttpErrorResponse) {
+        const body = err.error as { detail?: string; title?: string; message?: string } | string | null;
+        const served = typeof body === 'string'
+            ? body
+            : body?.detail ?? body?.message ?? body?.title;
+        if (served) return `The server refused the setup: ${served}`;
+        return `The server refused the setup (HTTP ${err.status}). Please try again.`;
+    }
+    return 'Something went wrong. Please try again.';
 }

@@ -122,4 +122,34 @@ describe('mayPostCleartext', () => {
         expect(mayPostCleartext(1, 'plain')).toBe(false);
         expect(mayPostCleartext(0, 'plain')).toBe(false);
     });
+
+    // ─── C1: the monotonic encryption floor vetoes everything else ────────────
+    //
+    // Both arguments above are downstream of a server field. A server answering
+    // `{encrypted: false}` for a channel this device had been encrypting to got the active
+    // generation cleared and the resolved state set to 'plain' - so both inputs said "cleartext is
+    // fine" and the next composed message went out in the clear, with no group keys involved and
+    // no MLS property broken.
+
+    it('refuses cleartext in any channel this device has ever encrypted', () => {
+        // Generation cleared, state resolved to plain, and still refused: the floor is the only
+        // input here the server cannot move.
+        expect(mayPostCleartext(null, 'plain', 2)).toBe(false);
+    });
+
+    it('treats generation zero as a floor, not as absent', () => {
+        // The first generation of a context is 0, and `0` is falsy. A truthiness check here would
+        // exempt precisely the contexts that have only ever had one encrypted era.
+        expect(mayPostCleartext(null, 'plain', 0)).toBe(false);
+    });
+
+    it('still allows cleartext where no floor was ever set', () => {
+        // The floor must not turn every plaintext channel into a refusal - a veto that fires
+        // everywhere is one that gets removed.
+        expect(mayPostCleartext(null, 'plain', null)).toBe(true);
+    });
+
+    it('refuses cleartext in the state a claimed downgrade resolves to', () => {
+        expect(mayPostCleartext(null, 'downgraded')).toBe(false);
+    });
 });

@@ -1,7 +1,29 @@
 import {computed, inject, Injectable, signal} from '@angular/core';
 import {firstValueFrom} from 'rxjs';
 import {BackupService, fromWrappingDto, RecoveryKeyDto, toWrappingDto} from './backup.service';
-import {MasterKeyService} from './master-key.service';
+import {CredentialRejectedError, MasterKeyService} from './master-key.service';
+
+/**
+ * How a repair ended, in terms the UI can act on.
+ *
+ * <p>`credential-rejected` and `engine-failed` are deliberately different outcomes. Collapsing
+ * them into one falsy return is exactly what C2 shipped as: `rewrap_master_key` was invoked with
+ * three of its five required arguments, so every call failed at Tauri's argument deserialization,
+ * and both call sites reported that as "that recovery code did not work". A user mid-recovery,
+ * holding a correct code and no other credential, was told the one thing that would make them
+ * stop trying.</p>
+ */
+export type MasterKeyRepair =
+    /** Done. `recoveryCode` is set on a retrofit, and must be shown exactly once. */
+    | { outcome: 'ok'; recoveryCode?: string }
+    /** The credential genuinely does not open the wrapping. The only "check your code" case. */
+    | { outcome: 'credential-rejected' }
+    /** Nothing to repair from - no envelope, or no recovery-code wrapping to unwrap. */
+    | { outcome: 'not-applicable' }
+    /** The server answered 200 and stored nothing. Never show a code the server does not hold. */
+    | { outcome: 'not-stored' }
+    /** The local engine could not run the operation. Not the user's credential, and not their fault. */
+    | { outcome: 'engine-failed'; detail: string };
 
 /** What, if anything, the account needs the user to do about its master key. */
 export type MasterKeyAction =
@@ -92,28 +114,35 @@ export class MasterKeyStateService {
      * password - same key, so every blob sealed under it stays readable. Re-keying instead would
      * "fix" the login and destroy the history it was supposed to protect.
      *
-     * @returns false when the recovery code does not open the wrapping.
+     * <p>The recovery code is normalized by the engine, the new password never is - which is why
+     * both kinds are named explicitly rather than inferred from the shape of the string.</p>
      */
-    async rewrapUnderNewPassword(recoveryCode: string, newPassword: string): Promise<boolean> {
+    async rewrapUnderNewPassword(recoveryCode: string, newPassword: string): Promise<MasterKeyRepair> {
         const envelope = this._envelope();
-        if (!envelope?.recoveryCodeWrapping) return false;
+        if (!envelope?.recoveryCodeWrapping) return {outcome: 'not-applicable'};
 
         let rewrapped;
         try {
             rewrapped = await this.masterKey.rewrap(
                 fromWrappingDto(envelope.recoveryCodeWrapping, envelope.version),
                 recoveryCode,
+                'recoveryCode',
                 newPassword,
+                'password',
             );
-        } catch {
-            return false;
+        } catch (err) {
+            // Only a genuine credential rejection is reported as one. Anything else is the engine
+            // failing to run, and telling someone their last surviving credential is wrong when it
+            // is not is the worst answer available here.
+            if (err instanceof CredentialRejectedError) return {outcome: 'credential-rejected'};
+            return {outcome: 'engine-failed', detail: (err as Error)?.message ?? String(err)};
         }
 
         // The version must match: this re-wraps the key the account already has, and writing a
         // different one would orphan every blob sealed under the current version.
         await firstValueFrom(this.backup.rewrapPassword(envelope.version, toWrappingDto(rewrapped)));
         await this.refresh();
-        return true;
+        return {outcome: 'ok'};
     }
 
     /**
@@ -128,12 +157,11 @@ export class MasterKeyStateService {
      * invalidate every device backup blob sealed under the current one, which is the opposite of
      * what a user asking for more safety expects.</p>
      *
-     * @returns the code to show the user once, or null when the password was wrong or the wrapping
-     *          did not actually reach the server.
+     * @returns `ok` with the code to show the user once; never a code the server did not store.
      */
-    async addRecoveryCode(password: string): Promise<string | null> {
+    async addRecoveryCode(password: string): Promise<MasterKeyRepair> {
         const envelope = this._envelope();
-        if (!envelope) return null;
+        if (!envelope) return {outcome: 'not-applicable'};
 
         const code = await this.masterKey.generateRecoveryCode();
 
@@ -142,15 +170,19 @@ export class MasterKeyStateService {
             recoveryWrapping = await this.masterKey.rewrap(
                 fromWrappingDto(envelope, envelope.version),
                 password,
+                'password',
                 code,
+                'recoveryCode',
             );
-        } catch {
-            return null;
+        } catch (err) {
+            if (err instanceof CredentialRejectedError) return {outcome: 'credential-rejected'};
+            return {outcome: 'engine-failed', detail: (err as Error)?.message ?? String(err)};
         }
 
         await firstValueFrom(this.backup.putRecoveryKey({
             // The password wrapping is re-sent unchanged: the endpoint writes the pair, and sending
-            // half of it would drop the wrapping that still works.
+            // half of it would drop the wrapping that still works. Byte-identical too - a fresh IV
+            // would change the ciphertext and earn a 400 at the same version.
             kdf: envelope.kdf,
             iterations: envelope.iterations,
             memoryKiB: envelope.memoryKiB,
@@ -158,6 +190,11 @@ export class MasterKeyStateService {
             salt: envelope.salt,
             iv: envelope.iv,
             cipherText: envelope.cipherText,
+            // §L.11: the two wrappings of one key must carry the *same* verifier, and Echo rejects
+            // a mismatch. The stored password wrapping predates the field on every existing
+            // account, so the value the engine just derived is sent for both halves - it is derived
+            // from the master key alone, so it is correct for the wrapping already on the server.
+            publicVerifier: recoveryWrapping.publicVerifier ?? envelope.publicVerifier ?? null,
             version: envelope.version,
             password,
             recoveryCodeWrapping: toWrappingDto(recoveryWrapping),
@@ -168,8 +205,8 @@ export class MasterKeyStateService {
         // written nothing, which would leave the user holding a code that opens nothing while
         // being told they are protected. Re-read and check before showing it to them.
         await this.refresh();
-        if (!this._envelope()?.recoveryCodeWrapping) return null;
+        if (!this._envelope()?.recoveryCodeWrapping) return {outcome: 'not-stored'};
 
-        return code;
+        return {outcome: 'ok', recoveryCode: code};
     }
 }

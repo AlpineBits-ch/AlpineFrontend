@@ -30,6 +30,7 @@ import {MessagingService} from '../../../../services/messaging.service';
 import {MlsService} from '../../../../services/mls.service';
 import {MlsUnreadableBannerComponent} from '../../../../components/mls-unreadable-banner/mls-unreadable-banner.component';
 import {MlsSyncService} from '../../../../services/mls-sync.service';
+import {MlsHealthService} from '../../../../services/mls-health.service';
 import {MessageStore} from '../../../../stores/message.store';
 import {ConversationStore} from '../../../../stores/conversation.store';
 import {ProfileService} from '../../../../services/profile.service';
@@ -112,6 +113,7 @@ export class ConversationComponent implements AfterViewInit {
     // ── Call state ───────────────────────────────────────────────────────────
     private mlsService = inject(MlsService);
     private mlsSync = inject(MlsSyncService);
+    private mlsHealth = inject(MlsHealthService);
     private profileService = inject(ProfileService);
 
     // ── Conversation meta ────────────────────────────────────────────────────
@@ -190,7 +192,17 @@ export class ConversationComponent implements AfterViewInit {
         this.scroll.scrollToBottom();
     }
 
-    public createMessage(event: {
+    /**
+     * Composes, encrypting whenever this device has any reason to believe it must.
+     *
+     * <p><b>`conversation().encryptionState` is a server field.</b> Branching on it alone - which
+     * is what this did - means a server that reports an encrypted DM as plaintext gets the very
+     * next message posted in the clear, with no group keys involved and no MLS property broken.
+     * The local monotonic floor is consulted first and outranks it: a conversation this device has
+     * ever held a group for stays encrypted here regardless of what the wire says, and lowering
+     * that takes an explicit local disable, not a field. (§L.6 / §L.9.)</p>
+     */
+    public async createMessage(event: {
         content: string;
         attachments: string[];
         inReplyTo?: string;
@@ -198,12 +210,29 @@ export class ConversationComponent implements AfterViewInit {
         roleMentions: string[];
         mentionsEveryone: boolean;
         mentionsHere: boolean;
-    }): void {
-        if (this.conversation().encryptionState === ConversationEncryption.Encrypted) {
+    }): Promise<void> {
+        const conversationId = this.conversation().id;
+        const serverSaysEncrypted =
+            this.conversation().encryptionState === ConversationEncryption.Encrypted;
+
+        if (serverSaysEncrypted) {
             this.createEncryptedMessage(event);
-        } else {
-            this.createPlainMessage(event);
+            return;
         }
+
+        const floor = await this.mlsService.getEncryptionFloor(conversationId);
+        if (floor !== null) {
+            // Refused outright rather than downgraded. Nothing leaves the machine: the plaintext is
+            // the part that cannot be taken back, so there is no version of this where sending and
+            // apologising afterwards is better than not sending.
+            this.mlsHealth.recordFailure(
+                conversationId, false, 'downgraded',
+                `the server reports this conversation as unencrypted, but this device has held an `
+                + `MLS group for it up to generation ${floor}`);
+            return;
+        }
+
+        this.createPlainMessage(event);
     }
 
     protected onScroll(): void {
@@ -467,7 +496,9 @@ export class ConversationComponent implements AfterViewInit {
         const now = new Date();
         const b64Content = toBase64(content);
 
-        console.log('Creating encrypted message with content:', content);
+        // Nothing is logged here on purpose. This line used to print the user's plaintext, in a
+        // build that ships `devtools` in release, from the one code path whose entire reason to
+        // exist is that the plaintext does not leave the machine unencrypted.
         this.replyingTo.set(null);
 
         const optimistic: MessageDto = {
@@ -502,15 +533,21 @@ export class ConversationComponent implements AfterViewInit {
         }
 
         const conversationId = this.conversation().id;
+        const ownUserId = this.profileService.ownProfile()?.userId;
 
         from(this.sendEncrypted(conversationId, keyHandle, b64Content, {
             attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere,
         })).pipe(
-            tap(confirmed => {
+            tap(({confirmed, generation}) => {
                 // Keep the plaintext for display. The server stores ciphertext and MLS ratchets
                 // forward only, so this is the one moment we can cache it - after this, our own
                 // message is as unreadable to us as anyone else's would be.
-                void this.mlsService.cacheMessage(confirmed.id, b64Content);
+                //
+                // Under the generation this message was actually sealed with, not
+                // `confirmed.mlsGeneration`: the id and every field beside it come back from the
+                // server, and the cache key must not be something the server chooses.
+                void this.mlsService.cacheMessage(
+                    conversationId, generation, confirmed.id, b64Content, ownUserId);
                 this.messageStore.confirmMessage(tempId, {...confirmed, content: b64Content});
                 this.messagingService.messageSentObservable.next({...confirmed, content: b64Content});
             }),
@@ -555,10 +592,13 @@ export class ConversationComponent implements AfterViewInit {
             attachments: string[]; inReplyTo: string | undefined; mentions: string[];
             roleMentions: string[]; mentionsEveryone: boolean; mentionsHere: boolean;
         },
-    ): Promise<MessageDto> {
+    ): Promise<{ confirmed: MessageDto; generation: number }> {
         const deviceId = await this.mlsService.getOrCreateDeviceIdentifier();
 
-        const attempt = async (): Promise<MessageDto> => {
+        // The generation travels back out with the confirmation because the plaintext cache is
+        // keyed on it, and the only trustworthy source for "which generation was this sealed
+        // under" is the one this device used to seal it.
+        const attempt = async (): Promise<{ confirmed: MessageDto; generation: number }> => {
             const generation = await this.mlsService.getKnownGeneration(conversationId);
             if (generation === null) throw new Error(`Conversation ${conversationId} is not encrypted here`);
 
@@ -569,7 +609,7 @@ export class ConversationComponent implements AfterViewInit {
                 this.mlsService.sendMessage(groupId, keyHandle, b64Content),
             );
 
-            return firstValueFrom(this.messagingService.createMessage({
+            const confirmed = await firstValueFrom(this.messagingService.createMessage({
                 content: ciphertext,
                 channelId: undefined,
                 conversationId,
@@ -579,6 +619,7 @@ export class ConversationComponent implements AfterViewInit {
                 mlsGeneration: generation,
                 senderDeviceId: deviceId,
             }));
+            return {confirmed, generation};
         };
 
         try {

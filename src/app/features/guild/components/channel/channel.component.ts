@@ -33,10 +33,11 @@ import {MessageEncryptionState} from '../../../../enums/message-encryption-state
 import {MessageType} from '../../../../enums/message-type.enum';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
 import {isGroupedWithPrevious} from '../../../messaging/components/conversation/message-utils';
-import {classifyAutoModError, forumParentOf, mayPostCleartext} from './channel-utils';
+import {ChannelEncryptionState, classifyAutoModError, forumParentOf, mayPostCleartext} from './channel-utils';
 import {MlsService} from '../../../../services/mls.service';
 import {MlsSyncService} from '../../../../services/mls-sync.service';
 import {ChannelAccessBannerComponent} from './channel-access-banner.component';
+import {MlsUnreadableBannerComponent} from '../../../../components/mls-unreadable-banner/mls-unreadable-banner.component';
 import {toBase64} from '../../../../helpers/base64.helper';
 
 import {Button} from 'primeng/button';
@@ -80,7 +81,7 @@ function decodeContent(encoded: string): string {
         ComposerComponent, MessageComponent, SystemMessageComponent, Button,
         DatePipe, HighlightPipe, TypingDotsComponent, ThreadPanelComponent,
         PinnedMessagesPanelComponent, FollowChannelDialogComponent, TranslateModule,
-        ChannelAccessBannerComponent,
+        ChannelAccessBannerComponent, MlsUnreadableBannerComponent,
         ForumTagChipComponent, ForumTagPickerComponent, Dialog, PrimeTemplate,
     ],
     templateUrl: './channel.component.html',
@@ -115,7 +116,7 @@ export class ChannelComponent implements AfterViewInit {
      * used to be treated as plaintext - so the composer offered to send, the server refused, and
      * nothing explained why.
      */
-    protected encryptionState = signal<'plain' | 'joined' | 'locked-out'>('plain');
+    protected encryptionState = signal<ChannelEncryptionState>('plain');
     protected isLockedOut = computed(() => this.encryptionState() === 'locked-out');
     protected showFollowDialog = signal(false);
 
@@ -334,10 +335,6 @@ export class ChannelComponent implements AfterViewInit {
 
 
         effect(() => {
-            //console.log(this.messages());
-        });
-
-        effect(() => {
             const channelId = this.channel().id;
             const _ = this.messages();
 
@@ -494,12 +491,17 @@ export class ChannelComponent implements AfterViewInit {
         from(this.send(channelId, content, b64Content, {
             attachments, inReplyTo, mentions, roleMentions, mentionsEveryone, mentionsHere,
         })).pipe(
-            tap(confirmed => {
+            tap(({confirmed, generation}) => {
                 // An encrypted send comes back as ciphertext. We already hold the plaintext and MLS
                 // ratchets forward only, so this is the one moment it can be kept - after this our
                 // own message is as unreadable to us as anyone else's.
                 if (confirmed.encryptionState === MessageEncryptionState.Encrypted) {
-                    void this.mlsService.cacheMessage(confirmed.id, b64Content);
+                    // Keyed on the generation this device sealed with, not on anything the server
+                    // echoed back - the id is the server's, and a cache keyed on the server's
+                    // choice alone lets it replay one context's plaintext into another.
+                    void this.mlsService.cacheMessage(
+                        channelId, generation, confirmed.id, b64Content,
+                        this.profileService.ownProfile()?.userId);
                     const shown = {...confirmed, content: b64Content};
                     this.messageStore.confirmMessage(tempId, shown);
                     this.messagingService.messageSentObservable.next(shown);
@@ -530,11 +532,31 @@ export class ChannelComponent implements AfterViewInit {
      * like a plaintext one, so the composer offered to send, the server refused the plaintext, and
      * the user got a failed message with no explanation and no way forward.
      */
+    /**
+     * Tries to get this device readable again, from the banner.
+     *
+     * Re-reads the channel's state, which joins from any Welcome that is waiting and replays the
+     * commits missed since. It deliberately does *not* mint a new signing key: that orphans a
+     * device from every group it belongs to, and is never the right response to "I could not read
+     * this".
+     */
+    protected async relinkDevice(): Promise<void> {
+        await this.resolveEncryptionState(this.channel().id);
+    }
+
     private async resolveEncryptionState(channelId: string): Promise<void> {
         try {
             const state = await this.mlsSync.refreshState(channelId, true);
 
             if (!state.encrypted) {
+                // Never 'plain' above the floor. `state.encrypted` is a server field, and this
+                // device holding a group for the channel at some point is local proof that the
+                // field is either wrong or describes a change nobody confirmed here. `refreshState`
+                // has already recorded the downgrade for the banner; this stops the composer.
+                if (await this.mlsService.getEncryptionFloor(channelId) !== null) {
+                    this.encryptionState.set('downgraded');
+                    return;
+                }
                 this.encryptionState.set('plain');
                 return;
             }
@@ -566,26 +588,31 @@ export class ChannelComponent implements AfterViewInit {
             attachments: string[]; inReplyTo: string | undefined; mentions: string[];
             roleMentions: string[]; mentionsEveryone: boolean; mentionsHere: boolean;
         },
-    ): Promise<MessageDto> {
-        const attempt = async (): Promise<MessageDto> => {
+    ): Promise<{ confirmed: MessageDto; generation: number | null }> {
+        // The generation travels back out with the confirmation: the plaintext cache is keyed on
+        // it, and the only trustworthy source for which generation sealed this message is the one
+        // this device used.
+        const attempt = async (): Promise<{ confirmed: MessageDto; generation: number | null }> => {
             const generation = await this.mlsService.getKnownGeneration(channelId);
+            const floor = await this.mlsService.getEncryptionFloor(channelId);
 
             if (generation === null) {
                 // Refused here rather than by the server: the server's rejection arrives only after
                 // the plaintext has left this machine, which is the part that cannot be undone.
                 // The conversation composer has always thrown in this situation; this makes the two
-                // agree. See `mayPostCleartext` for why the two conditions are not the same.
-                if (!mayPostCleartext(generation, this.encryptionState())) {
+                // agree. See `mayPostCleartext` for why the three conditions are not the same.
+                if (!mayPostCleartext(generation, this.encryptionState(), floor)) {
                     throw new Error(
                         `Channel ${channelId} is encrypted and this device holds no group for it`);
                 }
 
-                return firstValueFrom(this.messagingService.createMessage({
+                const confirmed = await firstValueFrom(this.messagingService.createMessage({
                     content,
                     channelId,
                     conversationId: undefined,
                     ...rest,
                 }));
+                return {confirmed, generation: null};
             }
 
             const keyHandle = this.mlsService.keyHandle();
@@ -598,7 +625,7 @@ export class ChannelComponent implements AfterViewInit {
                 this.mlsService.sendMessage(groupId, keyHandle, b64Content),
             );
 
-            return firstValueFrom(this.messagingService.createMessage({
+            const confirmed = await firstValueFrom(this.messagingService.createMessage({
                 content: ciphertext,
                 channelId,
                 conversationId: undefined,
@@ -608,6 +635,7 @@ export class ChannelComponent implements AfterViewInit {
                 mlsGeneration: generation,
                 senderDeviceId: await this.mlsService.getOrCreateDeviceIdentifier(),
             }));
+            return {confirmed, generation};
         };
 
         try {

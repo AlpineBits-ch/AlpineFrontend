@@ -12,7 +12,7 @@ import {MessageDto, MessageReaction} from '../dtos/response/message.dto';
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
 import {MessageType} from '../enums/message-type.enum';
 import {MessagingService} from '../services/messaging.service';
-import {MlsService} from '../services/mls.service';
+import {MlsReplayedMessage, MlsService} from '../services/mls.service';
 import {MlsSyncService} from '../services/mls-sync.service';
 import {MlsHealthService} from '../services/mls-health.service';
 import {
@@ -95,14 +95,39 @@ async function decryptMessages(
     const result: MessageDto[] = [];
     for (const msg of messages) {
         const contextId = msg.conversationId ?? msg.channelId;
-        if (msg.encryptionState !== MessageEncryptionState.Encrypted || !contextId || msg.type === MessageType.System) {
+        if (!contextId) {
             result.push(msg);
             continue;
         }
 
-        const cached = await mlsService.getCachedMessage(msg.id);
-        if (cached) {
-            result.push({...msg, content: cached});
+        const isChannel = !!msg.channelId;
+
+        if (msg.encryptionState !== MessageEncryptionState.Encrypted) {
+            // `encryptionState` is a per-message server field, and skipping the decryptor on it
+            // rendered `content` verbatim under `authorId` - arbitrary text in an end-to-end
+            // encrypted thread, attributed to a real member, needing no group keys at all. §L.9
+            // forbids exactly this, and `applyRemoteUpdate` already got it right by deciding from
+            // the *stored* state. The equivalent local fact on the read paths is the monotonic
+            // encryption floor: above it, a message claiming to be cleartext is untrusted, not
+            // content.
+            //
+            // System messages are exempt because they carry no author-attributed body - they are
+            // rendered from `type` and a variant index, not from `content`.
+            if (msg.type !== MessageType.System
+                && await mlsService.getEncryptionFloor(contextId) !== null) {
+                health.recordFailure(
+                    contextId, isChannel, 'downgraded',
+                    `message ${msg.id} claims to be unencrypted in a context this device has `
+                    + `encrypted`);
+                result.push({...msg, undecryptable: true});
+                continue;
+            }
+            result.push(msg);
+            continue;
+        }
+
+        if (msg.type === MessageType.System) {
+            result.push(msg);
             continue;
         }
 
@@ -110,11 +135,22 @@ async function decryptMessages(
         // currently hold would decrypt against the wrong keys once a context has been toggled off
         // and on, producing silent garbage instead of an honest failure.
         const generation = msg.mlsGeneration ?? await mlsService.getKnownGeneration(contextId);
+
+        // Keyed on context and generation as well as the id, and checked against the author the
+        // server is claiming right now. `msg.id` is the server's to choose: on the bare id alone,
+        // an id replayed from another conversation returned that conversation's plaintext here,
+        // and on this path the lookup happens before the group is even resolved - so the reader
+        // need not be a member of the context the id came from.
+        const cached = await mlsService.getCachedMessage(
+            contextId, generation ?? null, msg.id, msg.authorId);
+        if (cached) {
+            result.push({...msg, content: cached});
+            continue;
+        }
+
         const groupId = generation === null || generation === undefined
             ? null
             : await mlsService.getGroupId(contextId, generation);
-
-        const isChannel = !!msg.channelId;
 
         if (!groupId) {
             // Distinct from a decrypt failure: this device was never admitted to the era the
@@ -132,7 +168,8 @@ async function decryptMessages(
         );
 
         if (plaintext) {
-            void mlsService.cacheMessage(msg.id, plaintext);
+            void mlsService.cacheMessage(
+                contextId, generation ?? null, msg.id, plaintext, msg.authorId);
             result.push({...msg, content: plaintext});
             continue;
         }
@@ -351,11 +388,59 @@ export const MessageStore = signalStore(
                 return;
             }
 
-            void mlsService.cacheMessage(event.messageId, plaintext);
+            void mlsService.cacheMessage(
+                contextId, generation ?? null, event.messageId, plaintext, existing.authorId);
             patchState(store, updateEntity({
                 id: event.messageId,
                 changes: {content: plaintext, undecryptable: false, updatedAt: new Date()},
             }));
+        },
+
+        /**
+         * Applies a message that arrived before the commit that made it readable.
+         *
+         * <p><b>Nothing consumed `replayedMessages` at all.</b> `drain_pending_messages` *removes*
+         * each buffered entry, decrypts it, and returns only the still-pending ones to the buffer -
+         * and MLS decrypts from the wire exactly once, so every message that raced ahead of its
+         * commit was decrypted and then dropped on the floor. Permanently, and precisely the loss
+         * the buffer exists to prevent: not draining at all would have been strictly safer than
+         * draining into nothing.</p>
+         *
+         * <p>Upserted by id and cached, so a copy that was already rendered as undecryptable
+         * becomes readable and stays readable across a reload.</p>
+         */
+        async applyReplayedMessages(
+            contextId: string,
+            messages: readonly MlsReplayedMessage[],
+        ): Promise<void> {
+            const generation = await mlsService.getKnownGeneration(contextId);
+
+            for (const replayed of messages) {
+                if (!replayed.messageId) continue;
+                const existing = store.entityMap()[replayed.messageId];
+
+                // The credential that actually signed it against the row the server attributed it
+                // to - the same binding `decryptMessage` applies, which a replay would otherwise
+                // skip because it never goes back through that path.
+                if (existing && replayed.senderIdentity
+                    && existing.authorId !== replayed.senderIdentity) {
+                    mlsHealth.recordFailure(
+                        contextId, !!existing.channelId, 'decrypt-failed',
+                        `the server attributed replayed message ${replayed.messageId} to `
+                        + `${existing.authorId}, but it was signed by ${replayed.senderIdentity}`);
+                    continue;
+                }
+
+                void mlsService.cacheMessage(
+                    contextId, generation, replayed.messageId, replayed.plaintext,
+                    existing?.authorId ?? replayed.senderIdentity ?? undefined);
+
+                if (!existing) continue;
+                patchState(store, updateEntity({
+                    id: replayed.messageId,
+                    changes: {content: replayed.plaintext, undecryptable: false},
+                }));
+            }
         },
 
         removeMessagesForConversation(conversationId: string): void {
@@ -580,6 +665,14 @@ export const MessageStore = signalStore(
             const wsService = inject(MessagingWebsocketService);
             const guildWsService = inject(GuildWebsocketService);
             const profileService = inject(ProfileService);
+            const mlsSync = inject(MlsSyncService);
+
+            // The subscriber `MlsSyncService.replayedMessages` never had. Without one, every
+            // message that arrived ahead of its commit was decrypted by the drain and discarded -
+            // MLS decrypts from the wire exactly once, so those were gone for good.
+            mlsSync.replayedMessages.subscribe(({contextId, messages}) =>
+                void store.applyReplayedMessages(contextId, messages)
+            );
 
             wsService.messageObservable.subscribe(msg =>
                 patchState(store, upsertEntity(msg))

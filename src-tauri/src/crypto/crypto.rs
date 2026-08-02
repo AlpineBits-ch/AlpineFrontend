@@ -1,17 +1,42 @@
 use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
 use argon2::{Algorithm, Argon2, Params, Version};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
+use hkdf::Hkdf;
 use rand::rngs::OsRng;
 use rsa::{
     pkcs8::{EncodePrivateKey, EncodePublicKey},
     RsaPrivateKey,
 };
 use serde::{Deserialize, Serialize};
+use sha2::Sha256;
 
 const ARGON2_MEM: u32 = 65536; // 64 MiB
 const ARGON2_ITERS: u32 = 3;
 const ARGON2_LANES: u32 = 1;
 const SCHEMA_VERSION: u32 = 1;
+
+// Ceilings on the Argon2 parameters a *stored envelope* may declare (contract §L.9).
+//
+// The envelope is deliberately self-describing and `decrypt_master_key` derives from the declared
+// header rather than from the constants above - that is the only reason a wrapping written by an
+// older build stays openable. The cost is that the header arrives from the server, and
+// `argon2_memory` is a u32 of kibibytes: 4 TiB, allocated eagerly, on the recovery path.
+//
+// Not a confidentiality boundary. Weak declared parameters do not make a stolen envelope crackable
+// - the derivation simply produces the wrong key and the AEAD fails closed. The exposure is
+// resource exhaustion only, so the ceilings sit well above anything this client writes
+// (64 MiB / t=3 / p=1) and well below anything that hangs a machine. Mirrors
+// `crypto::mls::check_kdf_parameters`, which does the same for the §D backup envelope.
+const KDF_MAX_MEMORY_KIB: u32 = 1024 * 1024; // 1 GiB
+const KDF_MAX_ITERATIONS: u32 = 10;
+const KDF_MAX_PARALLELISM: u32 = 16;
+
+/// HKDF `info` for the master-key public verifier. **Contract §L.11, exact and ASCII.**
+///
+/// Any change to the derivation takes a new version suffix rather than a silent redefinition: an
+/// account's stored verifier has to stay comparable for the life of its master key, and the server
+/// can only ever check the value it already holds against the one a later write submits.
+const VERIFIER_INFO: &[u8] = b"venta.masterkey.verifier.v1";
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -23,6 +48,38 @@ pub struct EncryptedMasterKey {
     argon2_memory: u32,
     argon2_parallelism: u32,
     version: u32,
+    /// HKDF-SHA256 of the master key, so the server can prove two wrappings seal the same bytes.
+    ///
+    /// <p>Contract §L.11. Emitted on every wrapping this client produces; `Option` because the
+    /// same struct is deserialized from envelopes the server already stores, and no account in the
+    /// field has one. A reader must never require it.</p>
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    public_verifier: Option<String>,
+}
+
+/// The value §L.8 requires the server to compare, and §L.11 fixes the construction of.
+///
+/// `HKDF-SHA256(ikm = masterKey, salt = "", info = "venta.masterkey.verifier.v1", L = 32)`, base64
+/// standard-with-padding.
+///
+/// <p>Derived from the master key rather than from a wrapping, and that is the whole point: the
+/// value has to be *identical across a re-wrap* for `rewrap-password` to prove the new wrapping
+/// seals the same key. Anything derived from a wrapping moves with its salt and nonce and would
+/// fail on the first legitimate re-wrap; anything derived from the password would be an offline
+/// password oracle for whoever reads the row.</p>
+///
+/// <p>Safe to disclose: a 32-byte HKDF output over a 32-byte uniformly random ikm reveals the
+/// master key only to someone who can invert HKDF-SHA256, and the server accepts it as an equality
+/// check, never as authorisation to unwrap anything.</p>
+fn derive_public_verifier(master_key: &[u8]) -> Result<String, String> {
+    // `Some(&[])` rather than `None` to match §L.11's `salt = ""` literally. HMAC zero-pads a key
+    // shorter than its block size, so the two are the same bytes either way - written explicitly
+    // so nobody has to re-derive that equivalence to check this against the spec.
+    let hk = Hkdf::<Sha256>::new(Some(&[]), master_key);
+    let mut out = [0u8; 32];
+    hk.expand(VERIFIER_INFO, &mut out)
+        .map_err(|e| format!("verifier derivation failed: {e}"))?;
+    Ok(B64.encode(out))
 }
 
 #[derive(Serialize)]
@@ -249,14 +306,26 @@ fn normalize_recovery_code(input: &str) -> Result<String, String> {
         .flat_map(|c| c.to_uppercase())
         .collect();
 
-    if normalized.len() != RECOVERY_GROUPS * RECOVERY_GROUP_LEN {
+    // Characters, not bytes. `String::len()` counts UTF-8 bytes, so a code padded with two-byte
+    // characters passed the length check at half the character count - and the alphabet check
+    // below used to truncate each `char` to a `u8`, which mapped 'Ł' (U+0141) onto 'A' (0x41) and
+    // waved it through. Together those made this a fail-*open* validator: a code containing
+    // neither the right characters nor the right number of them normalized cleanly, derived a
+    // different key, and reported a wrong password rather than a bad code.
+    let length = normalized.chars().count();
+    if length != RECOVERY_GROUPS * RECOVERY_GROUP_LEN {
         return Err(format!(
             "InvalidRecoveryCode: expected {} characters, got {}",
             RECOVERY_GROUPS * RECOVERY_GROUP_LEN,
-            normalized.len()
+            length
         ));
     }
-    if let Some(bad) = normalized.chars().find(|c| !RECOVERY_ALPHABET.contains(&(*c as u8))) {
+    // `is_ascii()` first: without it, `c as u8` silently keeps only the low byte of a non-ASCII
+    // scalar and folds it into the alphabet's range.
+    if let Some(bad) = normalized
+        .chars()
+        .find(|c| !c.is_ascii() || !RECOVERY_ALPHABET.contains(&(*c as u8)))
+    {
         return Err(format!(
             "InvalidRecoveryCode: '{}' is not a recovery-code character",
             bad
@@ -313,13 +382,43 @@ fn wrap_master_key(master_key: &[u8], credential: &str) -> Result<EncryptedMaste
         argon2_memory: ARGON2_MEM,
         argon2_parallelism: ARGON2_LANES,
         version: SCHEMA_VERSION,
+        // Derived here, beside the wrapping, because this is the only place that holds the master
+        // key. Both wrappings of one key therefore carry the *same* value by construction - Echo
+        // refuses a write whose two wrappings disagree, since differing verifiers mean the two
+        // wrappings do not seal the same key.
+        public_verifier: Some(derive_public_verifier(master_key)?),
     })
+}
+
+/// Rejects a declared Argon2 header before it reaches `Params::new` (§L.9).
+///
+/// Deliberately an error rather than a clamp: deriving with parameters other than the ones the
+/// envelope declares produces the wrong key and reports it as a wrong password, which is the single
+/// worst diagnostic to hand someone mid-recovery. Same choice, same reasoning, as
+/// `crypto::mls::check_kdf_parameters`.
+fn check_master_key_kdf_parameters(
+    memory_kib: u32,
+    iterations: u32,
+    parallelism: u32,
+) -> Result<(), String> {
+    if memory_kib > KDF_MAX_MEMORY_KIB
+        || iterations > KDF_MAX_ITERATIONS
+        || parallelism > KDF_MAX_PARALLELISM
+    {
+        return Err(format!(
+            "InvalidMasterKeyEnvelope: refusing declared Argon2 parameters (m={memory_kib} KiB, \
+             t={iterations}, p={parallelism}) - above the m<={KDF_MAX_MEMORY_KIB} KiB, \
+             t<={KDF_MAX_ITERATIONS}, p<={KDF_MAX_PARALLELISM} this build will attempt"
+        ));
+    }
+    Ok(())
 }
 
 /// Unwraps the master key with a credential - either the account password or the recovery code.
 ///
 /// The parameters come from the envelope, never from the constants above, so a wrapping written by
-/// an older build stays openable.
+/// an older build stays openable - but they are checked against a ceiling first, because the
+/// envelope arrives from the server and `argon2_memory` is a u32 of kibibytes.
 #[tauri::command]
 pub fn decrypt_master_key(
     encrypted: EncryptedMasterKey,
@@ -330,6 +429,12 @@ pub fn decrypt_master_key(
         .map_err(|e| e.to_string())?;
     let salt = B64.decode(&encrypted.salt).map_err(|e| e.to_string())?;
     let iv_bytes = B64.decode(&encrypted.iv).map_err(|e| e.to_string())?;
+
+    check_master_key_kdf_parameters(
+        encrypted.argon2_memory,
+        encrypted.argon2_iterations,
+        encrypted.argon2_parallelism,
+    )?;
 
     let params = Params::new(
         encrypted.argon2_memory,
@@ -367,10 +472,14 @@ pub fn decrypt_master_key(
 #[cfg(test)]
 mod master_key_tests {
     use super::{
-        decrypt_master_key, generate_recovery_code, normalize_recovery_code, rewrap_master_key,
-        setup_master_key, setup_master_key_dual, CredentialKind, EncryptedMasterKey,
-        RECOVERY_ALPHABET, RECOVERY_REJECT_AT,
+        check_master_key_kdf_parameters, decrypt_master_key, derive_public_verifier,
+        generate_recovery_code, normalize_recovery_code, rewrap_master_key, setup_master_key,
+        setup_master_key_dual, CredentialKind, EncryptedMasterKey, ARGON2_ITERS, ARGON2_LANES,
+        ARGON2_MEM, B64, RECOVERY_ALPHABET, RECOVERY_REJECT_AT, VERIFIER_INFO,
     };
+    use base64::Engine as _;
+    use hkdf::Hkdf;
+    use sha2::Sha256;
 
     const CODE: &str = "AAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG-HHHH";
 
@@ -538,6 +647,30 @@ mod master_key_tests {
     }
 
     #[test]
+    fn a_non_ascii_lookalike_is_rejected_rather_than_folded_onto_a_real_character() {
+        // 'Ł' is U+0141. The alphabet check used to do `*c as u8`, which keeps only the low byte -
+        // 0x41, which is 'A'. So this code passed validation as if the user had typed 'A', derived
+        // a key from bytes that are not 'A' at all, and reported the result as a wrong password.
+        // A fail-*open* validator on the one credential a password reset leaves intact.
+        let err = normalize_recovery_code("ŁAAA-BBBB-CCCC-DDDD-EEEE-FFFF-GGGG-HHHH")
+            .expect_err("a non-ASCII character must be rejected");
+        assert!(err.starts_with("InvalidRecoveryCode"), "error was: {err}");
+    }
+
+    #[test]
+    fn length_is_counted_in_characters_not_bytes() {
+        // 16 two-byte characters is 32 *bytes* and 16 characters. `String::len()` counts bytes, so
+        // this passed the length check at half the required entropy before failing - or, with the
+        // low-byte fold above, not failing at all.
+        let half: String = std::iter::repeat('Ł').take(16).collect();
+        let err = normalize_recovery_code(&half).expect_err("must be rejected");
+        assert!(
+            err.contains("got 16"),
+            "the error must report characters, not bytes: {err}"
+        );
+    }
+
+    #[test]
     fn a_password_is_never_normalized() {
         // Passwords are case-sensitive and may contain anything; folding one would silently change
         // which key it derives.
@@ -670,14 +803,25 @@ mod master_key_tests {
     /// The alphabet divergence that prompted this was invisible to every single-client test either
     /// side had: each generated codes its own validator accepted. Only bytes from the other
     /// implementation catch it, which is the same reason the MLS golden vectors exist.
-    #[test]
-    fn a_recovery_code_from_venta_mobile_opens_its_wrapping_here() {
-        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+    /// Where both clients keep their recovery-code fixtures. **Contract §C.1.2 point 4.**
+    ///
+    /// This directory and these two filenames are the agreed pair, and getting them wrong is how
+    /// the assertion spent its whole life decorative: Alpine published
+    /// `testdata/master-key/v1/fixture.json` while its own consumer read
+    /// `fixture-venta-mobile.json`, and mobile published `testdata/mls-golden/v1/recovery-code.json`
+    /// while expecting `recovery-code-alpine.json`. Three-way mismatch in directory, filename and
+    /// shape, so neither side's check could ever fire in either direction.
+    fn fixture_dir() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("..")
             .join("testdata")
-            .join("master-key")
+            .join("mls-golden")
             .join("v1")
-            .join("fixture-venta-mobile.json");
+    }
+
+    #[test]
+    fn a_recovery_code_from_venta_mobile_opens_its_wrapping_here() {
+        let path = fixture_dir().join("recovery-code.json");
 
         let Ok(raw) = std::fs::read(&path) else {
             // Pending venta-mobile publishing its side. Loud, but not a failure: the always-on
@@ -686,10 +830,11 @@ mod master_key_tests {
             // divergence. This is a completeness gap, not an unguarded regression.
             eprintln!(
                 "\n!!! PENDING CROSS-CLIENT COVERAGE !!!\n\
-                 No venta-mobile master-key fixture at {}.\n\
-                 Alpine's own is at ../testdata/master-key/v1/fixture.json (regenerate with\n\
-                 `cargo test --lib -- --ignored generate_master_key_fixture`). Until mobile checks\n\
-                 in its own, neither client has proved it can open the other's recovery code.\n",
+                 No venta-mobile recovery-code fixture at {}.\n\
+                 Alpine's own is at ../testdata/mls-golden/v1/recovery-code-alpine.json\n\
+                 (regenerate with `cargo test --lib -- --ignored generate_recovery_code_fixture`).\n\
+                 Until mobile checks in its own, neither client has proved it can open the\n\
+                 other's recovery code.\n",
                 path.display()
             );
             return;
@@ -698,6 +843,11 @@ mod master_key_tests {
 
         assert_eq!(fixture["producedBy"].as_str(), Some("venta-mobile"));
 
+        // Read leniently on purpose. Mobile emits `recoveryCode` / `normalized` / `masterKey` /
+        // `recoveryCodeWrapping` and *not* a password half - it has no reason to, since the
+        // password wrapping is not the thing that has to cross clients. `.expect()`ing fields the
+        // other implementation does not produce turns a live cross-client assertion into a panic
+        // on shape rather than on substance, which is the second half of why this never fired.
         let code = fixture["recoveryCode"].as_str().expect("recoveryCode");
         let expected_master_key = fixture["masterKey"].as_str().expect("masterKey");
 
@@ -705,6 +855,16 @@ mod master_key_tests {
         // input and derive a different key.
         let normalized = normalize_recovery_code(code)
             .unwrap_or_else(|e| panic!("a venta-mobile recovery code must be valid here: {e}"));
+
+        // When they publish what their own normaliser produced, the two must agree character for
+        // character: a code that normalizes differently on the two clients derives two different
+        // keys from one piece of paper.
+        if let Some(theirs) = fixture["normalized"].as_str() {
+            assert_eq!(
+                normalized, theirs,
+                "the two normalisers disagree - one of them will derive the wrong key"
+            );
+        }
 
         let wrapping: EncryptedMasterKey =
             serde_json::from_value(fixture["recoveryCodeWrapping"].clone()).expect("wrapping");
@@ -716,25 +876,31 @@ mod master_key_tests {
             expected_master_key
         );
 
-        // And the password half of the same envelope, so the fixture covers both wrappings.
-        let password_wrapping: EncryptedMasterKey =
-            serde_json::from_value(fixture["passwordWrapping"].clone()).expect("wrapping");
-        let from_password = decrypt_master_key(
-            password_wrapping,
-            fixture["password"].as_str().expect("password").to_string(),
-        )
-        .expect("their password wrapping must open with their password");
-
-        assert_eq!(from_password, unwrapped, "both wrappings must seal one key");
+        // The password half only when the fixture carries one. Optional rather than required, so
+        // that a fixture from a client whose recovery flow has no password wrapping still asserts
+        // everything it can.
+        if let (Some(password), Some(password_wrapping)) = (
+            fixture["password"].as_str(),
+            fixture.get("passwordWrapping").filter(|v| !v.is_null()),
+        ) {
+            let password_wrapping: EncryptedMasterKey =
+                serde_json::from_value(password_wrapping.clone()).expect("wrapping");
+            let from_password = decrypt_master_key(password_wrapping, password.to_string())
+                .expect("their password wrapping must open with their password");
+            assert_eq!(from_password, unwrapped, "both wrappings must seal one key");
+        }
     }
 
-    /// Regenerates `testdata/master-key/v1/fixture.json` for venta-mobile to consume.
+    /// Regenerates `testdata/mls-golden/v1/recovery-code-alpine.json` for venta-mobile to consume.
     ///
     /// Ignored by default: the fixture is a checked-in artefact, and regenerating it on every run
     /// would have each client consuming only bytes it had just produced.
+    ///
+    /// The filename is mobile's, not a preference. `this_engine_opens_the_desktop_clients_recovery_code_fixture`
+    /// over there reads exactly this name and prints a loud SKIPPED until it lands.
     #[test]
     #[ignore]
-    fn generate_master_key_fixture() {
+    fn generate_recovery_code_fixture() {
         let code = generate_recovery_code().expect("code");
         let password = "fixture-password";
         let dual = setup_master_key_dual(password.into(), code.clone(), None).expect("setup");
@@ -746,22 +912,158 @@ mod master_key_tests {
             "alphabet": String::from_utf8_lossy(RECOVERY_ALPHABET),
             "password": password,
             "recoveryCode": code,
+            // What the KDF actually consumes. Mobile publishes this too, and comparing the two is
+            // what catches a normalisation divergence before it costs someone their history.
+            "normalized": normalize_recovery_code(&code).expect("normalize"),
             "masterKey": base64::Engine::encode(
                 &base64::engine::general_purpose::STANDARD, &master_key),
             "passwordWrapping": dual.password_wrapping,
             "recoveryCodeWrapping": dual.recovery_code_wrapping,
         });
 
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("..")
-            .join("testdata")
-            .join("master-key")
-            .join("v1");
+        let dir = fixture_dir();
         std::fs::create_dir_all(&dir).expect("mkdir");
         std::fs::write(
-            dir.join("fixture.json"),
+            dir.join("recovery-code-alpine.json"),
             serde_json::to_vec_pretty(&fixture).expect("serialize"),
         )
         .expect("write fixture");
+    }
+
+    // ─── §L.11 public verifier ────────────────────────────────────────────────
+
+    #[test]
+    fn both_wrappings_carry_the_same_public_verifier() {
+        let dual = setup_master_key_dual("hunter2".into(), CODE.into(), None).expect("setup");
+
+        let from_password = dual
+            .password_wrapping
+            .public_verifier
+            .as_deref()
+            .expect("the password wrapping must carry a verifier");
+        let from_code = dual
+            .recovery_code_wrapping
+            .public_verifier
+            .as_deref()
+            .expect("the recovery-code wrapping must carry a verifier");
+
+        // Echo refuses a write whose two wrappings disagree, precisely because differing verifiers
+        // mean the two wrappings do not seal the same key. Producing both in one call is what makes
+        // that impossible here rather than merely unlikely.
+        assert_eq!(from_password, from_code);
+        assert_eq!(
+            B64.decode(from_password).expect("b64").len(),
+            32,
+            "L = 32 bytes, standard base64 with padding"
+        );
+    }
+
+    #[test]
+    fn the_verifier_survives_a_rewrap_unchanged() {
+        // Its entire purpose. `rewrap-password` proves the new wrapping seals *the same* master
+        // key, and it can only do that if the value does not move. Anything derived from a wrapping
+        // would change with the fresh salt and nonce and fail on the first legitimate re-wrap.
+        let code = generate_recovery_code().expect("code");
+        let dual = setup_master_key_dual("old-password".into(), code.clone(), None).expect("setup");
+        let before = dual.password_wrapping.public_verifier.clone().expect("verifier");
+
+        let rewrapped = rewrap_master_key(
+            dual.recovery_code_wrapping,
+            code,
+            CredentialKind::RecoveryCode,
+            "brand-new-password".into(),
+            CredentialKind::Password,
+        )
+        .expect("rewrap");
+
+        assert_eq!(rewrapped.public_verifier.as_deref(), Some(before.as_str()));
+    }
+
+    #[test]
+    fn a_different_master_key_produces_a_different_verifier() {
+        let a = setup_master_key("pw".into(), None).expect("setup");
+        let b = setup_master_key("pw".into(), None).expect("setup");
+        assert_ne!(a.public_verifier, b.public_verifier);
+    }
+
+    #[test]
+    fn the_verifier_derivation_is_the_one_the_contract_names() {
+        // A known-answer vector, pinned so venta-mobile can be checked against the same bytes
+        // without either side reading the other's code. §L.11 fixes ikm, an empty salt, the exact
+        // ASCII `info` and L = 32; changing any of them changes this string, which is the point.
+        //
+        // Cross-checked against a from-scratch RFC 5869 evaluation rather than against this crate,
+        // so the vector pins the *construction* and not merely this implementation of it:
+        //   PRK = HMAC-SHA256(key = "", msg = ikm);  OKM = HMAC-SHA256(key = PRK, msg = info||0x01)
+        let master_key = [7u8; 32];
+        assert_eq!(
+            derive_public_verifier(&master_key).expect("derive"),
+            "Z8eHKo3FsgjKWmQVCZaUSudwf5mho5/vuHYCIwFbZKM="
+        );
+
+        // An empty salt and an absent one are the same HMAC key after zero-padding. Asserted rather
+        // than assumed, because §L.11 says `salt = ""` and the crate's API says `Option`.
+        let explicit = {
+            let hk = Hkdf::<Sha256>::new(Some(&[]), &master_key);
+            let mut out = [0u8; 32];
+            hk.expand(VERIFIER_INFO, &mut out).expect("expand");
+            B64.encode(out)
+        };
+        let absent = {
+            let hk = Hkdf::<Sha256>::new(None, &master_key);
+            let mut out = [0u8; 32];
+            hk.expand(VERIFIER_INFO, &mut out).expect("expand");
+            B64.encode(out)
+        };
+        assert_eq!(explicit, absent);
+    }
+
+    #[test]
+    fn a_stored_envelope_without_a_verifier_still_opens() {
+        // Every account in the field is in exactly this state (§L.11's migration note). A reader
+        // that required the field would lock out the entire install base to enforce a check whose
+        // input does not exist yet.
+        let json = serde_json::json!({
+            "cipherText": "", "salt": "", "iv": "",
+            "argon2Iterations": 3, "argon2Memory": 65536, "argon2Parallelism": 1, "version": 1,
+        });
+        let parsed: EncryptedMasterKey = serde_json::from_value(json).expect("must deserialize");
+        assert!(parsed.public_verifier.is_none());
+    }
+
+    // ─── §L.9 declared-parameter ceiling ──────────────────────────────────────
+
+    #[test]
+    fn an_absurd_declared_memory_cost_is_refused_rather_than_attempted() {
+        // `argon2_memory` is a u32 of kibibytes - 4 TiB at the top - and it arrives from the
+        // server, on the recovery path, where the allocation is eager. Not a confidentiality
+        // boundary: weak parameters fail closed at the AEAD. This is denial of service only.
+        let mut wrapped = setup_master_key("pw".into(), None).expect("setup");
+        assert!(decrypt_master_key(clone_of(&wrapped), "pw".into()).is_ok());
+
+        wrapped.argon2_memory = u32::MAX;
+        let err = decrypt_master_key(wrapped, "pw".into()).expect_err("must refuse");
+        assert!(err.starts_with("InvalidMasterKeyEnvelope"), "error was: {err}");
+    }
+
+    #[test]
+    fn absurd_declared_iterations_and_parallelism_are_refused_too() {
+        for perturb in [
+            (|k: &mut EncryptedMasterKey| k.argon2_iterations = 1_000_000) as fn(&mut EncryptedMasterKey),
+            |k: &mut EncryptedMasterKey| k.argon2_parallelism = 100_000,
+        ] {
+            let mut wrapped = setup_master_key("pw".into(), None).expect("setup");
+            perturb(&mut wrapped);
+            assert!(decrypt_master_key(wrapped, "pw".into()).is_err());
+        }
+    }
+
+    #[test]
+    fn the_ceiling_leaves_every_parameter_set_either_client_writes_intact() {
+        // 64 MiB / t=3 / p=1 here, and the §D backup envelope's p=4. The ceiling exists to stop a
+        // hostile header, not to narrow the self-describing formats - a limit that refused what the
+        // clients actually write would orphan real envelopes.
+        assert!(check_master_key_kdf_parameters(ARGON2_MEM, ARGON2_ITERS, ARGON2_LANES).is_ok());
+        assert!(check_master_key_kdf_parameters(65536, 3, 4).is_ok());
     }
 }

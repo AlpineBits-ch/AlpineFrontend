@@ -20,6 +20,15 @@ export interface EncryptedMasterKey {
     argon2Memory: number;
     argon2Parallelism: number;
     version: number;
+    /**
+     * `HKDF-SHA256(masterKey, "", "venta.masterkey.verifier.v1", 32)`, base64 (contract §L.11).
+     *
+     * <p>Derived inside the engine beside the wrapping, and identical across both wrappings of one
+     * key and across every re-wrap of it - which is what lets the server check that a
+     * `rewrap-password` seals the key it already holds blobs for. Optional because envelopes stored
+     * before §L.11 have none, and no reader may require it.</p>
+     */
+    publicVerifier?: string | null;
 }
 
 export interface UserDto {

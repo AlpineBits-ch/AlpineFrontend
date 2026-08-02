@@ -1,8 +1,8 @@
 import {TestBed} from '@angular/core/testing';
-import {of} from 'rxjs';
+import {Observable, of} from 'rxjs';
 import {MessageStore} from './message.store';
 import {MessagingService} from '../services/messaging.service';
-import {MlsService} from '../services/mls.service';
+import {MlsReplayedMessage, MlsService} from '../services/mls.service';
 import {MlsSyncService} from '../services/mls-sync.service';
 import {MlsHealthService} from '../services/mls-health.service';
 import {MessagingWebsocketService} from '../services/messaging-websocket.service';
@@ -39,21 +39,35 @@ function encryptedMessage(overrides: Partial<MessageDto> = {}): MessageDto {
 
 function setup() {
     const mls = {
-        getCachedMessage: vi.fn(async () => null),
-        cacheMessage: vi.fn(async () => undefined),
+        getCachedMessage: vi.fn<(
+            contextId: string, generation: number | null, messageId: string, author?: string,
+        ) => Promise<string | null>>(async () => null),
+        cacheMessage: vi.fn<(
+            contextId: string, generation: number | null, messageId: string, plaintextB64: string,
+            author?: string,
+        ) => Promise<void>>(async () => undefined),
         getKnownGeneration: vi.fn(async () => 1),
         getGroupId: vi.fn(async () => GROUP),
+        // Null unless a test says otherwise: most of these exercise contexts the server and this
+        // device agree about.
+        getEncryptionFloor: vi.fn<(contextId: string) => Promise<number | null>>(async () => null),
     };
     const sync = {
         decryptMessage: vi.fn<(
             contextId: string, isChannel: boolean, groupId: string, ciphertextB64: string,
             messageId: string, expectedSenderUserId?: string,
         ) => Promise<string | null>>(async () => null),
+        replayedMessages: new Subject<{ contextId: string; messages: MlsReplayedMessage[] }>(),
+    };
+
+    const messaging = {
+        getMessagesForConversation: vi.fn<(id: string, offset: number, size: number) =>
+            Observable<MessageDto[]>>(() => of([])),
     };
 
     TestBed.configureTestingModule({
         providers: [
-            {provide: MessagingService, useValue: {}},
+            {provide: MessagingService, useValue: messaging},
             {provide: MlsService, useValue: mls},
             {provide: MlsSyncService, useValue: sync},
             MlsHealthService,
@@ -77,7 +91,13 @@ function setup() {
         ],
     });
 
-    return {store: TestBed.inject(MessageStore), mls, sync, health: TestBed.inject(MlsHealthService)};
+    return {
+        store: TestBed.inject(MessageStore),
+        mls,
+        sync,
+        messaging,
+        health: TestBed.inject(MlsHealthService),
+    };
 }
 
 /**
@@ -183,5 +203,152 @@ describe('MessageStore.applyRemoteUpdate', () => {
 
         expect(store.entityMap()['msg-1'].undecryptable).toBe(true);
         expect(sync.decryptMessage).not.toHaveBeenCalled();
+    });
+
+    it('keys the cached edit on the context and generation, not the server id alone', async () => {
+        const {store, mls, sync} = setup();
+        store.addMessage(encryptedMessage());
+        sync.decryptMessage.mockResolvedValue('ZWRpdGVk');
+
+        await store.applyRemoteUpdate({
+            messageId: 'msg-1', content: 'Y2lwaGVydGV4dA==', authorId: 'user-2',
+            conversationId: CONTEXT, channelId: undefined,
+        });
+
+        expect(mls.cacheMessage).toHaveBeenCalledWith(CONTEXT, 1, 'msg-1', 'ZWRpdGVk', 'user-2');
+    });
+});
+
+/**
+ * H2 - contract §L.9: "Server-supplied encryption state MUST NOT be able to downgrade a context."
+ *
+ * `applyRemoteUpdate` already decided from the *stored* encryption state, "the one field the server
+ * cannot rewrite in flight". The create and history paths did not: they skipped the decryptor
+ * whenever the per-message `encryptionState` said `Plain`, then rendered `content` verbatim under
+ * `authorId`. The local equivalent of "stored state" on those paths is the monotonic encryption
+ * floor.
+ */
+describe('MessageStore history decryption', () => {
+    function plainMessage(overrides: Partial<MessageDto> = {}): MessageDto {
+        return encryptedMessage({
+            encryptionState: MessageEncryptionState.Plain,
+            content: 'SSBhbSB0aGUgc2VydmVy',
+            ...overrides,
+        });
+    }
+
+    /** `loadForConversation` is fire-and-forget; let the decrypt chain settle. */
+    async function settle(): Promise<void> {
+        for (let i = 0; i < 10; i++) await Promise.resolve();
+    }
+
+    it('refuses a Plain message in a context this device has encrypted', async () => {
+        const {store, mls, messaging, health} = setup();
+        mls.getEncryptionFloor.mockResolvedValue(2);
+        messaging.getMessagesForConversation.mockReturnValue(of([plainMessage()]));
+
+        store.loadForConversation(CONTEXT);
+        await settle();
+
+        // `undecryptable` is what suppresses the body - `MessageComponent.content` refuses to
+        // decode it and renders a placeholder instead. The raw field is left alone so a later
+        // successful decrypt can still use it.
+        const stored = store.entityMap()['msg-1'];
+        expect(stored.undecryptable).toBe(true);
+        expect(health.healthOf(CONTEXT)?.reason).toBe('downgraded');
+    });
+
+    it('renders a Plain message normally in a context that was never encrypted', async () => {
+        const {store, mls, messaging} = setup();
+        mls.getEncryptionFloor.mockResolvedValue(null);
+        messaging.getMessagesForConversation.mockReturnValue(
+            of([plainMessage({content: 'aGVsbG8='})]));
+
+        store.loadForConversation(CONTEXT);
+        await settle();
+
+        expect(store.entityMap()['msg-1'].undecryptable).toBeFalsy();
+        expect(store.entityMap()['msg-1'].content).toBe('aGVsbG8=');
+    });
+
+    it('looks the cache up on context and generation, not on the server id alone', async () => {
+        const {store, mls, messaging} = setup();
+        messaging.getMessagesForConversation.mockReturnValue(of([encryptedMessage()]));
+
+        store.loadForConversation(CONTEXT);
+        await settle();
+
+        expect(mls.getCachedMessage).toHaveBeenCalledWith(CONTEXT, 1, 'msg-1', 'user-2');
+    });
+});
+
+/**
+ * H4 - buffered early messages were decrypted and thrown away.
+ *
+ * `drain_pending_messages` *removes* each buffered entry, decrypts it, and returns only the
+ * still-pending ones to the buffer. `MlsSyncService.replayedMessages` had zero subscribers
+ * repo-wide, and MLS decrypts from the wire exactly once - so every message that arrived ahead of
+ * its commit was lost permanently. Not calling the drain at all would have been strictly safer.
+ */
+describe('MessageStore replayed messages', () => {
+    it('renders a replayed message that had been marked undecryptable', async () => {
+        const {store, sync, mls} = setup();
+        store.addMessage(encryptedMessage({undecryptable: true}));
+
+        await store.applyReplayedMessages(CONTEXT, [
+            {messageId: 'msg-1', plaintext: 'cmVwbGF5ZWQ=', senderIdentity: 'user-2', epoch: 4},
+        ]);
+
+        expect(store.entityMap()['msg-1'].content).toBe('cmVwbGF5ZWQ=');
+        expect(store.entityMap()['msg-1'].undecryptable).toBe(false);
+        // Cached too, or the plaintext would be lost again on the next reload - the drain has
+        // already consumed the only chance to decrypt these bytes.
+        expect(mls.cacheMessage).toHaveBeenCalledWith(
+            CONTEXT, 1, 'msg-1', 'cmVwbGF5ZWQ=', 'user-2');
+        expect(sync.replayedMessages).toBeTruthy();
+    });
+
+    it('is wired to the sync service, which had no subscriber at all', async () => {
+        const {store, sync} = setup();
+        store.addMessage(encryptedMessage({undecryptable: true}));
+
+        sync.replayedMessages.next({
+            contextId: CONTEXT,
+            messages: [
+                {messageId: 'msg-1', plaintext: 'cmVwbGF5ZWQ=', senderIdentity: 'user-2', epoch: 4},
+            ],
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+        await Promise.resolve();
+
+        expect(store.entityMap()['msg-1'].content).toBe('cmVwbGF5ZWQ=');
+    });
+
+    it('refuses a replay whose signer is not the author the server named', async () => {
+        const {store, mls, health} = setup();
+        store.addMessage(encryptedMessage({authorId: 'user-2', undecryptable: true}));
+
+        await store.applyReplayedMessages(CONTEXT, [
+            {messageId: 'msg-1', plaintext: 'aW5qZWN0ZWQ=', senderIdentity: 'mallory', epoch: 4},
+        ]);
+
+        // The replay path never goes back through `decryptMessage`, so this is the only place the
+        // credential-to-author binding can be applied to it.
+        expect(store.entityMap()['msg-1'].content).toBe('b3JpZ2luYWw=');
+        expect(mls.cacheMessage).not.toHaveBeenCalled();
+        expect(health.healthOf(CONTEXT)?.reason).toBe('decrypt-failed');
+    });
+
+    it('caches a replay for a message the store has not loaded yet', async () => {
+        const {store, mls} = setup();
+
+        await store.applyReplayedMessages(CONTEXT, [
+            {messageId: 'not-loaded', plaintext: 'cmVwbGF5ZWQ=', senderIdentity: 'user-2', epoch: 4},
+        ]);
+
+        // Paging back to it later must find the plaintext: there is no second chance to decrypt.
+        expect(mls.cacheMessage).toHaveBeenCalledWith(
+            CONTEXT, 1, 'not-loaded', 'cmVwbGF5ZWQ=', 'user-2');
     });
 });

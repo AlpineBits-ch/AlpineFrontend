@@ -203,12 +203,12 @@ export class MessagingWebsocketService {
         // RelationshipStore. The old conversation.FriendRequest{Accepted,Received} pair only
         // carried a username, so every listener had to refetch the whole relationship list.
         this.realtime.on('conversation.MessageUpdated', async (data: MessageUpdatedEvent) => {
-            console.log('Message updated:', data);
+            // Not logged. `MessageUpdatedEvent` carries `content`, which is the edited body -
+            // plaintext in an unencrypted conversation - and this console ships in release builds.
             this.messageUpdatedObservable.next(data);
         })
 
         this.realtime.on('conversation.MessageDeleted', async (data: MessageDeletedEvent) => {
-            console.log('Message deleted:', data);
             this.messageDeletedObservable.next(data);
         })
 
@@ -300,11 +300,40 @@ export class MessagingWebsocketService {
 
         const contextId = data.conversationId ?? data.channelId;
 
+        // A message the server declares cleartext, in a context this device has encrypted. §L.9:
+        // encryption state is a server field and must not be able to downgrade a context, so this
+        // is rendered as untrusted rather than as the author's words. Checked before the
+        // `Encrypted` branch so a downgrade cannot route around it.
+        if (encryptionState !== MessageEncryptionState.Encrypted && contextId
+            && await this.mlsService.getEncryptionFloor(contextId) !== null) {
+            this.mlsHealth.recordFailure(
+                contextId, !!data.channelId, 'downgraded',
+                `message ${data.messageId} claims to be unencrypted in a context this device has `
+                + `encrypted`);
+            undecryptable = true;
+        }
+
         if (encryptionState === MessageEncryptionState.Encrypted && contextId) {
             const ownDeviceId = await this.mlsService.getOrCreateDeviceIdentifier();
             if (data.senderDeviceId === ownDeviceId) {
-                // Our own message -plaintext already in store from send flow, skip WS upsert.
-                return;
+                // Our own message: the plaintext is already in the store from the send flow, and
+                // our own ciphertext cannot be decrypted by us anyway.
+                //
+                // `senderDeviceId` is a server field, which makes an unconditional drop here a
+                // suppression primitive - the server could hide *any* message from the live view by
+                // labelling it as ours. Narrowed by also requiring the claimed author to be us, so
+                // the most the label can now suppress is a message the server is simultaneously
+                // attributing to this account. Anything else is logged and decrypted, where the MLS
+                // credential decides. Not a cryptographic check, and not claimed as one - but the
+                // difference between "hide anyone" and "hide something it says you wrote" is the
+                // difference between silent censorship and a visible lie.
+                const ownUserId = this.profileService.ownProfile()?.userId;
+                if (!ownUserId || data.authorId === ownUserId) return;
+
+                console.warn(
+                    'Dropping a live message the server labelled as sent by this device but '
+                    + 'attributed to another author - decrypting it instead',
+                    data.messageId, data.authorId);
             }
 
             // The message names the generation it was sealed under. Using whichever group we
@@ -332,7 +361,12 @@ export class MessagingWebsocketService {
             let plaintext: string | null = null;
 
             if (groupId) {
-                plaintext = await this.mlsService.getCachedMessage(data.messageId);
+                // Context and generation are part of the key, and the claimed author is re-checked
+                // against the one recorded at decrypt time. On the bare, server-chosen `messageId`
+                // this returned another conversation's plaintext for a replayed id, with no
+                // decryption and therefore no author binding at all.
+                plaintext = await this.mlsService.getCachedMessage(
+                    contextId, generation ?? null, data.messageId, data.authorId);
 
                 if (!plaintext) {
                     // Through the sync service so the decrypt takes the context queue: issued
@@ -347,7 +381,10 @@ export class MessagingWebsocketService {
                         data.messageId,
                         data.authorId,
                     );
-                    if (plaintext) void this.mlsService.cacheMessage(data.messageId, plaintext);
+                    if (plaintext) {
+                        void this.mlsService.cacheMessage(
+                            contextId, generation ?? null, data.messageId, plaintext, data.authorId);
+                    }
                 }
             } else {
                 this.mlsHealth.recordFailure(contextId, isChannel, 'not-admitted');

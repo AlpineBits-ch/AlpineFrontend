@@ -9,6 +9,56 @@ export interface DualWrappedMasterKey {
 }
 
 /**
+ * Which credential a side of a re-wrap is, so normalisation is never guessed.
+ *
+ * <p>The engine used to infer this from the shape of the string, which is how a recovery code
+ * containing a symbol this client did not know silently derived the wrong key. The caller always
+ * knows which it holds; the wire values match Rust's `CredentialKind`.</p>
+ */
+export type CredentialKind = 'password' | 'recoveryCode';
+
+/**
+ * The credential genuinely did not open the wrapping, or is not a well-formed recovery code.
+ *
+ * The only condition under which a user may be told their password or recovery code is wrong.
+ */
+export class CredentialRejectedError extends Error {
+    constructor(readonly kind: CredentialKind, readonly detail: string) {
+        super(`The ${kind === 'password' ? 'password' : 'recovery code'} did not open the wrapping.`);
+    }
+}
+
+/**
+ * The command never ran - bad arguments, an absent command, no engine.
+ *
+ * <p><b>Kept strictly separate from {@link CredentialRejectedError}, and that separation is the
+ * point.</b> `rewrap_master_key` was invoked with three of its five required arguments, so every
+ * call failed at Tauri's argument deserialization before any crypto ran - and both callers caught
+ * the rejection bare and reported it as a bad credential. A user mid-recovery, holding a correct
+ * recovery code and nothing else, was told their only surviving credential was wrong. An
+ * infrastructure fault must never be rendered as a credential rejection, in either direction.</p>
+ */
+export class MasterKeyEngineError extends Error {
+    constructor(readonly command: string, readonly detail: string) {
+        super(`The local key engine could not run ${command}: ${detail}`);
+    }
+}
+
+/**
+ * Whether an engine rejection is genuinely about the credential the user supplied.
+ *
+ * <p>An allow-list, and it fails to the safe side on purpose: anything unrecognised is an engine
+ * fault, because "we could not run the check" must not be shown as "your code is wrong". The
+ * reverse default is what C2 shipped as.</p>
+ */
+function isCredentialRejection(err: unknown): boolean {
+    const text = typeof err === 'string' ? err : err instanceof Error ? err.message : String(err);
+    return text.includes('Decryption failed')
+        || text.startsWith('InvalidRecoveryCode')
+        || text.includes('Unwrapped master key is not 32 bytes');
+}
+
+/**
  * The account master key: 32 random bytes that every backup blob and the account identity key are
  * ultimately sealed under.
  *
@@ -56,20 +106,58 @@ export class MasterKeyService {
     /**
      * Unwraps with one credential and re-wraps under another, without the key crossing IPC.
      *
-     * The password-reset repair: unwrap from the recovery code, re-wrap under the new password. The
-     * master key is unchanged, so every blob sealed under it stays readable - which is exactly why
-     * this re-wraps rather than re-keying.
+     * <p>The password-reset repair: unwrap from the recovery code, re-wrap under the new password.
+     * The master key is unchanged, so every blob sealed under it stays readable - which is exactly
+     * why this re-wraps rather than re-keying.</p>
+     *
+     * <p><b>Both kinds are explicit, and neither may be inferred.</b> The engine normalises a
+     * recovery code and leaves a password exactly as typed, and it cannot tell which it has been
+     * handed. An earlier version normalized only the `from` side, so the retrofit sealed the new
+     * wrapping under a *dashed* code that no later unwrap could reproduce - the user was handed a
+     * code that opened nothing and told they were protected. The Rust signature was fixed; these
+     * two arguments were never plumbed through, so every call failed at argument deserialization
+     * instead.</p>
+     *
+     * @throws CredentialRejectedError when `fromCredential` does not open `encrypted`.
+     * @throws MasterKeyEngineError when the command itself could not run. Never surface this as a
+     *         rejected credential.
      */
     async rewrap(
         encrypted: EncryptedMasterKey,
         fromCredential: string,
+        fromKind: CredentialKind,
         toCredential: string,
+        toKind: CredentialKind,
     ): Promise<EncryptedMasterKey> {
-        return invoke<EncryptedMasterKey>('rewrap_master_key', {
-            encrypted,
-            fromCredential,
-            toCredential,
-        });
+        try {
+            return await invoke<EncryptedMasterKey>('rewrap_master_key', {
+                encrypted,
+                fromCredential,
+                fromKind,
+                toCredential,
+                toKind,
+            });
+        } catch (err) {
+            throw classify(err, 'rewrap_master_key', fromKind);
+        }
+    }
+
+    /**
+     * Folds a typed recovery code to the form the KDF consumes, or explains why it is not one.
+     *
+     * <p>Routed to the engine rather than reimplemented here. A second copy of the alphabet and
+     * the grouping rules in TypeScript is a copy that can drift from the one that actually derives
+     * the key, and the drift shows up as "that code isn't valid" against a correct code - or,
+     * worse, as a silently different key.</p>
+     *
+     * @throws CredentialRejectedError when the code is not well formed.
+     */
+    async normalizeRecoveryCode(code: string): Promise<string> {
+        try {
+            return await invoke<string>('normalize_recovery_code_checked', {code});
+        } catch (err) {
+            throw classify(err, 'normalize_recovery_code_checked', 'recoveryCode');
+        }
     }
 
     /**
@@ -81,14 +169,40 @@ export class MasterKeyService {
     }
 
     /**
-     * Unwraps the master key. `credential` is either the account password or the recovery code -
-     * a recovery code is recognised and normalized, a password is used exactly as given.
+     * Unwraps the master key with `credential`, used **exactly as given**.
+     *
+     * <p><b>Nothing is normalized here, and the caller must not assume otherwise.</b> An earlier
+     * version of this comment claimed a recovery code was recognised and folded; the engine
+     * explicitly does the opposite, and is right to - guessing whether a string is a password or a
+     * recovery code derives the wrong key silently in whichever direction it guesses wrong, and
+     * reports it as a wrong credential. Only the caller knows which it holds.</p>
+     *
+     * <p>Pass a password verbatim; put a recovery code through {@link normalizeRecoveryCode}
+     * first.</p>
+     *
+     * @throws CredentialRejectedError when the credential does not open the envelope.
+     * @throws MasterKeyEngineError when the command could not run.
      */
-    async decryptMasterKey(encrypted: EncryptedMasterKey, credential: string): Promise<Uint8Array> {
-        const bytes = await invoke<number[]>('decrypt_master_key', {
-            encrypted,
-            password: credential,
-        });
-        return new Uint8Array(bytes);
+    async decryptMasterKey(
+        encrypted: EncryptedMasterKey,
+        credential: string,
+        kind: CredentialKind = 'password',
+    ): Promise<Uint8Array> {
+        try {
+            const bytes = await invoke<number[]>('decrypt_master_key', {
+                encrypted,
+                password: credential,
+            });
+            return new Uint8Array(bytes);
+        } catch (err) {
+            throw classify(err, 'decrypt_master_key', kind);
+        }
     }
+}
+
+function classify(err: unknown, command: string, kind: CredentialKind): Error {
+    const detail = typeof err === 'string' ? err : err instanceof Error ? err.message : String(err);
+    return isCredentialRejection(err)
+        ? new CredentialRejectedError(kind, detail)
+        : new MasterKeyEngineError(command, detail);
 }

@@ -2,7 +2,44 @@ import {Component, computed, EventEmitter, inject, Input, Output, signal} from '
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PasswordDirective} from 'primeng/password';
-import {MasterKeyStateService} from '../../../services/master-key-state.service';
+import {MasterKeyRepair, MasterKeyStateService} from '../../../services/master-key-state.service';
+
+/**
+ * Turns a failed repair into something the user can act on.
+ *
+ * <p><b>"Check your credential" is reserved for the one case where the credential is actually
+ * wrong.</b> Every other failure used to render as that message, and the two that mattered most
+ * were not credential failures at all: the engine call was rejected before it ran (C2), or the
+ * server accepted the write and stored nothing. Both told the user to doubt a correct code -
+ * which, mid-recovery, is the advice that ends the account.</p>
+ */
+function describeRepairFailure(result: MasterKeyRepair, credential: string): string {
+    switch (result.outcome) {
+        case 'credential-rejected':
+            return `That ${credential} did not work. Check it and try again.`;
+        case 'not-stored':
+            // A code the server did not store opens nothing. Showing it would report the account as
+            // protected at the exact moment it is not.
+            return 'The server accepted the request but did not store the recovery code, so it '
+                + 'would not open anything. Nothing has changed - please try again or contact '
+                + 'support.';
+        case 'not-applicable':
+            return 'This account has nothing to repair from. Reload and try again.';
+        case 'engine-failed':
+            // Named as a local fault, and logged in full. Retrying an argument-rejected command
+            // never succeeds, so sending the user round the same loop is worse than saying so.
+            console.error('Master-key repair could not run locally', result.detail);
+            return `Your ${credential} was not the problem - this device could not run the key `
+                + `operation. Details: ${result.detail}`;
+        default:
+            return 'Something went wrong. Please try again.';
+    }
+}
+
+function unexpected(err: unknown): string {
+    console.error('Master-key repair failed unexpectedly', err);
+    return 'Something went wrong. Please try again.';
+}
 
 /**
  * The two repairs a master key can need, and the one loss it cannot.
@@ -56,14 +93,15 @@ export class MasterKeyRecoveryDialogComponent {
         }
         this.busy.set(true);
         try {
-            const ok = await this.state.rewrapUnderNewPassword(this.recoveryCode(), this.newPassword());
-            if (!ok) {
-                this.errorMsg.set('That recovery code did not work. Check it and try again.');
+            const result = await this.state.rewrapUnderNewPassword(
+                this.recoveryCode(), this.newPassword());
+            if (result.outcome === 'ok') {
+                this.close();
                 return;
             }
-            this.close();
-        } catch {
-            this.errorMsg.set('Something went wrong. Please try again.');
+            this.errorMsg.set(describeRepairFailure(result, 'recovery code'));
+        } catch (err) {
+            this.errorMsg.set(unexpected(err));
         } finally {
             this.busy.set(false);
         }
@@ -77,17 +115,14 @@ export class MasterKeyRecoveryDialogComponent {
         }
         this.busy.set(true);
         try {
-            const code = await this.state.addRecoveryCode(this.password());
-            if (!code) {
-                // Covers both a wrong password and a write the server did not actually store -
-                // showing a code in either case would tell the user they are protected when they
-                // are not.
-                this.errorMsg.set('Could not set up a recovery code. Check your password and try again.');
+            const result = await this.state.addRecoveryCode(this.password());
+            if (result.outcome === 'ok') {
+                this.generatedCode.set(result.recoveryCode!);
                 return;
             }
-            this.generatedCode.set(code);
-        } catch {
-            this.errorMsg.set('Something went wrong. Please try again.');
+            this.errorMsg.set(describeRepairFailure(result, 'password'));
+        } catch (err) {
+            this.errorMsg.set(unexpected(err));
         } finally {
             this.busy.set(false);
         }

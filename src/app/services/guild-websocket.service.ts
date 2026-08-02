@@ -536,7 +536,8 @@ export class GuildWebsocketService {
         this.realtime.on('guild.BotUninstalled', (d: WsBotUninstalled) => this.botUninstalledObservable.next(d));
 
         this.realtime.on('guild.MessageCreated', async (data: GuildMessageCreatedPayload) => {
-            console.log('Guild MessageCreated:', data);
+            // Not logged. The payload carries `content`, so this printed every message body in a
+            // plaintext channel to a console that ships in release builds.
             const message = mapGuildMessageCreatedPayload(data);
             this.messageObservable.next(message);
 
