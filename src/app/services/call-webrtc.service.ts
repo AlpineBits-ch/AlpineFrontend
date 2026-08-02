@@ -765,6 +765,12 @@ export class CallWebRtcService {
             this.voiceWs.participantJoinedObservable.subscribe(e => {
                 console.log('[WebRTC] ParticipantJoined received in WS listener', e);
                 this.callSession.onParticipantJoined(e.userId);
+                // Same guard the track-published listener below has carried all along, and for the
+                // same reason: since audio moved to its own Rust session this event names the session
+                // we publish on, and Cloudflare refuses to let a session pull its own local track.
+                // The backfill in syncParticipants already skips ownId; this path did not.
+                const localId = this.callSession.session()?.participants.find(p => p.isLocal)?.userId;
+                if (e.userId === localId) return;
                 void this.subscribeToTrack(e.userId, e.cfSessionId, e.audioTrackName, 'audio');
             }),
 

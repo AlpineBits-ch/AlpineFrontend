@@ -32,6 +32,7 @@ function setup() {
     // pass-through signals it aliases as its own fields.
     const rtc = {
         closeAllTracks: vi.fn(async () => undefined),
+        subscribeAudio: vi.fn(async () => undefined),
         teardown: vi.fn(),
         speakingChanges$: new Subject(),
         screenEnded$: new Subject(),
@@ -99,4 +100,34 @@ it('ignores a kick for a channel we are not in', async () => {
 
     expect(rtc.teardown).not.toHaveBeenCalled();
     expect(service.joinedChannelId()).toBe('chan-1');
+});
+
+/**
+ * The backend announces us to ourselves, and since audio moved to its own Rust session that
+ * announcement carries the session *we* publish on. Cloudflare will not let a session pull its own
+ * local track, so subscribing to it fails identically on every retry and logs a participant who was
+ * never going to be audible - us.
+ */
+it('does not subscribe to our own audio when the server announces us', async () => {
+    const {ws, rtc} = setup();
+
+    ws['guildParticipantJoinedObservable'].next({
+        channelId: 'chan-1', userId: 'me', cfSessionId: 'sess-mine', audioTrackName: 'audio',
+    });
+    await tick();
+
+    expect(rtc.subscribeAudio).not.toHaveBeenCalled();
+});
+
+it('still subscribes when somebody else is announced', async () => {
+    const {ws, rtc} = setup();
+
+    ws['guildParticipantJoinedObservable'].next({
+        channelId: 'chan-1', userId: 'them', cfSessionId: 'sess-theirs', audioTrackName: 'audio',
+    });
+    await tick();
+
+    expect(rtc.subscribeAudio).toHaveBeenCalledWith([
+        {userId: 'them', cfSessionId: 'sess-theirs', trackName: 'audio'},
+    ]);
 });

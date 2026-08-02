@@ -481,6 +481,14 @@ export class VoiceChannelService {
         if (e.channelId !== this.joinedChannelId()) return;
         this.patchParticipant(e.channelId, e.userId, p => ({...p, cfSessionId: e.cfSessionId}));
 
+        // Our own announcement is still worth patching in above - it is what carries our session id
+        // into the participant row - but it must never be subscribed to. Since the Rust rewrite this
+        // event names the session *we* publish on, and Cloudflare will not let a session pull its own
+        // local track: the subscribe fails identically on all four attempts and the participant never
+        // recovers, because nothing announces them a second time. The leave handler has always
+        // guarded on this; the join handler was the one that did not.
+        if (e.userId === (this.profileService.ownProfile()?.userId ?? '')) return;
+
         void this.rtc.subscribeAudio([{
             userId: e.userId, cfSessionId: e.cfSessionId, trackName: e.audioTrackName,
         }]);

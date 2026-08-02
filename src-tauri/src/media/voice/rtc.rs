@@ -75,6 +75,20 @@ pub struct VoicePublication {
     track: Arc<TrackLocalStaticSample>,
     signalling: Signalling,
     packet_sink: PacketSink,
+    /// Serialises offer/answer cycles on this connection.
+    ///
+    /// The webview subscribes concurrently on purpose - `subscribeAudio` fans its targets out with
+    /// `Promise.all` so one participant losing the publish race cannot hold up everyone announced
+    /// alongside them - and each of those lands here as its own `voice_subscribe`. JSEP allows
+    /// exactly one negotiation in flight per connection, so without this two of them interleave:
+    /// both create an offer, the second overwrites the first's local description, and the first's
+    /// answer then applies to an SDP that no longer matches. `webrtc-rs` rejects it, both
+    /// subscribes fail, and the participants stay silent for the session.
+    ///
+    /// The webview's own connection has always had this, as `enqueueNegotiation` in
+    /// `voice-rtc.service.ts`. This connection did not, which is what made joining a busy channel -
+    /// where the backend backfills the whole room at once - the case that broke.
+    negotiation: tokio::sync::Mutex<()>,
     pub cf_session_id: String,
     pub track_name: String,
 }
@@ -287,6 +301,7 @@ impl VoicePublication {
             track,
             signalling,
             packet_sink,
+            negotiation: tokio::sync::Mutex::new(()),
             cf_session_id,
             track_name,
         };
@@ -332,6 +347,12 @@ impl VoicePublication {
         if sources.is_empty() {
             return Ok(Vec::new());
         }
+
+        // Taken before the transceivers are added, not just around the offer: the m-lines and the
+        // offer that carries them have to reach Cloudflare as one unit, or a subscribe that
+        // interleaves here offers m-lines belonging to the other one. Held until the answer is
+        // applied - see the field's own note.
+        let _negotiating = self.negotiation.lock().await;
 
         // Held rather than dropped on the floor: every one of these is an m-line in the next offer,
         // and a subscribe that fails must not leave one behind. Subscribing is retried now (the
@@ -450,6 +471,12 @@ impl VoicePublication {
             .map_err(|e| e.to_string())
     }
 
+    /// Deliberately does **not** take `negotiation` itself.
+    ///
+    /// Both its callers already hold it or cannot race: `subscribe` calls it through
+    /// `negotiate_subscription` with the guard held, and `start` runs before the publication is
+    /// shared with anything. A `tokio::sync::Mutex` is not reentrant, so locking here would deadlock
+    /// the first subscribe Cloudflare asks to renegotiate immediately.
     async fn renegotiate(&self) -> Result<(), String> {
         let offer = self
             .peer_connection
