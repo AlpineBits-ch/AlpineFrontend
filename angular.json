@@ -74,7 +74,8 @@
           "builder": "@angular/build:unit-test",
           "options": {
             "buildTarget": "alpine:build:development",
-            "tsConfig": "tsconfig.spec.json"
+            "tsConfig": "tsconfig.spec.json",
+            "runnerConfig": true
           }
         },
         "serve": {

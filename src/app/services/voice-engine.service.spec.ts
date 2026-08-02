@@ -5,10 +5,20 @@
  * These cover the two volume sliders in particular: both are stored 0-100 and consumed as 0.0-1.0
  * gains, and until this was wired they moved, saved, and changed nothing.
  */
-// `isTauri` is a spy rather than a fixed arrow, and is set below per test. Three spec files mock
-// this module - mls.service.spec.ts with a bare automock, whose `isTauri` returns undefined - and
-// only one registration wins per run. Depending on which one made every test here pass or fail
-// purely on file ordering, with `applySettings` returning early and recording no call at all.
+// `isTauri` is a spy rather than a fixed arrow, and is set below per test.
+//
+// This file used to fail intermittently, and the diagnosis written here originally - that several
+// spec files mock this module and only one registration wins per run - had the mechanism exactly
+// right and the conclusion wrong. It was not unavoidable. The cause was
+// `@angular/build:unit-test` defaulting Vitest to `isolate: false`, which gives every spec file in
+// a worker one shared module registry; which file's `vi.mock` won then depended on how Vitest
+// batched files across workers, which depends on core count. That is why it read as load
+// sensitivity - CPU pressure changes the batching, not the timing. There is not one timer in this
+// file, and "passes when run alone" meant "no other file in the batch to clobber the mock".
+//
+// `vitest-base.config.ts` now sets `isolate: true`, so this mock is the only one in play here. The
+// per-test `isTauri` reset below is kept regardless: it costs nothing and it states what the
+// engine has to believe for these assertions to mean anything.
 vi.mock('@tauri-apps/api/core', () => ({
     invoke: vi.fn().mockResolvedValue(undefined),
     isTauri: vi.fn(() => true),
