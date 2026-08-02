@@ -291,6 +291,14 @@
         -->
         <app-mls-unreadable-banner (relink)="relinkDevice()" [contextId]="conversation().id"
                                    [status]="relinkStatus()"/>
+        <!--
+          The other half of the same story, and the half that did not exist. The banner above lets
+          a locked-out device ask to be let in; this is where somebody who can actually admit it is
+          shown the question. Without it a DM join request was submitted correctly, pushed to every
+          member, and then sat Pending until it expired with nobody ever having been asked.
+        -->
+        <app-mls-join-request-review [contextId]="conversation().id"
+                                     [participantNames]="participantNames()"/>
         <app-composer (cancelReply)="onCancelReply()" (message)="createMessage($event)" (typing)="onTyping()"
                       [conversationMembers]="conversationMemberCandidates()"
                       [replyTo]="replyingTo()" autofocus

@@ -42,6 +42,7 @@ function payload(overrides: Record<string, unknown> = {}): Record<string, unknow
 }
 
 function setup() {
+    const handlers = new Map<string, (payload: never) => void>();
     const mls = {
         getOrCreateDeviceIdentifier: vi.fn(async () => OWN_DEVICE),
         getKnownGeneration: vi.fn(async () => 1 as number | null),
@@ -72,7 +73,10 @@ function setup() {
             {provide: NotificationService, useValue: {createNotification: vi.fn(async () => undefined)}},
             {provide: ConversationService, useValue: {}},
             {provide: RealtimeConnectionService, useValue: {
-                on: vi.fn(),
+                on: vi.fn((event: string, handler: (payload: never) => void) => {
+                    handlers.set(event, handler);
+                }),
+                start: vi.fn(async () => undefined),
                 connectionState: () => ConnectionState.Connected,
             }},
         ],
@@ -88,7 +92,7 @@ function setup() {
         (service as unknown as { handleMessageCreated(d: unknown): Promise<void> })
             .handleMessageCreated(data);
 
-    return {service, mls, sync, emitted, handle, health: TestBed.inject(MlsHealthService)};
+    return {service, mls, sync, emitted, handle, handlers, health: TestBed.inject(MlsHealthService)};
 }
 
 describe('MessagingWebsocketService live messages', () => {
@@ -156,5 +160,53 @@ describe('MessagingWebsocketService live messages', () => {
 
         expect(emitted).toHaveLength(1);
         expect(emitted[0].authorId).toBe('user-2');
+    });
+});
+
+/**
+ * §B / §L.3: the server pushes a join request to every member of the conversation, the requester's
+ * own account included. Nothing here listened for it, so every admission request a real user filed
+ * arrived, was dropped, and the request sat Pending until it expired - the reported symptom being
+ * a desktop that could never read a DM while the phone on the same account could.
+ */
+describe('MessagingWebsocketService admission requests', () => {
+    it('listens for conversation.MlsJoinRequest at all', async () => {
+        const {service, handlers} = setup();
+        await service.start();
+
+        expect(handlers.has('conversation.MlsJoinRequest')).toBe(true);
+    });
+
+    it('re-emits the push with the fingerprint a human is meant to compare', async () => {
+        const {service, handlers} = setup();
+        await service.start();
+
+        const seen: unknown[] = [];
+        service.mlsJoinRequestObservable.subscribe(event => seen.push(event));
+
+        handlers.get('conversation.MlsJoinRequest')!({
+            contextId: CTX,
+            conversationId: CTX,
+            channelId: null,
+            requestId: 'mljr-1',
+            requesterUserId: OWN_USER,
+            requesterDeviceId: 'device-b',
+            requesterDeviceName: 'Desktop',
+            generation: 1,
+            signatureKeyFingerprint: '517F4-D75A0-AD0A2-6BBCF',
+            requiresManualApproval: false,
+        } as never);
+
+        expect(seen).toEqual([{
+            contextId: CTX,
+            isChannel: false,
+            generation: 1,
+            requestId: 'mljr-1',
+            requesterUserId: OWN_USER,
+            requesterDeviceId: 'device-b',
+            requesterDeviceName: 'Desktop',
+            signatureKeyFingerprint: '517F4-D75A0-AD0A2-6BBCF',
+            requiresManualApproval: false,
+        }]);
     });
 });

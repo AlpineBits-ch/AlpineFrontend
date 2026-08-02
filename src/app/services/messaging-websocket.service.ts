@@ -81,6 +81,37 @@ export interface MlsContextEvent {
 }
 
 /**
+ * A device is asking to be let into a context's MLS group (contract §B).
+ *
+ * <p><b>This event is a prompt, and deliberately not enough to act on.</b> It carries no key
+ * package: the server fans it out to every member of the conversation, and a push is not the
+ * place to hand a leaf's key material to peers who have not yet decided to admit it. A reviewer
+ * has to fetch the request from `GET .../mls/join-requests`, which is also the only route that
+ * gives the requester's *other* devices those bytes - and therefore the only way the §G
+ * own-device ceremony could ever begin. A client that treats the push as sufficient does nothing
+ * at all, which is indistinguishable from admission review not existing (§L.3).</p>
+ *
+ * <p>The audience includes the requester's own account, because their other devices are the only
+ * party holding the account master key. The requesting device filters itself out on
+ * {@link requesterDeviceId}.</p>
+ */
+export interface MlsJoinRequestEvent extends MlsContextEvent {
+    requestId: string;
+    requesterUserId: string;
+    requesterDeviceId: string;
+    /**
+     * Whatever the requesting device calls itself, so a prompt can say "Alice's new laptop" rather
+     * than a UUID. Chosen by that device, verified by nobody, and absent from the review-queue
+     * read - the push is the only place it appears. Display only; nothing is authorized on it.
+     */
+    requesterDeviceName: string | null;
+    /** The requester's long-lived identity fingerprint - the value a human compares out of band. */
+    signatureKeyFingerprint: string;
+    /** The server's published verdict on whether a human must tap approve (§J.4). */
+    requiresManualApproval: boolean;
+}
+
+/**
  * The server sends a nudge, not the commit. Group state advances only via the ordered fetch in
  * MlsSyncService - applying commits in push-arrival order forks the client permanently.
  */
@@ -91,6 +122,46 @@ interface MlsCommitPushPayload {
     generation: number;
     epoch: number;
     senderDeviceId: string;
+}
+
+/**
+ * `conversation.MlsDeviceRemoved`, which is **not** an {@link MlsCommitPushPayload} however much it
+ * looks like one.
+ *
+ * <p>It names the device that was <i>removed</i> as `userId`/`deviceId`, where every other MLS push
+ * carries the device that <i>sent</i> something as `senderDeviceId` (`DeviceRemovedHandler.cs:132`).
+ * This was typed as a commit payload, which compiled and behaved because `toContextEvent` reads only
+ * the context fields - but anyone reaching for the removed device got `undefined`. venta-mobile
+ * suppresses its launch-time admission sweep on this event, and an Alpine copy written against
+ * `senderDeviceId` would suppress nothing while appearing to work.</p>
+ *
+ * <p>Both ids are checked together wherever this is acted on. `deviceId` is client-chosen and unique
+ * only per account, so matching it alone would let a co-member's device id stand in for one of
+ * ours.</p>
+ */
+interface MlsDeviceRemovedPushPayload {
+    contextId?: string;
+    conversationId?: string | null;
+    channelId?: string | null;
+    generation: number;
+    epoch: number;
+    /** The account whose device was removed - not the actor who removed it. */
+    userId: string;
+    /** The removed device's client device id. */
+    deviceId: string;
+}
+
+interface MlsJoinRequestPushPayload {
+    contextId?: string;
+    conversationId?: string | null;
+    channelId?: string | null;
+    generation: number;
+    requestId: string;
+    requesterUserId: string;
+    requesterDeviceId: string;
+    requesterDeviceName?: string | null;
+    signatureKeyFingerprint: string;
+    requiresManualApproval?: boolean;
 }
 
 interface MlsStateChangedPushPayload {
@@ -136,6 +207,26 @@ export function toContextEvent(
     };
 }
 
+/**
+ * Normalizes a join-request push, and fails closed on the one field that is a policy decision.
+ *
+ * <p>`requiresManualApproval` absent means an older server, or a payload that lost the field on
+ * the way here. Defaulting it to false would read as "this may be admitted without anyone being
+ * asked", which is the permissive answer to a question about admitting a device to an encrypted
+ * group - so an unstated verdict is taken as "a human decides" (§J.4).</p>
+ */
+export function toJoinRequestEvent(payload: MlsJoinRequestPushPayload): MlsJoinRequestEvent {
+    return {
+        ...toContextEvent(payload),
+        requestId: payload.requestId,
+        requesterUserId: payload.requesterUserId,
+        requesterDeviceId: payload.requesterDeviceId,
+        requesterDeviceName: payload.requesterDeviceName ?? null,
+        signatureKeyFingerprint: payload.signatureKeyFingerprint,
+        requiresManualApproval: payload.requiresManualApproval ?? true,
+    };
+}
+
 @Injectable({
     providedIn: 'root',
 })
@@ -154,6 +245,8 @@ export class MessagingWebsocketService {
     public mlsCommitObservable = new Subject<MlsContextEvent>()
     /** Encryption was switched on or off for a context. */
     public mlsStateChangedObservable = new Subject<MlsContextEvent>()
+    /** A device asked to be admitted to a context, and somebody has to review it. */
+    public mlsJoinRequestObservable = new Subject<MlsJoinRequestEvent>()
     public reactionAddedObservable = new Subject<ReactionEvent>()
     public reactionRemovedObservable = new Subject<ReactionEvent>()
     public messagePinnedObservable = new Subject<MessagePinnedEvent>()
@@ -255,7 +348,7 @@ export class MessagingWebsocketService {
         // A device was removed from the account and has to be committed out of every group it holds
         // a leaf in. Nothing is applied here: this only prompts the ordered catch-up, which is what
         // discovers the removal and produces the commit for it.
-        this.realtime.on('conversation.MlsDeviceRemoved', (payload: MlsCommitPushPayload) => {
+        this.realtime.on('conversation.MlsDeviceRemoved', (payload: MlsDeviceRemovedPushPayload) => {
             this.mlsCommitObservable.next(toContextEvent(payload));
         });
 
@@ -263,6 +356,16 @@ export class MessagingWebsocketService {
         // membership change itself arrives as a commit through the ordered fetch.
         this.realtime.on('conversation.MlsDeviceAdmitted', (payload: MlsCommitPushPayload) => {
             this.mlsCommitObservable.next(toContextEvent(payload));
+        });
+
+        // A device wants in. This was the one MLS push nothing listened for, and the consequence
+        // was that a device excluded from a DM asked correctly, the server told every member's
+        // client, and the event was dropped on the floor - so the request sat Pending until it
+        // expired and the excluded device could never read the conversation. Nothing is decided
+        // here: the payload carries no key package on purpose, so the review surface re-reads the
+        // queue over HTTP and that read is what the decision is made against.
+        this.realtime.on('conversation.MlsJoinRequest', (payload: MlsJoinRequestPushPayload) => {
+            this.mlsJoinRequestObservable.next(toJoinRequestEvent(payload));
         });
 
         this.realtime.on('conversation.MlsStateChanged', (payload: MlsStateChangedPushPayload) => {

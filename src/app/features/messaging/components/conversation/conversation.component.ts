@@ -29,6 +29,7 @@ import {Button} from 'primeng/button';
 import {MessagingService} from '../../../../services/messaging.service';
 import {MlsService} from '../../../../services/mls.service';
 import {MlsUnreadableBannerComponent} from '../../../../components/mls-unreadable-banner/mls-unreadable-banner.component';
+import {MlsJoinRequestReviewComponent} from '../../../../components/mls-join-request-review/mls-join-request-review.component';
 import {MlsSyncService} from '../../../../services/mls-sync.service';
 import {MlsJoinRequestService} from '../../../../services/mls-join-request.service';
 import {MlsHealthService} from '../../../../services/mls-health.service';
@@ -66,7 +67,7 @@ import {PinnedMessagesPanelComponent} from '../pinned-messages-panel/pinned-mess
         CallPanelComponent, NgClass, DatePipe,
         UserStatusDotComponent, TypingDotsComponent, HighlightPipe,
         TranslateModule, AppAvatarComponent, PinnedMessagesPanelComponent,
-        MlsUnreadableBannerComponent,
+        MlsUnreadableBannerComponent, MlsJoinRequestReviewComponent,
     ],
     templateUrl: './conversation.component.html',
     styleUrl: './conversation.component.css',
@@ -126,6 +127,15 @@ export class ConversationComponent implements AfterViewInit {
      */
     protected readonly relinkStatus = computed(
         () => this.joinRequests.statusOf(this.conversation().id));
+    /**
+     * Display names for the admission review prompt, keyed by user id.
+     *
+     * <p>Handed down rather than looked up there: "Bob added a device" and "one of your own
+     * devices is asking" are entirely different questions to put to a human, and the roster is
+     * already here.</p>
+     */
+    protected readonly participantNames = computed<Record<string, string>>(() =>
+        Object.fromEntries(this.conversation().members.map(m => [m.userId, m.cachedUserName])));
     private profileService = inject(ProfileService);
 
     // ── Conversation meta ────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest';
-import {toContextEvent} from './messaging-websocket.service';
+import {toContextEvent, toJoinRequestEvent} from './messaging-websocket.service';
 
 /**
  * Contract §E8: `conversation.MlsCommit` is now emitted for channel contexts too, where it
@@ -41,5 +41,36 @@ describe('toContextEvent', () => {
         // Downstream treats an empty context as "no group here", which is a no-op catch-up. An
         // undefined would be used as a URL segment.
         expect(toContextEvent({generation: 1}).contextId).toBe('');
+    });
+});
+
+describe('toJoinRequestEvent', () => {
+    const push = (overrides: Record<string, unknown> = {}) => toJoinRequestEvent({
+        contextId: 'conv-1',
+        conversationId: 'conv-1',
+        channelId: null,
+        generation: 1,
+        requestId: 'mljr-1',
+        requesterUserId: 'user-a',
+        requesterDeviceId: 'device-b',
+        requesterDeviceName: 'Desktop',
+        signatureKeyFingerprint: '517F4-D75A0-AD0A2-6BBCF',
+        requiresManualApproval: false,
+        ...overrides,
+    } as never);
+
+    it('keeps the fingerprint, which is the only value a human can compare', () => {
+        expect(push().signatureKeyFingerprint).toBe('517F4-D75A0-AD0A2-6BBCF');
+    });
+
+    it('treats an unstated approval verdict as "a human decides"', () => {
+        // Absent means an older server or a lost field. Defaulting to false would read as "this
+        // may be admitted without asking anyone", which is the permissive answer to a question
+        // about letting a device into an encrypted group.
+        expect(push({requiresManualApproval: undefined}).requiresManualApproval).toBe(true);
+    });
+
+    it('reports a missing device name as absent rather than inventing one', () => {
+        expect(push({requesterDeviceName: undefined}).requesterDeviceName).toBeNull();
     });
 });

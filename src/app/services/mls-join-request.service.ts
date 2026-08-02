@@ -135,8 +135,12 @@ export function describeRelinkOutcome(outcome: MlsRelinkOutcome): MlsRelinkStatu
  * <i>"'x' is not one of your registered devices"</i> - that is this device never having completed
  * registration, which is a different problem from not being admitted and needs to reach the user
  * as itself rather than as a generic failure.</p>
+ *
+ * <p>Exported because the review side needs the same treatment for the same reason: an approval
+ * refused because the request has already expired, or because this device cannot be told apart
+ * from the one asking, is actionable, and "something went wrong" is not.</p>
  */
-function describeRequestFailure(err: unknown): string {
+export function describeRequestFailure(err: unknown): string {
     if (err instanceof HttpErrorResponse) {
         const body = err.error as {detail?: string; title?: string; message?: string} | string | null;
         const served = typeof body === 'string' ? body : body?.detail ?? body?.message ?? body?.title;
