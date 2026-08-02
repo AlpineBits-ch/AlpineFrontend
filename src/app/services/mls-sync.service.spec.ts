@@ -661,20 +661,24 @@ describe('MlsSyncService', () => {
             expect(plaintext).toBe('aGk=');
         });
 
-        it('refuses a message whose credential names someone outside the group', async () => {
+        it('does not re-check the roster, because openmls already did', async () => {
             const {sync, mls} = setup();
             seedGroup(mls);
             mls.processMessage.mockReturnValue(of({
                 kind: 'application', plaintext: 'aGk=', selfRemoved: false,
-                addedMembers: [], removedLeafIndices: [], senderIdentity: 'mallory', epoch: null,
+                addedMembers: [], removedLeafIndices: [], senderIdentity: 'user-2', epoch: null,
             }));
 
-            const plaintext = await sync.decryptMessage(
-                CONTEXT, false, GROUP, 'Y2lwaGVy', 'msg-1');
+            const plaintext = await sync.decryptMessage(CONTEXT, false, GROUP, 'Y2lwaGVy', 'msg-1');
 
-            // A compromised server replaying a valid ciphertext under a spoofed credential is what
-            // this guard is for. It had no call sites at all before, so it guarded nothing.
-            expect(plaintext).toBeNull();
+            // This used to fetch the roster and check the sender was in it, with a comment claiming
+            // it stopped a malicious server spoofing a credential. openmls resolves the sender from
+            // a leaf in the ratchet tree and verifies the signature against that leaf before
+            // returning, so the lookup could only ever answer yes - a tautology dressed as a
+            // security check, which is worse than none because it made the missing one look
+            // present. Asserting the call is gone stops it being reinstated as reassurance.
+            expect(plaintext).toBe('aGk=');
+            expect(mls.getMembers).not.toHaveBeenCalled();
         });
 
         it('refuses a message whose credential disagrees with the claimed author', async () => {

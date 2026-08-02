@@ -300,6 +300,64 @@ export const MessageStore = signalStore(
             patchState(store, updateEntity({id: dto.id, changes: dto}));
         },
 
+        /**
+         * Applies an edit announced over the socket.
+         *
+         * <p>The content on this event is a server-supplied string. Writing it straight into the
+         * store - which is what used to happen - lets anyone able to emit the event put arbitrary
+         * text into an end-to-end encrypted thread, attributed to the original author, with nothing
+         * to indicate it never came from them. That is the entire confidentiality claim gone, and
+         * it needs no group keys at all.</p>
+         *
+         * <p>The decision is made from the **stored** message's encryption state rather than
+         * anything on the event: the local copy is the one field the server cannot rewrite in
+         * flight.</p>
+         */
+        async applyRemoteUpdate(event: MessageUpdatedEvent): Promise<void> {
+            const existing = store.entityMap()[event.messageId];
+            // An edit for a message we have never seen carries no context to judge it against.
+            if (!existing) return;
+
+            const contextId = existing.conversationId ?? existing.channelId;
+            if (existing.encryptionState !== MessageEncryptionState.Encrypted || !contextId) {
+                patchState(store, updateEntity({
+                    id: event.messageId,
+                    changes: {content: event.content, updatedAt: new Date()},
+                }));
+                return;
+            }
+
+            const isChannel = !!existing.channelId;
+            const generation = existing.mlsGeneration
+                ?? await mlsService.getKnownGeneration(contextId);
+            const groupId = generation === null || generation === undefined
+                ? null
+                : await mlsService.getGroupId(contextId, generation);
+
+            const plaintext = groupId
+                ? await mlsSync.decryptMessage(
+                    contextId, isChannel, groupId, fromBase64(event.content), event.messageId,
+                    existing.authorId)
+                : null;
+
+            if (!plaintext) {
+                // Refused, not rendered. An edit we cannot authenticate is indistinguishable from
+                // an injected one, so it must never appear as the author's words.
+                mlsHealth.recordFailure(contextId, isChannel, 'decrypt-failed');
+                patchState(store, updateEntity({
+                    id: event.messageId,
+                    changes: {undecryptable: true, updatedAt: new Date()},
+                }));
+                return;
+            }
+
+            void mlsService.cacheMessage(event.messageId, plaintext);
+            patchState(store, updateEntity({
+                id: event.messageId,
+                changes: {content: plaintext, undecryptable: false, updatedAt: new Date()},
+            }));
+        },
+
         removeMessagesForConversation(conversationId: string): void {
             const ids = store.entities()
                 .filter(m => m.conversationId === conversationId)
@@ -531,11 +589,9 @@ export const MessageStore = signalStore(
                 patchState(store, upsertEntity(msg))
             );
 
+            // Routed through the decryptor rather than written straight in - see applyRemoteUpdate.
             wsService.messageUpdatedObservable.subscribe((event: MessageUpdatedEvent) =>
-                patchState(store, updateEntity({
-                    id: event.messageId,
-                    changes: {content: event.content, updatedAt: new Date()},
-                }))
+                void store.applyRemoteUpdate(event)
             );
 
             wsService.messageDeletedObservable.subscribe((event: MessageDeletedEvent) =>

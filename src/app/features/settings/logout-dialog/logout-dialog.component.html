@@ -87,6 +87,45 @@
 
             </div>
         }
+        <!--
+          The export command is not defined in this build. Distinct from an export that failed:
+          "try again" can never work here, and the export path was the only way out of this dialog
+          other than discarding the keys - so an unavailable export used to trap the user in a retry
+          loop. The wipe is offered explicitly rather than happening on the way past, because
+          destroying the keys right after someone asked to save them is the one outcome this dialog
+          exists to prevent.
+        -->
+        @case ('export-unavailable') {
+            <div class="lo-panel">
+
+                <div class="lo-icon-wrap">
+                    <div class="lo-icon-ring lo-icon-ring--warn">
+                        <i class="pi pi-exclamation-triangle text-2xl"
+                           style="color: var(--color-connecting)"></i>
+                    </div>
+                </div>
+
+                <div>
+                    <h2 class="lo-title">Key export isn't available</h2>
+                    <p class="lo-subtitle">
+                        This version can't write a key backup file. Your keys are untouched and
+                        you're still signed in — nothing has been lost.
+                    </p>
+                    <p class="lo-subtitle" style="margin-top: 0.5rem">
+                        If you sign out now, your end-to-end encrypted message history on this
+                        device becomes permanently unreadable.
+                    </p>
+                </div>
+
+                <div class="lo-actions">
+                    <p-button (onClick)="close()" [text]="true" icon="pi pi-arrow-left"
+                              label="Stay signed in" severity="secondary"/>
+                    <p-button (onClick)="logoutWithoutExport()" label="Sign out anyway"
+                              severity="danger"/>
+                </div>
+
+            </div>
+        }
         @case ('no-export-warning') {
             <div class="lo-panel">
 

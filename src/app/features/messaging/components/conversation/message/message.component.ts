@@ -18,7 +18,7 @@ import {BotCommandDto} from '../../../../../dtos/response/bot-command.dto';
 import {AppAvatarComponent} from "../../../../../components/avatar/avatar.component";
 import {AsyncPipe, DatePipe, NgClass} from "@angular/common";
 import {ProfileService} from "../../../../../services/profile.service";
-import {Observable, of, switchMap} from "rxjs";
+import {firstValueFrom, from, Observable, of, switchMap} from "rxjs";
 import {ProfileDto} from "../../../../../dtos/response/profile.dto";
 import {ChannelDto, ChannelType, RoleDto} from "../../../../../dtos/response/guild.dto";
 import {NavigationService} from "../../../../main-page/navigation.service";
@@ -28,6 +28,9 @@ import {MarkdownPipe} from '../../../../../pipes/markdown.pipe';
 import {AttachmentDto, FileService} from '../../../../../services/file.service';
 import {MessagingService} from '../../../../../services/messaging.service';
 import {MessageStore} from '../../../../../stores/message.store';
+import {MlsService} from '../../../../../services/mls.service';
+import {MessageEncryptionState} from '../../../../../enums/message-encryption-state.enum';
+import {toBase64} from '../../../../../helpers/base64.helper';
 import {ProfileDialogService} from '../../../../../services/profile-dialog.service';
 import {openUrl} from '@tauri-apps/plugin-opener';
 import {InviteCardComponent} from './invite-card/invite-card.component';
@@ -316,6 +319,7 @@ export class MessageComponent {
     private fileService = inject(FileService);
     private messagingService = inject(MessagingService);
     private messageStore = inject(MessageStore);
+    private mlsService = inject(MlsService);
     private destroyRef = inject(DestroyRef);
     private toast = inject(ToastService);
     private translate = inject(TranslateService);
@@ -444,19 +448,64 @@ export class MessageComponent {
         if (!text || this.saving()) return;
         this.saving.set(true);
         this.isEditing.set(false);
-        this.messagingService.updateMessage(this.message().id, text)
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({
-                next: updated => {
+
+        const wasEncrypted = this.message().encryptionState === MessageEncryptionState.Encrypted;
+
+        from(this.encryptEditIfNeeded(text)).pipe(
+            switchMap(payload => this.messagingService.updateMessage(this.message().id, payload)),
+            takeUntilDestroyed(this.destroyRef),
+        ).subscribe({
+            next: updated => {
+                // Keep the plaintext locally. The server now holds ciphertext and MLS ratchets
+                // forward only, so this is the one moment the edit is still readable to us.
+                if (wasEncrypted) {
+                    void this.mlsService.cacheMessage(updated.id, toBase64(text));
+                    this.messageStore.applyMessageUpdate({...updated, content: toBase64(text)});
+                } else {
                     this.messageStore.applyMessageUpdate(updated);
-                    this.saving.set(false);
-                },
-                error: () => {
-                    this.saving.set(false);
-                    this.editText.set(text);
-                    this.isEditing.set(true);
-                },
-            });
+                }
+                this.saving.set(false);
+            },
+            error: () => {
+                this.saving.set(false);
+                this.editText.set(text);
+                this.isEditing.set(true);
+            },
+        });
+    }
+
+    /**
+     * Encrypts an edit to an encrypted message before it leaves the machine.
+     *
+     * The edit path posted the replacement text in the clear regardless of the message's encryption
+     * state, so editing an end-to-end encrypted message silently published its new contents to the
+     * server - defeating that message's encryption entirely, by the user's own hand, with nothing
+     * on screen to say so.
+     *
+     * Throws rather than falling back to cleartext: a failure here must abandon the edit, never
+     * quietly downgrade it.
+     */
+    private async encryptEditIfNeeded(text: string): Promise<string> {
+        const message = this.message();
+        if (message.encryptionState !== MessageEncryptionState.Encrypted) return text;
+
+        const contextId = message.conversationId ?? message.channelId;
+        const keyHandle = this.mlsService.keyHandle();
+        if (!contextId || !keyHandle) {
+            throw new Error('Cannot edit an encrypted message while the MLS session is locked');
+        }
+
+        const generation = message.mlsGeneration
+            ?? await this.mlsService.getKnownGeneration(contextId);
+        const groupId = generation === null || generation === undefined
+            ? null
+            : await this.mlsService.getGroupId(contextId, generation);
+        if (!groupId) throw new Error(`No MLS group held for encrypted context ${contextId}`);
+
+        const {ciphertext} = await firstValueFrom(
+            this.mlsService.sendMessage(groupId, keyHandle, toBase64(text)),
+        );
+        return ciphertext;
     }
 
     confirmDelete(): void {

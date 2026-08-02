@@ -1,0 +1,207 @@
+# The gate that commit 4734c8b ("feat: mls improvements") needed and did not have.
+#
+# That commit overwrote src-tauri/src/crypto/mls.rs with a file belonging to a different project.
+# All 25 `#[tauri::command]` attributes disappeared, every one of the corresponding
+# `invoke_handler` registrations in lib.rs stopped resolving, and the incoming code imported
+# `hkdf` and `hmac` while Cargo.toml still listed neither. 59 compile errors, pushed straight to
+# `main`, noticed by nobody. The only workflow that existed at the time (build.yml) triggers on
+# `push: branches: [release]`, so nothing on `main` was ever compiled by CI.
+#
+# Everything below follows from that. In particular the Rust job runs a real `cargo build`, not
+# `cargo check`: `check` would also have caught this specific incident, but `build` is what proves
+# the crate actually links, and build.yml already demonstrates that a full Tauri compile fits in a
+# Linux runner, so there is no reason to settle for the weaker check.
+name: CI
+
+on:
+  pull_request:
+  # Pushes as well as pull requests, and `main` specifically: the incident was a direct push to
+  # `main` with no PR anywhere in the picture, so a `pull_request`-only gate would have sailed
+  # right past it. `release` is included so this fails in ~10 minutes rather than letting
+  # build.yml discover the same breakage 40 minutes into producing installers.
+  push:
+    branches: [main, release]
+
+# Superseded PR runs are pointless, so cancel them. Pushes to main and release are never
+# cancelled - every commit that lands on a protected branch keeps its own verdict, which is the
+# whole point of gating pushes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  frontend:
+    name: Angular build & unit tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # src/assets/i18n/locales is a submodule and it is not optional for this job:
+      # system-message-locale.spec.ts imports en.json, de.json and fr.json from it directly, so
+      # `ng test` fails at build time without it. Same HTTPS rewrite as build.yml, which is what
+      # makes the SSH-form URL in .gitmodules resolvable with the checkout credentials.
+      - name: Force HTTPS for submodules
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github-alpine:"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Update submodules
+        run: git submodule update --init --recursive
+
+      - uses: oven-sh/setup-bun@v2
+
+      # setup-bun caches the bun binary, not the packages. This is the package cache.
+      - name: Cache bun package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      # 41 MB locally, and it takes the production build from roughly a minute cold to ~16s warm.
+      # Keyed on bun.lock alone rather than on the commit sha on purpose: a per-commit key would
+      # write a fresh entry on every single run, and the GitHub Actions cache is one shared 10 GB
+      # budget for the whole repo - see the eviction note in build.yml. Angular's cache is
+      # content-addressed internally, so a slightly stale restore is still correct, just partial.
+      - name: Cache Angular build cache
+        uses: actions/cache@v4
+        with:
+          path: .angular/cache
+          key: angular-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: angular-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # `ng build`, deliberately not `bun run build`. That script is
+      # `ng build && bun run sentry:sourcemaps`, and the sourcemap upload needs SENTRY_AUTH_TOKEN,
+      # which pull requests from forks never receive - so wiring the script in as-is would make
+      # this job fail for a reason that has nothing to do with the code. Split instead of skipped:
+      # the compile, which is the part that can actually break, runs on every PR and every push,
+      # and the upload stays in build.yml where the secret is available.
+      #
+      # `--configuration production` is already the default (angular.json sets
+      # defaultConfiguration), spelled out so that changing that default cannot quietly downgrade
+      # this gate to a development build with optimization off and no budgets.
+      - name: Build Angular (production)
+        run: bun x ng build --configuration production
+
+      # angular.json configures no `browsers`, so @angular/build:unit-test runs vitest in Node
+      # against jsdom - headless by construction, no browser and no display server involved.
+      # `--headless` is a documented no-op in that mode; it is passed anyway so that adding a real
+      # browser to angular.json later cannot silently start needing an X server here.
+      # `--watch=false` because the builder defaults `watch` to true whenever stdout is a TTY.
+      - name: Run Angular unit tests
+        run: bun x ng test --watch=false --headless
+
+  tauri:
+    # This is the job that would have caught 4734c8b.
+    name: Rust build & tests (src-tauri)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+      # No submodules and no bun here: the i18n locales are a frontend asset, and cargo never
+      # runs `beforeBuildCommand` - that belongs to the tauri CLI. Nor does this job need
+      # dist/alpine/browser to exist. `tauri::generate_context!()` only embeds the frontend when
+      # the `custom-protocol` feature is on (tauri-macros: `dev: cfg!(not(feature =
+      # "custom-protocol"))`), and this crate never enables it, so a plain cargo build takes the
+      # `devUrl` branch and embeds nothing. If someone adds that feature later, this job will
+      # start failing with "The `frontendDist` configuration is set to ... but this path doesn't
+      # exist", and the fix is to build the frontend first, not to delete the check.
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      # sccache alone, not sccache + swatinem/rust-cache, for exactly the reason spelled out in
+      # build.yml: both spend the same 10 GB repo-wide cache budget and evict each other, and a
+      # Tauri target/ directory is multiple gigabytes per save. sccache's per-object entries are
+      # small enough to survive, and they are shared with the release jobs, which use the same
+      # wrapper - so this gate warms the cache that build.yml then hits.
+      - uses: mozilla-actions/sccache-action@v0.0.10
+
+      # Compiled crates come from sccache; this only saves re-downloading and re-extracting the
+      # crate sources. Small, and deliberately excludes ~/.cargo/registry/src, which is just the
+      # unpacked form of the .crate files already cached.
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
+      # Taken from build.yml's release-linux job, which already builds this crate on ubuntu-24.04 -
+      # including meson, ninja-build and pkg-config, which the default-on `aec` feature needs
+      # because it compiles WebRTC's AudioProcessing module from source. Keeping the list aligned
+      # is the point: if the release build needs a package, so does the gate, and a gate that
+      # compiles a different dependency set is not gating the release.
+      #
+      # `cmake` and `clang`/`libclang-dev` are the additions, and neither is optional:
+      #
+      #   cmake        - `opus` -> `audiopus_sys` finds no system Opus through pkg-config on
+      #                  Ubuntu and falls back to building the vendored copy with CMake. Without
+      #                  it the build dies in that build script with "is `cmake` not installed?".
+      #   libclang-dev - `libpipewire-0.3-dev` gets `libspa-sys` as far as pkg-config, and then it
+      #                  runs bindgen over the SPA headers. Without libclang that panics with
+      #                  "Unable to find libclang".
+      #
+      # Both were found by reproducing this job in a clean ubuntu:24.04 container, and both are
+      # things the GitHub runner image happens to preinstall - which is how release-linux gets
+      # away with omitting them, and which is precisely the "relying on whatever the runner image
+      # happens to ship" that build.yml's own meson comment argues against. Listed explicitly so
+      # an image change cannot break either job silently.
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libpipewire-0.3-dev \
+            libsoup-3.0-dev \
+            libgbm-dev \
+            libasound2-dev \
+            patchelf \
+            meson \
+            ninja-build \
+            pkg-config \
+            cmake \
+            clang \
+            libclang-dev
+
+      # A real build, with the real default feature set (`default = ["aec"]`), of every target in
+      # the crate - lib, both binaries, and the test harnesses. `--all-targets` matters here:
+      # without it a broken `#[cfg(test)]` block compiles fine and only explodes in the test step.
+      #
+      # Run from the repository root with --manifest-path rather than from inside src-tauri, and
+      # that is not cosmetic: .cargo/config.toml lives at the root and cargo discovers it by
+      # walking up from the *invocation* directory. Its CMAKE_POLICY_VERSION_MINIMUM entry is what
+      # lets audiopus_sys' vendored libopus configure under CMake 4. See the comment in that file.
+      #
+      # Debug profile, not release: it is several times faster and the incident class this exists
+      # to catch - missing attributes, unresolved paths, undeclared dependencies - is caught
+      # identically either way. build.yml still does the release compile on the release branch.
+      - name: Build src-tauri
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+        run: cargo build --manifest-path src-tauri/Cargo.toml --all-targets
+
+      # 304 tests as of this commit. Note that media::publisher::encoder's tests provision Cisco's
+      # precompiled OpenH264 binary on first run and cache it under src-tauri/target -
+      # deliberately not restored from the Actions cache (it is a build artifact directory), so
+      # this step makes one network fetch per run.
+      - name: Test src-tauri
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+        run: cargo test --manifest-path src-tauri/Cargo.toml

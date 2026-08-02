@@ -206,6 +206,30 @@ function requireTauri(): void {
     if (!isTauri()) throw new MlsUnavailableError();
 }
 
+/**
+ * Raised when an MLS feature exists in the UI but not in the engine this build shipped.
+ *
+ * Distinct from an operation that failed: callers must be able to say "not available here" rather
+ * than "try again", because retrying a command the binary does not define never succeeds.
+ */
+export class MlsFeatureUnavailableError extends Error {
+    constructor(readonly command: string) {
+        super(`This build does not support ${command}.`);
+    }
+}
+
+/**
+ * Whether a rejection is Tauri refusing to resolve the command, rather than the command failing.
+ *
+ * Matched narrowly - the command's own name has to appear alongside the not-found wording - so a
+ * genuine engine error that happens to contain "not found" (a missing group, a missing key) is
+ * never mistaken for an absent feature and silently swallowed.
+ */
+function isCommandNotFound(err: unknown, command: string): boolean {
+    const text = typeof err === 'string' ? err : err instanceof Error ? err.message : String(err);
+    return text.includes(command) && /not\s+found|unknown command|not\s+allowed/i.test(text);
+}
+
 /** One sealed entry in the plaintext message cache. */
 interface CachedMessage {
     v: 1;
@@ -691,55 +715,27 @@ export class MlsService {
      */
     drainPendingMessages(groupIdB64: string): Observable<MlsReplayedMessage[]> {
         return this.serialized(groupIdB64, () =>
-            this.call<MlsReplayedMessage[]>('mls_drain_pending_messages', {groupIdB64})
+            // Empty is the honest answer when the engine has no buffer: nothing was held, so
+            // nothing is waiting to be replayed. Catch-up carries on unaffected.
+            this.callOptional<MlsReplayedMessage[]>(
+                'mls_drain_pending_messages', {groupIdB64}, () => [],
+            )
         );
     }
 
-    /**
-     * Verify that `senderIdentity` is present in the current group roster.
-     *
-     * Call this after `processMessage` for application messages to guard against
-     * a compromised server replaying a valid ciphertext with a spoofed credential.
-     * Returns `true` if the sender is known, `false` otherwise.
-     */
-    verifySenderInRoster(
-        senderIdentity: string,
-        groupIdB64: string,
-    ): Observable<boolean> {
-        return this.getMembers(groupIdB64).pipe(
-            map(members => members.some(m => m.identity === senderIdentity))
-        );
-    }
-
-    /**
-     * Process a message and immediately verify the sender against the roster.
-     * Throws an `MlsTypedError` with `kind === 'UnknownSender'` if the sender
-     * cannot be found in the group member list after processing.
-     */
-    processAndVerifyMessage(
-        groupIdB64: string,
-        messageB64: string,
-    ): Observable<MlsProcessedMessage> {
-        return this.processMessage(groupIdB64, messageB64).pipe(
-            switchMap(msg => {
-                if (msg.kind === 'application' && msg.senderIdentity) {
-                    return this.verifySenderInRoster(msg.senderIdentity, groupIdB64).pipe(
-                        map(known => {
-                            if (!known) {
-                                const err: MlsTypedError = {
-                                    kind: 'UnknownSender',
-                                    message: `${msg.senderIdentity} is not in the group roster`,
-                                };
-                                throw err;
-                            }
-                            return msg;
-                        })
-                    );
-                }
-                return of(msg);
-            })
-        );
-    }
+    // `verifySenderInRoster` and `processAndVerifyMessage` used to live here. Both are deleted
+    // rather than wired up, because the guarantee their doc comments claimed - "guards against a
+    // compromised server replaying a valid ciphertext with a spoofed credential" - was never real.
+    //
+    // openmls resolves a message's sender from a leaf in the ratchet tree and verifies the
+    // signature against that leaf's key before `process_message` returns. Anything that comes back
+    // has already been proved to originate from a current member, so asking afterwards whether the
+    // sender is in the roster can only ever answer yes. It was a tautology wearing the label of a
+    // security check, which is worse than no check: it made the missing one look present.
+    //
+    // The direction that genuinely is unauthenticated - the server's `authorId` field beside the
+    // ciphertext, which the UI attributes the message to - is checked in
+    // `MlsSyncService.senderMatchesClaimedAuthor`, on the one decrypt path every caller uses.
 
     /**
      * Remove members from the group by leaf index.
@@ -859,7 +855,9 @@ export class MlsService {
 
         const messageCache = includeMessageCache ? await this.readMessageCachePlain() : undefined;
 
-        return this.call<string>('mls_export_backup', {
+        // Distinguishable from a failure so the logout flow can offer to continue without a
+        // backup instead of looping on a retry that cannot succeed.
+        return this.callOptional<string>('mls_export_backup', {
             passphrase,
             userId,
             deviceId,
@@ -867,7 +865,7 @@ export class MlsService {
             keyHandle,
             groupRegistry,
             messageCache,
-        });
+        }, () => { throw new MlsFeatureUnavailableError('mls_export_backup'); });
     }
 
     /**
@@ -880,12 +878,12 @@ export class MlsService {
     async importBackup(blob: string, passphrase: string, expectedUserId: string): Promise<MlsBackupImportResult> {
         const currentDeviceId = await this.deviceIdentity.deviceId();
 
-        const result = await this.call<MlsBackupImportResult>('mls_import_backup', {
+        const result = await this.callOptional<MlsBackupImportResult>('mls_import_backup', {
             blob,
             passphrase,
             expectedUserId,
             currentDeviceId,
-        });
+        }, () => { throw new MlsFeatureUnavailableError('mls_import_backup'); });
 
         // Without the registry every context reads as unencrypted, whatever the engine holds.
         for (const [key, value] of Object.entries(result.groupRegistry)) {
@@ -1009,6 +1007,36 @@ export class MlsService {
     private call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
         requireTauri();
         return invoke<T>(command, args);
+    }
+
+    /**
+     * Invokes a command the running build may not define.
+     *
+     * Three commands - `mls_drain_pending_messages`, `mls_export_backup`, `mls_import_backup` -
+     * currently have a TypeScript caller and no Rust definition: this engine file was overwritten
+     * with the other client's, and restoring Alpine's last-known-good version brought back a
+     * surface that predates them. They return with the re-port from mobile, whose engine has all
+     * three, so the callers stay put rather than being deleted and re-added.
+     *
+     * Until then an unresolved command must degrade rather than throw. A missing *feature* is not
+     * the same event as a failing one, and the distinction matters most on the logout path, where
+     * treating "unavailable" as "failed" traps the user retrying a command that can never succeed.
+     *
+     * @param onMissing the value to return when the command is not defined. A genuine failure from
+     *        a command that *does* exist still rejects, and must.
+     */
+    private async callOptional<T>(
+        command: string,
+        args: Record<string, unknown> | undefined,
+        onMissing: () => T,
+    ): Promise<T> {
+        requireTauri();
+        try {
+            return await invoke<T>(command, args);
+        } catch (err) {
+            if (isCommandNotFound(err, command)) return onMissing();
+            throw err;
+        }
     }
 
     /**

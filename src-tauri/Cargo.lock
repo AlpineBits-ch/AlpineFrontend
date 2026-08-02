@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "Venta"
-version = "3.0.153"
+version = "3.0.154"
 dependencies = [
  "aes-gcm",
  "argon2",
@@ -14,6 +14,8 @@ dependencies = [
  "bzip2-rs",
  "cpal",
  "getrandom 0.2.17",
+ "hkdf",
+ "hmac",
  "hrtf",
  "image",
  "jpeg-encoder",

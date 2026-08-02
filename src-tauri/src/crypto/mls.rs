@@ -1,15 +1,29 @@
 //! MLS (RFC 9420) group engine.
 //!
-//! Ported from Alpine's `src-tauri/src/crypto/mls.rs`. The logic is deliberately
-//! kept line-for-line equivalent: both clients talk to the same server, join the
-//! same groups and read each other's ciphertext, so any divergence here is a
-//! divergence in the wire protocol. The only things that changed are the edges -
-//! Tauri's `State`/`AppHandle` became a process-global `Mutex` and an explicitly
-//! passed storage path, because Flutter has neither.
+//! Shared line-for-line with venta-mobile's `packages/venta_mls/rust/src/mls.rs`. Both clients talk
+//! to the same server, join the same groups and read each other's ciphertext, so any divergence in
+//! the engine below is a divergence in the wire protocol. Only the edges differ: mobile drives it
+//! through a process-global `Mutex` and an explicitly passed storage path, Alpine through Tauri's
+//! `State`/`AppHandle`.
+//!
+//! That edge is the whole reason this file has its own shape. The engine functions take `&str` and
+//! mirror mobile's exactly; the `#[tauri::command]` wrappers and the `*_impl` shims that adapt
+//! `String` for them live at the bottom, in their own clearly marked sections. Anything else -
+//! reordering, renaming, "tidying" a signature - makes the next port a merge instead of a copy,
+//! which is how this file came to be overwritten with mobile's wholesale in the first place.
+//!
+//! Two things deliberately do **not** come across from mobile:
+//!
+//! * The account master key (`setup_master_key`, `wrap_master_key`, recovery codes,
+//!   `EncryptedMasterKey`). Alpine already owns every one of those in `crypto::crypto`, registered
+//!   as its own Tauri commands. They sit in a different module there, so importing mobile's copy
+//!   would *compile* and ship two divergent implementations of the same wrapping in one binary.
+//! * Device certificates, admission proofs and protection levels (§G/§H). No Alpine caller reaches
+//!   them, and an unreachable signing surface is worse than an absent one.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::{Mutex, OnceLock};
+use std::sync::Mutex;
 
 use aes_gcm::{
     aead::{Aead, Payload},
@@ -17,8 +31,6 @@ use aes_gcm::{
 };
 use argon2::{Algorithm, Argon2, Params, Version};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
-use hkdf::Hkdf;
-use hmac::{Hmac, Mac};
 use openmls::prelude::*;
 use openmls::prelude::{
     tls_codec::{Deserialize as TlsCodecDeserialize, DeserializeBytes, Serialize as TlsSerialize},
@@ -34,12 +46,12 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
-/// Must match Alpine's exactly. A group created under one ciphersuite cannot be
-/// joined by a device offering a key package built under another.
+/// Must match venta-mobile's exactly. A group created under one ciphersuite cannot be joined by a
+/// device offering a key package built under another.
 const CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
 // ---------------------------------------------------------------------------
-// Output types (serialized to JSON across the FFI boundary)
+// Output types (serialized to JSON across the IPC boundary)
 // ---------------------------------------------------------------------------
 
 #[derive(Serialize, Debug)]
@@ -82,17 +94,15 @@ pub struct MlsCommitOut {
     pub commit: String,
     pub welcome: Option<String>,
     pub epoch: u64,
-    /// GroupInfo for the epoch this commit **establishes**, produced by the
-    /// commit itself.
+    /// GroupInfo for the epoch this commit **establishes**, produced by the commit itself.
     ///
-    /// Publish this rather than calling `export_group_info`. Both engines used
-    /// to discard openmls's third return value as `_group_info` and export one
-    /// separately - but an exported GroupInfo can only ever describe the epoch
-    /// the group is on *now*, and a commit is deliberately not merged until the
-    /// server accepts it. So every published GroupInfo was one epoch stale, and
-    /// a device recovering by external commit landed behind the group it was
-    /// rejoining. No amount of reordering export-versus-merge fixes that; the
-    /// value openmls hands back is the only one that describes the right epoch.
+    /// Publish this rather than calling `export_group_info`. Both engines used to discard openmls's
+    /// third return value as `_group_info` and export one separately - but an exported GroupInfo can
+    /// only ever describe the epoch the group is on *now*, and a commit is deliberately not merged
+    /// until the server accepts it. So every published GroupInfo was one epoch stale, and a device
+    /// recovering by external commit landed behind the group it was rejoining. No amount of
+    /// reordering export-versus-merge fixes that; the value openmls hands back is the only one that
+    /// describes the right epoch.
     pub group_info: Option<String>,
 }
 
@@ -122,8 +132,7 @@ pub struct MlsRejoinOut {
     pub external_commit: String,
 }
 
-/// Everything a reviewer needs to decide whether a key package really belongs to
-/// who it claims.
+/// Everything a reviewer needs to decide whether a key package really belongs to who it claims.
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct MlsKeyPackageInfo {
@@ -133,13 +142,11 @@ pub struct MlsKeyPackageInfo {
     pub signature_public_key: String,
     /// Human-comparable fingerprint of the *signature* key.
     ///
-    /// Deliberately not a hash of the key package: that changes with every
-    /// package a device mints, so two people reading it to each other would
-    /// never agree on anything. The signature key is the device's stable
-    /// identity, so this is the value that means something out of band.
+    /// Deliberately not a hash of the key package: that changes with every package a device mints,
+    /// so two people reading it to each other would never agree on anything. The signature key is
+    /// the device's stable identity, so this is the value that means something out of band.
     pub signature_key_fingerprint: String,
-    /// SHA-256 of the key package bytes, hex. Binds an approval to these exact
-    /// bytes.
+    /// SHA-256 of the key package bytes, hex. Binds an approval to these exact bytes.
     pub key_package_hash: String,
 }
 
@@ -168,16 +175,23 @@ pub struct MlsState {
     pending_messages: HashMap<Vec<u8>, Vec<BufferedMessage>>,
     state_path: Option<PathBuf>,
 
-    /// Loaded, but with nowhere to save.
+    /// AES-256 key the state file is sealed under, held by the OS keychain on the TypeScript side.
     ///
-    /// What an iOS notification-service extension needs: it is a *separate
-    /// process* from the app, so it would load state at one moment and write it
-    /// back at another, and anything the app committed in between would be
-    /// overwritten by the older copy. Stated as its own flag rather than
-    /// inferred from a missing `state_path`, because "deliberately not saving"
-    /// and "never initialised" need opposite treatment and used to be the same
-    /// branch.
-    read_only: bool,
+    /// `mls_state.json` is every epoch secret, every leaf HPKE private key and every init private
+    /// key this device holds. It used to be plain JSON on disk, so anyone with the disk, an
+    /// OS-level backup or a restored device image could read live group keys out of it with no
+    /// keychain access and no unlock. Sealing it under a key that lives in the OS credential store -
+    /// which backups do not carry - is what makes the file worthless off the device that wrote it.
+    ///
+    /// Never legitimately `None` past [`init_storage_from_parts`], which refuses outright: there is
+    /// no unsealed way to save, and pretending otherwise is how the private keys ended up on disk
+    /// in cleartext.
+    ///
+    /// Mobile carries a `read_only` flag alongside this, for the iOS notification-service extension
+    /// that loads state in a *separate process* and must never write it back. Alpine has no second
+    /// process sharing this store, so the flag is deliberately absent rather than present and
+    /// permanently false.
+    state_key: Option<Vec<u8>>,
 }
 
 impl MlsState {
@@ -195,27 +209,15 @@ impl MlsState {
         }
     }
 
-    /// Writes via a temp file, an fsync, and a rename.
-    ///
-    /// Android kills backgrounded apps freely and a half-written
-    /// `mls_state.json` is not a recoverable state - it is every group this
-    /// device belongs to, gone. The rename makes the replacement atomic, but
-    /// only the `sync_all` makes it *ordered*: without it the directory entry
-    /// can reach the disk before the bytes it points at, so a power loss between
-    /// the two leaves a file that is valid to the filesystem and empty to us.
+    /// Persists the provider store, sealed, via [`write_state_file`].
     ///
     /// A missing `state_path` is an **error**, not a no-op.
     ///
-    /// It used to return `Ok(())`, which meant an engine that was never
-    /// initialised - or whose initialisation failed - performed every operation
-    /// perfectly and persisted none of it. Every group it joined and every
-    /// commit it merged would vanish on the next launch, and nothing anywhere
-    /// said so. The one legitimate no-save case is [`MlsState::read_only`],
-    /// which is stated explicitly rather than inferred from an absent path.
+    /// It used to return `Ok(())`, which meant an engine that was never initialised - or whose
+    /// initialisation failed - performed every operation perfectly and persisted none of it. Every
+    /// group it joined and every commit it merged vanished on the next launch, and nothing anywhere
+    /// said so.
     fn save_to_disk(&self) -> Result<(), String> {
-        if self.read_only {
-            return Ok(());
-        }
         let Some(path) = &self.state_path else {
             return Err(
                 "MlsError: MLS storage is not initialised - initStorage must succeed before any \
@@ -224,23 +226,95 @@ impl MlsState {
             );
         };
         let json = serde_json::to_vec(&self.to_persisted()).map_err(|e| e.to_string())?;
-        let tmp = path.with_extension("json.tmp");
-        {
-            let mut file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
-            std::io::Write::write_all(&mut file, &json).map_err(|e| e.to_string())?;
-            file.sync_all().map_err(|e| e.to_string())?;
-        }
-        std::fs::rename(&tmp, path).map_err(|e| e.to_string())?;
-        Ok(())
+        write_state_file(path, &json, self.state_key.as_deref())
     }
 }
 
+/// Marks a sealed `mls_state.json`. Present so a file written before the state file was encrypted
+/// still loads and is upgraded in place, and so a sealed file read without a key fails loudly
+/// rather than as "not JSON".
+///
+/// This replaces a heuristic - try to decrypt, and on failure see whether the bytes happen to parse
+/// as JSON - which could not tell a legacy plaintext file apart from a sealed one opened with the
+/// wrong key except by guessing.
+const STATE_FILE_MAGIC: &[u8] = b"VENTAMLS1";
+
+/// Seals `json` under `state_key`, then writes it atomically.
+///
+/// **There is no unsealed branch, and adding one back is the bug.** This used to fall back to
+/// `json.to_vec()` when no key was supplied - inside the one function whose whole job is to encrypt
+/// the thing - so a device whose keychain would not answer wrote every init key, every leaf HPKE
+/// private key and every epoch secret to disk in cleartext and reported success. Refusing is the
+/// point: a caller with no key has nowhere safe to put this, and "encryption is unavailable this
+/// launch" is a recoverable state where "encryption happened, in cleartext" is not.
+///
+/// Reading a legacy plaintext file is still supported and still upgrades it in place - see
+/// [`init_storage_from_parts`]. Only *producing* one is impossible.
+///
+/// Shared by [`MlsState::save_to_disk`] and that in-place upgrade, so the two cannot produce
+/// different formats.
+fn write_state_file(
+    path: &std::path::Path,
+    json: &[u8],
+    state_key: Option<&[u8]>,
+) -> Result<(), String> {
+    let key = state_key.ok_or_else(|| {
+        "MlsError: refusing to write mls_state.json without a state key - it holds this device's \
+         leaf private keys and every epoch secret, and unsealed on disk is exactly how a device \
+         backup carries them off the handset"
+            .to_string()
+    })?;
+    let mut bytes = STATE_FILE_MAGIC.to_vec();
+    bytes.extend_from_slice(&encrypt_blob(json, key)?);
+
+    let tmp = path.with_extension("json.tmp");
+    let written = (|| -> Result<(), String> {
+        {
+            let mut file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
+            std::io::Write::write_all(&mut file, &bytes).map_err(|e| e.to_string())?;
+            // Before the rename, not after: a rename that lands while the data is still in the page
+            // cache can survive a power cut pointing at a file full of zeroes.
+            file.sync_all().map_err(|e| e.to_string())?;
+        }
+        std::fs::rename(&tmp, path).map_err(|e| e.to_string())
+    })();
+
+    if let Err(e) = written {
+        // The temp file holds the same private keys the real one does, under a name nothing reads
+        // and nothing else ever cleans up. Leaving it behind on a failed write is a second copy of
+        // the state file that no longer has anyone watching it.
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
+    }
+
+    // `sync_all` above orders the file's *bytes* before the rename. It says nothing about the
+    // directory entry the rename creates, which can still be lost to a power cut - leaving either
+    // the previous state file or no file at all, from a call that returned success. Unix only:
+    // there is no portable equivalent on Windows.
+    #[cfg(unix)]
+    if let Some(parent) = path.parent() {
+        if let Ok(dir) = std::fs::File::open(parent) {
+            let _ = dir.sync_all();
+        }
+    }
+
+    Ok(())
+}
+
+/// Tauri's managed state. Mobile's equivalent is a process-global `OnceLock<Mutex<MlsState>>`,
+/// because Flutter has no `State`.
+pub type MlsStateHandle = Mutex<MlsState>;
+
 /// How many early messages one group may hold before the oldest is dropped.
 ///
-/// Unbounded would let a peer that keeps sending from a future epoch grow this
-/// without limit, and the buffer is persisted, so it would grow the state file
-/// too. The oldest goes first: by the time we catch up it is the one most likely
-/// to be past the ratchet's reach anyway.
+/// Unbounded would let a peer that keeps sending from a future epoch grow this without limit. The
+/// oldest goes first: by the time we catch up it is the one most likely to be past the ratchet's
+/// reach anyway.
+///
+/// **The buffer is deliberately not persisted.** [`PersistedMlsState`] has no field for it and
+/// gains none: the bytes are ciphertext the server still holds, so a process that dies with a full
+/// buffer refetches rather than loses, while writing them out would put unread ciphertext in the
+/// state file for no gain.
 const MAX_BUFFERED_PER_GROUP: usize = 256;
 
 /// A message that arrived before the commit that makes it readable.
@@ -262,25 +336,8 @@ pub struct MlsReplayedMessage {
     pub epoch: u64,
 }
 
-static STATE: OnceLock<Mutex<MlsState>> = OnceLock::new();
-
-/// The one MLS state for the process.
-///
-/// A poisoned mutex is recovered from rather than propagated: the poison means
-/// some earlier call panicked, not that the group data is wrong, and refusing
-/// every subsequent call would turn one bad message into a permanently dead
-/// engine.
-pub fn with_state<T>(f: impl FnOnce(&mut MlsState) -> Result<T, String>) -> Result<T, String> {
-    let mutex = STATE.get_or_init(|| Mutex::new(MlsState::default()));
-    let mut guard = match mutex.lock() {
-        Ok(g) => g,
-        Err(poisoned) => poisoned.into_inner(),
-    };
-    f(&mut guard)
-}
-
 // ---------------------------------------------------------------------------
-// Encryption helpers (encrypted state backup)
+// Encryption helpers
 // ---------------------------------------------------------------------------
 
 fn encrypt_blob(plaintext: &[u8], key_bytes: &[u8]) -> Result<Vec<u8>, String> {
@@ -305,6 +362,19 @@ fn decrypt_blob(data: &[u8], key_bytes: &[u8]) -> Result<Vec<u8>, String> {
         .map_err(|e| e.to_string())
 }
 
+fn decode_state_key(key_b64: &str) -> Result<Vec<u8>, String> {
+    let key = B64
+        .decode(key_b64)
+        .map_err(|e| format!("MlsError: state key is not base64: {}", e))?;
+    if key.len() != 32 {
+        return Err(format!(
+            "MlsError: state key must be 32 bytes, got {}",
+            key.len()
+        ));
+    }
+    Ok(key)
+}
+
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
@@ -326,10 +396,10 @@ fn get_signer_entry<'a>(mls: &'a MlsState, key_handle: &str) -> Result<&'a Signe
     })
 }
 
-/// Prefixes the error with a kind the Dart side can branch on. Same vocabulary
-/// as Alpine's `parseMlsError`, because the two clients hit the same failures
-/// and a `WrongEpoch` has to mean "buffer and retry" on both.
-pub fn map_mls_error(e: impl std::fmt::Display) -> String {
+/// Prefixes the error with a kind the TypeScript side can branch on. Same vocabulary as mobile's,
+/// because the two clients hit the same failures and a `WrongEpoch` has to mean "buffer and retry"
+/// on both.
+fn map_mls_error(e: impl std::fmt::Display) -> String {
     let s = e.to_string();
     let lower = s.to_lowercase();
     if lower.contains("wrong epoch")
@@ -378,21 +448,40 @@ fn build_group_info(group: &MlsGroup) -> MlsGroupInfo {
     }
 }
 
+/// `SenderRatchetConfiguration::new(out_of_order_tolerance, maximum_forward_distance)`.
+///
+/// **The argument order is the opposite of what it reads like**, and both clients had the two
+/// literals transposed with comments asserting the reverse. Checked against
+/// `openmls-0.8.1/src/tree/sender_ratchet.rs:40`, whose default is `(5, 1000)`:
+///
+/// * `out_of_order_tolerance` is how many *spent* decryption secrets are kept so a message that
+///   arrives late can still be read. Every one of them is live key material sitting in the state
+///   file, so this is the parameter that costs intra-epoch forward secrecy. 500 of them per sender
+///   per epoch - which is what `new(500, 10)` actually configured - is ~100x the library default
+///   for no benefit anybody asked for.
+/// * `maximum_forward_distance` is how many generations may be *skipped*. The transposed value made
+///   this 10, so the eleventh message read ahead of the app in one epoch - trivially reached by a
+///   lock screen full of notifications - was rejected permanently, with no attacker involved.
+///
+/// venta-mobile pins the same two numbers and must mirror this exactly: a device that keeps fewer
+/// secrets than its peers assume is a device that drops messages.
+const OUT_OF_ORDER_TOLERANCE: u32 = 10;
+const MAXIMUM_FORWARD_DISTANCE: u32 = 500;
+
+fn ratchet_config() -> SenderRatchetConfiguration {
+    SenderRatchetConfiguration::new(OUT_OF_ORDER_TOLERANCE, MAXIMUM_FORWARD_DISTANCE)
+}
+
 fn create_config() -> MlsGroupCreateConfig {
-    let ratchet_config = SenderRatchetConfiguration::new(
-        500, // max_forward_distance
-        10,  // out_of_order_tolerance
-    );
     MlsGroupCreateConfig::builder()
-        .sender_ratchet_configuration(ratchet_config)
+        .sender_ratchet_configuration(ratchet_config())
         .use_ratchet_tree_extension(true)
         .build()
 }
 
 fn join_config() -> MlsGroupJoinConfig {
-    let ratchet_config = SenderRatchetConfiguration::new(500, 10);
     MlsGroupJoinConfig::builder()
-        .sender_ratchet_configuration(ratchet_config)
+        .sender_ratchet_configuration(ratchet_config())
         .use_ratchet_tree_extension(true)
         .build()
 }
@@ -404,12 +493,12 @@ fn serialize_welcome(welcome_msg: openmls::prelude::MlsMessageOut) -> Result<Str
         .map_err(|e| e.to_string())
 }
 
-/// The GroupInfo openmls hands back with a commit - the one describing the epoch
-/// that commit *establishes*. See [`MlsCommitOut::group_info`] for why it has to
-/// be this one and never an exported one.
-/// Wrapped in an `MlsMessageOut` on the way out, because that is the shape
-/// `rejoin_group` reads back off the wire - openmls hands the commit's GroupInfo
-/// over as the bare struct.
+/// The GroupInfo openmls hands back with a commit - the one describing the epoch that commit
+/// *establishes*. See [`MlsCommitOut::group_info`] for why it has to be this one and never an
+/// exported one.
+///
+/// Wrapped in an `MlsMessageOut` on the way out, because that is the shape `rejoin_group` reads
+/// back off the wire - openmls hands the commit's GroupInfo over as the bare struct.
 fn serialize_group_info(
     group_info: Option<openmls::messages::group_info::GroupInfo>,
 ) -> Result<Option<String>, String> {
@@ -425,6 +514,9 @@ fn serialize_group_info(
 
 // ---------------------------------------------------------------------------
 // Operations
+//
+// Signatures mirror venta-mobile's exactly. The `String`-taking `*_impl` shims the tests and Tauri
+// wrappers use are at the bottom of the file, so this section stays diffable against mobile.
 // ---------------------------------------------------------------------------
 
 pub fn load_signing_key(
@@ -612,11 +704,10 @@ pub fn add_members(
         let (commit_msg, welcome_msg, group_info) = group
             .add_members(provider, &signer, &key_packages)
             .map_err(map_mls_error)?;
-        // Deliberately *not* merged here. The server accepts exactly one commit
-        // per epoch, so a commit that loses that race must never have been
-        // applied locally - a group that advanced on a commit nobody else has is
-        // forked, and MLS gives no way to walk that back. The caller merges via
-        // `merge_pending_commit` once the server takes it, or discards via
+        // Deliberately *not* merged here. The server accepts exactly one commit per epoch, so a
+        // commit that loses that race must never have been applied locally - a group that advanced
+        // on a commit nobody else has is forked, and MLS gives no way to walk that back. The caller
+        // merges via `merge_pending_commit` once the server takes it, or discards via
         // `clear_pending_commit` when it does not.
         let epoch = group.epoch().as_u64() + 1;
         let commit_bytes = commit_msg
@@ -664,10 +755,9 @@ pub fn join_group(
     Ok(info)
 }
 
-/// In MLS a member cannot commit their own removal, so this produces a Remove
-/// *proposal*. Callers broadcast it so a remaining member can commit it via
-/// [`commit_pending_proposals`]. Local group state is dropped immediately, so
-/// the leaver loses access whether or not anyone ever commits it.
+/// In MLS a member cannot commit their own removal, so this produces a Remove *proposal*. Callers
+/// broadcast it so a remaining member can commit it via [`commit_pending_proposals`]. Local group
+/// state is dropped immediately, so the leaver loses access whether or not anyone ever commits it.
 pub fn leave_group(
     mls: &mut MlsState,
     group_id_b64: &str,
@@ -697,8 +787,8 @@ pub fn leave_group(
             commit: B64.encode(&proposal_bytes),
             welcome: None,
             epoch: 0,
-            // A proposal establishes no epoch, so there is no GroupInfo to
-            // describe - and local state is already gone by this point.
+            // A proposal establishes no epoch, so there is no GroupInfo to describe - and local
+            // state is already gone by this point.
             group_info: None,
         }
     };
@@ -745,9 +835,9 @@ pub fn commit_pending_proposals(
     Ok(commit_out)
 }
 
-/// Second half of the two-phase commit dance: applies a staged commit once the
-/// server has accepted it. Safe to retry - merging with nothing staged is a
-/// no-op, so a client that published and then died can merge on next launch.
+/// Second half of the two-phase commit dance: applies a staged commit once the server has accepted
+/// it. Safe to retry - merging with nothing staged is a no-op, so a client that published and then
+/// died can merge on next launch.
 pub fn merge_pending_commit(mls: &mut MlsState, group_id_b64: &str) -> Result<u64, String> {
     let group_id_bytes = B64.decode(group_id_b64).map_err(|e| e.to_string())?;
     let epoch = {
@@ -765,9 +855,9 @@ pub fn merge_pending_commit(mls: &mut MlsState, group_id_b64: &str) -> Result<u6
     Ok(epoch)
 }
 
-/// Discards a staged commit the server refused, leaving the group where it was.
-/// This is the losing side of a concurrent-commit race; applying a commit the
-/// server did not take would fork this device off the group permanently.
+/// Discards a staged commit the server refused, leaving the group where it was. This is the losing
+/// side of a concurrent-commit race; applying a commit the server did not take would fork this
+/// device off the group permanently.
 pub fn clear_pending_commit(mls: &mut MlsState, group_id_b64: &str) -> Result<(), String> {
     let group_id_bytes = B64.decode(group_id_b64).map_err(|e| e.to_string())?;
     {
@@ -915,18 +1005,18 @@ pub fn process_message(
 ) -> Result<MlsProcessedMessage, String> {
     let group_id_bytes = B64.decode(group_id_b64).map_err(|e| e.to_string())?;
     let msg_bytes = B64.decode(message_b64).map_err(|e| e.to_string())?;
-    let msg_in = MlsMessageIn::tls_deserialize_exact_bytes(&msg_bytes).map_err(|e| e.to_string())?;
+    let msg_in =
+        MlsMessageIn::tls_deserialize_exact_bytes(&msg_bytes).map_err(|e| e.to_string())?;
     let protocol_msg = msg_in
         .try_into_protocol_message()
         .map_err(|e| e.to_string())?;
     let message_epoch = protocol_msg.epoch().as_u64();
 
-    // A message from an epoch we have not reached yet is early, not wrong.
-    // Dropping it loses it for good - the wire copy decrypts exactly once - so
-    // it waits for the commit that makes it readable and `drain_pending_messages`
-    // picks it up afterwards. `pending_messages` was declared, retained and
-    // cleared but never actually written to, so this buffer did not exist and an
-    // early message was simply gone.
+    // A message from an epoch we have not reached yet is early, not wrong. Dropping it loses it for
+    // good - the wire copy decrypts exactly once - so it waits for the commit that makes it
+    // readable and `drain_pending_messages` picks it up afterwards. `pending_messages` was
+    // declared, retained and cleared but never actually written to, so this buffer did not exist
+    // and an early message was simply gone.
     {
         let current_epoch = mls
             .groups
@@ -1008,10 +1098,9 @@ pub fn process_message(
                     .merge_staged_commit(provider, *staged_commit)
                     .map_err(|e| e.to_string())?;
                 let epoch = group.epoch().as_u64();
-                // `>=`, not `>`. Anything below where we now are can never be
-                // decrypted - the ratchet only moves forward - but a message
-                // *at* the new epoch is exactly the one this commit just made
-                // readable, and the old `>` threw away precisely those.
+                // `>=`, not `>`. Anything below where we now are can never be decrypted - the
+                // ratchet only moves forward - but a message *at* the new epoch is exactly the one
+                // this commit just made readable, and the old `>` threw away precisely those.
                 if let Some(buf) = pending_messages.get_mut(&group_id_bytes) {
                     buf.retain(|m| m.epoch >= epoch);
                 }
@@ -1072,8 +1161,8 @@ fn buffer_message(
         .entry(group_id_bytes.to_vec())
         .or_default();
 
-    // The same message twice - a socket delivery racing a REST page - must not
-    // accumulate. Both carry the same server-side id.
+    // The same message twice - a socket delivery racing a REST page - must not accumulate. Both
+    // carry the same server-side id.
     if let Some(id) = &message_id {
         if buf.iter().any(|m| m.message_id.as_deref() == Some(id)) {
             return;
@@ -1081,8 +1170,8 @@ fn buffer_message(
     }
 
     if buf.len() >= MAX_BUFFERED_PER_GROUP {
-        // Oldest first: by the time we catch up it is the one most likely to be
-        // past the ratchet's reach anyway, so it is the cheapest to give up on.
+        // Oldest first: by the time we catch up it is the one most likely to be past the ratchet's
+        // reach anyway, so it is the cheapest to give up on.
         buf.remove(0);
     }
 
@@ -1095,9 +1184,9 @@ fn buffer_message(
 
 /// Replays every buffered message the group has now caught up to.
 ///
-/// Call after applying commits. Messages still ahead of the group stay buffered;
-/// messages the ratchet has moved past are dropped, because retrying them
-/// forever would be a permanent background failure that never resolves.
+/// Call after applying commits. Messages still ahead of the group stay buffered; messages the
+/// ratchet has moved past are dropped, because retrying them forever would be a permanent
+/// background failure that never resolves.
 pub fn drain_pending_messages(
     mls: &mut MlsState,
     group_id_b64: &str,
@@ -1140,8 +1229,8 @@ pub fn drain_pending_messages(
             .ok_or_else(|| "GroupNotFound: group not found".to_string())?;
 
         let Ok(processed) = group.process_message(provider, protocol_msg) else {
-            // Past the ratchet's reach. Dropped rather than kept: it can never
-            // succeed, and keeping it would be a failure that retries forever.
+            // Past the ratchet's reach. Dropped rather than kept: it can never succeed, and keeping
+            // it would be a failure that retries forever.
             continue;
         };
 
@@ -1158,8 +1247,8 @@ pub fn drain_pending_messages(
                     epoch: message.epoch,
                 });
             }
-            // Only application messages are ever buffered - commits arrive
-            // through the ordered catch-up, which never runs ahead of the group.
+            // Only application messages are ever buffered - commits arrive through the ordered
+            // catch-up, which never runs ahead of the group.
             _ => continue,
         }
     }
@@ -1213,9 +1302,8 @@ pub fn remove_members(
     Ok(commit_out)
 }
 
-/// Renders a fingerprint as five-character groups, which is what makes it
-/// readable aloud without losing your place. Uppercase hex over the SHA-256 of
-/// the key, truncated to 80 bits.
+/// Renders a fingerprint as five-character groups, which is what makes it readable aloud without
+/// losing your place. Uppercase hex over the SHA-256 of the key, truncated to 80 bits.
 fn format_fingerprint(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
     digest
@@ -1230,24 +1318,24 @@ fn format_fingerprint(bytes: &[u8]) -> String {
         .join("-")
 }
 
-/// The fingerprint for a signature public key, without needing a key package.
+/// Fingerprint of the signing key already loaded under `key_handle`.
 ///
-/// A device's *own* fingerprint is a pure function of its long-lived signing
-/// key, which the caller already holds. Deriving it by minting a key package
-/// just to inspect it would write a fresh init keypair into the engine's store
-/// on every call - permanently, since nothing ever consumes it - and the store
-/// is rewritten in full on every save, so that cost lands on every later
-/// encrypt and decrypt too.
-pub fn fingerprint_for_signature_key(signature_public_key_b64: &str) -> Result<String, String> {
-    let key = B64
-        .decode(signature_public_key_b64)
-        .map_err(|e| e.to_string())?;
-    Ok(format_fingerprint(&key))
+/// **Alpine-only.** Mobile's nearest equivalent, `fingerprint_for_signature_key`, takes the key
+/// itself; this takes a session handle and never exposes the key to the caller.
+/// `MlsJoinRequestService.ownFingerprint` depends on this shape, so it is kept rather than replaced.
+///
+/// Same value `inspect_key_package` reports for any key package this device mints - the leaf's
+/// signature key *is* this key. Deriving it here matters because the alternative was generating a
+/// key package purely to read its fingerprint and throwing the package away: key packages are
+/// single-use and finite, so a screen that showed your own fingerprint would quietly drain the
+/// device's supply and eventually leave it unaddable to any group.
+pub fn signing_key_fingerprint(mls: &MlsState, key_handle: &str) -> Result<String, String> {
+    let entry = get_signer_entry(mls, key_handle)?;
+    Ok(format_fingerprint(&entry.pub_bytes))
 }
 
-/// Inspects a key package so a reviewer can check who it really belongs to
-/// before vouching for it, and so the committing client can confirm the bytes
-/// match what was approved.
+/// Inspects a key package so a reviewer can check who it really belongs to before vouching for it,
+/// and so the committing client can confirm the bytes match what was approved.
 pub fn inspect_key_package(
     mls: &MlsState,
     key_package_b64: &str,
@@ -1255,10 +1343,9 @@ pub fn inspect_key_package(
     let kp_bytes = B64.decode(key_package_b64).map_err(|e| e.to_string())?;
     let kp_in = KeyPackageIn::tls_deserialize(&mut &kp_bytes[..]).map_err(|e| e.to_string())?;
 
-    // Validated, not merely parsed. A reviewer must never be shown an identity
-    // lifted from a malformed or expired package that would then be rejected at
-    // add time - or worse, be talked into approving one whose signature does not
-    // actually check out.
+    // Validated, not merely parsed. A reviewer must never be shown an identity lifted from a
+    // malformed or expired package that would then be rejected at add time - or worse, be talked
+    // into approving one whose signature does not actually check out.
     let key_package = kp_in
         .validate(mls.provider.crypto(), ProtocolVersion::Mls10)
         .map_err(map_mls_error)?;
@@ -1299,61 +1386,94 @@ pub fn get_group_info(mls: &MlsState, group_id_b64: &str) -> Result<MlsGroupInfo
     Ok(build_group_info(group))
 }
 
-/// Points the engine at `<dir>/mls_state.json` and restores whatever is there.
+/// Points the engine at `state_path` and restores whatever is there.
 ///
-/// Returns `true` when state was restored, `false` when starting fresh. The
-/// path is passed in rather than discovered: Flutter owns the app's directory
-/// layout via `path_provider`, and the Rust side guessing at it would disagree
-/// with wherever the rest of the app stores things.
+/// Returns `true` when state was restored, `false` when starting fresh.
 ///
-/// `read_only` loads the state but leaves the engine with nowhere to save,
-/// which is what an iOS notification-service extension needs. The extension is
-/// a *separate process* from the app: it would load state at one moment and
-/// write it back at another, and anything the app committed in between - a new
-/// group, a merged commit - would be silently overwritten by the older copy.
-/// Decrypting one notification is not worth that risk, and the plaintext it
-/// produces is kept in the message cache anyway, so nothing is lost by throwing
-/// the advanced ratchet away.
-pub fn init_storage(mls: &mut MlsState, dir: &str, read_only: bool) -> Result<bool, String> {
-    let dir_path = PathBuf::from(dir);
-    std::fs::create_dir_all(&dir_path).map_err(|e| e.to_string())?;
-    let state_path = dir_path.join("mls_state.json");
+/// The body of [`mls_init_storage`], with the `AppHandle` resolved away, so the crash-safety and
+/// at-rest behaviour is reachable from tests. Needing a Tauri `AppHandle` is precisely why none of
+/// this was covered, and why three defects accumulated in it.
+///
+/// Mobile's equivalent takes a directory plus a `read_only` flag; Alpine resolves the directory in
+/// the command wrapper and has no second process to be read-only for.
+pub(crate) fn init_storage_from_parts(
+    mls: &mut MlsState,
+    state_path: PathBuf,
+    state_key_b64: Option<String>,
+) -> Result<bool, String> {
+    let state_key = state_key_b64.as_deref().map(decode_state_key).transpose()?;
 
-    // Already pointing here. A second Dart isolate in the same process - which is
-    // exactly what Android's FCM background handler is - re-initialises on every
-    // push, and re-reading the file over live state would drop anything the main
-    // isolate has in memory but has not yet saved.
-    if !read_only && mls.state_path.as_deref() == Some(state_path.as_path()) {
+    // Nothing this engine does can be persisted without one, so say so here rather than at
+    // whichever group operation happens to save first - which would surface as a failed invite
+    // rather than as "the keychain is not answering".
+    //
+    // The wording names the state key on purpose. The TypeScript side matches on it to tell "the
+    // key is unavailable this launch" apart from "the state file is corrupt", and only the second
+    // wipes the device's groups. Getting classified as the second here would be an irreversible
+    // response to a transient fault.
+    if state_key.is_none() {
+        return Err(
+            "MlsError: no state key was supplied - mls_state.json cannot be written unsealed, so \
+             encryption stays unavailable until the keychain produces one"
+                .to_string(),
+        );
+    }
+
+    // Already pointing here. Re-reading the file over live state would drop anything held in memory
+    // and not yet saved.
+    if mls.state_path.as_deref() == Some(state_path.as_path()) {
         return Ok(state_path.exists());
     }
 
-    // Pointing somewhere new. Everything currently loaded belongs to whatever
-    // was here before - a different account on this handset, in practice - and
-    // it has to go before this directory's state comes in.
+    // Pointing somewhere new. Everything currently loaded belongs to whatever was here before - a
+    // different account on this machine, in practice - and it has to go before this file's state
+    // comes in.
     //
-    // This used to be an insert into whatever was already in the provider,
-    // which merged two accounts' key material into one store: the next save
-    // wrote account A's private keys into account B's file. That is a
-    // confidentiality failure rather than a corruption one, so it is cleared
-    // unconditionally, including the signers - a handle minted for the previous
-    // account must not stay usable against this one's groups.
+    // This used to be an insert into whatever was already in the provider, which merged two
+    // accounts' key material into one store: the next save wrote account A's private keys into
+    // account B's file. That is a confidentiality failure rather than a corruption one, so it is
+    // cleared unconditionally, including the signers - a handle minted for the previous account
+    // must not stay usable against this one's groups.
     mls.groups.clear();
     mls.pending_messages.clear();
     mls.signers.clear();
     mls.provider.storage().values.write().unwrap().clear();
 
-    mls.read_only = read_only;
-    // Left unset when read-only, so nothing can write even by accident. The
-    // `read_only` flag above is what keeps `save_to_disk` from reading that as
-    // "never initialised".
-    mls.state_path = if read_only { None } else { Some(state_path.clone()) };
+    mls.state_key = state_key;
+    mls.state_path = Some(state_path.clone());
 
     if !state_path.exists() {
         return Ok(false);
     }
 
-    let json = std::fs::read(&state_path).map_err(|e| e.to_string())?;
+    let raw = std::fs::read(&state_path).map_err(|e| e.to_string())?;
+    let sealed = raw.starts_with(STATE_FILE_MAGIC);
+    let json = if sealed {
+        let key = mls.state_key.as_ref().ok_or_else(|| {
+            "MlsError: mls_state.json is sealed but no state key was supplied - the keychain entry \
+             that opens it is missing"
+                .to_string()
+        })?;
+        decrypt_blob(&raw[STATE_FILE_MAGIC.len()..], key).map_err(|e| {
+            format!(
+                "MlsError: mls_state.json did not open with this device's state key: {}",
+                e
+            )
+        })?
+    } else {
+        raw
+    };
     let persisted: PersistedMlsState = serde_json::from_slice(&json).map_err(|e| e.to_string())?;
+
+    // An install that predates the sealed format. Rewriting it now is the whole migration: the
+    // plaintext copy is what an OS-level backup would have carried, so it should not survive the
+    // first launch that can replace it. Best-effort because a failure here must not cost the user
+    // their groups - the next save tries again.
+    if !sealed {
+        if let Err(e) = write_state_file(&state_path, &json, mls.state_key.as_deref()) {
+            eprintln!("MlsError: could not seal the existing state file: {}", e);
+        }
+    }
 
     {
         let mut values = mls.provider.storage().values.write().unwrap();
@@ -1425,8 +1545,8 @@ pub fn import_state(
     Ok(())
 }
 
-/// Replaces the provider store and group set with `persisted`. Shared by
-/// [`import_state`] and the §D backup import so the two cannot drift apart.
+/// Replaces the provider store and group set with `persisted`. Shared by [`import_state`], the §D
+/// backup import and the cross-client golden vectors, so none of them can drift apart.
 fn restore_persisted(mls: &mut MlsState, persisted: PersistedMlsState) -> Result<(), String> {
     let decoded_storage: Vec<(Vec<u8>, Vec<u8>)> = persisted
         .storage
@@ -1462,12 +1582,10 @@ fn restore_persisted(mls: &mut MlsState, persisted: PersistedMlsState) -> Result
 
 /// The directory the engine currently persists to, if any.
 ///
-/// Exists so the push path can tell "this notification is for the account that
-/// is loaded" from "this one would swap the whole engine out from under the
-/// running app". Since [`init_storage`] now *clears* on a directory change - it
-/// has to, or two accounts' key material ends up in one store - blindly
-/// initialising for whichever account a notification names would tear down the
-/// foreground session.
+/// Exists so a caller can tell "this engine is loaded for the account I mean" from "initialising
+/// here would swap the whole engine out from under the running session". Since
+/// [`init_storage_from_parts`] now *clears* on a path change - it has to, or two accounts' key
+/// material ends up in one store - initialising blindly is no longer free.
 pub fn current_state_dir(mls: &MlsState) -> Option<String> {
     mls.state_path
         .as_ref()
@@ -1478,10 +1596,9 @@ pub fn current_state_dir(mls: &MlsState) -> Option<String> {
 // ---------------------------------------------------------------------------
 // Backup envelope (contract §D)
 //
-// Byte-for-byte identical to Alpine's `src-tauri/src/crypto/mls.rs`. The whole
-// point is that a `.venta-keys` file written on one client opens on the other,
-// so every constant below is wire format: changing one here without changing it
-// there makes the two mutually unreadable, silently, until someone actually
+// Byte-for-byte identical to venta-mobile's. The whole point is that a `.venta-keys` file written
+// on one client opens on the other, so every constant below is wire format: changing one here
+// without changing it there makes the two mutually unreadable, silently, until someone actually
 // needs a restore.
 // ---------------------------------------------------------------------------
 
@@ -1490,6 +1607,46 @@ const BACKUP_AAD_PREFIX: &str = "venta.keybackup.v1";
 const ARGON2_M_KIB: u32 = 65536;
 const ARGON2_T: u32 = 3;
 const ARGON2_P: u32 = 4;
+
+// Ceilings on the KDF parameters a *blob header* may declare (§L.9).
+//
+// Both formats here are deliberately self-describing - the reader derives from the declared
+// parameters, never from the write-side constants, because that is the only way a blob written
+// under one parameter set stays openable by a build compiled with another. The cost is that the
+// header is attacker-controlled, and `m` is a u32 of kibibytes: 4 TiB, allocated eagerly, on the
+// recovery path.
+//
+// These are not a security boundary. Weak parameters do not make a stolen blob crackable - the
+// attacker would need our ciphertext *and* would have to make us read their header, and the
+// wrapping still fails closed. This is denial of service only, so the ceilings are set well above
+// anything either client writes (64 MiB / t=3 / p=4) and well below anything that hangs a machine.
+const KDF_MAX_MEMORY_KIB: u32 = 1024 * 1024; // 1 GiB
+const KDF_MAX_ITERATIONS: u32 = 10;
+const KDF_MAX_PARALLELISM: u32 = 16;
+
+/// Rejects a declared KDF header before it is handed to Argon2.
+///
+/// Deliberately an error rather than a clamp: silently deriving with parameters other than the ones
+/// declared produces the wrong key and reports it as a wrong passphrase, which is the single worst
+/// diagnostic to give someone mid-recovery.
+fn check_kdf_parameters(memory_kib: u32, iterations: u32, parallelism: u32) -> Result<(), String> {
+    if memory_kib > KDF_MAX_MEMORY_KIB
+        || iterations > KDF_MAX_ITERATIONS
+        || parallelism > KDF_MAX_PARALLELISM
+    {
+        return Err(format!(
+            "MlsError: refusing declared Argon2 parameters (m={} KiB, t={}, p={}) - above the \
+             m<={} KiB, t<={}, p<={} this build will attempt",
+            memory_kib,
+            iterations,
+            parallelism,
+            KDF_MAX_MEMORY_KIB,
+            KDF_MAX_ITERATIONS,
+            KDF_MAX_PARALLELISM
+        ));
+    }
+    Ok(())
+}
 
 #[derive(Serialize, Deserialize)]
 struct BackupKdf {
@@ -1516,9 +1673,8 @@ struct BackupSigning {
     identity: String,
 }
 
-// `pub` and `priv` are Rust keywords, so the field names are mangled and mapped
-// back here. The wire names are what the contract fixes; Alpine writes exactly
-// these.
+// `pub` and `priv` are Rust keywords, so the field names are mangled and mapped back here. The wire
+// names are what the contract fixes; venta-mobile writes exactly these.
 impl BackupSigning {
     fn to_json(&self) -> serde_json::Value {
         serde_json::json!({ "pub": self.pub_, "priv": self.priv_, "identity": self.identity })
@@ -1540,7 +1696,7 @@ impl BackupSigning {
     }
 }
 
-/// What `importBackup` hands back once the envelope has been opened and applied.
+/// What `mls_import_backup` hands back once the §D envelope has been opened and applied.
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct MlsBackupImportResult {
@@ -1554,22 +1710,21 @@ pub struct MlsBackupImportResult {
     pub key_handle: String,
     /// The restored signing keypair.
     ///
-    /// Handed back because mobile keeps this pair in the OS keychain, not in the
-    /// engine's store - `unlock()` reads it from there on every cold start, so a
-    /// restore that only loaded it into memory would work until the app was next
-    /// killed and then look exactly like lost keys. It is the same secret the
-    /// caller has already supplied a passphrase to open, so nothing is exposed
-    /// that the caller did not already hold.
+    /// Handed back because the caller keeps this pair in the OS keychain, not in the engine's
+    /// store - unlock reads it from there on every cold start, so a restore that only loaded it
+    /// into memory would work until the app was next killed and then look exactly like lost keys.
+    /// It is the same secret the caller has already supplied a passphrase to open, so nothing is
+    /// exposed that the caller did not already hold.
     pub signing_public_key: String,
     pub signing_private_key: String,
     /// False on a new device, where cloning the ratchet state would be unsafe.
     pub engine_restored: bool,
     pub group_registry: HashMap<String, serde_json::Value>,
     pub message_cache: HashMap<String, String>,
-    /// The account identity key (§H.2), when the envelope carried one. This is
-    /// what makes full-loss recovery possible at all: without it a restored
-    /// device can prove nothing to anyone and every external commit it makes is
-    /// indistinguishable from the server injecting a leaf.
+    /// The account identity key (§H.2), when the envelope carried one.
+    ///
+    /// Read so a blob written by venta-mobile round-trips intact. Alpine does not yet mint one -
+    /// §H is not ported here - so these are `None` on anything this client wrote.
     pub account_identity_public_key: Option<String>,
     pub account_identity_private_key: Option<String>,
 }
@@ -1589,6 +1744,9 @@ fn backup_aad(user_id: &str, device_id: &str) -> String {
     format!("{}|{}|{}", BACKUP_AAD_PREFIX, user_id, device_id)
 }
 
+/// Mobile passes a ninth argument here, the §H account identity keypair. Alpine has no such key to
+/// supply - see the module comment - so the field is simply absent from the envelopes this client
+/// writes, which is exactly what mobile's import already tolerates.
 #[allow(clippy::too_many_arguments)]
 pub fn export_backup(
     mls: &MlsState,
@@ -1599,7 +1757,6 @@ pub fn export_backup(
     key_handle: String,
     group_registry: HashMap<String, serde_json::Value>,
     message_cache: Option<HashMap<String, String>>,
-    account_identity: Option<(String, String)>,
 ) -> Result<String, String> {
     if passphrase.is_empty() {
         return Err("MlsError: a backup passphrase is required".to_string());
@@ -1612,30 +1769,20 @@ pub fn export_backup(
         identity: entry.identity.clone(),
     };
 
-    let mut payload = serde_json::json!({
+    let payload = serde_json::json!({
         "userId": user_id,
         "deviceId": device_id,
         "createdAt": current_iso8601(),
         "appVersion": app_version,
-        // Read by the import path, not by a human: cloning ratchet state onto a
-        // second concurrently-live device reuses generations, which openmls
-        // treats as a replay, and voids forward secrecy for that leaf.
+        // Read by the import path, not by a human: cloning ratchet state onto a second
+        // concurrently-live device reuses generations, which openmls treats as a replay, and voids
+        // forward secrecy for that leaf.
         "engineRestore": "same-device-only",
         "signing": signing.to_json(),
         "engine": mls.to_persisted(),
         "groupRegistry": group_registry,
         "messageCache": message_cache.unwrap_or_default(),
     });
-
-    // Optional so a blob written before §H still opens. Absent means the account
-    // had no identity key yet, which §I.2 says is the normal state of every
-    // existing account until an upgraded client unlocks it.
-    if let Some((public, private)) = account_identity {
-        payload["accountIdentity"] = serde_json::json!({
-            "pub": public,
-            "priv": private,
-        });
-    }
 
     let plaintext = serde_json::to_vec(&payload).map_err(|e| e.to_string())?;
 
@@ -1703,6 +1850,7 @@ pub fn import_backup(
         return Err("MlsError: backup nonce is not 12 bytes".to_string());
     }
 
+    check_kdf_parameters(envelope.kdf.m, envelope.kdf.t, envelope.kdf.p)?;
     let params = Params::new(envelope.kdf.m, envelope.kdf.t, envelope.kdf.p, Some(32))
         .map_err(|e| format!("MlsError: bad Argon2 parameters: {}", e))?;
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
@@ -1717,9 +1865,8 @@ pub fn import_backup(
             Nonce::from_slice(&nonce),
             Payload {
                 msg: &ciphertext,
-                // Binding the envelope's own aad means a blob re-labelled for
-                // another account or device fails to open rather than opening
-                // and being wrong.
+                // Binding the envelope's own aad means a blob re-labelled for another account or
+                // device fails to open rather than opening and being wrong.
                 aad: envelope.aad.as_bytes(),
             },
         )
@@ -1742,10 +1889,9 @@ pub fn import_backup(
     let user_id = string_field("userId")?;
     let device_id = string_field("deviceId")?;
 
-    // Refused, not merged. A backup carries another account's private keys and
-    // its group registry; importing it over the signed-in account would leave
-    // this device signing as one identity while holding leaves issued to
-    // another.
+    // Refused, not merged. A backup carries another account's private keys and its group registry;
+    // importing it over the signed-in account would leave this device signing as one identity while
+    // holding leaves issued to another.
     if user_id != expected_user_id {
         return Err(format!(
             "MlsError: this backup belongs to a different account ({}), not the one signed in",
@@ -1762,12 +1908,11 @@ pub fn import_backup(
             .ok_or_else(|| "MlsError: backup has no signing key".to_string())?,
     )?;
 
-    // The one rule that cannot be left to documentation. Two devices sharing a
-    // leaf derive the same sender-ratchet keys, so at least one of them becomes
-    // unable to send, forward secrecy for that leaf is gone, and an Update from
-    // one leaves the other holding keys the group thinks were rotated.
-    // Same-device recovery adopts the backup's device id first, which is
-    // required anyway - the keychain entries are named after it.
+    // The one rule that cannot be left to documentation. Two devices sharing a leaf derive the same
+    // sender-ratchet keys, so at least one of them becomes unable to send, forward secrecy for that
+    // leaf is gone, and an Update from one leaves the other holding keys the group thinks were
+    // rotated. Same-device recovery adopts the backup's device id first, which is required anyway -
+    // the keychain entries are named after it.
     let engine_restored = device_id == current_device_id;
     if engine_restored {
         if let Some(engine) = payload.get("engine") {
@@ -1857,8 +2002,7 @@ fn current_iso8601() -> String {
     )
 }
 
-/// Howard Hinnant's days-from-civil, inverted. Exact for the whole proleptic
-/// Gregorian range.
+/// Howard Hinnant's days-from-civil, inverted. Exact for the whole proleptic Gregorian range.
 fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let z = z + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
@@ -1873,579 +2017,1955 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 }
 
 // ---------------------------------------------------------------------------
-// Account master key (contract §C.1)
+// `String` shims - test-only
 //
-// Ported from Alpine's `src-tauri/src/crypto/crypto.rs`, parameter for
-// parameter. `ApplicationUser.EncryptedMasterKey` is one row per account and
-// both clients read it, so a parameter that differed here would leave mobile
-// unable to unwrap a key the desktop client wrapped - and the failure would look
-// exactly like a wrong password.
+// The engine above takes `&str` and `&[T]`, matching venta-mobile exactly, because keeping the two
+// diffable is what stops the next re-port being a merge. Alpine's integration tests were written
+// against the previous `String`-taking `*_impl` names, and they are the evidence that this port
+// changed no behaviour - so they are called unchanged and these adapt the signatures for them.
 //
-// Note the parallelism: **1**, not the backup envelope's 4. Two envelopes with
-// separate histories; matching them would break every key already wrapped.
+// `#[cfg(test)]` because the Tauri wrappers below take the owned values Tauri hands them and pass
+// borrows straight to the engine; nothing in a release build goes through here. Do not put logic in
+// this module - a shim that did something would be behaviour the tests cover and the app does not.
 // ---------------------------------------------------------------------------
 
-const MASTER_ARGON2_MEM: u32 = 65536;
-const MASTER_ARGON2_ITERS: u32 = 3;
-const MASTER_ARGON2_LANES: u32 = 1;
-const MASTER_SCHEMA_VERSION: u32 = 1;
+#[cfg(test)]
+#[rustfmt::skip]
+mod shims {
+    use super::*;
 
-#[derive(Serialize, Deserialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct EncryptedMasterKey {
-    pub cipher_text: String,
-    pub salt: String,
-    pub iv: String,
-    pub argon2_iterations: u32,
-    pub argon2_memory: u32,
-    pub argon2_parallelism: u32,
-    pub version: u32,
+    pub(super) fn load_signing_key_impl(m: &mut MlsState, a: String, b: String, i: String) -> Result<String, String> { load_signing_key(m, &a, &b, i) }
+    pub(super) fn unload_signing_key_impl(m: &mut MlsState, h: String) -> Result<(), String> { unload_signing_key(m, &h) }
+    pub(super) fn generate_key_packages_impl(m: &mut MlsState, i: String, c: u32) -> Result<MlsKeyPackageBatch, String> { generate_key_packages(m, i, c) }
+    pub(super) fn generate_key_packages_with_handle_impl(m: &MlsState, h: String, c: u32) -> Result<Vec<KeyPackageResult>, String> { generate_key_packages_with_handle(m, &h, c) }
+    pub(super) fn create_group_impl(m: &mut MlsState, g: String, h: String) -> Result<MlsGroupInfo, String> { create_group(m, &g, &h) }
+    pub(super) fn add_members_impl(m: &mut MlsState, g: String, h: String, k: Vec<String>) -> Result<MlsCommitOut, String> { add_members(m, &g, &h, &k) }
+    pub(super) fn join_group_impl(m: &mut MlsState, w: String, h: String) -> Result<MlsGroupInfo, String> { join_group(m, &w, &h) }
+    pub(super) fn leave_group_impl(m: &mut MlsState, g: String, h: String) -> Result<MlsCommitOut, String> { leave_group(m, &g, &h) }
+    pub(super) fn commit_pending_proposals_impl(m: &mut MlsState, g: String, h: String) -> Result<MlsCommitOut, String> { commit_pending_proposals(m, &g, &h) }
+    pub(super) fn merge_pending_commit_impl(m: &mut MlsState, g: String) -> Result<u64, String> { merge_pending_commit(m, &g) }
+    pub(super) fn clear_pending_commit_impl(m: &mut MlsState, g: String) -> Result<(), String> { clear_pending_commit(m, &g) }
+    pub(super) fn export_group_info_impl(m: &MlsState, g: String, h: String) -> Result<String, String> { export_group_info(m, &g, &h) }
+    pub(super) fn rejoin_group_impl(m: &mut MlsState, g: String, h: String) -> Result<MlsRejoinOut, String> { rejoin_group(m, &g, &h) }
+    pub(super) fn delete_group_impl(m: &mut MlsState, g: String) -> Result<(), String> { delete_group(m, &g) }
+    pub(super) fn send_message_impl(m: &mut MlsState, g: String, h: String, p: String) -> Result<MlsSendOut, String> { send_message(m, &g, &h, &p) }
+    pub(super) fn remove_members_impl(m: &mut MlsState, g: String, h: String, l: Vec<u32>) -> Result<MlsCommitOut, String> { remove_members(m, &g, &h, &l) }
+    pub(super) fn signing_key_fingerprint_impl(m: &MlsState, h: String) -> Result<String, String> { signing_key_fingerprint(m, &h) }
+    pub(super) fn inspect_key_package_impl(m: &MlsState, k: String) -> Result<MlsKeyPackageInfo, String> { inspect_key_package(m, &k) }
+    pub(super) fn get_members_impl(m: &MlsState, g: String) -> Result<Vec<MlsMemberInfo>, String> { get_members(m, &g) }
+    pub(super) fn get_group_info_impl(m: &MlsState, g: String) -> Result<MlsGroupInfo, String> { get_group_info(m, &g) }
+    pub(super) fn export_state_impl(m: &MlsState, k: String) -> Result<String, String> { export_state(m, &k) }
+    pub(super) fn import_state_impl(m: &mut MlsState, e: String, k: String) -> Result<(), String> { import_state(m, &e, &k) }
+
+    /// The one shim that is not a pure re-borrow. Mobile's `process_message` takes a caller-supplied
+    /// message id, which it stores on the buffered copy so `drain_pending_messages` can hand the id
+    /// back with the plaintext. The tests predate that argument and pass three; `None` there means
+    /// "no id was supplied", which is exactly what an untagged replay reports. The Tauri wrapper
+    /// takes the id, because the TypeScript caller has always passed one.
+    pub(super) fn process_message_impl(m: &mut MlsState, g: String, b: String) -> Result<MlsProcessedMessage, String> { process_message(m, &g, &b, None) }
 }
 
-fn derive_wrap_key(
-    password: &str,
-    salt: &[u8],
-    memory: u32,
-    iterations: u32,
-    parallelism: u32,
-) -> Result<[u8; 32], String> {
-    let params = Params::new(memory, iterations, parallelism, Some(32))
-        .map_err(|e| format!("MlsError: bad Argon2 parameters: {}", e))?;
-    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-    let mut wrap_key = [0u8; 32];
-    argon2
-        .hash_password_into(password.as_bytes(), salt, &mut wrap_key)
-        .map_err(|e| format!("MlsError: key derivation failed: {}", e))?;
-    Ok(wrap_key)
+#[cfg(test)]
+use shims::*;
+
+// ---------------------------------------------------------------------------
+// Tauri commands - thin wrappers around the engine above
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+pub fn mls_load_signing_key(
+    state: tauri::State<MlsStateHandle>,
+    signing_public_key_b64: String,
+    signing_private_key_b64: String,
+    identity: String,
+) -> Result<String, String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    load_signing_key(
+        &mut mls,
+        &signing_public_key_b64,
+        &signing_private_key_b64,
+        identity,
+    )
 }
 
-/// An account master key wrapped twice, under two independently-derived keys
-/// (contract §C.1.1).
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MasterKeySetup {
-    pub password_wrapping: EncryptedMasterKey,
-    pub recovery_code_wrapping: EncryptedMasterKey,
-    /// Shown to the user exactly once. Never sent to the server, and not
-    /// derivable from anything the server holds.
-    pub recovery_code: String,
-    /// The unwrapped key, so the caller can cache it without a second Argon2
-    /// pass immediately after setup.
-    pub master_key: String,
+#[tauri::command]
+pub fn mls_unload_signing_key(
+    state: tauri::State<MlsStateHandle>,
+    key_handle: String,
+) -> Result<(), String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    unload_signing_key(&mut mls, &key_handle)
 }
 
-/// Characters a person can read aloud and type back without ambiguity.
-///
-/// Contract §C.1.2, and this is **wire format**: a recovery code generated on one
-/// client has to open the wrapping on the other, so the alphabet is shared and
-/// exactly 31 symbols. No `I`, `L`, `O`, `0` or `1` - those are the pairs people
-/// transcribe wrongly, and a misread code fails at the one moment its owner has
-/// nothing else to try.
-///
-/// This briefly carried a 32nd symbol, `*`, purely so a 5-bit mask would be
-/// uniform. Sound reasoning about bias, wrong trade: `*` is punctuation in a
-/// string a human copies off paper under stress, and it is not in the desktop
-/// client's alphabet - so its validator rejected every code containing one and
-/// fell back to the *unnormalised* input, deriving a different key silently,
-/// during the one operation the code exists for. Roughly one character in 32 was
-/// a `*`, so most codes were affected. [`generate_recovery_code`] uses rejection
-/// sampling instead, which removes the bias without adding a character.
-const RECOVERY_CODE_ALPHABET: &[u8] = b"23456789ABCDEFGHJKMNPQRSTUVWXYZ";
-const RECOVERY_CODE_GROUPS: usize = 8;
-const RECOVERY_CODE_GROUP_LEN: usize = 4;
-const RECOVERY_CODE_LEN: usize = RECOVERY_CODE_GROUPS * RECOVERY_CODE_GROUP_LEN;
+#[tauri::command]
+pub fn generate_mls_key_packages(
+    state: tauri::State<MlsStateHandle>,
+    identity: String,
+    count: u32,
+) -> Result<MlsKeyPackageBatch, String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    generate_key_packages(&mut mls, identity, count)
+}
 
-/// Largest multiple of 31 that fits in a byte (31 * 8). Bytes at or above it are
-/// discarded rather than folded, which is what keeps `% 31` unbiased.
-const RECOVERY_SAMPLE_CEILING: u8 = 248;
+#[tauri::command]
+pub fn mls_generate_key_packages_with_handle(
+    state: tauri::State<MlsStateHandle>,
+    key_handle: String,
+    count: u32,
+) -> Result<Vec<KeyPackageResult>, String> {
+    let mls = state.lock().map_err(|e| e.to_string())?;
+    generate_key_packages_with_handle(&mls, &key_handle, count)
+}
 
-/// A ~158.5-bit recovery code, in eight groups of four.
-///
-/// This is the **only** credential that survives a password reset, which is what
-/// makes it worth the UX cost of showing it once and demanding confirmation.
-///
-/// Rejection sampling: a byte at or above [`RECOVERY_SAMPLE_CEILING`] is thrown
-/// away instead of folded, so every symbol is equally likely. The discard rate is
-/// 8/256 and this runs once per account, so the loop costs nothing worth
-/// optimising - and the alternative, padding the alphabet to a power of two, is
-/// what broke cross-client recovery.
-pub fn generate_recovery_code() -> String {
-    let mut chars = Vec::with_capacity(RECOVERY_CODE_LEN);
-    let mut buffer = [0u8; RECOVERY_CODE_LEN];
+#[tauri::command]
+pub fn mls_create_group(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+    key_handle: String,
+) -> Result<MlsGroupInfo, String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    create_group(&mut mls, &group_id_b64, &key_handle)
+}
 
-    while chars.len() < RECOVERY_CODE_LEN {
-        rand::thread_rng().fill_bytes(&mut buffer);
-        for byte in buffer {
-            if chars.len() == RECOVERY_CODE_LEN {
-                break;
-            }
-            if byte >= RECOVERY_SAMPLE_CEILING {
-                continue;
-            }
-            chars.push(
-                RECOVERY_CODE_ALPHABET[byte as usize % RECOVERY_CODE_ALPHABET.len()] as char,
+#[tauri::command]
+pub fn mls_add_members(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+    key_handle: String,
+    key_packages_b64: Vec<String>,
+) -> Result<MlsCommitOut, String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    add_members(&mut mls, &group_id_b64, &key_handle, &key_packages_b64)
+}
+
+#[tauri::command]
+pub fn mls_join_group(
+    state: tauri::State<MlsStateHandle>,
+    welcome_b64: String,
+    key_handle: String,
+) -> Result<MlsGroupInfo, String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    join_group(&mut mls, &welcome_b64, &key_handle)
+}
+
+#[tauri::command]
+pub fn mls_leave_group(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+    key_handle: String,
+) -> Result<MlsCommitOut, String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    leave_group(&mut mls, &group_id_b64, &key_handle)
+}
+
+/// Commit all pending proposals for a group (e.g. a leave proposal from a departing member).
+///
+/// Returns a commit that must be broadcast to all remaining members.
+#[tauri::command]
+pub fn mls_commit_pending_proposals(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+    key_handle: String,
+) -> Result<MlsCommitOut, String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    commit_pending_proposals(&mut mls, &group_id_b64, &key_handle)
+}
+
+/// This device's own identity fingerprint, for reading out to whoever is reviewing its admission.
+#[tauri::command]
+pub fn mls_signing_key_fingerprint(
+    state: tauri::State<MlsStateHandle>,
+    key_handle: String,
+) -> Result<String, String> {
+    let mls = state.lock().map_err(|e| e.to_string())?;
+    signing_key_fingerprint(&mls, &key_handle)
+}
+
+/// Inspects a key package so a reviewer can check who it really belongs to before vouching for it,
+/// and so the committing client can confirm the bytes match what was approved.
+#[tauri::command]
+pub fn mls_inspect_key_package(
+    state: tauri::State<MlsStateHandle>,
+    key_package_b64: String,
+) -> Result<MlsKeyPackageInfo, String> {
+    let mls = state.lock().map_err(|e| e.to_string())?;
+    inspect_key_package(&mls, &key_package_b64)
+}
+
+/// Applies a commit staged by add/remove/commit-proposals, once the server has accepted it.
+/// Returns the group's epoch afterwards.
+#[tauri::command]
+pub fn mls_merge_pending_commit(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+) -> Result<u64, String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    merge_pending_commit(&mut mls, &group_id_b64)
+}
+
+/// Discards a staged commit the server refused, leaving the group exactly where it was.
+#[tauri::command]
+pub fn mls_clear_pending_commit(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+) -> Result<(), String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    clear_pending_commit(&mut mls, &group_id_b64)
+}
+
+#[tauri::command]
+pub fn mls_export_group_info(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+    key_handle: String,
+) -> Result<String, String> {
+    let mls = state.lock().map_err(|e| e.to_string())?;
+    export_group_info(&mls, &group_id_b64, &key_handle)
+}
+
+#[tauri::command]
+pub fn mls_rejoin_group(
+    state: tauri::State<MlsStateHandle>,
+    group_info_b64: String,
+    key_handle: String,
+) -> Result<MlsRejoinOut, String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    rejoin_group(&mut mls, &group_info_b64, &key_handle)
+}
+
+#[tauri::command]
+pub fn mls_delete_group(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+) -> Result<(), String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    delete_group(&mut mls, &group_id_b64)
+}
+
+#[tauri::command]
+pub fn mls_send_message(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+    key_handle: String,
+    plaintext_b64: String,
+) -> Result<MlsSendOut, String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    send_message(&mut mls, &group_id_b64, &key_handle, &plaintext_b64)
+}
+
+/// Processes one incoming MLS message.
+///
+/// `message_id` is the caller's id for it. A message from an epoch this device has not reached yet
+/// is buffered rather than refused, and the id is what lets `mls_drain_pending_messages` hand the
+/// plaintext back against the right row once the commit arrives.
+#[tauri::command]
+pub fn mls_process_message(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+    message_b64: String,
+    message_id: Option<String>,
+) -> Result<MlsProcessedMessage, String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    process_message(&mut mls, &group_id_b64, &message_b64, message_id)
+}
+
+/// Replays every buffered message the group has now caught up to. Usually empty.
+#[tauri::command]
+pub fn mls_drain_pending_messages(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+) -> Result<Vec<MlsReplayedMessage>, String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    drain_pending_messages(&mut mls, &group_id_b64)
+}
+
+#[tauri::command]
+pub fn mls_remove_members(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+    key_handle: String,
+    leaf_indices: Vec<u32>,
+) -> Result<MlsCommitOut, String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    remove_members(&mut mls, &group_id_b64, &key_handle, &leaf_indices)
+}
+
+#[tauri::command]
+pub fn mls_get_members(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+) -> Result<Vec<MlsMemberInfo>, String> {
+    let mls = state.lock().map_err(|e| e.to_string())?;
+    get_members(&mls, &group_id_b64)
+}
+
+#[tauri::command]
+pub fn mls_get_group_info(
+    state: tauri::State<MlsStateHandle>,
+    group_id_b64: String,
+) -> Result<MlsGroupInfo, String> {
+    let mls = state.lock().map_err(|e| e.to_string())?;
+    get_group_info(&mls, &group_id_b64)
+}
+
+/// Points the engine at its state file and restores whatever is in it.
+///
+/// `state_key_b64` is a 32-byte AES key the TypeScript layer keeps in the OS keychain. It is what
+/// makes `mls_state.json` - every init key, leaf HPKE private key and epoch secret this device
+/// holds - useless to anyone reading the disk, an OS-level backup, or a restored device image.
+/// A legacy plaintext file is accepted once and immediately rewritten sealed, because refusing it
+/// would strand every device that predates this.
+#[tauri::command]
+pub fn mls_init_storage(
+    state: tauri::State<MlsStateHandle>,
+    app: tauri::AppHandle,
+    state_key_b64: Option<String>,
+) -> Result<bool, String> {
+    use tauri::Manager;
+    let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
+    let state_path = data_dir.join("mls_state.json");
+
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    init_storage_from_parts(&mut mls, state_path, state_key_b64)
+}
+
+/// The directory the engine is currently persisting to, or `null` before initialisation.
+#[tauri::command]
+pub fn mls_current_state_dir(
+    state: tauri::State<MlsStateHandle>,
+) -> Result<Option<String>, String> {
+    let mls = state.lock().map_err(|e| e.to_string())?;
+    Ok(current_state_dir(&mls))
+}
+
+#[tauri::command]
+pub fn mls_clear_storage(state: tauri::State<MlsStateHandle>) -> Result<(), String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    clear_storage(&mut mls)
+}
+
+#[tauri::command]
+pub fn mls_export_state(
+    state: tauri::State<MlsStateHandle>,
+    encryption_key_b64: String,
+) -> Result<String, String> {
+    let mls = state.lock().map_err(|e| e.to_string())?;
+    export_state(&mls, &encryption_key_b64)
+}
+
+#[tauri::command]
+pub fn mls_import_state(
+    state: tauri::State<MlsStateHandle>,
+    encrypted_b64: String,
+    encryption_key_b64: String,
+) -> Result<(), String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    import_state(&mut mls, &encrypted_b64, &encryption_key_b64)
+}
+
+/// Seals everything needed to restore this device into one passphrase-protected envelope (§D).
+#[allow(clippy::too_many_arguments)]
+#[tauri::command]
+pub fn mls_export_backup(
+    state: tauri::State<MlsStateHandle>,
+    passphrase: String,
+    user_id: String,
+    device_id: String,
+    app_version: String,
+    key_handle: String,
+    group_registry: HashMap<String, serde_json::Value>,
+    message_cache: Option<HashMap<String, String>>,
+) -> Result<String, String> {
+    let mls = state.lock().map_err(|e| e.to_string())?;
+    export_backup(
+        &mls,
+        passphrase,
+        user_id,
+        device_id,
+        app_version,
+        key_handle,
+        group_registry,
+        message_cache,
+    )
+}
+
+/// Opens a §D backup envelope and applies it.
+#[tauri::command]
+pub fn mls_import_backup(
+    state: tauri::State<MlsStateHandle>,
+    blob: String,
+    passphrase: String,
+    expected_user_id: String,
+    current_device_id: String,
+) -> Result<MlsBackupImportResult, String> {
+    let mut mls = state.lock().map_err(|e| e.to_string())?;
+    import_backup(
+        &mut mls,
+        blob,
+        passphrase,
+        expected_user_id,
+        current_device_id,
+    )
+}
+
+// ---------------------------------------------------------------------------
+// Integration tests -call _impl functions directly, no Tauri runtime needed
+// ---------------------------------------------------------------------------
+//
+// Run with:  cargo test --package alpine --lib
+// The frontend does not need to be built.
+
+#[cfg(test)]
+mod integration_tests {
+    use super::{
+        add_members_impl, clear_pending_commit_impl, commit_pending_proposals_impl,
+        create_group_impl, delete_group_impl, inspect_key_package_impl, merge_pending_commit_impl,
+        signing_key_fingerprint_impl,
+        export_group_info_impl, export_state_impl, generate_key_packages_impl,
+        generate_key_packages_with_handle_impl, get_group_info_impl, get_members_impl,
+        import_state_impl, init_storage_from_parts, join_group_impl, leave_group_impl, PersistedMlsState,
+        load_signing_key_impl,
+        process_message_impl, rejoin_group_impl, remove_members_impl, send_message_impl,
+        unload_signing_key_impl, MlsState,
+    };
+    use base64::{engine::general_purpose::STANDARD as B64, Engine};
+    use rand::RngCore;
+
+    /// One temp directory for the whole test binary, cleaned up when it exits.
+    fn test_state_dir() -> &'static std::path::Path {
+        static DIR: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
+        DIR.get_or_init(|| tempfile::tempdir().expect("temp dir"))
+            .path()
+    }
+
+    /// Every group operation persists, and persisting with no path is now a hard error - so a state
+    /// under test has to have somewhere real to write. That is the point of the change: the old
+    /// silent `Ok(())` meant a client which never initialised storage reported every operation as
+    /// successful and kept none of them.
+    fn make_mls() -> MlsState {
+        let mut mls = MlsState::default();
+        mls.state_path = Some(
+            test_state_dir().join(format!("mls_state_{}.json", uuid::Uuid::new_v4())),
+        );
+        // A key as well as a path: writing state without one is refused outright, because there is
+        // no situation in which cleartext private keys on disk is the right outcome.
+        mls.state_key = Some(rand_key_bytes());
+        mls
+    }
+
+    fn rand_group_id() -> String {
+        let mut bytes = [0u8; 16];
+        rand::thread_rng().fill_bytes(&mut bytes);
+        B64.encode(bytes)
+    }
+
+    fn rand_key_32() -> String {
+        let mut bytes = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut bytes);
+        B64.encode(bytes)
+    }
+
+    struct TwoParty {
+        alice: MlsState,
+        bob: MlsState,
+        group_id: String,
+        alice_handle: String,
+        bob_handle: String,
+    }
+
+    fn setup_two_party() -> TwoParty {
+        let mut alice = make_mls();
+        let mut bob = make_mls();
+
+        let alice_batch =
+            generate_key_packages_impl(&mut alice, "alice".to_string(), 3).expect("alice key gen");
+        let group_id = rand_group_id();
+        create_group_impl(&mut alice, group_id.clone(), alice_batch.key_handle.clone())
+            .expect("alice create group");
+
+        let bob_batch =
+            generate_key_packages_impl(&mut bob, "bob".to_string(), 1).expect("bob key gen");
+        let add_out = add_members_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle.clone(),
+            vec![bob_batch.key_packages[0].key_package.clone()],
+        )
+        .expect("alice add bob");
+        // Commits are staged, not applied - the server accepts one per epoch, so a commit that
+        // loses that race must never have touched local state. Here nothing can refuse it.
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("alice merges her own commit");
+        join_group_impl(
+            &mut bob,
+            add_out.welcome.expect("welcome must be present"),
+            bob_batch.key_handle.clone(),
+        )
+        .expect("bob join group");
+
+        TwoParty {
+            alice,
+            bob,
+            group_id,
+            alice_handle: alice_batch.key_handle,
+            bob_handle: bob_batch.key_handle,
+        }
+    }
+
+    // ─── Key package generation ───────────────────────────────────────────────
+
+    #[test]
+    fn key_packages_returns_requested_count() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 5).expect("should succeed");
+        assert_eq!(batch.key_packages.len(), 5);
+    }
+
+    #[test]
+    fn key_packages_fields_are_non_empty_valid_base64() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+        assert!(!batch.signing_public_key.is_empty());
+        assert!(!batch.signing_private_key.is_empty());
+        assert!(!batch.key_handle.is_empty());
+        B64.decode(&batch.signing_public_key)
+            .expect("signing_public_key must be valid base64");
+        B64.decode(&batch.key_packages[0].key_package)
+            .expect("key_package must be valid base64");
+    }
+
+    #[test]
+    fn key_handle_from_generate_is_immediately_usable() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+        create_group_impl(&mut mls, rand_group_id(), batch.key_handle)
+            .expect("handle from generate_key_packages must work for create_group");
+    }
+
+    #[test]
+    fn generate_with_handle_reuses_signing_key() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+        let more = generate_key_packages_with_handle_impl(&mls, batch.key_handle, 3)
+            .expect("should succeed");
+        assert_eq!(more.len(), 3);
+        for kp in &more {
+            B64.decode(&kp.key_package)
+                .expect("key_package must be valid base64");
+        }
+    }
+
+    // ─── Key handle lifecycle ─────────────────────────────────────────────────
+
+    #[test]
+    fn load_signing_key_returns_non_empty_handle() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+        let handle = load_signing_key_impl(
+            &mut mls,
+            batch.signing_public_key,
+            batch.signing_private_key,
+            "alice".to_string(),
+        )
+        .expect("load should succeed");
+        assert!(!handle.is_empty());
+    }
+
+    #[test]
+    fn unloaded_handle_is_rejected_with_key_not_found() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+        let handle = load_signing_key_impl(
+            &mut mls,
+            batch.signing_public_key,
+            batch.signing_private_key,
+            "alice".to_string(),
+        )
+        .expect("load should succeed");
+        unload_signing_key_impl(&mut mls, handle.clone()).expect("unload should succeed");
+        let err = create_group_impl(&mut mls, rand_group_id(), handle)
+            .expect_err("must fail after unload");
+        assert!(err.contains("KeyNotFound"), "error was: {err}");
+    }
+
+    #[test]
+    fn bogus_handle_returns_key_not_found() {
+        let mut mls = make_mls();
+        let err = create_group_impl(&mut mls, rand_group_id(), "no-such-handle".to_string())
+            .expect_err("must fail");
+        assert!(err.contains("KeyNotFound"), "error was: {err}");
+    }
+
+    // ─── Group lifecycle ──────────────────────────────────────────────────────
+
+    #[test]
+    fn create_group_starts_at_epoch_zero_with_one_member() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+        let info =
+            create_group_impl(&mut mls, rand_group_id(), batch.key_handle).expect("should succeed");
+        assert_eq!(info.epoch, 0);
+        assert_eq!(info.own_leaf_index, 0);
+        assert_eq!(info.members.len(), 1);
+        assert_eq!(info.members[0].identity, "alice");
+    }
+
+    #[test]
+    fn get_group_info_matches_create_response() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+        let group_id = rand_group_id();
+        let created = create_group_impl(&mut mls, group_id.clone(), batch.key_handle)
+            .expect("should succeed");
+        let queried = get_group_info_impl(&mls, group_id).expect("should succeed");
+        assert_eq!(created.group_id, queried.group_id);
+        assert_eq!(created.epoch, queried.epoch);
+        assert_eq!(created.members.len(), queried.members.len());
+    }
+
+    #[test]
+    fn get_members_lists_only_creator() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+        let group_id = rand_group_id();
+        create_group_impl(&mut mls, group_id.clone(), batch.key_handle).expect("should succeed");
+        let members = get_members_impl(&mls, group_id).expect("should succeed");
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0].identity, "alice");
+    }
+
+    #[test]
+    fn get_group_info_on_unknown_group_returns_group_not_found() {
+        let mls = make_mls();
+        let err = get_group_info_impl(&mls, rand_group_id()).expect_err("must fail");
+        assert!(err.contains("GroupNotFound"), "error was: {err}");
+    }
+
+    #[test]
+    fn delete_group_makes_it_inaccessible() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+        let group_id = rand_group_id();
+        create_group_impl(&mut mls, group_id.clone(), batch.key_handle).expect("should succeed");
+        delete_group_impl(&mut mls, group_id.clone()).expect("delete must succeed");
+        let err = get_group_info_impl(&mls, group_id).expect_err("group must be gone");
+        assert!(err.contains("GroupNotFound"), "error was: {err}");
+    }
+
+    #[test]
+    fn delete_unknown_group_returns_group_not_found() {
+        let mut mls = make_mls();
+        let err = delete_group_impl(&mut mls, rand_group_id()).expect_err("must fail");
+        assert!(err.contains("GroupNotFound"), "error was: {err}");
+    }
+
+    // ─── Add members + join ───────────────────────────────────────────────────
+
+    #[test]
+    fn add_members_produces_welcome_and_advances_epoch() {
+        let mut alice = make_mls();
+        let mut bob = make_mls();
+        let alice_batch =
+            generate_key_packages_impl(&mut alice, "alice".to_string(), 1).expect("should succeed");
+        let group_id = rand_group_id();
+        create_group_impl(&mut alice, group_id.clone(), alice_batch.key_handle.clone())
+            .expect("should succeed");
+        let bob_batch =
+            generate_key_packages_impl(&mut bob, "bob".to_string(), 1).expect("should succeed");
+        let add_out = add_members_impl(
+            &mut alice,
+            group_id,
+            alice_batch.key_handle,
+            vec![bob_batch.key_packages[0].key_package.clone()],
+        )
+        .expect("should succeed");
+        assert!(
+            add_out.welcome.is_some(),
+            "add_members must produce a Welcome"
+        );
+        assert_eq!(
+            add_out.epoch, 1,
+            "epoch must advance to 1 after adding first member"
+        );
+    }
+
+    #[test]
+    fn join_group_sees_both_members() {
+        let tp = setup_two_party();
+        let info = get_group_info_impl(&tp.bob, tp.group_id).expect("bob must know the group");
+        assert_eq!(info.members.len(), 2);
+        let names: Vec<&str> = info.members.iter().map(|m| m.identity.as_str()).collect();
+        assert!(names.contains(&"alice") && names.contains(&"bob"));
+    }
+
+    #[test]
+    fn alice_and_bob_have_consistent_member_count() {
+        let tp = setup_two_party();
+        let alice_n = get_members_impl(&tp.alice, tp.group_id.clone())
+            .expect("should succeed")
+            .len();
+        let bob_n = get_members_impl(&tp.bob, tp.group_id)
+            .expect("should succeed")
+            .len();
+        assert_eq!(alice_n, bob_n);
+    }
+
+    // ─── Messaging ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn send_and_receive_application_message() {
+        let mut tp = setup_two_party();
+        let payload = B64.encode(b"hello from alice");
+        let ct = send_message_impl(
+            &mut tp.alice,
+            tp.group_id.clone(),
+            tp.alice_handle,
+            payload.clone(),
+        )
+        .expect("send must succeed");
+        let rx = process_message_impl(&mut tp.bob, tp.group_id, ct.ciphertext).expect("process must succeed");
+        assert_eq!(rx.kind, "application");
+        assert_eq!(rx.plaintext, Some(payload));
+        assert!(!rx.self_removed);
+    }
+
+    #[test]
+    fn received_message_carries_sender_identity() {
+        let mut tp = setup_two_party();
+        let ct = send_message_impl(
+            &mut tp.alice,
+            tp.group_id.clone(),
+            tp.alice_handle,
+            B64.encode(b"hi"),
+        )
+        .expect("should succeed");
+        let rx = process_message_impl(&mut tp.bob, tp.group_id, ct.ciphertext).expect("should succeed");
+        assert_eq!(rx.sender_identity.as_deref(), Some("alice"));
+    }
+
+    #[test]
+    fn bidirectional_messaging_preserves_content() {
+        let mut tp = setup_two_party();
+        let a_to_b = B64.encode(b"ping");
+        let b_to_a = B64.encode(b"pong");
+
+        let ct1 = send_message_impl(
+            &mut tp.alice,
+            tp.group_id.clone(),
+            tp.alice_handle.clone(),
+            a_to_b.clone(),
+        )
+        .expect("alice send");
+        let r1 = process_message_impl(&mut tp.bob, tp.group_id.clone(), ct1.ciphertext).expect("bob receive");
+        assert_eq!(r1.plaintext, Some(a_to_b));
+
+        let ct2 = send_message_impl(
+            &mut tp.bob,
+            tp.group_id.clone(),
+            tp.bob_handle,
+            b_to_a.clone(),
+        )
+        .expect("bob send");
+        let r2 = process_message_impl(&mut tp.alice, tp.group_id, ct2.ciphertext).expect("alice receive");
+        assert_eq!(r2.plaintext, Some(b_to_a));
+    }
+
+    #[test]
+    fn add_member_commit_is_processed_with_correct_kind_and_identity() {
+        let mut alice = make_mls();
+        let mut bob = make_mls();
+        let mut charlie = make_mls();
+
+        let alice_batch =
+            generate_key_packages_impl(&mut alice, "alice".to_string(), 3).expect("should succeed");
+        let group_id = rand_group_id();
+        create_group_impl(&mut alice, group_id.clone(), alice_batch.key_handle.clone())
+            .expect("should succeed");
+
+        let bob_batch =
+            generate_key_packages_impl(&mut bob, "bob".to_string(), 1).expect("should succeed");
+        let add1 = add_members_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle.clone(),
+            vec![bob_batch.key_packages[0].key_package.clone()],
+        )
+        .expect("should succeed");
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("alice merges add-bob");
+        join_group_impl(&mut bob, add1.welcome.unwrap(), bob_batch.key_handle).expect("bob joins");
+
+        let charlie_batch = generate_key_packages_impl(&mut charlie, "charlie".to_string(), 1)
+            .expect("should succeed");
+        let add2 = add_members_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle,
+            vec![charlie_batch.key_packages[0].key_package.clone()],
+        )
+        .expect("should succeed");
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("alice merges add-charlie");
+
+        let processed = process_message_impl(&mut bob, group_id, add2.commit)
+            .expect("bob processes add-charlie commit");
+        assert_eq!(processed.kind, "commit");
+        assert_eq!(processed.added_members.len(), 1);
+        assert_eq!(processed.added_members[0].identity, "charlie");
+    }
+
+    // ─── Key package inspection ───────────────────────────────────────────────
+    //
+    // What a reviewer is shown before vouching for someone's admission to an encrypted room.
+
+    #[test]
+    fn inspect_reports_the_identity_the_package_claims() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+
+        let info = inspect_key_package_impl(&mls, batch.key_packages[0].key_package.clone())
+            .expect("inspect must succeed");
+
+        assert_eq!(info.identity, "alice");
+        assert!(!info.signature_key_fingerprint.is_empty());
+    }
+
+    #[test]
+    fn fingerprint_is_stable_across_a_devices_key_packages() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 3).expect("should succeed");
+
+        let fingerprints: Vec<String> = batch
+            .key_packages
+            .iter()
+            .map(|kp| {
+                inspect_key_package_impl(&mls, kp.key_package.clone())
+                    .expect("inspect must succeed")
+                    .signature_key_fingerprint
+            })
+            .collect();
+
+        // This is the whole point of fingerprinting the signature key rather than the package: a
+        // value that changed with every package could never be read out and compared over a call.
+        assert_eq!(fingerprints[0], fingerprints[1]);
+        assert_eq!(fingerprints[1], fingerprints[2]);
+    }
+
+    #[test]
+    fn own_fingerprint_matches_the_one_a_reviewer_sees() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+
+        let from_handle = signing_key_fingerprint_impl(&mls, batch.key_handle.clone())
+            .expect("should succeed");
+        let from_package = inspect_key_package_impl(&mls, batch.key_packages[0].key_package.clone())
+            .expect("should succeed")
+            .signature_key_fingerprint;
+
+        // The requester reads their own value aloud and the reviewer compares it against the one
+        // derived from the key package. If these two ever diverged, every honest comparison would
+        // fail and the review would train people to approve mismatches.
+        assert_eq!(from_handle, from_package);
+    }
+
+    #[test]
+    fn own_fingerprint_does_not_consume_a_key_package() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+
+        for _ in 0..5 {
+            signing_key_fingerprint_impl(&mls, batch.key_handle.clone()).expect("should succeed");
+        }
+
+        // Reading your own fingerprint has to be free. Minting a package per read - which is what
+        // this replaced - would drain a finite supply and eventually leave the device unaddable.
+        create_group_impl(&mut mls, rand_group_id(), batch.key_handle)
+            .expect("the signing key must still be usable");
+    }
+
+    #[test]
+    fn own_fingerprint_needs_a_loaded_key() {
+        let mls = make_mls();
+
+        let err = signing_key_fingerprint_impl(&mls, "no-such-handle".to_string())
+            .expect_err("must fail");
+        assert!(err.contains("KeyNotFound"), "error was: {err}");
+    }
+
+    #[test]
+    fn fingerprint_differs_between_devices() {
+        let mut alice = make_mls();
+        let mut bob = make_mls();
+        let a = generate_key_packages_impl(&mut alice, "alice".to_string(), 1).expect("ok");
+        let b = generate_key_packages_impl(&mut bob, "bob".to_string(), 1).expect("ok");
+
+        let fa = inspect_key_package_impl(&alice, a.key_packages[0].key_package.clone())
+            .expect("ok")
+            .signature_key_fingerprint;
+        let fb = inspect_key_package_impl(&bob, b.key_packages[0].key_package.clone())
+            .expect("ok")
+            .signature_key_fingerprint;
+
+        assert_ne!(fa, fb);
+    }
+
+    #[test]
+    fn key_package_hash_differs_per_package_and_matches_the_bytes() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 2).expect("should succeed");
+
+        let first = inspect_key_package_impl(&mls, batch.key_packages[0].key_package.clone())
+            .expect("ok");
+        let second = inspect_key_package_impl(&mls, batch.key_packages[1].key_package.clone())
+            .expect("ok");
+        let repeat = inspect_key_package_impl(&mls, batch.key_packages[0].key_package.clone())
+            .expect("ok");
+
+        // Per-package, so it can bind an approval to exact bytes; deterministic, so the committer
+        // can re-derive and compare rather than trusting what it was handed.
+        assert_ne!(first.key_package_hash, second.key_package_hash);
+        assert_eq!(first.key_package_hash, repeat.key_package_hash);
+    }
+
+    #[test]
+    fn inspect_rejects_a_malformed_package() {
+        let mls = make_mls();
+
+        // A reviewer must never be shown an identity lifted from something that would be refused at
+        // add time - or be talked into vouching for a package whose signature does not check out.
+        assert!(inspect_key_package_impl(&mls, B64.encode(b"not a key package")).is_err());
+    }
+
+    #[test]
+    fn fingerprint_is_grouped_for_reading_aloud() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+
+        let info = inspect_key_package_impl(&mls, batch.key_packages[0].key_package.clone())
+            .expect("ok");
+
+        let groups: Vec<&str> = info.signature_key_fingerprint.split('-').collect();
+        assert_eq!(groups.len(), 4, "20 hex chars in groups of five");
+        assert!(groups.iter().all(|g| g.len() == 5));
+        assert!(info.signature_key_fingerprint.chars().all(|c| c.is_ascii_hexdigit() || c == '-'));
+    }
+
+    // ─── Staged commits ───────────────────────────────────────────────────────
+    //
+    // The server accepts exactly one commit per epoch. A commit that loses that race must never
+    // have been applied locally, because a group that advanced on a commit nobody else holds is
+    // forked and MLS offers no way back. So commits are staged and only merged once the server has
+    // taken them.
+
+    #[test]
+    fn add_members_does_not_advance_the_group_until_merged() {
+        let mut alice = make_mls();
+        let mut bob = make_mls();
+        let alice_batch =
+            generate_key_packages_impl(&mut alice, "alice".to_string(), 1).expect("should succeed");
+        let group_id = rand_group_id();
+        create_group_impl(&mut alice, group_id.clone(), alice_batch.key_handle.clone())
+            .expect("should succeed");
+        let bob_batch =
+            generate_key_packages_impl(&mut bob, "bob".to_string(), 1).expect("should succeed");
+
+        add_members_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle.clone(),
+            vec![bob_batch.key_packages[0].key_package.clone()],
+        )
+        .expect("should succeed");
+
+        let staged = get_group_info_impl(&alice, group_id.clone()).expect("should succeed");
+        assert_eq!(staged.epoch, 0, "staging must not move the epoch");
+        assert_eq!(staged.members.len(), 1, "staging must not add the member yet");
+
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("merge must succeed");
+
+        let merged = get_group_info_impl(&alice, group_id).expect("should succeed");
+        assert_eq!(merged.epoch, 1);
+        assert_eq!(merged.members.len(), 2);
+    }
+
+    #[test]
+    fn clearing_a_staged_commit_leaves_the_group_untouched() {
+        let mut alice = make_mls();
+        let mut bob = make_mls();
+        let alice_batch =
+            generate_key_packages_impl(&mut alice, "alice".to_string(), 1).expect("should succeed");
+        let group_id = rand_group_id();
+        create_group_impl(&mut alice, group_id.clone(), alice_batch.key_handle.clone())
+            .expect("should succeed");
+        let bob_batch =
+            generate_key_packages_impl(&mut bob, "bob".to_string(), 1).expect("should succeed");
+
+        add_members_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle.clone(),
+            vec![bob_batch.key_packages[0].key_package.clone()],
+        )
+        .expect("should succeed");
+        clear_pending_commit_impl(&mut alice, group_id.clone()).expect("clear must succeed");
+
+        // This is the losing side of a concurrent-commit race: the server took someone else's
+        // commit for this epoch, so ours is discarded and the group is exactly where it started.
+        let info = get_group_info_impl(&alice, group_id.clone()).expect("should succeed");
+        assert_eq!(info.epoch, 0);
+        assert_eq!(info.members.len(), 1);
+    }
+
+    #[test]
+    fn a_cleared_commit_can_be_reissued() {
+        let mut alice = make_mls();
+        let mut bob = make_mls();
+        let alice_batch =
+            generate_key_packages_impl(&mut alice, "alice".to_string(), 1).expect("should succeed");
+        let group_id = rand_group_id();
+        create_group_impl(&mut alice, group_id.clone(), alice_batch.key_handle.clone())
+            .expect("should succeed");
+        let bob_batch =
+            generate_key_packages_impl(&mut bob, "bob".to_string(), 2).expect("should succeed");
+
+        add_members_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle.clone(),
+            vec![bob_batch.key_packages[0].key_package.clone()],
+        )
+        .expect("first attempt");
+        clear_pending_commit_impl(&mut alice, group_id.clone()).expect("clear must succeed");
+
+        // Losing the race has to be recoverable, or a client that gets unlucky can never add anyone.
+        let retry = add_members_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle,
+            vec![bob_batch.key_packages[1].key_package.clone()],
+        )
+        .expect("retry after clearing must succeed");
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("merge must succeed");
+
+        assert!(retry.welcome.is_some());
+        assert_eq!(
+            get_members_impl(&alice, group_id)
+                .expect("should succeed")
+                .len(),
+            2
+        );
+    }
+
+    #[test]
+    fn merge_with_nothing_staged_does_not_advance_the_group() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+        let group_id = rand_group_id();
+        create_group_impl(&mut mls, group_id.clone(), batch.key_handle).expect("should succeed");
+
+        // OpenMLS treats this as a no-op rather than an error, which makes the merge safe to retry:
+        // a client that publishes successfully but crashes before merging can merge again on the
+        // next launch without having to know whether the first one landed.
+        let epoch = merge_pending_commit_impl(&mut mls, group_id.clone())
+            .expect("merging nothing is a no-op, not a failure");
+
+        assert_eq!(epoch, 0);
+        assert_eq!(
+            get_group_info_impl(&mls, group_id).expect("should succeed").epoch,
+            0,
+            "a merge with nothing staged must never move the epoch"
+        );
+    }
+
+    // ─── Remove members ───────────────────────────────────────────────────────
+
+    #[test]
+    fn remove_member_decreases_count_and_marks_self_removed() {
+        let mut tp = setup_two_party();
+        let members = get_members_impl(&tp.alice, tp.group_id.clone()).expect("should succeed");
+        let bob_leaf = members
+            .iter()
+            .find(|m| m.identity == "bob")
+            .map(|m| m.leaf_index)
+            .expect("bob must be in the group");
+
+        let remove_out = remove_members_impl(
+            &mut tp.alice,
+            tp.group_id.clone(),
+            tp.alice_handle,
+            vec![bob_leaf],
+        )
+        .expect("remove must succeed");
+        merge_pending_commit_impl(&mut tp.alice, tp.group_id.clone()).expect("alice merges removal");
+
+        let after = get_members_impl(&tp.alice, tp.group_id.clone()).expect("should succeed");
+        assert_eq!(after.len(), 1, "only alice must remain after removing bob");
+
+        let processed = process_message_impl(&mut tp.bob, tp.group_id, remove_out.commit)
+            .expect("bob processes removal commit");
+        assert_eq!(processed.kind, "commit");
+        assert!(
+            processed.self_removed,
+            "self_removed must be true for the evicted member"
+        );
+    }
+
+    // ─── Leave group ──────────────────────────────────────────────────────────
+    //
+    // In OpenMLS a member cannot commit their own removal. `leave_group_impl`
+    // therefore emits a Remove *proposal*. Another group member must then call
+    // `commit_pending_proposals_impl` to turn that proposal into a commit.
+
+    #[test]
+    fn leave_group_removes_local_state_and_alice_sees_removal() {
+        let mut tp = setup_two_party();
+
+        // Bob leaves: produces a Remove-self proposal and erases his local state.
+        let leave_out = leave_group_impl(&mut tp.bob, tp.group_id.clone(), tp.bob_handle.clone())
+            .expect("leave must succeed");
+
+        // Bob's group is gone immediately.
+        let bob_err = get_group_info_impl(&tp.bob, tp.group_id.clone())
+            .expect_err("bob's group must be removed after leave");
+        assert!(bob_err.contains("GroupNotFound"), "error was: {bob_err}");
+
+        // Alice receives Bob's leave proposal.
+        let proposal_result =
+            process_message_impl(&mut tp.alice, tp.group_id.clone(), leave_out.commit)
+                .expect("alice processes leave proposal");
+        assert_eq!(proposal_result.kind, "proposal");
+
+        // Alice commits the pending proposal (the Remove-Bob commit).
+        let commit_out = commit_pending_proposals_impl(
+            &mut tp.alice,
+            tp.group_id.clone(),
+            tp.alice_handle.clone(),
+        )
+        .expect("alice commits pending proposals");
+        merge_pending_commit_impl(&mut tp.alice, tp.group_id.clone())
+            .expect("alice merges the remove-bob commit");
+        assert!(!commit_out.commit.is_empty());
+
+        // Alice now has only herself in the group.
+        let members = get_members_impl(&tp.alice, tp.group_id).expect("should succeed");
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0].identity, "alice");
+    }
+
+    // ─── Export group info + rejoin ───────────────────────────────────────────
+
+    #[test]
+    fn rejoin_via_external_commit_adds_new_member() {
+        let mut tp = setup_two_party();
+        let group_info_b64 =
+            export_group_info_impl(&tp.alice, tp.group_id.clone(), tp.alice_handle.clone())
+                .expect("export_group_info must succeed");
+        assert!(!group_info_b64.is_empty());
+
+        let mut charlie = make_mls();
+        let charlie_batch = generate_key_packages_impl(&mut charlie, "charlie".to_string(), 1)
+            .expect("should succeed");
+        let rejoin_out = rejoin_group_impl(&mut charlie, group_info_b64, charlie_batch.key_handle)
+            .expect("rejoin must succeed");
+
+        assert!(!rejoin_out.external_commit.is_empty());
+        assert_eq!(
+            rejoin_out.group_info.members.len(),
+            3,
+            "charlie sees alice, bob, and himself after external commit"
+        );
+
+        let alice_processed = process_message_impl(
+            &mut tp.alice,
+            tp.group_id.clone(),
+            rejoin_out.external_commit.clone(),
+        )
+        .expect("alice processes external commit");
+        assert_eq!(alice_processed.kind, "commit");
+
+        process_message_impl(&mut tp.bob, tp.group_id, rejoin_out.external_commit)
+            .expect("bob processes external commit");
+    }
+
+    // ─── State export / import ────────────────────────────────────────────────
+
+    #[test]
+    fn export_import_state_preserves_groups() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+        let group_id = rand_group_id();
+        let created = create_group_impl(&mut mls, group_id.clone(), batch.key_handle)
+            .expect("should succeed");
+
+        let key_b64 = rand_key_32();
+        let exported = export_state_impl(&mls, key_b64.clone()).expect("export must succeed");
+        assert!(!exported.is_empty());
+
+        let mut new_mls = make_mls();
+        import_state_impl(&mut new_mls, exported, key_b64).expect("import must succeed");
+
+        let imported =
+            get_group_info_impl(&new_mls, group_id).expect("group must be accessible after import");
+        assert_eq!(imported.group_id, created.group_id);
+        assert_eq!(imported.epoch, created.epoch);
+        assert_eq!(imported.members.len(), created.members.len());
+    }
+
+    #[test]
+    fn import_with_wrong_key_fails_decryption() {
+        let mut mls = make_mls();
+        let batch =
+            generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("should succeed");
+        create_group_impl(&mut mls, rand_group_id(), batch.key_handle).expect("should succeed");
+
+        let key_b64 = rand_key_32();
+        let exported = export_state_impl(&mls, key_b64).expect("export must succeed");
+
+        let wrong_key = rand_key_32();
+        assert!(
+            import_state_impl(&mut mls, exported, wrong_key).is_err(),
+            "import with the wrong key must fail"
+        );
+    }
+
+    // ─── Full lifecycle ───────────────────────────────────────────────────────
+
+    #[test]
+    fn full_two_party_conversation_and_cleanup() {
+        let mut alice = make_mls();
+        let mut bob = make_mls();
+
+        let alice_batch =
+            generate_key_packages_impl(&mut alice, "alice".to_string(), 3).expect("alice key gen");
+        let bob_batch =
+            generate_key_packages_impl(&mut bob, "bob".to_string(), 1).expect("bob key gen");
+
+        let group_id = rand_group_id();
+        create_group_impl(&mut alice, group_id.clone(), alice_batch.key_handle.clone())
+            .expect("alice create group");
+        let add_out = add_members_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle.clone(),
+            vec![bob_batch.key_packages[0].key_package.clone()],
+        )
+        .expect("alice add bob");
+        assert_eq!(add_out.epoch, 1, "the epoch this commit will establish once merged");
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("alice merges add-bob");
+
+        let bob_info = join_group_impl(
+            &mut bob,
+            add_out.welcome.expect("welcome must exist"),
+            bob_batch.key_handle.clone(),
+        )
+        .expect("bob join");
+        assert_eq!(bob_info.members.len(), 2);
+
+        let msg = B64.encode(b"top secret");
+        let ct = send_message_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle.clone(),
+            msg.clone(),
+        )
+        .expect("alice send");
+        let rx = process_message_impl(&mut bob, group_id.clone(), ct.ciphertext).expect("bob receive");
+        assert_eq!(rx.plaintext, Some(msg));
+        assert_eq!(rx.sender_identity.as_deref(), Some("alice"));
+
+        let reply = B64.encode(b"acknowledged");
+        let ct2 = send_message_impl(
+            &mut bob,
+            group_id.clone(),
+            bob_batch.key_handle.clone(),
+            reply.clone(),
+        )
+        .expect("bob send");
+        let rx2 = process_message_impl(&mut alice, group_id.clone(), ct2.ciphertext).expect("alice receive");
+        assert_eq!(rx2.plaintext, Some(reply));
+
+        // 6. Bob leaves: produces a Remove-self proposal; Alice commits it.
+        let leave_out =
+            leave_group_impl(&mut bob, group_id.clone(), bob_batch.key_handle).expect("bob leave");
+        assert!(get_group_info_impl(&bob, group_id.clone()).is_err());
+        let proposal_result = process_message_impl(&mut alice, group_id.clone(), leave_out.commit)
+            .expect("alice processes leave proposal");
+        assert_eq!(proposal_result.kind, "proposal");
+        let commit_out = commit_pending_proposals_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle.clone(),
+        )
+        .expect("alice commits leave proposal");
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("alice merges remove-bob");
+        assert!(!commit_out.commit.is_empty());
+        assert_eq!(
+            get_members_impl(&alice, group_id.clone())
+                .expect("should succeed")
+                .len(),
+            1
+        );
+
+        delete_group_impl(&mut alice, group_id.clone()).expect("alice delete");
+        assert!(get_group_info_impl(&alice, group_id).is_err());
+    }
+
+    // ─── Sender ratchet configuration ─────────────────────────────────────────
+    //
+    // openmls 0.8.1 declares `SenderRatchetConfiguration::new(out_of_order_tolerance,
+    // maximum_forward_distance)`. The two literals used to be passed the other way round, which is
+    // invisible in every ordinary test - a two-party exchange never runs far enough ahead to notice
+    // - and shows up in production as messages that simply never arrive.
+
+    /// How far ahead of the receiver a sender may run before the receiver refuses the message.
+    ///
+    /// This is the half that costs users data: a phone that shows eleven lock-screen notifications
+    /// in one epoch has advanced the sender's generation eleven times, and with a forward distance
+    /// of 10 the twelfth message is rejected permanently. MLS decrypts from the wire exactly once,
+    /// so "rejected" here means gone.
+    #[test]
+    fn a_sender_may_run_far_ahead_without_the_receiver_refusing() {
+        let mut tp = setup_two_party();
+
+        // Comfortably past the transposed configuration's limit of 10, and well inside the
+        // corrected 500.
+        const AHEAD: usize = 60;
+        let mut ciphertexts = Vec::with_capacity(AHEAD);
+        for i in 0..AHEAD {
+            ciphertexts.push(
+                send_message_impl(
+                    &mut tp.alice,
+                    tp.group_id.clone(),
+                    tp.alice_handle.clone(),
+                    B64.encode(format!("message {i}").as_bytes()),
+                )
+                .expect("alice sends")
+                .ciphertext,
+            );
+        }
+
+        // Bob has seen none of them. Delivering only the last one is the notification-storm case:
+        // the generations in between are never delivered to this device at all.
+        let last = ciphertexts.pop().expect("at least one message");
+        let processed = process_message_impl(&mut tp.bob, tp.group_id.clone(), last)
+            .expect("a message far ahead of us must still decrypt");
+
+        assert_eq!(
+            processed.plaintext,
+            Some(B64.encode(format!("message {}", AHEAD - 1).as_bytes()))
+        );
+    }
+
+    /// The other half: spent keys are *not* hoarded.
+    ///
+    /// Out-of-order tolerance is how many used message secrets stay in the cache, and every one of
+    /// them is intra-epoch forward secrecy given away - they live in the state file. The transposed
+    /// configuration kept 500 per sender per epoch. This pins that a message left far enough behind
+    /// is dropped rather than retained indefinitely.
+    #[test]
+    fn spent_message_secrets_are_not_retained_indefinitely() {
+        let mut tp = setup_two_party();
+
+        let stale = send_message_impl(
+            &mut tp.alice,
+            tp.group_id.clone(),
+            tp.alice_handle.clone(),
+            B64.encode(b"the straggler"),
+        )
+        .expect("alice sends")
+        .ciphertext;
+
+        // Push well past the corrected tolerance of 10 before delivering the straggler.
+        for i in 0..40 {
+            let ct = send_message_impl(
+                &mut tp.alice,
+                tp.group_id.clone(),
+                tp.alice_handle.clone(),
+                B64.encode(format!("later {i}").as_bytes()),
+            )
+            .expect("alice sends")
+            .ciphertext;
+            process_message_impl(&mut tp.bob, tp.group_id.clone(), ct).expect("bob keeps up");
+        }
+
+        // With a tolerance of 500 this would succeed, and Bob would be holding hundreds of spent
+        // secrets on disk. A refusal here is the correct, forward-secret outcome.
+        assert!(
+            process_message_impl(&mut tp.bob, tp.group_id.clone(), stale).is_err(),
+            "a message left far behind must be dropped, not decryptable from a hoarded secret"
+        );
+    }
+
+
+    // ─── Persistence and at-rest confidentiality ──────────────────────────────
+    //
+    // The state file is every init key, leaf HPKE private key and epoch secret this device holds.
+    // Reaching this code needs a Tauri `AppHandle`, which is why none of it was covered before -
+    // and why three separate defects lived in one seven-line function.
+
+    fn rand_key_bytes() -> Vec<u8> {
+        let mut bytes = [0u8; 32];
+        rand::thread_rng().fill_bytes(&mut bytes);
+        bytes.to_vec()
+    }
+
+    fn make_mls_at(path: std::path::PathBuf, key: Option<Vec<u8>>) -> MlsState {
+        let mut mls = MlsState::default();
+        mls.state_path = Some(path);
+        mls.state_key = key;
+        mls
+    }
+
+    #[test]
+    fn saving_without_initialised_storage_is_an_error_not_a_no_op() {
+        let mut mls = MlsState::default();
+        assert!(mls.state_path.is_none());
+
+        let err = match generate_key_packages_impl(&mut mls, "alice".to_string(), 1) {
+            Ok(_) => panic!("an operation that cannot be persisted must fail loudly"),
+            Err(e) => e,
+        };
+
+        // This used to return Ok(()), so every group operation reported success while persisting
+        // nothing and all of it vanished on the next launch.
+        assert!(err.contains("not initialised"), "error was: {err}");
+    }
+
+    #[test]
+    fn the_state_file_is_not_readable_without_the_device_key() {
+        let path = test_state_dir().join(format!("sealed_{}.json", uuid::Uuid::new_v4()));
+        let key = rand_key_bytes();
+
+        let mut mls = make_mls_at(path.clone(), Some(key.clone()));
+        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("key gen");
+        create_group_impl(&mut mls, rand_group_id(), batch.key_handle).expect("create");
+
+        let raw = std::fs::read(&path).expect("state file must exist");
+        // Not a substring check for one key - the whole file must be opaque. Anyone with the disk,
+        // an OS backup, or a restored device image could previously read every private key out of
+        // this as plain JSON, with no keychain access and no unlock.
+        assert!(
+            serde_json::from_slice::<serde_json::Value>(&raw).is_err(),
+            "the state file must not be parseable JSON on disk"
+        );
+
+        let mut wrong = MlsState::default();
+        assert!(
+            init_storage_from_parts(&mut wrong, path, Some(B64.encode(rand_key_bytes()))).is_err(),
+            "a different device key must not open the state file"
+        );
+    }
+
+    #[test]
+    fn a_sealed_state_file_round_trips() {
+        let path = test_state_dir().join(format!("roundtrip_{}.json", uuid::Uuid::new_v4()));
+        let key = rand_key_bytes();
+        let group_id = rand_group_id();
+
+        {
+            let mut mls = make_mls_at(path.clone(), Some(key.clone()));
+            let batch =
+                generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("key gen");
+            create_group_impl(&mut mls, group_id.clone(), batch.key_handle).expect("create");
+        }
+
+        let mut restarted = MlsState::default();
+        let restored = init_storage_from_parts(&mut restarted, path, Some(B64.encode(&key)))
+            .expect("restore must succeed");
+
+        assert!(restored);
+        assert_eq!(
+            get_group_info_impl(&restarted, group_id)
+                .expect("the group must come back")
+                .members
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn a_legacy_plaintext_state_file_is_adopted_and_resealed() {
+        let path = test_state_dir().join(format!("legacy_{}.json", uuid::Uuid::new_v4()));
+        let group_id = rand_group_id();
+
+        // Exactly what shipped before: plain JSON on disk. Written directly rather than
+        // through the engine, because the engine now refuses to produce one - this is standing in
+        // for a file left behind by an *older build*, which is the only way one can exist.
+        {
+            let mut mls = make_mls();
+            let batch =
+                generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("key gen");
+            create_group_impl(&mut mls, group_id.clone(), batch.key_handle).expect("create");
+            std::fs::write(
+                &path,
+                serde_json::to_vec(&mls.to_persisted()).expect("serialize"),
+            )
+            .expect("write legacy plaintext state");
+        }
+        assert!(
+            serde_json::from_slice::<serde_json::Value>(&std::fs::read(&path).expect("read")).is_ok()
+        );
+
+        let key = rand_key_bytes();
+        let mut upgraded = MlsState::default();
+        init_storage_from_parts(&mut upgraded, path.clone(), Some(B64.encode(&key)))
+            .expect("a legacy file must still open, or every existing device is stranded");
+
+        assert!(get_group_info_impl(&upgraded, group_id).is_ok());
+        assert!(
+            serde_json::from_slice::<serde_json::Value>(&std::fs::read(&path).expect("read"))
+                .is_err(),
+            "the migration must rewrite the file sealed, not leave it in the clear"
+        );
+    }
+
+    #[test]
+    fn a_truncated_state_file_fails_to_load_rather_than_loading_partially() {
+        let path = test_state_dir().join(format!("trunc_{}.json", uuid::Uuid::new_v4()));
+        let key = rand_key_bytes();
+
+        let mut mls = make_mls_at(path.clone(), Some(key.clone()));
+        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("key gen");
+        create_group_impl(&mut mls, rand_group_id(), batch.key_handle).expect("create");
+
+        let raw = std::fs::read(&path).expect("read");
+        std::fs::write(&path, &raw[..raw.len() / 2]).expect("truncate");
+
+        let mut reloaded = MlsState::default();
+        assert!(
+            init_storage_from_parts(&mut reloaded, path, Some(B64.encode(&key))).is_err(),
+            "half a state file must be refused, not silently treated as an empty one"
+        );
+    }
+
+    #[test]
+    fn writing_state_without_a_key_is_refused() {
+        // The branch this replaces was `None => json`: it wrote every init key, leaf HPKE key and
+        // epoch secret on the device as cleartext JSON, silently, in the middle of the fix that
+        // was supposed to encrypt them. Reading a legacy plaintext file is still supported;
+        // producing a new one never is.
+        let path = test_state_dir().join(format!("nokey_{}.json", uuid::Uuid::new_v4()));
+        let mut mls = make_mls_at(path.clone(), None);
+
+        let err = match generate_key_packages_impl(&mut mls, "alice".to_string(), 1) {
+            Ok(_) => panic!("writing state in the clear must be refused"),
+            Err(e) => e,
+        };
+
+        // Matched on the invariant rather than the prose. The refusal message is now shared with
+        // venta-mobile verbatim, so pinning a phrase unique to one client's wording would break the
+        // next time the two are re-synced - which is exactly the event this file exists to survive.
+        assert!(err.contains("without a state key"), "error was: {err}");
+        assert!(!path.exists(), "no state file may be produced without a key");
+    }
+    #[test]
+    fn a_save_leaves_no_temp_file_behind() {
+        let path = test_state_dir().join(format!("tmp_{}.json", uuid::Uuid::new_v4()));
+        let mut mls = make_mls_at(path.clone(), Some(rand_key_bytes()));
+        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("key gen");
+        create_group_impl(&mut mls, rand_group_id(), batch.key_handle).expect("create");
+
+        // The write goes to a temp file and is renamed over the target, so a reader sees either the
+        // whole old file or the whole new one - never a prefix.
+        assert!(!path.with_extension("json.tmp").exists());
+        assert!(path.exists());
+    }
+
+
+    // ─── Cross-client golden vectors (contract §F) ────────────────────────────
+    //
+    // `venta_mls/rust/Cargo.toml` pins `openmls 0.8.1` with the comment "Bump both together or
+    // neither". These tests are what make that an assertion. Each client's engine produces a
+    // fixture, both are checked into both repos, and each asserts it consumes the *other's* bytes -
+    // so a ciphersuite, protocol-version or TLS-codec drift fails here instead of surfacing as
+    // "my friend texts me from desktop and I cannot read it on mobile".
+    //
+    // These fixtures were orphaned when this file was overwritten: the data survived in `testdata/`
+    // and the only consumer was lost with the engine. An unread fixture asserts nothing, so
+    // re-attaching a consumer is part of restoring the pin.
+
+    fn golden_dir() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("testdata")
+            .join("mls-golden")
+            .join("v1")
+    }
+
+    #[test]
+    fn this_engine_consumes_its_own_golden_vectors() {
+        // The control. When this fails alongside the one below, the fixture is stale rather than
+        // the other engine having drifted.
+        consume_golden_fixture("fixture.json", "alpine");
+    }
+
+    #[test]
+    fn this_engine_consumes_venta_mobiles_golden_vectors() {
+        // The one that proves something: bytes produced by the other implementation.
+        consume_golden_fixture("fixture-venta-mobile.json", "venta-mobile");
+    }
+
+    fn consume_golden_fixture(file: &str, expected_producer: &str) {
+        let path = golden_dir().join(file);
+        let raw = std::fs::read(&path)
+            .unwrap_or_else(|e| panic!("golden fixture missing at {}: {e}", path.display()));
+        let fixture: serde_json::Value = serde_json::from_slice(&raw).expect("fixture json");
+
+        assert_eq!(
+            fixture["producedBy"].as_str(),
+            Some(expected_producer),
+            "{file} was not produced by the engine it is meant to test against"
+        );
+        // Named explicitly: a ciphersuite or version drift is the failure this exists to catch, and
+        // it should say so rather than surfacing as an opaque deserialization error further down.
+        assert_eq!(
+            fixture["ciphersuite"].as_str(),
+            Some("MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519"),
+            "{file} was produced under a different ciphersuite"
+        );
+        assert_eq!(
+            fixture["openmls"].as_str(),
+            Some("0.8.1"),
+            "{file} was produced by a different openmls - the version pin is broken"
+        );
+
+        let group_id = fixture["groupIdB64"].as_str().expect("groupId").to_string();
+        let bob = &fixture["bob"];
+
+        // The key package parses and validates - the shape a peer must accept before it can add
+        // this device to anything.
+        let scratch = make_mls();
+        let info = inspect_key_package_impl(
+            &scratch,
+            bob["keyPackageB64"].as_str().expect("kp").to_string(),
+        )
+        .expect("the golden key package must validate");
+        assert_eq!(info.identity, "bob");
+
+        // Bob's provider store as it was *before* joining: it holds the private half of his key
+        // package, without which the Welcome cannot be opened by anyone.
+        let mut engine = make_mls();
+        let persisted: PersistedMlsState =
+            serde_json::from_value(bob["engine"].clone()).expect("bob engine");
+        super::restore_persisted(&mut engine, persisted).expect("restore bob's store");
+
+        let handle = load_signing_key_impl(
+            &mut engine,
+            bob["signingPublicKey"].as_str().expect("pub").to_string(),
+            bob["signingPrivateKey"].as_str().expect("priv").to_string(),
+            "bob".to_string(),
+        )
+        .expect("load bob's signing key");
+
+        let joined = join_group_impl(
+            &mut engine,
+            fixture["welcomeB64"].as_str().expect("welcome").to_string(),
+            handle,
+        )
+        .expect("the golden Welcome must be joinable");
+        assert_eq!(joined.members.len(), 2);
+
+        let commit = process_message_impl(
+            &mut engine,
+            group_id.clone(),
+            fixture["commitB64"].as_str().expect("commit").to_string(),
+        )
+        .expect("the golden commit must apply");
+        assert_eq!(commit.kind, "commit");
+        assert_eq!(commit.added_members.len(), 1);
+
+        let message = process_message_impl(
+            &mut engine,
+            group_id,
+            fixture["applicationMessageB64"]
+                .as_str()
+                .expect("message")
+                .to_string(),
+        )
+        .expect("the golden application message must decrypt");
+        assert_eq!(
+            message.plaintext.as_deref(),
+            fixture["applicationPlaintextB64"].as_str()
+        );
+        assert_eq!(message.sender_identity.as_deref(), Some("alice"));
+    }
+
+    /// Regenerates `testdata/mls-golden/v1/fixture.json` for venta-mobile to consume.
+    ///
+    /// Ignored by default: the fixture is a checked-in artefact, and regenerating it on every run
+    /// would mean each engine only ever consumed bytes it had just produced.
+    #[test]
+    #[ignore]
+    fn generate_golden_fixture() {
+        let mut alice = make_mls();
+        let mut bob = make_mls();
+        let mut charlie = make_mls();
+
+        let alice_batch =
+            generate_key_packages_impl(&mut alice, "alice".to_string(), 1).expect("alice keys");
+        let bob_batch =
+            generate_key_packages_impl(&mut bob, "bob".to_string(), 1).expect("bob keys");
+        let charlie_batch = generate_key_packages_impl(&mut charlie, "charlie".to_string(), 1)
+            .expect("charlie keys");
+
+        let group_id = rand_group_id();
+        create_group_impl(&mut alice, group_id.clone(), alice_batch.key_handle.clone())
+            .expect("create");
+
+        let add_bob = add_members_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle.clone(),
+            vec![bob_batch.key_packages[0].key_package.clone()],
+        )
+        .expect("add bob");
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("merge");
+
+        let add_charlie = add_members_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle.clone(),
+            vec![charlie_batch.key_packages[0].key_package.clone()],
+        )
+        .expect("add charlie");
+        merge_pending_commit_impl(&mut alice, group_id.clone()).expect("merge");
+
+        let plaintext = B64.encode(b"golden vector application message");
+        let app = send_message_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_batch.key_handle.clone(),
+            plaintext.clone(),
+        )
+        .expect("send");
+
+        let fixture = serde_json::json!({
+            "producedBy": "alpine",
+            "ciphersuite": "MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519",
+            "openmls": "0.8.1",
+            "groupIdB64": group_id,
+            "bob": {
+                "identity": "bob",
+                "signingPublicKey": bob_batch.signing_public_key,
+                "signingPrivateKey": bob_batch.signing_private_key,
+                "keyPackageB64": bob_batch.key_packages[0].key_package,
+                "engine": bob.to_persisted(),
+            },
+            "welcomeB64": add_bob.welcome.expect("welcome"),
+            "commitB64": add_charlie.commit,
+            "applicationMessageB64": app.ciphertext,
+            "applicationPlaintextB64": plaintext,
+        });
+
+        std::fs::create_dir_all(golden_dir()).expect("mkdir");
+        std::fs::write(
+            golden_dir().join("fixture.json"),
+            serde_json::to_vec_pretty(&fixture).expect("serialize"),
+        )
+        .expect("write fixture");
+    }
+
+
+    // ─── Engine pin and Tauri surface ─────────────────────────────────────────
+    //
+    // The two engines are meant to share logic and differ only at the edges. That pin existed as a
+    // comment in `venta_mls/rust/Cargo.toml` ("Bump both together or neither") and was worth
+    // exactly what comments are worth: this file was silently replaced by a byte-for-byte copy of
+    // mobile's engine and committed, which deleted Alpine's entire Tauri command surface. The build
+    // broke, but only after the fact and with 59 cascading errors that named none of the cause.
+    //
+    // These two tests make the pin an assertion. The golden vectors above cover behavioural drift;
+    // these cover the structural half.
+
+    /// Every `#[tauri::command]` the frontend invokes must exist in this file, by name.
+    ///
+    /// Mobile's engine has none - it exposes plain `pub fn`s over a process-global mutex, because
+    /// Flutter has no `State`/`AppHandle`. An empty set is the unmistakable signature of this file
+    /// having been overwritten with the other client's, which is exactly what happened.
+    ///
+    /// Asserted as an exact set rather than a count. A count is self-defeating here: this test's
+    /// own source contains the literal it searches for, so `source.matches(...)` read 28 against a
+    /// `>= 25` threshold - and losing precisely three commands, which was the live situation when
+    /// this was written, would have read 25 and passed.
+    #[test]
+    fn the_tauri_command_surface_is_present() {
+        let source = include_str!("mls.rs");
+
+        // Only an attribute directly followed by a `pub fn` counts, which is what excludes the
+        // string literals in this test and in the doc comments above.
+        let found: std::collections::BTreeSet<&str> = source
+            .split("#[tauri::command]")
+            .skip(1)
+            .filter_map(|rest| {
+                let decl = rest.trim_start();
+                let name = decl.strip_prefix("pub fn ")?;
+                Some(&name[..name.find('(')?])
+            })
+            .collect();
+
+        let expected: std::collections::BTreeSet<&str> = [
+            "generate_mls_key_packages",
+            "mls_add_members",
+            "mls_clear_pending_commit",
+            "mls_clear_storage",
+            "mls_commit_pending_proposals",
+            "mls_create_group",
+            "mls_current_state_dir",
+            "mls_delete_group",
+            "mls_drain_pending_messages",
+            "mls_export_backup",
+            "mls_export_group_info",
+            "mls_export_state",
+            "mls_generate_key_packages_with_handle",
+            "mls_get_group_info",
+            "mls_get_members",
+            "mls_import_backup",
+            "mls_import_state",
+            "mls_init_storage",
+            "mls_inspect_key_package",
+            "mls_join_group",
+            "mls_leave_group",
+            "mls_load_signing_key",
+            "mls_merge_pending_commit",
+            "mls_process_message",
+            "mls_rejoin_group",
+            "mls_remove_members",
+            "mls_send_message",
+            "mls_signing_key_fingerprint",
+            "mls_unload_signing_key",
+        ]
+        .into_iter()
+        .collect();
+
+        let missing: Vec<_> = expected.difference(&found).collect();
+        assert!(
+            missing.is_empty(),
+            "the Tauri surface has lost {missing:?}. Every one of these is invoked from \
+             TypeScript, so a missing command is a runtime 'command not found' the unit tests \
+             cannot see - they mock the IPC boundary. An empty set means this file has been \
+             replaced with venta-mobile's engine."
+        );
+
+        // Exact, in both directions, now that the re-port from mobile has landed. While it was
+        // outstanding a gained command was merely reported, because the expected set was known to
+        // be behind the file; keeping that leniency afterwards would mean a command could be added
+        // here and never registered in `lib.rs`, which is a runtime 'command not found' with a
+        // green test suite - the precise failure this test exists to make impossible.
+        let added: Vec<_> = found.difference(&expected).collect();
+        assert!(
+            added.is_empty(),
+            "the Tauri surface has gained {added:?}. Add each one to this set *and* to both \
+             `invoke_handler` blocks in lib.rs - defining a command without registering it \
+             compiles cleanly and fails only when the frontend calls it."
+        );
+    }
+
+    /// The crypto dependencies both engines share must be pinned to the same versions.
+    ///
+    /// MLS is a wire protocol: a different `openmls` can change TLS-serialized shapes, and a client
+    /// that cannot deserialize a Welcome written by the other is locked out of every group it is
+    /// invited to. Bumping one side alone is the failure this guards.
+    ///
+    /// Skipped with a warning when the sibling checkout is absent, so this is a developer-machine
+    /// and CI-with-both-repos check rather than a hard build dependency on a fixed path.
+    #[test]
+    fn the_shared_engine_dependencies_are_pinned_together() {
+        let sibling = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
+            .join("..")
+            .join("..")
+            .join("venta-mobile")
+            .join("venta_mobile")
+            .join("packages")
+            .join("venta_mls")
+            .join("rust")
+            .join("Cargo.toml");
+
+        let Ok(mobile) = std::fs::read_to_string(&sibling) else {
+            eprintln!(
+                "\n!!! ENGINE PIN NOT CHECKED !!!\nNo venta-mobile checkout at {}. The two engines' \
+                 shared crypto dependencies were not compared this run.\n",
+                sibling.display()
+            );
+            return;
+        };
+
+        let ours = include_str!("../../Cargo.toml");
+
+        // Only the crates whose behaviour crosses the wire. Everything else may legitimately differ.
+        for crate_name in [
+            "openmls",
+            "openmls_rust_crypto",
+            "openmls_basic_credential",
+            "aes-gcm",
+            "base64",
+            "sha2",
+            "hkdf",
+            "hmac",
+        ] {
+            let theirs = pinned_version(&mobile, crate_name);
+            let mine = pinned_version(ours, crate_name);
+            assert_eq!(
+                mine, theirs,
+                "`{crate_name}` is pinned to {mine:?} here and {theirs:?} in venta-mobile. The two \
+                 engines must be bumped together or neither - a divergence here is a divergence in \
+                 the wire protocol."
             );
         }
     }
 
-    chars
-        .chunks(RECOVERY_CODE_GROUP_LEN)
-        .map(|c| c.iter().collect::<String>())
-        .collect::<Vec<_>>()
-        .join("-")
-}
-
-/// Folds a retyped recovery code back to the form it was generated in, or fails.
-///
-/// Users copy these off paper, so grouping dashes, stray whitespace and lower
-/// case all have to disappear before the KDF sees them - otherwise a *correct*
-/// code derives the wrong key and its owner is told their only surviving
-/// credential is wrong.
-///
-/// **Total, by design.** Anything that is not a well-formed recovery code is an
-/// error, never a pass-through. A silent fallback to the raw input converts a
-/// recoverable typo into unrecoverable data loss with no diagnostic: the KDF
-/// happily derives *a* key from the typo, the AEAD fails, and the only thing the
-/// user learns is "wrong code". This function is called on recovery codes only -
-/// a password is case-sensitive, may contain anything, and never comes through
-/// here.
-pub fn normalize_recovery_code(code: &str) -> Result<String, String> {
-    let normalized: String = code
-        .chars()
-        .filter(|c| !c.is_whitespace() && *c != '-')
-        .flat_map(|c| c.to_uppercase())
-        .collect();
-
-    if normalized.len() != RECOVERY_CODE_LEN {
-        return Err(format!(
-            "RecoveryCodeInvalid: a recovery code is {} characters, this one has {}",
-            RECOVERY_CODE_LEN,
-            normalized.len()
-        ));
+    /// The major.minor of a crate's version requirement, or None when it is absent.
+    ///
+    /// Compared at major.minor rather than exactly, because `0.10` and `0.10.3` resolve to the same
+    /// crate under Cargo's semver rules and a patch-level difference in the manifests is not a
+    /// protocol difference.
+    fn pinned_version(manifest: &str, crate_name: &str) -> Option<String> {
+        manifest
+            .lines()
+            .map(str::trim)
+            .find(|line| {
+                line.starts_with(&format!("{crate_name} ="))
+                    || line.starts_with(&format!("{crate_name}="))
+            })
+            .and_then(|line| {
+                let quoted = line.split('"').nth(1)?;
+                let mut parts = quoted.split('.');
+                Some(format!("{}.{}", parts.next()?, parts.next()?))
+            })
     }
-    if let Some(bad) = normalized
-        .bytes()
-        .find(|b| !RECOVERY_CODE_ALPHABET.contains(b))
-    {
-        return Err(format!(
-            "RecoveryCodeInvalid: '{}' is not a recovery-code character",
-            bad as char
-        ));
+
+    #[test]
+    fn the_version_comparison_discriminates() {
+        // Verifies the mechanism the pin test relies on. A full end-to-end mutation would mean
+        // editing Cargo.toml to a different openmls and rebuilding the crate, which takes minutes
+        // and can fail to compile for unrelated API reasons - so the comparison itself is pinned
+        // here instead.
+        let a = "openmls = \"0.8.1\"\nsha2 = \"0.10\"\n";
+        let b = "openmls = \"0.7.4\"\nsha2 = \"0.10.3\"\n";
+
+        // Differing minor is caught.
+        assert_ne!(pinned_version(a, "openmls"), pinned_version(b, "openmls"));
+        // A patch-only difference is not, on purpose: 0.10 and 0.10.3 resolve to the same crate.
+        assert_eq!(pinned_version(a, "sha2"), pinned_version(b, "sha2"));
+        // An absent crate is distinguishable from a present one.
+        assert_eq!(pinned_version(a, "hkdf"), None);
+        assert_eq!(pinned_version(a, "openmls"), Some("0.8".to_string()));
     }
-    Ok(normalized)
-}
 
-/// Wraps a master key under one secret. Identical shape for both wrappings -
-/// they seal the same bytes under different credentials.
-fn wrap_master_key(master_key: &[u8], secret: &str) -> Result<EncryptedMasterKey, String> {
-    let mut salt = [0u8; 16];
-    let mut iv = [0u8; 12];
-    rand::thread_rng().fill_bytes(&mut salt);
-    rand::thread_rng().fill_bytes(&mut iv);
-
-    let wrap_key = derive_wrap_key(
-        secret,
-        &salt,
-        MASTER_ARGON2_MEM,
-        MASTER_ARGON2_ITERS,
-        MASTER_ARGON2_LANES,
-    )?;
-    let cipher = Aes256Gcm::new_from_slice(&wrap_key).map_err(|e| e.to_string())?;
-    let ciphertext = cipher
-        .encrypt(Nonce::from_slice(&iv), master_key)
-        .map_err(|e| e.to_string())?;
-
-    Ok(EncryptedMasterKey {
-        cipher_text: B64.encode(ciphertext),
-        salt: B64.encode(salt),
-        iv: B64.encode(iv),
-        argon2_iterations: MASTER_ARGON2_ITERS,
-        argon2_memory: MASTER_ARGON2_MEM,
-        argon2_parallelism: MASTER_ARGON2_LANES,
-        version: MASTER_SCHEMA_VERSION,
-    })
-}
-
-/// Mints an account master key and wraps it **twice** - once under the password,
-/// once under a recovery code (contract §C.1.1).
-///
-/// One wrapping is not enough, and the reason is not hypothetical: a password
-/// reset leaves the envelope sealed under a password the user has, by definition
-/// of a reset, forgotten. Every backup blob and the account identity key become
-/// permanently unopenable, silently, at exactly the moment someone is trying to
-/// recover their account. The recovery code is the only credential that survives
-/// that.
-///
-/// The key itself is random and never leaves the client; a secret only ever
-/// produces a *wrap* key, so a password change re-wraps rather than re-keys and
-/// every blob already sealed under the master key stays readable.
-///
-/// [recovery_code] is accepted so a UI can show the code and get confirmation
-/// before committing to it; generated here when absent, so the entropy source is
-/// never the caller's.
-pub fn setup_master_key(
-    password: &str,
-    recovery_code: Option<&str>,
-) -> Result<MasterKeySetup, String> {
-    let mut master_key = [0u8; 32];
-    rand::thread_rng().fill_bytes(&mut master_key);
-
-    // A caller-supplied code has to be well-formed, and the error says so rather
-    // than quietly generating a different one - a UI that showed the user one
-    // code and wrapped under another would hand them a credential that opens
-    // nothing.
-    let code = match recovery_code {
-        Some(c) => {
-            normalize_recovery_code(c)?;
-            c.to_owned()
-        }
-        None => generate_recovery_code(),
-    };
-
-    Ok(MasterKeySetup {
-        password_wrapping: wrap_master_key(&master_key, password)?,
-        recovery_code_wrapping: wrap_master_key(&master_key, &normalize_recovery_code(&code)?)?,
-        recovery_code: code,
-        master_key: B64.encode(master_key),
-    })
-}
-
-/// Wraps an already-unwrapped master key under an arbitrary secret.
-///
-/// For retrofitting an account that only ever had the password wrapping - which
-/// is every account created before §C.1.1, each of them one password reset away
-/// from losing everything - and for re-wrapping under a new password after a
-/// reset.
-pub fn wrap_master_key_under(
-    master_key_b64: &str,
-    secret: &str,
-) -> Result<EncryptedMasterKey, String> {
-    let master_key = B64.decode(master_key_b64).map_err(|e| e.to_string())?;
-    if master_key.len() != 32 {
-        return Err("MlsError: a master key must be 32 bytes".to_string());
-    }
-    wrap_master_key(&master_key, secret)
-}
-
-/// Unwraps the master key. The parameters come from the envelope rather than the
-/// constants above, so a key wrapped under older ones still opens.
-pub fn decrypt_master_key(
-    encrypted: &EncryptedMasterKey,
-    password: &str,
-) -> Result<String, String> {
-    let ciphertext = B64
-        .decode(&encrypted.cipher_text)
-        .map_err(|e| e.to_string())?;
-    let salt = B64.decode(&encrypted.salt).map_err(|e| e.to_string())?;
-    let iv = B64.decode(&encrypted.iv).map_err(|e| e.to_string())?;
-
-    let wrap_key = derive_wrap_key(
-        password,
-        &salt,
-        encrypted.argon2_memory,
-        encrypted.argon2_iterations,
-        encrypted.argon2_parallelism,
-    )?;
-    let cipher = Aes256Gcm::new_from_slice(&wrap_key).map_err(|e| e.to_string())?;
-    let master_key = cipher
-        .decrypt(Nonce::from_slice(&iv), ciphertext.as_ref())
-        .map_err(|_| {
-            "MlsError: could not unwrap the master key - wrong password, or the envelope has been \
-             altered"
-                .to_string()
-        })?;
-    Ok(B64.encode(&master_key))
-}
-
-/// Re-wraps an already-unwrapped master key under a new password.
-///
-/// A password change must not mint a *new* master key: every backup blob and
-/// every admission proof is bound to the existing one, and replacing it would
-/// orphan all of them silently. Identical to [`wrap_master_key_under`] - kept as
-/// a name so the call sites read as what they are.
-pub fn rewrap_master_key(
-    master_key_b64: &str,
-    new_password: &str,
-) -> Result<EncryptedMasterKey, String> {
-    wrap_master_key_under(master_key_b64, new_password)
-}
-
-/// Cryptographically strong random bytes, base64.
-///
-/// For the §G admission challenge, which has to be unpredictable to the *server*
-/// or a proof could be precomputed for a challenge it intends to issue later.
-pub fn random_bytes_b64(count: usize) -> String {
-    let mut bytes = vec![0u8; count.clamp(1, 1024)];
-    rand::thread_rng().fill_bytes(&mut bytes);
-    B64.encode(&bytes)
-}
-
-// ---------------------------------------------------------------------------
-// Account identity, device certificates and admission proofs (contract §G/§H)
-//
-// Three separate secrets, deliberately:
-//
-// * the **account master key** - Argon2id from the password, held only by the
-//   user's own devices. It authorises a *new device of yours* (§G).
-// * the **account identity key** - long-lived Ed25519, wrapped under the
-//   recovery key. It lets a *peer* verify offline that a device belongs to an
-//   account, with none of that account's devices online (§H).
-// * the **device signing key** - per device, already the MLS credential.
-//
-// Every signed or MAC'd payload below is built by `tagged_payload`, which
-// length-prefixes each field. Plain concatenation is ambiguous - ("ab","c") and
-// ("a","bc") produce identical bytes - and an attacker who can move a byte from
-// one field to the next can make one signature vouch for two different
-// statements.
-// ---------------------------------------------------------------------------
-
-const DEVICE_CERT_LABEL: &str = "venta.device-cert.v1";
-const ADMISSION_INFO: &[u8] = b"venta.device-admission.v1";
-const ADMISSION_LABEL: &str = "venta.device-admission.v1";
-const PROTECTION_LEVEL_LABEL: &str = "venta.protection-level.v1";
-
-type HmacSha256 = Hmac<Sha256>;
-
-/// `label || len(f0) || f0 || len(f1) || f1 || ...`, lengths as 4-byte
-/// big-endian. See the module comment for why the lengths are not optional.
-fn tagged_payload(label: &str, fields: &[&[u8]]) -> Vec<u8> {
-    let mut out = Vec::with_capacity(label.len() + fields.iter().map(|f| f.len() + 4).sum::<usize>());
-    out.extend_from_slice(label.as_bytes());
-    for field in fields {
-        out.extend_from_slice(&(field.len() as u32).to_be_bytes());
-        out.extend_from_slice(field);
-    }
-    out
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MlsAccountIdentity {
-    pub public_key: String,
-    pub private_key: String,
-}
-
-/// Mints an account identity key. Once per account, ever - §H.5 rotation is a
-/// security event that invalidates every peer's pinning, not a routine one.
-pub fn generate_account_identity(mls: &MlsState) -> Result<MlsAccountIdentity, String> {
-    let (private, public) = mls
-        .provider
-        .crypto()
-        .signature_key_gen(SignatureScheme::ED25519)
-        .map_err(|e| format!("MlsError: could not generate an account identity key: {:?}", e))?;
-    Ok(MlsAccountIdentity {
-        public_key: B64.encode(&public),
-        private_key: B64.encode(&private),
-    })
-}
-
-/// Signs a device certificate with the account identity key.
-///
-/// The server cannot mint one of these - it never holds the private half - which
-/// is exactly what stops an external-commit rejoin (§H.3) from being a
-/// server-side backdoor into every group.
-pub fn issue_device_certificate(
-    mls: &MlsState,
-    account_identity_private_key_b64: &str,
-    device_id: &str,
-    device_signature_key_b64: &str,
-    issued_at: i64,
-    expires_at: i64,
-) -> Result<String, String> {
-    let private = B64
-        .decode(account_identity_private_key_b64)
-        .map_err(|e| e.to_string())?;
-    let payload = device_cert_payload(device_id, device_signature_key_b64, issued_at, expires_at);
-    let signature = mls
-        .provider
-        .crypto()
-        .sign(SignatureScheme::ED25519, &payload, &private)
-        .map_err(|e| format!("MlsError: could not sign the device certificate: {:?}", e))?;
-    Ok(B64.encode(&signature))
-}
-
-/// Verifies a device certificate against a **pinned** account identity key.
-///
-/// Returns `false` rather than erroring for an invalid signature: at §I.1's
-/// `Observe` and `Warn` phases the caller counts and warns rather than acting,
-/// and an error type would push that decision down here.
-pub fn verify_device_certificate(
-    mls: &MlsState,
-    account_identity_public_key_b64: &str,
-    device_id: &str,
-    device_signature_key_b64: &str,
-    issued_at: i64,
-    expires_at: i64,
-    certificate_b64: &str,
-) -> Result<bool, String> {
-    let public = B64
-        .decode(account_identity_public_key_b64)
-        .map_err(|e| e.to_string())?;
-    let signature = match B64.decode(certificate_b64) {
-        Ok(s) => s,
-        // Malformed base64 is a failed verification, not a caller error - the
-        // bytes came off the wire.
-        Err(_) => return Ok(false),
-    };
-    let payload = device_cert_payload(device_id, device_signature_key_b64, issued_at, expires_at);
-    Ok(mls
-        .provider
-        .crypto()
-        .verify_signature(SignatureScheme::ED25519, &payload, &public, &signature)
-        .is_ok())
-}
-
-fn device_cert_payload(
-    device_id: &str,
-    device_signature_key_b64: &str,
-    issued_at: i64,
-    expires_at: i64,
-) -> Vec<u8> {
-    tagged_payload(
-        DEVICE_CERT_LABEL,
-        &[
-            device_id.as_bytes(),
-            device_signature_key_b64.as_bytes(),
-            &issued_at.to_be_bytes(),
-            &expires_at.to_be_bytes(),
-        ],
-    )
-}
-
-/// HKDF-SHA256 over the account master key. A derived key rather than the master
-/// key itself so that a proof, if it ever leaked, cannot be turned back into the
-/// key that unwraps the backup envelope.
-fn derive_admission_key(master_key: &[u8]) -> Result<[u8; 32], String> {
-    let hkdf = Hkdf::<Sha256>::new(None, master_key);
-    let mut out = [0u8; 32];
-    hkdf.expand(ADMISSION_INFO, &mut out)
-        .map_err(|e| format!("MlsError: admission key derivation failed: {}", e))?;
-    Ok(out)
-}
-
-/// Proves possession of the account master key for a device admission (§G.1).
-///
-/// Symmetric on purpose: both sides of this exchange are devices of the *same*
-/// account, so both hold the master key, and a MAC is exactly the right shape.
-/// The server relays the bytes and can verify nothing, which is the property
-/// that makes `TrustedSignIn` a real security level rather than "trust the
-/// server".
-pub fn sign_admission_proof(
-    master_key_b64: &str,
-    challenge_b64: &str,
-    requester_device_id: &str,
-    signature_key_fingerprint: &str,
-) -> Result<String, String> {
-    let master = B64.decode(master_key_b64).map_err(|e| e.to_string())?;
-    let challenge = B64.decode(challenge_b64).map_err(|e| e.to_string())?;
-    let key = derive_admission_key(&master)?;
-    let payload = tagged_payload(
-        ADMISSION_LABEL,
-        &[
-            &challenge,
-            requester_device_id.as_bytes(),
-            signature_key_fingerprint.as_bytes(),
-        ],
-    );
-    let mut mac = <HmacSha256 as Mac>::new_from_slice(&key).map_err(|e| e.to_string())?;
-    mac.update(&payload);
-    Ok(B64.encode(mac.finalize().into_bytes()))
-}
-
-/// Constant-time verification of [`sign_admission_proof`].
-pub fn verify_admission_proof(
-    master_key_b64: &str,
-    challenge_b64: &str,
-    requester_device_id: &str,
-    signature_key_fingerprint: &str,
-    proof_b64: &str,
-) -> Result<bool, String> {
-    let master = B64.decode(master_key_b64).map_err(|e| e.to_string())?;
-    let challenge = B64.decode(challenge_b64).map_err(|e| e.to_string())?;
-    let proof = match B64.decode(proof_b64) {
-        Ok(p) => p,
-        Err(_) => return Ok(false),
-    };
-    let key = derive_admission_key(&master)?;
-    let payload = tagged_payload(
-        ADMISSION_LABEL,
-        &[
-            &challenge,
-            requester_device_id.as_bytes(),
-            signature_key_fingerprint.as_bytes(),
-        ],
-    );
-    let mut mac = <HmacSha256 as Mac>::new_from_slice(&key).map_err(|e| e.to_string())?;
-    mac.update(&payload);
-    // `verify_slice` is constant-time; comparing the base64 strings would not be.
-    Ok(mac.verify_slice(&proof).is_ok())
-}
-
-/// Signs a protection-level assertion with the account identity key (§G.3).
-///
-/// The level must not be a server-side boolean: a server that could flip a
-/// `VerifiedDevices` account to `TrustedSignIn` could then auto-admit its own
-/// device, which defeats the whole tier. Signed by the account identity key
-/// because that is the only account-scoped key a *peer* can also check, and
-/// because §H.5 already gives rotation of it a ceremony.
-pub fn sign_protection_level(
-    mls: &MlsState,
-    account_identity_private_key_b64: &str,
-    user_id: &str,
-    level: &str,
-    version: u64,
-    updated_at: &str,
-) -> Result<String, String> {
-    let private = B64
-        .decode(account_identity_private_key_b64)
-        .map_err(|e| e.to_string())?;
-    let payload = protection_level_payload(user_id, level, version, updated_at);
-    let signature = mls
-        .provider
-        .crypto()
-        .sign(SignatureScheme::ED25519, &payload, &private)
-        .map_err(|e| format!("MlsError: could not sign the protection level: {:?}", e))?;
-    Ok(B64.encode(&signature))
-}
-
-pub fn verify_protection_level(
-    mls: &MlsState,
-    account_identity_public_key_b64: &str,
-    user_id: &str,
-    level: &str,
-    version: u64,
-    updated_at: &str,
-    assertion_b64: &str,
-) -> Result<bool, String> {
-    let public = match B64.decode(account_identity_public_key_b64) {
-        Ok(p) => p,
-        Err(_) => return Ok(false),
-    };
-    let signature = match B64.decode(assertion_b64) {
-        Ok(s) => s,
-        Err(_) => return Ok(false),
-    };
-    let payload = protection_level_payload(user_id, level, version, updated_at);
-    Ok(mls
-        .provider
-        .crypto()
-        .verify_signature(SignatureScheme::ED25519, &payload, &public, &signature)
-        .is_ok())
-}
-
-fn protection_level_payload(
-    user_id: &str,
-    level: &str,
-    version: u64,
-    updated_at: &str,
-) -> Vec<u8> {
-    tagged_payload(
-        PROTECTION_LEVEL_LABEL,
-        &[
-            user_id.as_bytes(),
-            level.as_bytes(),
-            &version.to_be_bytes(),
-            updated_at.as_bytes(),
-        ],
-    )
 }

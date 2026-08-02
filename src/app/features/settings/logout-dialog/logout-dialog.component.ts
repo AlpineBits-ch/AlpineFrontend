@@ -8,12 +8,12 @@ import {Router} from '@angular/router';
 import {AuthService} from '../../../services/auth.service';
 import {UserService} from '../../../services/user.service';
 import {MasterKeyService} from '../../../services/master-key.service';
-import {MlsService} from '../../../services/mls.service';
+import {MlsFeatureUnavailableError, MlsService} from '../../../services/mls.service';
 import {UserTokenService} from '../../../services/user-token.service';
 import {DeviceService} from '../../../services/device.service';
 import {AppInfoService} from '../../../services/app-info.service';
 
-type Step = 'export-prompt' | 'password' | 'no-export-warning' | 'processing';
+type Step = 'export-prompt' | 'password' | 'no-export-warning' | 'export-unavailable' | 'processing';
 
 @Component({
     selector: 'app-logout-dialog',
@@ -82,6 +82,18 @@ export class LogoutDialogComponent {
         });
     }
 
+    /**
+     * Sign out knowing no backup was written.
+     *
+     * Deliberately a separate, explicit action. Falling through to the wipe automatically would
+     * destroy the keys immediately after the user asked to save them, which is the one outcome this
+     * whole dialog exists to prevent.
+     */
+    protected logoutWithoutExport(): void {
+        this.step.set('processing');
+        this.clearMlsAndLogout();
+    }
+
     protected skipAndLogout(): void {
         this.step.set('processing');
         this.clearMlsAndLogout();
@@ -110,6 +122,14 @@ export class LogoutDialogComponent {
                 this.clearMlsAndLogout();
             },
             error: (err: unknown) => {
+                // A feature this build does not define is not a failure to retry. Sending the user
+                // back to the password step told them to try again at something that can never
+                // succeed, and the export path is the only way out of this dialog other than
+                // discarding the keys - so it trapped them.
+                if (err instanceof MlsFeatureUnavailableError) {
+                    this.step.set('export-unavailable');
+                    return;
+                }
                 const msg = err instanceof Error && err.message === 'no-key'
                     ? 'No encryption keys found on this account.'
                     : 'Export failed. Please try again.';

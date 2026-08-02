@@ -352,11 +352,10 @@ export class MlsSyncService {
             if (processed.kind === 'buffered') return null;
             if (processed.kind !== 'application' || !processed.plaintext) return null;
 
-            if (!await this.senderIsInRoster(groupId, processed.senderIdentity, expectedSenderUserId)) {
-                // A compromised server replaying a valid ciphertext under a spoofed credential is
-                // exactly what the roster check is for. Refusing to render it is the whole point.
+            if (!this.senderMatchesClaimedAuthor(processed.senderIdentity, expectedSenderUserId)) {
                 this.health.recordFailure(contextId, isChannel, 'decrypt-failed',
-                    `sender ${processed.senderIdentity} is not in the group roster`);
+                    `the server attributed this message to ${expectedSenderUserId}, but it was `
+                    + `signed by ${processed.senderIdentity}`);
                 return null;
             }
 
@@ -366,27 +365,30 @@ export class MlsSyncService {
     }
 
     /**
-     * Whether the credential the message carried belongs to a current member.
+     * Whether the credential that actually signed the message matches who the server says sent it.
      *
-     * <p>The identity in an MLS credential is the *user* id, not the device id, so this cannot tell
-     * one of a user's devices from another - a limit worth stating rather than implying. It does
-     * rule out a credential for someone who is not in the group at all, which is the case a
-     * malicious server can otherwise manufacture.</p>
+     * <p>This is the check that does work, and it is deliberately *not* a roster lookup. An earlier
+     * version also asked whether `senderIdentity` appeared in `getMembers()` and its comment claimed
+     * that stopped a malicious server spoofing a credential. It does not, and could not: openmls
+     * resolves the sender from a leaf in the ratchet tree and verifies the message signature against
+     * that leaf's key before `process_message` returns at all. Anything that reaches us has already
+     * been proved to come from a current member, so re-asking is a tautology - it can only ever
+     * return true, and dressing it up as an anti-spoofing guard hid the fact that nothing was
+     * guarding that direction.</p>
+     *
+     * <p>What is genuinely unverified is the *envelope*: `authorId` is a plain server field sitting
+     * next to the ciphertext, and the UI attributes the message to it. Comparing it against the
+     * authenticated credential is what stops the server captioning one member's ciphertext with
+     * another member's name. Note the credential carries a user id, not a device id, so this cannot
+     * distinguish two devices of the same user - a limit worth stating rather than implying.</p>
      */
-    private async senderIsInRoster(
-        groupId: string,
+    private senderMatchesClaimedAuthor(
         senderIdentity: string | null,
         expectedSenderUserId?: string,
-    ): Promise<boolean> {
+    ): boolean {
         if (!senderIdentity) return false;
-
-        // The server's claim about who sent it must agree with the credential inside the ciphertext.
-        // Only the latter is authenticated, so a mismatch means the two disagree and neither is
-        // safe to attribute.
-        if (expectedSenderUserId && senderIdentity !== expectedSenderUserId) return false;
-
-        const members = await firstValueFrom(this.mls.getMembers(groupId));
-        return members.some(m => m.identity === senderIdentity);
+        if (!expectedSenderUserId) return true;
+        return senderIdentity === expectedSenderUserId;
     }
 
     // -------------------------------------------------------------------------

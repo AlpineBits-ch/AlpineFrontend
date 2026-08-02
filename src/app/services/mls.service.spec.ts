@@ -48,6 +48,7 @@ import {
     MlsMemberInfo,
     MlsProcessedMessage,
     MlsRejoinOut,
+    MlsFeatureUnavailableError,
     MlsService,
     parseMlsError,
 } from './mls.service';
@@ -1327,105 +1328,12 @@ describe('MlsService', () => {
             });
         });
     });
+    // The `verifySenderInRoster` and `processAndVerifyMessage` suites lived here. Both methods were
+    // deleted: the guarantee they claimed was a tautology - openmls has already verified the sender
+    // against an in-tree leaf before `process_message` returns - so these tests were asserting that
+    // a check which cannot fail did not fail. The check that does something, the server-claimed
+    // author against the authenticated credential, is covered in `mls-sync.service.spec.ts`.
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // verifySenderInRoster
-    // ─────────────────────────────────────────────────────────────────────────
-
-    describe('verifySenderInRoster', () => {
-        const GID = 'Z3JvdXAxMjM=';
-
-        it('returns true when sender is in the roster', async () => {
-            mockInvoke([MEMBER_ALICE, MEMBER_BOB]);
-            const result = await firstValueFrom(service.verifySenderInRoster('alice', GID));
-            expect(result).toBe(true);
-        });
-
-        it('returns false when sender is not in the roster', async () => {
-            mockInvoke([MEMBER_ALICE]);
-            const result = await firstValueFrom(service.verifySenderInRoster('eve', GID));
-            expect(result).toBe(false);
-        });
-
-        it('calls getMembers to check the roster', async () => {
-            mockInvoke([MEMBER_ALICE]);
-            await firstValueFrom(service.verifySenderInRoster('alice', GID));
-            expect(callCmd()).toBe('mls_get_members');
-        });
-
-        it('passes the correct groupIdB64 to getMembers', async () => {
-            mockInvoke([MEMBER_ALICE]);
-            await firstValueFrom(service.verifySenderInRoster('alice', GID));
-            expect(callArgs()['groupIdB64']).toBe(GID);
-        });
-
-        it('returns false for an empty roster', async () => {
-            mockInvoke([]);
-            const result = await firstValueFrom(service.verifySenderInRoster('alice', GID));
-            expect(result).toBe(false);
-        });
-    });
-
-    // ─────────────────────────────────────────────────────────────────────────
-    // processAndVerifyMessage
-    // ─────────────────────────────────────────────────────────────────────────
-
-    describe('processAndVerifyMessage', () => {
-        const GID = 'Z3JvdXAxMjM=';
-        const MSG = 'bWxzTWVzc2FnZQ==';
-
-        it('resolves normally when sender is in roster', async () => {
-            // First call: processMessage, second call: getMembers
-            invokeStub
-                .mockResolvedValueOnce(APP_MESSAGE as never)
-                .mockResolvedValueOnce([MEMBER_ALICE] as never);
-
-            const result = await firstValueFrom(service.processAndVerifyMessage(GID, MSG));
-            expect(result.kind).toBe('application');
-        });
-
-        it('throws MlsTypedError when sender is not in roster', async () => {
-            const msgWithUnknown = {...APP_MESSAGE, senderIdentity: 'eve'};
-            invokeStub
-                .mockResolvedValueOnce(msgWithUnknown as never)
-                .mockResolvedValueOnce([MEMBER_ALICE] as never);
-
-            await expect(
-                firstValueFrom(service.processAndVerifyMessage(GID, MSG)),
-            ).rejects.toMatchObject({kind: 'UnknownSender'});
-        });
-
-        it('skips roster check for commit messages', async () => {
-            mockInvoke(COMMIT_MESSAGE);
-            const result = await firstValueFrom(service.processAndVerifyMessage(GID, MSG));
-            // Only 1 invoke call -no getMembers for commits
-            expect(invokeStub).toHaveBeenCalledTimes(1);
-            expect(result.kind).toBe('commit');
-        });
-
-        it('skips roster check when senderIdentity is null', async () => {
-            const noSender = {...APP_MESSAGE, senderIdentity: null};
-            mockInvoke(noSender);
-            const result = await firstValueFrom(service.processAndVerifyMessage(GID, MSG));
-            expect(invokeStub).toHaveBeenCalledTimes(1);
-            expect(result.kind).toBe('application');
-        });
-
-        it('skips roster check for proposal messages', async () => {
-            mockInvoke(PROPOSAL_MESSAGE);
-            const result = await firstValueFrom(service.processAndVerifyMessage(GID, MSG));
-            expect(invokeStub).toHaveBeenCalledTimes(1);
-            expect(result.kind).toBe('proposal');
-        });
-
-        it('propagates processMessage rejection without calling getMembers', async () => {
-            mockInvokeReject('WrongEpoch: epoch mismatch');
-            await expect(
-                firstValueFrom(service.processAndVerifyMessage(GID, MSG)),
-            ).rejects.toBe('WrongEpoch: epoch mismatch');
-            expect(invokeStub).toHaveBeenCalledTimes(1);
-        });
-    });
 
     // ─────────────────────────────────────────────────────────────────────────
     // removeMembers
@@ -2224,13 +2132,12 @@ describe('MlsService', () => {
             expect(callArgs(6)['plaintextB64']).toBe(PLAINTEXT_B64);
             expect(ct).toBe(CIPHERTEXT);
 
-            // Step 8: Bob receives the message and verifies Alice is in the roster
-            invokeStub
-                .mockResolvedValueOnce(APP_MSG_FROM_ALICE as never)     // processMessage
-                .mockResolvedValueOnce([MEMBER_ALICE, MEMBER_BOB] as never); // getMembers (verify)
-            const received = await firstValueFrom(service.processAndVerifyMessage(GID, CIPHERTEXT));
+            // Step 8: Bob receives the message. No roster re-check - openmls resolved the sender
+            // from an in-tree leaf and verified the signature before returning, so the credential
+            // is already proved to belong to a current member.
+            invokeStub.mockResolvedValueOnce(APP_MSG_FROM_ALICE as never);
+            const received = await firstValueFrom(service.processMessage(GID, CIPHERTEXT));
             expect(callCmd(7)).toBe('mls_process_message');
-            expect(callCmd(8)).toBe('mls_get_members');
             expect(received.kind).toBe('application');
             expect(received.plaintext).toBe(PLAINTEXT_B64);
             expect(received.senderIdentity).toBe('alice');
@@ -2238,7 +2145,7 @@ describe('MlsService', () => {
             // Step 9: Alice processes the add-commit she received from the server broadcast
             invokeStub.mockResolvedValueOnce(ADD_COMMIT_PROCESSED as never);
             const commitResult = await firstValueFrom(service.processMessage(GID, addOut.commit));
-            expect(callCmd(9)).toBe('mls_process_message');
+            expect(callCmd(8)).toBe('mls_process_message');
             expect(commitResult.kind).toBe('commit');
             expect(commitResult.addedMembers[0].identity).toBe('bob');
             expect(commitResult.epoch).toBe(1);
@@ -2248,15 +2155,15 @@ describe('MlsService', () => {
             const removeOut = await firstValueFrom(
                 service.removeMembers(GID, ALICE_HANDLE, [MEMBER_BOB.leafIndex]),
             );
-            expect(callCmd(10)).toBe('mls_remove_members');
-            expect(callArgs(10)['leafIndices']).toEqual([MEMBER_BOB.leafIndex]);
+            expect(callCmd(9)).toBe('mls_remove_members');
+            expect(callArgs(9)['leafIndices']).toEqual([MEMBER_BOB.leafIndex]);
             expect(removeOut.welcome).toBeNull();
             expect(removeOut.epoch).toBe(2);
 
             // Step 11: Alice leaves the group (self-removal commit)
             invokeStub.mockResolvedValueOnce(LEAVE_COMMIT as never);
             const leaveOut = await firstValueFrom(service.leaveGroup(GID, ALICE_HANDLE));
-            expect(callCmd(11)).toBe('mls_leave_group');
+            expect(callCmd(10)).toBe('mls_leave_group');
             expect(leaveOut.welcome).toBeNull();
             expect(leaveOut.epoch).toBe(3);
 
@@ -2265,11 +2172,11 @@ describe('MlsService', () => {
             const queues = (service as unknown as { _groupQueues: Map<string, Promise<unknown>> })
                 ._groupQueues;
             await firstValueFrom(service.deleteGroup(GID));
-            expect(callCmd(12)).toBe('mls_delete_group');
+            expect(callCmd(11)).toBe('mls_delete_group');
             expect(queues.has(GID)).toBe(false);
 
             // Verify every lifecycle step produced exactly one invoke call
-            expect(invokeStub).toHaveBeenCalledTimes(13);
+            expect(invokeStub).toHaveBeenCalledTimes(12);
         });
     });
     // ─────────────────────────────────────────────────────────────────────────
@@ -2349,5 +2256,74 @@ describe('MlsService', () => {
                 vi.mocked(isTauri).mockReturnValue(true);
             }
         });
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Commands this build may not define
+//
+// `mls_drain_pending_messages`, `mls_export_backup` and `mls_import_backup` currently have a
+// TypeScript caller and no Rust definition - the engine file was overwritten with the other
+// client's and the restore brought back a surface that predates them. They return with the re-port.
+// Until then an unresolved command must degrade, not throw: unit tests mock the IPC boundary, so
+// nothing else catches this.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('MlsService when a command is missing from the build', () => {
+    let service: MlsService;
+
+    const notFound = (command: string) =>
+        Promise.reject(`Command ${command} not found`);
+
+    beforeEach(() => {
+        invokeStub.mockReset();
+        vi.mocked(isTauri).mockReturnValue(true);
+        TestBed.configureTestingModule({providers: [MlsService]});
+        service = TestBed.inject(MlsService);
+    });
+
+    it('treats an absent drain command as an empty buffer', async () => {
+        invokeStub.mockImplementation(() => notFound('mls_drain_pending_messages') as never);
+
+        // Empty is the honest answer: no buffer exists, so nothing was held. Catch-up runs this on
+        // every sync, and throwing would log an error per context per launch forever.
+        await expect(firstValueFrom(service.drainPendingMessages('Z3JvdXA=')))
+            .resolves.toEqual([]);
+    });
+
+    it('reports an absent export as unavailable rather than failed', async () => {
+        invokeStub.mockImplementation(() => notFound('mls_export_backup') as never);
+        service.keyHandle.set('handle');
+
+        // The distinction the logout dialog needs: "not available" offers a way forward, "failed"
+        // sends the user back to retry something that can never succeed.
+        await expect(service.exportBackup('pw', 'user-1', '3.0.0', false))
+            .rejects.toBeInstanceOf(MlsFeatureUnavailableError);
+    });
+
+    it('reports an absent import as unavailable rather than failed', async () => {
+        invokeStub.mockImplementation(() => notFound('mls_import_backup') as never);
+
+        await expect(service.importBackup('blob', 'pw', 'user-1'))
+            .rejects.toBeInstanceOf(MlsFeatureUnavailableError);
+    });
+
+    it('does not mistake a real engine failure for a missing command', async () => {
+        // The guard matches the command name *and* not-found wording. An engine error that happens
+        // to contain "not found" - a missing group, a missing key - must still propagate, or a
+        // genuine fault would be silently swallowed as an absent feature.
+        invokeStub.mockImplementation(() =>
+            Promise.reject('GroupNotFound: group not found') as never);
+
+        await expect(firstValueFrom(service.drainPendingMessages('Z3JvdXA=')))
+            .rejects.toBe('GroupNotFound: group not found');
+    });
+
+    it('still surfaces an export failure from a command that does exist', async () => {
+        invokeStub.mockImplementation(() => Promise.reject('MlsError: disk full') as never);
+        service.keyHandle.set('handle');
+
+        await expect(service.exportBackup('pw', 'user-1', '3.0.0', false))
+            .rejects.not.toBeInstanceOf(MlsFeatureUnavailableError);
     });
 });
