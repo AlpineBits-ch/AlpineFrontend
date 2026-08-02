@@ -1914,20 +1914,42 @@ pub fn import_backup(
     // rotated. Same-device recovery adopts the backup's device id first, which is required anyway -
     // the keychain entries are named after it.
     let engine_restored = device_id == current_device_id;
-    if engine_restored {
-        if let Some(engine) = payload.get("engine") {
-            let persisted: PersistedMlsState = serde_json::from_value(engine.clone())
-                .map_err(|e| format!("MlsError: backup engine state is unreadable: {}", e))?;
-            restore_persisted(mls, persisted)?;
-        }
-    }
 
+    // Parsed before anything is touched, so a malformed engine section fails while the live state
+    // is still whole. `restore_persisted` clears `groups`, `pending_messages` and the entire
+    // provider store before it re-inserts, so reaching it and then failing is not a no-op - it is
+    // the running session's group state, gone.
+    let persisted: Option<PersistedMlsState> = if engine_restored {
+        match payload.get("engine") {
+            Some(engine) => Some(
+                serde_json::from_value(engine.clone())
+                    .map_err(|e| format!("MlsError: backup engine state is unreadable: {}", e))?,
+            ),
+            None => None,
+        }
+    } else {
+        None
+    };
+
+    // Ordered deliberately: every fallible step runs *before* the destructive one.
+    //
+    // `load_signing_key` base64-decodes two keys and can fail; it used to run after
+    // `restore_persisted`, so a blob carrying a good engine and a corrupt signing key wiped the
+    // live engine, replaced it with the backup's groups, and *then* returned an error - leaving the
+    // session holding foreign state that no caller had been told was applied, and that the next
+    // save would write to disk. Loading the signer first is additive (one entry in `signers`,
+    // keyed by a fresh handle, which `restore_persisted` does not clear) and cannot destroy
+    // anything if the engine restore later fails.
     let key_handle = load_signing_key(
         mls,
         &signing.pub_,
         &signing.priv_,
         signing.identity.clone(),
     )?;
+
+    if let Some(persisted) = persisted {
+        restore_persisted(mls, persisted)?;
+    }
 
     let group_registry = payload
         .get("groupRegistry")
@@ -2428,7 +2450,9 @@ mod integration_tests {
         load_signing_key_impl,
         process_message_impl, rejoin_group_impl, remove_members_impl, send_message_impl,
         unload_signing_key_impl, MlsState,
+        derive_backup_key, export_backup, import_backup, BackupEnvelope,
     };
+    use aes_gcm::{aead::{Aead, Payload}, Aes256Gcm, KeyInit, Nonce};
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
     use rand::RngCore;
 
@@ -3781,6 +3805,375 @@ mod integration_tests {
         .expect("write fixture");
     }
 
+
+    // ─── §D backup envelope: export, import, and the restore rules ────────────
+    //
+    // Untested until now, on both sides. The logout flow told the user it was saving their keys,
+    // wrote the envelope, and wiped the keychain, the state file, the registry and the cache - and
+    // nothing anywhere had ever asserted that what was written could be read back. It could not:
+    // the only TypeScript caller of `mls_import_backup` did not exist, and the command dropped the
+    // signing keypair on the floor, so even a wired restore would have worked until the app was
+    // next killed and then looked exactly like lost keys.
+
+    /// Exports the state of `mls`, sealed under `passphrase`, for `(user_id, device_id)`.
+    fn export_for(
+        mls: &MlsState,
+        passphrase: &str,
+        user_id: &str,
+        device_id: &str,
+        key_handle: &str,
+    ) -> String {
+        let mut registry = std::collections::HashMap::new();
+        registry.insert("ctx-1#0".to_string(), serde_json::json!("Z3JvdXA="));
+        registry.insert("ctx-1#active".to_string(), serde_json::json!(0));
+
+        let mut cache = std::collections::HashMap::new();
+        cache.insert("ctx-1#0#msg-1".to_string(), "aGVsbG8=".to_string());
+
+        export_backup(
+            mls,
+            passphrase.to_string(),
+            user_id.to_string(),
+            device_id.to_string(),
+            "3.0.155".to_string(),
+            key_handle.to_string(),
+            registry,
+            Some(cache),
+        )
+        .expect("export")
+    }
+
+    #[test]
+    fn a_backup_round_trips_on_the_same_device() {
+        let mut alice = make_mls();
+        let batch = generate_key_packages_impl(&mut alice, "alice".into(), 2).expect("key gen");
+        let group_id = rand_group_id();
+        create_group_impl(&mut alice, group_id.clone(), batch.key_handle.clone())
+            .expect("create group");
+
+        let blob = export_for(&alice, "correct horse", "user-1", "device-a", &batch.key_handle);
+
+        // The wipe the logout flow performs, in the one form that matters here: a completely fresh
+        // engine, as a reinstall would produce.
+        let mut restored = make_mls();
+        let result = import_backup(
+            &mut restored,
+            blob,
+            "correct horse".into(),
+            "user-1".into(),
+            "device-a".into(),
+        )
+        .expect("import");
+
+        // Same device id, so §D says the engine comes back too.
+        assert!(result.engine_restored);
+        assert!(
+            get_group_info_impl(&restored, group_id.clone()).is_ok(),
+            "the group the backup was taken with must be usable again"
+        );
+
+        // The bug this test exists for. The keypair is what `autoUnlock` reads out of the OS
+        // keychain on every cold start; an import that only handed back a session handle restored a
+        // device that worked until the app was next killed. A test asserting only that the import
+        // returned Ok would have passed against exactly that.
+        assert_eq!(result.signing_public_key, batch.signing_public_key);
+        assert_eq!(result.signing_private_key, batch.signing_private_key);
+        assert_eq!(result.identity, "alice");
+
+        // And the two host-side stores, which live outside the engine and come back out for the
+        // caller to write.
+        assert_eq!(
+            result.group_registry.get("ctx-1#0").and_then(|v| v.as_str()),
+            Some("Z3JvdXA=")
+        );
+        assert_eq!(result.message_cache.get("ctx-1#0#msg-1").map(String::as_str), Some("aGVsbG8="));
+    }
+
+    #[test]
+    fn a_restored_group_can_still_read_what_it_could_read_before() {
+        // The user-facing claim: history that was decryptable before the wipe is decryptable after
+        // the restore. Asserted through the ratchet rather than through the message cache, so it is
+        // the engine state being tested and not the plaintext that travelled beside it.
+        let two = setup_two_party();
+        let TwoParty { mut alice, mut bob, group_id, alice_handle, bob_handle } = two;
+
+        let blob = export_for(&bob, "pass", "user-bob", "device-bob", &bob_handle);
+
+        let sent = send_message_impl(
+            &mut alice,
+            group_id.clone(),
+            alice_handle.clone(),
+            B64.encode("after the backup"),
+        )
+        .expect("alice sends");
+
+        let mut restored = make_mls();
+        import_backup(&mut restored, blob, "pass".into(), "user-bob".into(), "device-bob".into())
+            .expect("import");
+
+        let processed = process_message_impl(&mut restored, group_id, sent.ciphertext)
+            .expect("the restored engine must decrypt for the group it holds");
+        assert_eq!(processed.kind, "application");
+        assert_eq!(
+            B64.decode(processed.plaintext.expect("plaintext")).expect("b64"),
+            b"after the backup"
+        );
+
+        // Bob's original engine is untouched by any of this - the restore happened elsewhere.
+        let _ = &mut bob;
+    }
+
+    #[test]
+    fn importing_onto_a_different_device_restores_the_keys_but_not_the_engine() {
+        // §D's discriminator is the **device id alone**. An earlier draft also allowed the engine
+        // when "the engine holds no groups", which collapsed the two rows into one: a genuinely new
+        // device always has an empty engine, so that clause would have cloned ratchet state onto
+        // every new device. Two devices sharing a leaf reuse sender-ratchet generations, at least
+        // one becomes unable to send, and forward secrecy for that leaf is gone.
+        let mut alice = make_mls();
+        let batch = generate_key_packages_impl(&mut alice, "alice".into(), 2).expect("key gen");
+        let group_id = rand_group_id();
+        create_group_impl(&mut alice, group_id.clone(), batch.key_handle.clone())
+            .expect("create group");
+
+        let blob = export_for(&alice, "pass", "user-1", "device-a", &batch.key_handle);
+
+        let mut fresh = make_mls();
+        let result = import_backup(
+            &mut fresh,
+            blob,
+            "pass".into(),
+            "user-1".into(),
+            // A different handset.
+            "device-b".into(),
+        )
+        .expect("import");
+
+        assert!(!result.engine_restored);
+        assert!(
+            get_group_info_impl(&fresh, group_id).is_err(),
+            "ratchet state must not be cloned onto a second device"
+        );
+
+        // Everything §D *does* allow still comes back: the signing keypair, the registry and the
+        // cache. Without them the new device could not even name the groups it needs re-admitting
+        // to.
+        assert_eq!(result.signing_private_key, batch.signing_private_key);
+        assert!(!result.group_registry.is_empty());
+        assert!(!result.message_cache.is_empty());
+    }
+
+    #[test]
+    fn a_backup_from_another_account_is_refused() {
+        let mut alice = make_mls();
+        let batch = generate_key_packages_impl(&mut alice, "alice".into(), 1).expect("key gen");
+        let blob = export_for(&alice, "pass", "user-1", "device-a", &batch.key_handle);
+
+        let mut other = make_mls();
+        let err = import_backup(
+            &mut other,
+            blob,
+            "pass".into(),
+            "someone-else".into(),
+            "device-a".into(),
+        )
+        .expect_err("must refuse");
+
+        // Importing another account's blob would leave this device signing as one identity while
+        // holding leaves issued to another.
+        assert!(err.contains("different account"), "error was: {err}");
+    }
+
+    #[test]
+    fn a_wrong_passphrase_is_refused_and_says_what_it_cannot_distinguish() {
+        let mut alice = make_mls();
+        let batch = generate_key_packages_impl(&mut alice, "alice".into(), 1).expect("key gen");
+        let blob = export_for(&alice, "right", "user-1", "device-a", &batch.key_handle);
+
+        let mut fresh = make_mls();
+        let err =
+            import_backup(&mut fresh, blob, "wrong".into(), "user-1".into(), "device-a".into())
+                .expect_err("must refuse");
+
+        // AEAD cannot tell a wrong key from altered bytes, and the message must not pretend it can:
+        // sending someone to hunt for a passphrase when the file is truncated is the same mistake
+        // as reporting an argument rejection as a bad credential.
+        assert!(err.contains("wrong passphrase"), "error was: {err}");
+        assert!(err.contains("altered"), "error was: {err}");
+    }
+
+    #[test]
+    fn a_relabelled_backup_header_is_refused() {
+        // The AAD binds the envelope to `(userId, deviceId)`. Re-labelling the header to another
+        // device would otherwise let a blob open and then be applied under the wrong identity.
+        let mut alice = make_mls();
+        let batch = generate_key_packages_impl(&mut alice, "alice".into(), 1).expect("key gen");
+        let blob = export_for(&alice, "pass", "user-1", "device-a", &batch.key_handle);
+
+        let mut envelope: serde_json::Value = serde_json::from_str(&blob).expect("json");
+        envelope["aad"] = serde_json::json!("venta.keybackup.v1|user-1|device-zzz");
+        let tampered = serde_json::to_string(&envelope).expect("json");
+
+        let mut fresh = make_mls();
+        // The AEAD catches it first, because the AAD is authenticated - which is the stronger
+        // outcome than the explicit comparison that follows it.
+        assert!(import_backup(
+            &mut fresh,
+            tampered,
+            "pass".into(),
+            "user-1".into(),
+            "device-a".into()
+        )
+        .is_err());
+    }
+
+    #[test]
+    fn an_absurd_declared_kdf_header_is_refused_on_the_import_path() {
+        // The blob is a file the user chose, so its header is attacker-controlled, and `m` is a u32
+        // of kibibytes - 4 TiB, allocated eagerly, on the recovery path. §L.9. The reader derives
+        // from the declared parameters on purpose (that is what keeps a blob written under other
+        // values openable), so the ceiling is the only thing standing between a corrupt file and an
+        // OOM.
+        let mut alice = make_mls();
+        let batch = generate_key_packages_impl(&mut alice, "alice".into(), 1).expect("key gen");
+        let blob = export_for(&alice, "pass", "user-1", "device-a", &batch.key_handle);
+
+        for (field, value) in [("m", u32::MAX), ("t", 1_000_000), ("p", 100_000)] {
+            let mut envelope: serde_json::Value = serde_json::from_str(&blob).expect("json");
+            envelope["kdf"][field] = serde_json::json!(value);
+            let hostile = serde_json::to_string(&envelope).expect("json");
+
+            let mut fresh = make_mls();
+            let err = import_backup(
+                &mut fresh,
+                hostile,
+                "pass".into(),
+                "user-1".into(),
+                "device-a".into(),
+            )
+            .expect_err("must refuse");
+            assert!(
+                err.contains("refusing declared Argon2 parameters"),
+                "changing kdf.{field} must be refused before Argon2 is asked to allocate: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_failed_import_does_not_leave_the_live_engine_half_replaced() {
+        // `restore_persisted` clears `groups`, `pending_messages` and the whole provider store
+        // before re-inserting, so any fallible step after it is a step that can destroy the running
+        // session's state and then return an error. `load_signing_key` was exactly that step: a
+        // blob with a valid engine and a corrupt signing key wiped the live engine, replaced it
+        // with the backup's, and *then* failed - leaving the session holding foreign state nobody
+        // had been told was applied.
+        let mut alice = make_mls();
+        let batch = generate_key_packages_impl(&mut alice, "alice".into(), 2).expect("key gen");
+        let group_id = rand_group_id();
+        create_group_impl(&mut alice, group_id.clone(), batch.key_handle.clone())
+            .expect("create group");
+        let blob = export_for(&alice, "pass", "user-1", "device-a", &batch.key_handle);
+
+        // A separate live session with a group of its own, standing in for "the app was already
+        // running when the user tried to restore the wrong file".
+        let mut live = make_mls();
+        let live_batch = generate_key_packages_impl(&mut live, "live".into(), 2).expect("key gen");
+        let live_group = rand_group_id();
+        create_group_impl(&mut live, live_group.clone(), live_batch.key_handle.clone())
+            .expect("create group");
+
+        // Corrupt only the signing key, leaving the engine section intact and the AEAD valid - so
+        // the failure lands after decryption, at the step ordering has to protect.
+        let corrupted = {
+            let salt = {
+                let envelope: BackupEnvelope = serde_json::from_str(&blob).expect("json");
+                B64.decode(&envelope.kdf.salt).expect("b64")
+            };
+            let key = derive_backup_key("pass", &salt).expect("kdf");
+            let envelope: BackupEnvelope = serde_json::from_str(&blob).expect("json");
+            let nonce = B64.decode(&envelope.nonce).expect("b64");
+            let ct = B64.decode(&envelope.ct).expect("b64");
+            let cipher = Aes256Gcm::new_from_slice(&key).expect("cipher");
+            let opened = cipher
+                .decrypt(
+                    Nonce::from_slice(&nonce),
+                    Payload { msg: &ct, aad: envelope.aad.as_bytes() },
+                )
+                .expect("decrypt");
+            let mut payload: serde_json::Value = serde_json::from_slice(&opened).expect("json");
+            payload["signing"]["priv"] = serde_json::json!("!!! not base64 !!!");
+            let resealed = cipher
+                .encrypt(
+                    Nonce::from_slice(&nonce),
+                    Payload {
+                        msg: &serde_json::to_vec(&payload).expect("json"),
+                        aad: envelope.aad.as_bytes(),
+                    },
+                )
+                .expect("encrypt");
+            let mut re: serde_json::Value = serde_json::from_str(&blob).expect("json");
+            re["ct"] = serde_json::json!(B64.encode(resealed));
+            serde_json::to_string(&re).expect("json")
+        };
+
+        assert!(import_backup(
+            &mut live,
+            corrupted,
+            "pass".into(),
+            "user-1".into(),
+            "device-a".into()
+        )
+        .is_err());
+
+        // The session it failed inside still holds its own group, and does not hold the backup's.
+        assert!(
+            get_group_info_impl(&live, live_group).is_ok(),
+            "a failed import must leave the running session exactly as it found it"
+        );
+        assert!(get_group_info_impl(&live, group_id).is_err());
+    }
+
+    #[test]
+    fn a_truncated_file_is_refused_as_a_file_problem() {
+        let mut fresh = make_mls();
+        let err = import_backup(
+            &mut fresh,
+            "{\"v\":1,\"kdf\":".to_string(),
+            "pass".into(),
+            "user-1".into(),
+            "device-a".into(),
+        )
+        .expect_err("must refuse");
+
+        // Distinct wording from the passphrase failure: this one is about the file, and telling
+        // someone to re-check a passphrase against a truncated file is a wasted afternoon.
+        assert!(err.contains("not a backup file"), "error was: {err}");
+    }
+
+    #[test]
+    fn the_message_cache_is_omitted_when_the_caller_says_so() {
+        // §H.6: the cache is the single most sensitive thing in the envelope, and the cloud target
+        // passes `None`. `messageCache: None` *is* `includeMessageCache: false`.
+        let mut alice = make_mls();
+        let batch = generate_key_packages_impl(&mut alice, "alice".into(), 1).expect("key gen");
+        let blob = export_backup(
+            &alice,
+            "pass".to_string(),
+            "user-1".to_string(),
+            "device-a".to_string(),
+            "3.0.155".to_string(),
+            batch.key_handle.clone(),
+            std::collections::HashMap::new(),
+            None,
+        )
+        .expect("export");
+
+        let mut fresh = make_mls();
+        let result =
+            import_backup(&mut fresh, blob, "pass".into(), "user-1".into(), "device-a".into())
+                .expect("import");
+        assert!(result.message_cache.is_empty());
+    }
 
     // ─── Engine pin and Tauri surface ─────────────────────────────────────────
     //

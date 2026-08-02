@@ -132,7 +132,7 @@
                                         <span class="text-[10px] text-white/25">{{ msg.createdAt | date:'MMM d, y · h:mm a' }}</span>
                                     </div>
                                     <p
-                                            [innerHTML]="getSnippet(msg.content) | highlight:search.searchQuery()"
+                                            [innerHTML]="getSnippet(msg) | highlight:search.searchQuery()"
                                             class="text-xs text-white/50 leading-relaxed m-0 line-clamp-2">
                                     </p>
                                 </button>

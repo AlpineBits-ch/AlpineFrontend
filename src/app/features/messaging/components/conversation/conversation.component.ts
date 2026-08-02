@@ -51,7 +51,8 @@ import {AppAvatarComponent} from '../../../../components/avatar/avatar.component
 import {ConversationSearchService} from './conversation-search.service';
 import {ConversationScrollService} from './conversation-scroll.service';
 import {ProfileDialogService} from '../../../../services/profile-dialog.service';
-import {decodeContent, fileIcon, isGroupedWithPrevious} from './message-utils';
+import {fileIcon, isGroupedWithPrevious} from './message-utils';
+import {readableContent, UNDECRYPTABLE_SHORT} from '../../../../helpers/message-content.helper';
 import {toBase64} from "../../../../helpers/base64.helper";
 import {TranslateModule} from '@ngx-translate/core';
 import {PinnedMessagesPanelComponent} from '../pinned-messages-panel/pinned-messages-panel.component';
@@ -290,8 +291,15 @@ export class ConversationComponent implements AfterViewInit {
         );
     }
 
-    protected getSnippet(encoded: string): string {
-        return decodeContent(encoded);
+    /**
+     * Search-result snippet.
+     *
+     * Takes the whole message rather than its `content`, so `undecryptable` is in scope. The search
+     * list decodes the same field the bubble does; a body the bubble refuses to render must not
+     * reappear here.
+     */
+    protected getSnippet(msg: MessageDto): string {
+        return readableContent(msg, UNDECRYPTABLE_SHORT);
     }
 
     protected fileIcon(contentType: string): string {

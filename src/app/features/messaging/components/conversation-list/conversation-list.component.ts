@@ -46,6 +46,7 @@ import {ToastService} from '../../../../services/toast.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {PlatformService} from "../../../../services/platform.service";
 import {TranslateModule} from '@ngx-translate/core';
+import {decodeBody, UNDECRYPTABLE_SHORT} from '../../../../helpers/message-content.helper';
 
 const PREVIEW_SIZE = 30;
 
@@ -216,6 +217,11 @@ export class ConversationListComponent {
             ? 'You'
             : (conv.members.find(m => m.userId === msg.authorId)?.cachedUserName ?? 'Unknown');
 
+        // Before anything is decoded, and for encrypted and plaintext alike. The sidebar reads the
+        // same `content` the bubble does, so suppressing an unverified body in the thread and not
+        // here would just move the injected text three inches to the left.
+        if (msg.undecryptable) return {sender, text: UNDECRYPTABLE_SHORT};
+
         if (msg.encryptionState === MessageEncryptionState.Encrypted) {
             // HTTP-loaded messages resolved from MLS cache (async populated).
             const cached = this.decryptedPreviews().get(msg.id);
@@ -232,14 +238,7 @@ export class ConversationListComponent {
             }
         }
 
-        let text: string;
-        try {
-            const bytes = Uint8Array.from(atob(msg.content), c => c.charCodeAt(0));
-            text = new TextDecoder().decode(bytes);
-        } catch {
-            text = msg.content;
-        }
-        text = text.replace(/@([\w\-.]+)#\w+/g, '@$1');
+        const text = decodeBody(msg.content).replace(/@([\w\-.]+)#\w+/g, '@$1');
 
         return {sender, text};
     }

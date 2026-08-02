@@ -61,7 +61,10 @@ function decodeContent(encoded: string): string {
 }
 
 function messageMatchesQuery(msg: MessageDto, q: string): boolean {
-    if (decodeContent(msg.content).toLowerCase().includes(q)) return true;
+    // An unverified body is not searchable. It is not shown, so matching on it would only surface
+    // the message in a result list - and "the search found your word in it" is itself a
+    // disclosure about content this device has refused to vouch for.
+    if (!msg.undecryptable && decodeContent(msg.content).toLowerCase().includes(q)) return true;
     return msg.attachments.some(a => a.fileName.toLowerCase().includes(q));
 }
 

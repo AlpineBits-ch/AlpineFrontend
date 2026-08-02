@@ -1,0 +1,76 @@
+<div class="rounded-xl border border-border-subtle bg-card/60 p-4">
+    <div class="flex items-start gap-2.5">
+        <i class="pi pi-key text-connecting text-[0.875rem] shrink-0 mt-0.5"></i>
+        <div class="min-w-0 flex-1">
+            <p class="m-0 text-[0.875rem] text-text-primary">Restore encryption keys</p>
+            <p class="m-0 mt-0.5 text-xs text-text-muted">
+                Opens a <code>.venta-keys</code> file saved when you last signed out. Restores this
+                device's signing key and which conversations it belongs to.
+            </p>
+        </div>
+    </div>
+
+    <!-- A plain file input rather than the Tauri dialog plugin: the export beside it uses a plain
+         anchor, and this needs no capability the app does not already have. -->
+    <input #fileInput (change)="onFileChosen($event)" accept=".venta-keys,application/octet-stream"
+           class="hidden" type="file"/>
+
+    @if (step() === 'idle') {
+        <div class="mt-3">
+            <p-button (onClick)="choose()" [outlined]="true" icon="pi pi-folder-open"
+                      label="Choose a backup file" severity="secondary" size="small"/>
+        </div>
+    }
+
+    @if (step() === 'passphrase' || step() === 'restoring') {
+        <div class="mt-3 flex flex-col gap-2">
+            <p class="m-0 text-xs text-text-muted">
+                <i class="pi pi-file mr-1 text-[0.6875rem]"></i>{{ fileName() }}
+            </p>
+            <label class="text-xs text-text-secondary" for="restore-passphrase">
+                The account password you entered when this file was saved
+            </label>
+            <input (input)="onPassphraseInput($event)" [disabled]="step() === 'restoring'"
+                   [value]="passphrase()" autocomplete="off" class="w-full" id="restore-passphrase"
+                   pPassword type="password"/>
+            <div class="flex gap-2">
+                <p-button (onClick)="restore()" [disabled]="step() === 'restoring'"
+                          [loading]="step() === 'restoring'" label="Restore" size="small"/>
+                <p-button (onClick)="cancel()" [disabled]="step() === 'restoring'" [text]="true"
+                          label="Cancel" severity="secondary" size="small"/>
+            </div>
+        </div>
+    }
+
+    @if (step() === 'done' && outcome(); as result) {
+        <div class="mt-3 rounded-lg border border-online/30 bg-online/[0.08] px-3 py-2.5">
+            <p class="m-0 text-[0.8125rem] text-text-primary">
+                <i class="pi pi-check-circle mr-1 text-online text-[0.75rem]"></i>Keys restored.
+            </p>
+            @if (result.engineRestored) {
+                <!-- Same device id: the full restore, ratchet state included. -->
+                <p class="m-0 mt-1 text-xs text-text-muted">
+                    This is the same device the backup was taken on, so your conversation history
+                    and group membership came back with it.
+                </p>
+            } @else {
+                <!-- Different device id. §D's second row, and the wording has to be honest about
+                     what is *not* coming back rather than letting the user discover it later. -->
+                <p class="m-0 mt-1 text-xs text-text-muted">
+                    The backup was taken on a different device, so encryption state was not copied
+                    across - doing that would break message delivery for both devices. Your signing
+                    key and your list of encrypted conversations were restored. Each conversation
+                    will ask to re-admit this device, and messages sent before then stay unreadable
+                    here.
+                </p>
+            }
+            <div class="mt-2">
+                <p-button (onClick)="cancel()" [text]="true" label="Done" size="small"/>
+            </div>
+        </div>
+    }
+
+    @if (errorMsg()) {
+        <p class="m-0 mt-2 text-xs text-offline">{{ errorMsg() }}</p>
+    }
+</div>

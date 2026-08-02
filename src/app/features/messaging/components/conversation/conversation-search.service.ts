@@ -17,7 +17,7 @@ export class ConversationSearchService {
         const q = this.searchQuery().trim().toLowerCase();
         if (!q) return [];
         return (this.searchEntry()?.results ?? []).filter(m =>
-            decodeContent(m.content).toLowerCase().includes(q)
+            !m.undecryptable && decodeContent(m.content).toLowerCase().includes(q)
         );
     });
     readonly attResults = computed(() => {

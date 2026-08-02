@@ -9,10 +9,11 @@ import {DeviceIdentityService} from '../../../../../services/device-identity.ser
 import {ToastService} from '../../../../../services/toast.service';
 import {LoginSessionDto} from '../../../../../dtos/response/login-session.dto';
 import {DeviceType} from '../../../../../dtos/response/user-device.dto';
+import {KeyBackupRestoreComponent} from '../../../key-backup-restore/key-backup-restore.component';
 
 @Component({
     selector: 'app-devices-settings',
-    imports: [Button, Dialog, Tooltip, TranslateModule],
+    imports: [Button, Dialog, Tooltip, TranslateModule, KeyBackupRestoreComponent],
     templateUrl: './devices-settings.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })

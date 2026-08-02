@@ -105,6 +105,18 @@
         }
     </section>
 
+    <!-- The other half of the logout export. Sits here rather than in the logout dialog because
+         restoring is something you do *after* signing in on a rebuilt machine, which is exactly
+         when this page is reachable and that one is not. -->
+    <section class="flex flex-col gap-4">
+        <div class="border-b border-border pb-3">
+            <h3 class="text-xs font-semibold text-text-muted uppercase tracking-widest">
+                Encryption keys
+            </h3>
+        </div>
+        <app-key-backup-restore/>
+    </section>
+
 </div>
 
 <!-- Revoke confirm -->

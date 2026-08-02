@@ -239,6 +239,73 @@ function isCommandNotFound(err: unknown, command: string): boolean {
     return text.includes(command) && /not\s+found|unknown command|not\s+allowed/i.test(text);
 }
 
+/**
+ * Why a §D backup could not be restored.
+ *
+ * <p>Separated because the remedies are disjoint and mutually useless. "Wrong passphrase" sends
+ * someone to look for a password; "wrong account" sends them to switch account; "not a backup
+ * file" sends them to find a different file. Collapsing them - which is what a single
+ * `catch { 'Restore failed' }` does - is the same mistake as C2, where an argument rejection was
+ * rendered as a credential rejection and told a user to doubt a correct recovery code.</p>
+ */
+export type MlsBackupImportFailure =
+    /** The file is not a §D envelope at all, or is truncated. */
+    | 'not-a-backup'
+    /** A §D envelope, but written by a build whose format this one does not read. */
+    | 'unsupported-version'
+    /**
+     * The AEAD refused to open it.
+     *
+     * <p>Genuinely ambiguous, and must be reported as such: AES-GCM cannot distinguish a wrong key
+     * from altered bytes, so this is *either* a wrong passphrase *or* a corrupted file.</p>
+     */
+    | 'wrong-passphrase-or-altered'
+    /** The blob belongs to a different account than the one signed in. Refused, never merged. */
+    | 'wrong-account'
+    /** The header does not describe the contents - a re-labelled envelope. */
+    | 'header-mismatch'
+    /** The declared Argon2 parameters are above what this build will attempt (§L.9). */
+    | 'hostile-kdf-parameters'
+    /** The envelope opened but its contents are unusable. */
+    | 'malformed-contents'
+    /** The restore succeeded but the local stores could not be written. */
+    | 'local-store-failed'
+    /** Anything unrecognised. Never reported as a passphrase problem. */
+    | 'engine-failed';
+
+export class MlsBackupImportError extends Error {
+    constructor(readonly reason: MlsBackupImportFailure, readonly detail: string) {
+        super(detail);
+    }
+}
+
+/**
+ * Maps an engine rejection onto a remedy the user can act on.
+ *
+ * <p>An allow-list keyed on the engine's own wording, and it falls through to `engine-failed`
+ * rather than to `wrong-passphrase-or-altered`. That direction is deliberate: telling someone their
+ * passphrase is wrong when it is not is the failure this whole classification exists to prevent,
+ * and an unrecognised error is by definition not evidence about their passphrase.</p>
+ */
+function classifyBackupImport(err: unknown): MlsBackupImportError {
+    const detail = typeof err === 'string' ? err : err instanceof Error ? err.message : String(err);
+
+    const reason: MlsBackupImportFailure =
+        detail.includes('not a backup file') ? 'not-a-backup'
+            : detail.includes('is not supported by this build')
+            || detail.includes('unsupported backup cipher') ? 'unsupported-version'
+                : detail.includes('refusing declared Argon2 parameters') ? 'hostile-kdf-parameters'
+                    : detail.includes('different account') ? 'wrong-account'
+                        : detail.includes('header does not match') ? 'header-mismatch'
+                            : detail.includes('wrong passphrase') ? 'wrong-passphrase-or-altered'
+                                : detail.includes('backup has no')
+                                || detail.includes('is unreadable')
+                                || detail.includes('nonce is not 12 bytes') ? 'malformed-contents'
+                                    : 'engine-failed';
+
+    return new MlsBackupImportError(reason, detail);
+}
+
 /** One sealed entry in the plaintext message cache. */
 interface CachedMessage {
     v: 1;
@@ -1030,45 +1097,71 @@ export class MlsService {
     /**
      * Opens a backup envelope and applies it, then restores the registry and message cache locally.
      *
-     * The engine is restored only when the blob was taken on *this* device id - see the Rust side
-     * for why cloning ratchet state onto a second live device is unsafe. On a new device the
-     * caller must re-register, replenish key packages, and get itself re-admitted.
+     * <p>The engine is restored only when the blob was taken on *this* device id - the discriminator
+     * is the device id alone, enforced in Rust, and this side deliberately adds no second opinion
+     * about it. On a new device the caller must re-register, replenish key packages, and get itself
+     * re-admitted; §D allows the signing key, the registry and the cache across, and nothing
+     * more.</p>
+     *
+     * <p><b>Ordered so a failure cannot half-apply.</b> Rust does every check and every decryption
+     * before it mutates anything, and this method writes local stores only after it returns - with
+     * the signing keypair first, because that is the one piece whose absence is unrecoverable and
+     * the one piece the command used to drop.</p>
+     *
+     * @throws MlsBackupImportError with a `reason` the UI can render distinctly.
      */
     async importBackup(blob: string, passphrase: string, expectedUserId: string): Promise<MlsBackupImportResult> {
         const currentDeviceId = await this.deviceIdentity.deviceId();
 
-        const result = await this.callOptional<MlsBackupImportResult>('mls_import_backup', {
-            blob,
-            passphrase,
-            expectedUserId,
-            currentDeviceId,
-        }, () => { throw new MlsFeatureUnavailableError('mls_import_backup'); });
-
-        // Without the registry every context reads as unencrypted, whatever the engine holds.
-        for (const [key, value] of Object.entries(result.groupRegistry)) {
-            await this._groupRegistry.set(key, value);
+        let result: MlsBackupImportResult;
+        try {
+            result = await this.callOptional<MlsBackupImportResult>('mls_import_backup', {
+                blob,
+                passphrase,
+                expectedUserId,
+                currentDeviceId,
+            }, () => { throw new MlsFeatureUnavailableError('mls_import_backup'); });
+        } catch (err) {
+            if (err instanceof MlsFeatureUnavailableError) throw err;
+            throw classifyBackupImport(err);
         }
-        await this._groupRegistry.save();
 
-        // Written back under whatever key the export carried. A backup taken before the composite
-        // key existed holds bare ids, and those stay bare rather than being guessed into a context
-        // they may not belong to - the draining fallback in `getCachedMessage` picks them up the
-        // first time a caller does know the context, which is the only moment that is knowable.
-        for (const [key, plaintextB64] of Object.entries(result.messageCache)) {
-            await this.writeSealedCacheEntry(key, plaintextB64);
+        try {
+            // First, and into the keychain rather than only into this session. `autoUnlock` reads
+            // the pair from `alpine_mls_{deviceId}_*` on every cold start, so an import that set
+            // only the session handle restored a device that worked until the app was next killed
+            // and then looked exactly like lost keys - which is the one failure mode a restore
+            // exists to end. It is also the only step here whose loss cannot be repaired by
+            // running the import again.
+            await firstValueFrom(this.persistSigningKey(currentDeviceId, {
+                signingPublicKey: result.signingPublicKey,
+                signingPrivateKey: result.signingPrivateKey,
+                keyPackages: [],
+                keyHandle: result.keyHandle,
+            }, result.identity));
+
+            // Without the registry every context reads as unencrypted, whatever the engine holds.
+            for (const [key, value] of Object.entries(result.groupRegistry)) {
+                await this._groupRegistry.set(key, value);
+            }
+            await this._groupRegistry.save();
+
+            // Written back under whatever key the export carried. A backup taken before the
+            // composite key existed holds bare ids, and those stay bare rather than being guessed
+            // into a context they may not belong to - the draining fallback in `getCachedMessage`
+            // picks them up the first time a caller does know the context, which is the only
+            // moment that is knowable.
+            for (const [key, plaintextB64] of Object.entries(result.messageCache)) {
+                await this.writeSealedCacheEntry(key, plaintextB64);
+            }
+            await this._messageCache.save();
+        } catch (err) {
+            throw new MlsBackupImportError(
+                'local-store-failed',
+                `The backup opened, but this device could not save what it restored: `
+                + `${err instanceof Error ? err.message : String(err)}`,
+            );
         }
-        await this._messageCache.save();
-
-        // Into the keychain, not just into this session. `autoUnlock` reads the pair from
-        // `alpine_mls_{deviceId}_*` on every cold start, so an import that set only the session
-        // handle would restore a device that worked until the app was next killed and then looked
-        // exactly like lost keys - which is the one failure mode a restore exists to end.
-        await firstValueFrom(this.persistSigningKey(currentDeviceId, {
-            signingPublicKey: result.signingPublicKey,
-            signingPrivateKey: result.signingPrivateKey,
-            keyPackages: [],
-            keyHandle: result.keyHandle,
-        }, result.identity));
 
         this.keyHandle.set(result.keyHandle);
         return result;

@@ -38,6 +38,7 @@ import {MlsService} from '../../../../services/mls.service';
 import {MlsSyncService} from '../../../../services/mls-sync.service';
 import {ChannelAccessBannerComponent} from './channel-access-banner.component';
 import {MlsUnreadableBannerComponent} from '../../../../components/mls-unreadable-banner/mls-unreadable-banner.component';
+import {readableContent, UNDECRYPTABLE_SHORT} from '../../../../helpers/message-content.helper';
 import {toBase64} from '../../../../helpers/base64.helper';
 
 import {Button} from 'primeng/button';
@@ -167,7 +168,7 @@ export class ChannelComponent implements AfterViewInit {
         const q = this.searchQuery().trim().toLowerCase();
         if (!q) return [];
         return (this.searchEntry()?.results ?? []).filter(m =>
-            decodeContent(m.content).toLowerCase().includes(q)
+            !m.undecryptable && decodeContent(m.content).toLowerCase().includes(q)
         );
     });
     protected attResults = computed(() => {
@@ -701,8 +702,9 @@ export class ChannelComponent implements AfterViewInit {
         this.replyingTo.set(null);
     }
 
-    protected getSnippet(encoded: string): string {
-        return decodeContent(encoded);
+    /** Search-result snippet. Whole message, so `undecryptable` is in scope - see the DM twin. */
+    protected getSnippet(msg: MessageDto): string {
+        return readableContent(msg, UNDECRYPTABLE_SHORT);
     }
 
     protected getAuthorName(authorId: string): string {

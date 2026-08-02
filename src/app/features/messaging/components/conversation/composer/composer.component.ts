@@ -38,6 +38,7 @@ import {userNameStyle} from '../../../../../models/profile-font.model';
 import {BotCommandService} from '../../../../../services/bot-command.service';
 import {GuildWebsocketService} from '../../../../../services/guild-websocket.service';
 import {BotCommandDialogService} from '../../../../../features/bot-command/bot-command-dialog.service';
+import {readableContent, UNDECRYPTABLE_SHORT} from '../../../../../helpers/message-content.helper';
 
 const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/';
 
@@ -74,16 +75,10 @@ export class ComposerComponent {
     // ── Inputs / Outputs ─────────────────────────────────────────────────────
     commandAction = output<{ name: string; payload?: unknown }>();
     typing = output<void>();
-    replySnippet = computed(() => {
-        const msg = this.replyTo();
-        if (!msg) return '';
-        try {
-            const bytes = Uint8Array.from(atob(msg.content), c => c.charCodeAt(0));
-            return new TextDecoder().decode(bytes).slice(0, 60);
-        } catch {
-            return '';
-        }
-    });
+    // Replying to a message does not make its body trustworthy: the chip above the composer
+    // renders the same `content` the bubble refuses to.
+    replySnippet = computed(() =>
+        readableContent(this.replyTo(), UNDECRYPTABLE_SHORT).slice(0, 60));
     editorRef = viewChild.required<ElementRef<HTMLDivElement>>('editor');
     fileInputRef = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
     gifPickerRef = viewChild(GifPickerButtonComponent);

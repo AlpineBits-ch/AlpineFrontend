@@ -1,6 +1,9 @@
 import {inject, Injectable} from '@angular/core';
 import {RealtimeConnectionService} from "./realtime-connection.service";
 import {MessagePinnedEvent, MessageUnpinnedEvent, ReactionEvent} from "./messaging-websocket.service";
+import {MlsService} from './mls.service';
+import {MlsHealthService} from './mls-health.service';
+import {decodeBody} from '../helpers/message-content.helper';
 import {NotificationService, NotificationSound} from "./notification.service";
 import {catchError, firstValueFrom, of, Subject, timeout} from "rxjs";
 import {MessageDto} from "../dtos/response/message.dto";
@@ -409,6 +412,8 @@ export class GuildWebsocketService {
     private realtime = inject(RealtimeConnectionService);
     private notificationService = inject(NotificationService);
     private profileService = inject(ProfileService);
+    private mlsService = inject(MlsService);
+    private mlsHealth = inject(MlsHealthService);
     private listenersSetUp = false;
     // See MessagingWebsocketService.notifiedMessageIds -guards against SignalR
     // redelivering 'guild.MessageCreated' after a reconnect and double-firing the sound.
@@ -538,19 +543,35 @@ export class GuildWebsocketService {
         this.realtime.on('guild.MessageCreated', async (data: GuildMessageCreatedPayload) => {
             // Not logged. The payload carries `content`, so this printed every message body in a
             // plaintext channel to a console that ships in release builds.
-            const message = mapGuildMessageCreatedPayload(data);
+            let message = mapGuildMessageCreatedPayload(data);
+
+            // <b>This path hardcodes `encryptionState: Plain` and never decrypts.</b> It goes
+            // straight into the store, so a channel this device has encrypted would have the
+            // server's own bytes rendered under a real member's name here regardless of what the
+            // conversation path refuses - §L.9's "server-supplied encryption state must not be
+            // able to downgrade a context" applied to the other socket. Marked unverified rather
+            // than decrypted: wiring the decryptor into this path is a larger change, and refusing
+            // to render is the safe half of it.
+            const contextId = data.channelId ?? data.conversationId;
+            if (contextId && await this.mlsService.getEncryptionFloor(contextId) !== null) {
+                this.mlsHealth.recordFailure(
+                    contextId, !!data.channelId, 'downgraded',
+                    `message ${data.messageId} arrived on the guild socket as cleartext in a `
+                    + `context this device has encrypted`);
+                message = {...message, undecryptable: true};
+            }
+
             this.messageObservable.next(message);
 
             const ownId = this.profileService.ownProfile()?.userId;
             const mentions = data.mentions ?? [];
             if (ownId && mentions.includes(ownId) && this.markNotified(data.messageId)) {
-                let body: string;
-                try {
-                    const bytes = Uint8Array.from(atob(data.content), c => c.charCodeAt(0));
-                    body = new TextDecoder().decode(bytes);
-                } catch {
-                    body = data.content;
-                }
+                // Empty rather than decoded when the mapped message came back unverified. A
+                // notification body escapes the app entirely - into the OS notification centre,
+                // where it persists and is not governed by anything in the UI - so it is the last
+                // place an unauthenticated body should be allowed to surface. The DM path already
+                // blanks it; this one did not.
+                const body = message.undecryptable ? '' : decodeBody(data.content);
                 const sender = await firstValueFrom(
                     this.profileService.getByUserId(data.authorId).pipe(
                         timeout(5_000),

@@ -7,15 +7,7 @@ import {MessagingWebsocketService} from '../../../../services/messaging-websocke
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {ToastService} from '../../../../services/toast.service';
 import {MessageStore} from '../../../../stores/message.store';
-
-function decodeContent(encoded: string): string {
-    try {
-        const bytes = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
-        return new TextDecoder().decode(bytes);
-    } catch {
-        return '';
-    }
-}
+import {readableContent, UNDECRYPTABLE_SHORT} from '../../../../helpers/message-content.helper';
 
 @Component({
     selector: 'app-pinned-messages-panel',
@@ -84,8 +76,9 @@ export class PinnedMessagesPanelComponent {
     }
 
     snippet(msg: MessageDto): string {
+        // The stored copy first, because it is the one the read paths have already judged - the
+        // pinned list is fetched separately and its `undecryptable` has never been evaluated.
         const stored = this.messageStore.entityMap()[msg.id];
-        const content = stored?.content ?? msg.content;
-        return decodeContent(content).slice(0, 120);
+        return readableContent(stored ?? msg, UNDECRYPTABLE_SHORT).slice(0, 120);
     }
 }

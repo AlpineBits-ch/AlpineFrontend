@@ -47,15 +47,10 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {UserNameStyleDirective} from '../../../../../directives/user-name-style.directive';
 import {EmojiSelection} from './reaction-picker/reaction-picker.component';
 import {ToastService} from '../../../../../services/toast.service';
-
-/**
- * Shown in place of any body this device could not authenticate.
- *
- * Deliberately not the raw bytes. Rendering them showed base64 for a failed decrypt - which is how
- * an unreadable conversation looked like a working one - and, for a message the server merely
- * labelled `Plain`, showed the injected text itself under a real member's name.
- */
-const UNDECRYPTABLE_PLACEHOLDER = '[This message could not be verified on this device]';
+import {
+    UNDECRYPTABLE_PLACEHOLDER,
+    UNDECRYPTABLE_SHORT,
+} from '../../../../../helpers/message-content.helper';
 
 @Component({
     selector: 'app-message',
@@ -303,7 +298,7 @@ export class MessageComponent {
     protected readonly replySnippet = computed(() => {
         const msg = this.replyMessage();
         if (!msg) return '';
-        if (msg.undecryptable) return UNDECRYPTABLE_PLACEHOLDER;
+        if (msg.undecryptable) return UNDECRYPTABLE_SHORT;
         try {
             const bytes = Uint8Array.from(atob(msg.content), c => c.charCodeAt(0));
             return new TextDecoder().decode(bytes).slice(0, 80);
