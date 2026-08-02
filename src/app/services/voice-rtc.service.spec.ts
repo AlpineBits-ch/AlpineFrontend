@@ -96,6 +96,37 @@ async function drainRetries(): Promise<void> {
     }
 }
 
+/**
+ * The backend backfills the room from inside its `cf/tracks/new` handler, awaiting the SignalR
+ * sends *before* returning the HTTP 200 that the Rust `voice_start` is still waiting on. So an
+ * announcement for someone already in the channel always arrives before `voiceSession` is set - and
+ * `VoiceStateResponse` deliberately carries no `cfSessionId`, so that announcement is the only one
+ * there will ever be. Dropping it made everyone already present permanently inaudible.
+ */
+it('waits for the session rather than dropping an announcement that beat it', async () => {
+    (service as unknown as {voiceSession: unknown}).voiceSession = null;
+
+    const done = service.subscribeAudio([target()]);
+    // The session lands while the first backoff is still sleeping, exactly as it does when the
+    // `voice_start` invoke finally resolves.
+    await vi.advanceTimersByTimeAsync(SUBSCRIBE_RETRY_DELAYS_MS[0]);
+    (service as unknown as {voiceSession: typeof SESSION}).voiceSession = SESSION;
+    await drainRetries();
+    await done;
+
+    expect(engine.subscribe).toHaveBeenCalledWith(SESSION, 'user_a', 'sess_1', 'audio');
+});
+
+it('gives up on an announcement when no session ever arrives', async () => {
+    (service as unknown as {voiceSession: unknown}).voiceSession = null;
+
+    const done = service.subscribeAudio([target()]);
+    await drainRetries();
+    await done;
+
+    expect(engine.subscribe).not.toHaveBeenCalled();
+});
+
 it('retries a subscribe that fails while the publisher is still connecting', async () => {
     // Fails twice, as it does when the peer's DTLS handshake outlasts the backend's own retries,
     // then succeeds once they are sending.

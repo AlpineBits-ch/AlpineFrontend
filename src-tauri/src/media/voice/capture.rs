@@ -90,6 +90,15 @@ pub fn open(device_id: Option<&str>) -> Result<(InputStream, RingReader, u32), S
     let sample_rate = supported.sample_rate().0;
     let channels = supported.channels() as usize;
 
+    // Which device was actually opened, not which one was asked for. The two differ whenever the
+    // stored name no longer matches anything - the fallback above is silent, so a microphone that
+    // was renamed or unplugged presents as a working capture of the wrong input.
+    eprintln!(
+        "[voice] capture device: {:?} (requested {:?}) - {sample_rate} Hz, {channels} ch",
+        device.name().unwrap_or_else(|_| "<unnamed>".into()),
+        device_id.unwrap_or("default"),
+    );
+
     let config = cpal::StreamConfig {
         channels: supported.channels(),
         sample_rate: supported.sample_rate(),

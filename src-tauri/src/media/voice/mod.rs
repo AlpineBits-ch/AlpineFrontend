@@ -369,6 +369,8 @@ pub struct PublicationReport {
     pub subscribed: Vec<String>,
     /// `mid -> source id`, the routing table inbound RTP is matched against.
     pub mid_routes: Vec<(String, String)>,
+    /// The `candidate:` lines this side offered.
+    pub local_candidates: Vec<String>,
 }
 
 /// One remote participant as the mixer currently sees them.
@@ -478,6 +480,11 @@ pub fn voice_stats() -> VoiceStats {
                 rtp_unmapped: counters.rtp_unmapped.load(Ordering::Relaxed),
                 subscribed: publication.subscribed_ids(),
                 mid_routes: publication.mid_routes(),
+                local_candidates: counters
+                    .local_candidates
+                    .lock()
+                    .map(|c| c.clone())
+                    .unwrap_or_default(),
             }
         })
         .collect();

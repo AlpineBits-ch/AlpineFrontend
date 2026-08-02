@@ -355,13 +355,35 @@ export class VoiceRTCService {
         if (this.voiceSession) await this.voiceEngine.unsubscribe(this.voiceSession, id);
     }
 
+    /**
+     * Wait for this channel's publication to exist, rather than dropping a subscribe that arrived
+     * before it.
+     *
+     * The backend backfills the room the moment `join` returns, and `join` is awaited *before*
+     * `connect` - so every participant already in the channel is announced while `voiceSession` is
+     * still null. An announcement is never repeated, so dropping one made that participant
+     * permanently inaudible for the session. Bounded by the same schedule a subscribe retries on,
+     * because a connect that has not produced a session in that long is not going to.
+     */
+    private async awaitSession(): Promise<VoiceSession | null> {
+        if (this.voiceSession) return this.voiceSession;
+        for (const delay of SUBSCRIBE_RETRY_DELAYS_MS) {
+            await new Promise(r => setTimeout(r, delay));
+            if (this.voiceSession) return this.voiceSession;
+        }
+        return this.voiceSession;
+    }
+
     private async subscribeOne(
         target: { userId: string; cfSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' },
     ): Promise<void> {
         // Captured once: the channel can be left mid-retry, and the loop below must not resubscribe
         // onto a publication that has since been replaced by a different channel's.
-        const session = this.voiceSession;
-        if (!session) return;
+        const session = await this.awaitSession();
+        if (!session) {
+            console.error('[voice] dropped a subscribe - no session after waiting', target);
+            return;
+        }
 
         // Voice keys on the user; a stream's audio keys on its track name, so muting a stream
         // does not mute the voice of whoever is streaming.

@@ -101,6 +101,14 @@ pub struct PublicationStats {
     /// Latest peer-connection and ICE states, as webrtc-rs reports them.
     pub peer_state: std::sync::Mutex<String>,
     pub ice_state: std::sync::Mutex<String>,
+    /// The `a=candidate:` lines this side offered.
+    ///
+    /// The one thing that distinguishes the two ways ICE fails here. This connection is configured
+    /// with no STUN or TURN servers on the argument that Cloudflare's SFU is publicly routable and
+    /// will answer to whatever source address it sees - which holds only if our checks reach it at
+    /// all. Host-only candidates and a failed connection means that argument did not hold on this
+    /// network; candidates present and still failing means something is dropping the traffic.
+    pub local_candidates: std::sync::Mutex<Vec<String>>,
 }
 
 impl PublicationStats {
@@ -328,6 +336,22 @@ impl VoicePublication {
             .local_description()
             .await
             .ok_or_else(|| "no local description after gathering".to_string())?;
+
+        // Recorded before the offer goes out, so a connection that later fails can be told apart
+        // from one that never had anywhere to connect from.
+        let candidates: Vec<String> = local
+            .sdp
+            .lines()
+            .filter(|line| line.starts_with("a=candidate:"))
+            .map(|line| line.trim_start_matches("a=").to_owned())
+            .collect();
+        eprintln!("[voice] offering {} local candidate(s)", candidates.len());
+        for candidate in &candidates {
+            eprintln!("[voice]   {candidate}");
+        }
+        if let Ok(mut guard) = stats.local_candidates.lock() {
+            *guard = candidates;
+        }
 
         let cf_session_id = signalling.create_session().await?;
 

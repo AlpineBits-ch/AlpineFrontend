@@ -138,6 +138,12 @@ export function registerDebugHelpers(appRef: ApplicationRef): void {
       midRoutes: p.midRoutes.map(([mid, id]) => `${mid}→${id}`).join(' '),
     })));
 
+    for (const p of after.publications) {
+      if (p.peerState === 'failed' || p.iceState === 'failed') {
+        console.warn(`[debug] ${p.slot} offered these candidates:`, p.localCandidates);
+      }
+    }
+
     if (after.sources.length) console.table(after.sources);
     else console.warn('[debug] no remote sources in the mix - nobody is subscribed');
 
@@ -153,6 +159,17 @@ export function registerDebugHelpers(appRef: ApplicationRef): void {
       out.push('packets are encoded but no publication is accepting them');
     } else if (after.publications.some(p => p.peerState !== 'connected')) {
       out.push('packets are being written to a connection that is not connected');
+    }
+
+    // Checked before anything else on both sides: with no transport, every counter downstream
+    // reads zero for a reason that has nothing to do with the stage it is measuring.
+    if (after.publications.some(p => p.peerState === 'failed' || p.iceState === 'failed')) {
+      console.log(
+        '%c[debug] the peer connection failed - no media can flow in either direction, and every\n' +
+        '        other counter below is a consequence of that rather than a separate fault',
+        'color: red',
+      );
+      return;
     }
 
     const inbound: string[] = [];

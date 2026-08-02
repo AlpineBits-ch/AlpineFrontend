@@ -78,6 +78,7 @@ export interface PublicationStats {
     rtpUnmapped: number;
     subscribed: string[];
     midRoutes: [string, string][];
+    localCandidates: string[];
 }
 
 /** One remote participant as the mixer sees them. Mirrors the Rust `SourceReport`. */
