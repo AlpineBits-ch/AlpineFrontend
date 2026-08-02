@@ -540,6 +540,7 @@ fn main() -> Result<()> {
     let mut builder = bindgen::Builder::default()
         .header("src/wrapper.hpp")
         .clang_args(&["-x", "c++", "-std=c++17", "-fparse-all-comments"])
+        .clang_args(msvc_bindgen_clang_args())
         .generate_comments(true)
         .enable_cxx_namespaces();
 
@@ -605,6 +606,66 @@ fn apply_msvc_env(cmd: &mut Command) {
 
 #[cfg(not(windows))]
 fn apply_msvc_env(_cmd: &mut Command) {}
+
+/// ALPINE PATCH: tell bindgen which C++ ABI to mangle for, and where the MSVC headers are.
+///
+/// bindgen mangles `link_name`s according to the target libclang parses with, and it will not fill
+/// that target in itself: `find_effective_target` sees `TARGET` equal to bindgen's own host triple,
+/// concludes this is a host build, and deliberately omits the flag. libclang then falls back to its
+/// own default. The only libclang on a typical Windows box here is MSYS2's clang64 build - dragged
+/// onto PATH by the very `ninja` and `nm` this build script needs - and it defaults to
+/// `x86_64-w64-windows-gnu`. So bindgen emitted Itanium names
+/// (`_ZN31webrtc_audio_processing_wrapper20process_render_frameE...`) while `cc` compiled
+/// wrapper.cpp with `cl` into MSVC ones
+/// (`?process_render_frame@webrtc_audio_processing_wrapper@@YAH...`), and every wrapper function
+/// came out unresolved at link time.
+///
+/// That failure reads exactly like the symbol-prefix mismatch handled further up - same count, same
+/// wall of mangled names - which is what made it expensive to find. It is a different bug: the
+/// prefixing is correct, the two halves simply never agreed on how to spell a C++ name.
+///
+/// Naming the target is only half of it. clang then needs the MSVC headers and does not locate them
+/// unaided (`fatal error: 'string' file not found`), so hand it the include path `cc`'s registry
+/// lookup already knows, rather than expecting every build to start from a developer prompt.
+#[cfg(windows)]
+fn msvc_bindgen_clang_args() -> Vec<String> {
+    let target = env::var("TARGET").unwrap_or_default();
+    if !target.ends_with("-msvc") {
+        return Vec::new();
+    }
+
+    let mut args = vec![format!("--target={target}")];
+
+    // Prefer the registry lookup over the ambient INCLUDE so the two halves of the build agree on
+    // one set of headers: `cc` compiles wrapper.cpp against exactly these.
+    let include = cc::windows_registry::find_tool(&target, "cl.exe")
+        .and_then(|tool| {
+            tool.env()
+                .iter()
+                .find(|(key, _)| key.to_string_lossy().eq_ignore_ascii_case("INCLUDE"))
+                .map(|(_, value)| value.clone())
+        })
+        .or_else(|| env::var_os("INCLUDE"));
+
+    match include {
+        Some(include) => args.extend(
+            env::split_paths(&include).map(|dir| format!("-I{}", dir.display())),
+        ),
+        // Not fatal on its own: inside a developer prompt clang still has what it needs. Worth
+        // saying out loud, because the alternative is a "'string' file not found" with no hint
+        // that the header search path was supposed to come from here.
+        None => println!(
+            "cargo:warning=No MSVC INCLUDE path found for {target}; bindgen may fail to find the C++ standard headers."
+        ),
+    }
+
+    args
+}
+
+#[cfg(not(windows))]
+fn msvc_bindgen_clang_args() -> Vec<String> {
+    Vec::new()
+}
 
 /// ALPINE PATCH: resolve `nm` from the active Rust toolchain instead of PATH.
 ///
