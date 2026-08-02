@@ -74,7 +74,7 @@ export class ChannelEncryptionComponent {
             return;
         }
         try {
-            this.joinRequests.set(await firstValueFrom(this.joinRequestService.list(this.channel().id)));
+            this.joinRequests.set(await firstValueFrom(this.joinRequestService.list(this.channel().id, true)));
         } catch {
             // A failed queue read must not blank out the toggle above it.
             this.joinRequests.set([]);
@@ -99,7 +99,7 @@ export class ChannelEncryptionComponent {
         this.verificationError.set(null);
 
         try {
-            await this.joinRequestService.approve(this.channel().id, request);
+            await this.joinRequestService.approve(this.channel().id, true, request);
             await this.refreshJoinRequests();
         } catch (err) {
             if (err instanceof JoinRequestVerificationError) {
@@ -118,7 +118,7 @@ export class ChannelEncryptionComponent {
         if (this.actingOn()) return;
         this.actingOn.set(request.id);
         try {
-            await firstValueFrom(this.joinRequestService.deny(this.channel().id, request.id));
+            await firstValueFrom(this.joinRequestService.deny(this.channel().id, true, request.id));
             await this.refreshJoinRequests();
         } catch {
             this.error.set('CHANNEL_SETTINGS.ENCRYPTION.DENY_FAILED');

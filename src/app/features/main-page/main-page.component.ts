@@ -56,6 +56,7 @@ import {GuildFeature, guildHasFeature} from '../guild/guild-features';
 import {EmailVerificationService} from '../../services/email-verification.service';
 import {AppReadyService} from '../../services/app-ready.service';
 import {GuildService} from '../../services/guild.service';
+import {runMlsLaunch} from './mls-launch';
 
 @Component({
     selector: 'app-main-page',
@@ -122,6 +123,14 @@ export class MainPageComponent implements OnDestroy {
      * registered" - see {@link initLaunchSequence} for why conflating them is unrecoverable.
      */
     protected keyUnlockFailed = signal(false);
+    /**
+     * The server holds no fresh key packages for this device, because uploading them failed.
+     *
+     * <p>Its own state, and surfaced: while it is true this device is reported as unreachable to
+     * everyone who tries to add it, so it is silently left out of every conversation created from
+     * now on - the exact shape of "readable on my phone, not on my desktop".</p>
+     */
+    protected keyPackagesFailed = signal(false);
     /** Serialized permission string for the events panel -re-fetched whenever it's opened for a guild, mirroring the ownMember-fetch pattern used by every other permission-gated guild panel. */
     protected eventsMemberPermissions = signal('');
     @ViewChild(QuickSettingsComponent) private quickSettings!: QuickSettingsComponent;
@@ -291,33 +300,40 @@ export class MainPageComponent implements OnDestroy {
             console.error('MLS state corrupted -wiping and starting fresh:', storageErr);
             await this.wipeLocalMlsState(deviceId);
         }
+
+        const outcome = await runMlsLaunch({
+            unlock: () => firstValueFrom(this.mlsService.autoUnlock(deviceId)),
+            replenish: () => firstValueFrom(this.userService.replenishKeyCount()),
+            checkMasterKey: () => this.checkMasterKey(),
+            processWelcomes: () => this.mlsSync.processPendingWelcomes(),
+        });
+
+        if (outcome.handle) this.keyHandle.set(outcome.handle);
+        // Genuinely no key stored: registering is the right move. Anything else is not evidence
+        // that this device is unregistered, and registering would mint a fresh keypair over live
+        // group state - see MlsLaunchOutcome.
+        this.showDeviceRegistration.set(outcome.needsRegistration);
+        this.keyUnlockFailed.set(outcome.keyStoreUnreachable);
+        this.keyPackagesFailed.set(outcome.keyPackagesFailed);
+
+        this.appReady.markReady();
+    }
+
+    /**
+     * Retries just the key-package upload, from the strip that reports it failed.
+     *
+     * <p>Its own action because the consequence is specific and is not "the launch failed": a
+     * device with no key package left is reported to everyone else as unreachable, so it is quietly
+     * left out of every conversation created from that point on - readable by every other device on
+     * the account and not by this one.</p>
+     */
+    protected async replenishKeyPackages(): Promise<void> {
+        this.keyPackagesFailed.set(false);
         try {
-            const handle = await firstValueFrom(this.mlsService.autoUnlock(deviceId));
             await firstValueFrom(this.userService.replenishKeyCount());
-            this.keyHandle.set(handle);
-            this.checkMasterKey();
-
-            // Join anything we were invited to while away, and replay every commit missed since.
-            // Failures here are deliberately not fatal to launch: an unreadable conversation is bad,
-            // a client that will not start is worse.
-            this.mlsSync.processPendingWelcomes()
-                .catch(err => console.error('Failed to process pending Welcomes at launch', err));
-
-        } catch (err: any) {
-            if (err?.kind === 'KeyNotFound') {
-                // Genuinely no key stored: registering is the right move.
-                this.showDeviceRegistration.set(true);
-            } else {
-                // Anything else - a locked keychain, a credential service that has not started, a
-                // transient DBus failure - is *not* evidence that this device is unregistered.
-                // Sending it to the registration modal mints a fresh Ed25519 keypair over live
-                // group state, which orphans the device from every group it belongs to and cannot
-                // be undone. Waiting and retrying can.
-                this.keyUnlockFailed.set(true);
-                console.error('Could not reach the key store; not re-registering:', err);
-            }
-        } finally {
-            this.appReady.markReady();
+        } catch (err) {
+            this.keyPackagesFailed.set(true);
+            console.error('Could not replenish the MLS key packages for this device', err);
         }
     }
 

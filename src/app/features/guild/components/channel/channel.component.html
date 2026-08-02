@@ -276,7 +276,8 @@
         <!-- Says why this device cannot read or send here - including a server that reports the
              channel as unencrypted after this device has encrypted messages in it, which the
              composer refuses outright rather than downgrading. -->
-        <app-mls-unreadable-banner (relink)="relinkDevice()" [contextId]="channel().id"/>
+        <app-mls-unreadable-banner (relink)="relinkDevice()" [contextId]="channel().id"
+                                   [status]="relinkStatus()"/>
         @if (autoModError(); as reason) {
             <div class="mx-4 mb-2 flex items-center gap-2 rounded-md border border-offline/40
                         bg-[color-mix(in_srgb,var(--color-offline)_12%,transparent)] px-3 py-2">

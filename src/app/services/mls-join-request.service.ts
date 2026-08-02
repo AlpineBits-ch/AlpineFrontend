@@ -1,11 +1,11 @@
 import {inject, Injectable} from '@angular/core';
-import {HttpClient} from '@angular/common/http';
+import {HttpClient, HttpErrorResponse} from '@angular/common/http';
 import {firstValueFrom, Observable} from 'rxjs';
 import {ApiConfigService} from './api-config.service';
 import {MlsService} from './mls.service';
 import {MlsSyncService} from './mls-sync.service';
+import {MlsHealthService} from './mls-health.service';
 import {DeviceIdentityService} from './device-identity.service';
-import {UserService} from './user.service';
 import {Base64} from '../dtos/mls.dto';
 
 export interface MlsJoinRequestDto {
@@ -25,6 +25,8 @@ export interface MlsJoinRequestDto {
     expiresAt: string;
     requiredApprovals: number;
     approverUserIds: string[];
+    /** The server's published verdict on whether a human has to tap approve (§J.1). */
+    requiresManualApproval?: boolean;
 }
 
 export interface MlsJoinRequestApprovalResultDto {
@@ -43,11 +45,90 @@ export class JoinRequestVerificationError extends Error {
 }
 
 /**
+ * What "Re-link device" was actually able to do.
+ *
+ * <p>The two states that used to be one are `recovered` and `requested`. Catching up on missed
+ * commits and acquiring a leaf that was never in the group are different faults with disjoint
+ * remedies, and only the first is something this device can do by itself.</p>
+ */
+export type MlsRelinkOutcome =
+    /** This device holds a group for the context again - it was simply behind, or a Welcome landed. */
+    | {state: 'recovered'}
+    /** Nothing to join: the context is not encrypted and never has been on this device. */
+    | {state: 'not-encrypted'}
+    /** No leaf, and an admission request has just been submitted. */
+    | {state: 'requested'; request: MlsJoinRequestDto}
+    /** No leaf, and a request was already open - waiting on a member to approve it. */
+    | {state: 'pending'; request: MlsJoinRequestDto}
+    /** Nothing could be done, and the user is told why rather than left with a silent button. */
+    | {state: 'failed'; message: string};
+
+/** How the banner should render a {@link MlsRelinkOutcome}. */
+export interface MlsRelinkStatus {
+    tone: 'working' | 'ok' | 'pending' | 'failed';
+    message: string;
+}
+
+/**
+ * Turns an outcome into the sentence shown beside the button.
+ *
+ * <p>Exported rather than duplicated in each host: conversations and channels reached the same
+ * dead end through two copies of `relinkDevice`, and a second copy of the wording is a second
+ * place for it to go stale.</p>
+ */
+export function describeRelinkOutcome(outcome: MlsRelinkOutcome): MlsRelinkStatus {
+    switch (outcome.state) {
+        case 'recovered':
+            return {tone: 'ok', message: 'This device is back in the group. Reload to read what it missed.'};
+        case 'not-encrypted':
+            return {tone: 'ok', message: 'This conversation is not encrypted, so there is nothing to join.'};
+        case 'requested':
+            return {
+                tone: 'pending',
+                message: 'Asked to be admitted. Someone already in the conversation has to approve '
+                    + 'this device before it can read anything.',
+            };
+        case 'pending':
+            return {
+                tone: 'pending',
+                message: 'This device has already asked to be admitted, and is waiting for someone '
+                    + 'already in the conversation to approve it.',
+            };
+        case 'failed':
+            return {tone: 'failed', message: `Re-linking failed. ${outcome.message}`};
+    }
+}
+
+/**
+ * The most specific thing that can honestly be said about a refused admission request.
+ *
+ * <p>Prefers the server's own message. The one that matters most is
+ * <i>"'x' is not one of your registered devices"</i> - that is this device never having completed
+ * registration, which is a different problem from not being admitted and needs to reach the user
+ * as itself rather than as a generic failure.</p>
+ */
+function describeRequestFailure(err: unknown): string {
+    if (err instanceof HttpErrorResponse) {
+        const body = err.error as {detail?: string; title?: string; message?: string} | string | null;
+        const served = typeof body === 'string' ? body : body?.detail ?? body?.message ?? body?.title;
+        if (served) return served;
+        return `The server refused the request (HTTP ${err.status}).`;
+    }
+    return err instanceof Error ? err.message : String(err);
+}
+
+/**
  * Getting into, and letting people into, an encrypted context.
  *
  * <p>The server cannot admit anyone - it holds no group keys, so only a current member can produce
  * an Add commit. Admission is therefore a request that members review, and the approval that meets
  * the threshold is what makes that member's client mint the Welcome.</p>
+ *
+ * <p><b>Both context kinds.</b> Every route here used to be hard-coded to `/channels/...`, so a
+ * device left out of a *conversation* had no way to ask at all - the one recovery affordance it was
+ * offered called {@link MlsSyncService.refreshState}, which catches a device up on commits and
+ * cannot add a leaf that was never in the group. The routes are identical in shape (contract §B),
+ * so the only thing that ever needed to change was the base path.</p>
  */
 @Injectable({providedIn: 'root'})
 export class MlsJoinRequestService {
@@ -55,33 +136,35 @@ export class MlsJoinRequestService {
     private apiConfig = inject(ApiConfigService);
     private mls = inject(MlsService);
     private sync = inject(MlsSyncService);
+    private health = inject(MlsHealthService);
     private deviceIdentity = inject(DeviceIdentityService);
-    private userService = inject(UserService);
 
-    private base(channelId: string): string {
-        return `${this.apiConfig.baseUrl()}/api/v1/messaging/channels/${encodeURIComponent(channelId)}/mls/join-requests`;
+    private base(contextId: string, isChannel: boolean): string {
+        const collection = isChannel ? 'channels' : 'conversations';
+        return `${this.apiConfig.baseUrl()}/api/v1/messaging/${collection}/`
+            + `${encodeURIComponent(contextId)}/mls/join-requests`;
     }
 
-    list(channelId: string): Observable<MlsJoinRequestDto[]> {
-        return this.http.get<MlsJoinRequestDto[]>(this.base(channelId));
+    list(contextId: string, isChannel: boolean): Observable<MlsJoinRequestDto[]> {
+        return this.http.get<MlsJoinRequestDto[]>(this.base(contextId, isChannel));
     }
 
-    deny(channelId: string, requestId: string): Observable<void> {
-        return this.http.post<void>(`${this.base(channelId)}/${requestId}/deny`, null);
+    deny(contextId: string, isChannel: boolean, requestId: string): Observable<void> {
+        return this.http.post<void>(`${this.base(contextId, isChannel)}/${requestId}/deny`, null);
     }
 
-    cancel(channelId: string, requestId: string): Observable<void> {
-        return this.http.delete<void>(`${this.base(channelId)}/${requestId}`);
+    cancel(contextId: string, isChannel: boolean, requestId: string): Observable<void> {
+        return this.http.delete<void>(`${this.base(contextId, isChannel)}/${requestId}`);
     }
 
     /**
-     * Asks to be let into an encrypted channel.
+     * Asks to be let into an encrypted context.
      *
      * Mints a key package specifically for this request and submits it, rather than pointing at the
      * pool on the server: reviewers approve exact bytes, and bytes nobody else can hand out cannot
      * be swapped between approval and add.
      */
-    async requestAccess(channelId: string): Promise<MlsJoinRequestDto> {
+    async requestAccess(contextId: string, isChannel: boolean): Promise<MlsJoinRequestDto> {
         const keyHandle = this.mls.keyHandle();
         if (!keyHandle) throw new Error('MLS session is locked');
 
@@ -90,7 +173,7 @@ export class MlsJoinRequestService {
 
         const info = await firstValueFrom(this.mls.inspectKeyPackage(keyPackage.keyPackage));
 
-        return firstValueFrom(this.http.post<MlsJoinRequestDto>(this.base(channelId), {
+        return firstValueFrom(this.http.post<MlsJoinRequestDto>(this.base(contextId, isChannel), {
             keyPackage: keyPackage.keyPackage,
             deviceId: await this.deviceIdentity.deviceId(),
             signatureKeyFingerprint: info.signatureKeyFingerprint,
@@ -112,15 +195,66 @@ export class MlsJoinRequestService {
     }
 
     /**
-     * This device's own outstanding request for a channel, if it has one.
+     * This device's own outstanding request for a context, if it has one.
      *
-     * Found by listing: a locked-out member can still see the channel, so they can read the queue
+     * Found by listing: a locked-out member can still see the context, so they can read the queue
      * their own request is sitting in.
      */
-    async myPendingRequest(channelId: string): Promise<MlsJoinRequestDto | null> {
+    async myPendingRequest(contextId: string, isChannel: boolean): Promise<MlsJoinRequestDto | null> {
         const deviceId = await this.deviceIdentity.deviceId();
-        const requests = await firstValueFrom(this.list(channelId));
+        const requests = await firstValueFrom(this.list(contextId, isChannel));
         return requests.find(r => r.requesterDeviceId === deviceId) ?? null;
+    }
+
+    /**
+     * Everything "Re-link device" can legitimately mean, in the order that costs least.
+     *
+     * <p><b>The button used to be one call to {@link MlsSyncService.refreshState} with its failure
+     * going to `console.error`.</b> That is the right remedy for exactly one of the states it is
+     * offered in - being behind on commits - and a no-op for the one the banner most often names:
+     * this device holding no leaf at all. In that case `refreshState` succeeded trivially, nothing
+     * changed, and nothing said so, so the user pressed a button that appeared to work and did not.
+     * A leaf can only be added by a current member, so the honest second step is to ask one.</p>
+     *
+     * <p>Nothing here clears the health entry on its own. Recovery is recorded by the code that
+     * actually joins or decrypts something; a re-link that changed nothing re-records
+     * `not-admitted`, so the banner stays up and stays accurate.</p>
+     */
+    async relink(contextId: string, isChannel: boolean): Promise<MlsRelinkOutcome> {
+        // Cheapest first, and it is the common case: catch up on missed commits, and join from a
+        // Welcome that is already waiting. Deliberately not a new signing key - that orphans this
+        // device from every group it is in, and is never the right response to "I could not read".
+        let encrypted: boolean;
+        try {
+            encrypted = (await this.sync.refreshState(contextId, isChannel)).encrypted;
+        } catch (err) {
+            return {state: 'failed', message: describeRequestFailure(err)};
+        }
+
+        // `refreshState` has already tried every Welcome addressed to this device, so holding a
+        // group now means the re-link genuinely worked.
+        if (await this.mls.getActiveGroupId(contextId)) return {state: 'recovered'};
+
+        // The floor outranks the server's field: a context this device has ever encrypted stays
+        // encrypted here (§L.6), so "not encrypted" is only believable below it.
+        if (!encrypted && await this.mls.getEncryptionFloor(contextId) === null) {
+            return {state: 'not-encrypted'};
+        }
+
+        // No leaf, and no Welcome that would give us one. Correct the reason before asking, so the
+        // banner stops claiming a decrypt problem when the real state is exclusion.
+        this.health.recordFailure(
+            contextId, isChannel, 'not-admitted',
+            'this device holds no MLS group for the context and no Welcome is waiting for it');
+
+        try {
+            const existing = await this.myPendingRequest(contextId, isChannel);
+            if (existing && existing.state === 'Pending') return {state: 'pending', request: existing};
+
+            return {state: 'requested', request: await this.requestAccess(contextId, isChannel)};
+        } catch (err) {
+            return {state: 'failed', message: describeRequestFailure(err)};
+        }
     }
 
     /**
@@ -133,10 +267,10 @@ export class MlsJoinRequestService {
      *
      * @returns whether the device was actually admitted by this call.
      */
-    async approve(channelId: string, request: MlsJoinRequestDto): Promise<boolean> {
+    async approve(contextId: string, isChannel: boolean, request: MlsJoinRequestDto): Promise<boolean> {
         const result = await firstValueFrom(
             this.http.post<MlsJoinRequestApprovalResultDto>(
-                `${this.base(channelId)}/${request.id}/approve`, null),
+                `${this.base(contextId, isChannel)}/${request.id}/approve`, null),
         );
 
         if (!result.thresholdMet) return false;
@@ -163,8 +297,8 @@ export class MlsJoinRequestService {
         const keyHandle = this.mls.keyHandle();
         if (!keyHandle) throw new Error('MLS session is locked');
 
-        const admitted = await this.sync.publish(channelId, true, async () => {
-            const groupId = (await this.mls.getActiveGroupId(channelId))!;
+        const admitted = await this.sync.publish(contextId, isChannel, async () => {
+            const groupId = (await this.mls.getActiveGroupId(contextId))!;
             const out = await firstValueFrom(
                 this.mls.addMembers(groupId, keyHandle, [result.keyPackage!]),
             );

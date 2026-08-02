@@ -30,6 +30,11 @@ import {MessagingService} from '../../../../services/messaging.service';
 import {MlsService} from '../../../../services/mls.service';
 import {MlsUnreadableBannerComponent} from '../../../../components/mls-unreadable-banner/mls-unreadable-banner.component';
 import {MlsSyncService} from '../../../../services/mls-sync.service';
+import {
+    describeRelinkOutcome,
+    MlsJoinRequestService,
+    MlsRelinkStatus,
+} from '../../../../services/mls-join-request.service';
 import {MlsHealthService} from '../../../../services/mls-health.service';
 import {MessageStore} from '../../../../stores/message.store';
 import {ConversationStore} from '../../../../stores/conversation.store';
@@ -115,6 +120,9 @@ export class ConversationComponent implements AfterViewInit {
     private mlsService = inject(MlsService);
     private mlsSync = inject(MlsSyncService);
     private mlsHealth = inject(MlsHealthService);
+    private joinRequests = inject(MlsJoinRequestService);
+    /** What the last "Re-link device" press achieved. Rendered by the banner that offered it. */
+    protected readonly relinkStatus = signal<MlsRelinkStatus | null>(null);
     private profileService = inject(ProfileService);
 
     // ── Conversation meta ────────────────────────────────────────────────────
@@ -570,18 +578,23 @@ export class ConversationComponent implements AfterViewInit {
     /**
      * Tries to get this device readable again, from the banner.
      *
-     * Re-reads the conversation's state, which joins from any Welcome that is waiting and replays
-     * the commits missed since - the common case, where the device was simply behind. It
-     * deliberately does *not* mint a new signing key: that is what orphans a device from every
-     * group it belongs to, and it is never the right response to "I could not read this".
+     * <p>Re-reading the conversation's state - joining from any waiting Welcome and replaying
+     * missed commits - is the right remedy for one of the states the banner appears in, and a
+     * no-op for the one it most often names. `refreshState` cannot add a leaf that was never in
+     * the group, so on a device that was never admitted it succeeded trivially and reported
+     * nothing: a button that appeared to work and changed nothing. {@link MlsJoinRequestService.relink}
+     * tries the cheap remedy first and then asks a member to admit this device, which is the only
+     * thing that can actually fix that state.</p>
+     *
+     * <p>It still deliberately does *not* mint a new signing key: that orphans a device from every
+     * group it belongs to, and is never the right response to "I could not read this".</p>
      */
     protected async relinkDevice(): Promise<void> {
         const conversationId = this.conversation().id;
-        try {
-            await this.mlsSync.refreshState(conversationId, false);
-        } catch (err) {
-            console.error('Re-link attempt failed', conversationId, err);
-        }
+        this.relinkStatus.set({tone: 'working', message: 'Checking this device...'});
+
+        const outcome = await this.joinRequests.relink(conversationId, false);
+        this.relinkStatus.set(describeRelinkOutcome(outcome));
     }
 
     /**

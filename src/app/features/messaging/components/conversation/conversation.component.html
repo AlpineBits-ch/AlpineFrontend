@@ -289,7 +289,8 @@
           device that could never join looked exactly like a conversation with nothing in it, and
           the only symptom its owner could report was "sometimes messages don't arrive".
         -->
-        <app-mls-unreadable-banner (relink)="relinkDevice()" [contextId]="conversation().id"/>
+        <app-mls-unreadable-banner (relink)="relinkDevice()" [contextId]="conversation().id"
+                                   [status]="relinkStatus()"/>
         <app-composer (cancelReply)="onCancelReply()" (message)="createMessage($event)" (typing)="onTyping()"
                       [conversationMembers]="conversationMemberCandidates()"
                       [replyTo]="replyingTo()" autofocus

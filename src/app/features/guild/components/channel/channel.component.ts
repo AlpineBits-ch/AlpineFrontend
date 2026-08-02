@@ -36,6 +36,11 @@ import {isGroupedWithPrevious} from '../../../messaging/components/conversation/
 import {ChannelEncryptionState, classifyAutoModError, forumParentOf, mayPostCleartext} from './channel-utils';
 import {MlsService} from '../../../../services/mls.service';
 import {MlsSyncService} from '../../../../services/mls-sync.service';
+import {
+    describeRelinkOutcome,
+    MlsJoinRequestService,
+    MlsRelinkStatus,
+} from '../../../../services/mls-join-request.service';
 import {ChannelAccessBannerComponent} from './channel-access-banner.component';
 import {MlsUnreadableBannerComponent} from '../../../../components/mls-unreadable-banner/mls-unreadable-banner.component';
 import {readableContent, UNDECRYPTABLE_SHORT} from '../../../../helpers/message-content.helper';
@@ -119,6 +124,8 @@ export class ChannelComponent implements AfterViewInit {
      */
     protected encryptionState = signal<ChannelEncryptionState>('plain');
     protected isLockedOut = computed(() => this.encryptionState() === 'locked-out');
+    /** What the last "Re-link device" press achieved. Rendered by the banner that offered it. */
+    protected readonly relinkStatus = signal<MlsRelinkStatus | null>(null);
     protected showFollowDialog = signal(false);
 
     // ── Forum post state ─────────────────────────────────────────────────────
@@ -256,6 +263,7 @@ export class ChannelComponent implements AfterViewInit {
     private messagingService = inject(MessagingService);
     private mlsService = inject(MlsService);
     private mlsSync = inject(MlsSyncService);
+    private joinRequests = inject(MlsJoinRequestService);
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private guildWs = inject(GuildWebsocketService);
@@ -527,24 +535,38 @@ export class ChannelComponent implements AfterViewInit {
     }
 
     /**
+     * Tries to get this device readable again, from the banner.
+     *
+     * <p>Re-reading the channel's state joins from any waiting Welcome and replays missed commits,
+     * which fixes a device that was behind - and does nothing at all for one that holds no leaf,
+     * because `refreshState` cannot add one. That was the whole of this method, so in the state the
+     * banner most often names it succeeded trivially and reported nothing.
+     * {@link MlsJoinRequestService.relink} tries that first and then asks a member to admit this
+     * device, which is the only thing that can fix it.</p>
+     *
+     * <p>It still deliberately does *not* mint a new signing key: that orphans a device from every
+     * group it belongs to, and is never the right response to "I could not read this".</p>
+     */
+    protected async relinkDevice(): Promise<void> {
+        const channelId = this.channel().id;
+        this.relinkStatus.set({tone: 'working', message: 'Checking this device...'});
+
+        const outcome = await this.joinRequests.relink(channelId, true);
+        this.relinkStatus.set(describeRelinkOutcome(outcome));
+
+        // Re-derive the composer's view from what the re-link actually left behind, rather than
+        // from a second refresh: `relink` has already reconciled state and, where it could, asked
+        // to be admitted.
+        await this.resolveEncryptionState(channelId);
+    }
+
+    /**
      * Works out which of the three states this channel is in for this device.
      *
      * The middle and last were previously conflated: a channel we could not read looked exactly
      * like a plaintext one, so the composer offered to send, the server refused the plaintext, and
      * the user got a failed message with no explanation and no way forward.
      */
-    /**
-     * Tries to get this device readable again, from the banner.
-     *
-     * Re-reads the channel's state, which joins from any Welcome that is waiting and replays the
-     * commits missed since. It deliberately does *not* mint a new signing key: that orphans a
-     * device from every group it belongs to, and is never the right response to "I could not read
-     * this".
-     */
-    protected async relinkDevice(): Promise<void> {
-        await this.resolveEncryptionState(this.channel().id);
-    }
-
     private async resolveEncryptionState(channelId: string): Promise<void> {
         try {
             const state = await this.mlsSync.refreshState(channelId, true);

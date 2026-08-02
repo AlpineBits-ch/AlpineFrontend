@@ -34,7 +34,7 @@ export class ChannelAccessBannerComponent {
     protected async load(): Promise<void> {
         try {
             const [pending, fingerprint] = await Promise.all([
-                this.joinRequests.myPendingRequest(this.channelId()),
+                this.joinRequests.myPendingRequest(this.channelId(), true),
                 this.joinRequests.ownFingerprint(),
             ]);
             this.pending.set(pending);
@@ -52,7 +52,7 @@ export class ChannelAccessBannerComponent {
         this.error.set(null);
 
         try {
-            this.pending.set(await this.joinRequests.requestAccess(this.channelId()));
+            this.pending.set(await this.joinRequests.requestAccess(this.channelId(), true));
         } catch {
             this.error.set('CHANNEL_SETTINGS.ENCRYPTION.REQUEST_FAILED');
         } finally {
@@ -67,7 +67,7 @@ export class ChannelAccessBannerComponent {
         this.error.set(null);
 
         try {
-            await firstValueFrom(this.joinRequests.cancel(this.channelId(), pending.id));
+            await firstValueFrom(this.joinRequests.cancel(this.channelId(), true, pending.id));
             this.pending.set(null);
         } catch {
             this.error.set('CHANNEL_SETTINGS.ENCRYPTION.WITHDRAW_FAILED');

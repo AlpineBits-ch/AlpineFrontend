@@ -1,6 +1,7 @@
 import {Component, computed, inject, input, output} from '@angular/core';
 import {Button} from 'primeng/button';
 import {MlsFailureReason, MlsHealthService} from '../../services/mls-health.service';
+import {MlsRelinkStatus} from '../../services/mls-join-request.service';
 
 /**
  * Says, in the conversation it applies to, that this device cannot read it - and offers the one
@@ -28,15 +29,33 @@ import {MlsFailureReason, MlsHealthService} from '../../services/mls-health.serv
                 <div class="min-w-0 flex-1">
                     <p class="m-0 text-[0.8125rem] text-text-primary">{{ title() }}</p>
                     <p class="m-0 mt-0.5 text-xs text-text-muted">{{ detail() }}</p>
+                    <!--
+                      The outcome of the last re-link, in the same block that offered it. Without
+                      this the button was indistinguishable from a no-op: its only report was a
+                      console error, which in a release build is nowhere.
+                    -->
+                    @if (status(); as s) {
+                        <p class="m-0 mt-1.5 text-xs" [class.text-red-300]="s.tone === 'failed'"
+                           [class.text-amber-200]="s.tone === 'pending'"
+                           [class.text-emerald-300]="s.tone === 'ok'"
+                           [class.text-text-muted]="s.tone === 'working'"
+                           data-testid="relink-status">{{ s.message }}</p>
+                    }
                 </div>
-                <p-button (onClick)="relink.emit(contextId())" [text]="true" label="Re-link device"
-                          severity="warn" size="small"/>
+                <p-button (onClick)="relink.emit(contextId())" [disabled]="status()?.tone === 'working'"
+                          [text]="true" label="Re-link device" severity="warn" size="small"/>
             </div>
         }
     `,
 })
 export class MlsUnreadableBannerComponent {
     readonly contextId = input.required<string>();
+    /**
+     * What the last re-link attempt achieved, if anything.
+     *
+     * <p>Owned by the host because the host is what runs the attempt. Null before the first press.</p>
+     */
+    readonly status = input<MlsRelinkStatus | null>(null);
     /** Raised when the user asks to re-link. The host decides what that means. */
     readonly relink = output<string>();
 
