@@ -2,18 +2,25 @@
     @if (sortedConversations().length === 0) {
         <app-empty-state icon="pi-inbox" message="No messages yet"/>
     }
-    <ion-list class="ion-no-padding bg-transparent" lines="none">
+    <!--
+      Was an <ion-list> of <ion-item-sliding> rows. The wrappers carried styling this template
+      already re-stated in Tailwind - the component CSS was five `--ion-*` custom properties
+      translating ion-item back into `px-2 rounded-xl` with the same hover and selected tints - so
+      dropping them is markup, not design. The two things that were behaviour are handled below:
+      swipe-to-delete became long-press (see the delete button) and ion-infinite-scroll became an
+      IntersectionObserver sentinel.
+    -->
+    <div class="flex flex-col">
         @for (conv of sortedConversations(); track conv.id) {
             @let preview = getPreview(conv);
             @let unread = getUnreadCount(conv.id);
 
-            <ion-item-sliding>
-                <ion-item (click)="conversationSelected.emit(conv)" [class.conv-selected]="selectedId() === conv.id"
-                          button
-                          class="conv-item rounded-xl my-0.5"
-                          detail="false">
+            <div (contextmenu)="onConvContextMenu($event, conv)" class="relative">
+                <button (click)="conversationSelected.emit(conv)"
+                        [ngClass]="selectedId() === conv.id ? 'bg-white/[0.08]' : 'bg-transparent active:bg-white/[0.08]'"
+                        class="w-full flex items-center gap-2.5 px-2 py-2 my-0.5 rounded-xl transition-all cursor-pointer border-0 text-left">
 
-                    <div class="relative shrink-0 mr-2.5 self-center" slot="start">
+                    <div class="relative shrink-0 self-center">
                         @let member = convUtils.getPartnerMember(conv);
                         <app-avatar
                                 [label]="member?.cachedUserName?.[0]?.toUpperCase()"
@@ -22,7 +29,7 @@
                         <app-user-status-dot [status]="convUtils.getPartnerStatus(conv)"/>
                     </div>
 
-                    <ion-label class="min-w-0 my-2">
+                    <div class="flex-1 min-w-0 pr-7">
                         <div class="flex items-center justify-between gap-1">
                             <span [ngClass]="selectedId() === conv.id ? 'text-white/90' : 'text-white/65'"
                                   class="text-sm font-medium truncate">
@@ -33,9 +40,9 @@
                                     <span class="text-[10px] text-white/25">{{ previewMessages().get(conv.id)?.[0]?.createdAt | date: 'shortTime' }}</span>
                                 }
                                 @if (unread > 0) {
-                                    <ion-badge class="min-w-[18px] h-[18px] px-1 text-[10px] font-bold" color="primary">
+                                    <span class="min-w-[18px] h-[18px] px-1 rounded-full bg-brand text-white text-[10px] font-bold flex items-center justify-center">
                                         {{ unread >= 30 ? '30+' : unread }}
-                                    </ion-badge>
+                                    </span>
                                 }
                             </div>
                         </div>
@@ -53,23 +60,40 @@
                         } @else {
                             <p class="text-[11px] text-white/20 truncate italic mt-0.5 mb-0">No messages yet</p>
                         }
-                    </ion-label>
-                </ion-item>
+                    </div>
+                </button>
 
-                <ion-item-options side="end">
-                    <ion-item-option (click)="deleteConversation(conv)" color="danger">
-                        <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
-                    </ion-item-option>
-                </ion-item-options>
-            </ion-item-sliding>
+                <!--
+                  Always visible, unlike the desktop twin, which reveals on hover. There is no hover
+                  on a touch screen, and this is replacing a swipe gesture: leaving delete behind a
+                  long-press alone would make it undiscoverable. Long-press still works and opens
+                  the full context menu, which is where Delete already lived.
+                -->
+                <button (click)="deleteConversation(conv, $event)"
+                        aria-label="Delete conversation"
+                        class="absolute top-1/2 -translate-y-1/2 right-1.5 w-7 h-7 rounded-lg flex items-center justify-center
+                               text-white/30 active:text-rose-400 active:bg-rose-500/10 border-0 bg-transparent
+                               transition-all cursor-pointer z-10"
+                        title="Delete conversation">
+                    <i class="pi pi-trash text-[11px]"></i>
+                </button>
+            </div>
         }
 
         @if (conversationStore.hasMore()) {
-            <ion-infinite-scroll (ionInfinite)="onIonInfinite($event)">
-                <ion-infinite-scroll-content></ion-infinite-scroll-content>
-            </ion-infinite-scroll>
+            <!--
+              The sentinel the IntersectionObserver watches. It has to be in the DOM to be observed,
+              so it is rendered whenever there is more to fetch and reports its own state rather
+              than being hidden while loading - a zero-height element would never intersect and
+              paging would stop.
+            -->
+            <div #loadMoreSentinel class="py-3 text-center text-[11px] text-white/30">
+                @if (conversationStore.loading()) {
+                    Loading…
+                }
+            </div>
         }
-    </ion-list>
+    </div>
 } @else {
     @if (sortedConversations().length === 0) {
         <app-empty-state icon="pi-inbox" message="No messages yet"/>

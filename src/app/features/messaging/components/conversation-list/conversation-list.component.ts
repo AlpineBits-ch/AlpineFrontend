@@ -1,26 +1,22 @@
 import {animate, query, stagger, style, transition, trigger} from '@angular/animations';
-import {Component, computed, effect, inject, output, signal, ViewChild} from '@angular/core';
+import {
+    Component,
+    computed,
+    DestroyRef,
+    effect,
+    ElementRef,
+    inject,
+    output,
+    signal,
+    viewChild,
+    ViewChild,
+} from '@angular/core';
 import {toObservable} from '@angular/core/rxjs-interop';
 import {filter, take} from 'rxjs';
 import {DatePipe, NgClass} from '@angular/common';
-import {
-    IonBadge,
-    IonIcon,
-    IonInfiniteScroll,
-    IonInfiniteScrollContent,
-    IonItem,
-    IonItemOption,
-    IonItemOptions,
-    IonItemSliding,
-    IonLabel,
-    IonList,
-} from '@ionic/angular/standalone';
 import {ContextMenu} from 'primeng/contextmenu';
 import {ConfirmDialog} from 'primeng/confirmdialog';
 import {ConfirmationService, MenuItem} from 'primeng/api';
-import {InfiniteScrollCustomEvent} from '@ionic/angular';
-import {addIcons} from 'ionicons';
-import {trashOutline} from 'ionicons/icons';
 
 import {ConversationDto} from '../../../../dtos/response/conversation.dto';
 import {MessageDto} from '../../../../dtos/response/message.dto';
@@ -54,8 +50,6 @@ const PREVIEW_SIZE = 30;
     selector: 'app-conversation-list',
     imports: [
         AppAvatarComponent, DatePipe, NgClass, UserStatusDotComponent, TypingDotsComponent, EmptyStateComponent,
-        IonList, IonItem, IonItemSliding, IonItemOptions, IonItemOption,
-        IonLabel, IonBadge, IonIcon, IonInfiniteScroll, IonInfiniteScrollContent,
         ContextMenu, ConfirmDialog,
         TranslateModule,
     ],
@@ -92,6 +86,13 @@ export class ConversationListComponent {
     decryptedPreviews = signal<Map<string, string>>(new Map());
     // ── Conversation context menu ─────────────────────────────────────────────
     @ViewChild('convMenu') convMenu!: ContextMenu;
+    /**
+     * The mobile paging sentinel, present only while `hasMore()` is true.
+     *
+     * A signal query rather than `@ViewChild`, because the observer below has to re-point whenever
+     * the element appears or disappears rather than reading it once after first render.
+     */
+    private readonly loadMoreSentinel = viewChild<ElementRef<HTMLElement>>('loadMoreSentinel');
     protected conversationStore = inject(ConversationStore);
     readonly sortedConversations = computed(() =>
         [...this.conversationStore.entities()].sort(
@@ -149,7 +150,7 @@ export class ConversationListComponent {
     private confirmationService = inject(ConfirmationService);
 
     constructor() {
-        addIcons({trashOutline});
+        this.observeLoadMoreSentinel();
         this.conversationStore.loadInitial();
 
         toObservable(this.conversationStore.loaded).pipe(
@@ -247,9 +248,53 @@ export class ConversationListComponent {
         return this.unreadCounts().get(convId) ?? 0;
     }
 
-    public onIonInfinite(event: InfiniteScrollCustomEvent): void {
+    /**
+     * Asks for the next page when the sentinel scrolls into view.
+     *
+     * <p>Replaces `<ion-infinite-scroll>`, whose `(ionInfinite)` handed back an event the caller
+     * had to `complete()` to re-arm. There is no event here, so the re-arming has to be explicit:
+     * an observer fires on *every* intersection change, and a list that keeps the sentinel visible
+     * while a page is in flight - which it does, because the sentinel is what shows "Loading…" -
+     * would otherwise request the same page over and over as the list grows under it.</p>
+     *
+     * <p>Guarded on two things rather than one. `hasMore()` is the store's own answer and stops
+     * paging past the end; `loading()` stops a second request while the first is outstanding.
+     * Checking only the second would still fire once past the last page.</p>
+     */
+    protected requestNextPage(): void {
+        if (!this.conversationStore.hasMore() || this.conversationStore.loading()) return;
         this.conversationStore.loadMore();
-        setTimeout(() => event.target.complete(), 400);
+    }
+
+    /**
+     * Watches the sentinel for as long as one is rendered.
+     *
+     * <p>The element comes and goes with `@if (conversationStore.hasMore())`, so the observer is
+     * re-pointed whenever the view query changes rather than being set up once. Disconnected on
+     * destroy: an observer holding a detached element keeps the whole component graph alive.</p>
+     */
+    private observeLoadMoreSentinel(): void {
+        // jsdom has no IntersectionObserver, and neither does an old webview. Paging simply does
+        // not auto-trigger there - it must not throw and take the conversation list with it.
+        if (typeof IntersectionObserver === 'undefined') return;
+
+        const observer = new IntersectionObserver(
+            entries => {
+                if (entries.some(entry => entry.isIntersecting)) this.requestNextPage();
+            },
+            // A margin, so the next page starts loading just before the sentinel is actually
+            // reached - the same "fetch slightly early" behaviour ion-infinite-scroll had by
+            // default, and the difference between a seamless list and a visible stall.
+            {rootMargin: '200px'},
+        );
+
+        effect(() => {
+            const sentinel = this.loadMoreSentinel();
+            observer.disconnect();
+            if (sentinel) observer.observe(sentinel.nativeElement);
+        });
+
+        inject(DestroyRef).onDestroy(() => observer.disconnect());
     }
 
     public deleteConversation(conv: ConversationDto, event?: MouseEvent): void {

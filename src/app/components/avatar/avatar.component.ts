@@ -1,18 +1,24 @@
 import {Component, computed, effect, inject, input, signal} from '@angular/core';
 import {Avatar} from 'primeng/avatar';
-import {IonAvatar} from '@ionic/angular/standalone';
 import {takeUntilDestroyed, toObservable} from '@angular/core/rxjs-interop';
 import {ProfileService} from '../../services/profile.service';
 import {PlatformService} from '../../services/platform.service';
 
 @Component({
     selector: 'app-avatar',
-    imports: [Avatar, IonAvatar],
+    imports: [Avatar],
     template: `
     @if (platformService.isMobile) {
-      <ion-avatar [style]="ionSizeStyle()">
+      <!--
+        Was an <ion-avatar>, which is a block element with a 50% radius, hidden overflow and an
+        img forced to cover. All four are one Tailwind class each, so the element carried no
+        behaviour worth a dependency - the <img> rules just have to move onto the img, because
+        they came from ion-avatar's shadow styles rather than from anything here.
+      -->
+      <div class="block rounded-full overflow-hidden shrink-0" [style]="avatarSizeStyle()">
         @if (imageUrl()) {
-          <img [src]="imageUrl()" [alt]="displayLabel() ?? ''" (error)="onError()" />
+          <img class="w-full h-full object-cover"
+               [src]="imageUrl()" [alt]="displayLabel() ?? ''" (error)="onError()" />
         } @else if (displayLabel()) {
           <div class="w-full h-full flex items-center justify-center bg-[var(--color-brand)] text-white font-semibold text-sm rounded-full">
             {{ displayLabel() }}
@@ -22,7 +28,7 @@ import {PlatformService} from '../../services/platform.service';
             <i class="pi pi-user text-white/40 text-xs"></i>
           </div>
         }
-      </ion-avatar>
+      </div>
     } @else {
       <p-avatar
         [image]="imageUrl()"
@@ -42,7 +48,14 @@ export class AppAvatarComponent {
     size = input<'normal' | 'large' | 'xlarge' | undefined>(undefined);
     styleClass = input<string | undefined>(undefined);
     public platformService = inject(PlatformService);
-    protected ionSizeStyle = computed(() => {
+    /**
+     * The mobile avatar's box, in the same three sizes PrimeNG's `size` names.
+     *
+     * Kept as an inline style rather than folded into the class list: the sizes are driven by an
+     * input, and Tailwind cannot see class names assembled at runtime, so a computed class string
+     * would be purged from the production build and silently render at 0x0.
+     */
+    protected avatarSizeStyle = computed(() => {
         const s = this.size();
         const dim = s === 'large' ? '3rem' : s === 'xlarge' ? '4rem' : '2rem';
         return {width: dim, height: dim};

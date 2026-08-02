@@ -10914,7 +10914,7 @@ Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ## npm packages
 
-Bundled into the application frontend. 203 packages, 112 distinct notices.
+Bundled into the application frontend. 197 packages, 107 distinct notices.
 
 ### @alloc/quick-lru 5.2.0, ansi-regex 5.0.1, ansi-styles 4.3.0, camelcase 5.3.1, find-up 4.1.0, is-fullwidth-code-point 3.0.0, locate-path 5.0.0, p-limit 2.3.0, p-locate 4.1.0, p-try 2.2.0, path-exists 4.0.0, string-width 4.2.3, strip-ansi 6.0.1, wrap-ansi 6.2.0
 
@@ -11477,28 +11477,6 @@ FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
 
-### @ionic/angular 8.8.6
-
-**Licence:** MIT
-**Source:** git+https://github.com/ionic-team/ionic-framework.git
-
-```text
-Copyright (c) the @ionic/angular authors — git+https://github.com/ionic-team/ionic-framework.git
-```
-Distributed under the [MIT licence](#licence-mit), reproduced in full below.
-
-### @ionic/core 8.8.6
-
-**Licence:** MIT
-**Source:** git+https://github.com/ionic-team/ionic-framework.git
-
-```text
-Copyright 2015-present Drifty Co.
-http://drifty.com/
-MIT License
-```
-Distributed under the [MIT licence](#licence-mit), reproduced in full below.
-
 ### @jridgewell/gen-mapping 0.3.13, @jridgewell/remapping 2.3.5, @jridgewell/sourcemap-codec 1.5.5, @jridgewell/trace-mapping 0.3.31
 
 **Licence:** MIT
@@ -11669,21 +11647,6 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 MIT License
 Copyright (c) 2024 Colin McDonnell
-```
-Distributed under the [MIT licence](#licence-mit), reproduced in full below.
-
-### @stencil/core 4.43.0, @stencil/core 4.43.4
-
-**Licence:** MIT
-**Source:** git+https://github.com/stenciljs/core.git
-
-```text
-The MIT License (MIT)
-Copyright (c) 2019-present Drifty Co.
-Third-party components, software, and/or libraries (collectively, "components")
-are included under the licenses specified by their authors. For information
-about these third-party licenses, refer to the separate legal notices governing
-such components at NOTICE file at the top level of the package.
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -12701,17 +12664,6 @@ Copyright (c) the https-proxy-agent authors — Nathan Rajlich <nathan@tootallna
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### ionicons 8.0.13
-
-**Licence:** MIT
-**Source:** https://github.com/ionic-team/ionicons.git
-
-```text
-The MIT License (MIT)
-Copyright (c) 2015-present Ionic (http://ionic.io/)
-```
-Distributed under the [MIT licence](#licence-mit), reproduced in full below.
-
 ### isexe 2.0.0, which 2.0.2
 
 **Licence:** ISC
@@ -12731,17 +12683,6 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 ```text
 MIT License
 Copyright (c) Pooya Parsa <pooya@pi0.io>
-```
-Distributed under the [MIT licence](#licence-mit), reproduced in full below.
-
-### jsonc-parser 3.3.1
-
-**Licence:** MIT
-**Source:** https://github.com/microsoft/node-jsonc-parser
-
-```text
-The MIT License (MIT)
-Copyright (c) Microsoft
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -13355,14 +13296,6 @@ Optional packages containing a prebuilt binary for one platform each; a given in
 only the one it runs on. Each is published by the project named beside it and carries that
 project's licence, reproduced in full above.
 
-- `@rollup/rollup-darwin-arm64` — part of @stencil/core
-- `@rollup/rollup-darwin-x64` — part of @stencil/core
-- `@rollup/rollup-linux-arm64-gnu` — part of @stencil/core
-- `@rollup/rollup-linux-arm64-musl` — part of @stencil/core
-- `@rollup/rollup-linux-x64-gnu` — part of @stencil/core
-- `@rollup/rollup-linux-x64-musl` — part of @stencil/core
-- `@rollup/rollup-win32-arm64-msvc` — part of @stencil/core
-- `@rollup/rollup-win32-x64-msvc` — part of @stencil/core
 - `@sentry/cli-darwin` — part of @sentry/cli
 - `@sentry/cli-linux-arm` — part of @sentry/cli
 - `@sentry/cli-linux-arm64` — part of @sentry/cli
