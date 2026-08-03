@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "Venta"
-version = "3.0.163"
+version = "3.0.164"
 dependencies = [
  "aes-gcm",
  "argon2",
