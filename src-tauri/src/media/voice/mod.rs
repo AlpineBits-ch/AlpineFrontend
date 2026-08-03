@@ -16,6 +16,9 @@ pub mod capture;
 pub mod chain;
 pub mod codec;
 pub mod denoise;
+/// The gate that proves this pipeline still carries sound. See the module for why it exists.
+#[cfg(test)]
+mod e2e_tests;
 pub mod gate;
 pub mod jitter;
 pub mod mixer;

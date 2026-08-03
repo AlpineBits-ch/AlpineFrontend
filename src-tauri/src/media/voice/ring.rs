@@ -27,7 +27,16 @@ pub struct RingReader {
 
 /// Create a ring holding `capacity_ms` of 48 kHz mono audio.
 pub fn channel(capacity_ms: u32) -> (RingWriter, RingReader) {
-    let samples = (SAMPLE_RATE as usize * capacity_ms as usize) / 1000;
+    channel_samples((SAMPLE_RATE as usize * capacity_ms as usize) / 1000)
+}
+
+/// Create a ring holding exactly `samples` samples.
+///
+/// For the ends that are neither mono nor at the pipeline rate. Playout is both: it carries
+/// interleaved stereo at whatever rate the output device runs at, so expressing its depth in
+/// milliseconds of 48 kHz mono would understate it by a factor of two times the rate ratio - and
+/// silently, as a shorter buffer rather than an error.
+pub fn channel_samples(samples: usize) -> (RingWriter, RingReader) {
     // Never smaller than one frame: a ring that cannot hold a single frame would never let the
     // reader make progress at all.
     let (producer, consumer) = HeapRb::<f32>::new(samples.max(FRAME)).split();

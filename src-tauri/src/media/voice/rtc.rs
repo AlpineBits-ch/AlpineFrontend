@@ -71,7 +71,7 @@ pub fn opus_capability() -> RTCRtpCodecCapability {
 ///
 /// Set once by the session after construction. Behind a mutex only because the handler is installed
 /// before the consumer exists - see the note in `start`.
-type PacketSink = Arc<std::sync::Mutex<Option<tokio::sync::mpsc::Sender<(String, Packet)>>>>;
+pub type PacketSink = Arc<std::sync::Mutex<Option<tokio::sync::mpsc::Sender<(String, Packet)>>>>;
 
 /// Counters for one publication, for `voice_stats`.
 ///
@@ -162,6 +162,72 @@ fn subscription_tracks(sources: &[(String, String)]) -> Vec<RemoteTrack> {
             session_id: session_id.clone(),
         })
         .collect()
+}
+
+/// Read every remote track this connection opens, and forward its RTP to `sink`, keyed by mid.
+///
+/// Split out of [`VoicePublication::start`] so `super::e2e_tests` drives the *real* handler rather
+/// than a copy of its shape - a copy is exactly what would have kept passing while this broke.
+///
+/// The reader is **spawned**, and the handler returns immediately. `webrtc-rs` keeps one `on_track`
+/// closure behind a mutex and holds that mutex for as long as the future the closure returns is
+/// alive (`RTCPeerConnection::do_track`). A reader lives as long as its track, so awaiting it inside
+/// the handler means the first remote track to open holds the mutex for the rest of the call and
+/// every track opening after it blocks on `handler.lock()` forever: `on_track` never fires for them,
+/// not one packet is read, and `tracks_opened` stops at one.
+///
+/// That is the whole of "this client cannot hear anyone". The second participant is silent, and so
+/// is the *first* whenever their subscription is replaced - a corrected session id, a rejoin -
+/// because the superseded track's reader is still sitting on the mutex. Nothing above it reports a
+/// fault: the subscribe returns `Ok`, the connection stays healthy, the audio simply never arrives.
+pub fn route_inbound_audio(
+    peer_connection: &RTCPeerConnection,
+    packet_sink: &PacketSink,
+    stats: &Arc<PublicationStats>,
+) {
+    let handler_sink = Arc::clone(packet_sink);
+    let track_stats = Arc::clone(stats);
+    peer_connection.on_track(Box::new(move |track, _receiver, transceiver| {
+        let sink = Arc::clone(&handler_sink);
+        let stats = Arc::clone(&track_stats);
+
+        tokio::spawn(async move {
+            let Some(mid) = transceiver.mid().map(|m| m.to_string()) else {
+                eprintln!("[voice] a remote track opened with no mid - its audio cannot be routed");
+                return;
+            };
+            stats.tracks_opened.fetch_add(1, Ordering::Relaxed);
+            eprintln!("[voice] remote track opened on mid {mid}");
+            loop {
+                match track.read_rtp().await {
+                    Ok((rtp, _)) => {
+                        stats.rtp_received.fetch_add(1, Ordering::Relaxed);
+                        // Cloned out of the lock rather than held across the send: the sink is
+                        // written once at startup, and holding a std mutex across an await is how a
+                        // deadlock gets written by accident.
+                        let sender = match sink.lock() {
+                            Ok(guard) => guard.clone(),
+                            Err(_) => return,
+                        };
+                        let Some(sender) = sender else { continue };
+                        let packet = Packet {
+                            seq: rtp.header.sequence_number,
+                            payload: rtp.payload.to_vec(),
+                        };
+                        // try_send, not send: the consumer is the playout thread and the network
+                        // task must never wait on it. A full queue means playout has stalled, and
+                        // dropping is what keeps latency bounded rather than unbounded.
+                        let _ = sender.try_send((mid.clone(), packet));
+                    }
+                    // The track ended, or the connection went away.
+                    Err(_) => return,
+                }
+            }
+        });
+
+        // Handed straight back, so the next track can be handled. See this function's note.
+        Box::pin(async {})
+    }));
 }
 
 /// Retire transceivers added for a subscribe that then failed.
@@ -263,45 +329,7 @@ impl VoicePublication {
         // as it answers a pull. A handler added per-subscription races the first packets of that
         // subscription, and those are exactly the packets the jitter buffer needs to start cleanly.
         let packet_sink: PacketSink = Arc::new(std::sync::Mutex::new(None));
-        let handler_sink = Arc::clone(&packet_sink);
-        let track_stats = Arc::clone(&stats);
-        peer_connection.on_track(Box::new(move |track, _receiver, transceiver| {
-            let sink = Arc::clone(&handler_sink);
-            let stats = Arc::clone(&track_stats);
-            Box::pin(async move {
-                let Some(mid) = transceiver.mid().map(|m| m.to_string()) else {
-                    eprintln!("[voice] a remote track opened with no mid - its audio cannot be routed");
-                    return;
-                };
-                stats.tracks_opened.fetch_add(1, Ordering::Relaxed);
-                eprintln!("[voice] remote track opened on mid {mid}");
-                loop {
-                    match track.read_rtp().await {
-                        Ok((rtp, _)) => {
-                            stats.rtp_received.fetch_add(1, Ordering::Relaxed);
-                            // Cloned out of the lock rather than held across the send: the sink is
-                            // written once at startup, and holding a std mutex across an await is
-                            // how a deadlock gets written by accident.
-                            let sender = match sink.lock() {
-                                Ok(guard) => guard.clone(),
-                                Err(_) => return,
-                            };
-                            let Some(sender) = sender else { continue };
-                            let packet = Packet {
-                                seq: rtp.header.sequence_number,
-                                payload: rtp.payload.to_vec(),
-                            };
-                            // try_send, not send: the consumer is the playout thread and the network
-                            // task must never wait on it. A full queue means playout has stalled,
-                            // and dropping is what keeps latency bounded rather than unbounded.
-                            let _ = sender.try_send((mid.clone(), packet));
-                        }
-                        // The track ended, or the connection went away.
-                        Err(_) => return,
-                    }
-                }
-            })
-        }));
+        route_inbound_audio(&peer_connection, &packet_sink, &stats);
 
         let offer = peer_connection
             .create_offer(None)

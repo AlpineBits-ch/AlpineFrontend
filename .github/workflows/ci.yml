@@ -205,3 +205,45 @@ jobs:
           RUSTC_WRAPPER: sccache
           SCCACHE_GHA_ENABLED: "true"
         run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      # Voice has broken three times now with the whole suite green, because every stage had unit
+      # tests and none of them crossed a stage boundary: a handler that starved every remote track
+      # after the first, and a render path that ignored the output device's sample rate. Both were
+      # invisible to a counter and to any test that did not put sound in one end and listen at the
+      # other. `media::voice::e2e_tests` does exactly that - two real peer connections, real Opus,
+      # the shipping decoder, mixer and render path, and an assertion on audible energy.
+      #
+      # Run again as its own step rather than left to the line above, for two reasons. It gets its
+      # own red cross in the checks list, so "voice is broken" is legible without opening a log.
+      # And the count guard below is what stops it passing vacuously: `cargo test` reports success
+      # for a filter that matched nothing, so a module renamed, `#[ignore]`d or lost in a merge
+      # would read as a pass - which is precisely how a gate for a recurring regression quietly
+      # stops being one.
+      - name: Voice pipeline end-to-end
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+        run: |
+          set -o pipefail
+          # No --nocapture: it interleaves the pipeline's own eprintln output into the result
+          # lines, and the grep below needs "<name> ... ok" to stay on one line. A failing test
+          # still prints its captured output, which is when that output is wanted anyway.
+          cargo test --manifest-path src-tauri/Cargo.toml --lib media::voice:: 2>&1 \
+            | tee voice-tests.log
+
+          # The end-to-end test by name: it is the one that proves audio is audible, and the one
+          # whose absence must fail this job rather than pass it.
+          grep -q 'media::voice::e2e_tests::a_remote_participant_is_audible_end_to_end \.\.\. ok' \
+            voice-tests.log || {
+              echo "::error::the voice end-to-end test did not run - it was renamed, ignored or removed"
+              exit 1
+            }
+
+          passed=$(sed -n 's/^test result: ok\. \([0-9]*\) passed.*/\1/p' voice-tests.log | head -1)
+          echo "voice tests passed: ${passed:-0}"
+          # 180 as of this commit. A floor, not an exact count - adding tests must not fail CI, but
+          # deleting most of the suite must.
+          if [ "${passed:-0}" -lt 180 ]; then
+            echo "::error::only ${passed:-0} voice tests ran; expected at least 180"
+            exit 1
+          fi
