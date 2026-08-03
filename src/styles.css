@@ -52,6 +52,13 @@ app-root {
   background-color: #06090f;
 }
 
+/* The window is transparent and undecorated, so this radius is the window's own shape. Flush
+   against the screen edges there is nothing behind the corners but the desktop, and rounding them
+   cuts four notches out of the app. Set by WindowChromeService on maximize and fullscreen. */
+html[data-window-flush] app-root {
+  border-radius: 0;
+}
+
 /* Prevent double-tap zoom on all interactive elements without disabling gestures */
 button, a, [role="button"], input, select, textarea, label {
   touch-action: manipulation;

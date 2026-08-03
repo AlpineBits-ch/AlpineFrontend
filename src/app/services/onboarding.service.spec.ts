@@ -132,3 +132,56 @@ describe('OnboardingService.submit', () => {
         ctrl.expectNone(URL);
     });
 });
+
+/**
+ * The launch sequence stops dead at the picker - it owns the screen and there is nothing left to
+ * run - so answering it has to restart the half that was skipped. Without this signal the answer
+ * looked like it did nothing: device registration and the key-setup prompt both waited for the next
+ * launch, and reloading was the only way to make the app act on the choice.
+ */
+describe('OnboardingService.pickerCompleted', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('fires after a picker answer is written', async () => {
+        const {service, ctrl} = setup();
+        const fired = vi.fn();
+        service.pickerCompleted.subscribe(fired);
+
+        service.show();
+        const done = service.submit([UserInterest.Isle]);
+        ctrl.expectOne(URL).flush({onboardedAt: '2026-08-03T10:00:00Z', interests: ['isle']});
+        await done;
+
+        expect(fired).toHaveBeenCalledOnce();
+    });
+
+    it('does not fire when the write fails, so a failed answer cannot resume the launch', async () => {
+        const {service, ctrl} = setup();
+        const fired = vi.fn();
+        service.pickerCompleted.subscribe(fired);
+
+        service.show();
+        const done = service.submit([UserInterest.Isle]);
+        ctrl.expectOne(URL).flush('nope', {status: 500, statusText: 'Server Error'});
+        await expect(done).rejects.toBeTruthy();
+
+        expect(fired).not.toHaveBeenCalled();
+        expect(service.visible()).toBe(true);
+    });
+
+    /**
+     * Re-answering from settings goes through the same submit. Resuming a launch sequence that
+     * finished long ago would re-run device registration behind a settings dialog.
+     */
+    it('stays silent for a write that did not come from the picker', async () => {
+        const {service, ctrl} = setup(user({interests: [UserInterest.Isle]}));
+        const fired = vi.fn();
+        service.pickerCompleted.subscribe(fired);
+
+        const done = service.submit([UserInterest.Isle, UserInterest.Social]);
+        ctrl.expectOne(URL).flush({onboardedAt: '2026-08-03T10:00:00Z', interests: ['isle', 'social']});
+        await done;
+
+        expect(fired).not.toHaveBeenCalled();
+    });
+});

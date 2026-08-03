@@ -1,6 +1,6 @@
 import {computed, inject, Injectable, signal} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
-import {firstValueFrom} from 'rxjs';
+import {firstValueFrom, Observable, Subject} from 'rxjs';
 import {ApiConfigService} from './api-config.service';
 import {UserService} from './user.service';
 import {UserInterest} from '../dtos/response/UserDto';
@@ -33,6 +33,22 @@ export class OnboardingService {
     readonly visible = signal(false);
     readonly submitting = signal(false);
     readonly error = signal(false);
+
+    private readonly pickerAnswered = new Subject<void>();
+
+    /**
+     * Fires when the full-screen picker has been answered and written.
+     *
+     * <p>The launch sequence stops at the picker and has nothing left to run, so something has to
+     * start it again - without this, everything the answer decides (device registration, the
+     * key-setup prompt) waited for the next launch, and the app looked like it had simply ignored
+     * the choice until the user reloaded.</p>
+     *
+     * <p>Deliberately silent for writes that did not come from the picker. Re-answering from
+     * settings goes through the same {@link submit}, and resuming a launch sequence that finished
+     * long ago would re-run device registration behind a settings dialog.</p>
+     */
+    readonly pickerCompleted: Observable<void> = this.pickerAnswered.asObservable();
 
     /**
      * Whether the picker is owed.
@@ -74,6 +90,10 @@ export class OnboardingService {
         // downstream computeds can render sensibly.
         if (interests.length === 0) throw new Error('At least one interest must be selected.');
 
+        // Captured before the write, because the write clears it: only a picker answer resumes the
+        // launch sequence, and by the time we know the write succeeded the flag would be gone.
+        const fromPicker = this.visible();
+
         this.submitting.set(true);
         this.error.set(false);
         try {
@@ -83,6 +103,7 @@ export class OnboardingService {
             ));
             this.patchSelf(state);
             this.visible.set(false);
+            if (fromPicker) this.pickerAnswered.next();
         } catch (err) {
             // Left visible and unpatched on purpose. The picker is the only thing standing between
             // this account and a launch sequence that cannot decide what to do, so a failed write

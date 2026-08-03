@@ -18,6 +18,7 @@ import {InviteDialogComponent} from './features/invite-dialog/invite-dialog.comp
 import {InviteDialogService} from './features/invite-dialog/invite-dialog.service';
 import {environment} from "../environments/environment";
 import {AppReadyService} from './services/app-ready.service';
+import {WindowChromeService} from './services/window-chrome.service';
 import {filter, take} from 'rxjs';
 import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
 import {SteamService} from './services/steam.service';
@@ -50,6 +51,7 @@ export class AppComponent implements OnInit, OnDestroy {
     private botInstallDialogService = inject(BotInstallDialogService);
     private discordImportProgressService = inject(DiscordImportProgressService);
     private destroyRef = inject(DestroyRef);
+    private windowChrome = inject(WindowChromeService);
     private updateInterval: ReturnType<typeof setInterval> | null = null;
 
     @HostListener('document:contextmenu', ['$event'])
@@ -64,6 +66,11 @@ export class AppComponent implements OnInit, OnDestroy {
 
     public  ngOnInit(): void {
         if (this.isPopup) return;
+
+        // Window shape and the drag fallback for overlays. Started here rather than in the titlebar
+        // because both outlive it: the radius belongs to app-root, and the drag fallback exists
+        // precisely for the moments the titlebar is covered.
+        void this.windowChrome.start();
 
         void onOpenUrl((urls) => {
             for (const url of urls) this.handleDeepLink(url);

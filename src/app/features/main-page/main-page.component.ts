@@ -60,6 +60,7 @@ import {runMlsLaunch} from './mls-launch';
 import {MlsJoinRequestService} from '../../services/mls-join-request.service';
 import {ConversationEncryption} from '../../enums/conversation-encryption.enum';
 import {AccountOnboardingComponent} from '../onboarding/account-onboarding.component';
+import {UserDto} from '../../dtos/response/UserDto';
 import {OnboardingService} from '../../services/onboarding.service';
 import {SocialKeyGateService} from '../../services/social-key-gate.service';
 
@@ -178,6 +179,13 @@ export class MainPageComponent implements OnDestroy {
 
         this.userTokenService.ensureTokenRegistered().then();
         void this.initLaunchSequence();
+
+        // The picker suspends the launch sequence - it owns the screen and there is nothing left
+        // to run - so answering it has to start the second half. Without this the answer appeared
+        // to do nothing at all: device registration and the key-setup prompt both waited for the
+        // next launch, and reloading was the only way to make the app act on the choice.
+        this.actionSub.add(
+            this.onboarding.pickerCompleted.subscribe(() => void this.runDeviceLaunch()));
 
         // Proactively refresh the token before expiry using the same deduplicated
         // ensureValidToken() that the WS accessTokenFactories and interceptor use.
@@ -299,15 +307,67 @@ export class MainPageComponent implements OnDestroy {
     }
 
     /**
-     * Launch sequence:
-     * 1. Try to auto-unlock signing keys from OS keychain.
-     *    - Success → proceed to step 2.
-     *    - KeyNotFound → show device registration modal first; step 2 runs after registration.
-     * 2. Check if master key is set; show key-setup dialog if not - unless the account said it only
-     *    came for Isle voice, in which case the ask is deferred to its first social action.
+     * Launch sequence, in two halves.
+     *
+     * <p><b>1. The account's own questions</b> - is the email verified, and what did this account
+     * come here for. Both are answered before a byte of MLS work happens, because the second one
+     * decides how much of that work is even wanted. It used to run <i>inside</i>
+     * {@link runMlsLaunch}, which meant a device with no signing key returned early on
+     * `needsRegistration` and never asked at all: the picker turned up only after the user had been
+     * walked through registering a device for the messaging half they had not yet said they
+     * wanted.</p>
+     *
+     * <p><b>2. This device's crypto state</b> - unlock, register if genuinely unregistered, then
+     * the master-key prompt. Only reached once the first half is settled.</p>
+     *
+     * <p>The halves are separate methods because the first can suspend: the picker owns the screen
+     * and the sequence has nothing left to run, so {@link OnboardingService.pickerCompleted}
+     * restarts it at the second half.</p>
      */
     private async initLaunchSequence(): Promise<void> {
+        if (!await this.resolveAccountGates()) {
+            // A blocking dialog owns the screen. Still mark ready, or it sits behind the splash.
+            this.appReady.markReady();
+            return;
+        }
+        await this.runDeviceLaunch();
+    }
 
+    /**
+     * Answers the account-level questions, and reports whether the launch may continue.
+     *
+     * <p>False means a blocking dialog now owns the screen. Email verification ends this launch
+     * outright; the onboarding picker resumes it through `pickerCompleted`.</p>
+     */
+    private async resolveAccountGates(): Promise<boolean> {
+        let user: UserDto;
+        try {
+            user = await firstValueFrom(this.userService.getSelf());
+        } catch (err) {
+            if ((err as {status?: number} | null)?.status === 403) {
+                this.emailVerification.show(this.resolveEmail(), 'navigate-login');
+                return false;
+            }
+            // Not being able to read the account means none of these questions can be answered -
+            // but the device half below does not depend on any of them, and refusing to launch over
+            // a failed profile fetch would strand the user on a splash screen.
+            console.error('Failed to fetch user:', err);
+            return true;
+        }
+
+        if (user.email) this.emailVerification.storeKnownEmail(user.email);
+        if (!user.emailVerifiedAt) {
+            this.emailVerification.show(user.email || this.resolveEmail());
+            return false;
+        }
+        if (this.onboarding.needsOnboarding()) {
+            this.onboarding.show();
+            return false;
+        }
+        return true;
+    }
+
+    private async runDeviceLaunch(): Promise<void> {
         const deviceId = await this.mlsService.getOrCreateDeviceIdentifier();
         try {
             await firstValueFrom(this.mlsService.initStorage());
@@ -319,7 +379,7 @@ export class MainPageComponent implements OnDestroy {
         const outcome = await runMlsLaunch({
             unlock: () => firstValueFrom(this.mlsService.autoUnlock(deviceId)),
             replenish: () => firstValueFrom(this.userService.replenishKeyCount()),
-            checkMasterKey: () => this.checkMasterKey(),
+            checkMasterKey: () => this.promptForMasterKeyIfOwed(),
             processWelcomes: () => this.mlsSync.processPendingWelcomes(),
             sweepForAdmission: () => this.sweepForAdmission(),
         });
@@ -422,35 +482,38 @@ export class MainPageComponent implements OnDestroy {
         }
     }
 
+    /**
+     * The master-key half of the launch gates, read from the account already fetched by
+     * {@link resolveAccountGates}.
+     */
+    private promptForMasterKeyIfOwed(): void {
+        const user = this.userService.self();
+        if (!user) return;
+
+        if (!user.encryptedMasterKey) {
+            // Isle-only accounts are let through with no key. Nothing breaks: the master key
+            // encrypts the device backup, not the messages, so the only thing they go without is
+            // recoverable history - and they have none to recover. The ask comes back the moment
+            // they reach for something social.
+            if (this.onboarding.wantsSocial()) this.socialGate.promptNow();
+            return;
+        }
+        // Having a master key and being able to *open* it are different questions, and the second
+        // one used to go unasked until a restore failed months later.
+        void this.checkMasterKeyHealth();
+    }
+
+    /**
+     * Re-reads the account, then applies the master-key gate.
+     *
+     * <p>Used after device registration, which can take long enough that the launch-time snapshot
+     * of the account is worth refreshing before deciding anything from it.</p>
+     */
     private checkMasterKey(): void {
         this.userService.getSelf().subscribe({
-            next: user => {
-                if (user.email) this.emailVerification.storeKnownEmail(user.email);
-                if (!user.emailVerifiedAt) {
-                    this.emailVerification.show(user.email || this.resolveEmail());
-                    return;
-                }
-                // Ordering is load-bearing. After verification, because an account that does not
-                // exist yet should not be asked what it wants; before key setup, because the
-                // answer is what decides whether key setup happens at all.
-                if (this.onboarding.needsOnboarding()) {
-                    this.onboarding.show();
-                    return;
-                }
-                if (!user.encryptedMasterKey) {
-                    // Isle-only accounts are let through with no key. Nothing breaks: the master
-                    // key encrypts the device backup, not the messages, so the only thing they are
-                    // going without is recoverable history - and they have none to recover. The
-                    // ask comes back the moment they reach for something social.
-                    if (this.onboarding.wantsSocial()) this.socialGate.promptNow();
-                    return;
-                }
-                // Having a master key and being able to *open* it are different questions, and the
-                // second one used to go unasked until a restore failed months later.
-                void this.checkMasterKeyHealth();
-            },
+            next: () => this.promptForMasterKeyIfOwed(),
             error: err => {
-                const status = (err as any)?.status;
+                const status = (err as {status?: number} | null)?.status;
                 if (status === 403) {
                     this.emailVerification.show(this.resolveEmail(), 'navigate-login');
                 } else {
