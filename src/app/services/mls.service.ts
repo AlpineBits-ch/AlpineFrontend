@@ -16,6 +16,15 @@ export type MlsErrorKind =
     | 'ValidationError'
     | 'GroupNotFound'
     | 'KeyNotFound'
+    /**
+     * The stored signing key belongs to a different account than the one signed in.
+     *
+     * <p>Never conflated with {@link 'KeyNotFound'}: that one is answered by registering, which
+     * mints a fresh keypair and permanently orphans the device from every group it belongs to.
+     * Here the correct key exists and simply is not this account's, so the answer is to look at
+     * why the account scoping resolved to the wrong device id - not to destroy anything.</p>
+     */
+    | 'IdentityMismatch'
     | 'MlsError';
 
 export interface MlsTypedError {
@@ -195,6 +204,16 @@ export interface MlsBackupImportResult {
     engineRestored: boolean;
     groupRegistry: Record<string, string | number>;
     messageCache: Record<string, string>;
+    /**
+     * The account identity keypair (§H), when the envelope carried one.
+     *
+     * <p>Alpine does not mint these - §H is not ported here - but it can be handed one by a backup
+     * venta-mobile wrote. Rust has always returned them; this side declared neither field and threw
+     * them away, so importing a mobile backup on Alpine and re-exporting destroyed the account's
+     * identity key. Carried and stored so the round trip is lossless.</p>
+     */
+    accountIdentityPublicKey?: string | null;
+    accountIdentityPrivateKey?: string | null;
 }
 
 /**
@@ -251,8 +270,16 @@ function isCommandNotFound(err: unknown, command: string): boolean {
 export type MlsBackupImportFailure =
     /** The file is not a §D envelope at all, or is truncated. */
     | 'not-a-backup'
-    /** A §D envelope, but written by a build whose format this one does not read. */
-    | 'unsupported-version'
+    /**
+     * A §D envelope written by a *newer* build. Updating fixes it; the file is fine.
+     *
+     * <p>Split from the older case because the two remedies are opposites and only this one is
+     * "update". A single message told someone holding an older file to update, which cannot work
+     * and, if acted on, makes their position worse.</p>
+     */
+    | 'unsupported-version-newer'
+    /** A §D envelope written by an *older* build, in a format this one no longer reads. */
+    | 'unsupported-version-older'
     /**
      * The AEAD refused to open it.
      *
@@ -287,23 +314,36 @@ export class MlsBackupImportError extends Error {
  * passphrase is wrong when it is not is the failure this whole classification exists to prevent,
  * and an unrecognised error is by definition not evidence about their passphrase.</p>
  */
+/**
+ * The allow-list, in order. First phrase that appears in the engine's message wins.
+ *
+ * <p>A table rather than a ternary chain because the chain had grown to nine arms with mixed `||`
+ * inside it, where one misplaced arm silently re-parses the whole rest of the expression - which is
+ * a lot of load-bearing precedence to hold in your head for something whose entire job is to be
+ * obviously right. The strings are produced by `import_backup` in `mls.rs`, and asserted on both
+ * sides so the pairing cannot drift.</p>
+ */
+const IMPORT_FAILURE_PHRASES: readonly (readonly [string, MlsBackupImportFailure])[] = [
+    ['not a backup file', 'not-a-backup'],
+    ['is newer than this build supports', 'unsupported-version-newer'],
+    ['is older than this build supports', 'unsupported-version-older'],
+    // A cipher this build does not implement is the same situation as a newer format version,
+    // and has the same remedy.
+    ['unsupported backup cipher', 'unsupported-version-newer'],
+    ['refusing declared Argon2 parameters', 'hostile-kdf-parameters'],
+    ['different account', 'wrong-account'],
+    ['header does not match', 'header-mismatch'],
+    ['wrong passphrase', 'wrong-passphrase-or-altered'],
+    ['backup has no', 'malformed-contents'],
+    ['is unreadable', 'malformed-contents'],
+    ['nonce is not 12 bytes', 'malformed-contents'],
+];
+
 function classifyBackupImport(err: unknown): MlsBackupImportError {
     const detail = typeof err === 'string' ? err : err instanceof Error ? err.message : String(err);
 
-    const reason: MlsBackupImportFailure =
-        detail.includes('not a backup file') ? 'not-a-backup'
-            : detail.includes('is not supported by this build')
-            || detail.includes('unsupported backup cipher') ? 'unsupported-version'
-                : detail.includes('refusing declared Argon2 parameters') ? 'hostile-kdf-parameters'
-                    : detail.includes('different account') ? 'wrong-account'
-                        : detail.includes('header does not match') ? 'header-mismatch'
-                            : detail.includes('wrong passphrase') ? 'wrong-passphrase-or-altered'
-                                : detail.includes('backup has no')
-                                || detail.includes('is unreadable')
-                                || detail.includes('nonce is not 12 bytes') ? 'malformed-contents'
-                                    : 'engine-failed';
-
-    return new MlsBackupImportError(reason, detail);
+    const match = IMPORT_FAILURE_PHRASES.find(([phrase]) => detail.includes(phrase));
+    return new MlsBackupImportError(match?.[1] ?? 'engine-failed', detail);
 }
 
 /** One sealed entry in the plaintext message cache. */
@@ -349,10 +389,44 @@ export class MlsService {
     public keyHandle = signal<string | undefined>(undefined)
 
     private readonly _groupQueues = new Map<string, Promise<unknown>>();
-    private readonly _groupRegistry = new LazyStore('mls-group-registry.json');
-    private readonly _messageCache = new LazyStore('mls-message-cache.json');
     private readonly deviceIdentity = inject(DeviceIdentityService);
     private _cacheKey: Promise<CryptoKey> | null = null;
+
+    // -------------------------------------------------------------------------
+    // Per-account local stores
+    //
+    // Both files carry the device id, which is now one per account. They used to be
+    // `mls-group-registry.json` and `mls-message-cache.json` flat - one pair for the whole
+    // installation - so a second account signing in on the same machine read the first account's
+    // context-to-group mappings and, because the cache seal key is per-device, could open the
+    // first account's plaintext message history.
+    //
+    // Resolved lazily rather than in a field: the device id needs the active account slot, which
+    // needs a store read, and a field initialiser cannot await.
+    // -------------------------------------------------------------------------
+
+    private readonly _stores = new Map<string, {registry: LazyStore; cache: LazyStore}>();
+
+    private async storesForAccount(): Promise<{registry: LazyStore; cache: LazyStore}> {
+        const deviceId = await this.deviceIdentity.deviceId();
+        let pair = this._stores.get(deviceId);
+        if (!pair) {
+            pair = {
+                registry: new LazyStore(`mls-group-registry-${deviceId}.json`),
+                cache: new LazyStore(`mls-message-cache-${deviceId}.json`),
+            };
+            this._stores.set(deviceId, pair);
+        }
+        return pair;
+    }
+
+    private async registry(): Promise<LazyStore> {
+        return (await this.storesForAccount()).registry;
+    }
+
+    private async cacheStore(): Promise<LazyStore> {
+        return (await this.storesForAccount()).cache;
+    }
 
     // -------------------------------------------------------------------------
     // Group registry - maps (contextId, generation) → MLS groupId (persisted)
@@ -384,10 +458,10 @@ export class MlsService {
     }
 
     async registerGroup(contextId: string, generation: number, mlsGroupId: string): Promise<void> {
-        await this._groupRegistry.set(MlsService.groupKey(contextId, generation), mlsGroupId);
-        await this._groupRegistry.set(MlsService.activeGenerationKey(contextId), generation);
+        await (await this.registry()).set(MlsService.groupKey(contextId, generation), mlsGroupId);
+        await (await this.registry()).set(MlsService.activeGenerationKey(contextId), generation);
         await this.raiseEncryptionFloor(contextId, generation);
-        await this._groupRegistry.save();
+        await (await this.registry()).save();
     }
 
     // -------------------------------------------------------------------------
@@ -414,14 +488,14 @@ export class MlsService {
      * now. Cleartext composition must be refused above it.</p>
      */
     async getEncryptionFloor(contextId: string): Promise<number | null> {
-        return (await this._groupRegistry.get<number>(MlsService.encryptionFloorKey(contextId))) ?? null;
+        return (await (await this.registry()).get<number>(MlsService.encryptionFloorKey(contextId))) ?? null;
     }
 
     /** Raises the floor. Monotonic - a lower generation is ignored rather than written. */
     private async raiseEncryptionFloor(contextId: string, generation: number): Promise<void> {
         const current = await this.getEncryptionFloor(contextId);
         if (current !== null && current >= generation) return;
-        await this._groupRegistry.set(MlsService.encryptionFloorKey(contextId), generation);
+        await (await this.registry()).set(MlsService.encryptionFloorKey(contextId), generation);
     }
 
     /**
@@ -433,17 +507,17 @@ export class MlsService {
      * era are still in the history and still need those keys.</p>
      */
     async clearEncryptionFloor(contextId: string): Promise<void> {
-        await this._groupRegistry.delete(MlsService.encryptionFloorKey(contextId));
-        await this._groupRegistry.save();
+        await (await this.registry()).delete(MlsService.encryptionFloorKey(contextId));
+        await (await this.registry()).save();
     }
 
     async getGroupId(contextId: string, generation: number): Promise<string | null> {
-        return (await this._groupRegistry.get<string>(MlsService.groupKey(contextId, generation))) ?? null;
+        return (await (await this.registry()).get<string>(MlsService.groupKey(contextId, generation))) ?? null;
     }
 
     /** The generation this device last saw as live for the context, if any. */
     async getKnownGeneration(contextId: string): Promise<number | null> {
-        return (await this._groupRegistry.get<number>(MlsService.activeGenerationKey(contextId))) ?? null;
+        return (await (await this.registry()).get<number>(MlsService.activeGenerationKey(contextId))) ?? null;
     }
 
     /**
@@ -451,8 +525,8 @@ export class MlsService {
      * it - the messages from that era are still in the history and still need its keys.
      */
     async clearActiveGeneration(contextId: string): Promise<void> {
-        await this._groupRegistry.delete(MlsService.activeGenerationKey(contextId));
-        await this._groupRegistry.save();
+        await (await this.registry()).delete(MlsService.activeGenerationKey(contextId));
+        await (await this.registry()).save();
     }
 
     /** Group id for whichever generation this device believes is live. */
@@ -463,8 +537,8 @@ export class MlsService {
     }
 
     async clearGroupRegistry(): Promise<void> {
-        await this._groupRegistry.clear();
-        await this._groupRegistry.save();
+        await (await this.registry()).clear();
+        await (await this.registry()).save();
     }
 
     // -------------------------------------------------------------------------
@@ -512,15 +586,15 @@ export class MlsService {
         authorId?: string,
     ): Promise<void> {
         const sealed = await this.seal(plaintextB64);
-        await this._messageCache.set(
+        await (await this.cacheStore()).set(
             MlsService.cacheKey(contextId, generation, messageId),
             {v: 1, at: Date.now(), ...sealed, author: authorId} satisfies CachedMessage,
         );
         // The bare-id entry this supersedes, if any. Dropped rather than left to age out: two keys
         // for one message is two copies of the plaintext, and the bare one is the exploitable one.
-        await this._messageCache.delete(messageId);
+        await (await this.cacheStore()).delete(messageId);
         await this.pruneMessageCache();
-        await this._messageCache.save();
+        await (await this.cacheStore()).save();
     }
 
     /**
@@ -539,14 +613,14 @@ export class MlsService {
         expectedAuthorId?: string,
     ): Promise<string | null> {
         const key = MlsService.cacheKey(contextId, generation, messageId);
-        const entry = await this._messageCache.get<CachedMessage | string>(key);
+        const entry = await (await this.cacheStore()).get<CachedMessage | string>(key);
         if (entry) return this.openCacheEntry(entry, contextId, generation, messageId, expectedAuthorId);
 
         // Written before the key carried the context and generation. Read as a fallback, then
         // rewritten under the composite key, so the legacy shape drains away instead of being
         // carried forever - the same draining fallback mobile keeps, and it must be removed on
         // both platforms together or one of them loses history the other still has.
-        const legacy = await this._messageCache.get<CachedMessage | string>(messageId);
+        const legacy = await (await this.cacheStore()).get<CachedMessage | string>(messageId);
         if (!legacy) return null;
         return this.openCacheEntry(legacy, contextId, generation, messageId, expectedAuthorId);
     }
@@ -583,7 +657,7 @@ export class MlsService {
         // Promote a legacy or author-less entry onto the composite key, now that the caller has
         // told us which context and generation it belongs to.
         const key = MlsService.cacheKey(contextId, generation, messageId);
-        if (!(await this._messageCache.get(key)) || (!entry.author && expectedAuthorId)) {
+        if (!(await (await this.cacheStore()).get(key)) || (!entry.author && expectedAuthorId)) {
             await this.cacheMessage(contextId, generation, messageId, plaintext, expectedAuthorId);
         }
         return plaintext;
@@ -591,12 +665,12 @@ export class MlsService {
 
     /** Drops the plaintext cache. Part of every local-wipe path. */
     async clearMessageCache(): Promise<void> {
-        await this._messageCache.clear();
-        await this._messageCache.save();
+        await (await this.cacheStore()).clear();
+        await (await this.cacheStore()).save();
     }
 
     private async pruneMessageCache(): Promise<void> {
-        const entries = await this._messageCache.entries<CachedMessage | string>();
+        const entries = await (await this.cacheStore()).entries<CachedMessage | string>();
         if (entries.length <= MlsService.MESSAGE_CACHE_LIMIT) return;
 
         const aged = entries
@@ -607,7 +681,7 @@ export class MlsService {
         // messages are the least likely to be scrolled back to, and the ratchet cannot recover any
         // of them either way.
         const excess = aged.slice(0, entries.length - MlsService.MESSAGE_CACHE_LIMIT);
-        for (const {id} of excess) await this._messageCache.delete(id);
+        for (const {id} of excess) await (await this.cacheStore()).delete(id);
     }
 
     private async seal(plaintextB64: string): Promise<{ iv: string; ct: string }> {
@@ -999,16 +1073,24 @@ export class MlsService {
      * Call this once on app startup before any group operations. The Rust layer
      * will locate the app data directory automatically.
      *
+     * <p>The state file is named after this account's device id. Before it was, two accounts on
+     * one machine shared one `mls_state.json`, and the engine's own defence - clearing everything
+     * when the path changes - never fired, because the path never changed.</p>
+     *
      * @returns `true` when state was restored from disk, `false` when starting fresh.
      */
     initStorage(): Observable<boolean> {
-        // The key is fetched here rather than passed in so no caller can forget it and quietly
-        // leave the state file in the clear.
-        return from(
-            this.localStateKey().then(stateKeyB64 =>
-                this.call<boolean>('mls_init_storage', {stateKeyB64}),
-            ),
-        );
+        // Both fetched here rather than passed in, so no caller can forget the key and quietly
+        // leave the state file in the clear, or forget the scope and quietly share one file
+        // between accounts.
+        return from((async () => {
+            const [stateKeyB64, scope, adoptLegacy] = await Promise.all([
+                this.localStateKey(),
+                this.deviceIdentity.deviceId(),
+                this.deviceIdentity.ownsLegacyState(),
+            ]);
+            return this.call<boolean>('mls_init_storage', {stateKeyB64, scope, adoptLegacy});
+        })());
     }
 
     // -------------------------------------------------------------------------
@@ -1076,10 +1158,17 @@ export class MlsService {
 
         const deviceId = await this.deviceIdentity.deviceId();
         const groupRegistry = Object.fromEntries(
-            await this._groupRegistry.entries<string | number>(),
+            await (await this.registry()).entries<string | number>(),
         );
 
         const messageCache = includeMessageCache ? await this.readMessageCachePlain() : undefined;
+
+        // Carried straight back out. Alpine mints no §H key, so this is only ever one a
+        // venta-mobile envelope brought in - and omitting it is what made an Alpine re-export
+        // destroy it. Undefined when this device holds none, which is the shape mobile's import
+        // already tolerates.
+        const identity = await this.readAccountIdentity(deviceId);
+        const accountIdentity = identity ? {pub: identity.pub, priv: identity.priv} : undefined;
 
         // Distinguishable from a failure so the logout flow can offer to continue without a
         // backup instead of looping on a retry that cannot succeed.
@@ -1091,6 +1180,7 @@ export class MlsService {
             keyHandle,
             groupRegistry,
             messageCache,
+            accountIdentity,
         }, () => { throw new MlsFeatureUnavailableError('mls_export_backup'); });
     }
 
@@ -1140,11 +1230,14 @@ export class MlsService {
                 keyHandle: result.keyHandle,
             }, result.identity));
 
+            // Beside the signing key, and for the same reason: it lives in the keychain, so an
+            // import that only returned it would have restored nothing. Alpine mints no §H key of
+            // its own, but a venta-mobile envelope carries one and this is the only chance to keep
+            // it - the next Alpine export reads it back from here.
+            await this.persistAccountIdentity(currentDeviceId, result);
+
             // Without the registry every context reads as unencrypted, whatever the engine holds.
-            for (const [key, value] of Object.entries(result.groupRegistry)) {
-                await this._groupRegistry.set(key, value);
-            }
-            await this._groupRegistry.save();
+            await this.mergeRestoredRegistry(result.groupRegistry);
 
             // Written back under whatever key the export carried. A backup taken before the
             // composite key existed holds bare ids, and those stay bare rather than being guessed
@@ -1154,7 +1247,7 @@ export class MlsService {
             for (const [key, plaintextB64] of Object.entries(result.messageCache)) {
                 await this.writeSealedCacheEntry(key, plaintextB64);
             }
-            await this._messageCache.save();
+            await (await this.cacheStore()).save();
         } catch (err) {
             throw new MlsBackupImportError(
                 'local-store-failed',
@@ -1167,14 +1260,111 @@ export class MlsService {
         return result;
     }
 
+    /**
+     * Stores the §H account identity keypair, when the envelope carried one.
+     *
+     * <p>Written only when both halves are present. A public key with no private half is not a
+     * usable identity, and storing it would make the next export emit a broken `accountIdentity`
+     * section where a *missing* one is what mobile's import correctly tolerates.</p>
+     */
+    private async persistAccountIdentity(
+        deviceId: string,
+        result: MlsBackupImportResult,
+    ): Promise<void> {
+        const pub = result.accountIdentityPublicKey;
+        const priv = result.accountIdentityPrivateKey;
+        if (!pub || !priv) return;
+
+        await Promise.all([
+            secureStorage.setItem(this.accountIdentityKey(deviceId, 'pub'), pub),
+            secureStorage.setItem(this.accountIdentityKey(deviceId, 'priv'), priv),
+        ]);
+    }
+
+    /** The §H keypair this device holds, or null. Both halves or neither. */
+    private async readAccountIdentity(
+        deviceId: string,
+    ): Promise<{pub: string; priv: string} | null> {
+        try {
+            const [pub, priv] = await Promise.all([
+                secureStorage.getItem(this.accountIdentityKey(deviceId, 'pub')),
+                secureStorage.getItem(this.accountIdentityKey(deviceId, 'priv')),
+            ]);
+            return pub && priv ? {pub, priv} : null;
+        } catch {
+            // An unreadable keychain must not stop a backup being written. The §H key is the one
+            // thing in the envelope this client cannot mint, but a backup missing it is still far
+            // better than no backup - and this is the logout path, where the alternative to
+            // writing one is destroying the keys outright.
+            return null;
+        }
+    }
+
+    private accountIdentityKey(deviceId: string, field: 'pub' | 'priv'): string {
+        return `alpine_mls_${deviceId}_account_identity_${field}`;
+    }
+
+    /**
+     * Merges a restored group registry into the live one, without letting it go backwards.
+     *
+     * <p><b>A plain write over these keys is a downgrade.</b> The registry is not a bag of values -
+     * `#floor` is the monotonic encryption floor, written once and deliberately never deleted, and
+     * it is the one thing standing between a context that was encrypted and a message composed
+     * into it in the clear. Restoring an older backup with a straight `set()` per key - which is
+     * what this did - lowered it, and the very next message went out as plaintext into a
+     * conversation whose whole point was that it could not. No group keys required and no MLS
+     * property broken; the client simply stopped using them because a file told it to.</p>
+     *
+     * <p>The three key shapes are merged on their own terms:</p>
+     * <ul>
+     *   <li>`ctx#N` -> group id: additive. Two eras of one context are different groups and both
+     *       sets of messages still need their own keys, so nothing here is ever dropped.</li>
+     *   <li>`ctx#floor`: raised, never lowered. {@link raiseEncryptionFloor} already enforces it.</li>
+     *   <li>`ctx#active`: taken only when it is at or above the resulting floor. A restored
+     *       "currently on generation 2" for a context this device has since encrypted at 5 is
+     *       stale information about the present, not evidence about it.</li>
+     * </ul>
+     */
+    private async mergeRestoredRegistry(
+        restored: Record<string, string | number>,
+    ): Promise<void> {
+        const registry = await this.registry();
+
+        // Two passes, because `#active` is judged against the floor and the floor may itself be
+        // raised by this same backup. Doing it in one pass would have the outcome depend on the
+        // iteration order of an object that came off the wire.
+        for (const [key, value] of Object.entries(restored)) {
+            if (!key.endsWith('#floor')) continue;
+            const contextId = key.slice(0, -'#floor'.length);
+            if (typeof value === 'number') await this.raiseEncryptionFloor(contextId, value);
+        }
+
+        for (const [key, value] of Object.entries(restored)) {
+            if (key.endsWith('#floor')) continue;
+
+            if (key.endsWith('#active')) {
+                const contextId = key.slice(0, -'#active'.length);
+                const floor = await this.getEncryptionFloor(contextId);
+                if (typeof value !== 'number') continue;
+                if (floor !== null && value < floor) continue;
+                await registry.set(key, value);
+                continue;
+            }
+
+            await registry.set(key, value);
+        }
+
+        await registry.save();
+    }
+
     /** Seals `plaintextB64` under the exact key given, bypassing composite-key construction. */
     private async writeSealedCacheEntry(key: string, plaintextB64: string): Promise<void> {
         const sealed = await this.seal(plaintextB64);
-        await this._messageCache.set(key, {v: 1, at: Date.now(), ...sealed} satisfies CachedMessage);
+        await (await this.cacheStore()).set(key, {v: 1, at: Date.now(), ...sealed} satisfies CachedMessage);
     }
 
     private async readMessageCachePlain(): Promise<Record<string, string>> {
-        const entries = await this._messageCache.entries<CachedMessage | string>();
+        const entries = await (await this.cacheStore()).entries<CachedMessage | string>();
         const out: Record<string, string> = {};
 
         // Keyed by the *stored* key, composite or legacy-bare, so a restore reproduces the cache it
@@ -1220,8 +1410,14 @@ export class MlsService {
      * Load the signing key from the OS keychain and return a ready-to-use handle.
      * Call this on every app launch instead of prompting the user for credentials.
      * Throws `MlsTypedError { kind: 'KeyNotFound' }` if no key has been stored yet.
+     *
+     * @param expectedUserId who is signed in. When given, a stored identity that names someone
+     *        else is refused as `IdentityMismatch` rather than loaded. Per-account device ids
+     *        should make that unreachable - this is the check that makes a bug in that scoping
+     *        loud instead of silent, and silent is what it was: the stored identity has always
+     *        been the user id, and nothing ever compared it to anything.
      */
-    autoUnlock(deviceId: string): Observable<string> {
+    autoUnlock(deviceId: string, expectedUserId?: string): Observable<string> {
         return from(
             // A keychain that is momentarily unavailable - locked, service not started, a
             // transient DBus or Credential Manager failure - is not the same thing as a device
@@ -1248,6 +1444,18 @@ export class MlsService {
                     };
                     throw err;
                 }
+                // Deliberately its own kind. `KeyNotFound` routes to the registration modal, which
+                // mints a fresh signing keypair and orphans this device from every group it
+                // belongs to - an irreversible answer to a situation where the right key exists
+                // and is simply not this account's.
+                if (expectedUserId && identity !== expectedUserId) {
+                    const err: MlsTypedError = {
+                        kind: 'IdentityMismatch',
+                        message: `The signing key stored for this device belongs to ${identity}, `
+                            + `not to the signed-in account`,
+                    };
+                    throw err;
+                }
                 return this.loadSigningKey(pub, priv, identity).pipe(map(keyHandle => {
                     this.keyHandle.set(keyHandle);
                     return keyHandle;
@@ -1266,6 +1474,12 @@ export class MlsService {
                 secureStorage.removeItem(this.secureKey(deviceId, 'pub')),
                 secureStorage.removeItem(this.secureKey(deviceId, 'priv')),
                 secureStorage.removeItem(this.secureKey(deviceId, 'identity')),
+                // The §H keypair goes with them. It is account key material like the rest, and
+                // leaving it behind for whoever signs in next is the leak this teardown exists to
+                // prevent - the more so because nothing else on this client ever mints one, so a
+                // stale entry would be indistinguishable from a legitimately restored one.
+                secureStorage.removeItem(this.accountIdentityKey(deviceId, 'pub')),
+                secureStorage.removeItem(this.accountIdentityKey(deviceId, 'priv')),
             ]).then(() => undefined),
         );
     }

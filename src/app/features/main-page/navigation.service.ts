@@ -1,7 +1,8 @@
-import {Injectable, signal} from '@angular/core';
+import {inject, Injectable, signal} from '@angular/core';
 import {ConversationDto} from '../../dtos/response/conversation.dto';
 import {ChannelDto, ChannelType, GuildDto} from '../../dtos/response/guild.dto';
 import {GuildFeature, guildHasFeature} from '../guild/guild-features';
+import {AccountRegistryService, BOOTSTRAP_SLOT_ID} from '../../services/account-registry.service';
 
 export type WorkspaceContext =
     | { type: 'dms' }
@@ -53,6 +54,24 @@ export class NavigationService {
     /** Set while {@link applySnapshot} writes, so replaying a step never records itself. */
     private replaying = false;
 
+    private readonly accounts = inject(AccountRegistryService);
+
+    /**
+     * Where this account's last position is kept.
+     *
+     * <p>Per-account, because the entry names a guild, channel or conversation that only one
+     * account can see: restoring another account's last position lands the user on a context they
+     * are not a member of, and on the DM side names someone they may not know.</p>
+     *
+     * <p>Reads the loaded snapshot rather than awaiting the registry - every caller here is
+     * synchronous, and the launch sequence establishes the slot before the first guild or
+     * conversation list arrives. Falling back to the bootstrap key costs at most one unrestored
+     * navigation, never a cross-account one.</p>
+     */
+    private navKey(): string {
+        return `${NAV_KEY}:${this.accounts.activeSlotIdSnapshot() ?? BOOTSTRAP_SLOT_ID}`;
+    }
+
     readonly canGoBack = signal(false);
     readonly canGoForward = signal(false);
 
@@ -64,7 +83,7 @@ export class NavigationService {
 
     tryRestoreGuildNav(guilds: GuildDto[]): boolean {
         try {
-            const raw = localStorage.getItem(NAV_KEY);
+            const raw = localStorage.getItem(this.navKey());
             if (!raw) return false;
             const state = JSON.parse(raw) as PersistedNav;
             if (state.kind !== 'server-channel' && state.kind !== 'server-wiki') return false;
@@ -92,7 +111,7 @@ export class NavigationService {
 
     tryRestoreConversationNav(conversations: ConversationDto[]): boolean {
         try {
-            const raw = localStorage.getItem(NAV_KEY);
+            const raw = localStorage.getItem(this.navKey());
             if (!raw) return false;
             const state = JSON.parse(raw) as PersistedNav;
             if (state.kind !== 'dms-conversation' || !state.conversationId) return false;
@@ -316,7 +335,7 @@ export class NavigationService {
             }
         }
         try {
-            localStorage.setItem(NAV_KEY, JSON.stringify(state));
+            localStorage.setItem(this.navKey(), JSON.stringify(state));
         } catch {
         }
     }

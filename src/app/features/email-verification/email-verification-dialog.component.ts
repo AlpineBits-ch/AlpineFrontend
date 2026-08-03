@@ -9,6 +9,8 @@ import {EmailVerificationService, PendingCredentials} from '../../services/email
 import {ToastService} from '../../services/toast.service';
 import {AuthService} from '../../services/auth.service';
 import {UserSettingsService} from '../../services/user-settings.service';
+import {SessionTeardownService} from '../../services/session-teardown.service';
+import {DeviceIdentityService} from '../../services/device-identity.service';
 import {PrimeTemplate} from "primeng/api";
 
 @Component({
@@ -27,6 +29,8 @@ export class EmailVerificationDialogComponent implements OnInit {
     private router = inject(Router);
     private authService = inject(AuthService);
     private userSettings = inject(UserSettingsService);
+    private teardown = inject(SessionTeardownService);
+    private deviceIdentity = inject(DeviceIdentityService);
     private cooldownTimer: ReturnType<typeof setInterval> | null = null;
 
     ngOnInit(): void {
@@ -109,9 +113,25 @@ export class EmailVerificationDialogComponent implements OnInit {
         this.toast.success('Email verified!', {detail: 'Your email has been confirmed.'});
 
         if (this.verificationService.postVerifyAction() === 'navigate-login') {
-            this.authService.logout();
-            this.router.navigate(['/authentication']);
+            void this.signOutToLogin();
         }
+    }
+
+    /**
+     * Signs out with the same wipe every other sign-out path uses.
+     *
+     * <p>This one reaches the login screen from an unverified session, which is exactly the state
+     * where the account is most likely to be a different one from whoever used the machine last.
+     * Leaving the previous account's key material behind here is the same leak as anywhere else.</p>
+     */
+    private async signOutToLogin(): Promise<void> {
+        try {
+            await this.teardown.wipeAccount(await this.deviceIdentity.deviceId());
+        } catch (err) {
+            console.error('Could not fully wipe local MLS state on sign-out', err);
+        }
+        this.authService.logout();
+        void this.router.navigate(['/authentication']);
     }
 
     private startResendCooldown(): void {

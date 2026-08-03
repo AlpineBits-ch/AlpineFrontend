@@ -42,7 +42,6 @@ import {MasterKeyStateService} from '../../services/master-key-state.service';
 import {MlsService} from '../../services/mls.service';
 import {MlsSyncService} from '../../services/mls-sync.service';
 import {MlsHealthService} from '../../services/mls-health.service';
-import {DeviceService} from '../../services/device.service';
 import {
     DeviceRegistrationModalComponent
 } from '../device-registration/device-registration-modal/device-registration-modal.component';
@@ -57,12 +56,17 @@ import {EmailVerificationService} from '../../services/email-verification.servic
 import {AppReadyService} from '../../services/app-ready.service';
 import {GuildService} from '../../services/guild.service';
 import {runMlsLaunch} from './mls-launch';
+import {runSignOut} from './sign-out';
 import {MlsJoinRequestService} from '../../services/mls-join-request.service';
 import {ConversationEncryption} from '../../enums/conversation-encryption.enum';
 import {AccountOnboardingComponent} from '../onboarding/account-onboarding.component';
 import {UserDto} from '../../dtos/response/UserDto';
 import {OnboardingService} from '../../services/onboarding.service';
 import {SocialKeyGateService} from '../../services/social-key-gate.service';
+import {AccountRegistryService} from '../../services/account-registry.service';
+import {SessionTeardownService} from '../../services/session-teardown.service';
+import {ApiConfigService} from '../../services/api-config.service';
+import {ProfileService} from '../../services/profile.service';
 
 @Component({
     selector: 'app-main-page',
@@ -160,13 +164,16 @@ export class MainPageComponent implements OnDestroy {
     private mlsSync = inject(MlsSyncService);
     private mlsHealth = inject(MlsHealthService);
     private masterKeyState = inject(MasterKeyStateService);
-    private deviceService = inject(DeviceService);
     private conversationService = inject(ConversationService);
     private richPresenceService = inject(RichPresenceService);
     private emailVerification = inject(EmailVerificationService);
     private appReady = inject(AppReadyService);
     private guildService = inject(GuildService);
     private joinRequests = inject(MlsJoinRequestService);
+    private accounts = inject(AccountRegistryService);
+    private teardown = inject(SessionTeardownService);
+    private apiConfig = inject(ApiConfigService);
+    private profileService = inject(ProfileService);
     /** Conversations read for the launch-time §B sweep. Filtering them costs no requests. */
     private static readonly SWEEP_PAGE_SIZE = 100;
     private actionSub = new Subscription();
@@ -275,7 +282,7 @@ export class MainPageComponent implements OnDestroy {
     }
 
     public logout(): void {
-        this.goToLogin();
+        void this.goToLogin();
     }
 
     protected openAccountSettings(): void {
@@ -301,9 +308,14 @@ export class MainPageComponent implements OnDestroy {
         this.userService.replenishKeyCount().subscribe();
     }
 
-    private goToLogin(): void {
-        this.authService.logout();
-        void this.router.navigate(['/authentication']);
+    /** Sign out, taking this device's key material with it. See {@link runSignOut}. */
+    private goToLogin(): Promise<unknown> {
+        return runSignOut({
+            deviceId: () => this.mlsService.getOrCreateDeviceIdentifier(),
+            wipeAccount: id => this.teardown.wipeAccount(id),
+            dropTokens: () => this.authService.logout(),
+            goToLogin: () => void this.router.navigate(['/authentication']),
+        });
     }
 
     /**
@@ -355,6 +367,11 @@ export class MainPageComponent implements OnDestroy {
             return true;
         }
 
+        // Before anything reads a device id or opens a store. Every local MLS name is derived from
+        // this slot's device id, so a launch that got as far as `runDeviceLaunch` without one would
+        // do its work under the bootstrap slot and then find it under a different name next time.
+        await this.establishAccountSlot(user);
+
         if (user.email) this.emailVerification.storeKnownEmail(user.email);
         if (!user.emailVerifiedAt) {
             this.emailVerification.show(user.email || this.resolveEmail());
@@ -367,6 +384,30 @@ export class MainPageComponent implements OnDestroy {
         return true;
     }
 
+    /**
+     * Makes this account's slot live, so the device id and every store named after it resolve to
+     * this account rather than to whoever was here last.
+     *
+     * <p>The display half is filled in afterwards and failing to fetch it is ignored: a switcher
+     * row with a blank name is cosmetic, and an account with no slot has no device id at all.</p>
+     */
+    private async establishAccountSlot(user: UserDto): Promise<void> {
+        const slot = await this.accounts.ensureSlot({
+            userId: user.id,
+            serverUrl: this.apiConfig.baseUrl(),
+        });
+
+        try {
+            const profile = await firstValueFrom(this.profileService.getSelf());
+            await this.accounts.updateProfile(slot.id, {
+                username: profile.userName,
+                avatarUrl: profile.avatarUrl ?? null,
+            });
+        } catch (err) {
+            console.error('Could not label the account slot', err);
+        }
+    }
+
     private async runDeviceLaunch(): Promise<void> {
         const deviceId = await this.mlsService.getOrCreateDeviceIdentifier();
         try {
@@ -376,8 +417,12 @@ export class MainPageComponent implements OnDestroy {
             await this.wipeLocalMlsState(deviceId);
         }
 
+        // Who the engine is expected to be holding keys for. Read from the slot rather than kept
+        // as a field, so the path that resumes here after the onboarding picker has it too.
+        const expectedUserId = (await this.accounts.activeSlot())?.userId;
+
         const outcome = await runMlsLaunch({
-            unlock: () => firstValueFrom(this.mlsService.autoUnlock(deviceId)),
+            unlock: () => firstValueFrom(this.mlsService.autoUnlock(deviceId, expectedUserId)),
             replenish: () => firstValueFrom(this.userService.replenishKeyCount()),
             checkMasterKey: () => this.promptForMasterKeyIfOwed(),
             processWelcomes: () => this.mlsSync.processPendingWelcomes(),
@@ -389,7 +434,16 @@ export class MainPageComponent implements OnDestroy {
         // that this device is unregistered, and registering would mint a fresh keypair over live
         // group state - see MlsLaunchOutcome.
         this.showDeviceRegistration.set(outcome.needsRegistration);
-        this.keyUnlockFailed.set(outcome.keyStoreUnreachable);
+        // Surfaced through the same banner as an unreachable key store: both mean "encryption is
+        // not available on this launch and registering is not the answer". They are separate
+        // outcomes so the log says which, and so neither can be mistaken for `needsRegistration`.
+        this.keyUnlockFailed.set(outcome.keyStoreUnreachable || outcome.identityMismatch);
+        if (outcome.identityMismatch) {
+            console.error(
+                'The signing key stored for this device belongs to another account - the account '
+                + 'slot resolved to the wrong device id',
+            );
+        }
         this.keyPackagesFailed.set(outcome.keyPackagesFailed);
 
         this.appReady.markReady();
@@ -457,28 +511,21 @@ export class MainPageComponent implements OnDestroy {
     }
 
     /**
-     * Clears every trace of local MLS state, and tells the server to do the same with the key
-     * packages it is still handing out for this device.
+     * Recovers from a state file this device can no longer read.
      *
-     * That last step is the one that is easy to miss and expensive to omit: the replenish count is
-     * derived purely from server rows, while the private init keys live only here. Wiping locally
-     * and leaving ~100 unconsumed packages on the server means the server answers "you have
-     * plenty", nothing is re-uploaded, and every Welcome sealed to those packages is undecryptable
-     * by the very device it was addressed to - silently, and for good.
+     * <p>The signing key is deliberately kept - see {@link SessionTeardownService.wipeEngineState}.
+     * The health record is this component's to keep, which is why the teardown reports the
+     * server-side reset rather than recording it itself.</p>
      */
     private async wipeLocalMlsState(deviceId: string): Promise<void> {
-        await firstValueFrom(this.mlsService.clearStorage());
-        await this.mlsService.clearGroupRegistry();
-        await this.mlsService.clearMessageCache();
+        const outcome = await this.teardown.wipeEngineState(deviceId);
         this.mlsHealth.clear();
 
-        try {
-            await firstValueFrom(this.deviceService.resetKeyPackages(deviceId));
-        } catch (err) {
+        if (!outcome.keyPackagesReset) {
             // Not fatal to launch, but it does mean this device stays unreachable until the reset
             // succeeds, so it is surfaced rather than swallowed.
-            this.mlsHealth.recordFailure(deviceId, false, 'not-admitted', err);
-            console.error('Could not reset server-side key packages after a local wipe', err);
+            this.mlsHealth.recordFailure(deviceId, false, 'not-admitted',
+                new Error('key packages were not reset after a local wipe'));
         }
     }
 

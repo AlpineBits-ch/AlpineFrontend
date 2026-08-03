@@ -42,6 +42,15 @@ export interface MlsLaunchOutcome {
      */
     keyStoreUnreachable: boolean;
     /**
+     * The stored signing key belongs to a different account than the one signed in.
+     *
+     * <p>Its own flag for the same reason {@link keyStoreUnreachable} is: registering would be an
+     * irreversible answer to a recoverable situation. Per-account device ids should make this
+     * unreachable, so reaching it means the account scoping resolved to the wrong device id -
+     * which is a bug to be seen, not a key to be replaced.</p>
+     */
+    identityMismatch: boolean;
+    /**
      * Key packages could not be uploaded.
      *
      * <p>Reported on its own, and it is the reason this function exists. All four steps used to sit
@@ -75,7 +84,11 @@ export async function runMlsLaunch(steps: MlsLaunchSteps): Promise<MlsLaunchOutc
         return {
             handle: null,
             needsRegistration: kind === 'KeyNotFound',
-            keyStoreUnreachable: kind !== 'KeyNotFound',
+            identityMismatch: kind === 'IdentityMismatch',
+            // Everything that is neither of the two named states. Kept as the catch-all so a new
+            // kind surfaces as "something is wrong with the key store" rather than as a prompt to
+            // register, which is the one response that cannot be taken back.
+            keyStoreUnreachable: kind !== 'KeyNotFound' && kind !== 'IdentityMismatch',
             keyPackagesFailed: false,
             admissionSweepFailed: false,
         };
@@ -103,6 +116,7 @@ export async function runMlsLaunch(steps: MlsLaunchSteps): Promise<MlsLaunchOutc
     return {
         handle,
         needsRegistration: false,
+        identityMismatch: false,
         keyStoreUnreachable: false,
         keyPackagesFailed: !replenished,
         admissionSweepFailed: !swept,

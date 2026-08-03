@@ -144,6 +144,147 @@ describe('MlsService.importBackup', () => {
         expect(await service.getGroupId('ctx-1', 0)).toBe('Z3JvdXA=');
     });
 
+    // ─── The encryption floor must not go backwards ───────────────────────────
+    //
+    // The registry is not a bag of values. `#floor` is the monotonic encryption floor - written
+    // once, deliberately never deleted - and it is the one thing standing between a context that
+    // was encrypted and a message composed into it in the clear. The import wrote every restored
+    // key with a plain `set()`, so restoring an older backup lowered it and the very next message
+    // went out as plaintext into a conversation whose whole point was that it could not. No group
+    // keys required and no MLS property broken; the client simply stopped using them.
+
+    describe('encryption floor', () => {
+        it('does not lower the floor when an older backup is restored', async () => {
+            await service.registerGroup('ctx-1', 5, 'Y3VycmVudA==');
+            expect(await service.getEncryptionFloor('ctx-1')).toBe(5);
+
+            invokeStub.mockResolvedValue(importResult({
+                groupRegistry: {'ctx-1#2': 'b2xk', 'ctx-1#floor': 2, 'ctx-1#active': 2},
+            }) as never);
+
+            await service.importBackup('<blob>', 'pass', 'user-1');
+
+            expect(await service.getEncryptionFloor('ctx-1')).toBe(5);
+        });
+
+        it('raises the floor when the backup knows of a later generation', async () => {
+            await service.registerGroup('ctx-1', 5, 'Y3VycmVudA==');
+
+            invokeStub.mockResolvedValue(importResult({
+                groupRegistry: {'ctx-1#7': 'bmV3ZXI=', 'ctx-1#floor': 7, 'ctx-1#active': 7},
+            }) as never);
+
+            await service.importBackup('<blob>', 'pass', 'user-1');
+
+            expect(await service.getEncryptionFloor('ctx-1')).toBe(7);
+        });
+
+        it('leaves an equal floor alone', async () => {
+            await service.registerGroup('ctx-1', 5, 'Y3VycmVudA==');
+
+            invokeStub.mockResolvedValue(importResult({
+                groupRegistry: {'ctx-1#floor': 5},
+            }) as never);
+
+            await service.importBackup('<blob>', 'pass', 'user-1');
+
+            expect(await service.getEncryptionFloor('ctx-1')).toBe(5);
+        });
+
+        it('sets a floor for a context this device has never encrypted', async () => {
+            invokeStub.mockResolvedValue(importResult({
+                groupRegistry: {'ctx-new#3': 'Zg==', 'ctx-new#floor': 3},
+            }) as never);
+
+            await service.importBackup('<blob>', 'pass', 'user-1');
+
+            expect(await service.getEncryptionFloor('ctx-new')).toBe(3);
+        });
+
+        it('does not move the active generation back below the floor', async () => {
+            await service.registerGroup('ctx-1', 5, 'Y3VycmVudA==');
+
+            invokeStub.mockResolvedValue(importResult({
+                groupRegistry: {'ctx-1#2': 'b2xk', 'ctx-1#floor': 2, 'ctx-1#active': 2},
+            }) as never);
+
+            await service.importBackup('<blob>', 'pass', 'user-1');
+
+            // A restored "currently on generation 2" for a context this device has since encrypted
+            // at 5 is stale information about the present, not evidence about it.
+            expect(await service.getKnownGeneration('ctx-1')).toBe(5);
+        });
+
+        it('takes the active generation when it is at or above the floor', async () => {
+            await service.registerGroup('ctx-1', 5, 'Y3VycmVudA==');
+
+            invokeStub.mockResolvedValue(importResult({
+                groupRegistry: {'ctx-1#9': 'bmV3', 'ctx-1#floor': 9, 'ctx-1#active': 9},
+            }) as never);
+
+            await service.importBackup('<blob>', 'pass', 'user-1');
+
+            expect(await service.getKnownGeneration('ctx-1')).toBe(9);
+        });
+
+        it('still restores the per-generation group mappings from an older backup', async () => {
+            await service.registerGroup('ctx-1', 5, 'Y3VycmVudA==');
+
+            invokeStub.mockResolvedValue(importResult({
+                groupRegistry: {'ctx-1#2': 'b2xk', 'ctx-1#floor': 2, 'ctx-1#active': 2},
+            }) as never);
+
+            await service.importBackup('<blob>', 'pass', 'user-1');
+
+            // Additive by construction: two eras of one context are different groups and the
+            // messages from the older era still need its keys. Refusing the downgrade must not
+            // cost the user the history the backup was restored for.
+            expect(await service.getGroupId('ctx-1', 2)).toBe('b2xk');
+            expect(await service.getGroupId('ctx-1', 5)).toBe('Y3VycmVudA==');
+        });
+    });
+
+    // ─── The §H account identity keypair ──────────────────────────────────────
+
+    describe('account identity key', () => {
+        it('stores both halves when the envelope carried them', async () => {
+            invokeStub.mockResolvedValue(importResult({
+                accountIdentityPublicKey: 'YWNjLXB1Yg==',
+                accountIdentityPrivateKey: 'YWNjLXByaXY=',
+            }) as never);
+
+            await service.importBackup('<blob>', 'pass', 'user-1');
+
+            const stored = Object.fromEntries(setItem.mock.calls.map(([k, v]) => [k, v]));
+            expect(stored['alpine_mls_device-a_account_identity_pub']).toBe('YWNjLXB1Yg==');
+            expect(stored['alpine_mls_device-a_account_identity_priv']).toBe('YWNjLXByaXY=');
+        });
+
+        it('writes nothing when the envelope carried none', async () => {
+            invokeStub.mockResolvedValue(importResult() as never);
+
+            await service.importBackup('<blob>', 'pass', 'user-1');
+
+            const written = setItem.mock.calls.map(([k]) => k);
+            expect(written.some(k => k.includes('account_identity'))).toBe(false);
+        });
+
+        it('writes nothing when only one half is present', async () => {
+            invokeStub.mockResolvedValue(importResult({
+                accountIdentityPublicKey: 'YWNjLXB1Yg==',
+                accountIdentityPrivateKey: null,
+            }) as never);
+
+            await service.importBackup('<blob>', 'pass', 'user-1');
+
+            // A public key with no private half is not a usable identity, and storing it would
+            // make the next export emit a broken `accountIdentity` section where a *missing* one
+            // is what venta-mobile's import correctly tolerates.
+            const written = setItem.mock.calls.map(([k]) => k);
+            expect(written.some(k => k.includes('account_identity'))).toBe(false);
+        });
+    });
+
     // ─── Failure classification ───────────────────────────────────────────────
     //
     // The remedies are disjoint and mutually useless. Collapsing them is the C2 mistake: an
@@ -152,8 +293,11 @@ describe('MlsService.importBackup', () => {
 
     const cases: [string, string][] = [
         ['MlsError: not a backup file: EOF while parsing', 'not-a-backup'],
-        ['MlsError: backup version 2 is not supported by this build', 'unsupported-version'],
-        ['MlsError: unsupported backup cipher or key derivation', 'unsupported-version'],
+        // Two versions, two remedies, and only one of them is "update". These strings are produced
+        // by `import_backup` in mls.rs and asserted there too, so the split cannot drift.
+        ['MlsError: backup version 2 is newer than this build supports', 'unsupported-version-newer'],
+        ['MlsError: backup version 0 is older than this build supports', 'unsupported-version-older'],
+        ['MlsError: unsupported backup cipher or key derivation', 'unsupported-version-newer'],
         ['MlsError: refusing declared Argon2 parameters (m=4294967295 KiB, t=3, p=4) - above the',
             'hostile-kdf-parameters'],
         ['MlsError: this backup belongs to a different account (user-9), not the one signed in',
@@ -209,7 +353,8 @@ describe('MlsService.importBackup', () => {
 describe('describeImportFailure', () => {
     it('gives each failure its own remedy', () => {
         const reasons = [
-            'not-a-backup', 'unsupported-version', 'wrong-passphrase-or-altered', 'wrong-account',
+            'not-a-backup', 'unsupported-version-newer', 'unsupported-version-older',
+            'wrong-passphrase-or-altered', 'wrong-account',
             'header-mismatch', 'hostile-kdf-parameters', 'malformed-contents',
             'local-store-failed', 'engine-failed',
         ] as const;
@@ -220,6 +365,19 @@ describe('describeImportFailure', () => {
         // Distinct, because the actions they ask for are distinct - and a message repeated across
         // two causes is a message that is wrong for at least one of them.
         expect(new Set(messages).size).toBe(reasons.length);
+    });
+
+    it('tells only the newer case to update', () => {
+        const newer = describeImportFailure(
+            new MlsBackupImportError('unsupported-version-newer', 'detail'));
+        const older = describeImportFailure(
+            new MlsBackupImportError('unsupported-version-older', 'detail'));
+
+        expect(newer).toMatch(/update/i);
+        // Advice that cannot work, and that leaves someone further from the build that could have
+        // read their file if they act on it. One message for both said exactly this.
+        expect(older).not.toMatch(/update and try again/i);
+        expect(older).toMatch(/too old/i);
     });
 
     it('says a wrong passphrase and an altered file cannot be told apart', () => {

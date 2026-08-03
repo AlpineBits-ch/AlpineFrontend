@@ -2,7 +2,7 @@ import {Component, EventEmitter, inject, Input, Output, signal} from '@angular/c
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PasswordDirective} from 'primeng/password';
-import {catchError, from, of, switchMap, take} from 'rxjs';
+import {from, switchMap, take} from 'rxjs';
 import {TranslateModule} from '@ngx-translate/core';
 import {Router} from '@angular/router';
 import {AuthService} from '../../../services/auth.service';
@@ -10,7 +10,7 @@ import {UserService} from '../../../services/user.service';
 import {MasterKeyService} from '../../../services/master-key.service';
 import {MlsFeatureUnavailableError, MlsService} from '../../../services/mls.service';
 import {UserTokenService} from '../../../services/user-token.service';
-import {DeviceService} from '../../../services/device.service';
+import {SessionTeardownService} from '../../../services/session-teardown.service';
 import {AppInfoService} from '../../../services/app-info.service';
 
 type Step = 'export-prompt' | 'password' | 'no-export-warning' | 'export-unavailable' | 'processing';
@@ -34,7 +34,7 @@ export class LogoutDialogComponent {
     private userService = inject(UserService);
     private masterKeyService = inject(MasterKeyService);
     private mlsService = inject(MlsService);
-    private deviceService = inject(DeviceService);
+    private teardown = inject(SessionTeardownService);
     private userTokenService = inject(UserTokenService);
     private router = inject(Router);
     private readonly appInfo = inject(AppInfoService);
@@ -148,29 +148,22 @@ export class LogoutDialogComponent {
         return this.mlsService.exportBackup(this.password(), userId, this.appInfo.version(), true);
     }
 
+    /**
+     * The full sign-out wipe, now shared with every other path that signs out.
+     *
+     * <p>It used to be inlined here, and it was the only one of the three sign-out paths that did
+     * it - see {@link SessionTeardownService}. Sharing it is what makes "sign out" mean the same
+     * thing wherever it is reached from.</p>
+     */
     private clearMlsAndLogout(): void {
-        from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(
-            switchMap(deviceId => {
-                const handle = this.mlsService.keyHandle();
-                const unload$ = handle ? this.mlsService.unloadSigningKey(handle) : of(undefined as void);
-                return unload$.pipe(
-                    switchMap(() => this.mlsService.clearStoredSigningKey(deviceId)),
-                    switchMap(() => this.mlsService.clearStorage()),
-                    switchMap(() => from(this.mlsService.clearGroupRegistry())),
-                    switchMap(() => from(this.mlsService.clearMessageCache())),
-                    // Contract §A. Without this the server keeps handing out key packages whose
-                    // private halves were just deleted, and every Welcome sealed to one of them is
-                    // undecryptable by the device it was meant for - including after a fresh login
-                    // on this same machine, which keeps its device id.
-                    switchMap(() => this.deviceService.resetKeyPackages(deviceId).pipe(
-                        catchError(() => of(undefined)),
-                    )),
-                );
-            }),
-        ).subscribe({
-            complete: () => this.doLogout(),
-            error: () => this.doLogout(),
-        });
+        from(this.mlsService.getOrCreateDeviceIdentifier())
+            .pipe(switchMap(deviceId => from(this.teardown.wipeAccount(deviceId))))
+            .subscribe({
+                // Either way. A teardown that failed halfway must not strand the user in a session
+                // they asked to leave, and the local half is best-effort by construction.
+                complete: () => this.doLogout(),
+                error: () => this.doLogout(),
+            });
     }
 
     private doLogout(): void {

@@ -1744,9 +1744,21 @@ fn backup_aad(user_id: &str, device_id: &str) -> String {
     format!("{}|{}|{}", BACKUP_AAD_PREFIX, user_id, device_id)
 }
 
-/// Mobile passes a ninth argument here, the §H account identity keypair. Alpine has no such key to
-/// supply - see the module comment - so the field is simply absent from the envelopes this client
-/// writes, which is exactly what mobile's import already tolerates.
+/// The §H account identity keypair, when the caller holds one.
+///
+/// <p>Alpine does not mint these - §H is not ported here - but it can now be <i>holding</i> one: an
+/// envelope written by venta-mobile carries it, `import_backup` has always read it back out, and
+/// nothing stored it. Re-exporting on Alpine therefore destroyed it. Round-tripping a key this
+/// client cannot itself produce is the whole point of carrying it.</p>
+#[derive(Deserialize, Debug, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BackupAccountIdentity {
+    #[serde(rename = "pub")]
+    pub pub_: String,
+    #[serde(rename = "priv")]
+    pub priv_: String,
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn export_backup(
     mls: &MlsState,
@@ -1757,6 +1769,7 @@ pub fn export_backup(
     key_handle: String,
     group_registry: HashMap<String, serde_json::Value>,
     message_cache: Option<HashMap<String, String>>,
+    account_identity: Option<BackupAccountIdentity>,
 ) -> Result<String, String> {
     if passphrase.is_empty() {
         return Err("MlsError: a backup passphrase is required".to_string());
@@ -1769,7 +1782,7 @@ pub fn export_backup(
         identity: entry.identity.clone(),
     };
 
-    let payload = serde_json::json!({
+    let mut payload = serde_json::json!({
         "userId": user_id,
         "deviceId": device_id,
         "createdAt": current_iso8601(),
@@ -1783,6 +1796,16 @@ pub fn export_backup(
         "groupRegistry": group_registry,
         "messageCache": message_cache.unwrap_or_default(),
     });
+
+    // Written only when there is one. An `accountIdentity` present but null or empty is worse than
+    // absent: mobile's import reads the field, and a half-formed one turns "this backup has no
+    // account identity key" into "this backup's account identity key is unusable".
+    if let Some(identity) = account_identity {
+        payload["accountIdentity"] = serde_json::json!({
+            "pub": identity.pub_,
+            "priv": identity.priv_,
+        });
+    }
 
     let plaintext = serde_json::to_vec(&payload).map_err(|e| e.to_string())?;
 
@@ -1833,9 +1856,18 @@ pub fn import_backup(
     let envelope: BackupEnvelope =
         serde_json::from_str(&blob).map_err(|e| format!("MlsError: not a backup file: {}", e))?;
 
-    if envelope.v != BACKUP_VERSION {
+    // Split, because the remedies are opposites and only one of them is "update". Collapsed into
+    // one message, the UI told a user holding a *older* file to update the app - advice that makes
+    // their situation strictly worse if they act on it, and that cannot work either way.
+    if envelope.v > BACKUP_VERSION {
         return Err(format!(
-            "MlsError: backup version {} is not supported by this build",
+            "MlsError: backup version {} is newer than this build supports",
+            envelope.v
+        ));
+    }
+    if envelope.v < BACKUP_VERSION {
+        return Err(format!(
+            "MlsError: backup version {} is older than this build supports",
             envelope.v
         ));
     }
@@ -2333,23 +2365,83 @@ pub fn mls_get_group_info(
 /// Points the engine at its state file and restores whatever is in it.
 ///
 /// `state_key_b64` is a 32-byte AES key the TypeScript layer keeps in the OS keychain. It is what
-/// makes `mls_state.json` - every init key, leaf HPKE private key and epoch secret this device
+/// makes the state file - every init key, leaf HPKE private key and epoch secret this device
 /// holds - useless to anyone reading the disk, an OS-level backup, or a restored device image.
 /// A legacy plaintext file is accepted once and immediately rewritten sealed, because refusing it
 /// would strand every device that predates this.
+///
+/// `scope` is the account's device id, and it names the file: `mls_state_{scope}.json`. Two
+/// accounts on one machine held one `mls_state.json` between them before it existed, which
+/// `init_storage_from_parts` was already written to survive - it clears everything when the path
+/// changes - but only because the *path* changing is what tells it the account did.
 #[tauri::command]
 pub fn mls_init_storage(
     state: tauri::State<MlsStateHandle>,
     app: tauri::AppHandle,
     state_key_b64: Option<String>,
+    scope: Option<String>,
+    adopt_legacy: Option<bool>,
 ) -> Result<bool, String> {
     use tauri::Manager;
     let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     std::fs::create_dir_all(&data_dir).map_err(|e| e.to_string())?;
-    let state_path = data_dir.join("mls_state.json");
+    let state_path = data_dir.join(state_file_name(scope.as_deref()));
+
+    if adopt_legacy.unwrap_or(false) {
+        adopt_legacy_state_file(&data_dir.join("mls_state.json"), &state_path)?;
+    }
 
     let mut mls = state.lock().map_err(|e| e.to_string())?;
     init_storage_from_parts(&mut mls, state_path, state_key_b64)
+}
+
+/// Moves the pre-scope state file under the name the account that owns it now resolves to.
+///
+/// <p>Called only for the one slot that inherited the pre-scope device id - the keychain entries
+/// and the state key are named after it, so no other account could open this file anyway. Without
+/// the move that slot starts on an empty engine and presents to the user as this device having been
+/// ejected from every group it belongs to.</p>
+///
+/// <p>Refuses to overwrite. A scoped file that already exists is this account's real state, and a
+/// stale legacy file left over from before the upgrade must not replace it.</p>
+fn adopt_legacy_state_file(legacy: &std::path::Path, scoped: &std::path::Path) -> Result<(), String> {
+    if scoped == legacy || scoped.exists() || !legacy.exists() {
+        return Ok(());
+    }
+    std::fs::rename(legacy, scoped).map_err(|e| {
+        format!(
+            "MlsError: could not adopt the existing state file - this account's groups are in {} \
+             and could not be moved to {}: {}",
+            legacy.display(),
+            scoped.display(),
+            e
+        )
+    })
+}
+
+/// The state file for an account, or the pre-scope name when there is none.
+///
+/// <p>The unscoped fallback is not dead code: it is what a caller that has not yet resolved an
+/// account slot gets, and it is the file every installation predating per-account scoping already
+/// has on disk. `DeviceIdentityService` hands the first slot that pre-scope device id, so the
+/// scoped name that slot resolves to is the one the migration renames this file to.</p>
+fn state_file_name(scope: Option<&str>) -> String {
+    match scope {
+        // Rejected rather than sanitised: a scope that is not a plain id is a bug in the caller,
+        // and quietly rewriting it into a different filename would silently start a second,
+        // empty engine for an account that already had one.
+        Some(s) if is_safe_scope(s) => format!("mls_state_{}.json", s),
+        _ => "mls_state.json".to_string(),
+    }
+}
+
+/// Device ids are UUIDs. Anything else must not reach a path join.
+fn is_safe_scope(scope: &str) -> bool {
+    !scope.is_empty()
+        && scope.len() <= 64
+        && scope
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 /// The directory the engine is currently persisting to, or `null` before initialisation.
@@ -2398,6 +2490,7 @@ pub fn mls_export_backup(
     key_handle: String,
     group_registry: HashMap<String, serde_json::Value>,
     message_cache: Option<HashMap<String, String>>,
+    account_identity: Option<BackupAccountIdentity>,
 ) -> Result<String, String> {
     let mls = state.lock().map_err(|e| e.to_string())?;
     export_backup(
@@ -2409,6 +2502,7 @@ pub fn mls_export_backup(
         key_handle,
         group_registry,
         message_cache,
+        account_identity,
     )
 }
 
@@ -2451,7 +2545,10 @@ mod integration_tests {
         process_message_impl, rejoin_group_impl, remove_members_impl, send_message_impl,
         unload_signing_key_impl, MlsState,
         derive_backup_key, export_backup, import_backup, BackupEnvelope,
+        adopt_legacy_state_file, get_signer_entry, state_file_name,
+        BackupAccountIdentity, BACKUP_VERSION,
     };
+    use openmls::prelude::OpenMlsProvider;
     use aes_gcm::{aead::{Aead, Payload}, Aes256Gcm, KeyInit, Nonce};
     use base64::{engine::general_purpose::STANDARD as B64, Engine};
     use rand::RngCore;
@@ -3559,6 +3656,146 @@ mod integration_tests {
         );
     }
 
+    // ─── Per-account scoping of the state file ────────────────────────────────
+    //
+    // One `mls_state.json` per installation is how two accounts on one machine came to share every
+    // epoch secret and leaf HPKE private key between them. `init_storage_from_parts` was already
+    // written for this - it clears groups, signers and the whole provider store when the path
+    // changes - but the command wrapper handed it a constant, so the path never changed and the
+    // defence never fired.
+
+    #[test]
+    fn the_state_file_is_named_after_the_account() {
+        assert_eq!(
+            state_file_name(Some("2b1f0e6a-9c3d-4f77-8a21-000000000001")),
+            "mls_state_2b1f0e6a-9c3d-4f77-8a21-000000000001.json"
+        );
+        assert_eq!(state_file_name(None), "mls_state.json");
+    }
+
+    #[test]
+    fn a_scope_that_is_not_a_plain_id_falls_back_rather_than_reaching_a_path_join() {
+        // Traversal is the obvious one, but the reason this refuses rather than sanitises is the
+        // quieter failure: a rewritten scope names a *different* file, so an account that already
+        // had state would silently start on an empty engine.
+        for hostile in ["../../etc/passwd", "a/b", "a\\b", "", "with space", "a.b"] {
+            assert_eq!(
+                state_file_name(Some(hostile)),
+                "mls_state.json",
+                "scope {hostile:?} must not name a file"
+            );
+        }
+    }
+
+    #[test]
+    fn switching_accounts_clears_the_previous_account_key_material() {
+        let key = rand_key_bytes();
+        let path_a = test_state_dir().join(format!("acct_a_{}.json", uuid::Uuid::new_v4()));
+        let path_b = test_state_dir().join(format!("acct_b_{}.json", uuid::Uuid::new_v4()));
+
+        let mut mls = make_mls_at(path_a.clone(), Some(key.clone()));
+        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("key gen");
+        let group_id = rand_group_id();
+        create_group_impl(&mut mls, group_id.clone(), batch.key_handle.clone()).expect("create");
+
+        // The same live engine now pointed at another account's file.
+        init_storage_from_parts(&mut mls, path_b.clone(), Some(B64.encode(&key)))
+            .expect("pointing at a fresh account file must succeed");
+
+        assert!(
+            get_group_info_impl(&mls, group_id).is_err(),
+            "account A's group must not be readable after switching to account B"
+        );
+        assert!(
+            get_signer_entry(&mls, &batch.key_handle).is_err(),
+            "a signer handle minted for account A must not stay usable for account B"
+        );
+        assert!(
+            mls.provider.storage().values.read().unwrap().is_empty(),
+            "account A's provider store must be cleared, not merged into account B's"
+        );
+    }
+
+    #[test]
+    fn each_account_state_file_keeps_its_own_groups() {
+        let key_a = rand_key_bytes();
+        let key_b = rand_key_bytes();
+        let path_a = test_state_dir().join(format!("own_a_{}.json", uuid::Uuid::new_v4()));
+        let path_b = test_state_dir().join(format!("own_b_{}.json", uuid::Uuid::new_v4()));
+
+        let mut a = make_mls_at(path_a.clone(), Some(key_a.clone()));
+        let batch_a = generate_key_packages_impl(&mut a, "alice".to_string(), 1).expect("key gen");
+        let group_a = rand_group_id();
+        create_group_impl(&mut a, group_a.clone(), batch_a.key_handle).expect("create");
+
+        let mut b = make_mls_at(path_b.clone(), Some(key_b.clone()));
+        let batch_b = generate_key_packages_impl(&mut b, "bob".to_string(), 1).expect("key gen");
+        create_group_impl(&mut b, rand_group_id(), batch_b.key_handle).expect("create");
+
+        // Reopened independently: B writing its own file must not have touched A's.
+        let mut reopened = MlsState::default();
+        init_storage_from_parts(&mut reopened, path_a, Some(B64.encode(&key_a))).expect("reopen A");
+
+        assert!(
+            get_group_info_impl(&reopened, group_a).is_ok(),
+            "account A's group must survive account B using the machine"
+        );
+    }
+
+    #[test]
+    fn adopting_the_pre_scope_state_file_moves_it_under_the_account_name() {
+        let dir = test_state_dir().join(format!("adopt_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let legacy = dir.join("mls_state.json");
+        let scoped = dir.join("mls_state_device-a.json");
+
+        let key = rand_key_bytes();
+        let mut mls = make_mls_at(legacy.clone(), Some(key.clone()));
+        let batch = generate_key_packages_impl(&mut mls, "alice".to_string(), 1).expect("key gen");
+        let group_id = rand_group_id();
+        create_group_impl(&mut mls, group_id.clone(), batch.key_handle).expect("create");
+        assert!(legacy.exists());
+
+        adopt_legacy_state_file(&legacy, &scoped).expect("adopt");
+
+        assert!(!legacy.exists(), "the pre-scope file must be moved, not copied");
+        let mut upgraded = MlsState::default();
+        init_storage_from_parts(&mut upgraded, scoped, Some(B64.encode(&key))).expect("open");
+        assert!(
+            get_group_info_impl(&upgraded, group_id).is_ok(),
+            "the upgrading account must keep the groups it already belongs to"
+        );
+    }
+
+    #[test]
+    fn adopting_never_overwrites_an_account_that_already_has_state() {
+        let dir = test_state_dir().join(format!("adopt_clash_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        let legacy = dir.join("mls_state.json");
+        let scoped = dir.join("mls_state_device-a.json");
+
+        std::fs::write(&legacy, b"stale").expect("write legacy");
+        std::fs::write(&scoped, b"this account's real state").expect("write scoped");
+
+        adopt_legacy_state_file(&legacy, &scoped).expect("adopt");
+
+        assert_eq!(
+            std::fs::read(&scoped).expect("read"),
+            b"this account's real state",
+            "a leftover pre-scope file must never replace state the account already has"
+        );
+        assert!(legacy.exists(), "and the leftover must be left where it is");
+    }
+
+    #[test]
+    fn adopting_is_a_no_op_when_there_is_nothing_to_adopt() {
+        let dir = test_state_dir().join(format!("adopt_none_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).expect("mkdir");
+
+        adopt_legacy_state_file(&dir.join("mls_state.json"), &dir.join("mls_state_device-a.json"))
+            .expect("a fresh install has no pre-scope file and that is not an error");
+    }
+
     #[test]
     fn a_truncated_state_file_fails_to_load_rather_than_loading_partially() {
         let path = test_state_dir().join(format!("trunc_{}.json", uuid::Uuid::new_v4()));
@@ -3839,6 +4076,7 @@ mod integration_tests {
             key_handle.to_string(),
             registry,
             Some(cache),
+            None,
         )
         .expect("export")
     }
@@ -4150,6 +4388,164 @@ mod integration_tests {
         assert!(err.contains("not a backup file"), "error was: {err}");
     }
 
+    // ─── The §H account identity keypair ──────────────────────────────────────
+    //
+    // Alpine mints none of these - §H is not ported here - but it can be *holding* one: a
+    // venta-mobile envelope carries it, `import_backup` has always read it back out, and neither
+    // side stored or re-emitted it. Importing a mobile backup on Alpine and exporting again
+    // therefore destroyed the account's identity key, silently, on the path whose whole purpose is
+    // not to lose key material.
+
+    /// Opens an envelope and hands back its payload, for asserting on what was written.
+    fn open_payload(blob: &str, passphrase: &str) -> serde_json::Value {
+        let envelope: BackupEnvelope = serde_json::from_str(blob).expect("json");
+        let salt = B64.decode(&envelope.kdf.salt).expect("b64");
+        let key = derive_backup_key(passphrase, &salt).expect("kdf");
+        let nonce = B64.decode(&envelope.nonce).expect("b64");
+        let ct = B64.decode(&envelope.ct).expect("b64");
+        let cipher = Aes256Gcm::new_from_slice(&key).expect("cipher");
+        let opened = cipher
+            .decrypt(
+                Nonce::from_slice(&nonce),
+                Payload { msg: &ct, aad: envelope.aad.as_bytes() },
+            )
+            .expect("decrypt");
+        serde_json::from_slice(&opened).expect("json")
+    }
+
+    fn export_with_identity(
+        mls: &MlsState,
+        key_handle: &str,
+        identity: Option<BackupAccountIdentity>,
+    ) -> String {
+        export_backup(
+            mls,
+            "pass".to_string(),
+            "user-1".to_string(),
+            "device-a".to_string(),
+            "3.0.155".to_string(),
+            key_handle.to_string(),
+            std::collections::HashMap::new(),
+            None,
+            identity,
+        )
+        .expect("export")
+    }
+
+    #[test]
+    fn an_account_identity_key_is_written_when_the_caller_holds_one() {
+        let mut alice = make_mls();
+        let batch = generate_key_packages_impl(&mut alice, "alice".into(), 1).expect("key gen");
+
+        let blob = export_with_identity(
+            &alice,
+            &batch.key_handle,
+            Some(BackupAccountIdentity {
+                pub_: "YWNjb3VudC1wdWI=".to_string(),
+                priv_: "YWNjb3VudC1wcml2".to_string(),
+            }),
+        );
+
+        let payload = open_payload(&blob, "pass");
+        assert_eq!(payload["accountIdentity"]["pub"], "YWNjb3VudC1wdWI=");
+        assert_eq!(payload["accountIdentity"]["priv"], "YWNjb3VudC1wcml2");
+    }
+
+    #[test]
+    fn the_account_identity_key_is_absent_rather_than_null_when_there_is_none() {
+        let mut alice = make_mls();
+        let batch = generate_key_packages_impl(&mut alice, "alice".into(), 1).expect("key gen");
+
+        let payload = open_payload(&export_with_identity(&alice, &batch.key_handle, None), "pass");
+
+        // Present-and-null is worse than absent: mobile's import reads this field, and a
+        // half-formed one turns "this backup has no account identity key" into "this backup's
+        // account identity key is unusable".
+        assert!(
+            payload.get("accountIdentity").is_none(),
+            "an absent key must not be written as null: {payload:?}"
+        );
+    }
+
+    #[test]
+    fn an_account_identity_key_survives_a_round_trip() {
+        let mut alice = make_mls();
+        let batch = generate_key_packages_impl(&mut alice, "alice".into(), 1).expect("key gen");
+        let blob = export_with_identity(
+            &alice,
+            &batch.key_handle,
+            Some(BackupAccountIdentity {
+                pub_: "YWNjb3VudC1wdWI=".to_string(),
+                priv_: "YWNjb3VudC1wcml2".to_string(),
+            }),
+        );
+
+        let mut fresh = make_mls();
+        let result =
+            import_backup(&mut fresh, blob, "pass".into(), "user-1".into(), "device-a".into())
+                .expect("import");
+
+        assert_eq!(result.account_identity_public_key.as_deref(), Some("YWNjb3VudC1wdWI="));
+        assert_eq!(result.account_identity_private_key.as_deref(), Some("YWNjb3VudC1wcml2"));
+    }
+
+    #[test]
+    fn a_backup_without_an_account_identity_key_imports_with_none() {
+        let mut alice = make_mls();
+        let batch = generate_key_packages_impl(&mut alice, "alice".into(), 1).expect("key gen");
+        let blob = export_with_identity(&alice, &batch.key_handle, None);
+
+        let mut fresh = make_mls();
+        let result =
+            import_backup(&mut fresh, blob, "pass".into(), "user-1".into(), "device-a".into())
+                .expect("import");
+
+        assert!(result.account_identity_public_key.is_none());
+        assert!(result.account_identity_private_key.is_none());
+    }
+
+    // ─── Version rejection, split by remedy ───────────────────────────────────
+
+    /// Re-labels an envelope's declared version without touching the sealed payload.
+    fn with_declared_version(blob: &str, version: u32) -> String {
+        let mut envelope: serde_json::Value = serde_json::from_str(blob).expect("json");
+        envelope["v"] = serde_json::json!(version);
+        serde_json::to_string(&envelope).expect("json")
+    }
+
+    #[test]
+    fn a_newer_and_an_older_backup_are_refused_with_different_words() {
+        let mut alice = make_mls();
+        let batch = generate_key_packages_impl(&mut alice, "alice".into(), 1).expect("key gen");
+        let blob = export_with_identity(&alice, &batch.key_handle, None);
+
+        let newer = import_backup(
+            &mut make_mls(),
+            with_declared_version(&blob, BACKUP_VERSION + 1),
+            "pass".into(),
+            "user-1".into(),
+            "device-a".into(),
+        )
+        .expect_err("a newer envelope must be refused");
+
+        let older = import_backup(
+            &mut make_mls(),
+            with_declared_version(&blob, BACKUP_VERSION - 1),
+            "pass".into(),
+            "user-1".into(),
+            "device-a".into(),
+        )
+        .expect_err("an older envelope must be refused");
+
+        // The remedies are opposites and only one of them is "update". Collapsed into a single
+        // message - which is what shipped - the UI told a user holding an older file to update the
+        // app, advice that cannot work and that leaves them further from the build that could
+        // have read it. `classifyBackupImport` in mls.service.ts matches on these exact phrases.
+        assert!(newer.contains("is newer than this build supports"), "error was: {newer}");
+        assert!(older.contains("is older than this build supports"), "error was: {older}");
+        assert_ne!(newer, older);
+    }
+
     #[test]
     fn the_message_cache_is_omitted_when_the_caller_says_so() {
         // §H.6: the cache is the single most sensitive thing in the envelope, and the cloud target
@@ -4164,6 +4560,7 @@ mod integration_tests {
             "3.0.155".to_string(),
             batch.key_handle.clone(),
             std::collections::HashMap::new(),
+            None,
             None,
         )
         .expect("export");

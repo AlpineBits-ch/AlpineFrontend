@@ -1858,10 +1858,12 @@ describe('MlsService', () => {
         it('passes the state key so the file is never written in the clear', async () => {
             mockInvoke(true);
             await firstValueFrom(service.initStorage());
-            // Fetched inside the service rather than taken as a parameter, so no caller can forget
-            // it and quietly leave every private key on disk as plain JSON.
-            expect(Object.keys(callArgs())).toEqual(['stateKeyB64']);
+            // Both fetched inside the service rather than taken as parameters, so no caller can
+            // forget the key and quietly leave every private key on disk as plain JSON, or forget
+            // the scope and quietly share one state file between two accounts.
+            expect(Object.keys(callArgs()).sort()).toEqual(['adoptLegacy', 'scope', 'stateKeyB64']);
             expect(callArgs()['stateKeyB64']).toBeTruthy();
+            expect(callArgs()['scope']).toBeTruthy();
         });
 
         it('resolves with true when state was restored from disk', async () => {
@@ -2191,14 +2193,26 @@ describe('MlsService', () => {
         const CTX_A = 'conversation-a';
         const CTX_B = 'conversation-b';
 
-        function rawCache() {
+        /**
+         * The cache file this account resolves to.
+         *
+         * <p>Awaited rather than read off a field: the store is named after the account's device
+         * id (`mls-message-cache-{deviceId}.json`), which cannot be known synchronously. It used
+         * to be one flat file per installation, which is how a second account on the same machine
+         * came to be able to open the first one's plaintext history.</p>
+         */
+        function rawCache(): Promise<{
+            get(k: string): Promise<unknown>;
+            set(k: string, v: unknown): Promise<void>;
+            entries(): Promise<[string, unknown][]>;
+        }> {
             return (service as unknown as {
-                _messageCache: {
+                cacheStore(): Promise<{
                     get(k: string): Promise<unknown>;
                     set(k: string, v: unknown): Promise<void>;
                     entries(): Promise<[string, unknown][]>;
-                }
-            })._messageCache;
+                }>
+            }).cacheStore();
         }
 
         it('round-trips a cached plaintext', async () => {
@@ -2209,7 +2223,7 @@ describe('MlsService', () => {
         it('does not store the plaintext where a disk reader can find it', async () => {
             await service.cacheMessage(CTX_A, 3, 'msg-1', 'aGVsbG8=');
 
-            const stored = await rawCache().get('conversation-a#3#msg-1') as {
+            const stored = await (await rawCache()).get('conversation-a#3#msg-1') as {
                 iv: string; ct: string
             };
 
@@ -2245,7 +2259,7 @@ describe('MlsService', () => {
             await service.cacheMessage(CTX_A, 3, 'msg-1', 'aGVsbG8=');
             await service.cacheMessage(CTX_A, null, 'msg-2', 'aGVsbG8=');
 
-            const keys = (await rawCache().entries()).map(([k]) => k);
+            const keys = (await (await rawCache()).entries()).map(([k]) => k);
             expect(keys).toContain('conversation-a#3#msg-1');
             expect(keys).toContain('conversation-a#?#msg-2');
         });
@@ -2267,26 +2281,26 @@ describe('MlsService', () => {
         it('reads an entry written before the cache was sealed', async () => {
             // Bare base64 is what shipped. Discarding those entries would throw away the only copy
             // of that message's plaintext - MLS decrypts from the wire exactly once.
-            await rawCache().set('legacy', 'bGVnYWN5');
+            await (await rawCache()).set('legacy', 'bGVnYWN5');
 
             expect(await service.getCachedMessage(CTX_A, 3, 'legacy')).toBe('bGVnYWN5');
         });
 
         it('promotes a legacy bare-id entry onto the composite key and drops the bare one',
             async () => {
-                await rawCache().set('legacy', 'bGVnYWN5');
+                await (await rawCache()).set('legacy', 'bGVnYWN5');
                 await service.getCachedMessage(CTX_A, 3, 'legacy', 'alice');
 
                 // Draining, not carrying forever: two keys for one message is two copies of the
                 // plaintext, and the bare one is the exploitable one. Mobile drains the same way,
                 // and the two must not diverge.
-                const keys = (await rawCache().entries()).map(([k]) => k);
+                const keys = (await (await rawCache()).entries()).map(([k]) => k);
                 expect(keys).toContain('conversation-a#3#legacy');
                 expect(keys).not.toContain('legacy');
             });
 
         it('returns null rather than garbage for an entry it cannot open', async () => {
-            await rawCache().set(
+            await (await rawCache()).set(
                 'conversation-a#3#broken',
                 {v: 1, at: Date.now(), iv: 'AAAAAAAAAAAAAAAA', ct: 'AAAA'});
 

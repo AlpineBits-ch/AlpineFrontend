@@ -41,6 +41,7 @@ describe('runMlsLaunch', () => {
         expect(outcome).toEqual({
             handle: 'handle',
             needsRegistration: false,
+            identityMismatch: false,
             keyStoreUnreachable: false,
             keyPackagesFailed: false,
             admissionSweepFailed: false,
@@ -177,5 +178,34 @@ describe('runMlsLaunch', () => {
         // Registering mints a fresh keypair over live group state, which cannot be undone.
         expect(outcome.needsRegistration).toBe(false);
         expect(outcome.keyStoreUnreachable).toBe(true);
+        expect(outcome.identityMismatch).toBe(false);
+    });
+
+    it('never asks for registration when the stored key belongs to another account', async () => {
+        const {calls, steps: s} = steps({
+            unlock: async () => {
+                calls.push('unlock');
+                throw {kind: 'IdentityMismatch', message: 'stored key belongs to user-a'};
+            },
+        });
+
+        const outcome = await runMlsLaunch(s);
+
+        // The key that is there is the right key for *somebody*, and registering would replace it
+        // with a fresh one - orphaning whichever account it does belong to from every group it is
+        // in. The situation is a scoping bug and is entirely recoverable; that response is not.
+        expect(outcome.identityMismatch).toBe(true);
+        expect(outcome.needsRegistration).toBe(false);
+        // Not folded into the generic key-store failure either: they have different causes and the
+        // log has to be able to say which happened.
+        expect(outcome.keyStoreUnreachable).toBe(false);
+        expect(outcome.handle).toBeNull();
+        expect(calls).toEqual(['unlock']);
+    });
+
+    it('reports no mismatch on a clean launch', async () => {
+        const {steps: s} = steps();
+
+        await expect(runMlsLaunch(s)).resolves.toMatchObject({identityMismatch: false});
     });
 });

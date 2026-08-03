@@ -13,7 +13,7 @@ import {UserService} from '../../../services/user.service';
 import {DeviceService} from '../../../services/device.service';
 import {DeviceIdentityService} from '../../../services/device-identity.service';
 
-type Step = 'idle' | 'passphrase' | 'restoring' | 'done';
+type Step = 'idle' | 'passphrase' | 'restoring' | 'offer-adopt' | 'done';
 
 /**
  * Reads back the `.venta-keys` file the logout dialog writes.
@@ -54,8 +54,17 @@ export class KeyBackupRestoreComponent {
     private readonly deviceService = inject(DeviceService);
     private readonly deviceIdentity = inject(DeviceIdentityService);
 
-    /** The chosen file's contents, held only until the restore runs or is cancelled. */
+    /**
+     * The chosen file's contents.
+     *
+     * <p>Held until the restore is *finished*, not until it first succeeds: adopting the backup's
+     * device id changes what a second import of the same blob restores, so the blob has to survive
+     * the offer. Dropped on every path that leaves it.</p>
+     */
     private blob: string | null = null;
+
+    /** Confirmed by the first import, so the second does not re-fetch it. */
+    private userId: string | null = null;
 
     protected choose(): void {
         this.errorMsg.set('');
@@ -89,6 +98,7 @@ export class KeyBackupRestoreComponent {
         // Dropped rather than kept around: the blob is the whole of this device's key material in
         // one string, and there is no reason for it to outlive the dialog.
         this.blob = null;
+        this.userId = null;
         this.fileName.set('');
         this.passphrase.set('');
         this.errorMsg.set('');
@@ -120,18 +130,52 @@ export class KeyBackupRestoreComponent {
             // `expectedUserId` is checked in Rust against the blob's own `userId` and refused on a
             // mismatch, so a blob for another account cannot be merged into this one.
             const result = await this.mlsService.importBackup(blob, this.passphrase(), userId);
+            await this.repairServerState();
 
-            // §A. The restored key packages were consumed server-side long ago, and a device that
-            // re-uploads without clearing the stale stock leaves the server handing out packages
-            // whose private halves are gone - every Welcome sealed to one is undecryptable by the
-            // device it was meant for. Best-effort: a restore that worked must not be reported as
-            // failed because a follow-up call did not land.
-            const deviceId = await this.deviceIdentity.deviceId();
-            try {
-                await firstValueFrom(this.deviceService.resetKeyPackages(deviceId));
-            } catch {
-                // Reported through the outcome copy rather than as a failure - see above.
+            this.passphrase.set('');
+            this.outcome.set({engineRestored: result.engineRestored, deviceId: result.deviceId});
+
+            // §D restored what it could. When the blob came from another device the engine did
+            // not come across, and the one thing that changes that is adopting the device id it
+            // was taken under - which is destructive and has to be asked for, not assumed.
+            if (!result.engineRestored) {
+                this.userId = userId;
+                this.step.set('offer-adopt');
+                return;
             }
+
+            this.blob = null;
+            this.step.set('done');
+        } catch (err) {
+            this.errorMsg.set(describeImportFailure(err));
+            this.step.set('passphrase');
+        }
+    }
+
+    /**
+     * Takes over the identity of the device the backup was taken on, then restores again.
+     *
+     * <p>The reinstall case, and the only path that recovers history from before it. A fresh
+     * install mints a new device id, so `import_backup` - which restores the ratchet state only
+     * when the ids match - correctly refuses, and every message from before the reinstall stays
+     * unreadable on what is physically the same machine.</p>
+     *
+     * <p>The second import is not a retry. Adopting the id is what makes the *same* blob restore
+     * the engine, so it has to be re-opened afterwards; the blob is deliberately kept until this
+     * point for exactly that reason.</p>
+     */
+    protected async adoptAndRestore(): Promise<void> {
+        const blob = this.blob;
+        const target = this.outcome()?.deviceId;
+        if (!blob || !target || !this.userId) return;
+
+        this.errorMsg.set('');
+        this.step.set('restoring');
+
+        try {
+            await this.deviceIdentity.adopt(target);
+            const result = await this.mlsService.importBackup(blob, this.passphrase(), this.userId);
+            await this.repairServerState();
 
             this.blob = null;
             this.passphrase.set('');
@@ -139,7 +183,42 @@ export class KeyBackupRestoreComponent {
             this.step.set('done');
         } catch (err) {
             this.errorMsg.set(describeImportFailure(err));
-            this.step.set('passphrase');
+            this.step.set('offer-adopt');
+        }
+    }
+
+    /** Keeps the keys that were restored, without the ratchet state. */
+    protected declineAdopt(): void {
+        this.blob = null;
+        this.passphrase.set('');
+        this.step.set('done');
+    }
+
+    /**
+     * Brings the server back in line with the keys this device now holds. All three best-effort:
+     * a restore that worked must not be reported as failed because a follow-up call did not land.
+     *
+     * <p>Order matters. §A first - the restored key packages were consumed server-side long ago,
+     * and re-uploading without clearing the stale stock leaves the server handing out packages
+     * whose private halves are gone, so every Welcome sealed to one is undecryptable by the device
+     * it was meant for. Then re-registration, because the device row still advertises the
+     * `identityPublicKey` of whatever signing key this device had *before* the restore, and key
+     * packages minted under the restored one would not match it. Only then a replenish, which is
+     * what actually puts usable packages back on the server - without it a restored device holds
+     * every key it needs and still cannot be added to anything.</p>
+     */
+    private async repairServerState(): Promise<void> {
+        const deviceId = await this.deviceIdentity.deviceId();
+        try {
+            await firstValueFrom(this.deviceService.resetKeyPackages(deviceId));
+        } catch (err) {
+            console.error('Could not clear stale key packages after a restore', err);
+        }
+        try {
+            await this.deviceIdentity.ensureRegistered();
+            await firstValueFrom(this.userService.replenishKeyCount());
+        } catch (err) {
+            console.error('Could not re-register or replenish after a restore', err);
         }
     }
 }
@@ -166,9 +245,16 @@ export function describeImportFailure(err: unknown): string {
         'not-a-backup':
             'That file is not a Venta key backup, or it is incomplete. Check you picked the '
             + '.venta-keys file and that it copied across in full.',
-        'unsupported-version':
+        'unsupported-version-newer':
             'That backup was written by a newer version of Venta than this one. Update and try '
             + 'again - the file is fine.',
+        // Deliberately not "update and try again". The two version failures have opposite
+        // remedies, and telling someone with an older file to update is advice that cannot work
+        // and, acted on, leaves them further from the build that could have read it.
+        'unsupported-version-older':
+            'That backup was written by a version of Venta too old for this one to read. The file '
+            + 'is fine - restore it on the version that wrote it, and export a fresh backup from '
+            + 'there.',
         'wrong-passphrase-or-altered':
             'That passphrase did not open the backup. It is the account password you were asked '
             + 'for when the file was saved. If you are certain it is right, the file itself may '

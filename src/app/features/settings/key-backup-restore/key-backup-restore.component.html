@@ -42,6 +42,34 @@
         </div>
     }
 
+    <!-- The backup came from a different device id, so §D restored the keys and not the ratchet
+         state. Adopting that id is the only thing that changes it, and it is destructive - the
+         warning is the point of the step, not decoration around a button. -->
+    @if (step() === 'offer-adopt' && outcome(); as result) {
+        <div class="mt-3 rounded-lg border border-connecting/30 bg-connecting/[0.08] px-3 py-2.5">
+            <p class="m-0 text-[0.8125rem] text-text-primary">
+                <i class="pi pi-exclamation-triangle mr-1 text-connecting text-[0.75rem]"></i>Your
+                keys are restored, but not your history.
+            </p>
+            <p class="m-0 mt-1 text-xs text-text-muted">
+                This backup was taken on a different device. If that device is gone - you
+                reinstalled, or replaced the machine - Venta can take over its identity and recover
+                your full conversation history.
+            </p>
+            <p class="m-0 mt-1.5 text-xs text-offline">
+                Only do this if the original device is signed out. Two devices sharing one identity
+                stop being able to send to each other's conversations, and messages already sent
+                lose their forward secrecy.
+            </p>
+            <div class="mt-2 flex gap-2">
+                <p-button (onClick)="adoptAndRestore()" label="Take over that device" severity="warn"
+                          size="small"/>
+                <p-button (onClick)="declineAdopt()" [text]="true" label="Keep keys only"
+                          severity="secondary" size="small"/>
+            </div>
+        </div>
+    }
+
     @if (step() === 'done' && outcome(); as result) {
         <div class="mt-3 rounded-lg border border-online/30 bg-online/[0.08] px-3 py-2.5">
             <p class="m-0 text-[0.8125rem] text-text-primary">
