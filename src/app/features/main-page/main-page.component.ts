@@ -59,6 +59,9 @@ import {GuildService} from '../../services/guild.service';
 import {runMlsLaunch} from './mls-launch';
 import {MlsJoinRequestService} from '../../services/mls-join-request.service';
 import {ConversationEncryption} from '../../enums/conversation-encryption.enum';
+import {AccountOnboardingComponent} from '../onboarding/account-onboarding.component';
+import {OnboardingService} from '../../services/onboarding.service';
+import {SocialKeyGateService} from '../../services/social-key-gate.service';
 
 @Component({
     selector: 'app-main-page',
@@ -85,6 +88,7 @@ import {ConversationEncryption} from '../../enums/conversation-encryption.enum';
         WikiComponent,
         WikiPanelComponent,
         OnboardingGateComponent,
+        AccountOnboardingComponent,
         EventsPanelComponent,
         ForumPostListComponent,
     ],
@@ -117,7 +121,12 @@ export class MainPageComponent implements OnDestroy {
     });
     protected router = inject(Router);
     protected showDeviceRegistration = signal(false);
-    protected showKeySetup = signal(false);
+    /**
+     * The account picker, and the gate that owns the key-setup dialog for both the launch-time and
+     * the deferred path. One dialog instance, two ways in - see {@link SocialKeyGateService}.
+     */
+    protected onboarding = inject(OnboardingService);
+    protected socialGate = inject(SocialKeyGateService);
     /** A password reset left the encryption key unopenable, or the account has no recovery code. */
     protected showMasterKeyRecovery = signal(false);
     /**
@@ -294,7 +303,8 @@ export class MainPageComponent implements OnDestroy {
      * 1. Try to auto-unlock signing keys from OS keychain.
      *    - Success → proceed to step 2.
      *    - KeyNotFound → show device registration modal first; step 2 runs after registration.
-     * 2. Check if master key is set; show key-setup dialog if not.
+     * 2. Check if master key is set; show key-setup dialog if not - unless the account said it only
+     *    came for Isle voice, in which case the ask is deferred to its first social action.
      */
     private async initLaunchSequence(): Promise<void> {
 
@@ -420,8 +430,19 @@ export class MainPageComponent implements OnDestroy {
                     this.emailVerification.show(user.email || this.resolveEmail());
                     return;
                 }
+                // Ordering is load-bearing. After verification, because an account that does not
+                // exist yet should not be asked what it wants; before key setup, because the
+                // answer is what decides whether key setup happens at all.
+                if (this.onboarding.needsOnboarding()) {
+                    this.onboarding.show();
+                    return;
+                }
                 if (!user.encryptedMasterKey) {
-                    this.showKeySetup.set(true);
+                    // Isle-only accounts are let through with no key. Nothing breaks: the master
+                    // key encrypts the device backup, not the messages, so the only thing they are
+                    // going without is recoverable history - and they have none to recover. The
+                    // ask comes back the moment they reach for something social.
+                    if (this.onboarding.wantsSocial()) this.socialGate.promptNow();
                     return;
                 }
                 // Having a master key and being able to *open* it are different questions, and the

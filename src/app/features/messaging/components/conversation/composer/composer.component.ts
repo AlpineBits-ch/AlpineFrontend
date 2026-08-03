@@ -7,6 +7,7 @@ import {MessageDto} from '../../../../../dtos/response/message.dto';
 import {MessageEncryptionState} from '../../../../../enums/message-encryption-state.enum';
 import {MessageType} from '../../../../../enums/message-type.enum';
 import {MessageStore} from '../../../../../stores/message.store';
+import {SocialKeyGateService} from '../../../../../services/social-key-gate.service';
 import {ChannelDto, RoleDto, RoleType} from '../../../../../dtos/response/guild.dto';
 import {BotCommandDto} from '../../../../../dtos/response/bot-command.dto';
 import {InvokeBotCommandOptionDto} from '../../../../../dtos/request/invoke-bot-command.dto';
@@ -127,6 +128,7 @@ export class ComposerComponent {
     private readonly guildWsService = inject(GuildWebsocketService);
     private readonly messageStore = inject(MessageStore);
     private readonly destroyRef = inject(DestroyRef);
+    private readonly socialGate = inject(SocialKeyGateService);
     private readonly botCommands = signal<BotCommandDto[]>([]);
 
     constructor() {
@@ -609,6 +611,19 @@ export class ComposerComponent {
     // ── Emoji shortcode overlay selection ─────────────────────────────────────
 
     send(): void {
+        // Gated before a single character is touched, deliberately. Everything below this line
+        // clears the editor, and a user who declines the key prompt would otherwise find their
+        // message gone as the price of saying "not now". On acceptance we re-enter and it sends.
+        //
+        // The check is synchronous and allocation-free on the overwhelmingly common path - an
+        // account with a master key never reaches the promise.
+        if (!this.socialGate.isSatisfied()) {
+            void this.socialGate.require().then(allowed => {
+                if (allowed) this.send();
+            });
+            return;
+        }
+
         if (this.typingThrottle !== null) {
             clearTimeout(this.typingThrottle);
             this.typingThrottle = null;

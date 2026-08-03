@@ -21,11 +21,25 @@
                     </div>
                 </div>
 
-                <h2 class="ks-title">Secure Your Account</h2>
-                <p class="ks-subtitle">
-                    {{ appInfo.productName() }} uses end-to-end encryption. Enter your password to generate
-                    your personal encryption keys -this only happens once.
-                </p>
+                @if (dismissible) {
+                    <!--
+                      Deferred prompt. It leads with what is actually at stake, because the honest
+                      answer is not "you cannot chat without this" - messages send fine without a
+                      master key. What they do not do is survive a sign-out.
+                    -->
+                    <h2 class="ks-title">Keep your messages</h2>
+                    <p class="ks-subtitle">
+                        Set up encryption now and your conversations come back when you sign in
+                        again. Without it, signing out or reinstalling loses your message history
+                        for good. This only happens once.
+                    </p>
+                } @else {
+                    <h2 class="ks-title">Secure Your Account</h2>
+                    <p class="ks-subtitle">
+                        {{ appInfo.productName() }} uses end-to-end encryption. Enter your password to generate
+                        your personal encryption keys -this only happens once.
+                    </p>
+                }
 
                 <div class="ks-field">
                     <label class="ks-label">Password</label>
@@ -53,6 +67,16 @@
                         label="Continue"
                         styleClass="w-full justify-center mt-2"
                 />
+
+                @if (dismissible) {
+                    <p-button
+                            (onClick)="dismiss()"
+                            [text]="true"
+                            label="Not now"
+                            severity="secondary"
+                            styleClass="w-full justify-center"
+                    />
+                }
 
             </div>
         }

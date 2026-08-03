@@ -38,7 +38,18 @@ type Step =
 })
 export class KeySetupDialogComponent {
     @Input() visible = false;
+    /**
+     * Whether the user may back out.
+     *
+     * <p>False at launch, where the account asked for the messaging half and setup is the price of
+     * entry. True when `SocialKeyGateService` raised this in front of a single action - there,
+     * refusing has to be free, or the gate is just the launch dialog wearing a different hat.</p>
+     *
+     * <p>The way out is offered on the `password` step only, and see {@link dismiss} for why.</p>
+     */
+    @Input() dismissible = false;
     @Output() setupComplete = new EventEmitter<void>();
+    @Output() dismissed = new EventEmitter<void>();
 
     protected step = signal<Step>('password');
     protected password = signal('');
@@ -60,6 +71,20 @@ export class KeySetupDialogComponent {
     private readonly showEntropy =
         !this.platformService.isMobile &&
         window.matchMedia('(pointer: fine)').matches;
+
+    /**
+     * Backs out of a deferred prompt, leaving nothing behind.
+     *
+     * <p>Only reachable from the `password` step, deliberately. Past it a recovery code has been
+     * generated and shown, and the account is told it holds one; quitting between that screen and
+     * the write leaves a user who has carefully written down a code the server never stored, which
+     * they discover at the exact moment it was supposed to save them.</p>
+     */
+    protected dismiss(): void {
+        this.password.set('');
+        this.errorMsg.set('');
+        this.dismissed.emit();
+    }
 
     protected onPasswordInput(event: Event): void {
         this.password.set((event.target as HTMLInputElement).value);

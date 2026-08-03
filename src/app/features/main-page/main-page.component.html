@@ -165,9 +165,23 @@
             </div>
         }
 
+        <!-- The account picker. Sits above everything, including the guild join gate, because it
+             is answered once and before anything else the app might ask for. -->
+        @if (onboarding.visible()) {
+            <app-account-onboarding/>
+        }
+
+        <!--
+          One instance, two ways in: the launch-time prompt for an account that asked for the
+          messaging half, and the deferred prompt raised in front of a single social action. The
+          gate service owns the visibility so the two can never open competing dialogs, and
+          `dismissible` is what tells them apart.
+        -->
         <app-key-setup-dialog
-                (setupComplete)="showKeySetup.set(false)"
-                [visible]="showKeySetup()"/>
+                (dismissed)="socialGate.onDismissed()"
+                (setupComplete)="socialGate.onSetupComplete()"
+                [dismissible]="socialGate.dismissible()"
+                [visible]="socialGate.dialogVisible()"/>
 
         <!-- A password reset that left the encryption key unopenable, or an account with no
              recovery code yet. Both were silent until the first restore attempt failed. -->

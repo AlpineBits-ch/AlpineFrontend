@@ -14,6 +14,7 @@ import {ConversationEncryption} from "../../../../enums/conversation-encryption.
 import {ConversationStore} from "../../../../stores/conversation.store";
 import {NavigationService} from "../../../main-page/navigation.service";
 import {TranslateModule} from '@ngx-translate/core';
+import {SocialKeyGateService} from '../../../../services/social-key-gate.service';
 
 @Component({
     selector: 'app-friendship-modal',
@@ -42,6 +43,7 @@ export class FriendshipModalComponent {
     public friends = this.relationshipStore.friends;
     private conversationStore = inject(ConversationStore);
     private navService = inject(NavigationService);
+    private socialGate = inject(SocialKeyGateService);
 
     constructor() {
         // The store keeps itself current from the social.* realtime events -no reload here.
@@ -51,10 +53,23 @@ export class FriendshipModalComponent {
     public sendFriendrequest() {
         const username = this.friendId.trim();
         if (!username) return;
+        // Declining leaves the typed username in the field to try again with.
+        if (!this.socialGate.isSatisfied()) {
+            void this.socialGate.require().then(allowed => {
+                if (allowed) this.sendFriendrequest();
+            });
+            return;
+        }
         this.relationshipStore.sendRequest(username).subscribe(() => this.friendId = '');
     }
 
     public acceptFriendRequest(id: string) {
+        if (!this.socialGate.isSatisfied()) {
+            void this.socialGate.require().then(allowed => {
+                if (allowed) this.acceptFriendRequest(id);
+            });
+            return;
+        }
         this.relationshipStore.accept(id).subscribe();
     }
 

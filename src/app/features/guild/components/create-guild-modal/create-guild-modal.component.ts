@@ -14,6 +14,7 @@ import {GuildTemplateService} from '../../../../services/guild-template.service'
 import {GuildTemplateDto} from '../../../../dtos/response/guild-template.dto';
 import {TemplatePreviewComponent} from './template-preview.component';
 import {GUILD_KIND_META, guildKindMeta} from '../../guild-features';
+import {SocialKeyGateService} from '../../../../services/social-key-gate.service';
 
 /**
  * `start` is the fork - make one, clone a template, or pull a Discord server across.
@@ -70,6 +71,7 @@ export class CreateGuildModalComponent {
     });
 
     private guildService = inject(GuildService);
+    private socialGate = inject(SocialKeyGateService);
     private discordImportService = inject(DiscordImportService);
     private externalLinkService = inject(ExternalLinkService);
     private toastService = inject(ToastService);
@@ -135,6 +137,16 @@ export class CreateGuildModalComponent {
     submit(): void {
         const trimmed = this.name().trim();
         if (!trimmed || this.loading()) return;
+
+        // Owning a server is the most durable thing an account can do here, so it is the worst
+        // one to do without a key. Declining leaves the form exactly as typed.
+        if (!this.socialGate.isSatisfied()) {
+            void this.socialGate.require().then(allowed => {
+                if (allowed) this.submit();
+            });
+            return;
+        }
+
         this.loading.set(true);
         this.guildService.createGuild(trimmed, this.description().trim() || undefined, this.kind()).subscribe({
             next: guild => {
@@ -205,6 +217,16 @@ export class CreateGuildModalComponent {
         const template = this.template();
         const trimmedName = this.templateGuildName().trim();
         if (!template || !trimmedName || this.creatingFromTemplate()) return;
+
+        // Same gate as submit(). A server created from a template is no less a server, and this
+        // path reaches the same place by a different button.
+        if (!this.socialGate.isSatisfied()) {
+            void this.socialGate.require().then(allowed => {
+                if (allowed) this.createFromTemplate();
+            });
+            return;
+        }
+
         this.creatingFromTemplate.set(true);
         this.guildTemplateService.useTemplate(template.id, {name: trimmedName}).subscribe({
             next: created => {

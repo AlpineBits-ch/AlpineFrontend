@@ -9,6 +9,7 @@ import {GuildService} from '../../services/guild.service';
 import {InviteDialogService} from './invite-dialog.service';
 import {InviteDto, InviteState} from '../../dtos/response/invite.dto';
 import {environment} from '../../../environments/environment';
+import {SocialKeyGateService} from '../../services/social-key-gate.service';
 
 type DialogState = 'loading' | 'ready' | 'joining' | 'joined' | 'error' | 'blocked';
 
@@ -23,6 +24,7 @@ export class InviteDialogComponent {
     protected readonly inviteDialogService = inject(InviteDialogService);
     private readonly guildService = inject(GuildService);
     private readonly destroyRef = inject(DestroyRef);
+    private readonly socialGate = inject(SocialKeyGateService);
 
     protected readonly invite = signal<InviteDto | null>(null);
     protected readonly dialogState = signal<DialogState>('loading');
@@ -92,6 +94,15 @@ export class InviteDialogComponent {
     protected join(): void {
         const inviteId = this.inviteDialogService.inviteId();
         if (!inviteId || this.dialogState() === 'joining') return;
+
+        // Joining a server is durable state on someone else's turf, so it gets the same gate as
+        // creating one. Declining leaves the invite on screen, still joinable.
+        if (!this.socialGate.isSatisfied()) {
+            void this.socialGate.require().then(allowed => {
+                if (allowed) this.join();
+            });
+            return;
+        }
 
         this.dialogState.set('joining');
         this.guildService.redeemInvite(inviteId)

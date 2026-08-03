@@ -31,6 +31,18 @@ export interface EncryptedMasterKey {
     publicVerifier?: string | null;
 }
 
+/**
+ * What an account said it came here for, at onboarding.
+ *
+ * <p>Serialised as the lowercase wire values of the server's `[Flags] UserInterests`, which is
+ * why these are strings and not a bitfield - the flags enum is a storage detail of the Identity
+ * context and nothing here benefits from reproducing it.</p>
+ */
+export enum UserInterest {
+    Isle = 'isle',
+    Social = 'social',
+}
+
 export interface UserDto {
     id: string;
     email: string;
@@ -52,4 +64,19 @@ export interface UserDto {
      * self-hosted server on an older build predating MFA won't send it at all.
      */
     twoFactorEnabled?: boolean;
+    /**
+     * When the account answered the "what do you want to use Venta for" picker, or null/absent if
+     * it never has.
+     *
+     * <p>Optional, and absence must be read as *onboarded*, not as *needs onboarding*. A
+     * self-hosted server on a build predating this feature sends neither this nor
+     * {@link interests}, and treating that as "not onboarded yet" would gate every one of its
+     * users behind a picker whose submit endpoint answers 404.</p>
+     */
+    onboardedAt?: string | null;
+    /**
+     * Which halves of the product this account signed up for. Decides whether master-key setup
+     * runs at launch or is deferred to the first social action - see `SocialKeyGateService`.
+     */
+    interests?: UserInterest[];
 }
