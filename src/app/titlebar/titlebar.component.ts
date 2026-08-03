@@ -52,7 +52,23 @@ export class TitlebarComponent implements OnInit, OnDestroy {
     private apiConfig = inject(ApiConfigService);
     private translate = inject(TranslateService);
     private router = inject(Router);
-    private lang = toSignal(this.translate.onLangChange, {initialValue: null});
+
+    /**
+     * Menu labels, streamed rather than read.
+     *
+     * <p>PrimeNG menu items are plain strings with no pipe to re-run, so the obvious
+     * `translate.instant` is what the rest of the app uses for them - and it is wrong *here*.
+     * `instant` hands back the key itself when the language file is still in flight, and this
+     * component is built during bootstrap, before the loader has fetched anything. Every other
+     * label in this bar goes through the `translate` pipe and was fine; these two rendered as
+     * `TITLEBAR.HELP_KEYBINDS` and stayed that way, because the computed's only dependency was
+     * `onLangChange`, which had already fired by the time it subscribed.</p>
+     *
+     * <p>`stream` waits on the pending load and re-emits on a language switch, which is the same
+     * path the pipe takes.</p>
+     */
+    private keybindsLabel = toSignal(this.translate.stream('TITLEBAR.HELP_KEYBINDS'), {initialValue: ''});
+    private aboutLabel = toSignal(this.translate.stream('TITLEBAR.HELP_ABOUT'), {initialValue: ''});
 
     @ViewChild('inboxPopover') private inboxPopover?: Popover;
 
@@ -94,23 +110,18 @@ export class TitlebarComponent implements OnInit, OnDestroy {
         return {icon: 'pi-comments', labelKey: 'TITLEBAR.DIRECT_MESSAGES'};
     });
 
-    protected helpItems = computed<MenuItem[]>(() => {
-        // Touched so a language switch rebuilds the labels: PrimeNG menu items are plain strings,
-        // with no pipe to re-run on their own.
-        this.lang();
-        return [
-            {
-                label: this.translate.instant('TITLEBAR.HELP_KEYBINDS'),
-                icon: 'pi pi-key',
-                command: () => this.settingsUi.open('keybinds'),
-            },
-            {
-                label: this.translate.instant('TITLEBAR.HELP_ABOUT'),
-                icon: 'pi pi-info-circle',
-                command: () => this.settingsUi.open('about'),
-            },
-        ];
-    });
+    protected helpItems = computed<MenuItem[]>(() => [
+        {
+            label: this.keybindsLabel(),
+            icon: 'pi pi-key',
+            command: () => this.settingsUi.open('keybinds'),
+        },
+        {
+            label: this.aboutLabel(),
+            icon: 'pi pi-info-circle',
+            command: () => this.settingsUi.open('about'),
+        },
+    ]);
 
     /**
      * Guild icon URLs that answered with an error, so the initial takes over instead of a broken
