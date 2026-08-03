@@ -4,8 +4,27 @@ import {environment} from '../../environments/environment';
 import {authConfig} from '../auth.config';
 import {Observable} from "rxjs";
 import {HttpClient} from "@angular/common/http";
+import {activeSlotId, scopedOAuthKey} from './scoped-oauth-storage';
 
 const STORAGE_KEY = 'server_url';
+
+/**
+ * The server this account is on, kept per slot.
+ *
+ * <p>Slots are per-server by construction, which is what makes holding the same account on two
+ * servers - or two accounts on two servers - work without any of it being a special case. The
+ * unscoped key is kept in step as the login screen's "last server used" and as the value an
+ * installation upgrading already has.</p>
+ */
+function readServerUrl(): string | null {
+    return localStorage.getItem(scopedOAuthKey(activeSlotId(), STORAGE_KEY))
+        ?? localStorage.getItem(STORAGE_KEY);
+}
+
+function writeServerUrl(url: string): void {
+    localStorage.setItem(scopedOAuthKey(activeSlotId(), STORAGE_KEY), url);
+    localStorage.setItem(STORAGE_KEY, url);
+}
 
 export interface ServerConfiguration {
     isRegisterEnabled: boolean;
@@ -17,7 +36,7 @@ export class ApiConfigService {
     readonly baseUrl = signal<string>(environment.apiUrl);
     private http = inject(HttpClient);
     constructor() {
-        const saved = localStorage.getItem(STORAGE_KEY);
+        const saved = readServerUrl();
         const url = saved ?? environment.apiUrl;
         this.baseUrl.set(url);
         this.oauthService.configure({
@@ -47,7 +66,7 @@ export class ApiConfigService {
         }
 
         this.baseUrl.set(apiUrl);
-        localStorage.setItem(STORAGE_KEY, apiUrl);
+        writeServerUrl(apiUrl);
         this.oauthService.configure({
             ...authConfig,
             issuer: apiUrl,
@@ -68,7 +87,7 @@ export class ApiConfigService {
     setServer(domain: string): void {
         const url = domain === 'venta.gg' ? environment.apiUrl : `https://${domain}`;
         this.baseUrl.set(url);
-        localStorage.setItem(STORAGE_KEY, url);
+        writeServerUrl(url);
         this.oauthService.configure({
             ...authConfig,
             issuer: url,
@@ -78,6 +97,10 @@ export class ApiConfigService {
 
     reset(): void {
         this.baseUrl.set(environment.apiUrl);
+        // This slot's server, and the shared "last server used" the login screen reads. The other
+        // slots' entries are untouched: signing out of one account must not send the others to a
+        // server they are not on.
+        localStorage.removeItem(scopedOAuthKey(activeSlotId(), STORAGE_KEY));
         localStorage.removeItem(STORAGE_KEY);
         this.oauthService.configure({
             ...authConfig,

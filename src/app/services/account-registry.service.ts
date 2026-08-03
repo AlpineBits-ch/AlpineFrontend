@@ -1,19 +1,13 @@
 import {Injectable, signal} from '@angular/core';
 import {LazyStore} from '@tauri-apps/plugin-store';
+import {BOOTSTRAP_SLOT_ID, setActiveSlotId} from './scoped-oauth-storage';
+
+// Re-exported from where it is defined, so the many callers that reach for it alongside the slot
+// list keep one import and the two modules keep a one-way dependency.
+export {BOOTSTRAP_SLOT_ID};
 
 const STORE_FILE = 'settings.json';
 const REGISTRY_KEY = 'accounts';
-
-/**
- * The bootstrap slot: what {@link AccountRegistryService.activeSlotId} answers before anyone has
- * signed in.
- *
- * <p>It exists because the device id is needed *before* the account is known - the login grant
- * carries it, and so does every request the login screen makes. Without a slot to hang it on there
- * would be no id at all on that path, and `AuthService.login` would stop linking sessions to
- * devices on a fresh install.</p>
- */
-export const BOOTSTRAP_SLOT_ID = '@bootstrap';
 
 /** One signed-in account on this machine. */
 export interface AccountSlot {
@@ -249,5 +243,10 @@ export class AccountRegistryService {
     private publish(file: RegistryFile): void {
         this._slots.set(file.slots);
         this._activeSlotId.set(file.activeSlotId);
+
+        // Mirrored where the synchronous readers can see it. `ScopedOAuthStorage` is built during
+        // application bootstrap and its methods cannot await, so it reads the live slot from
+        // `localStorage`; this file stays the authority and that mirror follows it.
+        setActiveSlotId(file.activeSlotId ?? BOOTSTRAP_SLOT_ID);
     }
 }

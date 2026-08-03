@@ -64,6 +64,7 @@ import {UserDto} from '../../dtos/response/UserDto';
 import {OnboardingService} from '../../services/onboarding.service';
 import {SocialKeyGateService} from '../../services/social-key-gate.service';
 import {AccountRegistryService} from '../../services/account-registry.service';
+import {AccountSwitchService} from '../../services/account-switch.service';
 import {SessionTeardownService} from '../../services/session-teardown.service';
 import {ApiConfigService} from '../../services/api-config.service';
 import {ProfileService} from '../../services/profile.service';
@@ -171,6 +172,7 @@ export class MainPageComponent implements OnDestroy {
     private guildService = inject(GuildService);
     private joinRequests = inject(MlsJoinRequestService);
     private accounts = inject(AccountRegistryService);
+    private switcher = inject(AccountSwitchService);
     private teardown = inject(SessionTeardownService);
     private apiConfig = inject(ApiConfigService);
     private profileService = inject(ProfileService);
@@ -392,7 +394,10 @@ export class MainPageComponent implements OnDestroy {
      * row with a blank name is cosmetic, and an account with no slot has no device id at all.</p>
      */
     private async establishAccountSlot(user: UserDto): Promise<void> {
-        const slot = await this.accounts.ensureSlot({
+        // Through the switcher rather than the registry directly: a sign-in writes its tokens to
+        // the bootstrap slot, because who they belong to is only known here. Moving them onto this
+        // slot is part of becoming it.
+        const slot = await this.switcher.adoptSignedInAccount({
             userId: user.id,
             serverUrl: this.apiConfig.baseUrl(),
         });

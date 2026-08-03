@@ -10,7 +10,8 @@ import {UserService} from '../../../services/user.service';
 import {MasterKeyService} from '../../../services/master-key.service';
 import {MlsFeatureUnavailableError, MlsService} from '../../../services/mls.service';
 import {UserTokenService} from '../../../services/user-token.service';
-import {SessionTeardownService} from '../../../services/session-teardown.service';
+import {AccountRegistryService} from '../../../services/account-registry.service';
+import {AccountSwitchService} from '../../../services/account-switch.service';
 import {AppInfoService} from '../../../services/app-info.service';
 
 type Step = 'export-prompt' | 'password' | 'no-export-warning' | 'export-unavailable' | 'processing';
@@ -34,7 +35,8 @@ export class LogoutDialogComponent {
     private userService = inject(UserService);
     private masterKeyService = inject(MasterKeyService);
     private mlsService = inject(MlsService);
-    private teardown = inject(SessionTeardownService);
+    private accounts = inject(AccountRegistryService);
+    private switcher = inject(AccountSwitchService);
     private userTokenService = inject(UserTokenService);
     private router = inject(Router);
     private readonly appInfo = inject(AppInfoService);
@@ -149,15 +151,23 @@ export class LogoutDialogComponent {
     }
 
     /**
-     * The full sign-out wipe, now shared with every other path that signs out.
+     * The full sign-out: this account's key material, its tokens, and its slot.
      *
-     * <p>It used to be inlined here, and it was the only one of the three sign-out paths that did
-     * it - see {@link SessionTeardownService}. Sharing it is what makes "sign out" mean the same
-     * thing wherever it is reached from.</p>
+     * <p>The wipe used to be inlined here and this was the only one of three sign-out paths that
+     * did it - see {@link SessionTeardownService}. Removing the slot is what makes signing out
+     * mean the account is gone from this machine rather than merely logged out of, which matters
+     * now that the switcher lists them: a slot with no tokens is a row that leads nowhere.</p>
+     *
+     * <p>{@link AccountSwitchService.signOutOf} re-enters the app afterwards - at the surviving
+     * account if there is one, at the login screen if there is not.</p>
      */
     private clearMlsAndLogout(): void {
-        from(this.mlsService.getOrCreateDeviceIdentifier())
-            .pipe(switchMap(deviceId => from(this.teardown.wipeAccount(deviceId))))
+        // Before the tokens go: `deregisterToken` is an authenticated call, and it is the reason
+        // this device stops receiving push for an account it has left.
+        void this.userTokenService.deregisterToken();
+
+        from(this.accounts.activeSlotId())
+            .pipe(switchMap(slotId => from(this.switcher.signOutOf(slotId))))
             .subscribe({
                 // Either way. A teardown that failed halfway must not strand the user in a session
                 // they asked to leave, and the local half is best-effort by construction.
@@ -168,14 +178,10 @@ export class LogoutDialogComponent {
 
     private doLogout(): void {
         this.visibleChange.emit(false);
-        // Fire-and-forget: a failed push cleanup must not strand the user in a session they
-        // asked to leave. `deregisterToken` already swallows its own errors.
-        //
         // The device row itself is deliberately left alone - deleting it cascades away the MLS
         // key packages *and* the encrypted backup, and logout has already wiped the local signing
         // key, so the row is inert either way. Forgetting a device is an explicit action in
         // settings, where the destruction is chosen rather than implied.
-        void this.userTokenService.deregisterToken();
         this.authService.logout();
         this.router.navigate(['/authentication']);
     }

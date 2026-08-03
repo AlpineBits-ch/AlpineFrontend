@@ -1,0 +1,41 @@
+<!-- Only worth drawing once there is somewhere to switch to. A list of one is the state every
+     installation is in before it adds a second account, and a switcher for it is noise. -->
+@if (others().length > 0) {
+    <div class="border-t border-border-subtle px-2 py-2">
+        <p class="m-0 px-2 pb-1 text-[0.625rem] uppercase tracking-wide text-text-muted">
+            {{ 'ACCOUNTS.SWITCH_TO' | translate }}
+        </p>
+
+        @for (slot of others(); track slot.id) {
+            <button (click)="choose(slot)"
+                    [disabled]="busy()"
+                    class="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left
+                           transition-colors hover:bg-hover disabled:opacity-50"
+                    type="button">
+                @if (slot.avatarUrl) {
+                    <img [src]="slot.avatarUrl" alt="" class="size-7 shrink-0 rounded-full object-cover"/>
+                } @else {
+                    <span class="flex size-7 shrink-0 items-center justify-center rounded-full
+                                 bg-brand-dark text-[0.6875rem] text-text-primary">
+                        {{ initial(slot) }}
+                    </span>
+                }
+                <span class="min-w-0 flex-1">
+                    <span class="block truncate text-[0.8125rem] text-text-primary">
+                        {{ slot.displayName || slot.username }}
+                    </span>
+                    <!-- The host, so two accounts sharing a username on two servers stay apart. -->
+                    <span class="block truncate text-[0.6875rem] text-text-muted">
+                        {{ serverLabel(slot) }}
+                    </span>
+                </span>
+            </button>
+        }
+    </div>
+}
+
+<div class="border-t border-border-subtle px-2 py-2">
+    <p-button (onClick)="onAdd()" [text]="true" icon="pi pi-plus"
+              [label]="'ACCOUNTS.ADD' | translate" severity="secondary" size="small"
+              styleClass="w-full !justify-start"/>
+</div>

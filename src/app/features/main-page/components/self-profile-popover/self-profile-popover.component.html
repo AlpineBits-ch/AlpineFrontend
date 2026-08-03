@@ -6,5 +6,6 @@
             <p-button (onClick)="onEditProfile()" icon="pi pi-pencil" label="Edit Profile"
                       severity="primary" size="small" styleClass="flex-1 justify-center"/>
         </div>
+        <app-account-switcher (addAccount)="onAddAccount()"/>
     </div>
 </p-popover>

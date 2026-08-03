@@ -14,6 +14,7 @@ import {AdminModalComponent} from "../../../../features/admin/admin-modal/admin-
 import {StatusPickerComponent} from "../status-picker/status-picker.component";
 import {SelfProfilePopoverComponent} from "../self-profile-popover/self-profile-popover.component";
 import {SettingsUiService} from "../../../../services/settings-ui.service";
+import {AccountSwitchService} from "../../../../services/account-switch.service";
 
 @Component({
     selector: 'app-quick-settings',
@@ -41,6 +42,7 @@ export class QuickSettingsComponent {
     protected readonly ConnectionState = ConnectionState;
     protected readonly UserType = UserType;
     private settingsUi = inject(SettingsUiService);
+    private switcher = inject(AccountSwitchService);
     @ViewChild(SettingsModalComponent) private settingsModal!: SettingsModalComponent;
     @ViewChild(SelfProfilePopoverComponent) private selfProfilePopover!: SelfProfilePopoverComponent;
 
@@ -70,5 +72,10 @@ export class QuickSettingsComponent {
     public openProfileSettings(): void {
         this.settingsModal.selectPage('profile');
         this.isSettingsOpen.set(true);
+    }
+
+    /** Sign in as somebody else without signing out of this account. */
+    public startAddAccount(): void {
+        this.switcher.beginAddAccount();
     }
 }

@@ -26,7 +26,7 @@
             </div>
 
         </button>
-        <app-self-profile-popover (editProfile)="openProfileSettings()"/>
+        <app-self-profile-popover (addAccount)="startAddAccount()" (editProfile)="openProfileSettings()"/>
 
         <!-- Mute (only when in voice) -->
         @if (voiceSvc.isInVoice()) {
