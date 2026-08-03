@@ -6,6 +6,7 @@ import {Observable, of, Subject} from 'rxjs';
 
 import {TitlebarComponent} from './titlebar.component';
 import {InboxService} from '../services/inbox.service';
+import {IdentityWebsocketService} from '../services/identity-websocket.service';
 import {ConversationUtilsService} from '../services/conversation-utils.service';
 import {ApiConfigService} from '../services/api-config.service';
 
@@ -95,6 +96,11 @@ function setup() {
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test'}},
             {provide: ConversationUtilsService, useValue: {getChatTitle: () => 'Someone'}},
             {provide: InboxService, useValue: inboxStub()},
+            // Injected by the titlebar purely so its `identity.*` handlers get registered once at
+            // bootstrap; nothing in this component reads it. Stubbed for the same reason the inbox
+            // is - the real one reaches the shared SignalR connection, and through it `OAuthService`,
+            // which none of these tests are about.
+            {provide: IdentityWebsocketService, useValue: {}},
         ],
     });
 

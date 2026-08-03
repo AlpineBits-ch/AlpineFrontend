@@ -77,7 +77,9 @@
             <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2" for="emoji-name">
                 {{ 'GUILD_SETTINGS.EMOJIS.NAME_LABEL' | translate }} <span class="text-rose-400">*</span>
             </label>
-            <input (ngModelChange)="uploadName.set($event)"
+            <!-- confirmUpload re-checks the file, the trimmed name, the pattern and the in-flight
+                 flag, so Enter is inert while the button is disabled. -->
+            <input (keydown.enter)="confirmUpload()" (ngModelChange)="uploadName.set($event)"
                    [attr.aria-invalid]="nameInvalid()"
                    [maxlength]="32"
                    [ngModel]="uploadName()"

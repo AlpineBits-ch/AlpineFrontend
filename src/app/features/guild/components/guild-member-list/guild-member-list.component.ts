@@ -21,6 +21,7 @@ import {
     WsMemberLeft,
     WsMemberMuted,
     WsMemberUnmuted,
+    WsMemberUpdated,
     WsPresenceChanged,
 } from '../../../../services/guild-websocket.service';
 import {UserStatusDotComponent} from '../../../../components/user-status-dot/user-status-dot.component';
@@ -29,6 +30,7 @@ import {UserNameStyleInput} from '../../../../models/profile-font.model';
 import {BotInstallDialogService} from '../../../bot-install/bot-install-dialog.service';
 import {ProfileDialogService} from '../../../../services/profile-dialog.service';
 import {BrokenImageService} from '../../../../services/broken-image.service';
+import {HomeStatusBoardComponent} from '../home-status-board/home-status-board.component';
 
 export interface MemberRoleGroup {
     role: RoleDto;
@@ -37,7 +39,7 @@ export interface MemberRoleGroup {
 
 @Component({
     selector: 'app-guild-member-list',
-    imports: [TranslateModule, Menu, UserStatusDotComponent, UserNameStyleDirective, NgClass],
+    imports: [TranslateModule, Menu, UserStatusDotComponent, UserNameStyleDirective, NgClass, HomeStatusBoardComponent],
     templateUrl: './guild-member-list.component.html',
 })
 export class GuildMemberListComponent implements OnChanges {
@@ -98,6 +100,22 @@ export class GuildMemberListComponent implements OnChanges {
                 if (this.nextSkip > this.TAKE) return;
                 this.reset();
                 this.fetchPage(this.guild().id);
+            });
+        // Roles or nickname changed. Both are rendered here and one of them regroups the whole
+        // list, and the payload carries neither the new roles nor the member row - so the page is
+        // re-read rather than patched. Scoped to a member already on screen (or ourselves, whose
+        // own row decides which entries the context menu offers): a rename in a 5000-member guild
+        // must not refetch a list nobody is looking at that part of.
+        this.guildWsService.memberUpdatedObservable.pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((e: WsMemberUpdated) => {
+                if (e.guildId !== this.guild().id) return;
+                const isOwn = e.userId === this.ownMember()?.userId;
+                if (!isOwn && !this.rows().some(m => m.userId === e.userId)) return;
+                this.reset();
+                this.fetchPage(this.guild().id);
+                if (isOwn) {
+                    this.guildService.getOwnMember(this.guild().id).subscribe(m => this.ownMember.set(m));
+                }
             });
         // Stopgap so open member lists refresh after a bot install specifically -
         // guild.MemberJoined (subscribed above) isn't confirmed to also fire for bot

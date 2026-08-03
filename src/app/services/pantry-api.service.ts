@@ -1,0 +1,96 @@
+import {inject, Injectable} from '@angular/core';
+import {HttpClient, HttpParams} from '@angular/common/http';
+import {Observable} from 'rxjs';
+import {ApiConfigService} from './api-config.service';
+import {PantryConfig, PantryItem} from '../dtos/response/pantry.dto';
+import {CreatePantryItemDto, UpdatePantryConfigDto, UpdatePantryItemDto} from '../dtos/request/pantry.dto';
+
+/**
+ * The pantry HTTP surface, and nothing else. State, caching and realtime reconciliation
+ * live in {@link import('./pantry.service').PantryService}.
+ *
+ * <p>The doubled `guild` segment is correct: the gateway strips one before forwarding, so
+ * the public path really is `/api/v1/guild/channels/{id}/pantry-items`.</p>
+ *
+ * <p>Note the two different scopes. Items, config and creation are addressed **per
+ * channel** - one pantry is one location. Item mutation is addressed by **item id alone**,
+ * with no channel in the path, because an item never moves between pantries. And
+ * {@link expiring} is addressed **per guild**, which is not an oversight: see its doc.</p>
+ */
+@Injectable({providedIn: 'root'})
+export class PantryApiService {
+    private apiConfig = inject(ApiConfigService);
+    private http = inject(HttpClient);
+
+    private get base(): string {
+        return this.apiConfig.baseUrl() + '/api/v1/guild';
+    }
+
+    /** Everything in one pantry. Needs only `ViewChannel`. */
+    listItems(channelId: string): Observable<PantryItem[]> {
+        return this.http.get<PantryItem[]>(`${this.base}/channels/${channelId}/pantry-items`);
+    }
+
+    /**
+     * Adds stock. Requires `ManagePantry`.
+     *
+     * <p>If the new quantity is already at or below `lowThreshold` and the pantry has a
+     * restock list, the server appends it and the echoed item comes back with
+     * `restockedAt` already set - so the row can be `listed` the instant it is created.</p>
+     */
+    createItem(channelId: string, dto: CreatePantryItemDto): Observable<PantryItem> {
+        return this.http.post<PantryItem>(`${this.base}/channels/${channelId}/pantry-items`, dto);
+    }
+
+    /**
+     * Edits stock. Requires `ManagePantry`. No channel in the path - the item id is global.
+     *
+     * <p>This is the call that drives the whole restock loop: a quantity crossing the
+     * threshold downward is what makes the server append to the list and stamp
+     * `restockedAt`, and a quantity crossing back up is what releases it. Both arrive back
+     * as `guild.PantryItemUpdated`, so the caller does not have to reason about which
+     * happened.</p>
+     *
+     * <p>Clearing a threshold or an expiry is `clearLowThreshold` / `clearExpiresAt`, never a
+     * null value - the server reads a null as "leave alone". See {@link UpdatePantryItemDto}.</p>
+     */
+    updateItem(itemId: string, dto: UpdatePantryItemDto): Observable<PantryItem> {
+        return this.http.patch<PantryItem>(`${this.base}/pantry-items/${itemId}`, dto);
+    }
+
+    /** Removes stock. Requires `ManagePantry`. */
+    deleteItem(itemId: string): Observable<void> {
+        return this.http.delete<void>(`${this.base}/pantry-items/${itemId}`);
+    }
+
+    /**
+     * What needs eating, across **every pantry in the guild the caller can see**.
+     *
+     * <p>Guild-scoped on purpose - "what's about to go off" is a question about the house,
+     * not about the fridge - so this must never be rendered as one pantry's list. Results
+     * are filtered per channel by `ViewChannel` server-side, which is what lets a guest
+     * with access to one pantry ask the question without enumerating a private one.</p>
+     *
+     * @param days the look-ahead window. Independent of any pantry's `expiryWarningDays`,
+     *        which is that pantry's own badge threshold rather than a query parameter.
+     */
+    expiring(guildId: string, days = 3): Observable<PantryItem[]> {
+        return this.http.get<PantryItem[]>(`${this.base}/guilds/${guildId}/pantry/expiring`, {
+            params: new HttpParams().set('days', days),
+        });
+    }
+
+    getConfig(channelId: string): Observable<PantryConfig> {
+        return this.http.get<PantryConfig>(`${this.base}/channels/${channelId}/pantry/config`);
+    }
+
+    /**
+     * Full replace, not a patch - `expiryWarningDays` is always sent. Requires `ManagePantry`.
+     *
+     * <p>The restock list is the exception and is switched off with `clearRestockList: true`
+     * rather than a null id, for the reason in {@link UpdatePantryConfigDto}.</p>
+     */
+    putConfig(channelId: string, dto: UpdatePantryConfigDto): Observable<PantryConfig> {
+        return this.http.put<PantryConfig>(`${this.base}/channels/${channelId}/pantry/config`, dto);
+    }
+}

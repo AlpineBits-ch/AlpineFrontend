@@ -27,6 +27,7 @@ import {
     ForumTag,
 } from '../../../../dtos/response/forum.dto';
 import {GuildService} from '../../../../services/guild.service';
+import {OwnMemberRevisionService} from '../../../../services/own-member-revision.service';
 import {ForumService} from '../../../../services/forum.service';
 import {ForumStateService} from '../../../../services/forum-state.service';
 import {ForumPostListService} from '../../../../services/forum-post-list.service';
@@ -83,6 +84,7 @@ export class ForumPostListComponent implements OnDestroy {
     protected forumState = inject(ForumStateService);
     private postList = inject(ForumPostListService);
     private guildService = inject(GuildService);
+    private ownMemberRevision = inject(OwnMemberRevisionService);
     private forumService = inject(ForumService);
     private emojiStore = inject(GuildEmojiStore);
     private profileService = inject(ProfileService);
@@ -196,6 +198,9 @@ export class ForumPostListComponent implements OnDestroy {
 
         effect(() => {
             const guildId = this.forum().guildId;
+            // Read outside the untracked block on purpose: it is a dependency, not a side effect.
+            // See OwnMemberRevisionService - guild.MemberUpdated is what bumps it.
+            this.ownMemberRevision.revision();
             untracked(() => this.guildService.getOwnMember(guildId).subscribe(m => this.ownMember.set(m)));
         });
     }

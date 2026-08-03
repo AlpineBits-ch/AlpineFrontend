@@ -83,7 +83,10 @@
                         <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-white/35">
                             Recovery code
                         </label>
-                        <input (input)="onRecoveryCodeInput($event)" [value]="recoveryCode()"
+                        <!-- Both fields submit on Enter; onRewrap re-checks that each is filled
+                             and that no rewrap is already running. -->
+                        <input (input)="onRecoveryCodeInput($event)" (keydown.enter)="onRewrap()"
+                               [value]="recoveryCode()"
                                class="w-full font-mono"
                                placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX" type="text"/>
                     </div>
@@ -92,7 +95,8 @@
                         <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-white/35">
                             New password
                         </label>
-                        <input (input)="onNewPasswordInput($event)" [feedback]="false"
+                        <input (input)="onNewPasswordInput($event)" (keydown.enter)="onRewrap()"
+                               [feedback]="false"
                                [value]="newPassword()" pPassword placeholder="Your new password"
                                type="password"/>
                     </div>
@@ -126,7 +130,8 @@
                         <label class="mb-1.5 block text-[11px] font-semibold uppercase tracking-wider text-white/35">
                             Password
                         </label>
-                        <input (input)="onPasswordInput($event)" [feedback]="false" [value]="password()"
+                        <input (input)="onPasswordInput($event)" (keydown.enter)="onAddRecoveryCode()"
+                               [feedback]="false" [value]="password()"
                                pPassword placeholder="Your account password" type="password"/>
                     </div>
 

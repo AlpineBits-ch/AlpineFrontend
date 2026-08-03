@@ -144,7 +144,9 @@
 
         <label class="flex flex-col gap-1.5">
             <span class="text-xs font-medium text-text-secondary">{{ 'FORUM_SETTINGS.TAG_NAME' | translate }}</span>
-            <input (ngModelChange)="patchDraft({name: $event})" [maxlength]="maxNameLength" [ngModel]="draft().name"
+            <!-- Enter saves the tag; `saveTag()` re-checks the trimmed name and the in-flight flag. -->
+        <input (keydown.enter)="saveTag()" (ngModelChange)="patchDraft({name: $event})"
+               [maxlength]="maxNameLength" [ngModel]="draft().name"
                    [placeholder]="'FORUM_SETTINGS.TAG_NAME_PLACEHOLDER' | translate" pInputText type="text"/>
             @if (nameTakenError()) {
                 <span class="text-[0.6875rem] text-offline">{{ 'FORUM_SETTINGS.TAG_NAME_TAKEN' | translate }}</span>
@@ -160,7 +162,8 @@
 
             <label class="flex flex-col gap-1.5">
                 <span class="text-xs font-medium text-text-secondary">{{ 'FORUM_SETTINGS.TAG_EMOJI' | translate }}</span>
-                <input (ngModelChange)="setUnicodeEmoji($event)" [maxlength]="8" [ngModel]="draft().emojiName"
+                <input (keydown.enter)="saveTag()" (ngModelChange)="setUnicodeEmoji($event)" [maxlength]="8"
+               [ngModel]="draft().emojiName"
                        [placeholder]="'FORUM_SETTINGS.TAG_EMOJI_PLACEHOLDER' | translate" pInputText type="text"/>
             </label>
         </div>

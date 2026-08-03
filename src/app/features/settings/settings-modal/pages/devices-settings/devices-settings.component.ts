@@ -1,4 +1,5 @@
 import {ChangeDetectionStrategy, Component, computed, inject, signal} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
 import {Tooltip} from 'primeng/tooltip';
@@ -6,6 +7,7 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {LoginSessionsService} from '../../../../../services/login-sessions.service';
 import {DeviceService} from '../../../../../services/device.service';
 import {DeviceIdentityService} from '../../../../../services/device-identity.service';
+import {IdentityWebsocketService} from '../../../../../services/identity-websocket.service';
 import {ToastService} from '../../../../../services/toast.service';
 import {LoginSessionDto} from '../../../../../dtos/response/login-session.dto';
 import {DeviceType} from '../../../../../dtos/response/user-device.dto';
@@ -38,6 +40,7 @@ export class DevicesSettingsComponent {
     private sessionsService = inject(LoginSessionsService);
     private deviceService = inject(DeviceService);
     private deviceIdentity = inject(DeviceIdentityService);
+    private identityEvents = inject(IdentityWebsocketService);
     private toast = inject(ToastService);
     private translate = inject(TranslateService);
 
@@ -48,6 +51,15 @@ export class DevicesSettingsComponent {
         void this.deviceIdentity.deviceId()
             .then(id => this.ownDeviceId.set(id))
             .catch(() => this.ownDeviceId.set(null));
+
+        // A device registered on another machine, or the account identity key rotating under this
+        // list, both make what is on screen wrong. Re-read rather than patch: the push names one
+        // device and this list is sessions, so there is no row to insert - and this is the screen
+        // somebody opens *because* they suspect a device they do not recognise, which is the worst
+        // possible place to show a list that is one event behind.
+        this.identityEvents.deviceRosterChanged$
+            .pipe(takeUntilDestroyed())
+            .subscribe(() => this.load());
     }
 
     protected load(): void {

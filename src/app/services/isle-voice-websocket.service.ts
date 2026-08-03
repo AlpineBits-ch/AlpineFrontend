@@ -81,6 +81,12 @@ export interface IslePeerLeft {
  * survives the restart and no reconnect (and therefore no re-publish) is
  * triggered client-side: we would keep hearing peers while nobody could pull
  * our audio. Payload-free -it is purely a nudge.
+ *
+ * Absent from the published realtime contract (`docs.venta.gg/asyncapi.json`)
+ * but confirmed present server-side as `SfuSocketEvents.RepublishVoice`. The
+ * contract is generated from call sites and does not reach Isle's SFU constants,
+ * so its silence about an `isle.*` event is not evidence the event is dead -
+ * check the Isle source before concluding anything is unused here.
  */
 
 @Injectable({providedIn: 'root'})

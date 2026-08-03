@@ -87,6 +87,10 @@ export class MasterKeyRecoveryDialogComponent {
 
     /** Re-wraps the master key under the new password, using the recovery code. */
     protected async onRewrap(): Promise<void> {
+        // Re-entrancy guard, not just button state: the fields submit on Enter, and a held key
+        // repeats. Two rewraps of the same key racing each other is not something to find out
+        // about afterwards.
+        if (this.busy()) return;
         if (!this.recoveryCode() || !this.newPassword()) {
             this.errorMsg.set('Both the recovery code and your new password are required.');
             return;
@@ -109,6 +113,9 @@ export class MasterKeyRecoveryDialogComponent {
 
     /** Adds the second wrapping to an account that predates it. */
     protected async onAddRecoveryCode(): Promise<void> {
+        // See onRewrap: Enter submits, so the in-flight check belongs here rather than only on
+        // the button. A second run would mint a second recovery code and invalidate the first.
+        if (this.busy()) return;
         if (!this.password()) {
             this.errorMsg.set('Your password is required.');
             return;

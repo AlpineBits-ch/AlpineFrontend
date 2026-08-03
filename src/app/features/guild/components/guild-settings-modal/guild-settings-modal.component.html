@@ -138,6 +138,12 @@
                     @case ('onboarding') {
                         <app-onboarding-settings (dirtyChange)="onPageDirtyChange($event)" [guild]="guild()"/>
                     }
+                    @case ('quiet-hours') {
+                        <app-quiet-hours-settings (dirtyChange)="onPageDirtyChange($event)" [guild]="guild()"/>
+                    }
+                    @case ('guest-access') {
+                        <app-guest-access-settings [guild]="guild()"/>
+                    }
                 }
             </div>
         </div>

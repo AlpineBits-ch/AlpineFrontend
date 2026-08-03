@@ -10,6 +10,7 @@ import {Menu} from 'primeng/menu';
 import {MenuItem} from 'primeng/api';
 import {NavigationService} from '../features/main-page/navigation.service';
 import {InboxService} from '../services/inbox.service';
+import {IdentityWebsocketService} from '../services/identity-websocket.service';
 import {InboxPanelComponent} from './inbox-panel/inbox-panel.component';
 import {SettingsUiService} from '../services/settings-ui.service';
 import {ConversationUtilsService} from '../services/conversation-utils.service';
@@ -48,6 +49,18 @@ export class TitlebarComponent implements OnInit, OnDestroy {
 
     protected nav = inject(NavigationService);
     protected inbox = inject(InboxService);
+    /**
+     * Injected for its constructor, which is the only place the `identity.*` handlers are
+     * registered.
+     *
+     * <p>Nothing here reads it. It lives on the titlebar for the same reason {@link InboxService}
+     * does - this is the one component drawn on every route, so it is the earliest point at which a
+     * root singleton is reliably built exactly once, and `RealtimeConnectionService.on` is safe
+     * before `start`. Registering from a screen instead would mean "your key backup was read" only
+     * arrives while that screen happens to be open, which is not a property a security notice may
+     * have.</p>
+     */
+    private identityEvents = inject(IdentityWebsocketService);
     private settingsUi = inject(SettingsUiService);
     private convUtils = inject(ConversationUtilsService);
     private apiConfig = inject(ApiConfigService);

@@ -1,3 +1,4 @@
+import {effect} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
@@ -211,5 +212,58 @@ describe('GuildReadStateService.channelRead$', () => {
         service.markChannelRead('never-unread');
 
         expect(seen).toEqual(['p1']);
+    });
+});
+
+/**
+ * `channel.component` marks the open channel read from inside an `effect`, so `markChannelRead`
+ * runs in a reactive context and every signal it touches becomes a dependency of that effect.
+ * Reading `_channelStates` there and then writing it unconditionally is a self-feeding loop: the
+ * write hands out a fresh object, `Object.is` says "changed", the effect re-runs, writes again.
+ *
+ * It presents as the renderer spinning up a core and dying of memory with nothing in the log -
+ * effects have no cycle detection (only `computed` does), so nothing is ever thrown, and each turn
+ * of the loop fires another `guild.UpdateLastRead` down the realtime connection.
+ */
+describe('GuildReadStateService.markChannelRead reactivity', () => {
+    beforeEach(() => TestBed.resetTestingModule());
+
+    /** Caps its own re-entry so a regression fails the assertion instead of hanging the run. */
+    function countEffectRuns(body: () => void): number {
+        let runs = 0;
+        TestBed.runInInjectionContext(() => {
+            effect(() => {
+                runs++;
+                if (runs > 20) return;
+                body();
+            });
+        });
+        TestBed.tick();
+        return runs;
+    }
+
+    it('does not re-trigger an effect that calls it', () => {
+        const {service, ws} = setup();
+        deliver(ws, 'p1', ['me']);
+
+        expect(countEffectRuns(() => service.markChannelRead('p1'))).toBe(1);
+    });
+
+    it('does not re-trigger an effect for a channel it has no state for', () => {
+        const {service} = setup();
+
+        expect(countEffectRuns(() => service.markChannelRead('never-seen'))).toBe(1);
+    });
+
+    /** The write itself must stop notifying once the channel is read, loop or no loop. */
+    it('stops notifying channelStates subscribers once the channel is read', () => {
+        const {service, ws} = setup();
+        deliver(ws, 'p1', ['me']);
+        service.markChannelRead('p1');
+
+        const before = service.channelStates();
+        service.markChannelRead('p1');
+
+        expect(service.channelStates()).toBe(before);
     });
 });

@@ -6,7 +6,10 @@ import {GuildFeature} from './guild-features';
  * template `@switch`, so "an unrecognised type is never a message view" is something a
  * test asserts instead of something a reviewer has to notice.
  */
-export type ChannelView = 'voice' | 'forum' | 'message' | 'unsupported';
+export type ChannelView =
+    | 'voice' | 'forum' | 'message'
+    | 'list' | 'chores' | 'ledger' | 'pantry' | 'decisions'
+    | 'unsupported';
 
 export interface ChannelTypeMeta {
     type: ChannelType;
@@ -25,6 +28,23 @@ export interface ChannelTypeMeta {
 const HOUSEHOLD_TYPE_SET: ReadonlySet<string> = new Set([
     ChannelType.List, ChannelType.Chores, ChannelType.Ledger,
     ChannelType.Pantry, ChannelType.Decisions,
+]);
+
+/**
+ * Which view draws each household type. A table rather than a `@switch` ladder in
+ * {@link channelViewFor}, for the same reason {@link CHANNEL_META} is one: five entries
+ * added one module at a time is exactly where a ladder and its enum stop agreeing.
+ *
+ * <p>Every member of {@link HOUSEHOLD_TYPE_SET} must appear here - a type in the set with
+ * no view falls through to `unsupported`, which renders the inert placeholder rather than
+ * the module that has in fact shipped. `channel-types.spec.ts` asserts the two agree.</p>
+ */
+const HOUSEHOLD_VIEW_BY_TYPE: ReadonlyMap<string, ChannelView> = new Map<string, ChannelView>([
+    [ChannelType.List, 'list'],
+    [ChannelType.Chores, 'chores'],
+    [ChannelType.Ledger, 'ledger'],
+    [ChannelType.Pantry, 'pantry'],
+    [ChannelType.Decisions, 'decisions'],
 ]);
 
 /**
@@ -166,6 +186,10 @@ const MESSAGE_TYPES: readonly string[] = [
 export function channelViewFor(type: ChannelType): ChannelView {
     if (type === ChannelType.Voice) return 'voice';
     if (isForumLike(type)) return 'forum';
+    // Ahead of the message allowlist, not after it: a household type must never reach a
+    // composer even if one is ever added to MESSAGE_TYPES by mistake.
+    const household = HOUSEHOLD_VIEW_BY_TYPE.get(type as string);
+    if (household) return household;
     if (MESSAGE_TYPES.includes(type as string)) return 'message';
     return 'unsupported';
 }

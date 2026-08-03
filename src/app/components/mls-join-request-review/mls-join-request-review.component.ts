@@ -1,6 +1,6 @@
 import {Component, computed, effect, inject, input, signal, untracked} from '@angular/core';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
-import {firstValueFrom} from 'rxjs';
+import {firstValueFrom, merge} from 'rxjs';
 import {Button} from 'primeng/button';
 
 import {
@@ -10,6 +10,7 @@ import {
     MlsJoinRequestService,
 } from '../../services/mls-join-request.service';
 import {MessagingWebsocketService} from '../../services/messaging-websocket.service';
+import {GuildWebsocketService} from '../../services/guild-websocket.service';
 import {MlsService} from '../../services/mls.service';
 import {DeviceIdentityService} from '../../services/device-identity.service';
 import {ProfileService} from '../../services/profile.service';
@@ -163,6 +164,7 @@ export class MlsJoinRequestReviewComponent {
     private readonly deviceIdentity = inject(DeviceIdentityService);
     private readonly profiles = inject(ProfileService);
     private readonly messagingWs = inject(MessagingWebsocketService);
+    private readonly guildWs = inject(GuildWebsocketService);
 
     private readonly requests = signal<MlsJoinRequestDto[]>([]);
     private readonly ownDeviceId = signal<string | null>(null);
@@ -229,14 +231,21 @@ export class MlsJoinRequestReviewComponent {
             });
         });
 
-        // The server pushes on submit, so a request filed while this conversation is open has to
-        // appear without a reload. The push is only a prompt - it carries no key package by design
-        // - so the answer still comes from re-reading the queue.
-        this.messagingWs.mlsJoinRequestObservable
+        // The server pushes on submit, so a request filed while this context is open has to appear
+        // without a reload. The push is only a prompt - it carries no key package by design - so
+        // the answer still comes from re-reading the queue.
+        //
+        // Both sockets, because the same panel reviews both kinds: a channel request arrives as
+        // `guild.ChannelMlsJoinRequested` on the guild socket and never touches the conversation
+        // one. Filtering on `contextId` is what keeps them apart, and `isChannel` on the event is
+        // already decided by whichever normalizer produced it.
+        merge(this.messagingWs.mlsJoinRequestObservable, this.guildWs.mlsJoinRequestObservable)
             .pipe(takeUntilDestroyed())
             .subscribe(event => {
                 if (event.contextId !== this.contextId()) return;
-                if (event.requesterDeviceName) {
+                // Guarded on the id as well: the channel push carries no request id, and keying a
+                // name under '' would caption an unrelated request with it.
+                if (event.requestId && event.requesterDeviceName) {
                     this.pushedDeviceNames.update(current => ({
                         ...current,
                         [event.requestId]: event.requesterDeviceName!,

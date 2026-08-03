@@ -29,6 +29,14 @@ import {AccountDeletionBannerComponent} from './components/account-deletion-bann
 import {VoiceStatusBarComponent} from './components/voice-status-bar/voice-status-bar.component';
 import {channelViewFor} from '../guild/channel-types';
 import {UnsupportedChannelComponent} from '../guild/components/unsupported-channel/unsupported-channel.component';
+// The five household channel views. Each is a full page like ChannelComponent, and each
+// takes the same (channel, back) pair - the back output is what gives a phone a way out
+// of a channel whose left nav is off-screen below `lg`.
+import {ListChannelComponent} from '../guild/components/list-channel/list-channel.component';
+import {ChoresChannelComponent} from '../guild/components/chores-channel/chores-channel.component';
+import {LedgerChannelComponent} from '../guild/components/ledger-channel/ledger-channel.component';
+import {PantryChannelComponent} from '../guild/components/pantry-channel/pantry-channel.component';
+import {DecisionsChannelComponent} from '../guild/components/decisions-channel/decisions-channel.component';
 import {GuildMemberListComponent} from '../guild/components/guild-member-list/guild-member-list.component';
 import {UserTokenService} from '../../services/user-token.service';
 import {GuildWebsocketService} from '../../services/guild-websocket.service';
@@ -80,6 +88,11 @@ import {ProfileService} from '../../services/profile.service';
         VoiceChannelComponent,
         ForumChannelComponent,
         UnsupportedChannelComponent,
+        ListChannelComponent,
+        ChoresChannelComponent,
+        LedgerChannelComponent,
+        PantryChannelComponent,
+        DecisionsChannelComponent,
         ServerTaskbarComponent,
         ActivityFeedComponent,
         ConversationInfoPanelComponent,

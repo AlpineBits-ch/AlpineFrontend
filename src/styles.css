@@ -240,18 +240,10 @@ button, a, [role="button"], input, select, textarea, label {
   color: rgba(255, 255, 255, 0.85) !important;
 }
 
-/* Option checkboxes: Aura's unchecked box is white-on-white here */
-.dark .p-multiselect-option .p-checkbox-box,
-.dark .p-multiselect-header .p-checkbox-box {
-  background: rgba(255, 255, 255, 0.04) !important;
-  border-color: rgba(255, 255, 255, 0.18) !important;
-}
-.dark .p-multiselect-option .p-checkbox-checked .p-checkbox-box,
-.dark .p-multiselect-header .p-checkbox-checked .p-checkbox-box {
-  background: var(--color-brand) !important;
-  border-color: var(--color-brand) !important;
-  color: #fff !important;
-}
+/* The multiselect option/header checkbox override that used to live here is gone: it said
+   "Aura's unchecked box is white-on-white", which was true of every checkbox in the app and
+   not just the ones in that overlay. It is now a `checkbox` entry in alpine-preset.ts, with
+   the same colours, so a standalone p-checkbox is styled too. */
 
 @theme {
   /* ── Typography ───────────────────────────────────────────

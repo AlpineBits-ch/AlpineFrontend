@@ -13,7 +13,7 @@
             <div class="flex gap-2">
                 <div class="flex items-center gap-2 flex-1 bg-white/[0.04] border border-white/[0.09] rounded-xl px-3">
                     <i class="pi pi-user-plus text-white/30 text-sm shrink-0"></i>
-                    <input [(ngModel)]="friendId" class="flex-1 bg-transparent border-0 outline-none py-2.5 text-sm text-white/80 placeholder:text-white/25" pInputText
+                    <input (keydown.enter)="sendFriendrequest()" [(ngModel)]="friendId" class="flex-1 bg-transparent border-0 outline-none py-2.5 text-sm text-white/80 placeholder:text-white/25" pInputText
                            placeholder="username"
                            type="text"/>
                 </div>

@@ -45,6 +45,7 @@
                                 [name]="'opt-' + option.name"/>
                     } @else {
                         <input
+                                (keydown.enter)="submit()"
                                 (ngModelChange)="setValue(option.name, $event)"
                                 [ngModel]="optionValues()[option.name]"
                                 [name]="'opt-' + option.name"

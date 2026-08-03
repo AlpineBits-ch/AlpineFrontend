@@ -6,7 +6,12 @@ import {DeviceIdentityService} from './device-identity.service';
 import {VoiceEngineService, VoiceSession} from './voice-engine.service';
 import {CallSessionService} from './call-session.service';
 import {CfTrackNew, CfTrackResult, VoiceService} from './voice.service';
-import {ConnectionState, describeCallEndedReason, VoiceWebsocketService} from './voice-websocket.service';
+import {
+    callStatusName,
+    ConnectionState,
+    describeCallEndedReason,
+    VoiceWebsocketService,
+} from './voice-websocket.service';
 import {ToastService} from './toast.service';
 import {AudioSettingsService} from './audio-settings.service';
 import {RustMediaService} from './rust-media.service';
@@ -727,7 +732,10 @@ export class CallWebRtcService {
         if (!s) return;
         const ownId = s.participants.find(p => p.isLocal)?.userId;
 
-        if (fresh.status === 'Completed' || fresh.status === 'Rejected') {
+        // Through the normaliser, not compared raw: the same field reaches us as `"Completed"` or
+        // as the ordinal, depending on whether the host serialising it has JsonStringEnumConverter.
+        const freshStatus = callStatusName(fresh.status);
+        if (freshStatus === 'Completed' || freshStatus === 'Rejected') {
             this.callSession.end();
             return;
         }
@@ -774,20 +782,6 @@ export class CallWebRtcService {
                 void this.subscribeToTrack(e.userId, e.cfSessionId, e.audioTrackName, 'audio');
             }),
 
-            // Someone left → remove from UI (tracks will auto-end via onended)
-            this.voiceWs.participantLeftObservable.subscribe(e => {
-                this.callSession.onParticipantLeft(e.userId);
-                this.subscribedAudioUserIds.delete(e.userId);
-                // Drop their source, or they keep a slot in the mixer that is popped and mixed on
-                // every frame for the rest of the call.
-                void this.dropSource(e.userId);
-                this.participantsWithAudio.update(s => {
-                    const n = new Set(s);
-                    n.delete(e.userId);
-                    return n;
-                });
-            }),
-
             // New video / screen track published → subscribe to it
             this.voiceWs.trackPublishedObservable.subscribe(e => {
                 const localId = this.callSession.session()?.participants.find(p => p.isLocal)?.userId;
@@ -820,10 +814,10 @@ export class CallWebRtcService {
             this.voiceWs.screenShareStoppedObservable.subscribe(e =>
                 this.callSession.onScreenShareStopped(e.shareId)),
 
-            // Application-level departure. Handled alongside - not instead of - the WebRTC-level
-            // `call.ParticipantLeft`: onParticipantLeft is an idempotent array filter, so both
-            // firing for one departure is harmless, and which of the two the backend keeps once
-            // this ships is not knowable from here.
+            // Someone left → drop them from the UI and unwind everything we hold for them. The
+            // only departure event the contract carries, so this is the sole teardown path for a
+            // live departure; `syncParticipants` repeats it for departures missed while offline.
+            // Every step is idempotent, which is what makes that overlap harmless.
             this.voiceWs.callParticipantLeftObservable.subscribe(e => {
                 this.callSession.onParticipantLeft(e.userId);
                 this.subscribedAudioUserIds.delete(e.userId);

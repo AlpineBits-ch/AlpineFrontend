@@ -13,7 +13,9 @@
             <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
                 {{ 'EVENTS.FIELD_TITLE' | translate }} <span class="text-rose-400">*</span>
             </label>
-            <input (ngModelChange)="title.set($event)" [ngModel]="title()"
+            <!-- Title and location submit; the description textarea deliberately does not, since
+                 Enter there is a paragraph break. `save()` re-checks `canSave()`. -->
+            <input (keydown.enter)="save()" (ngModelChange)="title.set($event)" [ngModel]="title()"
                    [placeholder]="'EVENTS.FIELD_TITLE_PLACEHOLDER' | translate"
                    class="w-full" pInputText type="text"/>
         </div>
@@ -54,7 +56,7 @@
             <label class="block text-xs font-semibold text-text-muted uppercase tracking-widest mb-2">
                 {{ 'EVENTS.FIELD_LOCATION' | translate }}
             </label>
-            <input (ngModelChange)="location.set($event)" [ngModel]="location()"
+            <input (keydown.enter)="save()" (ngModelChange)="location.set($event)" [ngModel]="location()"
                    [placeholder]="'EVENTS.FIELD_LOCATION_PLACEHOLDER' | translate"
                    class="w-full" pInputText type="text"/>
         </div>

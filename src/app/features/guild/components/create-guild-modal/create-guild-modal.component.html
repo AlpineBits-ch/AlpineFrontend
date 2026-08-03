@@ -210,7 +210,10 @@
                             {{ 'CREATE_GUILD.SERVER_NAME' | translate }} <span
                                 class="text-rose-400/70 normal-case font-normal">*</span>
                         </label>
-                        <input (ngModelChange)="templateGuildName.set($event)"
+                        <!-- Matches the from-scratch name field above, which already submits on
+                             Enter. `createFromTemplate()` re-checks the template, the trimmed
+                             name and the in-flight flag. -->
+                        <input (keydown.enter)="createFromTemplate()" (ngModelChange)="templateGuildName.set($event)"
                                [disabled]="creatingFromTemplate()"
                                [ngModel]="templateGuildName()"
                                [placeholder]="'CREATE_GUILD.SERVER_NAME_PLACEHOLDER' | translate"

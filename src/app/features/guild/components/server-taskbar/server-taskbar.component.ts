@@ -94,6 +94,23 @@ export class ServerTaskbarComponent implements OnInit {
             this.guilds.update(gs => gs.map(g => g.id === updated.id ? updated : g));
         });
 
+        // A guild appeared for this account without this window doing anything: created on another
+        // device, or an invite accepted there. `guildJoined$` only fires for a join this client
+        // performed, so before this the rail simply did not show it until the next launch.
+        //
+        // Not navigated to, unlike `onGuildCreated` - that one is this user pressing Create and
+        // expecting to land in it. Yanking the workspace sideways because another device did
+        // something is the opposite of what it means here.
+        this.guildWsService.guildCreatedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe(guild => {
+                // The payload is the whole guild, so no round trip - but it is also replayable, and
+                // SignalR redelivers after a reconnect. Keyed on id rather than appended blindly.
+                this.guilds.update(gs => gs.some(g => g.id === guild.id)
+                    ? gs.map(g => g.id === guild.id ? guild : g)
+                    : [...gs, guild]);
+            });
+
         this.guildWsService.guildDeletedObservable
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(e => this.onGuildDeleted(e.guildId));

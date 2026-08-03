@@ -23,6 +23,7 @@ import {MenuItem, PrimeTemplate} from 'primeng/api';
 import {CategoryDto, ChannelDto, ChannelType, GuildDto,} from '../../../../dtos/response/guild.dto';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {GuildService} from '../../../../services/guild.service';
+import {OwnMemberRevisionService} from '../../../../services/own-member-revision.service';
 import {VoiceChannelParticipant, VoiceChannelService} from '../../../../services/voice-channel.service';
 import {CallContextMenuComponent} from '../../../../shared/call/call-context-menu/call-context-menu.component';
 import {CallParticipantMenuData} from '../../../../shared/call/call.types';
@@ -40,6 +41,7 @@ import {
   GuildWebsocketService,
   WsCategoryCreated,
   WsCategoryDeleted,
+  WsCategoryUpdated,
   WsChannelCreated,
   WsChannelDeleted,
   WsChannelUpdated
@@ -191,6 +193,7 @@ export class ChannelListComponent {
     // ── Voice participant context menu ────────────────────────────────────────
     protected participantMenu = signal<CallParticipantMenuData | null>(null);
     private guildService = inject(GuildService);
+    private ownMemberRevision = inject(OwnMemberRevisionService);
     private guildVoiceSvc = inject(GuildVoiceService);
     private guildUiActions = inject(GuildUiActionsService);
     private guildWsService = inject(GuildWebsocketService);
@@ -250,6 +253,8 @@ export class ChannelListComponent {
 
         effect(() => {
             const guildId = this.guild().id;
+            // Re-runs when guild.MemberUpdated says our own roles changed.
+            this.ownMemberRevision.revision();
             this.guildService.getOwnMember(guildId).subscribe(m => this.ownMember.set(m));
         });
 
@@ -335,6 +340,30 @@ export class ChannelListComponent {
                     if (cat && !this.guild().categories.some(c => c.id === e.categoryId)) {
                         this.patchGuild({categories: [...this.guild().categories, cat]});
                     }
+                });
+            });
+
+        // Renames and moves. `CategoryCreated` and `CategoryDeleted` were both handled and this
+        // was not, so a category renamed by someone else kept its old name in this sidebar until
+        // the next reload - and a reorder left the sections in an order the server no longer
+        // agreed with. Re-read like `ChannelUpdated`: the payload names the category and nothing
+        // about what changed, and position is part of what may have.
+        this.guildWsService.categoryUpdatedObservable
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe((e: WsCategoryUpdated) => {
+                if (e.guildId !== this.guild().id) return;
+                this.guildService.getGuild(e.guildId).subscribe(g => {
+                    const cat = g.categories.find(c => c.id === e.categoryId);
+                    if (!cat) return;
+                    const known = this.guild().categories.some(c => c.id === cat.id);
+                    this.patchGuild({
+                        categories: known
+                            ? this.guild().categories.map(c => c.id === cat.id ? cat : c)
+                            // An update for a category we never saw created - the create push was
+                            // missed, or arrived while this guild was closed. Adding it is closer
+                            // to the truth than dropping the row on the floor.
+                            : [...this.guild().categories, cat],
+                    });
                 });
             });
 

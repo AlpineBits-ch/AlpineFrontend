@@ -72,6 +72,15 @@ export interface MessageDto {
     reactions?: MessageReaction[];
     /** Client-only: marks this entity as a synthetic placeholder for an in-flight/failed bot command invocation, not a real persisted message. */
     isBotCommandPlaceholder?: boolean;
+    /**
+     * Client-only: a bot reply only this user was sent, which the server never stored
+     * (`guild.EphemeralMessageCreated`).
+     *
+     * <p>It lives in the store so the channel can render it, and nowhere else - a reload loses it,
+     * which is the whole point. Nothing may offer edit, delete, pin or reply on it: there is no
+     * server-side row for any of those to act on, and every one of them would 404.</p>
+     */
+    isEphemeral?: boolean;
     embedsJson?: string;
     systemMessageVariant?: number;
     isPinned?: boolean;

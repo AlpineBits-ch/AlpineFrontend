@@ -16,6 +16,8 @@ import {ModerationSettingsComponent} from './pages/moderation-settings/moderatio
 import {OnboardingSettingsComponent} from './pages/onboarding-settings/onboarding-settings.component';
 import {TemplatesSettingsComponent} from './pages/templates-settings/templates-settings.component';
 import {ModulesSettingsComponent} from './pages/modules-settings/modules-settings.component';
+import {QuietHoursSettingsComponent} from './pages/quiet-hours-settings/quiet-hours-settings.component';
+import {GuestAccessSettingsComponent} from './pages/guest-access-settings/guest-access-settings.component';
 import {GuildFeature, guildFeatures} from '../../guild-features';
 import {TranslateModule} from '@ngx-translate/core';
 import {PrimeTemplate} from 'primeng/api';
@@ -60,6 +62,8 @@ interface NavGroup {
         OnboardingSettingsComponent,
         TemplatesSettingsComponent,
         ModulesSettingsComponent,
+        QuietHoursSettingsComponent,
+        GuestAccessSettingsComponent,
         TranslateModule,
         PrimeTemplate,
     ],
@@ -147,6 +151,20 @@ export class GuildSettingsModalComponent {
                     {id: 'discord-sync', label: 'GUILD_SETTINGS.NAV.DISCORD_SYNC', icon: 'pi pi-discord'},
                     ...(features.has(GuildFeature.Onboarding)
                         ? [{id: 'onboarding', label: 'GUILD_SETTINGS.NAV.ONBOARDING', icon: 'pi pi-book'}]
+                        : []),
+                ],
+            },
+            // Guild-scoped household settings. Their own group rather than folded into Server:
+            // a community guild has neither flag, so the whole group disappears and nobody has to
+            // wonder why a chat server is asking about bedtimes.
+            {
+                title: 'GUILD_SETTINGS.NAV.GROUP_HOUSEHOLD',
+                items: [
+                    ...(features.has(GuildFeature.QuietHours)
+                        ? [{id: 'quiet-hours', label: 'GUILD_SETTINGS.NAV.QUIET_HOURS', icon: 'pi pi-moon'}]
+                        : []),
+                    ...(features.has(GuildFeature.GuestAccess)
+                        ? [{id: 'guest-access', label: 'GUILD_SETTINGS.NAV.GUEST_ACCESS', icon: 'pi pi-key'}]
                         : []),
                 ],
             },

@@ -1,11 +1,15 @@
 import {effect, inject, Injectable, OnDestroy, signal, untracked} from '@angular/core';
-import {first, map, race, Subscription} from 'rxjs';
+import {filter, first, map, race, Subscription} from 'rxjs';
 import {CallDto} from '../dtos/response/call.dto';
 import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
 import {ConversationStore} from '../stores/conversation.store';
 import {ProfileService} from './profile.service';
 import {VoiceService} from './voice.service';
-import {VoiceWebsocketService} from './voice-websocket.service';
+import {
+    declineEndsOutgoingCall,
+    describeCallEndedReason,
+    VoiceWebsocketService,
+} from './voice-websocket.service';
 import {CallSessionService} from './call-session.service';
 import {NavigationService} from '../features/main-page/navigation.service';
 import {SoundSettingsService} from './sound-settings.service';
@@ -139,12 +143,31 @@ export class CallStateService implements OnDestroy {
                 this.pendingCallSub = race(
                     this.ws.participantJoinedObservable.pipe(first(), map(() => 'joined' as const)),
                     this.ws.callEndedObservable.pipe(first(), map(() => 'ended' as const)),
+                    // The other side saying no. Filtered rather than taken outright: a decline in a
+                    // group call names one invitee while the rest keep ringing, and race only
+                    // commits to a source that actually emits, so a non-final decline leaves the
+                    // other two arms live. Without this the caller rang until the alone-timeout.
+                    this.ws.callDeclinedObservable.pipe(
+                        filter(call => call.id === callDto.id
+                            && declineEndsOutgoingCall(call, this.profileService.ownProfile()?.userId)),
+                        first(),
+                        map(() => 'declined' as const),
+                    ),
                 ).subscribe(result => {
                     this.pendingCallDto = null;
                     this.pendingCallSub = null;
                     this.stopRingtone();
                     this.outgoingCall.set(null);
                     if (result === 'ended') this.callSession.end();
+                    if (result === 'declined') {
+                        // Silent, for the same reason `CallDeviceTakeover` is: the server has
+                        // already marked the call Rejected, so `leave` would be a request against a
+                        // participant record that is gone. The toast is ours to raise because the
+                        // matching `CallEnded` - if the server sends one at all - now finds no
+                        // session and stays quiet.
+                        this.callSession.end(true);
+                        this.toast.info(describeCallEndedReason('Declined'));
+                    }
                 });
             },
             error: () => {

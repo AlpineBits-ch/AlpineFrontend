@@ -4,6 +4,7 @@ import {catchError, filter, map, Observable, race, Subject, switchMap, take, tap
 import {ApiConfigService} from './api-config.service';
 import {BotCommandDto} from '../dtos/response/bot-command.dto';
 import {InvokeBotCommandDto} from '../dtos/request/invoke-bot-command.dto';
+import {SubmitModalDto} from '../dtos/request/submit-modal.dto';
 import {GuildWebsocketService} from './guild-websocket.service';
 import {NavigationService} from '../features/main-page/navigation.service';
 
@@ -58,6 +59,23 @@ export class BotCommandService {
 
     invokeCommand(guildId: string, channelId: string, dto: InvokeBotCommandDto): Observable<void> {
         return this.http.post<void>(`${this.base()}/guilds/${guildId}/channels/${channelId}/interactions`, dto);
+    }
+
+    /**
+     * Answers a modal a bot pushed with `guild.ModalOpen`.
+     *
+     * <p>Channel-scoped rather than message-scoped, unlike a component interaction: a modal is not
+     * attached to a message, only to the interaction that opened it. The server answers `202` and
+     * nothing else - it has dispatched a MODAL_SUBMIT to the bot's gateway connection and the bot
+     * replies on its own schedule, so there is deliberately no reply to await here. Whatever the
+     * bot does next arrives as an ordinary message or ephemeral push.</p>
+     *
+     * <p>No retry-on-404 twin like {@link invokeCommandWithRetry}: a 404 here means the bot is
+     * disabled or uninstalled, not that a cached command list went stale, and refetching commands
+     * would not change the answer.</p>
+     */
+    submitModal(guildId: string, channelId: string, dto: SubmitModalDto): Observable<void> {
+        return this.http.post<void>(`${this.base()}/guilds/${guildId}/channels/${channelId}/modal-submit`, dto);
     }
 
     /** A 404 can mean the bot isn't installed, or that our cached command list is just stale -

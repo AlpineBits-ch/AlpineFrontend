@@ -135,8 +135,27 @@ describe('channelViewFor', () => {
         expect(channelViewFor(ChannelType.Thread)).toBe('message');
     });
 
-    it('routes every household type to the unsupported view for now', () => {
-        for (const type of HOUSEHOLD_TYPES) expect(channelViewFor(type)).toBe('unsupported');
+    it('routes each household type to its own view', () => {
+        expect(channelViewFor(ChannelType.List)).toBe('list');
+        expect(channelViewFor(ChannelType.Chores)).toBe('chores');
+        expect(channelViewFor(ChannelType.Ledger)).toBe('ledger');
+        expect(channelViewFor(ChannelType.Pantry)).toBe('pantry');
+        expect(channelViewFor(ChannelType.Decisions)).toBe('decisions');
+    });
+
+    /**
+     * The drift guard the view table's docblock promises. A household type added to the set
+     * without a view silently falls through to `unsupported`, which draws the "module has not
+     * shipped" placeholder over a module that has in fact shipped - the same class of bug the
+     * icon table exists to prevent, and invisible in review because both halves compile.
+     */
+    it('gives every household type a view of its own, never the placeholder', () => {
+        const views = new Set(HOUSEHOLD_TYPES.map(type => channelViewFor(type)));
+        expect(views.has('unsupported')).toBe(false);
+        expect(views.has('message')).toBe(false);
+        // Distinct per type: a copy-paste that pointed two types at one view would otherwise
+        // pass every assertion above except the count.
+        expect(views.size).toBe(HOUSEHOLD_TYPES.length);
     });
 
     // The single most damaging failure mode in the integration guide (§10.1): a type this

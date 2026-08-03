@@ -5,7 +5,7 @@ import {MessagingService} from '../services/messaging.service';
 import {MlsReplayedMessage, MlsService} from '../services/mls.service';
 import {MlsSyncService} from '../services/mls-sync.service';
 import {MlsHealthService} from '../services/mls-health.service';
-import {MessagingWebsocketService} from '../services/messaging-websocket.service';
+import {MessageUpdatedEvent, MessagingWebsocketService} from '../services/messaging-websocket.service';
 import {GuildWebsocketService} from '../services/guild-websocket.service';
 import {ProfileService} from '../services/profile.service';
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
@@ -65,6 +65,13 @@ function setup() {
             Observable<MessageDto[]>>(() => of([])),
     };
 
+    // Handed back so a test can push a channel edit or a bulk delete through the same wiring the
+    // guild socket uses, rather than calling the store's methods and proving only that they exist.
+    const guildMessageUpdated = new Subject<MessageUpdatedEvent>();
+    const guildMessagesBulkDeleted = new Subject<{
+        guildId: string; channelId: string; messageIds: string[]; actorUserId: string;
+    }>();
+
     TestBed.configureTestingModule({
         providers: [
             {provide: MessagingService, useValue: messaging},
@@ -84,7 +91,9 @@ function setup() {
                 provide: GuildWebsocketService, useValue: {
                     messageObservable: new Subject(), reactionAddedObservable: new Subject(),
                     reactionRemovedObservable: new Subject(), messagePinnedObservable: new Subject(),
-                    messageUnpinnedObservable: new Subject(),
+                    messageUnpinnedObservable: new Subject(), messageUpdatedObservable: guildMessageUpdated,
+                    messagesBulkDeletedObservable: guildMessagesBulkDeleted,
+                    ephemeralMessageObservable: new Subject(),
                 },
             },
             {provide: ProfileService, useValue: {ownProfile: () => ({userId: 'user-1'})}},
@@ -96,6 +105,8 @@ function setup() {
         mls,
         sync,
         messaging,
+        guildMessageUpdated,
+        guildMessagesBulkDeleted,
         health: TestBed.inject(MlsHealthService),
     };
 }
@@ -177,6 +188,51 @@ describe('MessageStore.applyRemoteUpdate', () => {
 
         expect(store.entityMap()['msg-1'].content).toBe('edited');
         expect(sync.decryptMessage).not.toHaveBeenCalled();
+    });
+
+    /**
+     * `guild.MessageUpdated` had no listener at all, so a channel edit only appeared after a
+     * reload - and if it had been wired into the store directly it would have skipped the decrypt
+     * that the conversation path applies, which for an encrypted channel is the §L.9 hole all over
+     * again on the other socket.
+     */
+    it('routes a channel edit from the guild socket through the same decryptor', async () => {
+        const {store, sync, guildMessageUpdated} = setup();
+        store.addMessage(encryptedMessage({conversationId: undefined, channelId: 'chan-1'}));
+        sync.decryptMessage.mockResolvedValue(null);
+
+        guildMessageUpdated.next({
+            messageId: 'msg-1',
+            content: 'SSBhbSB0aGUgc2VydmVy',
+            authorId: 'user-2',
+            conversationId: undefined,
+            channelId: 'chan-1',
+        });
+        await Promise.resolve();
+        await Promise.resolve();
+
+        const stored = store.entityMap()['msg-1'];
+        expect(stored.content).not.toBe('SSBhbSB0aGUgc2VydmVy');
+        expect(stored.undecryptable).toBe(true);
+        // The channel route, not the conversation one - the context kind decides which group and
+        // which endpoint the decrypt is done against.
+        expect(sync.decryptMessage.mock.calls[0]![1]).toBe(true);
+    });
+
+    it('removes every id in a bulk delete, in one update', () => {
+        const {store, guildMessagesBulkDeleted} = setup();
+        store.addMessage(encryptedMessage({id: 'msg-1'}));
+        store.addMessage(encryptedMessage({id: 'msg-2'}));
+        store.addMessage(encryptedMessage({id: 'msg-3'}));
+
+        guildMessagesBulkDeleted.next({
+            guildId: 'guil-1', channelId: 'chan-1',
+            messageIds: ['msg-1', 'msg-3'], actorUserId: 'user-9',
+        });
+
+        expect(store.entityMap()['msg-1']).toBeUndefined();
+        expect(store.entityMap()['msg-3']).toBeUndefined();
+        expect(store.entityMap()['msg-2']).toBeDefined();
     });
 
     it('ignores an edit for a message it has never seen', async () => {

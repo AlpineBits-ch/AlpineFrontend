@@ -1,0 +1,431 @@
+<div class="flex flex-col h-full bg-app-bg overflow-hidden">
+
+    <!-- Header: same geometry as every other channel view so the shell doesn't jump on nav. -->
+    <header class="flex items-center gap-2 px-3 sm:px-5 border-b border-border-subtle shrink-0 bg-app-bg"
+            style="padding-top: env(safe-area-inset-top); min-height: calc(env(safe-area-inset-top) + 3.5rem)">
+        <p-button (onClick)="navService.mobileNavOpen.set(true)" [text]="true" class="lg:hidden" icon="pi pi-bars"
+                  severity="secondary" size="small"/>
+
+        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+            <i [class]="icon()" class="text-text-muted shrink-0"></i>
+            <span class="text-sm font-semibold text-text-primary truncate">{{ channel().name }}</span>
+            @if (channel().description) {
+                <span class="hidden sm:block text-text-muted text-xs border-l border-border-default pl-3 truncate max-w-xs">
+                    {{ channel().description }}
+                </span>
+            }
+        </div>
+
+        <div class="flex-1"></div>
+
+        @if (moduleEnabled() && canCreate()) {
+            <p-button (onClick)="openCreate()" [label]="'DECISIONS.NEW' | translate" icon="pi pi-plus"
+                      severity="secondary" size="small"/>
+        }
+    </header>
+
+    <!-- §10.2: the module being off is not a permission problem, and must not read as one. -->
+    @if (!moduleEnabled()) {
+        <div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+            <div class="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center">
+                <i class="pi pi-flag text-[1.5rem] text-text-muted"></i>
+            </div>
+            <div class="max-w-sm space-y-1.5">
+                <p class="text-sm font-semibold text-text-primary m-0">{{ 'DECISIONS.MODULE_OFF_TITLE' | translate }}</p>
+                <p class="text-[0.8125rem] text-text-secondary m-0">{{ 'DECISIONS.MODULE_OFF_BODY' | translate }}</p>
+            </div>
+            <p-button (onClick)="back.emit()" [label]="'COMMON.BACK' | translate" [text]="true" severity="secondary"
+                      size="small"/>
+        </div>
+    } @else {
+
+        <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-3 sm:px-5 py-4">
+            <div class="mx-auto w-full max-w-3xl flex flex-col gap-4">
+
+                @if (loading() && !hasLoaded()) {
+                    <p class="text-[0.8125rem] text-text-muted m-0 text-center py-8">{{ 'COMMON.LOADING' | translate }}</p>
+                } @else if (loadError(); as err) {
+                    <div class="flex flex-col items-center gap-2 py-10 text-center">
+                        <p class="text-[0.8125rem] text-text-secondary m-0 max-w-sm">
+                            @if (err === 'forbidden') {
+                                {{ 'DECISIONS.FORBIDDEN' | translate }}
+                            } @else {
+                                {{ 'DECISIONS.LOAD_FAILED' | translate }}
+                            }
+                        </p>
+                        @if (err === 'forbidden') {
+                            <p-button (onClick)="back.emit()" [label]="'COMMON.BACK' | translate" [text]="true"
+                                      severity="secondary" size="small"/>
+                        } @else {
+                            <p-button (onClick)="retry()" [label]="'COMMON.RETRY' | translate" [text]="true"
+                                      severity="secondary" size="small"/>
+                        }
+                    </div>
+                } @else if (!rows().length) {
+                    <div class="flex flex-col items-center gap-2 py-12 text-center">
+                        <div class="w-12 h-12 rounded-2xl bg-card border border-border flex items-center justify-center">
+                            <i class="pi pi-flag text-text-muted"></i>
+                        </div>
+                        <p class="text-sm font-semibold text-text-primary m-0">{{ 'DECISIONS.EMPTY_TITLE' | translate }}</p>
+                        <p class="text-[0.8125rem] text-text-secondary m-0 max-w-sm">{{ 'DECISIONS.EMPTY_BODY' | translate }}</p>
+                    </div>
+                }
+
+                @for (decision of rows(); track decision.id) {
+                    <!-- One decision. Objections come before options on purpose: they are the thing
+                         the house has to resolve, not a footnote under the tally. -->
+                    <article class="rounded-xl bg-card border border-border overflow-hidden">
+
+                        <!-- ── Head ──────────────────────────────────────────────────────── -->
+                        <div class="p-4 flex flex-col gap-2 border-b border-border-subtle">
+                            <div class="flex items-start gap-2">
+                                <div class="min-w-0 flex-1">
+                                    <h3 class="text-sm font-semibold text-text-primary m-0 break-words">{{ decision.title }}</h3>
+                                    @if (decision.description) {
+                                        <p class="text-[0.8125rem] text-text-secondary m-0 mt-1 break-words whitespace-pre-line">
+                                            {{ decision.description }}
+                                        </p>
+                                    }
+                                </div>
+
+                                @switch (statusTone(decision)) {
+                                    @case ('open') {
+                                        <span class="shrink-0 text-[0.625rem] font-semibold uppercase tracking-widest px-2 py-1 rounded-md bg-brand/15 text-brand-dim">
+                                            {{ 'DECISIONS.STATUS.OPEN' | translate }}
+                                        </span>
+                                    }
+                                    @case ('good') {
+                                        <span class="shrink-0 text-[0.625rem] font-semibold uppercase tracking-widest px-2 py-1 rounded-md bg-online/15 text-online">
+                                            {{ 'DECISIONS.STATUS.DECIDED' | translate }}
+                                        </span>
+                                    }
+                                    @case ('bad') {
+                                        <span class="shrink-0 text-[0.625rem] font-semibold uppercase tracking-widest px-2 py-1 rounded-md bg-offline/15 text-offline">
+                                            {{ 'DECISIONS.STATUS.BLOCKED' | translate }}
+                                        </span>
+                                    }
+                                    @default {
+                                        <span class="shrink-0 text-[0.625rem] font-semibold uppercase tracking-widest px-2 py-1 rounded-md bg-white/[0.06] text-text-muted">
+                                            @if (decision.status === Status.Cancelled) {
+                                                {{ 'DECISIONS.STATUS.CANCELLED' | translate }}
+                                            } @else {
+                                                {{ 'DECISIONS.STATUS.EXPIRED' | translate }}
+                                            }
+                                        </span>
+                                    }
+                                }
+                            </div>
+
+                            <!-- Quorum, and the sentence that stops it being read as a vote total. -->
+                            <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.6875rem] text-text-muted">
+                                <span>{{ 'DECISIONS.OPENED_BY' | translate: {name: userName(decision.createdByUserId)} }}</span>
+
+                                @if (quorum(decision); as q) {
+                                    @if (q.required !== null) {
+                                        <span [class.text-online]="q.met">
+                                            {{ 'DECISIONS.QUORUM' | translate: {cast: q.cast, required: q.required} }}
+                                        </span>
+                                        <span class="text-text-muted/70">{{ 'DECISIONS.ABSTAIN_NOT_COUNTED' | translate }}</span>
+                                    }
+                                }
+
+                                @if (decision.closesAt) {
+                                    <span>{{ 'DECISIONS.CLOSES' | translate }} {{ decision.closesAt | relativeTime: nowTick() }}</span>
+                                }
+                            </div>
+
+                            <!-- The deadline passed but the server has not resolved it yet. The badge above
+                                 deliberately still says Open: a client countdown reaching zero is not a status. -->
+                            @if (awaitingResolution(decision)) {
+                                <p class="text-[0.6875rem] text-connecting m-0 flex items-center gap-1.5">
+                                    <i class="pi pi-clock text-[0.625rem]"></i>
+                                    {{ 'DECISIONS.AWAITING_RESOLUTION' | translate }}
+                                </p>
+                            }
+                        </div>
+
+                        <!-- ── Result, for anything already resolved ──────────────────────── -->
+                        @if (!isOpen(decision)) {
+                            <div class="px-4 py-3 border-b border-border-subtle bg-white/[0.02]">
+                                <p class="text-[0.8125rem] text-text-secondary m-0">
+                                    {{ resultKey(decision) | translate }}
+                                </p>
+                                @if (outcomeTitle(decision); as carried) {
+                                    <p class="text-sm font-semibold text-online m-0 mt-1">{{ carried }}</p>
+                                }
+                            </div>
+                        }
+
+                        <!-- ── Objections. Above the options, and never a number. ─────────── -->
+                        @if (decision.blocks.length) {
+                            <div class="px-4 py-3 border-b border-border-subtle bg-offline/[0.06]">
+                                <p class="text-[0.6875rem] font-semibold uppercase tracking-widest text-offline m-0 mb-2">
+                                    {{ 'DECISIONS.OBJECTIONS_HEADING' | translate }}
+                                </p>
+                                <p class="text-[0.6875rem] text-text-muted m-0 mb-3">{{ 'DECISIONS.OBJECTIONS_HINT' | translate }}</p>
+
+                                <ul class="list-none p-0 m-0 flex flex-col gap-3">
+                                    @for (block of decision.blocks; track block.userId + ':' + (block.optionId ?? '')) {
+                                        <li class="flex items-start gap-2.5">
+                                            <app-avatar [userId]="block.userId" class="shrink-0 mt-0.5"/>
+                                            <div class="min-w-0">
+                                                <div class="flex flex-wrap items-baseline gap-x-2">
+                                                    <span class="text-[0.8125rem] font-semibold text-text-primary">{{ userName(block.userId) }}</span>
+                                                    <span class="text-[0.6875rem] text-text-muted">
+                                                        @if (block.optionId) {
+                                                            {{ 'DECISIONS.OBJECTS_TO_OPTION' | translate }}
+                                                        } @else {
+                                                            {{ 'DECISIONS.OBJECTS_TO_DECISION' | translate }}
+                                                        }
+                                                    </span>
+                                                </div>
+                                                <p class="text-[0.8125rem] text-text-secondary m-0 mt-0.5 break-words whitespace-pre-line">
+                                                    {{ block.reason }}
+                                                </p>
+                                            </div>
+                                        </li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+
+                        <!-- ── Options, in position order. Never sorted or ranked by support. ── -->
+                        <ul class="list-none p-0 m-0 divide-y divide-border-subtle">
+                            @for (option of options(decision); track option.id) {
+                                <!-- A blocked option is drawn as out - struck, dimmed, on its own tint -
+                                     not as an option with a smaller number next to it. -->
+                                <li [class]="standing(decision, option) === 'blocked' ? 'bg-offline/[0.06]' : ''"
+                                    class="px-4 py-3 flex flex-col gap-2">
+
+                                    <div class="flex items-start gap-3">
+                                        <div class="min-w-0 flex-1">
+                                            <p class="text-[0.875rem] m-0 break-words"
+                                               [class.text-text-primary]="standing(decision, option) !== 'blocked'"
+                                               [class.text-text-muted]="standing(decision, option) === 'blocked'"
+                                               [class.line-through]="standing(decision, option) === 'blocked'">
+                                                {{ option.title }}
+                                            </p>
+
+                                            <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 mt-1">
+                                                <!-- Support is a quiet secondary fact, deliberately not a bar or a rank:
+                                                     no amount of it beats one objection. -->
+                                                <span class="text-[0.6875rem] text-text-muted">
+                                                    {{ 'DECISIONS.SUPPORT_COUNT' | translate: {count: option.supportCount} }}
+                                                </span>
+
+                                                @switch (standing(decision, option)) {
+                                                    @case ('blocked') {
+                                                        <span class="text-[0.625rem] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded bg-offline/15 text-offline">
+                                                            {{ 'DECISIONS.OPTION_BLOCKED' | translate }}
+                                                        </span>
+                                                    }
+                                                    @case ('carried') {
+                                                        <span class="text-[0.625rem] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded bg-online/15 text-online">
+                                                            {{ 'DECISIONS.OPTION_CARRIED' | translate }}
+                                                        </span>
+                                                    }
+                                                }
+
+                                                @if (isMyChoice(decision, option)) {
+                                                    <span class="text-[0.625rem] font-semibold uppercase tracking-widest px-1.5 py-0.5 rounded bg-brand/15 text-brand-dim">
+                                                        {{ 'DECISIONS.YOUR_CHOICE' | translate }}
+                                                    </span>
+                                                }
+                                            </div>
+
+                                            @if (standing(decision, option) === 'blocked') {
+                                                <p class="text-[0.6875rem] text-offline m-0 mt-1">{{ 'DECISIONS.OPTION_BLOCKED_HINT' | translate }}</p>
+                                            }
+                                        </div>
+
+                                        @if (isOpen(decision) && canVote()) {
+                                            <div class="flex items-center gap-1 shrink-0">
+                                                <p-button (onClick)="support(decision, option)"
+                                                          [disabled]="busyDecisionId() === decision.id"
+                                                          [label]="(isMyChoice(decision, option) ? 'DECISIONS.SUPPORTED' : 'DECISIONS.SUPPORT') | translate"
+                                                          [outlined]="!isMyChoice(decision, option)"
+                                                          severity="secondary" size="small"/>
+                                                <p-button (onClick)="openBlock(decision, option.id)"
+                                                          [disabled]="busyDecisionId() === decision.id"
+                                                          [label]="'DECISIONS.BLOCK' | translate" [text]="true"
+                                                          severity="danger" size="small"/>
+                                            </div>
+                                        }
+                                    </div>
+
+                                    <!-- The reasons aimed at this option specifically, repeated where the
+                                         option is - so "why is this out" never needs a scroll back up. -->
+                                    @if (optionBlocks(decision, option.id).length) {
+                                        <ul class="list-none p-0 m-0 flex flex-col gap-1.5 pl-3 border-l-2 border-offline/40">
+                                            @for (block of optionBlocks(decision, option.id); track block.userId) {
+                                                <li class="text-[0.75rem] text-text-secondary">
+                                                    <span class="font-semibold text-text-primary">{{ userName(block.userId) }}</span>
+                                                    <span class="text-text-muted"> — </span>{{ block.reason }}
+                                                </li>
+                                            }
+                                        </ul>
+                                    }
+                                </li>
+                            }
+                        </ul>
+
+                        <!-- ── Footer: the gestures that aren't about one option ──────────── -->
+                        @if (isOpen(decision) && (canVote() || canCreate())) {
+                            <div class="px-4 py-3 border-t border-border-subtle flex flex-wrap items-center gap-2">
+                                @if (canVote()) {
+                                    <p-button (onClick)="abstain(decision)"
+                                              [disabled]="busyDecisionId() === decision.id"
+                                              [label]="'DECISIONS.ABSTAIN' | translate" [text]="true"
+                                              severity="secondary" size="small"/>
+                                    <!-- Objecting to the whole decision is its own gesture, not a block on
+                                         some arbitrary option. -->
+                                    <p-button (onClick)="openBlock(decision, null)"
+                                              [disabled]="busyDecisionId() === decision.id"
+                                              [label]="'DECISIONS.BLOCK_WHOLE' | translate" [text]="true"
+                                              severity="danger" size="small"/>
+                                }
+
+                                <div class="flex-1"></div>
+
+                                @if (canCreate()) {
+                                    <p-button (onClick)="closeDecision(decision)"
+                                              [disabled]="busyDecisionId() === decision.id"
+                                              [label]="'DECISIONS.CLOSE_NOW' | translate" [text]="true"
+                                              severity="secondary" size="small"/>
+                                    <p-button (onClick)="cancelDecision(decision)"
+                                              [disabled]="busyDecisionId() === decision.id"
+                                              [label]="'DECISIONS.CANCEL_DECISION' | translate" [text]="true"
+                                              severity="secondary" size="small"/>
+                                }
+                            </div>
+
+                            @if (canVote()) {
+                                <p class="px-4 pb-3 -mt-1 text-[0.6875rem] text-text-muted m-0">
+                                    {{ 'DECISIONS.ONE_VOTE_HINT' | translate }}
+                                </p>
+                            }
+                        }
+                    </article>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+<!-- ── New decision ───────────────────────────────────────────────────────── -->
+<p-dialog (visibleChange)="showCreate.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
+          [style]="{width: '540px'}" [visible]="showCreate()" appendTo="body">
+    <ng-template pTemplate="header">
+        <div class="flex flex-col gap-0.5">
+            <span class="text-sm font-semibold text-text-primary">{{ 'DECISIONS.NEW' | translate }}</span>
+            <span class="text-[0.6875rem] text-text-muted">{{ channel().name }}</span>
+        </div>
+    </ng-template>
+
+    <div class="flex flex-col gap-4">
+        <!-- maxlength is MaxTitleLength from DecisionEndpoint: 151 characters is a 400, and this
+             input is the last place that can say so without a round-trip. -->
+        <input (keydown.enter)="createDecision()" (ngModelChange)="draftTitle.set($event)" [maxlength]="limits.titleMaxLength" [ngModel]="draftTitle()"
+               [placeholder]="'DECISIONS.TITLE_PLACEHOLDER' | translate" pInputText type="text"/>
+
+        <textarea (ngModelChange)="draftDescription.set($event)" [ngModel]="draftDescription()"
+                  [placeholder]="'DECISIONS.DESCRIPTION_PLACEHOLDER' | translate" pTextarea rows="3"></textarea>
+
+        <div class="flex flex-col gap-2">
+            <span class="text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted">
+                {{ 'DECISIONS.OPTIONS_HEADING' | translate }}
+            </span>
+            @for (option of draftOptions(); track $index) {
+                <div class="flex items-center gap-2">
+                    <input (keydown.enter)="createDecision()" (ngModelChange)="setOption($index, $event)" [maxlength]="120" [ngModel]="option"
+                           [ngModelOptions]="{standalone: true}"
+                           [placeholder]="'DECISIONS.OPTION_PLACEHOLDER' | translate" class="flex-1" pInputText
+                           type="text"/>
+                    <p-button (onClick)="removeOption($index)" [disabled]="draftOptions().length <= minOptions"
+                              [text]="true"
+                              icon="pi pi-times" severity="secondary" size="small"/>
+                </div>
+            }
+            @if (draftOptions().length < maxOptions) {
+                <p-button (onClick)="addOption()" [label]="'DECISIONS.ADD_OPTION' | translate" [text]="true"
+                          icon="pi pi-plus" severity="secondary" size="small" styleClass="!justify-start"/>
+            }
+        </div>
+
+        <div class="flex flex-col gap-1">
+            <input (keydown.enter)="createDecision()" (ngModelChange)="draftQuorum.set($event)" [ngModel]="draftQuorum()"
+                   [placeholder]="'DECISIONS.QUORUM_PLACEHOLDER' | translate" min="1" pInputText type="number"/>
+            <span class="text-[0.6875rem] text-text-muted">{{ 'DECISIONS.QUORUM_HINT' | translate }}</span>
+        </div>
+
+        <div class="flex flex-col gap-1">
+            <p-datepicker (ngModelChange)="draftClosesAt.set($event)" [ngModel]="draftClosesAt()"
+                          [placeholder]="'DECISIONS.CLOSES_AT_PLACEHOLDER' | translate" [showClear]="true"
+                          [showTime]="true" hourFormat="24" styleClass="w-full"/>
+            <span class="text-[0.6875rem] text-text-muted">{{ 'DECISIONS.CLOSES_AT_HINT' | translate }}</span>
+        </div>
+
+        <!-- The server's own refusals, said before the request rather than after it. Only ever one
+             at a time: the first thing wrong with the draft is the thing to fix. -->
+        @switch (createProblem()) {
+            @case ('too-few-options') {
+                <span class="text-[0.6875rem] text-offline">
+                    {{ 'DECISIONS.PROBLEM_TOO_FEW_OPTIONS' | translate:{min: minOptions} }}
+                </span>
+            }
+            @case ('too-many-options') {
+                <span class="text-[0.6875rem] text-offline">
+                    {{ 'DECISIONS.PROBLEM_TOO_MANY_OPTIONS' | translate:{max: maxOptions} }}
+                </span>
+            }
+            @case ('title-too-long') {
+                <span class="text-[0.6875rem] text-offline">
+                    {{ 'DECISIONS.PROBLEM_TITLE_TOO_LONG' | translate:{max: limits.titleMaxLength} }}
+                </span>
+            }
+            @case ('closes-at-past') {
+                <span class="text-[0.6875rem] text-offline">{{ 'DECISIONS.PROBLEM_CLOSES_AT_PAST' | translate }}</span>
+            }
+        }
+    </div>
+
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="showCreate.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
+                  severity="secondary"/>
+        <p-button (onClick)="createDecision()" [disabled]="!canSubmitCreate()"
+                  [label]="'DECISIONS.OPEN_DECISION' | translate" [loading]="creating()" severity="primary"/>
+    </ng-template>
+</p-dialog>
+
+<!-- ── Object. The reason is the point of the dialog, not a field on it. ──── -->
+<p-dialog (visibleChange)="onBlockDialogVisible($event)" [draggable]="false" [modal]="true" [resizable]="false"
+          [style]="{width: '480px'}" [visible]="!!blockTarget()" appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">
+            @if (blockTarget()?.optionId) {
+                {{ 'DECISIONS.BLOCK_OPTION_TITLE' | translate }}
+            } @else {
+                {{ 'DECISIONS.BLOCK_WHOLE_TITLE' | translate }}
+            }
+        </span>
+    </ng-template>
+
+    <div class="flex flex-col gap-3">
+        <p class="text-[0.8125rem] text-text-secondary m-0">{{ 'DECISIONS.BLOCK_EXPLAINER' | translate }}</p>
+
+        <textarea (ngModelChange)="blockReason.set($event)" [ngModel]="blockReason()"
+                  [placeholder]="'DECISIONS.REASON_PLACEHOLDER' | translate" pTextarea rows="4"></textarea>
+
+        <p class="text-[0.6875rem] m-0" [class.text-offline]="!canSubmitBlock()"
+           [class.text-text-muted]="canSubmitBlock()">
+            {{ 'DECISIONS.REASON_REQUIRED' | translate }}
+        </p>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="blockTarget.set(null)" [label]="'COMMON.CANCEL' | translate" [text]="true"
+                  severity="secondary"/>
+        <p-button (onClick)="submitBlock()" [disabled]="!canSubmitBlock()" [label]="'DECISIONS.SUBMIT_BLOCK' | translate"
+                  [loading]="blocking()" severity="danger"/>
+    </ng-template>
+</p-dialog>

@@ -1,0 +1,102 @@
+<p-dialog
+        (visibleChange)="$event === false && dismiss()"
+        [breakpoints]="{'640px': '95vw'}"
+        [closable]="true"
+        [dismissableMask]="true"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{width: '420px'}"
+        [visible]="visible()"
+        appendTo="body">
+
+    <ng-template pTemplate="header">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center"
+                 style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)">
+                <i class="pi pi-window-maximize text-sm" style="color: var(--color-brand-dim)"></i>
+            </div>
+            <span class="text-base font-semibold text-text-primary">{{ title() }}</span>
+        </div>
+    </ng-template>
+
+    <div class="py-2 flex flex-col gap-4">
+        @for (field of fields(); track field.key) {
+            <div class="flex flex-col gap-1.5">
+                <label class="text-sm text-text-secondary flex items-center gap-1.5" [for]="'modal-' + field.key">
+                    {{ field.label }}
+                    <span class="text-[0.625rem] text-text-muted">
+                        {{ field.required ? '(required)' : '(optional)' }}
+                    </span>
+                </label>
+                @if (field.unsupported) {
+                    <p class="text-xs text-text-muted m-0">
+                        This bot asked for an input this client does not render yet.
+                    </p>
+                } @else if (field.paragraph) {
+                    <textarea
+                            (ngModelChange)="setValue(field.key, $event)"
+                            [id]="'modal-' + field.key"
+                            [attr.maxlength]="field.maxLength"
+                            [name]="'modal-' + field.key"
+                            [ngModel]="form().values[field.key]"
+                            [placeholder]="field.placeholder"
+                            class="w-full px-3 py-2 rounded-lg bg-card border border-border text-sm text-text-primary
+                                   outline-none focus:border-[var(--color-brand)] resize-y min-h-24 thin-scrollbar"
+                            rows="4"></textarea>
+                } @else {
+                    <input
+                            (ngModelChange)="setValue(field.key, $event)"
+                            [id]="'modal-' + field.key"
+                            [attr.maxlength]="field.maxLength"
+                            [name]="'modal-' + field.key"
+                            [ngModel]="form().values[field.key]"
+                            [placeholder]="field.placeholder"
+                            class="w-full px-3 py-2 rounded-lg bg-card border border-border text-sm text-text-primary
+                                   outline-none focus:border-[var(--color-brand)]"
+                            type="text"/>
+                }
+                @if (form().attempted && fieldErrors()[field.key]; as error) {
+                    <p class="m-0 text-xs text-rose-300">{{ error }}</p>
+                }
+            </div>
+        } @empty {
+            <p class="text-xs text-text-muted m-0">This bot sent a form with no fields in it.</p>
+        }
+
+        <!--
+          Only shown for a payload that cannot be answered at all - no customId, or no guild in a
+          route that needs one. Everything else gets a working Submit button.
+        -->
+        @if (!answerable()) {
+            <div class="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.08] px-3 py-2">
+                <i class="pi pi-info-circle text-amber-300 text-[0.875rem] shrink-0 mt-0.5"></i>
+                <p class="m-0 text-xs text-amber-200/90">
+                    This form arrived without the identifier the bot needs to match up an answer, so
+                    it cannot be sent back.
+                </p>
+            </div>
+        }
+
+        @if (form().error; as error) {
+            <div class="flex items-start gap-2 rounded-lg border border-rose-500/30 bg-rose-500/[0.08] px-3 py-2">
+                <i class="pi pi-exclamation-circle text-rose-300 text-[0.875rem] shrink-0 mt-0.5"></i>
+                <p class="m-0 text-xs text-rose-200/90">{{ error }}</p>
+            </div>
+        }
+    </div>
+
+    <ng-template pTemplate="footer">
+        <div class="flex gap-2 justify-end">
+            <p-button (onClick)="dismiss()" [text]="true" label="Cancel" severity="secondary" size="small"/>
+            <p-button
+                    (onClick)="submit()"
+                    [disabled]="!answerable() || submitting()"
+                    [loading]="submitting()"
+                    label="Submit"
+                    severity="primary"
+                    size="small"/>
+        </div>
+    </ng-template>
+
+</p-dialog>

@@ -40,7 +40,7 @@
             </div>
         }
 
-        @if (!isGrouped() || message().isPending || message().isFailed || message().encryptionState === 'Encrypted' || message().isPinned) {
+        @if (!isGrouped() || message().isPending || message().isFailed || message().encryptionState === 'Encrypted' || message().isPinned || message().isEphemeral) {
             <div class="flex items-center gap-2 mb-1">
                 @if (!isGrouped()) {
                     @if (botName(message().authorId); as bName) {
@@ -78,11 +78,26 @@
                         <i class="pi pi-thumbtack text-[10px]"></i>
                     </span>
                 }
+                <!--
+                  Said out loud rather than left to be inferred: an ephemeral reply looks exactly
+                  like a message the rest of the channel can read, and acting on that assumption is
+                  how someone answers a bot in public thinking they answered it privately.
+                -->
+                @if (message().isEphemeral) {
+                    <span class="flex items-center gap-1 text-[0.6875rem] text-text-muted"
+                          title="Only you were sent this, and it is gone when you reload">
+                        <i class="pi pi-eye-slash text-[0.625rem]"></i> Only you can see this
+                    </span>
+                }
             </div>
         }
 
-        <!-- Hover action toolbar -desktop only (mobile uses long-press menu) -->
-        @if (!message().isPending && !message().isFailed && !isEditing()) {
+        <!--
+          Hover action toolbar -desktop only (mobile uses long-press menu).
+          Withheld for an ephemeral bot reply: there is no stored message behind it, so edit,
+          delete, pin and reply would every one of them 404 against an id the server never had.
+        -->
+        @if (!message().isPending && !message().isFailed && !isEditing() && !message().isEphemeral) {
             <app-message-hover-toolbar
                     (delete)="confirmDelete()"
                     (edit)="startEdit()"
@@ -315,8 +330,8 @@
 
 </div>
 
-<!-- Mobile long-press action sheet -->
-@if (longPressMenu()) {
+<!-- Mobile long-press action sheet -the ephemeral exclusion above applies here too -->
+@if (longPressMenu() && !message().isEphemeral) {
     <div (click)="longPressMenu.set(false)" class="fixed inset-0 z-40 bg-black/50"></div>
     <div class="fixed bottom-0 left-0 right-0 z-50 bg-sidebar border-t border-white/[0.08] rounded-t-2xl"
          style="padding-bottom: max(env(safe-area-inset-bottom), 1rem)">

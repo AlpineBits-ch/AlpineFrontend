@@ -80,7 +80,9 @@
             <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2" for="ban-user-id">
                 {{ 'GUILD_SETTINGS.BANS.USER_ID_LABEL' | translate }} <span class="text-rose-400">*</span>
             </label>
-            <input (ngModelChange)="banUserId.set($event)"
+            <!-- Both fields submit; `submitBan()` re-checks the trimmed id and the in-flight flag.
+                 The reason is optional, so Enter from either field is the whole form. -->
+            <input (keydown.enter)="submitBan()" (ngModelChange)="banUserId.set($event)"
                    [ngModel]="banUserId()"
                    [placeholder]="'GUILD_SETTINGS.BANS.USER_ID_PLACEHOLDER' | translate"
                    autocomplete="off"
@@ -94,7 +96,7 @@
             <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2" for="ban-reason">
                 {{ 'GUILD_SETTINGS.BANS.REASON_LABEL' | translate }}
             </label>
-            <input (ngModelChange)="banReason.set($event)"
+            <input (keydown.enter)="submitBan()" (ngModelChange)="banReason.set($event)"
                    [maxlength]="200"
                    [ngModel]="banReason()"
                    [placeholder]="'GUILD_SETTINGS.BANS.REASON_PLACEHOLDER' | translate"

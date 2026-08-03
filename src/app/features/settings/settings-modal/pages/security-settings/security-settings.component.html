@@ -160,7 +160,8 @@
             <label class="text-xs font-medium text-text-muted uppercase tracking-wide">
                 {{ 'SETTINGS.SECURITY.PASSWORD_LABEL' | translate }}
             </label>
-            <input pInputText
+            <input (keydown.enter)="confirmDisable()"
+                   pInputText
                    type="password"
                    [ngModel]="password()"
                    (ngModelChange)="password.set($event)"
@@ -208,7 +209,8 @@
             <label class="text-xs font-medium text-text-muted uppercase tracking-wide">
                 {{ 'SETTINGS.SECURITY.PASSWORD_LABEL' | translate }}
             </label>
-            <input pInputText
+            <input (keydown.enter)="confirmRegenerate()"
+                   pInputText
                    type="password"
                    [ngModel]="password()"
                    (ngModelChange)="password.set($event)"

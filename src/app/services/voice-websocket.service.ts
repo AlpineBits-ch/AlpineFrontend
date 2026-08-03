@@ -39,10 +39,6 @@ export interface WsParticipantJoined {
     audioTrackName: string;
 }
 
-export interface WsParticipantLeft {
-    userId: string;
-}
-
 /** A remote participant published a new video / screen-share track. */
 export interface WsTrackPublished {
     userId: string;
@@ -113,7 +109,7 @@ export interface WsCallDeviceTakeover {
     newDeviceId: string;
 }
 
-/** Application-level departure, distinct from the WebRTC-level `call.ParticipantLeft`. */
+/** A participant left the call - the only departure event the contract carries. */
 export interface WsCallParticipantLeft {
     callId: string;
     userId: string;
@@ -124,6 +120,51 @@ export interface WsCallAlone {
     callId: string;
     userId: string;
     deadline: string;
+}
+
+// ── Call status, as it actually arrives on the wire ───────────────────────────
+
+/**
+ * `Messaging.Domain.Enums.CallStatus`, in declaration order.
+ *
+ * The order is load-bearing: the contract notes the enum is serialised as an int by any host
+ * without `JsonStringEnumConverter`, and the gateway is one of them for some payloads, so both
+ * shapes reach us for the same field.
+ */
+const CALL_STATUS_NAMES = ['Pending', 'Ringing', 'Rejected', 'Connected', 'Completed', 'Left'] as const;
+
+export type CallStatusName = typeof CALL_STATUS_NAMES[number];
+
+/** Normalises either wire shape - `"Ringing"` or `1` (or `"1"`) - to the name. */
+export function callStatusName(raw: string | number | null | undefined): CallStatusName | undefined {
+    if (raw === null || raw === undefined || raw === '') return undefined;
+    const ordinal = Number(raw);
+    if (Number.isInteger(ordinal)) return CALL_STATUS_NAMES[ordinal];
+    return CALL_STATUS_NAMES.find(name => name === raw);
+}
+
+/**
+ * Does this `call.CallDeclined` end the caller's ring?
+ *
+ * The payload is the whole `Call`, not "who declined", because one decline does not necessarily
+ * end the call: in a group call the other invitees keep ringing and the caller's overlay must stay
+ * up. So the question is answered from the roster - is anyone left who could still pick up - with
+ * the call's own status as the short circuit for the 1:1 case, where the server has already marked
+ * the whole thing Rejected.
+ *
+ * A server that sends no statuses at all resolves the overlay, which is right for 1:1 (the
+ * overwhelmingly common case) and merely early for a group call. Ringing forever is the worse
+ * failure, and it is the one that exists today.
+ */
+export function declineEndsOutgoingCall(call: CallDto, ownUserId?: string): boolean {
+    const overall = callStatusName(call.status);
+    if (overall === 'Rejected' || overall === 'Completed') return true;
+
+    return !call.participants.some(p => {
+        if (p.userId === ownUserId) return false;
+        const status = callStatusName(p.status);
+        return status === 'Pending' || status === 'Ringing' || status === 'Connected';
+    });
 }
 
 /**
@@ -150,7 +191,6 @@ export class VoiceWebsocketService {
     // ── Inbound observables ──────────────────────────────────────────────────
     public incomingCallObservable = new Subject<CallDto>();
     public participantJoinedObservable = new Subject<WsParticipantJoined>();
-    public participantLeftObservable = new Subject<WsParticipantLeft>();
     public trackPublishedObservable = new Subject<WsTrackPublished>();
     public trackClosedObservable = new Subject<WsTrackClosed>();
     public speakingChangedObservable = new Subject<WsSpeakingChanged>();
@@ -160,6 +200,8 @@ export class VoiceWebsocketService {
     public screenShareStoppedObservable = new Subject<WsScreenShareStopped>();
     public callEndedObservable = new Subject<WsCallEnded>();
     public callAcceptedObservable = new Subject<WsCallAccepted>();
+    /** Payload is the whole `Call` entity, not a `{callId}` - see {@link declineEndsOutgoingCall}. */
+    public callDeclinedObservable = new Subject<CallDto>();
     public callDeviceDismissedObservable = new Subject<WsCallDeviceDismissed>();
     public callDeviceTakeoverObservable = new Subject<WsCallDeviceTakeover>();
     public callParticipantLeftObservable = new Subject<WsCallParticipantLeft>();
@@ -210,7 +252,6 @@ export class VoiceWebsocketService {
 
         // ── WebRTC signaling ────────────────────────────────────────────────────
         this.realtime.on('call.ParticipantJoined', (d: WsParticipantJoined) => this.participantJoinedObservable.next(d));
-        this.realtime.on('call.ParticipantLeft', (d: WsParticipantLeft) => this.participantLeftObservable.next(d));
         this.realtime.on('call.TrackPublished', (d: WsTrackPublished) => this.trackPublishedObservable.next(d));
         this.realtime.on('call.TrackClosed', (d: WsTrackClosed) => this.trackClosedObservable.next(d));
         this.realtime.on('call.SpeakingChanged', (d: WsSpeakingChanged) => this.speakingChangedObservable.next(d));
@@ -222,6 +263,7 @@ export class VoiceWebsocketService {
 
         // ── Per-device call events ──────────────────────────────────────────────
         this.realtime.on('call.CallAccepted', (d: WsCallAccepted) => this.callAcceptedObservable.next(d));
+        this.realtime.on('call.CallDeclined', (d: CallDto) => this.callDeclinedObservable.next(d));
         this.realtime.on('call.CallDeviceDismissed', (d: WsCallDeviceDismissed) => this.callDeviceDismissedObservable.next(d));
         this.realtime.on('call.CallDeviceTakeover', (d: WsCallDeviceTakeover) => this.callDeviceTakeoverObservable.next(d));
         this.realtime.on('call.CallParticipantLeft', (d: WsCallParticipantLeft) => this.callParticipantLeftObservable.next(d));

@@ -29,13 +29,28 @@ interface SetupOptions {
     ringing?: boolean;
     /** Pretend this client is already in a call. */
     session?: {callId: string} | null;
+    /** What `POST voice/call` answers when {@link CallStateService.startCall} places one. */
+    createdCall?: CallDto;
 }
+
+/** The call this client places in the outgoing-decline tests below. */
+const OUTGOING_CALL: CallDto = {
+    id: 'call-out',
+    conversationId: 'conv-1',
+    creatorId: 'me',
+    status: 'Ringing',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    tracks: [],
+    participants: [{userId: 'me'}, {userId: 'callee'}],
+};
 
 function setup(options: SetupOptions = {}) {
     const ws = {
         incomingCallObservable: new Subject<unknown>(),
         callEndedObservable: new Subject<unknown>(),
         callAcceptedObservable: new Subject<unknown>(),
+        callDeclinedObservable: new Subject<CallDto>(),
         callDeviceDismissedObservable: new Subject<unknown>(),
         callDeviceTakeoverObservable: new Subject<unknown>(),
         participantJoinedObservable: new Subject<unknown>(),
@@ -52,6 +67,8 @@ function setup(options: SetupOptions = {}) {
             : of(options.pendingCall ?? null)),
         declineCall: vi.fn(() => of({})),
         acceptCall: vi.fn(() => of({})),
+        createCall: vi.fn(() => of(options.createdCall ?? OUTGOING_CALL)),
+        leaveCall: vi.fn(() => of({})),
     };
     const connectionState = signal(options.connectionState ?? ConnectionState.Disconnected);
 
@@ -230,6 +247,66 @@ it('swallows a failed catch-up rather than surfacing it', () => {
     TestBed.tick();
 
     expect(voiceService.getPendingCall).toHaveBeenCalledTimes(2);
+});
+
+// ── The callee saying no ─────────────────────────────────────────────────────
+//
+// `call.CallDeclined` had no listener at all, so a declined outgoing call sat there ringing until
+// the server's alone-timeout eventually killed it minutes later.
+
+it('stops the outgoing ring when the callee declines', () => {
+    const {service, ws, callSession, toast} = setup({ringing: false});
+    service.startCall('conv-1', ['callee'], 'Alice', 'A');
+    expect(service.outgoingCall()).not.toBeNull();
+
+    ws.callDeclinedObservable.next({
+        ...OUTGOING_CALL,
+        status: 'Rejected',
+        participants: [{userId: 'me'}, {userId: 'callee', status: 'Rejected'}],
+    });
+
+    expect(service.outgoingCall()).toBeNull();
+    // Silent: the server has already marked the call Rejected, so `leave` would be a request
+    // against a participant record that is gone.
+    expect(callSession.end).toHaveBeenCalledWith(true);
+    expect(toast.info).toHaveBeenCalledWith('Call declined');
+});
+
+it('keeps ringing when one of several invitees declines', () => {
+    const {service, ws, callSession} = setup({
+        ringing: false,
+        createdCall: {
+            ...OUTGOING_CALL,
+            participants: [{userId: 'me'}, {userId: 'callee'}, {userId: 'other'}],
+        },
+    });
+    service.startCall('conv-1', ['callee', 'other'], 'Alice', 'A');
+
+    ws.callDeclinedObservable.next({
+        ...OUTGOING_CALL,
+        status: 'Ringing',
+        participants: [
+            {userId: 'me', status: 'Connected'},
+            {userId: 'callee', status: 'Rejected'},
+            {userId: 'other', status: 'Ringing'},
+        ],
+    });
+
+    expect(service.outgoingCall()).not.toBeNull();
+    expect(callSession.end).not.toHaveBeenCalled();
+
+    service.cancelOutgoing(); // stop the ringback timer re-arming past the test
+});
+
+it('ignores a decline for someone else\'s call', () => {
+    const {service, ws} = setup({ringing: false});
+    service.startCall('conv-1', ['callee'], 'Alice', 'A');
+
+    ws.callDeclinedObservable.next({...OUTGOING_CALL, id: 'a-different-call', status: 'Rejected'});
+
+    expect(service.outgoingCall()).not.toBeNull();
+
+    service.cancelOutgoing();
 });
 
 it('names the ring from creatorId rather than guessing at the roster', () => {

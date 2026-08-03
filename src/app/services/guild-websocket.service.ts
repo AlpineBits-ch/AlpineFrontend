@@ -1,12 +1,20 @@
 import {inject, Injectable} from '@angular/core';
 import {RealtimeConnectionService} from "./realtime-connection.service";
-import {MessagePinnedEvent, MessageUnpinnedEvent, ReactionEvent} from "./messaging-websocket.service";
+import {
+    MessagePinnedEvent,
+    MessageUnpinnedEvent,
+    MessageUpdatedEvent,
+    MlsJoinRequestEvent,
+    ReactionEvent
+} from "./messaging-websocket.service";
 import {MlsService} from './mls.service';
 import {MlsHealthService} from './mls-health.service';
 import {decodeBody} from '../helpers/message-content.helper';
+import {toBase64} from '../helpers/base64.helper';
 import {NotificationService, NotificationSound} from "./notification.service";
 import {catchError, firstValueFrom, of, Subject, timeout} from "rxjs";
-import {MessageDto} from "../dtos/response/message.dto";
+import {MessageDto, MessageEmbed} from "../dtos/response/message.dto";
+import {GuildDto} from "../dtos/response/guild.dto";
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
 import {MessageType} from '../enums/message-type.enum';
 import {AttachmentDto} from "./file.service";
@@ -124,7 +132,73 @@ export interface WsChannelMlsStateChanged {
     changedByUserId: string;
 }
 
+/**
+ * A device is asking to be let into a *channel's* MLS group - the channel-side twin of
+ * `conversation.MlsJoinRequest`.
+ *
+ * <p><b>Thinner than its twin, and deliberately so.</b> The conversation push at least names the
+ * request, the requesting device and the fingerprint a human is supposed to compare; this one
+ * carries three ids and nothing else. Neither is enough to act on - no key package is fanned out to
+ * peers who have not decided to admit the leaf yet - so the review surface re-reads
+ * `GET .../channels/{id}/mls/join-requests` either way, and that read is what the decision is made
+ * against. The only thing this event has to get right is *that* something is waiting, and for which
+ * channel.</p>
+ *
+ * <p>Every field the twin carries is declared optional rather than omitted: a server that starts
+ * sending them should be believed rather than ignored, and a normalizer that cannot represent them
+ * would silently discard the fingerprint the moment it arrives.</p>
+ */
+export interface WsChannelMlsJoinRequested {
+    channelId: string;
+    guildId: string;
+    requesterUserId: string;
+    requestId?: string;
+    requesterDeviceId?: string;
+    requesterDeviceName?: string | null;
+    signatureKeyFingerprint?: string;
+    generation?: number;
+    /** The server's published verdict on whether a human must tap approve (§J.4). */
+    requiresManualApproval?: boolean;
+}
+
+/**
+ * Normalizes a channel join-request push, failing closed on the one field that is a policy call.
+ *
+ * <p>Mirrors `toJoinRequestEvent`: `requiresManualApproval` absent means an older server, or a
+ * payload that lost the field on the way here, and defaulting it to false would read as "this may
+ * be admitted without anyone being asked" - the permissive answer to a question about admitting a
+ * device to an encrypted group. An unstated verdict is taken as "a human decides" (§J.4). For this
+ * event the field is absent from the published contract entirely, so the default *is* the answer
+ * until a server starts sending one.</p>
+ *
+ * <p>The fields the channel push does not carry become empty rather than fabricated. They are
+ * display-and-correlation only - the review surface reads the queue over HTTP for everything it
+ * decides on - so an empty fingerprint here can never be mistaken for a fingerprint that matched.</p>
+ */
+export function toChannelJoinRequestEvent(payload: WsChannelMlsJoinRequested): MlsJoinRequestEvent {
+    return {
+        contextId: payload.channelId,
+        isChannel: true,
+        generation: payload.generation ?? 0,
+        requestId: payload.requestId ?? '',
+        requesterUserId: payload.requesterUserId,
+        requesterDeviceId: payload.requesterDeviceId ?? '',
+        requesterDeviceName: payload.requesterDeviceName ?? null,
+        signatureKeyFingerprint: payload.signatureKeyFingerprint ?? '',
+        requiresManualApproval: payload.requiresManualApproval ?? true,
+    };
+}
+
 export interface WsCategoryCreated {
+    categoryId: string;
+    guildId: string;
+}
+
+/**
+ * A category was renamed or moved. The payload names it and nothing more, so the current row has
+ * to be re-read - the same shape `guild.ChannelUpdated` has, and for the same reason.
+ */
+export interface WsCategoryUpdated {
     categoryId: string;
     guildId: string;
 }
@@ -194,6 +268,22 @@ export interface WsMemberLeft {
 export interface WsMemberJoined {
     guildId: string;
     userId: string;
+}
+
+/**
+ * A member's roles or nickname changed.
+ *
+ * <p>`nickname` is the only field the payload carries beyond the ids, and role changes come through
+ * here with it unchanged - so the event names *who* changed, never *what*. Anything computed from
+ * roles (every permission gate in the UI) has to re-read the member row rather than patch it, and
+ * for the signed-in user that means re-reading `GET /guilds/{id}/me`: a demotion that leaves the
+ * manage controls on screen is a button that fails on press, and a promotion that does not appear
+ * is a permission the user has and cannot use.</p>
+ */
+export interface WsMemberUpdated {
+    guildId: string;
+    userId: string;
+    nickname: string | null;
 }
 
 export interface WsGuildDeleted {
@@ -322,6 +412,193 @@ export interface GuildMessageCreatedPayload {
     systemMessageVariant: number | undefined;
 }
 
+/**
+ * A message body as it comes off the guild socket.
+ *
+ * <p>Server-side it is a `byte[]`. System.Text.Json writes those as base64 and that is what every
+ * live server sends, but the generated contract describes the field as an array of integers -
+ * which is what a host with a different serializer would produce. Both are accepted rather than
+ * betting on one, because everything downstream (the store, the bubble, the sidebar preview, the
+ * notification body) base64-decodes the body unconditionally: a raw byte array reaching the UI
+ * renders as `[104,105]`, and `decodeBody`'s tolerant fallback would hand that straight through as
+ * if it were the author's words.</p>
+ */
+export type WireMessageContent = string | number[];
+
+/** Normalizes {@link WireMessageContent} to the base64 every reader downstream expects. */
+export function normalizeWireContent(content: WireMessageContent | null | undefined): string {
+    if (content === null || content === undefined) return '';
+    if (typeof content === 'string') return content;
+    // Chunked rather than `String.fromCharCode(...bytes)`: spreading a long body overflows the
+    // argument limit and throws, which for an edit would blank a message that arrived fine.
+    let binary = '';
+    for (const byte of content) binary += String.fromCharCode(byte & 0xff);
+    return btoa(binary);
+}
+
+/**
+ * `guild.MessageUpdated` - a channel message was edited.
+ *
+ * <p>Nothing listened for this at all, so channel edits only appeared after a reload while the DM
+ * path had been live from the start. The two are the same event with different ids on it.</p>
+ */
+export interface GuildMessageUpdatedPayload {
+    messageId: string;
+    channelId: string;
+    authorId: string;
+    content: WireMessageContent;
+    embedsJson?: string | null;
+}
+
+/**
+ * Maps a channel edit onto the same event a conversation edit produces.
+ *
+ * <p>Shared shape on purpose: `MessageStore.applyRemoteUpdate` already decides encrypted from
+ * plaintext by looking at the *stored* message rather than the event, so a channel edit routed
+ * through it gets the identical treatment - decrypted against the generation the message was
+ * sealed under, and marked `undecryptable` rather than rendered when that fails. A second,
+ * channel-shaped update path would have been a second place for that rule to be forgotten.</p>
+ */
+export function mapGuildMessageUpdatedPayload(data: GuildMessageUpdatedPayload): MessageUpdatedEvent {
+    return {
+        messageId: data.messageId,
+        content: normalizeWireContent(data.content),
+        authorId: data.authorId,
+        conversationId: undefined,
+        channelId: data.channelId,
+    };
+}
+
+/** Moderation deleted a run of messages in one action. */
+export interface WsMessagesBulkDeleted {
+    guildId: string;
+    channelId: string;
+    /** Every id removed, as one list - see the store's handler for why that matters. */
+    messageIds: string[];
+    actorUserId: string;
+}
+
+/** Discord's component type tags, as `ComponentPayload.Type` carries them. */
+export const BotComponentType = {
+    ActionRow: 1,
+    Button: 2,
+    StringSelect: 3,
+    TextInput: 4,
+    UserSelect: 5,
+    RoleSelect: 6,
+    MentionableSelect: 7,
+    ChannelSelect: 8,
+} as const;
+
+/**
+ * One node of a bot-authored component tree, in Discord's own wire shape.
+ *
+ * <p><b>The snake_case names are deliberate, and the published contract disagrees with them.</b>
+ * The AsyncAPI generator drops every member carrying a `[JsonIgnore]` attribute - on the server's
+ * `ComponentPayload` that is all of them but `Type`, since the rest are `WhenWritingNull` - and
+ * renders whatever survives through a camelCase policy, ignoring `[JsonPropertyName]`. So the
+ * contract advertises `{type}` alone while the socket actually delivers `custom_id`, `min_length`
+ * and `max_length`. Reading `customId` off one of these finds `undefined` every single time.</p>
+ *
+ * <p>Deliberately one type for both directions rather than an inbound and an outbound copy: the
+ * modal-submit endpoint deserializes the rows the client posts back with the same `ComponentPayload`
+ * class that produced them, so a divergence between the two would be a bug by construction.</p>
+ */
+export interface BotComponentPayload {
+    /** One of {@link BotComponentType}. */
+    type: number;
+    /** Set only on an action row, which is the sole container type. */
+    components?: BotComponentPayload[] | null;
+    /** The bot's own handle for this component, echoed back verbatim when the user answers. */
+    custom_id?: string | null;
+    label?: string | null;
+    /** Button style 1-5; on a text input, 1 is single-line and 2 is a paragraph box. */
+    style?: number | null;
+    url?: string | null;
+    disabled?: boolean | null;
+    placeholder?: string | null;
+    min_values?: number | null;
+    max_values?: number | null;
+    // ── Text input (modals only) ──────────────────────────────────────────────
+    value?: string | null;
+    required?: boolean | null;
+    min_length?: number | null;
+    max_length?: number | null;
+}
+
+/**
+ * `guild.EphemeralMessageCreated` - a bot reply only this user gets, and which the server never
+ * stored. It exists exactly as long as the tab does.
+ */
+export interface GuildEphemeralMessagePayload {
+    id: string;
+    guildId?: string | null;
+    channelId: string;
+    /** Plain text here, unlike every other message body on this socket - see the mapper. */
+    content: string;
+    embeds?: MessageEmbed[];
+    components?: BotComponentPayload[];
+    authorId: string;
+    createdAt: string;
+}
+
+/**
+ * Turns an ephemeral push into something the channel can render.
+ *
+ * <p><b>The body is re-encoded, not passed through.</b> This is the one message event whose
+ * `content` is already text - every other one carries a `byte[]` - and the message bubble decodes
+ * unconditionally with `atob`. A plain sentence that happens to be valid base64 ("test" is) would
+ * therefore be rendered as mojibake, and one that is not would survive only by the tolerant
+ * fallback. Encoding here puts it on the same footing as every other body in the store.</p>
+ *
+ * <p>`isEphemeral` is what keeps it out of history: the store is in-memory either way, but the flag
+ * is what stops the UI offering edit, delete and pin on something with no server-side row to act
+ * on, and what tells the reader that nobody else in the channel can see it.</p>
+ */
+export function mapGuildEphemeralMessagePayload(data: GuildEphemeralMessagePayload): MessageDto {
+    const createdAt = data.createdAt ? new Date(data.createdAt) : new Date();
+    const embeds = data.embeds ?? [];
+    return {
+        id: data.id,
+        content: toBase64(data.content ?? ''),
+        authorId: data.authorId,
+        conversationId: undefined,
+        channelId: data.channelId,
+        createdAt,
+        updatedAt: createdAt,
+        isPending: false,
+        isFailed: false,
+        isEphemeral: true,
+        attachments: [],
+        inReplyTo: undefined,
+        mentions: [],
+        encryptionState: MessageEncryptionState.Plain,
+        mlsEpoch: undefined,
+        mlsSequenceNumber: undefined,
+        senderDeviceId: undefined,
+        type: MessageType.Message,
+        embedsJson: embeds.length > 0 ? JSON.stringify(embeds) : undefined,
+    };
+}
+
+/**
+ * `guild.ModalOpen` - a bot asking this client to put a form on screen.
+ *
+ * <p>`customId` is the bot's correlation handle for the answer, and goes straight back out on
+ * `POST /bots/guilds/{g}/channels/{c}/modal-submit` - see
+ * {@link import('./bot-command.service').BotCommandService.submitModal}. `guildId` is nullable in
+ * the contract but the submit route needs it in the path, so a modal that arrives without one
+ * cannot be answered.</p>
+ */
+export interface WsBotModalOpen {
+    guildId: string | null;
+    channelId: string;
+    botUserId: string;
+    customId: string | null;
+    title: string | null;
+    components: BotComponentPayload[];
+}
+
 export function mapGuildMessageCreatedPayload(data: GuildMessageCreatedPayload): MessageDto {
     const createdAt = data.createdAt ? new Date(data.createdAt) : new Date();
     return {
@@ -372,7 +649,13 @@ export class GuildWebsocketService {
     public channelDeletedObservable = new Subject<WsChannelDeleted>();
     /** Encryption was switched on or off for a channel by someone with ManageChannel. */
     public channelMlsStateChangedObservable = new Subject<WsChannelMlsStateChanged>();
+    /**
+     * A device asked to be admitted to a channel's group. A prompt to re-read the queue, never a
+     * decision - see {@link toChannelJoinRequestEvent}.
+     */
+    public mlsJoinRequestObservable = new Subject<MlsJoinRequestEvent>();
     public categoryCreatedObservable = new Subject<WsCategoryCreated>();
+    public categoryUpdatedObservable = new Subject<WsCategoryUpdated>();
     public categoryDeletedObservable = new Subject<WsCategoryDeleted>();
     // ── Wiki lifecycle ──────────────────────────────────────────────────────────
     public wikiPageCreatedObservable = new Subject<WsWikiPageCreated>();
@@ -388,7 +671,14 @@ export class GuildWebsocketService {
     public memberUnmutedObservable = new Subject<WsMemberUnmuted>();
     public memberLeftObservable = new Subject<WsMemberLeft>();
     public memberJoinedObservable = new Subject<WsMemberJoined>();
+    /** Roles or nickname changed. Consumers must re-read the row, not patch it. */
+    public memberUpdatedObservable = new Subject<WsMemberUpdated>();
     // ── Guild lifecycle ────────────────────────────────────────────────────────────
+    /**
+     * A guild appeared for this account - created on another device, or an invite accepted there.
+     * Carries the whole `GuildDto`, so the rail can add it without a round trip.
+     */
+    public guildCreatedObservable = new Subject<GuildDto>();
     public guildDeletedObservable = new Subject<WsGuildDeleted>();
     public guildUpdatedObservable = new Subject<WsGuildUpdated>();
     // ── Reactions ───────────────────────────────────────────────────────────────
@@ -396,6 +686,18 @@ export class GuildWebsocketService {
     public reactionRemovedObservable = new Subject<ReactionEvent>();
     public messagePinnedObservable = new Subject<MessagePinnedEvent>();
     public messageUnpinnedObservable = new Subject<MessageUnpinnedEvent>();
+    /** A channel message was edited. Same event shape a conversation edit produces. */
+    public messageUpdatedObservable = new Subject<MessageUpdatedEvent>();
+    /** A moderation action deleted several messages at once. */
+    public messagesBulkDeletedObservable = new Subject<WsMessagesBulkDeleted>();
+    /** A bot reply only this user can see, and which the server never stored. */
+    public ephemeralMessageObservable = new Subject<MessageDto>();
+    /**
+     * A bot wants a form on screen. The answer goes back over HTTP, not this socket:
+     * `POST /bots/guilds/{g}/channels/{c}/modal-submit`, carrying the `customId` from this event
+     * and the filled rows.
+     */
+    public modalOpenObservable = new Subject<WsBotModalOpen>();
     // ── Roles/channels/threads ────────────────────────────────────────────────────
     public rolesReorderedObservable = new Subject<ReorderRolesDto>();
     public channelUpdatedObservable = new Subject<WsChannelUpdated>();
@@ -505,6 +807,7 @@ export class GuildWebsocketService {
         this.realtime.on('guild.ChannelDeleted', (d: WsChannelDeleted) => this.channelDeletedObservable.next(d));
         this.realtime.on('guild.ChannelMlsStateChanged', (d: WsChannelMlsStateChanged) => this.channelMlsStateChangedObservable.next(d));
         this.realtime.on('guild.CategoryCreated', (d: WsCategoryCreated) => this.categoryCreatedObservable.next(d));
+        this.realtime.on('guild.CategoryUpdated', (d: WsCategoryUpdated) => this.categoryUpdatedObservable.next(d));
         this.realtime.on('guild.CategoryDeleted', (d: WsCategoryDeleted) => this.categoryDeletedObservable.next(d));
         this.realtime.on('guild.WikiPageCreated', (d: WsWikiPageCreated) => this.wikiPageCreatedObservable.next(d));
         this.realtime.on('guild.WikiPageUpdated', (d: WsWikiPageUpdated) => this.wikiPageUpdatedObservable.next(d));
@@ -518,6 +821,8 @@ export class GuildWebsocketService {
         this.realtime.on('guild.MemberUnmuted', (d: WsMemberUnmuted) => this.memberUnmutedObservable.next(d));
         this.realtime.on('guild.MemberLeft', (d: WsMemberLeft) => this.memberLeftObservable.next(d));
         this.realtime.on('guild.MemberJoined', (d: WsMemberJoined) => this.memberJoinedObservable.next(d));
+        this.realtime.on('guild.MemberUpdated', (d: WsMemberUpdated) => this.memberUpdatedObservable.next(d));
+        this.realtime.on('guild.GuildCreated', (d: GuildDto) => this.guildCreatedObservable.next(d));
         this.realtime.on('guild.GuildDeleted', (d: WsGuildDeleted) => this.guildDeletedObservable.next(d));
         this.realtime.on('guild.GuildUpdated', (d: WsGuildUpdated) => this.guildUpdatedObservable.next(d));
         this.realtime.on('guild.RolesReordered', (d: ReorderRolesDto) => this.rolesReorderedObservable.next(d));
@@ -545,6 +850,29 @@ export class GuildWebsocketService {
 
         this.realtime.on('guild.MessagePinned', (d: MessagePinnedEvent) => this.messagePinnedObservable.next(d));
         this.realtime.on('guild.MessageUnpinned', (d: MessageUnpinnedEvent) => this.messageUnpinnedObservable.next(d));
+
+        // Not logged, for the same reason `conversation.MessageUpdated` is not: the payload carries
+        // the edited body, which in a plaintext channel is the message itself, and this console
+        // ships in release builds.
+        this.realtime.on('guild.MessageUpdated', (d: GuildMessageUpdatedPayload) => {
+            this.messageUpdatedObservable.next(mapGuildMessageUpdatedPayload(d));
+        });
+
+        this.realtime.on('guild.MessagesBulkDeleted', (d: WsMessagesBulkDeleted) => {
+            this.messagesBulkDeletedObservable.next(d);
+        });
+
+        this.realtime.on('guild.EphemeralMessageCreated', (d: GuildEphemeralMessagePayload) => {
+            this.ephemeralMessageObservable.next(mapGuildEphemeralMessagePayload(d));
+        });
+
+        this.realtime.on('guild.ModalOpen', (d: WsBotModalOpen) => this.modalOpenObservable.next(d));
+
+        // A device wants into a channel's group. Nothing is decided here; the review surface
+        // re-reads the queue over HTTP, which is the only place the key package exists.
+        this.realtime.on('guild.ChannelMlsJoinRequested', (d: WsChannelMlsJoinRequested) => {
+            this.mlsJoinRequestObservable.next(toChannelJoinRequestEvent(d));
+        });
 
         this.realtime.on('guild.BotInstalled', (d: WsBotInstalled) => this.botInstalledObservable.next(d));
         this.realtime.on('guild.BotUninstalled', (d: WsBotUninstalled) => this.botUninstalledObservable.next(d));

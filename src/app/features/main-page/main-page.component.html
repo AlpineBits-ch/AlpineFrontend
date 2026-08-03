@@ -73,6 +73,21 @@
                         @case ('message') {
                             <app-channel (back)="navService.showHome()" [channel]="view.channel"/>
                         }
+                        @case ('list') {
+                            <app-list-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @case ('chores') {
+                            <app-chores-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @case ('ledger') {
+                            <app-ledger-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @case ('pantry') {
+                            <app-pantry-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @case ('decisions') {
+                            <app-decisions-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
                         @default {
                             <app-unsupported-channel [channel]="view.channel"/>
                         }

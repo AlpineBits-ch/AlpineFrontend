@@ -403,6 +403,48 @@ export const AlpinePreset = definePreset(Aura, {
             },
         },
 
+        /**
+         * Aura resolves the unchecked box from `{form.field.background}`, which is the same
+         * token the text inputs use - correct for a field you type into, and far too light for
+         * a 1.25rem square sitting on a list row. It read as a white chip against the dark row.
+         *
+         * <p>`styles.css` used to carry a `.dark .p-multiselect-option .p-checkbox-box` override
+         * with the same complaint written on it. That one was scoped to the multiselect overlay,
+         * so every checkbox outside it - the shopping list's most of all - kept the white box.
+         * It has been removed in favour of this, which reaches all of them; the colours here are
+         * the ones it used, so the multiselect looks the same as before.</p>
+         */
+        checkbox: {
+            colorScheme: {
+                dark: {
+                    root: {
+                        // Not `formField.background`: a checkbox is a mark on the surface it sits
+                        // on, so it tints that surface rather than punching an input-coloured
+                        // hole in it - which is also why this survives on card, row and hover.
+                        background: 'rgba(255,255,255,0.04)',
+                        borderColor: BORDER_DEFAULT,
+                        hoverBorderColor: 'rgba(255,255,255,0.28)',
+
+                        checkedBackground: '{accent.500}',
+                        checkedHoverBackground: '{accent.400}',
+                        checkedBorderColor: '{accent.500}',
+                        checkedHoverBorderColor: '{accent.400}',
+
+                        disabledBackground: 'rgba(255,255,255,0.02)',
+                    },
+
+                    icon: {
+                        // White rather than `{primary.contrast.color}`: the accent is mid-tone
+                        // enough that the generated contrast colour lands on the dark end, and a
+                        // near-black tick on a purple box is the thing that looks broken.
+                        checkedColor: '#ffffff',
+                        checkedHoverColor: '#ffffff',
+                        disabledColor: 'rgba(255,255,255,0.30)',
+                    },
+                },
+            },
+        },
+
         toggleswitch: {
             colorScheme: {
                 dark: {

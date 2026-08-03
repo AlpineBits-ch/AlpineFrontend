@@ -260,7 +260,11 @@
         <div>
             <label class="block text-xs font-semibold text-white/40 uppercase tracking-widest mb-2">{{ 'GUILD_SETTINGS.ROLES.CREATE_NAME' | translate }}
                 <span class="text-rose-400">*</span></label>
-            <input (ngModelChange)="createName.set($event)" [ngModel]="createName()" [placeholder]="'GUILD_SETTINGS.ROLES.CREATE_NAME_PLACEHOLDER' | translate"
+            <!-- Enter creates. `createRole()` re-checks the trimmed name and the in-flight flag,
+                 so a held key cannot mint two roles. The colour swatch below is a native picker
+                 that swallows Enter itself; the hex field beside it submits. -->
+            <input (keydown.enter)="createRole()" (ngModelChange)="createName.set($event)" [ngModel]="createName()"
+                   [placeholder]="'GUILD_SETTINGS.ROLES.CREATE_NAME_PLACEHOLDER' | translate"
                    class="w-full" pInputText/>
         </div>
         <div>
@@ -269,7 +273,7 @@
                 <input (ngModelChange)="createColor.set($event)"
                        [ngModel]="createColor()" class="w-10 h-10 rounded-xl cursor-pointer border border-white/[0.08] bg-transparent p-0.5"
                        type="color"/>
-                <input (ngModelChange)="createColor.set($event)"
+                <input (keydown.enter)="createRole()" (ngModelChange)="createColor.set($event)"
                        [ngModel]="createColor()" class="w-28 font-mono text-sm"
                        pInputText/>
             </div>

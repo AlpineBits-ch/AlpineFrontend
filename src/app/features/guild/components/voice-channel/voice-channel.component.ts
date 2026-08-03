@@ -5,6 +5,7 @@ import {ChannelDto} from '../../../../dtos/response/guild.dto';
 import {VoiceChannelParticipant, VoiceChannelService} from '../../../../services/voice-channel.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {GuildService} from '../../../../services/guild.service';
+import {OwnMemberRevisionService} from '../../../../services/own-member-revision.service';
 import {GuildVoiceService} from '../../../../services/guild-voice.service';
 import {GuildMemberDto} from '../../../../dtos/response/member.dto';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
@@ -95,6 +96,7 @@ export class VoiceChannelComponent {
     });
     protected participantMenu = signal<CallParticipantMenuData | null>(null);
     private guildSvc = inject(GuildService);
+    private ownMemberRevision = inject(OwnMemberRevisionService);
     private guildVoice = inject(GuildVoiceService);
     private ownMember = signal<GuildMemberDto | null>(null);
     protected isSuperadmin = computed(() => {
@@ -113,6 +115,8 @@ export class VoiceChannelComponent {
     constructor() {
         effect(() => {
             const guildId = this.channel().guildId;
+            // Re-runs when guild.MemberUpdated says our own roles changed - see ownMemberRevision.
+            this.ownMemberRevision.revision();
             this.guildSvc.getOwnMember(guildId).subscribe({
                 next: m => this.ownMember.set(m), error: () => {
                 }

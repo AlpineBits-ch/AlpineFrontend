@@ -1,0 +1,79 @@
+@if (loading()) {
+    <p class="text-sm text-text-muted text-center py-8">{{ 'COMMON.LOADING' | translate }}</p>
+} @else if (!unavailable()) {
+    <div class="flex flex-col gap-6 max-w-2xl">
+
+        <div class="flex items-center justify-between bg-card/60 border border-white/[0.06] rounded-xl px-4 py-3">
+            <div>
+                <p class="text-[0.8125rem] text-text-primary">{{ 'QUIET_HOURS.ENABLE_TITLE' | translate }}</p>
+                <p class="text-xs text-text-muted mt-0.5">{{ 'QUIET_HOURS.ENABLE_DESC' | translate }}</p>
+            </div>
+            <p-toggleswitch (ngModelChange)="enabled.set($event)" [ngModel]="enabled()"/>
+        </div>
+
+        <section class="flex flex-col gap-3">
+            <div>
+                <p class="text-[0.8125rem] text-text-primary">{{ 'QUIET_HOURS.WINDOW_TITLE' | translate }}</p>
+                <p class="text-xs text-text-muted mt-0.5">{{ 'QUIET_HOURS.WINDOW_DESC' | translate }}</p>
+            </div>
+
+            <div class="flex items-center flex-wrap gap-2 text-[0.8125rem] text-text-secondary">
+                <span>{{ 'QUIET_HOURS.FROM' | translate }}</span>
+                <input (ngModelChange)="startTime.set($event)" [ngModel]="startTime()"
+                       class="w-28 text-center" pInputText type="time"/>
+                <span>{{ 'QUIET_HOURS.TO' | translate }}</span>
+                <input (ngModelChange)="endTime.set($event)" [ngModel]="endTime()"
+                       class="w-28 text-center" pInputText type="time"/>
+                @if (lengthLabel()) {
+                    <span class="text-text-muted">({{ lengthLabel() }})</span>
+                }
+            </div>
+
+            @if (wrapsMidnight()) {
+                <p class="text-xs text-text-muted">
+                    <i class="pi pi-moon text-[0.625rem] mr-1"></i>{{ 'QUIET_HOURS.WRAPS_MIDNIGHT' | translate }}
+                </p>
+            }
+            @if (error() === 'SAME_START_AND_END') {
+                <p class="text-xs text-rose-400">{{ 'QUIET_HOURS.ERROR.SAME_START_AND_END' | translate }}</p>
+            }
+        </section>
+
+        <section class="flex flex-col gap-2">
+            <div>
+                <p class="text-[0.8125rem] text-text-primary">{{ 'QUIET_HOURS.TIME_ZONE_TITLE' | translate }}</p>
+                <p class="text-xs text-text-muted mt-0.5">{{ 'QUIET_HOURS.TIME_ZONE_DESC' | translate }}</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <input (ngModelChange)="timeZoneId.set($event)" [ngModel]="timeZoneId()"
+                       class="flex-1" pInputText placeholder="Europe/Zurich" type="text"/>
+                <p-button (onClick)="useBrowserTimeZone()" [label]="'QUIET_HOURS.USE_MINE' | translate"
+                          severity="secondary" size="small"/>
+            </div>
+            @if (timeZoneUnknown()) {
+                <p class="text-xs text-rose-400">{{ 'QUIET_HOURS.ERROR.UNKNOWN_TIME_ZONE' | translate }}</p>
+            }
+        </section>
+
+        @if (enabled() && !error()) {
+            <div class="flex items-center gap-2 bg-card/60 border border-white/[0.06] rounded-xl px-4 py-3">
+                <i class="pi text-[0.75rem]"
+                   [class.pi-moon]="currentlyQuiet()"
+                   [class.pi-sun]="!currentlyQuiet()"
+                   [class.text-indigo-300]="currentlyQuiet()"
+                   [class.text-text-muted]="!currentlyQuiet()"></i>
+                <p class="text-xs text-text-secondary">
+                    {{ (currentlyQuiet() ? 'QUIET_HOURS.CURRENTLY_QUIET' : 'QUIET_HOURS.CURRENTLY_AWAKE') | translate }}
+                </p>
+            </div>
+        }
+
+        <p class="text-xs text-text-muted">{{ 'QUIET_HOURS.DEFERRAL_NOTE' | translate }}</p>
+
+        <div>
+            <p-button (onClick)="save()" [disabled]="!!error()" [label]="'COMMON.SAVE' | translate"
+                      [loading]="saving()" severity="primary" size="small"/>
+        </div>
+
+    </div>
+}

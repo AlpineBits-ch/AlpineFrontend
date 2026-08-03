@@ -1,4 +1,4 @@
-import {inject, Injectable, signal} from '@angular/core';
+import {inject, Injectable, signal, untracked} from '@angular/core';
 import {firstValueFrom, Observable, Subject} from 'rxjs';
 import {GuildWebsocketService} from './guild-websocket.service';
 import {NavigationService} from '../features/main-page/navigation.service';
@@ -107,10 +107,27 @@ export class GuildReadStateService {
         }
     }
 
+    /**
+     * <p><b>Both guards below are load-bearing, and neither is a micro-optimisation.</b> The channel
+     * view calls this from inside an `effect` on every change to the open channel's messages, so
+     * this method body runs in a reactive context.</p>
+     *
+     * <p>The read is `untracked` because a tracked one makes `_channelStates` a dependency of that
+     * effect, which the write on the next line then dirties - the effect re-runs, writes again, and
+     * never settles. Effects have no cycle detection (only `computed` does), so that loop throws
+     * nothing and logs nothing; it just pins a core and fires a `guild.UpdateLastRead` per turn
+     * until the renderer runs out of memory.</p>
+     *
+     * <p>The early return is the second half: `update` hands back a fresh object every call, and
+     * `Object.is` equality means that counts as a change even when the state is identical. Without
+     * it, re-marking an already-read channel still notifies every `channelStates()` reader - the
+     * whole sidebar - on each arriving message.</p>
+     */
     markChannelRead(channelId: string): void {
-        const wasUnread = this._channelStates()[channelId]?.isUnread ?? false;
+        const current = untracked(this._channelStates)[channelId];
+        if (current && !current.isUnread && current.mentionCount === 0) return;
         this._channelStates.update(s => ({...s, [channelId]: {isUnread: false, mentionCount: 0}}));
-        if (wasUnread) this._channelRead.next(channelId);
+        if (current?.isUnread) this._channelRead.next(channelId);
     }
 
     getChannelState(channelId: string): ChannelReadState {

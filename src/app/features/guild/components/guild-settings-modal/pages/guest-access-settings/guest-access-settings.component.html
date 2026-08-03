@@ -1,0 +1,141 @@
+<div class="flex flex-col gap-5 max-w-3xl">
+
+    <div>
+        <p class="text-[0.8125rem] text-text-primary">{{ 'GUEST_ACCESS.TITLE' | translate }}</p>
+        <p class="text-xs text-text-muted mt-0.5">{{ 'GUEST_ACCESS.DESC' | translate }}</p>
+    </div>
+
+    @if (assignableRoles().length === 0) {
+        <p class="text-xs text-text-muted">{{ 'GUEST_ACCESS.NO_ROLES' | translate }}</p>
+    } @else {
+        <div class="flex flex-wrap gap-1.5">
+            @for (role of assignableRoles(); track role.id) {
+                <button (click)="selectRole(role)"
+                        [class.bg-brand]="selectedRoleId() === role.id"
+                        [class.text-white]="selectedRoleId() === role.id"
+                        class="flex items-center gap-1.5 rounded-full border border-border bg-hover px-3 py-1 text-[0.75rem] text-text-secondary cursor-pointer transition-colors hover:bg-white/[0.08]"
+                        type="button">
+                    <span class="w-2 h-2 rounded-full" [style.background]="role.color || '#4B5BC4'"></span>
+                    {{ role.name }}
+                </button>
+            }
+        </div>
+
+        <div class="flex items-center justify-between gap-2">
+            <p class="text-xs text-text-muted">
+                {{ 'GUEST_ACCESS.PERMANENT_COUNT' | translate: {count: permanentCount()} }}
+            </p>
+            @if (permsLoaded() && canManage()) {
+                <p-button (onClick)="openGrant()" [disabled]="!selectedRole()"
+                          [label]="'GUEST_ACCESS.GRANT' | translate" icon="pi pi-user-plus"
+                          severity="primary" size="small"/>
+            }
+        </div>
+
+        @if (loading()) {
+            <p class="text-sm text-text-muted text-center py-6">{{ 'COMMON.LOADING' | translate }}</p>
+        } @else {
+            <section class="flex flex-col gap-2">
+                <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest">
+                    {{ 'GUEST_ACCESS.ACTIVE_HEADING' | translate }}
+                </p>
+                @if (liveGrants().length === 0) {
+                    <p class="text-xs text-text-muted">{{ 'GUEST_ACCESS.NO_ACTIVE' | translate }}</p>
+                } @else {
+                    @for (row of liveGrants(); track row.userId) {
+                        <div class="flex items-center gap-2.5 bg-card/60 border border-white/[0.06] rounded-xl px-3 py-2">
+                            <div class="w-7 h-7 rounded-full overflow-hidden bg-card flex items-center justify-center shrink-0">
+                                @if (row.avatarUrl) {
+                                    <img [alt]="row.displayName" [src]="row.avatarUrl" class="w-full h-full object-cover"/>
+                                } @else {
+                                    <span class="text-[0.625rem] font-semibold text-white/40">{{ row.displayName.charAt(0).toUpperCase() }}</span>
+                                }
+                            </div>
+                            <div class="flex flex-col min-w-0 flex-1">
+                                <span class="text-[0.8125rem] text-text-primary truncate">{{ row.displayName }}</span>
+                                <span class="text-xs text-text-muted">{{ 'GUEST_ACCESS.UNTIL' | translate: {time: expiryLabel(row)} }}</span>
+                            </div>
+                            @if (canManage()) {
+                                <p-button (onClick)="revoke(row)" [loading]="revoking() === row.userId"
+                                          [label]="'GUEST_ACCESS.REVOKE' | translate" [text]="true"
+                                          severity="danger" size="small"/>
+                            }
+                        </div>
+                    }
+                }
+            </section>
+
+            <!-- Ended, but still in the listing: rows are reaped about a week after they lapse.
+                 Drawn as ended because the server already stopped honouring them. -->
+            @if (lapsedGrants().length > 0) {
+                <section class="flex flex-col gap-2">
+                    <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest">
+                        {{ 'GUEST_ACCESS.ENDED_HEADING' | translate }}
+                    </p>
+                    <p class="text-xs text-text-muted">{{ 'GUEST_ACCESS.ENDED_NOTE' | translate }}</p>
+                    @for (row of lapsedGrants(); track row.userId) {
+                        <div class="flex items-center gap-2.5 border border-white/[0.04] rounded-xl px-3 py-2 opacity-60">
+                            <div class="w-7 h-7 rounded-full overflow-hidden bg-card flex items-center justify-center shrink-0">
+                                @if (row.avatarUrl) {
+                                    <img [alt]="row.displayName" [src]="row.avatarUrl" class="w-full h-full object-cover"/>
+                                } @else {
+                                    <span class="text-[0.625rem] font-semibold text-white/40">{{ row.displayName.charAt(0).toUpperCase() }}</span>
+                                }
+                            </div>
+                            <div class="flex flex-col min-w-0 flex-1">
+                                <span class="text-[0.8125rem] text-text-secondary truncate line-through">{{ row.displayName }}</span>
+                                <span class="text-xs text-text-muted">{{ 'GUEST_ACCESS.ENDED_AT' | translate: {time: expiryLabel(row)} }}</span>
+                            </div>
+                            @if (canManage()) {
+                                <p-button (onClick)="revoke(row)" [loading]="revoking() === row.userId"
+                                          [label]="'GUEST_ACCESS.TIDY' | translate" [text]="true"
+                                          severity="secondary" size="small"/>
+                            }
+                        </div>
+                    }
+                </section>
+            }
+        }
+
+        @if (permsLoaded() && !canManage()) {
+            <p class="text-xs text-text-muted">{{ 'GUEST_ACCESS.NEEDS_PERMISSION' | translate }}</p>
+        }
+    }
+</div>
+
+<p-dialog [(visible)]="showGrant" [modal]="true" [style]="{width: '28rem'}" [draggable]="false">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">
+            {{ 'GUEST_ACCESS.GRANT_TITLE' | translate: {role: selectedRole()?.name ?? ''} }}
+        </span>
+    </ng-template>
+
+    <div class="flex flex-col gap-3">
+        <p-select (ngModelChange)="durationMs.set($event)" [ngModel]="durationMs()" [options]="durationOptions()"
+                  optionLabel="label" optionValue="ms" styleClass="w-full" size="small"/>
+
+        <input (ngModelChange)="onSearchChange($event)" [ngModel]="search()"
+               [placeholder]="'GUEST_ACCESS.SEARCH_PLACEHOLDER' | translate" class="w-full" pInputText type="text"/>
+
+        @if (searching()) {
+            <p class="text-xs text-text-muted">{{ 'COMMON.LOADING' | translate }}</p>
+        } @else if (grantCandidates().length === 0) {
+            <p class="text-xs text-text-muted">{{ 'GUEST_ACCESS.NO_CANDIDATES' | translate }}</p>
+        } @else {
+            <div class="flex flex-col gap-1 max-h-64 overflow-y-auto thin-scrollbar">
+                @for (member of grantCandidates(); track member.id) {
+                    <button (click)="grant(member)" [disabled]="granting() !== null"
+                            class="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left bg-transparent border-0 cursor-pointer hover:bg-white/[0.06] transition-colors"
+                            type="button">
+                        <span class="text-[0.8125rem] text-text-primary truncate">{{ candidateName(member) }}</span>
+                        @if (granting() === member.userId) {
+                            <i class="pi pi-spin pi-spinner text-xs text-text-muted"></i>
+                        }
+                    </button>
+                }
+            </div>
+        }
+
+        <p class="text-xs text-text-muted">{{ 'GUEST_ACCESS.LAPSES_NOTE' | translate }}</p>
+    </div>
+</p-dialog>

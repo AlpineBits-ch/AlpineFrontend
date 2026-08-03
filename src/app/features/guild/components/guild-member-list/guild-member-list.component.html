@@ -1,6 +1,11 @@
 <div class="flex flex-col w-60 bg-sidebar border-l border-white/[0.08] h-full shrink-0">
     <p-menu #memberMenu [popup]="true" appendTo="body"/>
 
+    <!-- Above the roster, not folded into it: "in the flat" and "app connected" are different
+         questions, and only some members ever answer the first. Renders nothing without the
+         Presence module. -->
+    <app-home-status-board [guild]="guild()"/>
+
     @if (loading()) {
         <div class="flex items-center justify-center flex-1">
             <i class="pi pi-spin pi-spinner text-white/30 text-lg"></i>

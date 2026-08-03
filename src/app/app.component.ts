@@ -25,6 +25,7 @@ import {SteamService} from './services/steam.service';
 import {IsleProximityBarComponent} from './features/isle-proximity/isle-proximity-bar.component';
 import {BotInstallDialogComponent} from './features/bot-install/bot-install-dialog.component';
 import {BotCommandDialogComponent} from './features/bot-command/bot-command-dialog.component';
+import {BotModalDialogComponent} from './features/bot-modal/bot-modal-dialog.component';
 import {BotInstallDialogService} from './features/bot-install/bot-install-dialog.service';
 import {parseInstallBotLink} from './features/bot-install/bot-install-link.util';
 import {DiscordImportProgressDialogComponent} from './features/discord-import/discord-import-progress-dialog.component';
@@ -33,7 +34,7 @@ import {parseDiscordImportLink} from './features/discord-import/discord-import-l
 
 @Component({
     selector: "app-root",
-    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, MfaChallengeDialogComponent, PasswordResetDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent, BotCommandDialogComponent, DiscordImportProgressDialogComponent],
+    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, MfaChallengeDialogComponent, PasswordResetDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent, BotCommandDialogComponent, BotModalDialogComponent, DiscordImportProgressDialogComponent],
     templateUrl: "./app.component.html",
     styleUrl: "./app.component.css",
 })

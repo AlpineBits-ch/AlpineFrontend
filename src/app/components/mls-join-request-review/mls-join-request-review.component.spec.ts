@@ -18,6 +18,7 @@ import {
     MlsJoinRequestService,
 } from '../../services/mls-join-request.service';
 import {MessagingWebsocketService, MlsJoinRequestEvent} from '../../services/messaging-websocket.service';
+import {GuildWebsocketService} from '../../services/guild-websocket.service';
 import {MlsService} from '../../services/mls.service';
 import {DeviceIdentityService} from '../../services/device-identity.service';
 import {ProfileService} from '../../services/profile.service';
@@ -70,6 +71,8 @@ function setup(options: {
     });
     const deny = vi.fn(() => of(undefined as void));
     const pushes = new Subject<MlsJoinRequestEvent>();
+    /** The channel-side twin, which reaches the same panel via `guild.ChannelMlsJoinRequested`. */
+    const channelPushes = new Subject<MlsJoinRequestEvent>();
 
     TestBed.configureTestingModule({
         imports: [MlsJoinRequestReviewComponent],
@@ -80,6 +83,7 @@ function setup(options: {
             {provide: DeviceIdentityService, useValue: {deviceId: async () => OWN_DEVICE}},
             {provide: ProfileService, useValue: {ownProfile: () => ({userId: OWN_USER})}},
             {provide: MessagingWebsocketService, useValue: {mlsJoinRequestObservable: pushes}},
+            {provide: GuildWebsocketService, useValue: {mlsJoinRequestObservable: channelPushes}},
         ],
     });
 
@@ -97,6 +101,7 @@ function setup(options: {
         approve,
         deny,
         pushes,
+        channelPushes,
         text: () => element().textContent ?? '',
         /**
          * Lets the component's async refresh finish, then re-renders.
@@ -296,6 +301,35 @@ describe('MlsJoinRequestReviewComponent', () => {
         await settle();
 
         expect(list.mock.calls.length).toBe(before);
+    });
+
+    /**
+     * The channel twin reaches the same panel, and carries almost nothing.
+     *
+     * <p>`guild.ChannelMlsJoinRequested` names three ids and no request id, device id or
+     * fingerprint - so the only thing it can do is provoke the queue read, which is the only
+     * source the decision is ever made from. A panel that only listened to the conversation socket
+     * left channel requests exactly as stranded as DM requests were before this surface existed.</p>
+     */
+    it('re-reads the queue for a channel join request pushed on the guild socket', async () => {
+        const {settle, channelPushes, list} = setup({requests: []});
+        await settle();
+        const before = list.mock.calls.length;
+
+        channelPushes.next({
+            contextId: CONTEXT,
+            isChannel: true,
+            generation: 0,
+            requestId: '',
+            requesterUserId: PEER_USER,
+            requesterDeviceId: '',
+            requesterDeviceName: null,
+            signatureKeyFingerprint: '',
+            requiresManualApproval: true,
+        });
+        await settle();
+
+        expect(list.mock.calls.length).toBe(before + 1);
     });
 
     it('says the queue could not be read instead of showing an empty one', async () => {

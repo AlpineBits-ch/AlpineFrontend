@@ -30,7 +30,10 @@
 
         @if (!useRecoveryCode()) {
             <div class="flex flex-col items-center gap-3">
+                <!-- Enter submits. `submit()` re-checks length and the in-flight flag itself, so
+                     this needs no guard of its own and cannot double-post on a held key. -->
                 <p-inputotp
+                        (keydown.enter)="submit()"
                         (ngModelChange)="onCodeChange($event)"
                         [integerOnly]="true"
                         [length]="6"
@@ -43,6 +46,7 @@
                     {{ 'LOGIN.MFA.RECOVERY_CODE_LABEL' | translate }}
                 </label>
                 <input
+                        (keydown.enter)="submit()"
                         (ngModelChange)="onCodeChange($event)"
                         [ngModel]="code()"
                         [placeholder]="'LOGIN.MFA.RECOVERY_CODE_PLACEHOLDER' | translate"

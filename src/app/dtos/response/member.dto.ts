@@ -31,6 +31,17 @@ export interface RoleMemberDto {
     roleId: string;
     memberId: string;
     userId: string;
+    /**
+     * When a temporary (guest) grant stops counting. `null` on every ordinary membership, which is
+     * every membership that predates guest access, and those behave exactly as before.
+     *
+     * <p><b>A past value means the role is no longer granted.</b> Permission resolution drops an
+     * expired membership at the instant it expires, but the rows are only reaped about a week
+     * later - so this endpoint keeps returning lapsed grants for days. Anything rendering a role
+     * membership must run it through `grantState` in `features/guild/guest-access.ts` rather than
+     * treating presence in the list as access.</p>
+     */
+    expiresAt?: string | null;
     member: {
         id: string;
         guildId: string;

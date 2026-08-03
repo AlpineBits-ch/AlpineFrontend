@@ -49,6 +49,7 @@ import {MessagingService} from '../../../../services/messaging.service';
 import {MessageStore} from '../../../../stores/message.store';
 import {ProfileService} from '../../../../services/profile.service';
 import {GuildService} from '../../../../services/guild.service';
+import {OwnMemberRevisionService} from '../../../../services/own-member-revision.service';
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {GuildReadStateService} from '../../../../services/guild-read-state.service';
 import {TypingService} from '../../../../services/typing.service';
@@ -261,6 +262,7 @@ export class ChannelComponent implements AfterViewInit {
     private mlsSync = inject(MlsSyncService);
     private joinRequests = inject(MlsJoinRequestService);
     private guildService = inject(GuildService);
+    private ownMemberRevision = inject(OwnMemberRevisionService);
     private profileService = inject(ProfileService);
     private guildWs = inject(GuildWebsocketService);
     private translate = inject(TranslateService);
@@ -312,6 +314,8 @@ export class ChannelComponent implements AfterViewInit {
         });
 
         effect(() => {
+            // Re-runs when guild.MemberUpdated says our own roles changed - see ownMemberRevision.
+            this.ownMemberRevision.revision();
             this.guildService.getOwnMember(this.guildId()).subscribe(m => this.ownMember.set(m));
         });
 

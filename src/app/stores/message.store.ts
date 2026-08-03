@@ -585,6 +585,31 @@ export const MessageStore = signalStore(
                 void store.applyRemoteUpdate(event)
             );
 
+            // Channel edits, through the identical path. Nothing listened for `guild.MessageUpdated`
+            // at all, so an edited channel message kept its old body until the next reload while the
+            // DM beside it updated live. `applyRemoteUpdate` reads the encryption state off the
+            // *stored* message rather than the event, so an edit in an encrypted channel is
+            // decrypted against the generation it was sealed under here just as it is there.
+            guildWsService.messageUpdatedObservable.subscribe((event: MessageUpdatedEvent) =>
+                void store.applyRemoteUpdate(event)
+            );
+
+            // One patch, not one per id. `removeEntity` in a loop re-renders the message list for
+            // every message a moderator swept, which for the hundreds these actions delete is a
+            // visible stall - and leaves the list momentarily half-deleted at each step.
+            guildWsService.messagesBulkDeletedObservable.subscribe(event =>
+                patchState(store, removeEntities(event.messageIds))
+            );
+
+            // Ephemeral bot replies. Upserted like any other message so the channel renders it in
+            // place, and flagged so nothing offers to edit or delete a message the server never
+            // stored. Deliberately not counted into `channelMeta.offset`: that offset is a cursor
+            // into server-side history, and shifting it by a message history does not contain would
+            // make the next page skip a real one.
+            guildWsService.ephemeralMessageObservable.subscribe(msg =>
+                patchState(store, upsertEntity(msg))
+            );
+
             wsService.messageDeletedObservable.subscribe((event: MessageDeletedEvent) =>
                 patchState(store, removeEntity(event.messageId))
             );

@@ -71,7 +71,11 @@
         <div class="pt-3 px-1 border-t border-white/[0.06] mt-3">
             <label class="text-[10.5px] font-semibold text-white/30 uppercase tracking-widest block mb-2">Group Name
                 (optional)</label>
-            <input (ngModelChange)="groupName.set($event)"
+            <!-- Enter opens the conversation. `create()` re-checks `canCreate()`, so this is inert
+                 until at least one friend is picked. Deliberately not on the search field above:
+                 Enter there reads as "pick this result", and creating from a half-typed filter
+                 would open a conversation with whoever happened to be selected already. -->
+            <input (keydown.enter)="create()" (ngModelChange)="groupName.set($event)"
                    [ngModel]="groupName()"
                    class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
                    pInputText

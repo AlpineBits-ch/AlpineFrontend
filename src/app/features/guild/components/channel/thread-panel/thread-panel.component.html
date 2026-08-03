@@ -26,7 +26,8 @@
     <ng-template pTemplate="header">
         <span class="text-sm font-semibold text-white/85">Create Thread</span>
     </ng-template>
-    <input (ngModelChange)="createName.set($event)" [ngModel]="createName()" pInputText placeholder="Thread name" type="text"/>
+    <input (keydown.enter)="createThread()" (ngModelChange)="createName.set($event)" [ngModel]="createName()"
+           pInputText placeholder="Thread name" type="text"/>
     <ng-template pTemplate="footer">
         <p-button (onClick)="showCreateDialog.set(false)" [text]="true" label="Cancel"/>
         <p-button (onClick)="createThread()" [loading]="creating()" label="Create"/>
