@@ -22,6 +22,15 @@ interface PersistedNav {
 
 const NAV_KEY = 'alpine_nav';
 
+/** How many places back the titlebar arrows can walk. Beyond this the oldest entry is dropped. */
+const HISTORY_LIMIT = 50;
+
+/** Where the app was, in the only two signals that decide what the main pane draws. */
+interface NavSnapshot {
+    workspace: WorkspaceContext;
+    mainView: MainView;
+}
+
 @Injectable({providedIn: 'root'})
 export class NavigationService {
     readonly workspace = signal<WorkspaceContext>({type: 'dms'});
@@ -30,6 +39,28 @@ export class NavigationService {
     readonly mobileSection = signal<'conversations' | 'friends'>('conversations');
     readonly wikiPanelGuildId = signal<string | null>(null);
     readonly eventsPanelGuildId = signal<string | null>(null);
+
+    /**
+     * Browser-style history over the signal-based navigation.
+     *
+     * <p>There is no router to lean on here - every move is a `set` on {@link workspace} and
+     * {@link mainView} - so the stack is kept by hand. Every method that persists a navigation
+     * also records one, which is why {@link saveNav} is the single place that pushes: anything
+     * worth restoring across a restart is by definition worth stepping back to.</p>
+     */
+    private history: NavSnapshot[] = [];
+    private cursor = -1;
+    /** Set while {@link applySnapshot} writes, so replaying a step never records itself. */
+    private replaying = false;
+
+    readonly canGoBack = signal(false);
+    readonly canGoForward = signal(false);
+
+    constructor() {
+        // Seeds the stack with the launch state, so the first navigation already has somewhere
+        // to go back to rather than needing two before the arrows come alive.
+        this.pushHistory();
+    }
 
     tryRestoreGuildNav(guilds: GuildDto[]): boolean {
         try {
@@ -52,6 +83,7 @@ export class NavigationService {
                     ?? guild.channels[0];
                 if (ch) this.mainView.set({type: 'channel', channel: ch});
             }
+            this.pushHistory();
             return true;
         } catch {
             return false;
@@ -68,6 +100,7 @@ export class NavigationService {
             if (!conv) return false;
             this.workspace.set({type: 'dms'});
             this.mainView.set({type: 'conversation', conversation: conv});
+            this.pushHistory();
             return true;
         } catch {
             return false;
@@ -190,7 +223,82 @@ export class NavigationService {
         this.eventsPanelGuildId.set(null);
     }
 
+    // ── History ─────────────────────────────────────────────────────────────
+    /** Steps to the previous place, if there is one. */
+    back(): void {
+        if (this.cursor <= 0) return;
+        this.cursor--;
+        this.applySnapshot(this.history[this.cursor]);
+    }
+
+    /** Steps forward again after a {@link back}, until the next navigation truncates the tail. */
+    forward(): void {
+        if (this.cursor >= this.history.length - 1) return;
+        this.cursor++;
+        this.applySnapshot(this.history[this.cursor]);
+    }
+
+    /**
+     * Identity of a place, for deduplication. Two snapshots that render the same thing must not
+     * both sit on the stack - reopening the channel you are already in would otherwise cost a
+     * press of Back to undo.
+     */
+    private static keyOf(snap: NavSnapshot): string {
+        const ws = snap.workspace.type === 'server' ? `g:${snap.workspace.guild.id}` : 'dms';
+        const view = snap.mainView;
+        switch (view.type) {
+            case 'home':
+                return `${ws}|home`;
+            case 'conversation':
+                return `${ws}|conv:${view.conversation.id}`;
+            case 'channel':
+                return `${ws}|chan:${view.channel.id}`;
+            case 'wiki':
+                return `${ws}|wiki:${view.guildId}`;
+        }
+    }
+
+    private pushHistory(): void {
+        if (this.replaying) return;
+        const snap: NavSnapshot = {workspace: this.workspace(), mainView: this.mainView()};
+        const current = this.history[this.cursor];
+        if (current && NavigationService.keyOf(current) === NavigationService.keyOf(snap)) {
+            // Same place, possibly a fresher object for it (a guild that just got renamed).
+            this.history[this.cursor] = snap;
+            return;
+        }
+        // Navigating after stepping back abandons the forward tail, exactly like a browser.
+        this.history.length = this.cursor + 1;
+        this.history.push(snap);
+        if (this.history.length > HISTORY_LIMIT) this.history.shift();
+        this.cursor = this.history.length - 1;
+        this.refreshHistoryFlags();
+    }
+
+    private applySnapshot(snap: NavSnapshot): void {
+        this.replaying = true;
+        try {
+            this.workspace.set(snap.workspace);
+            this.mainView.set(snap.mainView);
+            // The wiki lives in a side panel as well as the main pane, so stepping onto or off a
+            // wiki entry has to move the panel with it or the two disagree about where you are.
+            this.wikiPanelGuildId.set(snap.mainView.type === 'wiki' ? snap.mainView.guildId : null);
+            this.eventsPanelGuildId.set(null);
+            this.mobileNavOpen.set(false);
+            this.saveNav();
+        } finally {
+            this.replaying = false;
+        }
+        this.refreshHistoryFlags();
+    }
+
+    private refreshHistoryFlags(): void {
+        this.canGoBack.set(this.cursor > 0);
+        this.canGoForward.set(this.cursor < this.history.length - 1);
+    }
+
     private saveNav(): void {
+        this.pushHistory();
         const ws = this.workspace();
         const view = this.mainView();
         let state: PersistedNav;

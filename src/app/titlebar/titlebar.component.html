@@ -7,29 +7,111 @@
                  (mouseleave)="macHover = false"
                  [class.mac-hover]="macHover"
                  class="mac-controls">
-                <button (click)="close()" class="dot dot-close" title="Close"></button>
-                <button (click)="minimize()" class="dot dot-minimize" title="Minimize"></button>
-                <button (click)="toggleMaximize()" class="dot dot-maximize" title="Zoom"></button>
+                <button (click)="close()" [title]="'TITLEBAR.CLOSE' | translate" class="dot dot-close"></button>
+                <button (click)="minimize()" [title]="'TITLEBAR.MINIMIZE' | translate" class="dot dot-minimize"></button>
+                <button (click)="toggleMaximize()" [title]="'TITLEBAR.ZOOM' | translate" class="dot dot-maximize"></button>
             </div>
         }
 
         <div class="identity" data-tauri-drag-region>
             <img alt="Venta" class="logo-mark" src="assets/branding/logo-mark.svg"/>
-            <span class="app-name">Venta</span>
+            @if (!inAppShell()) {
+                <span class="app-name">Venta</span>
+            }
         </div>
+
+        @if (inAppShell()) {
+            <!-- History arrows, in the same slot Discord puts them: hard left, before anything else. -->
+            <div class="nav-arrows">
+                <button (click)="nav.back()"
+                        [attr.aria-label]="'TITLEBAR.BACK' | translate"
+                        [disabled]="!nav.canGoBack()"
+                        [title]="'TITLEBAR.BACK' | translate"
+                        class="chrome-btn">
+                    <svg fill="none" height="14" viewBox="0 0 14 14" width="14">
+                        <path d="M8.5 3L4.5 7L8.5 11" stroke="currentColor" stroke-linecap="round"
+                              stroke-linejoin="round" stroke-width="1.6"/>
+                    </svg>
+                </button>
+                <button (click)="nav.forward()"
+                        [attr.aria-label]="'TITLEBAR.FORWARD' | translate"
+                        [disabled]="!nav.canGoForward()"
+                        [title]="'TITLEBAR.FORWARD' | translate"
+                        class="chrome-btn">
+                    <svg fill="none" height="14" viewBox="0 0 14 14" width="14">
+                        <path d="M5.5 3L9.5 7L5.5 11" stroke="currentColor" stroke-linecap="round"
+                              stroke-linejoin="round" stroke-width="1.6"/>
+                    </svg>
+                </button>
+            </div>
+        }
 
         <div class="grow" data-tauri-drag-region></div>
 
+        @if (inAppShell()) {
+            @let ctx = context();
+            <!-- Absolutely positioned so it centres on the window rather than on whatever space the
+                 two button groups happen to leave, which is what makes it read as a title. -->
+            <div class="context" data-tauri-drag-region>
+                @if (ctx.iconUrl && !iconFailed()) {
+                    <img (error)="onIconError(ctx.iconUrl!)" [src]="ctx.iconUrl" alt="" class="context-icon"/>
+                } @else if (ctx.iconUrl) {
+                    <span class="context-initial">{{ ctx.initial }}</span>
+                } @else if (ctx.icon) {
+                    <i [class]="'pi ' + ctx.icon + ' context-glyph'"></i>
+                }
+                <span class="context-label">{{ ctx.label ?? (ctx.labelKey ?? '' | translate) }}</span>
+                @if (ctx.detail || ctx.detailKey) {
+                    <span class="context-sep">/</span>
+                    <span class="context-detail">{{ ctx.detail ?? (ctx.detailKey ?? '' | translate) }}</span>
+                }
+            </div>
+        }
+
+        @if (inAppShell()) {
+            <div class="actions">
+                <button (click)="toggleInbox($event)"
+                        [attr.aria-label]="'TITLEBAR.INBOX' | translate"
+                        [title]="'TITLEBAR.INBOX' | translate"
+                        class="chrome-btn">
+                    <svg fill="none" height="15" viewBox="0 0 16 16" width="15">
+                        <path d="M2 9.5V4.2C2 3.5 2.5 3 3.2 3h9.6c.7 0 1.2.5 1.2 1.2v5.3M2 9.5h3.2l.9 1.6h3.8l.9-1.6H14M2 9.5v2.3c0 .7.5 1.2 1.2 1.2h9.6c.7 0 1.2-.5 1.2-1.2V9.5"
+                              stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                              stroke-width="1.3"/>
+                    </svg>
+                    @if (inbox.totalMentions() > 0) {
+                        <span class="chrome-badge">{{ inbox.totalMentions() > 99 ? '99+' : inbox.totalMentions() }}</span>
+                    }
+                </button>
+
+                <button (click)="helpMenu.toggle($event)"
+                        [attr.aria-label]="'TITLEBAR.HELP' | translate"
+                        [title]="'TITLEBAR.HELP' | translate"
+                        class="chrome-btn">
+                    <svg fill="none" height="15" viewBox="0 0 16 16" width="15">
+                        <circle cx="8" cy="8" r="6.2" stroke="currentColor" stroke-width="1.3"/>
+                        <path d="M6.3 6.2a1.75 1.75 0 1 1 2.4 1.62c-.45.18-.7.6-.7 1.08v.35"
+                              stroke="currentColor" stroke-linecap="round" stroke-width="1.3"/>
+                        <circle cx="8" cy="11.4" fill="currentColor" r="0.75"/>
+                    </svg>
+                </button>
+            </div>
+        }
+
         @if (!isMac()) {
             <div class="win-controls">
-                <button (click)="minimize()" aria-label="Minimize" class="win-btn" title="Minimize">
+                <button (click)="minimize()"
+                        [attr.aria-label]="'TITLEBAR.MINIMIZE' | translate"
+                        [title]="'TITLEBAR.MINIMIZE' | translate"
+                        class="win-btn">
                     <svg fill="none" height="1" viewBox="0 0 10 1" width="10">
                         <rect fill="currentColor" height="1.2" rx="0.6" width="10"/>
                     </svg>
                 </button>
+                @let maximizeLabel = (isMaximized() ? 'TITLEBAR.RESTORE' : 'TITLEBAR.MAXIMIZE') | translate;
                 <button (click)="toggleMaximize()"
-                        [attr.aria-label]="isMaximized() ? 'Restore' : 'Maximize'"
-                        [title]="isMaximized() ? 'Restore' : 'Maximize'"
+                        [attr.aria-label]="maximizeLabel"
+                        [title]="maximizeLabel"
                         class="win-btn">
                     @if (isMaximized()) {
                         <!-- Restore icon -->
@@ -45,7 +127,10 @@
                         </svg>
                     }
                 </button>
-                <button (click)="close()" aria-label="Close" class="win-btn win-close" title="Close">
+                <button (click)="close()"
+                        [attr.aria-label]="'TITLEBAR.CLOSE' | translate"
+                        [title]="'TITLEBAR.CLOSE' | translate"
+                        class="win-btn win-close">
                     <svg fill="none" height="10" viewBox="0 0 10 10" width="10">
                         <path d="M1.5 1.5L8.5 8.5M8.5 1.5L1.5 8.5" stroke="currentColor" stroke-linecap="round"
                               stroke-width="1.2"/>
@@ -55,4 +140,39 @@
         }
 
     </div>
+
+    <p-popover #inboxPopover [style]="{width: '360px', padding: '0'}" appendTo="body" styleClass="titlebar-inbox">
+        <div class="inbox-panel">
+            <div class="inbox-head">
+                <span class="inbox-title">{{ 'TITLEBAR.INBOX' | translate }}</span>
+                @if (inbox.totalMentions() > 0) {
+                    <span class="inbox-count">{{ inbox.totalMentions() }}</span>
+                }
+            </div>
+
+            @if (inbox.entries().length === 0) {
+                <div class="inbox-empty">
+                    <i class="pi pi-check-circle"></i>
+                    <p class="inbox-empty-title">{{ 'TITLEBAR.INBOX_EMPTY' | translate }}</p>
+                    <p class="inbox-empty-hint">{{ 'TITLEBAR.INBOX_EMPTY_HINT' | translate }}</p>
+                </div>
+            } @else {
+                <div class="inbox-list thin-scrollbar">
+                    @for (entry of inbox.entries(); track entry.kind + entry.id) {
+                        <button (click)="openEntry(entry)" class="inbox-row">
+                            <i [class]="entry.kind === 'conversation' ? 'pi pi-at' : 'pi pi-hashtag'"
+                               class="inbox-row-glyph"></i>
+                            <span class="inbox-row-text">
+                                <span class="inbox-row-title">{{ entry.title }}</span>
+                                <span class="inbox-row-context">{{ entry.context }}</span>
+                            </span>
+                            <span class="inbox-row-badge">{{ entry.mentionCount }}</span>
+                        </button>
+                    }
+                </div>
+            }
+        </div>
+    </p-popover>
+
+    <p-menu #helpMenu [model]="helpItems()" [popup]="true" appendTo="body"/>
 }

@@ -1,9 +1,9 @@
-import {inject, Injectable} from '@angular/core';
+import {inject, Injectable, signal} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {CategoryDto, ChannelDto, ChannelPermission, GuildDto, GuildKind, RoleDto,} from '../dtos/response/guild.dto';
 import {GuildVerificationLevel} from '../dtos/response/guild-safety.dto';
 import {environment} from '../../environments/environment';
-import {catchError, map, Observable, of, Subject, throwError} from 'rxjs';
+import {catchError, map, Observable, of, Subject, tap, throwError} from 'rxjs';
 import {GuildMemberDto, RoleMemberDto, SelfGuildMemberDto} from '../dtos/response/member.dto';
 import {InviteDto} from "../dtos/response/invite.dto";
 import {CreateInviteDto} from "../dtos/request/create-invite.dto";
@@ -92,6 +92,16 @@ export interface GuildMemberWithProfileDto extends GuildMemberDto {
 export class GuildService {
     readonly guildJoined$ = new Subject<void>();
     readonly guildUpdated$ = new Subject<GuildDto>();
+
+    /**
+     * The last guild list this client fetched, for consumers that need every guild rather than
+     * the one on screen - the titlebar inbox has to count mentions across all of them, and it has
+     * no business issuing its own request for a list the server rail already asked for.
+     *
+     * <p>Empty until the first {@link getGuilds} resolves; it is a cache, not a loader.</p>
+     */
+    readonly guilds = signal<readonly GuildDto[]>([]);
+
     private apiConfig = inject(ApiConfigService);
     private http = inject(HttpClient);
     private base = this.apiConfig.baseUrl() + '/api/v1/guild';
@@ -112,7 +122,7 @@ export class GuildService {
     }
 
     getGuilds(): Observable<GuildDto[]> {
-        return this.http.get<GuildDto[]>(`${this.base}/guilds`);
+        return this.http.get<GuildDto[]>(`${this.base}/guilds`).pipe(tap(g => this.guilds.set(g)));
     }
 
     getGuild(id: string): Observable<GuildDto> {

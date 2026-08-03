@@ -1,4 +1,4 @@
-import {Component, inject, signal, ViewChild} from '@angular/core';
+import {Component, effect, inject, signal, ViewChild} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {ProfileService} from "../../../../services/profile.service";
 import {AppAvatarComponent} from "../../../../components/avatar/avatar.component";
@@ -13,6 +13,7 @@ import {UserType} from "../../../../dtos/response/UserDto";
 import {AdminModalComponent} from "../../../../features/admin/admin-modal/admin-modal.component";
 import {StatusPickerComponent} from "../status-picker/status-picker.component";
 import {SelfProfilePopoverComponent} from "../self-profile-popover/self-profile-popover.component";
+import {SettingsUiService} from "../../../../services/settings-ui.service";
 
 @Component({
     selector: 'app-quick-settings',
@@ -39,6 +40,7 @@ export class QuickSettingsComponent {
     protected voiceSvc = inject(VoiceChannelService);
     protected readonly ConnectionState = ConnectionState;
     protected readonly UserType = UserType;
+    private settingsUi = inject(SettingsUiService);
     @ViewChild(SettingsModalComponent) private settingsModal!: SettingsModalComponent;
     @ViewChild(SelfProfilePopoverComponent) private selfProfilePopover!: SelfProfilePopoverComponent;
 
@@ -49,6 +51,16 @@ export class QuickSettingsComponent {
         if (!this.userService.self()) {
             this.userService.getSelf().subscribe();
         }
+
+        // The dialog is a child of this component, so requests raised elsewhere - the titlebar's
+        // help menu - can only be honoured from here.
+        effect(() => {
+            const page = this.settingsUi.requestedPage();
+            if (!page) return;
+            this.settingsUi.consume();
+            this.settingsModal?.selectPage(page);
+            this.isSettingsOpen.set(true);
+        });
     }
 
     protected openSelfProfilePopover(event: Event): void {
