@@ -16,7 +16,7 @@
 - **PrimeNG buttons:** `<p-button>` with `(onClick)`, never `(click)`.
 - **All URLs through `this.apiConfig.baseUrl()`**; guild endpoints under `/api/v1/guild`.
 - **Enums are serialized as strings by the backend** (`JsonStringEnumConverter`). `verificationLevel` is `"None" | "Low" | "Medium" | "High"`, never a number.
-- **All user-facing strings must be i18n keys** in `en.json`, `de.json`, `fr.json` (flat dotted keys). That directory is the `venta-i18n` git submodule — commit inside it first.
+- **All user-facing strings must be i18n keys** in `en.json`, `de.json`, `fr.json` (flat dotted keys). That directory is the `venta-i18n` git submodule - commit inside it first.
 - **Visual target is Discord**, adapted to Alpine's existing settings-page conventions.
 - Use `ChangeDetectionStrategy.OnPush` on all new components.
 - Permission gating uses the existing helpers in `src/app/enums/permissions.enum.ts`: `parsePermissions`, `hasPermission`, `Permissions.ManageGuild`.
@@ -33,7 +33,7 @@
 - Test: `src/app/services/guild-safety.service.spec.ts`
 
 **Interfaces:**
-- Produces: `GuildVerificationLevel`, `AutoModConfig`, `OnboardingConfig`, `OnboardingStatus`, `GuildSafetyService.{getAutoModConfig,updateAutoModConfig,getOnboardingConfig,updateOnboardingConfig,getMyOnboarding,acceptOnboarding}` — consumed by Tasks 2-6.
+- Produces: `GuildVerificationLevel`, `AutoModConfig`, `OnboardingConfig`, `OnboardingStatus`, `GuildSafetyService.{getAutoModConfig,updateAutoModConfig,getOnboardingConfig,updateOnboardingConfig,getMyOnboarding,acceptOnboarding}` - consumed by Tasks 2-6.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -94,7 +94,7 @@ describe('GuildSafetyService', () => {
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `ng test --watch=false --include='**/guild-safety.service.spec.ts'`
-Expected: FAIL — cannot resolve `./guild-safety.service`.
+Expected: FAIL - cannot resolve `./guild-safety.service`.
 
 - [ ] **Step 3: Write the DTOs**
 
@@ -199,7 +199,7 @@ export class GuildSafetyService {
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `ng test --watch=false --include='**/guild-safety.service.spec.ts'`
-Expected: PASS (3 tests). Then `ng build` — expected: succeeds (adding a required field to `GuildDto` may surface object literals that need updating; fix any that appear).
+Expected: PASS (3 tests). Then `ng build` - expected: succeeds (adding a required field to `GuildDto` may surface object literals that need updating; fix any that appear).
 
 - [ ] **Step 6: Commit**
 
@@ -220,7 +220,7 @@ git commit -m "feat: add guild safety DTOs and service"
 **Interfaces:**
 - Consumes: `GuildVerificationLevel` (Task 1).
 
-**Read first:** the whole of `overview-settings.component.ts` — it already has the `dirty`/`save()` pattern this task extends, including a `Select` import for the system-channel dropdown.
+**Read first:** the whole of `overview-settings.component.ts` - it already has the `dirty`/`save()` pattern this task extends, including a `Select` import for the system-channel dropdown.
 
 - [ ] **Step 1: Extend UpdateGuildDto**
 
@@ -296,7 +296,7 @@ git commit -m "feat: add guild verification level setting"
 **Interfaces:**
 - Consumes: nothing from earlier tasks beyond the `GuildVerificationLevel` type.
 
-**Read first:** `invite-dialog.component.ts` in full — it uses a `dialogState` signal (`'loading' | 'ready' | 'joining' | 'joined' | 'error'`) and currently swallows every join error back to `'ready'`.
+**Read first:** `invite-dialog.component.ts` in full - it uses a `dialogState` signal (`'loading' | 'ready' | 'joining' | 'joined' | 'error'`) and currently swallows every join error back to `'ready'`.
 
 - [ ] **Step 1: Add the rejection state**
 
@@ -486,8 +486,8 @@ export class ModerationSettingsComponent implements OnInit {
 Create `moderation-settings.component.html`:
 
 - **Master toggle row:** label + description + `<p-toggleswitch [(ngModel)]="enabled" />`, laid out like the rows in `notification-settings.component.html` (read it for the exact row markup).
-- **Blocked words section:** an `<input pInputText [(ngModel)]="wordDraft" (keydown.enter)="addWord()">` with an "Add" `<p-button>`, and below it the current list rendered as removable chips — a `flex flex-wrap gap-2` container with `@for (w of blockedWords(); track w)` producing a `bg-hover border border-border rounded-full px-3 py-1 text-[0.8125rem]` pill with a `pi pi-times` button calling `removeWord(w)`. Show an empty-state line when the list is empty.
-- **Rate limit section:** a `<p-toggleswitch [(ngModel)]="rateLimitOn" />`, and `@if (rateLimitOn())` two `<p-inputnumber>` fields (`maxMessages`, `intervalSeconds`) with a sentence-style layout ("Allow **N** messages every **M** seconds"). Per the backend, this is a fixed window, not a sliding one — do not write copy promising precise semantics.
+- **Blocked words section:** an `<input pInputText [(ngModel)]="wordDraft" (keydown.enter)="addWord()">` with an "Add" `<p-button>`, and below it the current list rendered as removable chips - a `flex flex-wrap gap-2` container with `@for (w of blockedWords(); track w)` producing a `bg-hover border border-border rounded-full px-3 py-1 text-[0.8125rem]` pill with a `pi pi-times` button calling `removeWord(w)`. Show an empty-state line when the list is empty.
+- **Rate limit section:** a `<p-toggleswitch [(ngModel)]="rateLimitOn" />`, and `@if (rateLimitOn())` two `<p-inputnumber>` fields (`maxMessages`, `intervalSeconds`) with a sentence-style layout ("Allow **N** messages every **M** seconds"). Per the backend, this is a fixed window, not a sliding one - do not write copy promising precise semantics.
 - A note that bots and webhooks are never filtered.
 - **Save button** at the bottom: `<p-button [label]="'COMMON.SAVE' | translate" severity="primary" size="small" [loading]="saving()" (onClick)="save()" />`.
 - Wrap the whole page in `@if (!loading())` with a simple loading state otherwise.
@@ -525,7 +525,7 @@ git commit -m "feat: add auto-moderation settings page"
 **Interfaces:**
 - Consumes: nothing from earlier tasks.
 
-**Read first:** `channel.component.ts` lines 279-340 — the `createMessage` method with its optimistic-add + `catchError(() => { this.messageStore.failMessage(tempId); return EMPTY; })` path.
+**Read first:** `channel.component.ts` lines 279-340 - the `createMessage` method with its optimistic-add + `catchError(() => { this.messageStore.failMessage(tempId); return EMPTY; })` path.
 
 - [ ] **Step 1: Add the inline error signal**
 
@@ -597,7 +597,7 @@ git commit -m "feat: surface auto-moderation blocks inline in the composer"
 
 ---
 
-### Task 6: Onboarding — admin config page and member rules gate
+### Task 6: Onboarding - admin config page and member rules gate
 
 **Files:**
 - Create: `src/app/features/guild/components/guild-settings-modal/pages/onboarding-settings/onboarding-settings.component.ts`
@@ -675,7 +675,7 @@ describe('GuildOnboardingStateService', () => {
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `ng test --watch=false --include='**/guild-onboarding-state.service.spec.ts'`
-Expected: FAIL — cannot resolve the service.
+Expected: FAIL - cannot resolve the service.
 
 - [ ] **Step 3: Write the state service**
 
@@ -742,9 +742,9 @@ Create `onboarding-settings.component.ts` + `.html`, following the same shape as
 
 - Signals: `loading`, `saving`, `enabled`, `rulesText`, `defaultChannelIds`.
 - `ngOnInit` loads via `getOnboardingConfig(guildId)`.
-- Template: a `<p-toggleswitch>` for `enabled`; a `<textarea pTextarea rows="10">` for `rulesText` (plain text — do not add markdown preview, nothing is parsed server-side); a multi-select of text channels for `defaultChannelIds` built from `guild().channels` filtered to `ChannelType.Text`, using PrimeNG `MultiSelect`; a save button.
+- Template: a `<p-toggleswitch>` for `enabled`; a `<textarea pTextarea rows="10">` for `rulesText` (plain text - do not add markdown preview, nothing is parsed server-side); a multi-select of text channels for `defaultChannelIds` built from `guild().channels` filtered to `ChannelType.Text`, using PrimeNG `MultiSelect`; a save button.
 - Client-side guard mirroring the server: if `enabled` is true and `rulesText` is blank, show an inline error and do not submit (the server returns 400).
-- Add a muted note that enabling onboarding is not retroactive — existing members are never gated.
+- Add a muted note that enabling onboarding is not retroactive - existing members are never gated.
 - Register in the guild settings modal under the **`Community`** nav group as `{id: 'onboarding', label: 'Onboarding', icon: 'pi pi-book'}` plus the matching `@case`.
 
 - [ ] **Step 6: Write the member rules gate**
@@ -754,8 +754,8 @@ Create `onboarding-gate.component.ts` + `.html`:
 - `guildId = input.required<string>();`
 - Injects `GuildOnboardingStateService`; an `effect` calls `loadFor(guildId())` whenever the id changes.
 - Renders a PrimeNG `<p-dialog>` when `pendingForGuild(guildId())` is true: `[closable]="false"`, `[modal]="true"`, `[draggable]="false"`, `[dismissableMask]="false"`.
-- Contents: the guild name as a heading, the rules text rendered **verbatim with whitespace preserved** — use `class="whitespace-pre-wrap"` and interpolation, never `[innerHTML]`, since the text is unsanitized user input; wrap it in a `max-h-[50vh] overflow-y-auto thin-scrollbar` container; an "I understand and agree" `<p-button severity="primary">` calling `accept(guildId())`; and, if `defaultChannelIds` is non-empty, a short list of those channels as quick links.
-- Per the backend guide, restrictions lift immediately on accept — no refetch or reconnect needed.
+- Contents: the guild name as a heading, the rules text rendered **verbatim with whitespace preserved** - use `class="whitespace-pre-wrap"` and interpolation, never `[innerHTML]`, since the text is unsanitized user input; wrap it in a `max-h-[50vh] overflow-y-auto thin-scrollbar` container; an "I understand and agree" `<p-button severity="primary">` calling `accept(guildId())`; and, if `defaultChannelIds` is non-empty, a short list of those channels as quick links.
+- Per the backend guide, restrictions lift immediately on accept - no refetch or reconnect needed.
 
 - [ ] **Step 7: Mount the gate**
 
@@ -820,7 +820,7 @@ git commit -m "chore: bump i18n submodule for guild safety strings"
 
 **Expected merge conflicts with sibling plans in this batch:**
 
-- `guild-settings-modal.component.ts` (`navGroups` + `imports`) and `.html` (`@case` blocks) — also modified by the events/templates plan. Resolve by union: keep every nav entry and every case.
-- `src/app/dtos/response/guild.dto.ts` — this plan adds `verificationLevel` to `GuildDto`; the messaging-parity plan adds `Announcement` to `ChannelType`. Different regions of the same file; resolve by union.
-- `src/app/services/guild.service.ts` — this plan extends `UpdateGuildDto`; other plans add methods. Union.
-- The three i18n locale files — union of added keys.
+- `guild-settings-modal.component.ts` (`navGroups` + `imports`) and `.html` (`@case` blocks) - also modified by the events/templates plan. Resolve by union: keep every nav entry and every case.
+- `src/app/dtos/response/guild.dto.ts` - this plan adds `verificationLevel` to `GuildDto`; the messaging-parity plan adds `Announcement` to `ChannelType`. Different regions of the same file; resolve by union.
+- `src/app/services/guild.service.ts` - this plan extends `UpdateGuildDto`; other plans add methods. Union.
+- The three i18n locale files - union of added keys.

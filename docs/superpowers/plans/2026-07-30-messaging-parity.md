@@ -4,7 +4,7 @@
 
 **Goal:** Point the already-built message search UI at the endpoint the backend actually exposes, and add announcement channels with Discord's Follow-Channel + Publish cross-posting mechanic.
 
-**Architecture:** Task 1 is a targeted repair — the search UI, store, highlight pipe and results panel all already exist and work; only the two URLs in `MessagingService` are wrong, so nothing above the service layer changes. Tasks 2-5 add `ChannelType.Announcement` to the client model, a `ChannelFollowService`, a Publish action on messages in announcement channels, and a Follow-Channel dialog.
+**Architecture:** Task 1 is a targeted repair - the search UI, store, highlight pipe and results panel all already exist and work; only the two URLs in `MessagingService` are wrong, so nothing above the service layer changes. Tasks 2-5 add `ChannelType.Announcement` to the client model, a `ChannelFollowService`, a Publish action on messages in announcement channels, and a Follow-Channel dialog.
 
 **Tech Stack:** Angular 21 signals, PrimeNG 21 (`Dialog`, `Button`, `Select`), Tailwind v4 theme tokens, `@ngx-translate/core`.
 
@@ -14,9 +14,9 @@
 - **Font sizes use rem-based Tailwind classes** (`text-[0.625rem]`, not `text-[10px]`).
 - **Scrollable areas use the `thin-scrollbar` class** from `styles.css`.
 - **PrimeNG buttons:** `<p-button>` with `(onClick)`, never `(click)`.
-- **All URLs through `this.apiConfig.baseUrl()`.** Note the messaging service base legitimately contains `messaging` twice: `/api/v1/messaging/messaging/...` (gateway prefix + the service's own route base). This is not a typo — preserve it.
+- **All URLs through `this.apiConfig.baseUrl()`.** Note the messaging service base legitimately contains `messaging` twice: `/api/v1/messaging/messaging/...` (gateway prefix + the service's own route base). This is not a typo - preserve it.
 - **Enums serialize as strings.**
-- **All user-facing strings must be i18n keys** in `en.json`, `de.json`, `fr.json` (flat dotted keys). That directory is the `venta-i18n` git submodule — commit inside it first.
+- **All user-facing strings must be i18n keys** in `en.json`, `de.json`, `fr.json` (flat dotted keys). That directory is the `venta-i18n` git submodule - commit inside it first.
 - **Visual target is Discord**, adapted to Alpine's conventions.
 - Use `ChangeDetectionStrategy.OnPush` on all new components.
 - Do not modify `src-tauri/Cargo.lock`.
@@ -32,7 +32,7 @@
 **Interfaces:**
 - Produces: corrected `searchMessagesForChannel` / `searchMessagesForConversation`. Callers in `src/app/stores/message.store.ts` (lines ~309 and ~445) keep their existing signatures and must not change.
 
-**Context:** the client currently calls `/api/v1/messaging/messaging/channels/{id}/messages/search?q=...`, which does not exist on the backend. The real endpoint is a single flat route taking the scope as a query parameter. Every remote search has therefore been failing silently — the store swallows the error and falls back to local-only results, so the bug looks like "search only finds recent messages".
+**Context:** the client currently calls `/api/v1/messaging/messaging/channels/{id}/messages/search?q=...`, which does not exist on the backend. The real endpoint is a single flat route taking the scope as a query parameter. Every remote search has therefore been failing silently - the store swallows the error and falls back to local-only results, so the bug looks like "search only finds recent messages".
 
 - [ ] **Step 1: Write the failing test**
 
@@ -94,7 +94,7 @@ describe('MessagingService search', () => {
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `ng test --watch=false --include='**/messaging.service.spec.ts'`
-Expected: FAIL — the requests go to `/channels/c1/messages/search` and `expectOne` finds no match.
+Expected: FAIL - the requests go to `/channels/c1/messages/search` and `expectOne` finds no match.
 
 - [ ] **Step 3: Fix the service**
 
@@ -136,7 +136,7 @@ Expected: PASS (3 tests).
 - [ ] **Step 5: Verify the callers still compile**
 
 Run: `ng build && ng test --watch=false`
-Expected: build succeeds; full suite green. `message.store.ts` should need no changes — confirm you did not alter either method's signature.
+Expected: build succeeds; full suite green. `message.store.ts` should need no changes - confirm you did not alter either method's signature.
 
 - [ ] **Step 6: Commit**
 
@@ -155,7 +155,7 @@ git commit -m "fix: point message search at the real backend endpoint"
 - Modify: the channel-list item components that map a `ChannelType` to an icon (find with `grep -rn "ChannelType.Forum" src/app/features/guild`)
 
 **Interfaces:**
-- Produces: `ChannelType.Announcement` — consumed by Tasks 3-4.
+- Produces: `ChannelType.Announcement` - consumed by Tasks 3-4.
 
 - [ ] **Step 1: Add the enum member**
 
@@ -177,12 +177,12 @@ The create-channel modal already offers Text, Voice and Forum as selectable type
 
 - [ ] **Step 3: Add the sidebar icon**
 
-Wherever the sidebar maps channel type to an icon (the same place `ChannelType.Forum` is handled), add an `Announcement` branch using `pi pi-megaphone`. Search for every `ChannelType.Forum` occurrence and handle `Announcement` at each site that needs it — including any `switch` that would otherwise fall through to a text-channel default.
+Wherever the sidebar maps channel type to an icon (the same place `ChannelType.Forum` is handled), add an `Announcement` branch using `pi pi-megaphone`. Search for every `ChannelType.Forum` occurrence and handle `Announcement` at each site that needs it - including any `switch` that would otherwise fall through to a text-channel default.
 
 - [ ] **Step 4: Verify**
 
 Run: `ng build && ng test --watch=false`
-Expected: build succeeds; suite green. Any `switch` over `ChannelType` with exhaustiveness checking will surface here — fix each.
+Expected: build succeeds; suite green. Any `switch` over `ChannelType` with exhaustiveness checking will surface here - fix each.
 
 - [ ] **Step 5: Commit**
 
@@ -329,7 +329,7 @@ git commit -m "feat: add channel follow service and message publish"
 **Interfaces:**
 - Consumes: `ChannelFollowService`, `MessagingService.publishMessage` (Task 3), `ChannelType.Announcement` (Task 2).
 
-**Read first:** `message-hover-toolbar.component.ts` — it currently exposes `isOwn`, `canPin`, `isPinned`, `guildId` inputs and `reply`/`edit`/`delete`/`emojiToggled`/`pinToggled` outputs. Follow that pattern exactly.
+**Read first:** `message-hover-toolbar.component.ts` - it currently exposes `isOwn`, `canPin`, `isPinned`, `guildId` inputs and `reply`/`edit`/`delete`/`emojiToggled`/`pinToggled` outputs. Follow that pattern exactly.
 
 - [ ] **Step 1: Add the publish control to the hover toolbar**
 
@@ -353,7 +353,7 @@ In the toolbar template, add a button rendered only `@if (canPublish())`, using 
 In `message.component.ts`:
 
 - Add `channelType = input<ChannelType | undefined>();`
-- Add `protected canPublish = computed(() => this.channelType() === ChannelType.Announcement && this.canPin());` — the backend gates publishing on `PinMessages`, so the same permission the pin control already uses applies here; do not introduce a second permission input.
+- Add `protected canPublish = computed(() => this.channelType() === ChannelType.Announcement && this.canPin());` - the backend gates publishing on `PinMessages`, so the same permission the pin control already uses applies here; do not introduce a second permission input.
 - Add `protected published = signal(false);`
 - Add:
 
@@ -391,7 +391,7 @@ Create `follow-channel-dialog.component.ts` + `.html`:
 
 - [ ] **Step 4: Add the Follow entry point**
 
-In the guild channel header (the component rendering the channel name and search box), add — rendered only when `channel().type === ChannelType.Announcement` — a `<p-button icon="pi pi-plus-circle" [text]="true" severity="secondary" size="small">` opening the follow dialog, with the `CHANNEL.FOLLOW` tooltip.
+In the guild channel header (the component rendering the channel name and search box), add - rendered only when `channel().type === ChannelType.Announcement` - a `<p-button icon="pi pi-plus-circle" [text]="true" severity="secondary" size="small">` opening the follow dialog, with the `CHANNEL.FOLLOW` tooltip.
 
 - [ ] **Step 5: Verify**
 
@@ -418,7 +418,7 @@ Grep Tasks 2-4's files for `| translate`. Include at minimum: `GUILD.CHANNEL_TYP
 
 - [ ] **Step 2: Add to all three locales with real translations**
 
-Flat dotted keys, grouped next to their topical neighbours (the `GUILD.CHANNEL_TYPE_*` keys already exist — put the announcement pair immediately after the forum pair). No English placeholders in `de.json`/`fr.json`.
+Flat dotted keys, grouped next to their topical neighbours (the `GUILD.CHANNEL_TYPE_*` keys already exist - put the announcement pair immediately after the forum pair). No English placeholders in `de.json`/`fr.json`.
 
 - [ ] **Step 3: Verify parity**
 
@@ -446,6 +446,6 @@ git commit -m "chore: bump i18n submodule for cross-posting strings"
 
 **Expected merge conflicts with sibling plans in this batch:**
 
-- `src/app/dtos/response/guild.dto.ts` — this plan adds `ChannelType.Announcement`; the guild-safety plan adds `verificationLevel` to `GuildDto`; the events/templates plan may also add `Announcement`. Resolve by union, keeping one copy of the enum member.
-- `src/app/features/messaging/.../message-hover-toolbar.component.ts` and `message.component.html` — no other plan in this batch touches them, but they were the conflict points in the previous batch. If a conflict appears, resolve by union of inputs/outputs and attributes.
-- The three i18n locale files — union of added keys.
+- `src/app/dtos/response/guild.dto.ts` - this plan adds `ChannelType.Announcement`; the guild-safety plan adds `verificationLevel` to `GuildDto`; the events/templates plan may also add `Announcement`. Resolve by union, keeping one copy of the enum member.
+- `src/app/features/messaging/.../message-hover-toolbar.component.ts` and `message.component.html` - no other plan in this batch touches them, but they were the conflict points in the previous batch. If a conflict appears, resolve by union of inputs/outputs and attributes.
+- The three i18n locale files - union of added keys.

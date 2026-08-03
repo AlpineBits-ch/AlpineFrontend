@@ -117,7 +117,7 @@ button, a, [role="button"], input, select, textarea, label {
   50% { box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.6); }
 }
 
-/* Put this on the avatar element itself — a wrapper around an inline-level
+/* Put this on the avatar element itself - a wrapper around an inline-level
    avatar is as tall as its line box, which makes the ring an oval. */
 .speaking-ring {
   animation: speaking-ring 1.4s ease-in-out infinite;
@@ -290,12 +290,12 @@ button, a, [role="button"], input, select, textarea, label {
   --color-border-subtle:  rgba(255 255 255 / 0.10);
   --color-border-default: rgba(255 255 255 / 0.16);
 
-  /* ── Motion — exactly two speeds, one curve, used everywhere ── */
+  /* ── Motion - exactly two speeds, one curve, used everywhere ── */
   --duration-fast: 100ms;  /* immediate feedback: buttons, presses */
   --duration-base: 200ms;  /* everything else: hovers, panel/list transitions */
   --ease-brand: cubic-bezier(0.2, 0, 0, 1);
 
-  /* ── Icon/tile shape — uniform rounded-square, no morphing ──── */
+  /* ── Icon/tile shape - uniform rounded-square, no morphing ──── */
   --radius-icon: 12px;
 }
 

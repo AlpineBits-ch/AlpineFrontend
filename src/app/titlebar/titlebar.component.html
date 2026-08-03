@@ -89,8 +89,8 @@
                               stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
                               stroke-width="1.3"/>
                     </svg>
-                    @if (inbox.totalMentions() > 0) {
-                        <span class="chrome-badge">{{ inbox.totalMentions() > 99 ? '99+' : inbox.totalMentions() }}</span>
+                    @if (inbox.badgeLabel(); as badge) {
+                        <span class="chrome-badge">{{ badge }}</span>
                     }
                 </button>
 
@@ -151,37 +151,11 @@
 
     </div>
 
-    <p-popover #inboxPopover [style]="{width: '360px', padding: '0'}" appendTo="body" styleClass="titlebar-inbox">
-        <div class="inbox-panel">
-            <div class="inbox-head">
-                <span class="inbox-title">{{ 'TITLEBAR.INBOX' | translate }}</span>
-                @if (inbox.totalMentions() > 0) {
-                    <span class="inbox-count">{{ inbox.totalMentions() }}</span>
-                }
-            </div>
-
-            @if (inbox.entries().length === 0) {
-                <div class="inbox-empty">
-                    <i class="pi pi-check-circle"></i>
-                    <p class="inbox-empty-title">{{ 'TITLEBAR.INBOX_EMPTY' | translate }}</p>
-                    <p class="inbox-empty-hint">{{ 'TITLEBAR.INBOX_EMPTY_HINT' | translate }}</p>
-                </div>
-            } @else {
-                <div class="inbox-list thin-scrollbar">
-                    @for (entry of inbox.entries(); track entry.kind + entry.id) {
-                        <button (click)="openEntry(entry)" class="inbox-row">
-                            <i [class]="entry.kind === 'conversation' ? 'pi pi-at' : 'pi pi-hashtag'"
-                               class="inbox-row-glyph"></i>
-                            <span class="inbox-row-text">
-                                <span class="inbox-row-title">{{ entry.title }}</span>
-                                <span class="inbox-row-context">{{ entry.context }}</span>
-                            </span>
-                            <span class="inbox-row-badge">{{ entry.mentionCount }}</span>
-                        </button>
-                    }
-                </div>
-            }
-        </div>
+    <!-- `onShow` rather than the toggle handler: `toggle` fires on the way out too, so fetching
+         there spent a request every time the user dismissed the panel. -->
+    <p-popover #inboxPopover (onShow)="inbox.open()" [style]="{width: '420px', padding: '0'}"
+               appendTo="body" styleClass="titlebar-inbox">
+        <app-inbox-panel (navigated)="inboxPopover.hide()"/>
     </p-popover>
 
     <p-menu #helpMenu [model]="helpItems()" [popup]="true" appendTo="body"/>

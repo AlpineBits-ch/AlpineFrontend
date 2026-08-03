@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Render consecutive same-author messages (within a 20s window, no reply) in a compact form — no avatar/name/timestamp header, just the body — in both guild channels and DMs.
+**Goal:** Render consecutive same-author messages (within a 20s window, no reply) in a compact form - no avatar/name/timestamp header, just the body - in both guild channels and DMs.
 
 **Architecture:** A single pure function (`isGroupedWithPrevious`) decides grouping from message data alone (author, timestamp, reply target). Each list component (`ChannelComponent`, `ConversationComponent`) derives a `messageRows` computed from its existing `messages` computed, pairing each message with its grouping flag, and passes that flag into the shared `MessageComponent` via a new `isGrouped` input, which conditionally hides its avatar/header block and tightens spacing.
 
@@ -103,7 +103,7 @@ describe('isGroupedWithPrevious', () => {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `npx ng test --include='**/message-utils.spec.ts'`
-Expected: FAIL — `isGroupedWithPrevious` is not exported from `message-utils.ts` (import error / undefined function).
+Expected: FAIL - `isGroupedWithPrevious` is not exported from `message-utils.ts` (import error / undefined function).
 
 - [ ] **Step 3: Implement the helper**
 
@@ -153,9 +153,9 @@ git commit -m "feat: add isGroupedWithPrevious message grouping helper"
 
 **Interfaces:**
 - Consumes: nothing new from other tasks (this task is self-contained; `isGrouped` defaults to `false` so behavior is unchanged until Tasks 3/4 wire it up).
-- Produces: `MessageComponent.isGrouped: InputSignal<boolean>` — Tasks 3 and 4 bind `[isGrouped]` on `<app-message>` to this.
+- Produces: `MessageComponent.isGrouped: InputSignal<boolean>` - Tasks 3 and 4 bind `[isGrouped]` on `<app-message>` to this.
 
-There is no existing spec file for this component (`message.component.spec.ts` does not exist and this plan does not add one — no other component in this codebase's message-rendering area has one either). Verification for this task is manual, done at the end of Task 3.
+There is no existing spec file for this component (`message.component.spec.ts` does not exist and this plan does not add one - no other component in this codebase's message-rendering area has one either). Verification for this task is manual, done at the end of Task 3.
 
 - [ ] **Step 1: Add the `isGrouped` input**
 
@@ -237,7 +237,7 @@ Before:
         </div>
 ```
 
-After — wrap that whole block in `@if (!isGrouped())`:
+After - wrap that whole block in `@if (!isGrouped())`:
 ```html
         @if (!isGrouped()) {
             <div class="flex items-center gap-2 mb-1">
@@ -249,7 +249,7 @@ After — wrap that whole block in `@if (!isGrouped())`:
         }
 ```
 
-Do not change anything else in the file — the reply reference block, content body, attachments, embeds, reactions, and hover toolbar stay exactly as they are today.
+Do not change anything else in the file - the reply reference block, content body, attachments, embeds, reactions, and hover toolbar stay exactly as they are today.
 
 - [ ] **Step 5: Type-check**
 
@@ -273,7 +273,7 @@ git commit -m "feat: add compact rendering mode to MessageComponent"
 
 **Interfaces:**
 - Consumes: `isGroupedWithPrevious` from Task 1 (`src/app/features/messaging/components/conversation/message-utils.ts`), `isGrouped` input on `MessageComponent` from Task 2.
-- Produces: `protected messageRows = computed(() => { message: MessageDto; isGrouped: boolean }[])` on `ChannelComponent` — template-only, no other task depends on it.
+- Produces: `protected messageRows = computed(() => { message: MessageDto; isGrouped: boolean }[])` on `ChannelComponent` - template-only, no other task depends on it.
 
 - [ ] **Step 1: Add the `messageRows` computed**
 
@@ -350,9 +350,9 @@ Expected: builds successfully.
 - [ ] **Step 4: Manual verification**
 
 Run: `npm start` (or the project's usual `run` workflow), open a guild channel, and:
-1. Send two messages quickly as the same user — confirm the second renders compact (no avatar/name/timestamp) and hovering it reveals a timestamp where the avatar would be.
-2. Have a different user (or another account) post between two of your messages — confirm grouping breaks and the interleaved message shows its own full header.
-3. Wait 21+ seconds between two messages from the same user — confirm the second renders full, not compact.
+1. Send two messages quickly as the same user - confirm the second renders compact (no avatar/name/timestamp) and hovering it reveals a timestamp where the avatar would be.
+2. Have a different user (or another account) post between two of your messages - confirm grouping breaks and the interleaved message shows its own full header.
+3. Wait 21+ seconds between two messages from the same user - confirm the second renders full, not compact.
 4. Confirm a `GuildMemberJoin`/`GuildMemberLeave` system message is unaffected, and the real message right after it still renders full (not grouped into the system line).
 
 - [ ] **Step 5: Commit**
@@ -371,8 +371,8 @@ git commit -m "feat: apply message grouping to guild channel messages"
 - Modify: `src/app/features/messaging/components/conversation/conversation.component.html`
 
 **Interfaces:**
-- Consumes: `isGroupedWithPrevious` from Task 1 (same file, `./message-utils` — `conversation.component.ts` lives in the same directory), `isGrouped` input on `MessageComponent` from Task 2.
-- Produces: `protected messageRows = computed(() => { message: MessageDto; isGrouped: boolean }[])` on `ConversationComponent` — template-only.
+- Consumes: `isGroupedWithPrevious` from Task 1 (same file, `./message-utils` - `conversation.component.ts` lives in the same directory), `isGrouped` input on `MessageComponent` from Task 2.
+- Produces: `protected messageRows = computed(() => { message: MessageDto; isGrouped: boolean }[])` on `ConversationComponent` - template-only.
 
 - [ ] **Step 1: Add the `messageRows` computed**
 
@@ -437,7 +437,7 @@ After:
                 </div>
 ```
 
-Note: if `row.message.id === firstUnreadId()` is true, the unread divider still forces a visual break above that message, but `isGrouped` is computed independently and may still be `true` if the author/timing match — that's fine, the divider and the compact header are unrelated concerns and both can render together.
+Note: if `row.message.id === firstUnreadId()` is true, the unread divider still forces a visual break above that message, but `isGrouped` is computed independently and may still be `true` if the author/timing match - that's fine, the divider and the compact header are unrelated concerns and both can render together.
 
 - [ ] **Step 3: Type-check**
 

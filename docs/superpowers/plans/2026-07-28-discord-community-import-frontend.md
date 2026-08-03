@@ -1,10 +1,10 @@
-# Discord Community Import — Frontend Integration Implementation Plan
+# Discord Community Import - Frontend Integration Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Let a guild owner kick off a Discord → Echo structure import from inside the Alpine desktop client, watch it complete without leaving the app, and manage the resulting live-sync link (pause/resume/unlink) from guild settings.
 
-**Architecture:** The backend (`Import.*` microservice, out of this repo) is already shipped per the spec: `GET /api/v1/imports/discord/start` returns a Discord OAuth `authorizeUrl`; Discord calls a backend-only callback; polling `GET /api/v1/imports/jobs/{jobId}` reports progress; `GET/PATCH/DELETE /api/v1/imports/links` manages the ongoing link. The spec's frontend section assumes a generic hosted web app and has the backend 302-redirect the browser straight to a frontend route (`{InstanceUrl}/imports/{jobId}`) after Discord approval. **Alpine has no such hosted web route** — it's a Tauri desktop client that bundles its Angular build locally (`frontendDist: ../dist/alpine/browser` in `src-tauri/tauri.conf.json`) and already solves this exact "real external OAuth, then hop back into the running app" problem for Steam linking via a `venta://` deep link (`SteamService` + `app.component.ts`'s `handleDeepLink`). This plan follows that established pattern instead of the spec's literal web-route text (confirmed with the user): the OAuth `authorizeUrl` opens in the system browser via `ExternalLinkService`, and the return trip is a `venta://discord-import?jobId=...` deep link that the desktop app parses and turns into an in-app polling dialog. **This means the backend's callback redirect target must be changed from `{InstanceUrl}/imports/{jobId}` to `venta://discord-import?jobId={jobId}` (or `venta://discord-import?error=...` on failure before a job exists) — that change is in the `Import.Application` repo, outside this plan's scope, and must be coordinated separately.** Everything else (start/poll/links endpoints, request/response shapes) is consumed as specced.
+**Architecture:** The backend (`Import.*` microservice, out of this repo) is already shipped per the spec: `GET /api/v1/imports/discord/start` returns a Discord OAuth `authorizeUrl`; Discord calls a backend-only callback; polling `GET /api/v1/imports/jobs/{jobId}` reports progress; `GET/PATCH/DELETE /api/v1/imports/links` manages the ongoing link. The spec's frontend section assumes a generic hosted web app and has the backend 302-redirect the browser straight to a frontend route (`{InstanceUrl}/imports/{jobId}`) after Discord approval. **Alpine has no such hosted web route** - it's a Tauri desktop client that bundles its Angular build locally (`frontendDist: ../dist/alpine/browser` in `src-tauri/tauri.conf.json`) and already solves this exact "real external OAuth, then hop back into the running app" problem for Steam linking via a `venta://` deep link (`SteamService` + `app.component.ts`'s `handleDeepLink`). This plan follows that established pattern instead of the spec's literal web-route text (confirmed with the user): the OAuth `authorizeUrl` opens in the system browser via `ExternalLinkService`, and the return trip is a `venta://discord-import?jobId=...` deep link that the desktop app parses and turns into an in-app polling dialog. **This means the backend's callback redirect target must be changed from `{InstanceUrl}/imports/{jobId}` to `venta://discord-import?jobId={jobId}` (or `venta://discord-import?error=...` on failure before a job exists) - that change is in the `Import.Application` repo, outside this plan's scope, and must be coordinated separately.** Everything else (start/poll/links endpoints, request/response shapes) is consumed as specced.
 
 Two entry points are added: (1) a secondary "Import from Discord instead" action inside the existing `CreateGuildModalComponent` (since an import always creates a brand-new guild, exactly like "Create a Server" does), and (2) a new "Discord Sync" page in `GuildSettingsModalComponent` for managing an existing link (visible for every guild; shows "not linked" when the links list is empty).
 
@@ -14,15 +14,15 @@ Two entry points are added: (1) a secondary "Import from Discord instead" action
 
 - **Scope is frontend-only, Alpine repo only.** No backend/`Import.*` code exists here and none is added. Do not invent server-side files.
 - **Structure only, matching backend scope**: no member list, no message history UI anywhere in this feature.
-- **Only `Active`/`Paused` are settable from the UI** for `GuildLink.status` — `Revoked` is a server-side terminal state reached via the unlink (`DELETE`) endpoint, never PATCHed directly.
-- **`SyncDirection` is read-only in the UI** for v1 — `GuildLinkDto.syncDirection` is fetched and typed but intentionally not rendered anywhere in Task 5 (every real link is `DiscordToVenta` today; `VentaToDiscord`/`Bidirectional` are modeled server-side but "not implemented", per the spec, so there is nothing meaningful to show or let the user change yet).
+- **Only `Active`/`Paused` are settable from the UI** for `GuildLink.status` - `Revoked` is a server-side terminal state reached via the unlink (`DELETE`) endpoint, never PATCHed directly.
+- **`SyncDirection` is read-only in the UI** for v1 - `GuildLinkDto.syncDirection` is fetched and typed but intentionally not rendered anywhere in Task 5 (every real link is `DiscordToVenta` today; `VentaToDiscord`/`Bidirectional` are modeled server-side but "not implemented", per the spec, so there is nothing meaningful to show or let the user change yet).
 - **Follow existing conventions exactly:**
-  - Services use `ApiConfigService.baseUrl()` (a signal, called fresh per request — never cached) for the base URL, per `GuildService`/`BotInstallService`/`SteamService`.
+  - Services use `ApiConfigService.baseUrl()` (a signal, called fresh per request - never cached) for the base URL, per `GuildService`/`BotInstallService`/`SteamService`.
   - Angular DI via `inject()`, not constructor injection.
   - PrimeNG `<p-button (onClick)="...">`, never `(click)` on `p-button`.
   - Dialog services expose a `signal<T | null>` named `request`, plus `close()`, mirroring `BotInstallDialogService`.
   - Deep-link parsing lives in a standalone pure-function util file with its own `.spec.ts`, mirroring `bot-install-link.util.ts`.
-  - New user-facing strings go through `TranslateModule` / `{{ 'KEY' | translate }}`, with real keys added to **all three** locale files (`src/assets/i18n/locales/en.json`, `de.json`, `fr.json` — flat dot-path keys, e.g. `"DISCORD_IMPORT.TITLE": "..."`, not nested JSON objects).
+  - New user-facing strings go through `TranslateModule` / `{{ 'KEY' | translate }}`, with real keys added to **all three** locale files (`src/assets/i18n/locales/en.json`, `de.json`, `fr.json` - flat dot-path keys, e.g. `"DISCORD_IMPORT.TITLE": "..."`, not nested JSON objects).
   - New services/utils get a `.spec.ts` using Vitest + `TestBed`, following `guild.service.spec.ts` (HTTP) or `bot-install-dialog.service.spec.ts` (signal-based service) patterns as appropriate.
 - **Verify each task** with `npx ng test --watch=false` (must pass, zero new failures) and `npx ng build` (must compile with zero new errors).
 
@@ -37,7 +37,7 @@ Two entry points are added: (1) a secondary "Import from Discord instead" action
 
 **Interfaces:**
 - Produces: `ImportJobStatus`, `ImportJobDto`, `GuildLinkStatus`, `GuildLinkSyncDirection`, `GuildLinkDto`, `StartImportResponseDto` (all exported from `discord-import.dto.ts`).
-- Produces: `DiscordImportService` with methods `startImport()`, `getJob(jobId)`, `getLinks(guildId)`, `setLinkStatus(linkId, status)`, `unlink(linkId)` — consumed by Task 3 (progress dialog), Task 4 (create-guild modal), and Task 5 (Discord Sync settings page).
+- Produces: `DiscordImportService` with methods `startImport()`, `getJob(jobId)`, `getLinks(guildId)`, `setLinkStatus(linkId, status)`, `unlink(linkId)` - consumed by Task 3 (progress dialog), Task 4 (create-guild modal), and Task 5 (Discord Sync settings page).
 
 - [ ] **Step 1: Write the DTOs**
 
@@ -215,8 +215,8 @@ git commit -m "feat: add Discord import DTOs and API client service"
 
 **Interfaces:**
 - Consumes: `AuthService.isLoggedIn()` (`src/app/services/auth.service.ts`), `ToastService.error()` (`src/app/services/toast.service.ts`), `Router` (`@angular/router`).
-- Produces: `parseDiscordImportLink(url): DiscordImportLinkParams | null` — consumed by Task 3 (`app.component.ts`'s `handleDeepLink`).
-- Produces: `DiscordImportProgressService` with `readonly request = signal<{jobId: string} | null>(null)`, `requestOpen(params: DiscordImportLinkParams): Promise<void>`, `resumeIfPending(): void`, `close(): void` — consumed by Task 3 (progress dialog component + `app.component.ts`).
+- Produces: `parseDiscordImportLink(url): DiscordImportLinkParams | null` - consumed by Task 3 (`app.component.ts`'s `handleDeepLink`).
+- Produces: `DiscordImportProgressService` with `readonly request = signal<{jobId: string} | null>(null)`, `requestOpen(params: DiscordImportLinkParams): Promise<void>`, `resumeIfPending(): void`, `close(): void` - consumed by Task 3 (progress dialog component + `app.component.ts`).
 
 - [ ] **Step 1: Write the deep-link parser**
 
@@ -654,7 +654,7 @@ Add the equivalent French keys to `fr.json`:
 "DISCORD_IMPORT.CLOSE": "Fermer",
 ```
 
-Insert each block as additional top-level flat properties in the existing JSON object (match the file's existing formatting — comma-separated `"KEY.PATH": "value"` entries, not nested).
+Insert each block as additional top-level flat properties in the existing JSON object (match the file's existing formatting - comma-separated `"KEY.PATH": "value"` entries, not nested).
 
 - [ ] **Step 4: Wire the deep link and dialog into `app.component.ts`**
 
@@ -808,7 +808,7 @@ Expected: succeeds with zero new errors.
 
 - [ ] **Step 5: Manual check**
 
-Run the app (`bun run start` + `bun run tauri dev`, or whatever the project's existing dev workflow is), open the "+" add-server button, confirm the new "Import from Discord" button renders in the footer, is disabled while the name field submit is in flight, and (since no real Discord app is registered yet per the spec's "Not yet deployed" note) at minimum confirm clicking it calls the endpoint and surfaces a toast on error (a 404/500 from the not-yet-deployed backend is an acceptable outcome to observe here — the goal is confirming the request fires and errors surface, not a live Discord round-trip).
+Run the app (`bun run start` + `bun run tauri dev`, or whatever the project's existing dev workflow is), open the "+" add-server button, confirm the new "Import from Discord" button renders in the footer, is disabled while the name field submit is in flight, and (since no real Discord app is registered yet per the spec's "Not yet deployed" note) at minimum confirm clicking it calls the endpoint and surfaces a toast on error (a 404/500 from the not-yet-deployed backend is an acceptable outcome to observe here - the goal is confirming the request fires and errors surface, not a live Discord round-trip).
 
 - [ ] **Step 6: Commit**
 
@@ -1093,7 +1093,7 @@ Add to `fr.json`:
 
 - [ ] **Step 6: Note on the nav label i18n key (no action needed)**
 
-The template already pipes `{{ item.label | translate }}` for every nav entry (see `guild-settings-modal.component.html:49`), but the `navGroups` array in the `.ts` file populates `label` with a raw English string (`'Discord Sync'`, from Step 3) rather than a translation key path — this matches the existing convention for every other nav item (`'Overview'`, `'Members'`, etc.), which is a pre-existing i18n gap in this modal, not something this task introduces or should fix. The `GUILD_SETTINGS.NAV.DISCORD_SYNC` key added in Step 5 exists only for parity with the other unused `NAV.*` keys already sitting in the locale files; it is not consumed anywhere today.
+The template already pipes `{{ item.label | translate }}` for every nav entry (see `guild-settings-modal.component.html:49`), but the `navGroups` array in the `.ts` file populates `label` with a raw English string (`'Discord Sync'`, from Step 3) rather than a translation key path - this matches the existing convention for every other nav item (`'Overview'`, `'Members'`, etc.), which is a pre-existing i18n gap in this modal, not something this task introduces or should fix. The `GUILD_SETTINGS.NAV.DISCORD_SYNC` key added in Step 5 exists only for parity with the other unused `NAV.*` keys already sitting in the locale files; it is not consumed anywhere today.
 
 - [ ] **Step 7: Build to confirm no compile errors**
 
@@ -1137,4 +1137,4 @@ Run the app via the project's normal dev workflow. Confirm:
 
 - [ ] **Step 4: Note the outstanding cross-repo dependency**
 
-Confirm (by re-reading this plan's Architecture section) that the backend's `Import.Application` callback redirect target still needs to change from `{InstanceUrl}/imports/{jobId}` to `venta://discord-import?jobId={jobId}` (success) / `venta://discord-import?error={message}` (failure before a job exists) before this feature can be exercised end-to-end against real Discord. Flag this to whoever owns that repo — it is not fixable from Alpine.
+Confirm (by re-reading this plan's Architecture section) that the backend's `Import.Application` callback redirect target still needs to change from `{InstanceUrl}/imports/{jobId}` to `venta://discord-import?jobId={jobId}` (success) / `venta://discord-import?error={message}` (failure before a job exists) before this feature can be exercised end-to-end against real Discord. Flag this to whoever owns that repo - it is not fixable from Alpine.

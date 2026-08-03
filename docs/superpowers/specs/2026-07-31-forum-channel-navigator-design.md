@@ -1,4 +1,4 @@
-# Forum Channel Navigator — Design
+# Forum Channel Navigator - Design
 
 **Date:** 2026-07-31
 **Status:** Implemented.
@@ -7,7 +7,7 @@
 
 Two complaints about how forums read in the channel sidebar.
 
-The forum glyph was `pi pi-align-left` — four flush-left text lines, the icon a compose toolbar
+The forum glyph was `pi pi-align-left` - four flush-left text lines, the icon a compose toolbar
 uses for text alignment. Nothing about it says *discussion*.
 
 And a forum was a dead end in the navigator. Opening a post replaced the sidebar's sense of where
@@ -28,7 +28,7 @@ Taken with the human, in order:
 - **Rollup:** the forum row reports the sum of its posts.
 
 Three calls made rather than asked, all flagged and accepted: an 8-row total cap, forum-like
-channels only (`Forum` and `Media` — text-channel threads keep their existing thread panel), and
+channels only (`Forum` and `Media` - text-channel threads keep their existing thread panel), and
 leaving `Thread` on `pi-comments` alongside `Forum`.
 
 ## What made this cheap
@@ -43,30 +43,30 @@ Two things were already true and are the reason this needed no API work:
 
 ## Architecture
 
-**`ForumVisitedPostsService`** (`src/app/services/forum-visited-posts.service.ts`) — root,
+**`ForumVisitedPostsService`** (`src/app/services/forum-visited-posts.service.ts`) - root,
 localStorage-backed, `forumId → postId[]` newest-first, capped at 5.
 
 Recording happens in one effect on `navService.mainView()`, resolving the open channel through
-`forumParentOf`. It is deliberately not at the call sites: there are four ways a post opens — the
+`forumParentOf`. It is deliberately not at the call sites: there are four ways a post opens - the
 full-width post list, the narrow pane, a sidebar row, and nav restored from localStorage on reload
-— and the restore path runs no click handler at all. Watching the view catches every one.
+- and the restore path runs no click handler at all. Watching the view catches every one.
 
 Malformed storage reads as empty, per-entry, so one bad forum cannot discard the rest. Losing these
 rows is cosmetic; throwing would take the sidebar with it.
 
-**`forum-post-rows.util.ts`** — two pure functions, which is what makes this testable without a
+**`forum-post-rows.util.ts`** - two pure functions, which is what makes this testable without a
 component test:
 
-- `selectNestedPosts` — filters a forum's non-archived children to visited ∪ unread ∪ mentioned,
+- `selectNestedPosts` - filters a forum's non-archived children to visited ∪ unread ∪ mentioned,
   orders them mentioned → unread → visited then by `lastActivityAt` descending, and caps at 8.
   The ordering exists because of the cap: what gets cut should be the least interesting row, not
   whatever happened to sort last.
-- `forumTreePath` — the SVG path data for `n` rows.
+- `forumTreePath` - the SVG path data for `n` rows.
 
-**`ForumPostRowsComponent`** — mounted from `channel-list-items.component.html` after any
+**`ForumPostRowsComponent`** - mounted from `channel-list-items.component.html` after any
 forum-like row. Renders nothing when the selector returns nothing.
 
-**Rollup** — `GuildReadStateService.aggregate(ids)` sums mentions and ORs unread.
+**Rollup** - `GuildReadStateService.aggregate(ids)` sums mentions and ORs unread.
 `TextChannelItemComponent` computes its own children for forum-like types and aggregates over
 `[own, ...children]`. Every other type passes an empty list, so `aggregate([own])` is identical to
 the old `getChannelState(own)` and their behaviour is untouched.
@@ -85,7 +85,7 @@ blunt end.
 row height. If they drift the branches stop meeting their rows, so the template binds
 `[style.height.px]` from the constant rather than restating it in CSS.
 
-Each instance's gradient gets a unique id — SVG ids resolve document-wide, and two forums with
+Each instance's gradient gets a unique id - SVG ids resolve document-wide, and two forums with
 nested rows would otherwise share one gradient.
 
 ## Icon consistency
@@ -104,7 +104,7 @@ unparseable and partially-malformed storage), and the rollup. No component-templ
 convention.
 
 The runner's global `localStorage` exists but has no methods, so the visited spec installs an
-in-memory stand-in — without it the service's own try/catch swallows every read and persistence
+in-memory stand-in - without it the service's own try/catch swallows every read and persistence
 could not be asserted at all.
 
 **Not verified:** nothing here has been seen rendered. The suite and build are green, and the tree

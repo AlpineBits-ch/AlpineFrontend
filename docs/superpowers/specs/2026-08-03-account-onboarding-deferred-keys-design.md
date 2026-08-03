@@ -14,9 +14,9 @@ something social.
 The master key is **not a capability gate**. Nothing in messaging, guilds, or calls
 consults it. Its only consumers are:
 
-- `backup.service.ts` — writes the encrypted device backup
-- `logout-dialog.component.ts` — refuses a clean sign-out without one
-- `master-key-recovery-dialog` / `master-key-state.service.ts` — repair after a password reset
+- `backup.service.ts` - writes the encrypted device backup
+- `logout-dialog.component.ts` - refuses a clean sign-out without one
+- `master-key-recovery-dialog` / `master-key-state.service.ts` - repair after a password reset
 
 MLS signing keys, which *are* what encrypt messages, come from device registration and the
 OS keychain and are established independently in `runMlsLaunch`.
@@ -206,10 +206,10 @@ Strings live in the locales git submodule and land in their own commit ahead of 
 
 ## Testing
 
-- `onboarding.service.spec.ts` — PUT shape, self patched on success, error leaves state untouched
-- `social-key-gate.service.spec.ts` — satisfied when a key exists; fails open on null self;
+- `onboarding.service.spec.ts` - PUT shape, self patched on success, error leaves state untouched
+- `social-key-gate.service.spec.ts` - satisfied when a key exists; fails open on null self;
   `require()` resolves false on dismiss and true on completion; interests PUT on completion
-- `composer.component.spec.ts` — a blocked send preserves the editor content and emits nothing;
+- `composer.component.spec.ts` - a blocked send preserves the editor content and emits nothing;
   an allowed send behaves exactly as before
-- `main-page` launch branch — onboarding shown when `onboardedAt` is null; key setup skipped for
+- `main-page` launch branch - onboarding shown when `onboardedAt` is null; key setup skipped for
   an Isle-only account with no key; key setup shown for a social account with no key

@@ -236,7 +236,11 @@ export class ChannelListComponent {
         });
 
         effect(() => {
-            this.readStateService.loadForGuild(this.guild().id);
+            // Reads `guild()` so a guild switch retries a seed that failed, but the seed itself is
+            // global now - the inbox answers for every guild at once, so this no longer costs a
+            // request per server.
+            this.guild();
+            void this.readStateService.ensureSeeded();
         });
 
         effect(() => {

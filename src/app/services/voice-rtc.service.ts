@@ -740,7 +740,7 @@ export class VoiceRTCService {
     /**
      * Change stream quality mid-share, the way Discord's stream-settings cog does.
      *
-     * A framerate change is free — the Rust capture loop reads it each frame. A resolution change
+     * A framerate change is free - the Rust capture loop reads it each frame. A resolution change
      * costs one renegotiation and keyframe, which is acceptable because the user asked for it.
      */
     async setScreenPreset(

@@ -19,6 +19,8 @@ import {ExternalLinkService} from "../../services/external-link.service";
 import {ApiConfigService, ServerConfiguration} from "../../services/api-config.service";
 import {environment} from "../../../environments/environment";
 import {QrLoginPanelComponent} from "./qr-login-panel/qr-login-panel.component";
+import {AccountRegistryService, AccountSlot} from "../../services/account-registry.service";
+import {AccountSwitchService} from "../../services/account-switch.service";
 
 /** `qr` is a peer of `login`, not a sub-step of it: it produces its own token pair. */
 type AuthMode = 'login' | 'register' | 'qr';
@@ -52,6 +54,11 @@ interface RegisterModel {
     styleUrl: './login.component.css',
 })
 export class Login {
+    /** Abandons the add and goes back to an account that is already signed in. */
+    protected returnTo(slot: AccountSlot): void {
+        void this.switcher.switchTo(slot.id);
+    }
+
     protected mode = signal<AuthMode>('login');
     protected externalLinkService = inject(ExternalLinkService);
     protected authService = inject(AuthService);
@@ -117,11 +124,27 @@ export class Login {
     private mfaChallenge = inject(MfaChallengeService);
     private passwordResetDialog = inject(PasswordResetDialogService);
     private destroyRef = inject(DestroyRef);
+    private accounts = inject(AccountRegistryService);
+    private switcher = inject(AccountSwitchService);
+
+    /**
+     * Accounts already signed in on this machine, offered as a way back.
+     *
+     * <p>Reaching this screen through "Add Account" sets the live account aside without signing it
+     * out. Without this the only route back to a session that is still perfectly valid is to type
+     * its password again - and there is no other affordance on this screen that could serve.</p>
+     *
+     * <p>Empty on a normal sign-out, which removes the slot, so this stays invisible for everyone
+     * who is not mid-add.</p>
+     */
+    protected returnableAccounts = signal<AccountSlot[]>([]);
 
     constructor() {
         this.authService.isLoggedIn().then(r => {
             if (r) this.router.navigate(['/overview']);
         });
+
+        void this.accounts.list().then(slots => this.returnableAccounts.set(slots));
 
         // Watch the server derived from the login username and fetch config
         const loginServerUrl = computed(() => {
@@ -170,7 +193,7 @@ export class Login {
     protected openPasswordReset(): void {
         const value = this.loginModel().username;
         // The reset endpoints go through ApiConfigService.baseUrl(), which only points at a
-        // self-hosted server once applyLoginInput() has parsed a `user@server` identity —
+        // self-hosted server once applyLoginInput() has parsed a `user@server` identity -
         // normally during a login attempt. Someone resetting their password on a fresh
         // install has never logged in, so without this the request would go to the default
         // server and silently do nothing. `user@host` is read as server-qualified here for

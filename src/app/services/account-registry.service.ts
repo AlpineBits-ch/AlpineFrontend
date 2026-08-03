@@ -1,6 +1,10 @@
 import {Injectable, signal} from '@angular/core';
 import {LazyStore} from '@tauri-apps/plugin-store';
-import {BOOTSTRAP_SLOT_ID, setActiveSlotId} from './scoped-oauth-storage';
+import {
+    activeSlotId as liveSlotId,
+    BOOTSTRAP_SLOT_ID,
+    setActiveSlotId,
+} from './scoped-oauth-storage';
 
 // Re-exported from where it is defined, so the many callers that reach for it alongside the slot
 // list keep one import and the two modules keep a one-way dependency.
@@ -29,9 +33,22 @@ export interface AccountSlot {
     lastUsedAt: number;
 }
 
+/**
+ * The persisted half: the slot list, and nothing about which one is live.
+ *
+ * <p><b>Which slot is live is deliberately not in here.</b> It used to be, alongside the
+ * `localStorage` mirror that the synchronous readers need - and two sources of truth for one fact
+ * is exactly as safe as it sounds. Reading the file republished its `activeSlotId` over the mirror,
+ * so "Add Account" - which sets the mirror aside and leaves the file alone on purpose - was undone
+ * by the first thing on the login screen that asked for a device id. The mirror came back, the
+ * OAuth storage found the previous account's tokens again, and the login screen redirected straight
+ * back into it. The feature reloaded the page and did nothing else.</p>
+ *
+ * <p>{@link activeSlotId} is now the only answer, and it comes from the mirror. Losing the mirror
+ * costs nothing that is not already lost: the tokens live beside it.</p>
+ */
 interface RegistryFile {
     slots: AccountSlot[];
-    activeSlotId: string | null;
 }
 
 /**
@@ -82,21 +99,27 @@ export class AccountRegistryService {
     /** Loaded once; every later read is served from the signals. */
     private loaded: Promise<RegistryFile> | null = null;
 
-    /** The live slot, or null before anyone has signed in. */
+    /** The live slot, or null when none is - before sign-in, and while adding an account. */
     async activeSlot(): Promise<AccountSlot | null> {
         const file = await this.load();
-        return file.slots.find(s => s.id === file.activeSlotId) ?? null;
+        const id = liveSlotId();
+        return file.slots.find(s => s.id === id) ?? null;
     }
 
     /**
      * The live slot's id, or {@link BOOTSTRAP_SLOT_ID}.
      *
-     * <p>Never null, so callers cannot forget the pre-login case and end up with an undefined
-     * segment in a store filename.</p>
+     * <p>Read from the mirror, which is the only record of it - see {@link RegistryFile}. Never
+     * null, so callers cannot forget the pre-login case and end up with an undefined segment in a
+     * store filename.</p>
+     *
+     * <p>Still async, and still awaits the file: callers use the answer to name per-account stores,
+     * and handing them an id for a slot this service has not loaded yet invites a read against a
+     * registry that turns out to be empty.</p>
      */
     async activeSlotId(): Promise<string> {
-        const file = await this.load();
-        return file.activeSlotId ?? BOOTSTRAP_SLOT_ID;
+        await this.load();
+        return liveSlotId();
     }
 
     async list(): Promise<AccountSlot[]> {
@@ -140,7 +163,9 @@ export class AccountRegistryService {
                 slots: existing
                     ? file.slots.map(s => (s.id === slot.id ? slot : s))
                     : [...file.slots, slot],
-                activeSlotId: slot.id,
+                // Committed as part of the write, never as a side effect of a read - that is the
+                // distinction "Add Account" depends on.
+                live: slot.id,
                 result: slot,
             };
         });
@@ -175,7 +200,7 @@ export class AccountRegistryService {
                 slots: file.slots.map(s =>
                     s.id === slotId ? {...s, lastUsedAt: Date.now()} : s,
                 ),
-                activeSlotId: slotId,
+                live: slotId,
                 result: true,
             };
         });
@@ -193,11 +218,12 @@ export class AccountRegistryService {
             const slots = file.slots.filter(s => s.id !== slotId);
             return {
                 slots,
-                activeSlotId: file.activeSlotId === slotId
+                live: liveSlotId() === slotId
                     // The most recently used survivor, so removing one of several accounts lands
                     // somewhere useful rather than on the login screen.
-                    ? slots.slice().sort((a, b) => b.lastUsedAt - a.lastUsedAt)[0]?.id ?? null
-                    : file.activeSlotId,
+                    ? slots.slice().sort((a, b) => b.lastUsedAt - a.lastUsedAt)[0]?.id
+                        ?? BOOTSTRAP_SLOT_ID
+                    : liveSlotId(),
                 result: undefined,
             };
         });
@@ -213,40 +239,45 @@ export class AccountRegistryService {
         return this.loaded;
     }
 
+    /**
+     * Loads the slot list.
+     *
+     * <p><b>Writes nothing.</b> Not the file, and above all not the live-slot mirror - republishing
+     * it from here is the bug that made "Add Account" a no-op. A read must be able to happen at any
+     * moment, from any caller, without changing who the app thinks is signed in.</p>
+     */
     private async read(): Promise<RegistryFile> {
         const store = new LazyStore(STORE_FILE);
-        const raw = await store.get<RegistryFile>(REGISTRY_KEY);
+        const raw = await store.get<{slots?: AccountSlot[]}>(REGISTRY_KEY);
         const file: RegistryFile = {
             slots: Array.isArray(raw?.slots) ? raw.slots : [],
-            activeSlotId: raw?.activeSlotId ?? null,
         };
         this.publish(file);
         return file;
     }
 
-    /** Read, transform, write, publish - the only path that changes the file. */
+    /** Read, transform, write, publish - the only path that changes anything. */
     private async mutate<T>(
-        change: (file: RegistryFile) => RegistryFile & {result: T},
+        change: (file: RegistryFile) => RegistryFile & {live?: string; result: T},
     ): Promise<T> {
         const current = await this.load();
-        const {result, ...next} = change(current);
+        const {result, live, ...next} = change(current);
 
         const store = new LazyStore(STORE_FILE);
         await store.set(REGISTRY_KEY, next);
         await store.save();
+
+        // The mirror moves only here, and only when the change asked for it.
+        if (live !== undefined) setActiveSlotId(live);
 
         this.loaded = Promise.resolve(next);
         this.publish(next);
         return result;
     }
 
+    /** Refreshes the synchronous views. Never writes anything - see {@link read}. */
     private publish(file: RegistryFile): void {
         this._slots.set(file.slots);
-        this._activeSlotId.set(file.activeSlotId);
-
-        // Mirrored where the synchronous readers can see it. `ScopedOAuthStorage` is built during
-        // application bootstrap and its methods cannot await, so it reads the live slot from
-        // `localStorage`; this file stays the authority and that mirror follows it.
-        setActiveSlotId(file.activeSlotId ?? BOOTSTRAP_SLOT_ID);
+        this._activeSlotId.set(liveSlotId());
     }
 }

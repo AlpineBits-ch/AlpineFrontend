@@ -3,7 +3,7 @@
 ## Background
 
 The backend has published a client spec (see conversation / `Multi-Device Calls & Voice
-Channels — Client Spec`) introducing a per-device identifier so the server can tell which
+Channels - Client Spec`) introducing a per-device identifier so the server can tell which
 device a user is acting from for calls and guild voice channels. This fixes two bugs:
 
 1. **Calls**: accepting on one device and declining on another (both ringing) currently ends

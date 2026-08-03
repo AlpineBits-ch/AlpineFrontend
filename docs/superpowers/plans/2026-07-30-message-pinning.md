@@ -2,23 +2,23 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let users pin/unpin messages in guild channels and DMs, see a pinned badge on pinned messages, and browse a per-channel/per-conversation "Pinned Messages" panel — backed by the already-live pinning endpoints described in the backend integration guide.
+**Goal:** Let users pin/unpin messages in guild channels and DMs, see a pinned badge on pinned messages, and browse a per-channel/per-conversation "Pinned Messages" panel - backed by the already-live pinning endpoints described in the backend integration guide.
 
-**Architecture:** `MessageDto` gains `isPinned`/`pinnedAt`/`pinnedById`. `MessagingService` gains `pinMessage`/`unpinMessage`/`getPinnedMessages`. Both websocket services gain `guild.MessagePinned`/`Unpinned` and `conversation.MessagePinned`/`Unpinned` listeners feeding two new `MessageStore` methods (`applyPinned`/`applyUnpinned`), mirroring the existing reaction-sync pattern exactly. The pin/unpin *action* lives in `MessageComponent` (toggle button in the hover toolbar + mobile long-press sheet), gated by the existing `Permissions.PinMessages` bit for guild channels (DMs are ungated, per spec — "any conversation member"). A new `PinnedMessagesPanelComponent`, modeled directly on the existing `ThreadPanelComponent`, is toggled from a header button in both `ChannelComponent` and `ConversationComponent`.
+**Architecture:** `MessageDto` gains `isPinned`/`pinnedAt`/`pinnedById`. `MessagingService` gains `pinMessage`/`unpinMessage`/`getPinnedMessages`. Both websocket services gain `guild.MessagePinned`/`Unpinned` and `conversation.MessagePinned`/`Unpinned` listeners feeding two new `MessageStore` methods (`applyPinned`/`applyUnpinned`), mirroring the existing reaction-sync pattern exactly. The pin/unpin *action* lives in `MessageComponent` (toggle button in the hover toolbar + mobile long-press sheet), gated by the existing `Permissions.PinMessages` bit for guild channels (DMs are ungated, per spec - "any conversation member"). A new `PinnedMessagesPanelComponent`, modeled directly on the existing `ThreadPanelComponent`, is toggled from a header button in both `ChannelComponent` and `ConversationComponent`.
 
 **Tech Stack:** Angular 21 (signals, `input()`, new `@if`/`@for` control flow), `@ngrx/signals` (`MessageStore`), Vitest (`*.spec.ts`, run via `ng test`), PrimeNG (`Button`).
 
 ## Global Constraints
 
-- Pin endpoint: `POST https://api.venta.gg/api/v1/messaging/messaging/{messageId}/pin` — no body.
-- Unpin endpoint: `DELETE https://api.venta.gg/api/v1/messaging/messaging/{messageId}/pin` — no body.
-- List endpoint: `GET https://api.venta.gg/api/v1/messaging/messaging/pins?channelId={id}` or `?conversationId={id}` — returns up to 50 messages, most-recently-pinned first.
-- Guild channels: pin/unpin requires `Permissions.PinMessages` (already defined, `1n << 6n`, already in `PERM_GROUPS`'s "Messages" group — no enum changes needed this plan).
-- DMs: any conversation member may pin/unpin — no client-side permission gate.
+- Pin endpoint: `POST https://api.venta.gg/api/v1/messaging/messaging/{messageId}/pin` - no body.
+- Unpin endpoint: `DELETE https://api.venta.gg/api/v1/messaging/messaging/{messageId}/pin` - no body.
+- List endpoint: `GET https://api.venta.gg/api/v1/messaging/messaging/pins?channelId={id}` or `?conversationId={id}` - returns up to 50 messages, most-recently-pinned first.
+- Guild channels: pin/unpin requires `Permissions.PinMessages` (already defined, `1n << 6n`, already in `PERM_GROUPS`'s "Messages" group - no enum changes needed this plan).
+- DMs: any conversation member may pin/unpin - no client-side permission gate.
 - Realtime events: `guild.MessagePinned` / `guild.MessageUnpinned` (guild channels), `conversation.MessagePinned` / `conversation.MessageUnpinned` (DMs). These update `isPinned` in place; a full refetch is never required to reflect a pin/unpin from another user.
-- No per-channel pin cap enforced client-side (server returns at most 50 from the list endpoint but doesn't block pinning past that — match that permissiveness, don't invent a client-side cap).
-- No "X pinned a message" system message — out of scope for this pass.
-- Full spec: see the "Message pinning — frontend integration guide" section of the conversation this plan originated from (not a repo file — inline in the planning session).
+- No per-channel pin cap enforced client-side (server returns at most 50 from the list endpoint but doesn't block pinning past that - match that permissiveness, don't invent a client-side cap).
+- No "X pinned a message" system message - out of scope for this pass.
+- Full spec: see the "Message pinning - frontend integration guide" section of the conversation this plan originated from (not a repo file - inline in the planning session).
 
 ---
 
@@ -30,9 +30,9 @@
 - Create: `src/app/services/messaging.service.spec.ts`
 
 **Interfaces:**
-- Produces: `MessageDto.isPinned?: boolean`, `MessageDto.pinnedAt?: string`, `MessageDto.pinnedById?: string` — consumed by Task 2 (store), Task 3 (badge + toggle), Task 5 (panel).
+- Produces: `MessageDto.isPinned?: boolean`, `MessageDto.pinnedAt?: string`, `MessageDto.pinnedById?: string` - consumed by Task 2 (store), Task 3 (badge + toggle), Task 5 (panel).
 - Produces: `PinMessageResponse` interface, exported from `message.dto.ts`.
-- Produces: `MessagingService.pinMessage(messageId: string): Observable<PinMessageResponse>`, `unpinMessage(messageId: string): Observable<PinMessageResponse>`, `getPinnedMessages(params: {channelId?: string; conversationId?: string}): Observable<MessageDto[]>` — consumed by Task 3 (toggle) and Task 5 (panel).
+- Produces: `MessagingService.pinMessage(messageId: string): Observable<PinMessageResponse>`, `unpinMessage(messageId: string): Observable<PinMessageResponse>`, `getPinnedMessages(params: {channelId?: string; conversationId?: string}): Observable<MessageDto[]>` - consumed by Task 3 (toggle) and Task 5 (panel).
 
 - [ ] **Step 1: Add pin fields to `MessageDto` and the `PinMessageResponse` type**
 
@@ -125,7 +125,7 @@ describe('MessagingService pinning', () => {
 - [ ] **Step 3: Run the tests to verify they fail**
 
 Run: `npx ng test --include='**/messaging.service.spec.ts'`
-Expected: FAIL — `pinMessage`/`unpinMessage`/`getPinnedMessages` don't exist on `MessagingService`.
+Expected: FAIL - `pinMessage`/`unpinMessage`/`getPinnedMessages` don't exist on `MessagingService`.
 
 - [ ] **Step 4: Implement the service methods**
 
@@ -177,7 +177,7 @@ git commit -m "feat: add message pin/unpin/list-pins service methods"
 
 **Interfaces:**
 - Consumes: `MessageDto` pin fields from Task 1.
-- Produces: `MessagePinnedEvent`/`MessageUnpinnedEvent` interfaces (exported from `messaging-websocket.service.ts`, re-used by `guild-websocket.service.ts` the same way `ReactionEvent` already is), `MessagingWebsocketService.messagePinnedObservable`/`messageUnpinnedObservable`, `GuildWebsocketService.messagePinnedObservable`/`messageUnpinnedObservable`, `MessageStore.applyPinned(event)`/`applyUnpinned(event)` — consumed by Task 5 (panel refresh) and exercised end-to-end in Task 3's manual verification.
+- Produces: `MessagePinnedEvent`/`MessageUnpinnedEvent` interfaces (exported from `messaging-websocket.service.ts`, re-used by `guild-websocket.service.ts` the same way `ReactionEvent` already is), `MessagingWebsocketService.messagePinnedObservable`/`messageUnpinnedObservable`, `GuildWebsocketService.messagePinnedObservable`/`messageUnpinnedObservable`, `MessageStore.applyPinned(event)`/`applyUnpinned(event)` - consumed by Task 5 (panel refresh) and exercised end-to-end in Task 3's manual verification.
 
 - [ ] **Step 1: Add event interfaces + observables to `MessagingWebsocketService`**
 
@@ -290,7 +290,7 @@ In `withHooks({onInit})`, next to the existing reaction subscriptions:
 - [ ] **Step 4: Type-check**
 
 Run: `npx ng build --configuration development`
-Expected: builds successfully — confirms the re-exported `MessagePinnedEvent`/`MessageUnpinnedEvent` types line up between the two websocket services and the store.
+Expected: builds successfully - confirms the re-exported `MessagePinnedEvent`/`MessageUnpinnedEvent` types line up between the two websocket services and the store.
 
 - [ ] **Step 5: Commit**
 
@@ -311,7 +311,7 @@ git commit -m "feat: sync message pin/unpin state from realtime events"
 
 **Interfaces:**
 - Consumes: `MessagingService.pinMessage`/`unpinMessage` (Task 1), `MessageStore.applyPinned`/`applyUnpinned` (Task 2).
-- Produces: `MessageComponent.canPinMessages: InputSignal<boolean>` — consumed by Task 4 (`ChannelComponent` binds this).
+- Produces: `MessageComponent.canPinMessages: InputSignal<boolean>` - consumed by Task 4 (`ChannelComponent` binds this).
 
 - [ ] **Step 1: Add `canPinMessages` input and `canPin`/`togglePin` logic to `MessageComponent`**
 
@@ -336,7 +336,7 @@ Add near `isOwn`:
     readonly canPin = computed(() => !this.message().conversationId ? this.canPinMessages() : true);
 ```
 
-(A DM message always has `conversationId` set and no `channelId` — see `createPlainMessage` in `conversation.component.ts`. A guild message always has `channelId` set and no `conversationId` — see `createMessage` in `channel.component.ts`. So `!conversationId` reliably means "this is a guild channel message", where the `PinMessages` permission gate applies; DMs stay ungated per spec.)
+(A DM message always has `conversationId` set and no `channelId` - see `createPlainMessage` in `conversation.component.ts`. A guild message always has `channelId` set and no `conversationId` - see `createMessage` in `channel.component.ts`. So `!conversationId` reliably means "this is a guild channel message", where the `PinMessages` permission gate applies; DMs stay ungated per spec.)
 
 Add the toggle method near `toggleReaction`:
 
@@ -537,10 +537,10 @@ Expected: builds successfully with no template errors.
 - [ ] **Step 5: Manual verification**
 
 Run the app (`npm start` or the project's usual `run` workflow):
-1. In a DM, hover a message and click the new pin icon — the message should immediately show a small thumbtack badge next to its timestamp, with no permission check (DMs are ungated).
-2. Click it again — the badge disappears.
+1. In a DM, hover a message and click the new pin icon - the message should immediately show a small thumbtack badge next to its timestamp, with no permission check (DMs are ungated).
+2. Click it again - the badge disappears.
 3. On a second device/account in the same DM, confirm the pin/unpin appears live via the realtime handlers from Task 2 without a refresh.
-4. In a guild channel where your account lacks `PinMessages`, confirm the pin button is absent from the hover toolbar (requires Task 4 to be wired first — if not yet done, the button will always show since `canPinMessages` defaults to `false` only for guild messages, meaning it should currently be *hidden* for all guild messages until Task 4 wires the real value; verify this default-hidden behavior for now).
+4. In a guild channel where your account lacks `PinMessages`, confirm the pin button is absent from the hover toolbar (requires Task 4 to be wired first - if not yet done, the button will always show since `canPinMessages` defaults to `false` only for guild messages, meaning it should currently be *hidden* for all guild messages until Task 4 wires the real value; verify this default-hidden behavior for now).
 
 - [ ] **Step 6: Commit**
 
@@ -559,7 +559,7 @@ git commit -m "feat: add pin/unpin action and pinned badge to messages"
 
 **Interfaces:**
 - Consumes: `MessageComponent.canPinMessages` input (Task 3).
-- Produces: `ChannelComponent.canPinMessages: Signal<boolean>` — template-only, no other task depends on it.
+- Produces: `ChannelComponent.canPinMessages: Signal<boolean>` - template-only, no other task depends on it.
 
 - [ ] **Step 1: Compute own-member permissions in `ChannelComponent`**
 
@@ -661,7 +661,7 @@ git commit -m "feat: gate guild-channel message pinning behind PinMessages permi
 
 **Interfaces:**
 - Consumes: `MessagingService.getPinnedMessages` (Task 1), `MessagingWebsocketService.messagePinnedObservable`/`messageUnpinnedObservable`, `GuildWebsocketService.messagePinnedObservable`/`messageUnpinnedObservable` (Task 2).
-- Produces: `PinnedMessagesPanelComponent` with `channelId = input<string>()`, `conversationId = input<string>()` (exactly one is set by the caller), `messageSelected = output<string>()` (emits a message id) — consumed by Task 6 and Task 7.
+- Produces: `PinnedMessagesPanelComponent` with `channelId = input<string>()`, `conversationId = input<string>()` (exactly one is set by the caller), `messageSelected = output<string>()` (emits a message id) - consumed by Task 6 and Task 7.
 
 - [ ] **Step 1: Implement the component**
 
@@ -904,10 +904,10 @@ Expected: builds successfully.
 
 - [ ] **Step 4: Manual verification**
 
-1. Pin a couple of messages in a guild channel, then click the new pin icon in the header — the panel opens showing both, most-recent first.
-2. Click a pinned entry — the underlying message list scrolls to and briefly highlights that message (via the existing `jumpToMessage`).
-3. Unpin one from the hover toolbar — the panel updates live without re-opening it (confirms the realtime wiring from Task 2/5 works end-to-end).
-4. Switch to a different channel and back — the panel closes (per the reset effect) and does not carry over pins from the previous channel.
+1. Pin a couple of messages in a guild channel, then click the new pin icon in the header - the panel opens showing both, most-recent first.
+2. Click a pinned entry - the underlying message list scrolls to and briefly highlights that message (via the existing `jumpToMessage`).
+3. Unpin one from the hover toolbar - the panel updates live without re-opening it (confirms the realtime wiring from Task 2/5 works end-to-end).
+4. Switch to a different channel and back - the panel closes (per the reset effect) and does not carry over pins from the previous channel.
 
 - [ ] **Step 5: Commit**
 
@@ -963,7 +963,7 @@ After:
     </header>
 ```
 
-The panel needs to render as a sibling *column* next to the message area (matching `ChannelComponent`'s layout), not stacked below the composer. That means wrapping everything between the header and the end of the file — the message area *and* the composer footer — in one new flex-row container, with the panel as its second child.
+The panel needs to render as a sibling *column* next to the message area (matching `ChannelComponent`'s layout), not stacked below the composer. That means wrapping everything between the header and the end of the file - the message area *and* the composer footer - in one new flex-row container, with the panel as its second child.
 
 Change the opening of the body content (currently line 91, right after the header/call-panel block):
 
@@ -1015,18 +1015,18 @@ After:
 </div>
 ```
 
-The net effect: the pre-existing `<div class="relative flex-1 min-h-0 flex flex-col">` (opened at old line 91) now closes right after `</footer>` — it already did, that div wrapped the search/messages/typing-indicator area only, and the composer `<footer>` was already a sibling *after* it and before the original final `</div>`. The new `<div class="flex-1 flex min-h-0">` wraps both of those siblings (the message-area div and the composer footer) so the pinned panel added after its closing tag sits beside them, not below.
+The net effect: the pre-existing `<div class="relative flex-1 min-h-0 flex flex-col">` (opened at old line 91) now closes right after `</footer>` - it already did, that div wrapped the search/messages/typing-indicator area only, and the composer `<footer>` was already a sibling *after* it and before the original final `</div>`. The new `<div class="flex-1 flex min-h-0">` wraps both of those siblings (the message-area div and the composer footer) so the pinned panel added after its closing tag sits beside them, not below.
 
 - [ ] **Step 3: Type-check**
 
 Run: `npx ng build --configuration development`
-Expected: builds successfully with balanced `<div>` tags. This is the highest-risk step in this plan — if the build reports a template parse error, open the file and count `<div>`/`</div>` pairs from the root down; the new wrapper must close exactly once, immediately after `</footer>` and before the `@if (showPinnedPanel())` block.
+Expected: builds successfully with balanced `<div>` tags. This is the highest-risk step in this plan - if the build reports a template parse error, open the file and count `<div>`/`</div>` pairs from the root down; the new wrapper must close exactly once, immediately after `</footer>` and before the `@if (showPinnedPanel())` block.
 
 - [ ] **Step 4: Manual verification**
 
-1. In a DM, pin a message (Task 3's DM pin flow), open the new pinned-messages toggle in the header — panel shows it.
+1. In a DM, pin a message (Task 3's DM pin flow), open the new pinned-messages toggle in the header - panel shows it.
 2. Confirm the layout: the panel renders as a right-side column next to the messages/composer, matching the guild-channel thread-panel/pinned-panel layout, not stacked below the composer.
-3. Click a pinned entry — jumps to the message in the DM's message list.
+3. Click a pinned entry - jumps to the message in the DM's message list.
 4. Confirm starting a call, searching, and normal message sending in the DM still render correctly with the new wrapper div in place (regression check on the layout change).
 
 - [ ] **Step 5: Commit**

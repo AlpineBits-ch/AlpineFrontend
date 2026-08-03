@@ -137,7 +137,7 @@ export class RustMediaService {
      * Start Rust screen capture for the given source at a fixed output size.
      *
      * Returns a MediaStreamTrack backed by a canvas capture stream. The geometry must already be
-     * solved (see {@link solveGeometry}) — it is locked in for the life of the session.
+     * solved (see {@link solveGeometry}) - it is locked in for the life of the session.
      */
     async startScreenCapture(sourceId: string, geometry: CaptureGeometry, fps = 30): Promise<MediaStreamTrack> {
         await this.stopScreenCapture();
@@ -155,7 +155,7 @@ export class RustMediaService {
 
         // Sized once, from the solved geometry, and never resized. Resizing a canvas that
         // captureStream() is already attached to changes the track's dimensions mid-session, which
-        // forces a renegotiation and a keyframe — that is what used to tear the stream whenever a
+        // forces a renegotiation and a keyframe - that is what used to tear the stream whenever a
         // shared window was resized, and what made the first frame's size decide the aspect ratio.
         const canvas = document.createElement('canvas');
         canvas.width = geometry.width;
@@ -186,7 +186,7 @@ export class RustMediaService {
 
         const track = stream.getVideoTracks()[0];
         if (!track) throw new Error('No video track from canvas');
-        // 'detail' — screen content is text and UI. Paired with maintain-resolution degradation on
+        // 'detail' - screen content is text and UI. Paired with maintain-resolution degradation on
         // the sender (see applyScreenEncoding), the encoder drops frames under congestion instead
         // of shedding resolution. The old 'motion' hint did the opposite, which is why streams
         // looked soft and took tens of seconds to sharpen. That combination previously starved
@@ -386,7 +386,7 @@ export class RustMediaService {
                 const c = this.screenCanvas as HTMLCanvasElement;
                 const ctx = this.screenCtx as CanvasRenderingContext2D;
                 // The canvas size is fixed for the session. A source whose own aspect ratio drifts
-                // — a window being resized or maximised mid-share — is letterboxed into the fixed
+                // - a window being resized or maximised mid-share - is letterboxed into the fixed
                 // frame rather than changing the track's dimensions.
                 const scale = Math.min(c.width / bitmap.width, c.height / bitmap.height);
                 const dw = bitmap.width * scale;

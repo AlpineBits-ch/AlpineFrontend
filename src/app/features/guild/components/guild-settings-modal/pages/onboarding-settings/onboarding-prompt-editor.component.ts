@@ -84,7 +84,7 @@ export class OnboardingPromptEditorComponent {
                 const privileged = isPrivilegedRolePermissions(r.permissions);
                 return {
                     label: privileged
-                        ? `${r.name} — ${this.translate.instant('ONBOARDING_EDIT.ROLE_PRIVILEGED')}`
+                        ? `${r.name} - ${this.translate.instant('ONBOARDING_EDIT.ROLE_PRIVILEGED')}`
                         : r.name,
                     value: r.id,
                     disabled: privileged,

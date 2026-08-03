@@ -15,7 +15,7 @@ function toEven(value: number): number {
  *
  * Called once when sharing starts; the result must not change for the life of the session. A
  * mid-session change to the track's dimensions forces a renegotiation and a keyframe, which is what
- * used to make resizing a shared window tear the stream — the capture canvas was created at a
+ * used to make resizing a shared window tear the stream - the capture canvas was created at a
  * hardcoded 1920x1080 and then resized to match whatever the first (and every subsequent) frame
  * happened to be.
  */

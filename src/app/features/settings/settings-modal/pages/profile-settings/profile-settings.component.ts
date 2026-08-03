@@ -325,7 +325,7 @@ export class ProfileSettingsComponent implements OnInit {
             error: (err: HttpErrorResponse) => {
                 this.cancellingDeletion.set(false);
                 if (err.status === 409) {
-                    this.toast.error('Too late to cancel — the deletion has already started.');
+                    this.toast.error('Too late to cancel - the deletion has already started.');
                 } else {
                     this.toast.httpError('Could not cancel account deletion', err);
                 }

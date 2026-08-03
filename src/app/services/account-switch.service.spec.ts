@@ -231,14 +231,25 @@ describe('beginAddAccount', () => {
         expect(calls.some(c => c.startsWith('wipeAccount'))).toBe(false);
     });
 
-    it('leaves the registry live slot alone, so a cancelled add returns to it', async () => {
-        const {a} = await twoAccounts();
+    it('actually leaves the account - no slot is live afterwards', async () => {
+        await twoAccounts();
 
         service.beginAddAccount();
 
-        // Only the synchronous mirror moves. Nothing has replaced this account yet, and nothing
-        // should until a new sign-in actually produces one.
-        expect(await registry.activeSlotId()).toBe(a.id);
+        // This assertion used to be the opposite, and it was the bug written down as intent. The
+        // registry file also recorded a live slot back then, so reading it republished that value
+        // over the mirror and the login screen found the previous account's tokens again. See
+        // `add-account-flow.spec.ts` for the version of this that spans the reload.
+        expect(await registry.activeSlotId()).toBe(BOOTSTRAP_SLOT_ID);
+        expect(await registry.activeSlot()).toBeNull();
+    });
+
+    it('keeps the slots, so the login screen can offer a way back', async () => {
+        await twoAccounts();
+
+        service.beginAddAccount();
+
+        expect(await registry.list()).toHaveLength(2);
     });
 });
 

@@ -10,9 +10,9 @@
 
 ## Global Constraints
 
-- All three endpoints go through the gateway at `/api/v1/identity/*` with Bearer auth — auth is already handled transparently by the existing `token-interceptor.ts`; no manual token handling in any new code.
-- Requesting deletion must NOT end the current session — never call `authService.logout()` / navigate to `/authentication` on a successful `deleteAccount()` call. The session naturally stays valid until it expires or a 401 hits the interceptor.
-- No new "read state" endpoint exists — current `status`/`deletionRequestedAt`/`purgeScheduledAt` always come from the existing `GET /api/v1/identity/users/self` (`UserService.getSelf()`), which already populates the `self` signal.
+- All three endpoints go through the gateway at `/api/v1/identity/*` with Bearer auth - auth is already handled transparently by the existing `token-interceptor.ts`; no manual token handling in any new code.
+- Requesting deletion must NOT end the current session - never call `authService.logout()` / navigate to `/authentication` on a successful `deleteAccount()` call. The session naturally stays valid until it expires or a 401 hits the interceptor.
+- No new "read state" endpoint exists - current `status`/`deletionRequestedAt`/`purgeScheduledAt` always come from the existing `GET /api/v1/identity/users/self` (`UserService.getSelf()`), which already populates the `self` signal.
 - A 409 from `cancel-deletion` (plain-text body) must be shown as a specific "too late to cancel" message, not the generic HTTP-error toast.
 - Once `status` is `PurgeInProgress` or `Deleted`, the cancel button must not be shown at all (not just disabled).
 
@@ -24,13 +24,13 @@
 - Modify: `src/app/dtos/response/UserDto.ts`
 
 **Interfaces:**
-- Produces: `export enum AccountStatus { Active, PendingDeletion, PurgeInProgress, Deleted, Inactive, Banned }` and three new `UserDto` fields — `status: AccountStatus`, `deletionRequestedAt: Date | undefined`, `purgeScheduledAt: Date | undefined` — consumed by Task 2 (service), Task 3 (Profile Settings), Task 4 (banner).
+- Produces: `export enum AccountStatus { Active, PendingDeletion, PurgeInProgress, Deleted, Inactive, Banned }` and three new `UserDto` fields - `status: AccountStatus`, `deletionRequestedAt: Date | undefined`, `purgeScheduledAt: Date | undefined` - consumed by Task 2 (service), Task 3 (Profile Settings), Task 4 (banner).
 
 There is no test file for this pure type file, and no existing precedent of testing DTOs in isolation in this codebase (checked: no `*.dto.spec.ts` files exist). Verification is via the TypeScript compiler plus the tests in later tasks that construct `UserDto` values.
 
 - [ ] **Step 1: Add the enum and fields**
 
-Edit `src/app/dtos/response/UserDto.ts` — insert the new enum directly after the existing `UserType` enum (before the `EncryptedMasterKey` interface), and add the three new fields to `UserDto`:
+Edit `src/app/dtos/response/UserDto.ts` - insert the new enum directly after the existing `UserType` enum (before the `EncryptedMasterKey` interface), and add the three new fields to `UserDto`:
 
 ```ts
 export enum UserType {
@@ -63,7 +63,7 @@ And in the `UserDto` interface, add after `steamId`:
 - [ ] **Step 2: Typecheck**
 
 Run: `npx tsc --noEmit -p tsconfig.app.json`
-Expected: This will now FAIL — every place that constructs a `UserDto` object literal (currently none in production code; only in the specs we're about to add) will need these fields. At this point in the plan it should still pass since no code constructs a `UserDto` literal yet (`UserService.getSelf()` just deserializes JSON from `HttpClient`, no literal construction). Confirm it passes.
+Expected: This will now FAIL - every place that constructs a `UserDto` object literal (currently none in production code; only in the specs we're about to add) will need these fields. At this point in the plan it should still pass since no code constructs a `UserDto` literal yet (`UserService.getSelf()` just deserializes JSON from `HttpClient`, no literal construction). Confirm it passes.
 
 - [ ] **Step 3: Commit**
 
@@ -82,7 +82,7 @@ git commit -m "feat: add AccountStatus enum and deletion fields to UserDto"
 
 **Interfaces:**
 - Consumes: `AccountStatus`, `UserDto` from Task 1.
-- Produces: `UserService.deleteAccount(): Observable<UserDto>` and `UserService.cancelDeletion(): Observable<UserDto>` — both refetch and return the refreshed `self` user, consumed by Task 3.
+- Produces: `UserService.deleteAccount(): Observable<UserDto>` and `UserService.cancelDeletion(): Observable<UserDto>` - both refetch and return the refreshed `self` user, consumed by Task 3.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -188,7 +188,7 @@ describe('UserService.cancelDeletion', () => {
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `npx ng test`
-Expected: FAIL — `user.service.spec.ts` fails because `deleteAccount()` doesn't refetch (only one HTTP request is made, so `ctrl.expectOne` for the GET throws) and `cancelDeletion` doesn't exist on `UserService` (TS compile error).
+Expected: FAIL - `user.service.spec.ts` fails because `deleteAccount()` doesn't refetch (only one HTTP request is made, so `ctrl.expectOne` for the GET throws) and `cancelDeletion` doesn't exist on `UserService` (TS compile error).
 
 - [ ] **Step 3: Implement `cancelDeletion()` and fix `deleteAccount()`**
 
@@ -237,17 +237,17 @@ git commit -m "feat: add UserService.cancelDeletion and refetch self after delet
 
 **Interfaces:**
 - Consumes: `AccountStatus` (Task 1), `UserService.deleteAccount()` / `UserService.cancelDeletion()` returning `Observable<UserDto>` (Task 2).
-- Produces: `ProfileSettingsComponent.accountStatus` (computed signal used by the template's `@switch`), `confirmCancelDeletion()`, `cancelDeleteVisible`/`cancellingDeletion` signals — nothing outside this component depends on these.
+- Produces: `ProfileSettingsComponent.accountStatus` (computed signal used by the template's `@switch`), `confirmCancelDeletion()`, `cancelDeleteVisible`/`cancellingDeletion` signals - nothing outside this component depends on these.
 
 There is no existing spec file for `ProfileSettingsComponent` (or any PrimeNG-dialog-heavy settings page in this codebase), so this task is verified manually via the running app rather than a new unit test, matching the codebase's existing convention for this component.
 
 - [ ] **Step 1: Remove the now-dead force-logout code path**
 
-The current `confirmDeleteAccount()` (ts, lines 290-296) calls `clearMlsAndLogout()` (lines 306-327) on success, which wipes MLS state and force-logs-out. Per the new contract, requesting deletion must NOT do this — the session stays valid. Since `clearMlsAndLogout()` will have no other callers after this change, remove it along with the imports/fields it was the sole user of.
+The current `confirmDeleteAccount()` (ts, lines 290-296) calls `clearMlsAndLogout()` (lines 306-327) on success, which wipes MLS state and force-logs-out. Per the new contract, requesting deletion must NOT do this - the session stays valid. Since `clearMlsAndLogout()` will have no other callers after this change, remove it along with the imports/fields it was the sole user of.
 
 Edit `src/app/features/settings/settings-modal/pages/profile-settings/profile-settings.component.ts`:
 
-Replace the import block (lines 1-22) — remove `Router` (line 6), remove `from`, `of`, `switchMap` from the rxjs import (line 7), remove `AuthService` (line 12), remove `MlsService` (line 13), and change the `UserDto` import (line 19) to also bring in `AccountStatus`:
+Replace the import block (lines 1-22) - remove `Router` (line 6), remove `from`, `of`, `switchMap` from the rxjs import (line 7), remove `AuthService` (line 12), remove `MlsService` (line 13), and change the `UserDto` import (line 19) to also bring in `AccountStatus`:
 
 ```ts
 import {Component, computed, effect, ElementRef, inject, OnInit, signal, ViewChild} from '@angular/core';
@@ -340,7 +340,7 @@ Replace the existing `confirmDeleteAccount()` method with:
             error: (err: HttpErrorResponse) => {
                 this.cancellingDeletion.set(false);
                 if (err.status === 409) {
-                    this.toast.error('Too late to cancel — the deletion has already started.');
+                    this.toast.error('Too late to cancel - the deletion has already started.');
                 } else {
                     this.toast.httpError('Could not cancel account deletion', err);
                 }
@@ -441,13 +441,13 @@ In the same HTML file, insert a new dialog right after the existing "Delete acco
 - [ ] **Step 6: Typecheck**
 
 Run: `npx tsc --noEmit -p tsconfig.app.json`
-Expected: PASS — no references to the removed `AuthService`/`MlsService`/`Router`/`clearMlsAndLogout` remain.
+Expected: PASS - no references to the removed `AuthService`/`MlsService`/`Router`/`clearMlsAndLogout` remain.
 
 - [ ] **Step 7: Manual verification**
 
 Run: `npx ng serve` and open the app.
 - Navigate to Settings → Profile → Danger Zone. Confirm the "Delete Account" button and dialog still work visually.
-- Since there's no test backend easy to flip into `PendingDeletion` from the UI, verify at minimum: `accountStatus()` computed correctly defaults to `AccountStatus.Active` when `user()` has no `status` field mocked (i.e. current default backend response shape, if the backend hasn't shipped the new fields yet) — confirms the `@default` branch renders and nothing throws.
+- Since there's no test backend easy to flip into `PendingDeletion` from the UI, verify at minimum: `accountStatus()` computed correctly defaults to `AccountStatus.Active` when `user()` has no `status` field mocked (i.e. current default backend response shape, if the backend hasn't shipped the new fields yet) - confirms the `@default` branch renders and nothing throws.
 - Confirm no compile/runtime errors appear in the console when opening Profile Settings.
 
 - [ ] **Step 8: Commit**
@@ -469,7 +469,7 @@ git commit -m "feat: rework account deletion flow to stay session-valid and add 
 - Consumes: `UserService.self` signal (Task 2/existing), `AccountStatus` (Task 1).
 - Produces: `AccountDeletionBannerComponent` with an `@Output() manage: EventEmitter<void>`, consumed by Task 5 (`main-page.component.html`).
 
-No test file — matches the existing convention for this exact style of component (`IsleProximityBarComponent`/`VoiceStatusBarComponent` have no specs either). Verified manually in Task 5's step.
+No test file - matches the existing convention for this exact style of component (`IsleProximityBarComponent`/`VoiceStatusBarComponent` have no specs either). Verified manually in Task 5's step.
 
 - [ ] **Step 1: Create the component class**
 
@@ -541,9 +541,9 @@ git commit -m "feat: add app-wide account-deletion-pending banner component"
 
 **Interfaces:**
 - Consumes: `AccountDeletionBannerComponent` (Task 4), `QuickSettingsComponent.openProfileSettings()` (made public in this task).
-- Produces: nothing consumed by later tasks — this is the last task.
+- Produces: nothing consumed by later tasks - this is the last task.
 
-No test file — `MainPageComponent`/`QuickSettingsComponent` have no specs today either. Verified manually.
+No test file - `MainPageComponent`/`QuickSettingsComponent` have no specs today either. Verified manually.
 
 - [ ] **Step 1: Make `openProfileSettings()` callable from outside `QuickSettingsComponent`**
 
@@ -559,7 +559,7 @@ to:
     public openProfileSettings(): void {
 ```
 
-(The internal template binding at `quick-settings.component.html:29` — `(editProfile)="openProfileSettings()"` — keeps working unchanged; `public` is a superset of `protected` visibility for template bindings.)
+(The internal template binding at `quick-settings.component.html:29` - `(editProfile)="openProfileSettings()"` - keeps working unchanged; `public` is a superset of `protected` visibility for template bindings.)
 
 - [ ] **Step 2: Add a `ViewChild` reference and forwarding method to `MainPageComponent`**
 
@@ -706,7 +706,7 @@ Expected: PASS.
 - [ ] **Step 5: Manual verification**
 
 Run: `npx ng serve` and open the app while logged in.
-- Confirm the main app layout (server rail, sidebars, main pane, right panel) looks and behaves exactly as before — no visual regression from the flex-col re-nesting.
+- Confirm the main app layout (server rail, sidebars, main pane, right panel) looks and behaves exactly as before - no visual regression from the flex-col re-nesting.
 - Confirm no banner appears (since `status` isn't `PendingDeletion` for a normal account).
 - If the backend is available and supports it, actually call `DELETE /api/v1/identity/users/self` for a disposable test account, confirm: the app does NOT log you out, the banner appears at the top of the main shell with the correct formatted date, clicking "Manage" opens Settings on the Profile page, and the Danger Zone there shows the "Cancel Deletion" flow; confirm cancelling makes the banner disappear and restores the normal "Delete Account" button.
 

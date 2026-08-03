@@ -46,6 +46,19 @@ export interface ReadStateDto {
     updatedAt: Date;
     channelId: string;
     lastReadMessageId: string | undefined;
+    /**
+     * @deprecated Always `0` since the inbox shipped. Do not read it.
+     *
+     * <p>It was a stored counter incremented per mention, and that stopped being possible when an
+     * `@everyone` became one row rather than one row per member - there is no per-user write left
+     * to increment. It was never idempotent either: a retried message doubled it and a deleted one
+     * left it high forever. Counts are computed on read now.</p>
+     *
+     * <p>Still the same field of the same type, so nothing fails to deserialize - it just quietly
+     * stopped being a number. For the badge use `GET /guild/inbox/summary`, and for per-channel
+     * counts `GET /guild/inbox/unread`; {@link import('../../services/guild-read-state.service').GuildReadStateService}
+     * seeds the sidebar from the latter.</p>
+     */
     mentionCount: number;
     memberId: string;
 }

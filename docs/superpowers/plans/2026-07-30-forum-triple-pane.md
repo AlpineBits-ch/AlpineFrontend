@@ -33,7 +33,7 @@
 
 **Interfaces:**
 - Consumes: `ChannelDto`, `ChannelType`, `isForumLike` from `dtos/response/guild.dto`.
-- Produces: `forumParentOf(channel: ChannelDto, channels: readonly ChannelDto[]): ChannelDto | null` — used by Task 4 (`channel.component.ts`) and Task 5 (`main-page.component.ts`).
+- Produces: `forumParentOf(channel: ChannelDto, channels: readonly ChannelDto[]): ChannelDto | null` - used by Task 4 (`channel.component.ts`) and Task 5 (`main-page.component.ts`).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -99,7 +99,7 @@ describe('forumParentOf', () => {
 - [ ] **Step 2: Run it and confirm it fails**
 
 Run: `./node_modules/.bin/ng test --watch=false --include=src/app/features/guild/components/channel/channel-utils.spec.ts`
-Expected: FAIL — `forumParentOf` is not exported.
+Expected: FAIL - `forumParentOf` is not exported.
 
 - [ ] **Step 3: Implement**
 
@@ -151,14 +151,14 @@ git commit -m "feat: add forumParentOf helper"
 **Interfaces:**
 - Consumes: `ForumService.getPosts`, `GuildWebsocketService` (`threadCreatedObservable`, `threadUpdatedObservable`, `forumTagDeletedObservable`), `ForumStateService.sortFor`, `ToastService`, `TranslateService`.
 - Produces the API Task 3 consumes:
-  - `stateFor(forumId: string): ForumPostListState` — never null; returns an empty default for an unknown forum
+  - `stateFor(forumId: string): ForumPostListState` - never null; returns an empty default for an unknown forum
   - `reload(forumId: string): void`
   - `loadMore(forumId: string): void`
-  - `toggleTagFilter(forumId, tagId)` / `clearTagFilter(forumId)` / `toggleArchived(forumId)` — each resets the cursor and reloads
+  - `toggleTagFilter(forumId, tagId)` / `clearTagFilter(forumId)` / `toggleArchived(forumId)` - each resets the cursor and reloads
   - `patchPost(forumId, postId, patch: Partial<ForumPost>)`
   - `revertPost(forumId, original: ForumPost)`
   - `removePost(forumId, postId)`
-  - `resetFilters(forumId)` — clears tag/archived filters without fetching
+  - `resetFilters(forumId)` - clears tag/archived filters without fetching
 
 ```ts
 export interface ForumPostListState {
@@ -171,11 +171,11 @@ export interface ForumPostListState {
 }
 ```
 
-**Source of the logic:** every behaviour here already exists in `forum-channel.component.ts` — `reload` (207-214), `loadMore` (216-229), `fetch` (237-264), the filter mutators (267-292), `patchPost`/`revert` (392-399), `applyThreadUpdate` (406-422), and the three realtime subscriptions (172-199). **Move them, preserving their comments and their semantics** (including the stale-response guard in `fetch` and the de-dupe in `loadMore`); do not redesign them. `PAGE_SIZE = 25` moves too.
+**Source of the logic:** every behaviour here already exists in `forum-channel.component.ts` - `reload` (207-214), `loadMore` (216-229), `fetch` (237-264), the filter mutators (267-292), `patchPost`/`revert` (392-399), `applyThreadUpdate` (406-422), and the three realtime subscriptions (172-199). **Move them, preserving their comments and their semantics** (including the stale-response guard in `fetch` and the de-dupe in `loadMore`); do not redesign them. `PAGE_SIZE = 25` moves too.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `src/app/services/forum-post-list.service.spec.ts`. `src/app/services/forum-state.service.spec.ts` is the direct precedent — it stubs `GuildWebsocketService` with plain `Subject`s and drives HTTP through `HttpTestingController`. Follow it:
+Create `src/app/services/forum-post-list.service.spec.ts`. `src/app/services/forum-state.service.spec.ts` is the direct precedent - it stubs `GuildWebsocketService` with plain `Subject`s and drives HTTP through `HttpTestingController`. Follow it:
 
 ```ts
 import {TestBed} from '@angular/core/testing';
@@ -238,21 +238,21 @@ function flushPosts(ctrl: HttpTestingController, posts: ForumPost[], nextCursor:
 
 Then these tests, written out in full against that harness:
 
-1. **`returns an empty default state for a forum never loaded`** — `stateFor('never-opened')` gives `posts: []`, `loading: false`, `loadingMore: false`, `nextCursor: null`, `selectedTagIds: []`, `showArchived: false`, and issues no HTTP request (`ctrl.verify()` in `afterEach` proves it).
-2. **`keeps state isolated per forum id`** — `reload('f1')` and `reload('f2')`, flush different posts to each, assert each `stateFor` sees only its own.
-3. **`resets the cursor when a tag filter changes`** — `reload('f1')`, flush with `nextCursor: 'c1'`; then `toggleTagFilter('f1', 'tag1')` and assert the resulting request carries **no** `cursor` param and does carry `tagIds=tag1`.
-4. **`de-dupes by id when a loadMore response overlaps`** — flush page 1 as `[p1, p2]` with `nextCursor: 'c1'`, call `loadMore('f1')`, flush page 2 as `[p2, p3]`; assert final ids are exactly `['p1','p2','p3']`.
-5. **`ignores a threadUpdated event for a forum with no loaded state`** — emit `{parentChannelId: 'never-opened', channelId: 'x', isPinned: true}` on `ws.threadUpdatedObservable`; assert `stateFor('never-opened')` is still the empty default and no request was made.
-6. **`drops an archived post when showArchived is false`** — load `[p1]`, emit `threadUpdated` with `{parentChannelId:'f1', channelId:'p1', isArchived:true}`, assert `posts` is empty.
-7. **`keeps an archived post when showArchived is true`** — same, but call `toggleArchived('f1')` first (flushing its refetch), and assert `p1` survives with `isArchived: true`.
-8. **`does not apply a stale response to a forum that has since reloaded`** — call `reload('f1')`, then `reload('f1')` again, then flush the **first** request with `[p1]` and the second with `[p2]`; assert only `p2` is present. This pins the request-generation guard.
+1. **`returns an empty default state for a forum never loaded`** - `stateFor('never-opened')` gives `posts: []`, `loading: false`, `loadingMore: false`, `nextCursor: null`, `selectedTagIds: []`, `showArchived: false`, and issues no HTTP request (`ctrl.verify()` in `afterEach` proves it).
+2. **`keeps state isolated per forum id`** - `reload('f1')` and `reload('f2')`, flush different posts to each, assert each `stateFor` sees only its own.
+3. **`resets the cursor when a tag filter changes`** - `reload('f1')`, flush with `nextCursor: 'c1'`; then `toggleTagFilter('f1', 'tag1')` and assert the resulting request carries **no** `cursor` param and does carry `tagIds=tag1`.
+4. **`de-dupes by id when a loadMore response overlaps`** - flush page 1 as `[p1, p2]` with `nextCursor: 'c1'`, call `loadMore('f1')`, flush page 2 as `[p2, p3]`; assert final ids are exactly `['p1','p2','p3']`.
+5. **`ignores a threadUpdated event for a forum with no loaded state`** - emit `{parentChannelId: 'never-opened', channelId: 'x', isPinned: true}` on `ws.threadUpdatedObservable`; assert `stateFor('never-opened')` is still the empty default and no request was made.
+6. **`drops an archived post when showArchived is false`** - load `[p1]`, emit `threadUpdated` with `{parentChannelId:'f1', channelId:'p1', isArchived:true}`, assert `posts` is empty.
+7. **`keeps an archived post when showArchived is true`** - same, but call `toggleArchived('f1')` first (flushing its refetch), and assert `p1` survives with `isArchived: true`.
+8. **`does not apply a stale response to a forum that has since reloaded`** - call `reload('f1')`, then `reload('f1')` again, then flush the **first** request with `[p1]` and the second with `[p2]`; assert only `p2` is present. This pins the request-generation guard.
 
-Exercise the service only through its public API — never reach into private signals.
+Exercise the service only through its public API - never reach into private signals.
 
 - [ ] **Step 2: Run it and confirm it fails**
 
 Run: `./node_modules/.bin/ng test --watch=false --include=src/app/services/forum-post-list.service.spec.ts`
-Expected: FAIL — module not found.
+Expected: FAIL - module not found.
 
 - [ ] **Step 3: Implement the service**
 
@@ -281,7 +281,7 @@ Its class comment (lines 6-14) currently ends: *"Posts are deliberately not cach
 
 - [ ] **Step 6: Full suite, then commit**
 
-Run: `./node_modules/.bin/ng test --watch=false` — expected 57 files / 685 tests plus your new ones, all passing.
+Run: `./node_modules/.bin/ng test --watch=false` - expected 57 files / 685 tests plus your new ones, all passing.
 
 ```bash
 git add src/app/services/forum-post-list.service.ts src/app/services/forum-post-list.service.spec.ts src/app/services/forum-state.service.ts
@@ -313,15 +313,15 @@ git commit -m "feat: hold volatile forum post-list state in its own service"
 - computeds: `tags`, `config`, `layout`, `sortOrder`, `requireTag`, `emojiUrls`, `emojiUrlFor`, `sortMenuItems`
 - permissions: `ownMember`, `permissions`, `isOwner`, `can`, `canCreatePost`, `canModerate`, `canUseModeratedTags`
 - `openPost()`, `onPostAction()`
-- filter/sort/layout handlers — now delegating to `ForumPostListService` / `ForumStateService` instead of local signals
-- `onScroll()` — delegating to the service's `loadMore`
+- filter/sort/layout handlers - now delegating to `ForumPostListService` / `ForumStateService` instead of local signals
+- `onScroll()` - delegating to the service's `loadMore`
 - the `effect` that calls `forumState.loadFor` / `emojiStore.ensureLoaded`, and the one fetching `ownMember`
 
 Post-list reads become service reads, e.g.
 `protected posts = computed(() => this.postList.stateFor(this.forum().id).posts);`
 and likewise `loading`, `loadingMore`, `nextCursor`, `selectedTagIds`, `showArchived`.
 
-The realtime subscriptions do **not** move here — Task 2 owns them now. Delete them from `forum-channel.component.ts` rather than duplicating.
+The realtime subscriptions do **not** move here - Task 2 owns them now. Delete them from `forum-channel.component.ts` rather than duplicating.
 
 Add the compact-mode members:
 
@@ -366,17 +366,17 @@ Wrap them in a root `<div class="flex flex-col h-full min-h-0">`. Guard the layo
 
 The toolbar that used to sit right-aligned inside the header now appears as a row beneath it, inside the list component. That is the intended change.
 
-`forum-channel.component.ts` keeps: `channel` input, `back` output, `isMedia`, `navService`, and the `ForumPostListComponent` import. Everything else goes. Remove imports left unused — the build will name them.
+`forum-channel.component.ts` keeps: `channel` input, `back` output, `isMedia`, `navService`, and the `ForumPostListComponent` import. Everything else goes. Remove imports left unused - the build will name them.
 
 - [ ] **Step 4: Build and verify by hand**
 
-Run: `./node_modules/.bin/ng build --configuration development` — must succeed with no unused-import errors.
+Run: `./node_modules/.bin/ng build --configuration development` - must succeed with no unused-import errors.
 
-Then run `./node_modules/.bin/ng serve` and check the forum still works end to end: posts load, infinite scroll pages, tag filters and archived toggle refetch, sort switches, layout toggles between list and gallery, creating a post opens it, and pin/lock/archive still apply optimistically. **This task has no automated coverage** — the service is tested but the wiring isn't, so this manual pass is the verification.
+Then run `./node_modules/.bin/ng serve` and check the forum still works end to end: posts load, infinite scroll pages, tag filters and archived toggle refetch, sort switches, layout toggles between list and gallery, creating a post opens it, and pin/lock/archive still apply optimistically. **This task has no automated coverage** - the service is tested but the wiring isn't, so this manual pass is the verification.
 
 - [ ] **Step 5: Full suite, then commit**
 
-Run: `./node_modules/.bin/ng test --watch=false` — must stay green.
+Run: `./node_modules/.bin/ng test --watch=false` - must stay green.
 
 ```bash
 git add src/app/features/guild/components/forum-channel/
@@ -412,11 +412,11 @@ Becomes:
     protected parentForum = computed(() => forumParentOf(this.channel(), this.guildChannels()));
 ```
 
-Add `forumParentOf` to the existing import from `./channel-utils` (the file already imports `classifyAutoModError` from there). Remove `isForumLike` — and `ChannelType`, **only if** nothing else in the file uses it; `ChannelType` is also exposed as `protected readonly ChannelType` for the template, so check before removing.
+Add `forumParentOf` to the existing import from `./channel-utils` (the file already imports `classifyAutoModError` from there). Remove `isForumLike` - and `ChannelType`, **only if** nothing else in the file uses it; `ChannelType` is also exposed as `protected readonly ChannelType` for the template, so check before removing.
 
 - [ ] **Step 2: Build**
 
-Run: `./node_modules/.bin/ng build --configuration development` — must succeed.
+Run: `./node_modules/.bin/ng build --configuration development` - must succeed.
 
 - [ ] **Step 3: Full suite, then commit**
 
@@ -476,7 +476,7 @@ In `main-page.component.html`, after the events-panel block (line 37-39), add:
 
 - [ ] **Step 3: Give the slot a precedence rule**
 
-`openChannel` currently leaves the wiki/events panels alone. Three occupants can't share one slot, so opening a forum post must close them — and **only** a forum post, so an ordinary channel opened with the wiki panel up keeps behaving as it does today:
+`openChannel` currently leaves the wiki/events panels alone. Three occupants can't share one slot, so opening a forum post must close them - and **only** a forum post, so an ordinary channel opened with the wiki panel up keeps behaving as it does today:
 
 ```ts
     openChannel(channel: ChannelDto): void {
@@ -506,7 +506,7 @@ Run: `./node_modules/.bin/ng build --configuration development`
 
 Run `./node_modules/.bin/ng serve`. Confirm:
 1. **Forum with no post open:** full-width list, Gallery layout still a real multi-column grid. Unchanged from before this branch.
-2. **Open a post:** the list narrows to a left pane, the post fills the rest, and the pane shows **no loading spinner** — it shares state with the list you were just looking at. Clicking another post swaps the right pane and keeps the left.
+2. **Open a post:** the list narrows to a left pane, the post fills the rest, and the pane shows **no loading spinner** - it shares state with the list you were just looking at. Clicking another post swaps the right pane and keeps the left.
 3. **The open post's row is highlighted** in the pane, and the layout toggle is absent there.
 4. **Narrow the window below `lg`:** the pane disappears, the post takes the screen, and the header's back arrow returns to the forum. Exactly as before.
 5. **Open the wiki panel, then a forum post:** the wiki panel closes; only the post list pane shows. Open the wiki panel, then a plain text channel: the wiki panel stays, as it does today.
@@ -524,4 +524,4 @@ git commit -m "feat: keep the forum post list beside an open post"
 
 ## What this plan does not deliver
 
-No change to how posts themselves render, and no general "master → detail" middle-pane abstraction — the pane is forum-specific by decision. Mobile is deliberately untouched. The household Lists module, which prompted this detour, follows in its own spec.
+No change to how posts themselves render, and no general "master → detail" middle-pane abstraction - the pane is forum-specific by decision. Mobile is deliberately untouched. The household Lists module, which prompted this detour, follows in its own spec.

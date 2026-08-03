@@ -1,10 +1,10 @@
-# Rust Voice Pipeline — DSP Foundation Implementation Plan
+# Rust Voice Pipeline - DSP Foundation Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build and unit-test the pure signal-processing core of the Rust voice pipeline — resampling, Opus coding, transmit gating, jitter buffering, mixing, denoising and the echo-cancellation boundary — so that later plans only have to wire devices and transport to code that is already proven correct.
+**Goal:** Build and unit-test the pure signal-processing core of the Rust voice pipeline - resampling, Opus coding, transmit gating, jitter buffering, mixing, denoising and the echo-cancellation boundary - so that later plans only have to wire devices and transport to code that is already proven correct.
 
-**Architecture:** A new `src-tauri/src/media/voice/` module, a sibling of the existing `media/publisher/`. Every module in this plan is pure: no audio devices, no network, no Tauri. Each takes buffers in and returns buffers or decisions out, so all of it is testable with `cargo test` on any machine. The pipeline's fixed unit of work is a 10 ms frame of 480 mono `f32` samples at 48 kHz — the frame size WebRTC's APM and RNNoise both use natively, so no stage rebuffers against another.
+**Architecture:** A new `src-tauri/src/media/voice/` module, a sibling of the existing `media/publisher/`. Every module in this plan is pure: no audio devices, no network, no Tauri. Each takes buffers in and returns buffers or decisions out, so all of it is testable with `cargo test` on any machine. The pipeline's fixed unit of work is a 10 ms frame of 480 mono `f32` samples at 48 kHz - the frame size WebRTC's APM and RNNoise both use natively, so no stage rebuffers against another.
 
 **Tech Stack:** Rust 2021, `rubato` 4 (resampling), `opus` 0.3 (codec), `nnnoiseless` 0.3 (RNNoise, already a dependency), `hrtf` 0.8 (spatial), `webrtc-audio-processing` 2.1 (AEC3/NS/AGC, behind a cargo feature).
 
@@ -13,7 +13,7 @@
 ## Global Constraints
 
 - **Frame size is 480 samples, mono, 48 kHz `f32`.** Declared once as `voice::FRAME` and `voice::SAMPLE_RATE`. No module may invent its own frame size.
-- **Cross-platform: Windows, macOS and Linux are all first-class.** No `#[cfg(target_os)]` in any module in this plan — everything here is portable Rust.
+- **Cross-platform: Windows, macOS and Linux are all first-class.** No `#[cfg(target_os)]` in any module in this plan - everything here is portable Rust.
 - **No allocation in per-frame hot paths.** Buffers are preallocated in constructors and reused. `process`/`mix`/`pop` must not allocate.
 - **The AEC implementation is behind the `aec` cargo feature (default on).** With the feature off, `process::create` returns the passthrough implementation and the crate still builds. This is what keeps the build working on a machine without meson.
 - **Every module is `#![forbid(unsafe_code)]`-clean.** None of this needs unsafe.
@@ -30,17 +30,17 @@
 > Echo cancellation is verified behaviourally, not just structurally: `echo_from_the_render_stream_is_cancelled`
 > feeds a delayed, attenuated copy of the render stream back as the microphone signal and measures
 > **-27 dB** of cancellation after convergence. That test and `the_high_pass_filter_removes_a_dc_offset`
-> are the two that would fail if `create` ever silently fell back to `Passthrough` — every other
+> are the two that would fail if `create` ever silently fell back to `Passthrough` - every other
 > test in the file passes against either implementation, which is exactly why those two exist.
 >
 > Adopting each platform's own canceller instead is *not* a straight win: macOS
 > `VoiceProcessingIO` is excellent and runs at 48 kHz, but Windows' Voice Capture DSP
-> (`CLSID_CWMAudioAEC`) only cancels at 8–22 kHz — narrowband echo cancellation on the primary
-> platform — and Linux has no OS canceller at all.
+> (`CLSID_CWMAudioAEC`) only cancels at 8–22 kHz - narrowband echo cancellation on the primary
+> platform - and Linux has no OS canceller at all.
 
 The `aec` feature builds WebRTC's AudioProcessing module from C++ source with meson. Getting that far on Windows took eleven distinct blockers; the list below is what made it progress, in order of discovery. **None of them apply to macOS or Linux**, where meson finds the system compiler and the build is uneventful.
 
-**All platforms** — meson, ninja and Python:
+**All platforms** - meson, ninja and Python:
 
 ```powershell
 choco install meson ninja python -y   # Windows, in an Administrator shell
@@ -53,7 +53,7 @@ sudo apt-get install -y meson ninja-build   # Linux
 
 **Windows additionally needs three things that are easy to miss:**
 
-1. **The MSVC developer environment.** Meson probes the compiler directly, so a plain shell fails with `ERROR: Compiler cl cannot compile programs`. The build must run after `vcvars64.bat`, or from a Developer Command Prompt. On this machine Visual Studio is at `E:\vs_main`, so that is `E:\vs_main\VC\Auxiliary\Build\vcvars64.bat` — do not hardcode that path in any script; locate it with `vswhere.exe`.
+1. **The MSVC developer environment.** Meson probes the compiler directly, so a plain shell fails with `ERROR: Compiler cl cannot compile programs`. The build must run after `vcvars64.bat`, or from a Developer Command Prompt. On this machine Visual Studio is at `E:\vs_main`, so that is `E:\vs_main\VC\Auxiliary\Build\vcvars64.bat` - do not hardcode that path in any script; locate it with `vswhere.exe`.
 2. **`vswhere.exe` on `PATH`**, from `%ProgramFiles(x86)%\Microsoft Visual Studio\Installer`. Meson shells out to it and reports a bare `'vswhere.exe' is not recognized` otherwise.
 3. **Unix tools on `PATH`, but ordered last.** The `webrtc-audio-processing-sys` build script invokes `cp` as a program, which PowerShell's `cp` alias does not satisfy; Git for Windows supplies it at `C:\Program Files\Git\usr\bin`. That directory must come **after** the MSVC entries, because it also ships a coreutils `link.exe` which otherwise shadows the MSVC linker and produces `ERROR: This link.exe is not a linker`.
 
@@ -61,16 +61,16 @@ Two further constraints, both discovered by hitting them:
 
 4. **`CXXFLAGS=/std:c++20`.** The crate's meson build does not raise the C++ standard for MSVC, but its vendored AGC2 sources use designated initializers, so the build stops at `error C7555: use of designated initializers requires at least '/std:c++20'`.
 5. **Keep the build path short.** Meson's nested build directories plus a long checkout path exceed Windows' 260-character `MAX_PATH`, and the failure is misleading: meson reports `ERROR: Compiler cl cannot compile programs`, while the underlying meson log shows `Cannot open source file: 'sanity_check_for_c.c'`. Either build from a short path or enable long-path support.
-6. **A `nm` on `PATH`.** After the C++ library builds, the build script shells out to GNU `nm` to enumerate symbols, and MSVC has no equivalent. Rust ships a compatible one: `rustup component add llvm-tools-preview`, then copy `llvm-nm.exe` to a directory on `PATH` under the name `nm.exe`. The same component provides `rust-objcopy`, which the build script also needs — it prints a spurious "not found" warning because it tests an extensionless path, but the tool does run.
+6. **A `nm` on `PATH`.** After the C++ library builds, the build script shells out to GNU `nm` to enumerate symbols, and MSVC has no equivalent. Rust ships a compatible one: `rustup component add llvm-tools-preview`, then copy `llvm-nm.exe` to a directory on `PATH` under the name `nm.exe`. The same component provides `rust-objcopy`, which the build script also needs - it prints a spurious "not found" warning because it tests an extensionless path, but the tool does run.
 7. **libclang, for `bindgen`.** The final step generates Rust bindings and fails with `Unable to find libclang`. Install LLVM (`choco install llvm -y`, admin) or set `LIBCLANG_PATH` to a directory containing `libclang.dll`.
 8. **A short `CARGO_TARGET_DIR`.** Related to item 5 but distinct: even from a normal checkout, the *object* paths reach 258 characters, right at the limit. `LongPathsEnabled=1` does not help, because `cl.exe` is a legacy tool that ignores it. Set `CARGO_TARGET_DIR` to something short (`C:\vt`) for Windows builds with this feature.
 
 The last two only surfaced once libclang was installed and the link step could finally run. Both are fixed in the vendored copy; they are recorded here because the symptoms point nowhere near the causes.
 
-9. **The wrapper archive must be symbol-prefixed under both its names.** To let several versions coexist, the build script renames every symbol in the built library to `v2_…` and rewrites the wrapper's references to match — but it only looks for the Unix name `libwebrtc_audio_processing_wrapper.a`. With MSVC, `cc` writes the archive twice, and rustc links the `.lib`, which upstream leaves unprefixed. Symptom: `LNK1120: 12 unresolved externals` naming `AudioProcessingBuilder`, `ResidualEchoDetector` and `AudioProcessingStats` — the wrapper's only out-of-line calls into the library. The patch prefixes every name `cc` may have emitted, and now hard-errors if it finds none rather than producing a library that cannot link.
-10. **`RTC_EXPORT` must not be `__declspec(dllexport)` in a static build.** The meson port defines `WEBRTC_ENABLE_SYMBOL_EXPORT` unconditionally, though `rtc_export.h` states the intent — *"When WebRTC is built as a static library the RTC_EXPORT macro expands to nothing"* — and upstream's own GN build gates it behind `rtc_enable_symbol_export || is_component_build` (`webrtc/BUILD.gn:153`). Under MSVC every object in the *static* archive then carries a `/EXPORT:` directive naming its original symbol. Those directives live in `.drectve` sections as strings, so they survive the renaming in item 9, and link.exe fails with ~156 `LNK2001`s trying to export names that no longer exist. Confusingly this only appears *after* item 9 is fixed: until the wrapper resolves, those objects are never pulled into the link and their directives never fire. The patch narrows the define to non-MSVC-or-shared, leaving Unix builds untouched.
+9. **The wrapper archive must be symbol-prefixed under both its names.** To let several versions coexist, the build script renames every symbol in the built library to `v2_…` and rewrites the wrapper's references to match - but it only looks for the Unix name `libwebrtc_audio_processing_wrapper.a`. With MSVC, `cc` writes the archive twice, and rustc links the `.lib`, which upstream leaves unprefixed. Symptom: `LNK1120: 12 unresolved externals` naming `AudioProcessingBuilder`, `ResidualEchoDetector` and `AudioProcessingStats` - the wrapper's only out-of-line calls into the library. The patch prefixes every name `cc` may have emitted, and now hard-errors if it finds none rather than producing a library that cannot link.
+10. **`RTC_EXPORT` must not be `__declspec(dllexport)` in a static build.** The meson port defines `WEBRTC_ENABLE_SYMBOL_EXPORT` unconditionally, though `rtc_export.h` states the intent - *"When WebRTC is built as a static library the RTC_EXPORT macro expands to nothing"* - and upstream's own GN build gates it behind `rtc_enable_symbol_export || is_component_build` (`webrtc/BUILD.gn:153`). Under MSVC every object in the *static* archive then carries a `/EXPORT:` directive naming its original symbol. Those directives live in `.drectve` sections as strings, so they survive the renaming in item 9, and link.exe fails with ~156 `LNK2001`s trying to export names that no longer exist. Confusingly this only appears *after* item 9 is fixed: until the wrapper resolves, those objects are never pulled into the link and their directives never fire. The patch narrows the define to non-MSVC-or-shared, leaving Unix builds untouched.
 
-**When patching the bundled C++ tree, expect cargo to ignore you.** The build script declares `rerun-if-changed` only for the two wrapper sources, so an edit to `webrtc-audio-processing/meson.build` leaves the crate "fresh": meson never re-runs, the stale library is relinked, and the build fails with precisely the errors the edit was meant to fix. The vendored copy now declares the meson file too — but a change anywhere else in that tree still needs `cargo clean -p webrtc-audio-processing-sys`.
+**When patching the bundled C++ tree, expect cargo to ignore you.** The build script declares `rerun-if-changed` only for the two wrapper sources, so an edit to `webrtc-audio-processing/meson.build` leaves the crate "fresh": meson never re-runs, the stale library is relinked, and the build fails with precisely the errors the edit was meant to fix. The vendored copy now declares the meson file too - but a change anywhere else in that tree still needs `cargo clean -p webrtc-audio-processing-sys`.
 
 A working Windows invocation therefore looks like:
 
@@ -96,7 +96,7 @@ No `CXXFLAGS` here: the vendored build script sets `/std:c++20` for MSVC itself,
 
 macOS and Linux need none of items 1–5: meson finds clang or gcc directly, the shell already has `cp`, and neither has a `MAX_PATH` limit.
 
-**Everything except Task 9 Step 6 onwards is independent of this.** Tasks 1–8 build and test with `--no-default-features`. If the APM will not build on your machine, complete Tasks 1–8 and report — do not delete the feature or weaken `create`'s fallback contract.
+**Everything except Task 9 Step 6 onwards is independent of this.** Tasks 1–8 build and test with `--no-default-features`. If the APM will not build on your machine, complete Tasks 1–8 and report - do not delete the feature or weaken `create`'s fallback contract.
 
 ## File Structure
 
@@ -216,7 +216,7 @@ Expected: PASS. This is the path that must work without meson.
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features media::voice`
 Expected: PASS, 1 test.
 
-If meson is installed, also run `cargo build --manifest-path src-tauri/Cargo.toml` and expect PASS. If it is not installed yet, note that and continue — Tasks 2 through 8 do not need it.
+If meson is installed, also run `cargo build --manifest-path src-tauri/Cargo.toml` and expect PASS. If it is not installed yet, note that and continue - Tasks 2 through 8 do not need it.
 
 - [ ] **Step 6: Commit**
 
@@ -235,11 +235,11 @@ git commit -m "feat: scaffold the Rust voice pipeline module"
 **Interfaces:**
 - Consumes: `voice::SAMPLE_RATE`.
 - Produces: `resample::Resampler` with:
-  - `Resampler::new(from_hz: u32) -> Result<Resampler, String>` — converts `from_hz` into `voice::SAMPLE_RATE`. `new(48_000)` is an identity passthrough.
-  - `Resampler::new_to(from_hz: u32, to_hz: u32) -> Result<Resampler, String>` — arbitrary pair, used by the render path to convert the mix down to whatever the output device wants.
-  - `Resampler::push(&mut self, input: &[f32], out: &mut Vec<f32>)` — appends converted samples; input is buffered internally, so any chunk size is accepted.
+  - `Resampler::new(from_hz: u32) -> Result<Resampler, String>` - converts `from_hz` into `voice::SAMPLE_RATE`. `new(48_000)` is an identity passthrough.
+  - `Resampler::new_to(from_hz: u32, to_hz: u32) -> Result<Resampler, String>` - arbitrary pair, used by the render path to convert the mix down to whatever the output device wants.
+  - `Resampler::push(&mut self, input: &[f32], out: &mut Vec<f32>)` - appends converted samples; input is buffered internally, so any chunk size is accepted.
 
-This replaces `media::audio::resample_linear`, which was bare linear interpolation with no anti-aliasing filter — a 44.1 kHz microphone aliased audibly.
+This replaces `media::audio::resample_linear`, which was bare linear interpolation with no anti-aliasing filter - a 44.1 kHz microphone aliased audibly.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -356,7 +356,7 @@ mod tests {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features media::voice::resample`
-Expected: FAIL to compile — `Resampler` does not exist.
+Expected: FAIL to compile - `Resampler` does not exist.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -461,7 +461,7 @@ impl Resampler {
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features media::voice::resample`
 Expected: PASS, 6 tests.
 
-If `rubato`'s builder signature differs from the above, correct the call rather than the test — the tests encode the behaviour the pipeline needs and must not be weakened.
+If `rubato`'s builder signature differs from the above, correct the call rather than the test - the tests encode the behaviour the pipeline needs and must not be weakened.
 
 - [ ] **Step 5: Commit**
 
@@ -480,10 +480,10 @@ git commit -m "feat: band-limited resampling for the voice pipeline"
 **Interfaces:**
 - Consumes: `voice::{FRAME, SAMPLE_RATE}`.
 - Produces:
-  - `codec::VoiceEncoder` — `new(bitrate_bps: i32) -> Result<VoiceEncoder, String>`, `encode(&mut self, pcm: &[f32], out: &mut [u8]) -> Result<usize, String>`, `set_bitrate(&mut self, bps: i32) -> Result<(), String>`, `set_packet_loss(&mut self, pct: i32) -> Result<(), String>`.
-  - `codec::VoiceDecoder` — `new() -> Result<VoiceDecoder, String>`, `decode(&mut self, packet: &[u8], out: &mut [f32]) -> Result<usize, String>`, `decode_fec(&mut self, next_packet: &[u8], out: &mut [f32]) -> Result<usize, String>`, `conceal(&mut self, out: &mut [f32]) -> Result<usize, String>`.
-  - `codec::MAX_PACKET: usize = 1275` — the largest Opus packet, so callers can size buffers once.
-  - `codec::PACKET_SAMPLES: usize = 960` — 20 ms at 48 kHz, the packet size on the wire (two pipeline frames).
+  - `codec::VoiceEncoder` - `new(bitrate_bps: i32) -> Result<VoiceEncoder, String>`, `encode(&mut self, pcm: &[f32], out: &mut [u8]) -> Result<usize, String>`, `set_bitrate(&mut self, bps: i32) -> Result<(), String>`, `set_packet_loss(&mut self, pct: i32) -> Result<(), String>`.
+  - `codec::VoiceDecoder` - `new() -> Result<VoiceDecoder, String>`, `decode(&mut self, packet: &[u8], out: &mut [f32]) -> Result<usize, String>`, `decode_fec(&mut self, next_packet: &[u8], out: &mut [f32]) -> Result<usize, String>`, `conceal(&mut self, out: &mut [f32]) -> Result<usize, String>`.
+  - `codec::MAX_PACKET: usize = 1275` - the largest Opus packet, so callers can size buffers once.
+  - `codec::PACKET_SAMPLES: usize = 960` - 20 ms at 48 kHz, the packet size on the wire (two pipeline frames).
 
 The encoder is configured for VoIP with in-band FEC and DTX on. The current pipeline sets none of this: `applySimpleBitrate` sets a bitrate cap and nothing else, so every lost packet is an audible hole.
 
@@ -618,7 +618,7 @@ mod tests {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features media::voice::codec`
-Expected: FAIL to compile — `VoiceEncoder` does not exist.
+Expected: FAIL to compile - `VoiceEncoder` does not exist.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -728,9 +728,9 @@ git commit -m "feat: Opus coding with in-band FEC and DTX"
 **Interfaces:**
 - Consumes: `voice::FRAME_MS`.
 - Produces:
-  - `gate::InputMode` — `VoiceActivity | PushToTalk`.
+  - `gate::InputMode` - `VoiceActivity | PushToTalk`.
   - `gate::GateConfig { mode: InputMode, sensitivity: f32, release_ms: u32 }`. `sensitivity` is 0.0–1.0, where higher is more sensitive, matching the existing UI slider.
-  - `gate::Gate` — `new(GateConfig) -> Gate`, `set_config(&mut self, GateConfig)`, `set_muted(&mut self, bool)`, `set_ptt_down(&mut self, bool)`, `step(&mut self, rms: f32) -> GateDecision`. One `step` per 10 ms frame.
+  - `gate::Gate` - `new(GateConfig) -> Gate`, `set_config(&mut self, GateConfig)`, `set_muted(&mut self, bool)`, `set_ptt_down(&mut self, bool)`, `step(&mut self, rms: f32) -> GateDecision`. One `step` per 10 ms frame.
   - `gate::GateDecision { transmit: bool, speaking: bool }`.
 
 This unifies two gates that currently disagree: `vadStrength` gated inside Rust while `inputSensitivity` gated in JS on a cloned track, with two `AudioContext`s per call to measure the same signal.
@@ -865,7 +865,7 @@ mod tests {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features media::voice::gate`
-Expected: FAIL to compile — `Gate` does not exist.
+Expected: FAIL to compile - `Gate` does not exist.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -989,16 +989,16 @@ git commit -m "feat: unified transmit gate for mute, push-to-talk and voice acti
 - Create: `src-tauri/src/media/voice/jitter.rs`
 
 **Interfaces:**
-- Consumes: nothing from other tasks — deliberately independent of the codec so it can be tested without Opus.
+- Consumes: nothing from other tasks - deliberately independent of the codec so it can be tested without Opus.
 - Produces:
   - `jitter::Packet { seq: u16, payload: Vec<u8> }`.
-  - `jitter::Pop` — `Decode(Packet) | DecodeFec(Packet) | Conceal`.
+  - `jitter::Pop` - `Decode(Packet) | DecodeFec(Packet) | Conceal`.
   - `jitter::JitterConfig { min_delay_ms: u32, max_delay_ms: u32, start_delay_ms: u32, packet_ms: u32 }`.
-  - `jitter::JitterBuffer` — `new(JitterConfig) -> JitterBuffer`, `push(&mut self, Packet, arrival_ms: u64)`, `pop(&mut self) -> Pop`, `target_delay_ms(&self) -> u32`, `len(&self) -> usize`.
+  - `jitter::JitterBuffer` - `new(JitterConfig) -> JitterBuffer`, `push(&mut self, Packet, arrival_ms: u64)`, `pop(&mut self) -> Pop`, `target_delay_ms(&self) -> u32`, `len(&self) -> usize`.
 
 This is the component that decides how the call sounds on a real network, so it carries the most test weight in this plan. `webrtc-rs` delivers RTP; it has no NetEq equivalent.
 
-Sequence numbers are `u16` and wrap. Comparisons must be modular — a naive `<` breaks once every 65536 packets, which at 50 packets a second is every 22 minutes of a call.
+Sequence numbers are `u16` and wrap. Comparisons must be modular - a naive `<` breaks once every 65536 packets, which at 50 packets a second is every 22 minutes of a call.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -1179,7 +1179,7 @@ mod tests {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features media::voice::jitter`
-Expected: FAIL to compile — `JitterBuffer` does not exist.
+Expected: FAIL to compile - `JitterBuffer` does not exist.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -1386,7 +1386,7 @@ git commit -m "feat: adaptive jitter buffer with FEC recovery and concealment"
 **Interfaces:**
 - Consumes: `voice::FRAME`.
 - Produces:
-  - `mixer::Mixer` — `new() -> Mixer`, `set_gain(&mut self, id: &str, gain: f32)`, `set_master(&mut self, gain: f32)`, `set_deafened(&mut self, bool)`, `mix(&mut self, sources: &[(&str, &[f32])], out: &mut [f32])`.
+  - `mixer::Mixer` - `new() -> Mixer`, `set_gain(&mut self, id: &str, gain: f32)`, `set_master(&mut self, gain: f32)`, `set_deafened(&mut self, bool)`, `mix(&mut self, sources: &[(&str, &[f32])], out: &mut [f32])`.
   - `out` is `FRAME * 2` interleaved stereo. Each source slice is `FRAME` mono samples.
 
 Task 7 adds spatial panning to this same struct.
@@ -1532,7 +1532,7 @@ mod tests {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features media::voice::mixer`
-Expected: FAIL to compile — `Mixer` does not exist.
+Expected: FAIL to compile - `Mixer` does not exist.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -1661,9 +1661,9 @@ git commit -m "feat: stereo mixer with per-user gain and a limiter"
 **Interfaces:**
 - Consumes: `mixer::Mixer` from Task 6.
 - Produces, added to the same struct:
-  - `mixer::Position { x: f32, y: f32, z: f32 }` — listener-relative metres. `x` positive is right, `y` positive is up, `z` positive is in front.
+  - `mixer::Position { x: f32, y: f32, z: f32 }` - listener-relative metres. `x` positive is right, `y` positive is up, `z` positive is in front.
   - `Mixer::set_spatial(&mut self, enabled: bool)`.
-  - `Mixer::set_position(&mut self, id: &str, position: Option<Position>)` — `None` means non-positional, mixed to the centre.
+  - `Mixer::set_position(&mut self, id: &str, position: Option<Position>)` - `None` means non-positional, mixed to the centre.
   - `Mixer::set_max_distance(&mut self, metres: f32)`.
 
 Isle currently pans with WebAudio's HRTF `PannerNode` in `spatial-audio.service.ts`. Mixing moved to Rust, so panning has to follow it.
@@ -1810,11 +1810,11 @@ Append to the existing `mod tests` in `mixer.rs`:
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features media::voice::mixer`
-Expected: FAIL to compile — `Position`, `set_spatial`, `set_position` and `set_max_distance` do not exist.
+Expected: FAIL to compile - `Position`, `set_spatial`, `set_position` and `set_max_distance` do not exist.
 
 - [ ] **Step 3: Resolve the HRIR dataset question before writing code**
 
-The `hrtf` crate ships **no impulse-response data** — `HrirSphere::new` reads a sphere from a byte stream that the application must supply. The commonly-used spheres (IRCAM Listen, CIPIC, MIT KEMAR) are published for research or non-commercial use, which is the same class of problem this codebase already handled deliberately for OpenH264: see the comment in `Cargo.toml` explaining why Cisco's binary is fetched rather than built.
+The `hrtf` crate ships **no impulse-response data** - `HrirSphere::new` reads a sphere from a byte stream that the application must supply. The commonly-used spheres (IRCAM Listen, CIPIC, MIT KEMAR) are published for research or non-commercial use, which is the same class of problem this codebase already handled deliberately for OpenH264: see the comment in `Cargo.toml` explaining why Cisco's binary is fetched rather than built.
 
 **Do not vendor a dataset without checking its licence.** Resolve one of:
 
@@ -1822,7 +1822,7 @@ The `hrtf` crate ships **no impulse-response data** — `HrirSphere::new` reads 
 - fetching one at runtime the way `openh264_blob.rs` does, or
 - shipping without a sphere.
 
-The implementation below already handles the last case: with no sphere loaded, spatial sources fall back to distance-attenuated centre panning. That keeps proximity voice working — losing directionality, not audio — and it means this task can be completed and tested before the licensing question is settled. The tests that assert left/right dominance are `#[ignore]`d until a sphere is available; everything else runs.
+The implementation below already handles the last case: with no sphere loaded, spatial sources fall back to distance-attenuated centre panning. That keeps proximity voice working - losing directionality, not audio - and it means this task can be completed and tested before the licensing question is settled. The tests that assert left/right dominance are `#[ignore]`d until a sphere is available; everything else runs.
 
 - [ ] **Step 4: Write the implementation**
 
@@ -2024,7 +2024,7 @@ Now rewrite `mix` to route each source down one of three paths. Replace the whol
     }
 ```
 
-`Spatial` therefore needs a `previous_sample_vector: Vec3` field alongside the ones declared above, and `previous_left` / `previous_right` start empty — the processor sizes them itself.
+`Spatial` therefore needs a `previous_sample_vector: Vec3` field alongside the ones declared above, and `previous_left` / `previous_right` start empty - the processor sizes them itself.
 
 Also extend `remove` so a departed participant leaves no convolution state behind:
 
@@ -2065,12 +2065,12 @@ git commit -m "feat: HRTF spatial panning in the voice mixer"
 
 **Interfaces:**
 - Consumes: `voice::FRAME`.
-- Produces: `denoise::Denoiser` — `new() -> Denoiser`, `process(&mut self, frame: &mut [f32]) -> f32`. Processes in place and returns RNNoise's own voice probability, 0.0–1.0.
+- Produces: `denoise::Denoiser` - `new() -> Denoiser`, `process(&mut self, frame: &mut [f32]) -> f32`. Processes in place and returns RNNoise's own voice probability, 0.0–1.0.
 
 This is the direct fix for the long-standing bug. Three things the old code did are deliberately **not** done here, and the comments must say so:
 
 1. **No pre-emphasis or de-emphasis.** The old de-emphasis was `y[n] = x[n] + 0.95·y[n-1]`, a leaky integrator with roughly 26 dB of DC gain and no bound.
-2. **No blend with the unprocessed signal.** RNNoise's overlap-add output lags its input by one 10 ms frame, so the old 80/20 blend summed the signal with a 10 ms-delayed copy of itself — a comb filter with teeth every 100 Hz, and a hard −14 dB ceiling on suppression.
+2. **No blend with the unprocessed signal.** RNNoise's overlap-add output lags its input by one 10 ms frame, so the old 80/20 blend summed the signal with a 10 ms-delayed copy of itself - a comb filter with teeth every 100 Hz, and a hard −14 dB ceiling on suppression.
 3. **No gating here.** Gating belongs to `gate.rs`, which now owns that decision alone.
 
 - [ ] **Step 1: Write the failing tests**
@@ -2174,7 +2174,7 @@ mod tests {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features media::voice::denoise`
-Expected: FAIL to compile — `Denoiser` does not exist.
+Expected: FAIL to compile - `Denoiser` does not exist.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -2247,7 +2247,7 @@ impl Default for Denoiser {
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features media::voice::denoise`
 Expected: PASS, 6 tests.
 
-If `broadband_noise_is_strongly_suppressed` fails, do **not** relax the threshold — that assertion is the whole point of the task. Check that no blending or emphasis filtering has crept in.
+If `broadband_noise_is_strongly_suppressed` fails, do **not** relax the threshold - that assertion is the whole point of the task. Check that no blending or emphasis filtering has crept in.
 
 - [ ] **Step 5: Commit**
 
@@ -2266,12 +2266,12 @@ git commit -m "fix: apply RNNoise without the comb-filtering blend or the unstab
 **Interfaces:**
 - Consumes: `voice::FRAME`.
 - Produces:
-  - `process::NoiseSuppression` — `Off | Standard | Enhanced`, matching the three settings the UI offers.
+  - `process::NoiseSuppression` - `Off | Standard | Enhanced`, matching the three settings the UI offers.
   - `process::ProcessConfig { echo_cancellation: bool, noise_suppression: NoiseSuppression, auto_gain: bool }`.
   - `process::CaptureInfo { voice_probability: f32 }`.
-  - `process::AudioProcessor` trait — `process_capture(&mut self, frame: &mut [f32]) -> CaptureInfo`, `process_render(&mut self, frame: &[f32])`, `set_config(&mut self, ProcessConfig)`.
-  - `process::Passthrough` — the no-op implementation.
-  - `process::create(config: ProcessConfig) -> Box<dyn AudioProcessor>` — returns the APM implementation when the `aec` feature is on and it initialises, and `Passthrough` otherwise.
+  - `process::AudioProcessor` trait - `process_capture(&mut self, frame: &mut [f32]) -> CaptureInfo`, `process_render(&mut self, frame: &[f32])`, `set_config(&mut self, ProcessConfig)`.
+  - `process::Passthrough` - the no-op implementation.
+  - `process::create(config: ProcessConfig) -> Box<dyn AudioProcessor>` - returns the APM implementation when the `aec` feature is on and it initialises, and `Passthrough` otherwise.
 
 `process_render` is fed the mixer's output. Because Rust renders the mix itself, that is a more accurate echo reference than device loopback: no extra capture latency and no other application's audio in it.
 
@@ -2364,7 +2364,7 @@ mod tests {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features media::voice::process`
-Expected: FAIL to compile — `AudioProcessor` does not exist.
+Expected: FAIL to compile - `AudioProcessor` does not exist.
 
 - [ ] **Step 3: Write the trait, the passthrough and the factory**
 
@@ -2538,17 +2538,17 @@ mod apm {
 - [ ] **Step 7: Run the tests with the feature on**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml media::voice::process`
-Expected: PASS, 7 tests — the same assertions, now exercising the APM.
+Expected: PASS, 7 tests - the same assertions, now exercising the APM.
 
-The `webrtc-audio-processing` 2.1 API may differ from the sketch above in type and field names. Correct the implementation to match the crate; the trait, the tests and `create`'s fallback behaviour must not change. If the crate cannot be made to build, stop and report — do not delete the feature, and do not weaken `create`'s contract.
+The `webrtc-audio-processing` 2.1 API may differ from the sketch above in type and field names. Correct the implementation to match the crate; the trait, the tests and `create`'s fallback behaviour must not change. If the crate cannot be made to build, stop and report - do not delete the feature, and do not weaken `create`'s contract.
 
 - [ ] **Step 8: Verify both build configurations one last time**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features media::voice`
-Expected: PASS — every test in this plan, on the toolchain-free path.
+Expected: PASS - every test in this plan, on the toolchain-free path.
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml media::voice`
-Expected: PASS — the same tests with AEC compiled in.
+Expected: PASS - the same tests with AEC compiled in.
 
 - [ ] **Step 9: Commit**
 
@@ -2563,8 +2563,8 @@ git commit -m "feat: WebRTC AudioProcessing implementation behind the aec featur
 
 Deliberately out of scope, each with its own follow-up plan:
 
-- **Devices and transport** — `capture.rs`, `render.rs`, `rtc.rs`, `session.rs`, the Tauri commands and the Cloudflare `primary` flip.
-- **Angular** — `VoiceEngineService`, deleting the worklet bridge, wiring the dead settings, relabelling noise suppression.
-- **Isle** — feeding positions into `Mixer::set_position` from the proximity service.
+- **Devices and transport** - `capture.rs`, `render.rs`, `rtc.rs`, `session.rs`, the Tauri commands and the Cloudflare `primary` flip.
+- **Angular** - `VoiceEngineService`, deleting the worklet bridge, wiring the dead settings, relabelling noise suppression.
+- **Isle** - feeding positions into `Mixer::set_position` from the proximity service.
 
 Everything above is pure and testable today; the follow-up plans wire proven components to devices and sockets.

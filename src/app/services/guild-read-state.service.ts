@@ -1,7 +1,9 @@
 import {inject, Injectable, signal} from '@angular/core';
+import {firstValueFrom} from 'rxjs';
 import {GuildWebsocketService} from './guild-websocket.service';
 import {NavigationService} from '../features/main-page/navigation.service';
-import {GuildService} from './guild.service';
+import {InboxApiService} from './inbox-api.service';
+import {InboxUnreadPage} from '../dtos/response/inbox.dto';
 import {ProfileService} from './profile.service';
 
 export interface ChannelReadState {
@@ -9,14 +11,17 @@ export interface ChannelReadState {
     mentionCount: number;
 }
 
+/** Pages of unread groups one seed will walk before giving up. 25 channels each. */
+const MAX_SEED_PAGES = 40;
+
 @Injectable({providedIn: 'root'})
 export class GuildReadStateService {
     private guildWs = inject(GuildWebsocketService);
     private navService = inject(NavigationService);
-    private guildService = inject(GuildService);
+    private inboxApi = inject(InboxApiService);
     private profileService = inject(ProfileService);
 
-    private loadedGuildIds = new Set<string>();
+    private seeded = false;
     private _channelStates = signal<Record<string, ChannelReadState>>({});
     readonly channelStates = this._channelStates.asReadonly();
 
@@ -33,29 +38,56 @@ export class GuildReadStateService {
         });
     }
 
-    loadForGuild(guildId: string): void {
-        if (this.loadedGuildIds.has(guildId)) return;
-        this.loadedGuildIds.add(guildId);
-
-        this.guildService.getOwnMember(guildId).subscribe({
-            next: member => {
-                const filtered = (member.readState ?? []).filter(rs => rs.memberId === member.id);
+    /**
+     * Fills in what was already unread before this session started.
+     *
+     * <p><b>This used to read `member.readState[].mentionCount` off `getOwnMember`, and that field
+     * is now always `0`.</b> The server stopped keeping it the moment an `@everyone` became one row
+     * instead of one row per member - there is no per-user write left to increment, and the stored
+     * counter was never idempotent anyway (a retried message doubled it, a deleted one left it high
+     * forever). It still deserializes, so nothing broke loudly; the sidebar simply drew no badges
+     * and no dots until a message arrived live. `isUnread` was derived from the same field, so the
+     * whole seed was dead, not just the counts.</p>
+     *
+     * <p>The inbox is now the only surface that answers "what was unread before I opened the app",
+     * so the seed comes from there. One walk covers every guild, replacing the request per guild
+     * this used to cost.</p>
+     *
+     * <p><b>Muted channels are not in it.</b> The endpoint omits muted channels, categories and
+     * guilds, channels set to notify `Nothing`, and channels the caller can no longer see - so a
+     * muted channel now starts the session with no dot and lights up only if a message arrives
+     * while the app is open. There is no other endpoint that would answer otherwise.</p>
+     */
+    async ensureSeeded(): Promise<void> {
+        if (this.seeded) return;
+        this.seeded = true;
+        try {
+            let cursor: string | null = null;
+            let pages = 0;
+            do {
+                const inboxPage: InboxUnreadPage =
+                    await firstValueFrom(this.inboxApi.unread(25, cursor));
                 this._channelStates.update(states => {
                     const next = {...states};
-                    for (const rs of filtered) {
-                        if (!next[rs.channelId]) {
-                            next[rs.channelId] = {
-                                isUnread: rs.mentionCount > 0,
-                                mentionCount: rs.mentionCount,
-                            };
+                    for (const group of inboxPage.groups) {
+                        const id = group.breadcrumb.channelId;
+                        // Never clobbers a live state: a message that arrived while this was in
+                        // flight is fresher than the page it raced.
+                        if (!next[id]) {
+                            next[id] = {isUnread: true, mentionCount: group.mentionCount};
                         }
                     }
                     return next;
                 });
-            },
-            error: () => {
-            },
-        });
+                // Muting and permission filtering are applied after the page is taken, so an empty
+                // page with a live cursor means "keep going". Only a null cursor ends this.
+                cursor = inboxPage.nextCursor;
+            } while (cursor !== null && ++pages < MAX_SEED_PAGES);
+        } catch {
+            // Left unseeded so the next guild switch tries again rather than the sidebar staying
+            // blank for the whole session.
+            this.seeded = false;
+        }
     }
 
     markChannelRead(channelId: string): void {

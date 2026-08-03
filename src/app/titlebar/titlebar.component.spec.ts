@@ -1,3 +1,4 @@
+import {computed, signal} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {Router} from '@angular/router';
 import {provideTranslateService, TranslateLoader, TranslateService} from '@ngx-translate/core';
@@ -40,6 +41,42 @@ beforeAll(() => {
     });
 });
 
+/** Everything the titlebar and the inbox panel it renders read off the service. */
+type InboxSurface = Pick<InboxService,
+    | 'badgeLabel' | 'open'
+    | 'summary' | 'unread' | 'mentions' | 'channelGlyph'
+    | 'unreadLoading' | 'unreadHasMore' | 'unreadFailed'
+    | 'mentionsLoading' | 'mentionsHasMore' | 'mentionsFailed'
+    | 'previewsUnavailable'>;
+
+/**
+ * An inbox holding nothing.
+ *
+ * <p><b>Typed against the real service on purpose.</b> The previous stub described a surface the
+ * inbox had before its panel was extracted - `entries`, `totalMentions`, `primeReadState`, none of
+ * which exist any more - and nothing said so. A stale `useValue` does not fail where it is wrong:
+ * it fails wherever the template first touches a missing member, which here was the two
+ * double-click-to-maximize tests, neither of which has anything to do with the inbox. `Pick` turns
+ * the next such drift into a compile error in this file instead.</p>
+ */
+function inboxStub(): InboxSurface {
+    return {
+        badgeLabel: computed(() => null),
+        open: () => undefined,
+        summary: signal({unreadChannelCount: 0, mentionCount: 0, capped: false}).asReadonly(),
+        unread: signal([]).asReadonly(),
+        mentions: signal([]).asReadonly(),
+        channelGlyph: () => '#',
+        unreadLoading: signal(false),
+        unreadHasMore: signal(false),
+        unreadFailed: signal(false),
+        mentionsLoading: signal(false),
+        mentionsHasMore: signal(false),
+        mentionsFailed: signal(false),
+        previewsUnavailable: signal(false),
+    };
+}
+
 function setup() {
     const loader = new DeferredLoader();
     store.clear();
@@ -57,10 +94,7 @@ function setup() {
             {provide: Router, useValue: {url: '/overview', events: new Subject()}},
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test'}},
             {provide: ConversationUtilsService, useValue: {getChatTitle: () => 'Someone'}},
-            {
-                provide: InboxService,
-                useValue: {entries: () => [], totalMentions: () => 0, primeReadState: () => undefined},
-            },
+            {provide: InboxService, useValue: inboxStub()},
         ],
     });
 

@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Capture the microphone in Rust, run it through the DSP foundation, encode it to Opus and publish it to Cloudflare as the participant's audio track — for guild voice and DM calls — with the webview still subscribing and playing.
+**Goal:** Capture the microphone in Rust, run it through the DSP foundation, encode it to Opus and publish it to Cloudflare as the participant's audio track - for guild voice and DM calls - with the webview still subscribing and playing.
 
 **Architecture:** A cpal input callback pushes samples into a lock-free ring and does nothing else. A capture thread drains the ring in 10 ms frames and runs the chain built in the DSP foundation plan (resample → APM → RNNoise → gate → Opus), then hands 20 ms packets to a `webrtc-rs` peer connection that mirrors the existing screen publisher. The webview stops acquiring a microphone and flips its own Cloudflare session to `primary=false`, so the backend records the Rust session as the participant's audio.
 
@@ -249,7 +249,7 @@ pub mod ring;
 - [ ] **Step 3: Run the tests and watch them fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib media::voice::ring`
-Expected: compile error, `unresolved import ringbuf` — until Step 1's dependency is fetched. Then the tests should pass, because the implementation is written alongside them here. **If any test fails, the implementation is wrong, not the test.**
+Expected: compile error, `unresolved import ringbuf` - until Step 1's dependency is fetched. Then the tests should pass, because the implementation is written alongside them here. **If any test fails, the implementation is wrong, not the test.**
 
 - [ ] **Step 4: Verify the overrun test is not vacuous**
 
@@ -333,7 +333,7 @@ mod tests {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib media::publisher::signalling`
-Expected: FAIL — `cannot find type SessionRole in this scope`.
+Expected: FAIL - `cannot find type SessionRole in this scope`.
 
 - [ ] **Step 3: Implement**
 
@@ -408,10 +408,10 @@ git commit -m "refactor: make the Cloudflare session role an explicit parameter"
 - Consumes: `ring::{channel, RingWriter, RingReader}`
 - Produces:
   - `pub struct InputStream` (holds the live cpal stream; dropping it stops capture)
-  - `pub fn open(device_id: Option<&str>) -> Result<(InputStream, RingReader, u32), String>` — the `u32` is the device sample rate
+  - `pub fn open(device_id: Option<&str>) -> Result<(InputStream, RingReader, u32), String>` - the `u32` is the device sample rate
   - `pub fn downmix(input: &[f32], channels: usize, out: &mut Vec<f32>)`
 
-The device-dependent half cannot be unit tested on a build agent with no sound card, so everything decidable without hardware — channel downmixing and sanitising — is a free function tested directly.
+The device-dependent half cannot be unit tested on a build agent with no sound card, so everything decidable without hardware - channel downmixing and sanitising - is a free function tested directly.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -487,7 +487,7 @@ mod tests {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib media::voice::capture`
-Expected: FAIL — `cannot find function downmix`.
+Expected: FAIL - `cannot find function downmix`.
 
 - [ ] **Step 3: Implement**
 
@@ -615,7 +615,7 @@ pub fn open(device_id: Option<&str>) -> Result<(InputStream, RingReader, u32), S
 
 Add `pub mod capture;` to `mod.rs`.
 
-> **Note on `mono`'s capacity.** `Vec::with_capacity` does not stop `push` from growing it. The capture callback is given at most a few tens of milliseconds by any host, so the reservation covers real buffer sizes with a wide margin — but if a platform is ever seen to exceed it, the fix is to `resize` once and index, not to raise the constant.
+> **Note on `mono`'s capacity.** `Vec::with_capacity` does not stop `push` from growing it. The capture callback is given at most a few tens of milliseconds by any host, so the reservation covers real buffer sizes with a wide margin - but if a platform is ever seen to exceed it, the fix is to `resize` once and index, not to raise the constant.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -651,7 +651,7 @@ git commit -m "feat: cpal input capture into the sample ring"
 
 This is the whole signal path with the hardware and the network removed, so it can be driven with synthetic audio and asserted on exactly.
 
-**Design decision — the gate silences, it does not skip.** When the gate is closed the frame is zeroed and still encoded, rather than dropped. Opus DTX then collapses silence to occasional tiny packets on its own, the far end's decoder keeps its state continuous, and there is no click at the moment speech resumes. Packets of two bytes or fewer are DTX's "nothing to send" and are not transmitted.
+**Design decision - the gate silences, it does not skip.** When the gate is closed the frame is zeroed and still encoded, rather than dropped. Opus DTX then collapses silence to occasional tiny packets on its own, the far end's decoder keeps its state continuous, and there is no click at the moment speech resumes. Packets of two bytes or fewer are DTX's "nothing to send" and are not transmitted.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -832,7 +832,7 @@ mod tests {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib media::voice::chain`
-Expected: FAIL — `cannot find struct CaptureChain`.
+Expected: FAIL - `cannot find struct CaptureChain`.
 
 - [ ] **Step 3: Implement**
 
@@ -1020,7 +1020,7 @@ Add `pub mod chain;` to `mod.rs`.
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib media::voice::chain`
 Expected: PASS, 13 tests.
 
-If `a_device_at_44100_is_resampled_to_the_pipeline_rate` fails on packet count, check the resampler's warm-up latency before loosening the bound — the assertion already allows two packets of slack, and a larger discrepancy means samples are being lost, not delayed.
+If `a_device_at_44100_is_resampled_to_the_pipeline_rate` fails on packet count, check the resampler's warm-up latency before loosening the bound - the assertion already allows two packets of slack, and a larger discrepancy means samples are being lost, not delayed.
 
 - [ ] **Step 5: Verify the mute test is not vacuous**
 
@@ -1055,7 +1055,7 @@ This mirrors `publisher/rtc.rs` closely. The differences are the codec, the trac
 
 - [ ] **Step 1: Write the failing tests**
 
-The handshake needs a live Cloudflare session, so what is tested here is the codec description — the part that decides whether every other client can decode the stream, and the part that is wrong silently rather than loudly.
+The handshake needs a live Cloudflare session, so what is tested here is the codec description - the part that decides whether every other client can decode the stream, and the part that is wrong silently rather than loudly.
 
 ```rust
 #[cfg(test)]
@@ -1094,7 +1094,7 @@ mod tests {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib media::voice::rtc`
-Expected: FAIL — `cannot find function opus_capability`.
+Expected: FAIL - `cannot find function opus_capability`.
 
 - [ ] **Step 3: Implement**
 
@@ -1375,7 +1375,7 @@ git commit -m "feat: publish the microphone as an Opus track from Rust"
 
 - [ ] **Step 1: Write the failing tests**
 
-The session needs a device and a network, so the testable part is the shared control state — the thing that is wrong in a way no manual test reliably catches, because a missed update looks like the user simply not having pressed the key.
+The session needs a device and a network, so the testable part is the shared control state - the thing that is wrong in a way no manual test reliably catches, because a missed update looks like the user simply not having pressed the key.
 
 ```rust
 #[cfg(test)]
@@ -1435,7 +1435,7 @@ mod tests {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib media::voice::session`
-Expected: FAIL — `cannot find struct Control`.
+Expected: FAIL - `cannot find struct Control`.
 
 - [ ] **Step 3: Implement**
 
@@ -1651,7 +1651,7 @@ pub async fn start(
 
 Add `pub mod session;` to `mod.rs`.
 
-> **Known limitation, to be removed in phase 2.** `packet_tx.try_send` copies each packet into a fresh `Vec`. It is ~80 bytes every 20 ms, so it is not worth a pool now — but note it, because phase 2 adds a playout path on the same thread where allocation pressure does start to matter.
+> **Known limitation, to be removed in phase 2.** `packet_tx.try_send` copies each packet into a fresh `Vec`. It is ~80 bytes every 20 ms, so it is not worth a pool now - but note it, because phase 2 adds a playout path on the same thread where allocation pressure does start to matter.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
@@ -1837,7 +1837,7 @@ fn with_active(f: impl FnOnce(&VoiceHandle)) {
 
 - [ ] **Step 2: Write tests for the settings mapping**
 
-This is where a typo becomes a setting that silently does nothing — exactly the class of bug the current implementation already has three of.
+This is where a typo becomes a setting that silently does nothing - exactly the class of bug the current implementation already has three of.
 
 ```rust
 #[cfg(test)]
@@ -1926,12 +1926,12 @@ In `src-tauri/src/lib.rs`, after `media::publisher::set_publish_fps,` (line 434)
             media::voice::voice_set_processing,
 ```
 
-The `voice` module is already gated to `cfg(not(android/ios))` in `media/mod.rs`, and this `invoke_handler` block (line 385) is the desktop one — the mobile block at line 452 must **not** get these entries.
+The `voice` module is already gated to `cfg(not(android/ios))` in `media/mod.rs`, and this `invoke_handler` block (line 385) is the desktop one - the mobile block at line 452 must **not** get these entries.
 
 - [ ] **Step 4: Run the tests and build**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml --no-default-features --lib media::voice`
-Expected: PASS — everything from Tasks 1-7, 68 pre-existing plus the new ones.
+Expected: PASS - everything from Tasks 1-7, 68 pre-existing plus the new ones.
 
 Run: `cargo check --manifest-path src-tauri/Cargo.toml`
 Expected: clean, with the `aec` feature on.
@@ -2072,7 +2072,7 @@ export class VoiceEngineService {
 }
 ```
 
-**Field names are verified against `AudioSettings` as it stands:** `micId`, `noiseSuppressionMode` (`'none' | 'standard' | 'enhanced'`, matching the Rust mapping exactly), `echoCancellation`, `autoGainControl`, `inputMode` (`'voice-activity' | 'push-to-talk'`) and `inputSensitivity` (0-100). Do **not** add or rename fields here — phase 4 owns the settings rework, including collapsing `vadStrength` and `inputSensitivity` into one control.
+**Field names are verified against `AudioSettings` as it stands:** `micId`, `noiseSuppressionMode` (`'none' | 'standard' | 'enhanced'`, matching the Rust mapping exactly), `echoCancellation`, `autoGainControl`, `inputMode` (`'voice-activity' | 'push-to-talk'`) and `inputSensitivity` (0-100). Do **not** add or rename fields here - phase 4 owns the settings rework, including collapsing `vadStrength` and `inputSensitivity` into one control.
 
 - [ ] **Step 2: Verify it compiles**
 
@@ -2113,7 +2113,7 @@ git commit -m "feat: Angular service for the Rust voice engine"
 > to every other participant.
 >
 > So the participant's audio session is decided by **whichever session publishes a local track named
-> `"audio"`** — the `?primary=` flag only writes `CfSessionId` at session-creation time and is then
+> `"audio"`** - the `?primary=` flag only writes `CfSessionId` at session-creation time and is then
 > overwritten by the publish. Two consequences:
 >
 > 1. `voice::rtc::TRACK_NAME` **must** stay the literal `"audio"`. The backend keys on it. Its test
@@ -2127,15 +2127,15 @@ git commit -m "feat: Angular service for the Rust voice engine"
 > says the HTTP response omits both fields *"so clients discover them only via ParticipantJoined
 > events (prevents pulling remote tracks before pushing local, which causes Cloudflare 425)"*. The
 > spike read `undefined` for both because the backend deliberately leaves them out. Adding them to
-> `VoiceStateResponse` to make verification easier would reintroduce that bug class — do not.
+> `VoiceStateResponse` to make verification easier would reintroduce that bug class - do not.
 >
 > **Carry into Step 3:** after the cutover the webview publishes no local track at all, so its first
-> `tracks/new` is an all-remote pull on a fresh session — precisely the 425 condition that comment
+> `tracks/new` is an all-remote pull on a fresh session - precisely the 425 condition that comment
 > describes. The backend already routes all-remote requests through `TracksNewWithRetryAsync`
 > (lines 117-119), which is what makes this safe. Verify it in Step 6 rather than assuming it.
 
 <details>
-<summary>Original runtime procedure, kept for reference — superseded by the source reading above</summary>
+<summary>Original runtime procedure, kept for reference - superseded by the source reading above</summary>
 
 This is the design's stated highest-risk assumption and it has not been tested. Add a temporary log and run a two-client call with the *current* build plus only the Rust session started alongside:
 
@@ -2149,7 +2149,7 @@ const rust = await this.voiceEngine.start(
 console.log('[voice] rust session', rust.cfSessionId, rust.trackName);
 ```
 
-Both `apiConfig` and `oauth` are already injected in `voice-rtc.service.ts` — line 625 uses exactly this pair for the screen publisher.
+Both `apiConfig` and `oauth` are already injected in `voice-rtc.service.ts` - line 625 uses exactly this pair for the screen publisher.
 
 Verify, from the second client:
 1. The participant record for the first client reports the **Rust** `cfSessionId`, not the webview's.
@@ -2162,13 +2162,13 @@ Verify, from the second client:
 
 - [x] **Step 1b (unplanned): Fix the DM call endpoint in Rust before relying on it**
 
-> `Signalling::voice_base` built the call route as `/api/v1/voice/calls/{id}` — the DM controller's
+> `Signalling::voice_base` built the call route as `/api/v1/voice/calls/{id}` - the DM controller's
 > own `[Route]`. But these are *gateway* paths: `Echo/Proxy/ProxyConfig.cs:34` matches
 > `/api/v1/messaging/{**rest}` and rewrites it to `/api/v1/{**rest}`, so the segment after `v1`
 > names the service and never appears in the controller route. The guild path had it right
 > (`/api/v1/guild/guilds/...` against `[Route("api/v1/guilds/...")]`); the call path did not, and
-> would have 404'd at the gateway. Pre-existing — it also affects Rust screen publishing in a DM
-> call — but load-bearing for Step 4, so fixed first. The test now says why.
+> would have 404'd at the gateway. Pre-existing - it also affects Rust screen publishing in a DM
+> call - but load-bearing for Step 4, so fixed first. The test now says why.
 >
 > Also checked, since Rust now creates the *primary* session: `DeviceIdResolver` treats a missing
 > `X-Device-Id` as `WasProvided: false` (not unknown) and buckets it as `"default"`. The frontend
@@ -2202,15 +2202,15 @@ Make the equivalent change to the DM call service used by `call-webrtc.service.t
 >    target, so a pre-added spare would put an m-line in the offer that Cloudflare was never asked
 >    to allocate a track for. Keeping m-lines and requested tracks one-to-one is the shape the
 >    Calls API is built around. The connection simply does not negotiate until the first
->    subscription — which is correct, because until then it has nothing to carry.
+>    subscription - which is correct, because until then it has nothing to carry.
 > 2. **`rtcState` is now a `computed`.** Falling out of (1): alone in a channel the connection sits
 >    in `'new'` forever, and the status bar reads `'new'` as "connecting". It now reports
->    `'connected'` when the peer connection has nothing to do *and* the Rust engine is up —
+>    `'connected'` when the peer connection has nothing to do *and* the Rust engine is up -
 >    which is what the user means by the question. Real connection states, failures included, still
 >    win once there is something to negotiate.
 >
 > Also: `connect()` lost its now-unused `ownUserId` parameter, and `setupVAD` lost its `'local'`
-> branch — local speaking now comes from the engine.
+> branch - local speaking now comes from the engine.
 
 Replace lines 137-176 (the whole `let audioTrack` block, including the `useRust` branch and both `getUserMedia` calls) with:
 
@@ -2248,12 +2248,12 @@ Replace lines 137-176 (the whole `let audioTrack` block, including the `useRust`
         this.cfSessionId = cfSessionId;
 ```
 
-Then delete the local publish that followed it — the `tracksNew` call at lines 201-205 published `{location:'local', mid: audioMid, trackName:'audio'}` and there is no longer a local track to publish. The webview's first `tracksNew` is now whatever the first *subscription* issues.
+Then delete the local publish that followed it - the `tracksNew` call at lines 201-205 published `{location:'local', mid: audioMid, trackName:'audio'}` and there is no longer a local track to publish. The webview's first `tracksNew` is now whatever the first *subscription* issues.
 
 Also remove, in the same file:
-- `this.vadProbeTrack` and the `setupVAD('local', ...)` call — speaking state now comes from `VoiceEngineService.speaking`.
+- `this.vadProbeTrack` and the `setupVAD('local', ...)` call - speaking state now comes from `VoiceEngineService.speaking`.
 - `this.localAudioTrack?.stop()`, `this.vadProbeTrack?.stop()` and `void this.rustMedia.stopMicCapture()` in `teardown()` (lines 251-254), replaced with `void this.voiceEngine.stop()`.
-- `this.cfAudioTrackName` from `getActiveTrackNames()` — the Rust session closes its own track, exactly as the screen publisher does.
+- `this.cfAudioTrackName` from `getActiveTrackNames()` - the Rust session closes its own track, exactly as the screen publisher does.
 
 - [x] **Step 4: Make the same change in `call-webrtc.service.ts`**
 
@@ -2261,7 +2261,7 @@ The structure differs but the shape of the change is identical: start the engine
 
 - [x] **Step 5: Point mute and push-to-talk at the engine**
 
-Find every existing caller that toggled `localAudioTrack.enabled` and route it to `voiceEngine.setMute` / `setPttOpen`. Muting by disabling a track no longer works, because there is no local track — and this fails *silently*, which makes it the most likely thing to be missed.
+Find every existing caller that toggled `localAudioTrack.enabled` and route it to `voiceEngine.setMute` / `setPttOpen`. Muting by disabling a track no longer works, because there is no local track - and this fails *silently*, which makes it the most likely thing to be missed.
 
 > Done in `VoiceChannelService.syncMic()` and `CallWebRtcService`'s mute effect. Mute and the talk
 > key stay two separate facts rather than being collapsed into one boolean, because the engine's
@@ -2276,22 +2276,22 @@ Find every existing caller that toggled `localAudioTrack.enabled` and route it t
 > - **Settings changes had to be pushed live.** The input-mode switch now reads in Rust, so without
 >   an effect feeding `voice_set_processing`, changing it mid-call would have silently done nothing
 >   until the next join. `VoiceEngineService` now watches the settings signal. The input *device* is
->   still join-time only — it is chosen when the capture stream opens.
+>   still join-time only - it is chosen when the capture stream opens.
 > - **Two VAD implementations became one.** `applyVadGate` (both services), `startSpeakingDetection`,
 >   `vadProbeTrack` and `setupVAD('local', …)` are gone. The speaking indicator is now the same
->   decision that picks which frames get transmitted, so the two can no longer disagree — which they
+>   decision that picks which frames get transmitted, so the two can no longer disagree - which they
 >   did, because the analyser judged a *clone* of the track the gate was muting.
 >
-> `IsleVoiceRtcService.setMicEnabled` is untouched — Isle keeps its own path until phase 3.
+> `IsleVoiceRtcService.setMicEnabled` is untouched - Isle keeps its own path until phase 3.
 
 - [ ] **Step 6: Verify at runtime, with two clients**
 
-> **Not runnable here — this needs two clients and a live backend.** What is verified: 199 Rust
+> **Not runnable here - this needs two clients and a live backend.** What is verified: 199 Rust
 > tests, `tsc --noEmit`, and a full `ng build` (so templates too). Every item below is unverified.
 >
 > Watch in particular:
 > - **The 425 window.** The webview's first `tracks/new` is now an all-remote pull on a fresh
->   session — exactly the condition `VoiceState.cs:42-44` warns about. `TracksNewWithRetryAsync`
+>   session - exactly the condition `VoiceState.cs:42-44` warns about. `TracksNewWithRetryAsync`
 >   (`GuildCloudflareController.cs:117-119`, `CloudflareController.cs:115-117`) should absorb it.
 >   If a participant is silently unheard on join, that is where to look.
 > - **An offer with no local m-lines.** Nothing negotiates until the first subscription now. If
@@ -2299,28 +2299,28 @@ Find every existing caller that toggled `localAudioTrack.enabled` and route it t
 >   out.
 
 > **Run 2026-07-31. Guild voice confirmed in both join orders, against a peer on the previous
-> build. Three bugs found, all in the first two minutes of real use — none of which any test in
+> build. Three bugs found, all in the first two minutes of real use - none of which any test in
 > this plan would have caught, because all three are about what happens when something is slow.**
 >
 > 1. **STUN servers passed to the Rust engine** (`voice-engine.service.ts`), copied from the screen
->    publisher. Cloudflare's SFU is publicly routable and answers to the source address it sees —
+>    publisher. Cloudflare's SFU is publicly routable and answers to the source address it sees -
 >    which is why `call-webrtc.service.ts` has never passed any. Bought nothing, added the one step
 >    in ICE gathering that can block on the network. *Found by the user asking why ICE was involved
 >    at all.*
 > 2. **`rtc::start` awaited `gathering_complete_promise` with no timeout**, so (1) had no upper
 >    bound. Now capped at 5s, offering with the candidates gathered so far.
-> 3. **`connect()` awaited the engine while holding the negotiation queue blocked** — so a slow
+> 3. **`connect()` awaited the engine while holding the negotiation queue blocked** - so a slow
 >    engine start stalled subscriptions on a *different* peer connection, permanently. This is what
 >    turned a slow start into one-way silence. Sending and receiving are independent here; the
 >    engine start now happens outside that block.
 >
 > Plus a leak: a page reload does not unwind Rust, so a reloaded webview left a session capturing
-> and publishing into the channel — audible to everyone else, invisible locally. Now stopped on
+> and publishing into the channel - audible to everyone else, invisible locally. Now stopped on
 > `beforeunload`.
 >
 > **The debugging lesson worth keeping:** the symptom was silence with an empty console *and* empty
 > backend logs, and I spent three rounds theorising about which side dropped the event. The thing
-> that actually settled it was adding a log line before the negotiation queue and one after it —
+> that actually settled it was adding a log line before the negotiation queue and one after it -
 > "never subscribed" and "subscribed and failed" had been indistinguishable from outside. Commit
 > `6ed96e8` keeps those permanently.
 
@@ -2330,11 +2330,11 @@ Find every existing caller that toggled `localAudioTrack.enabled` and route it t
 - [ ] Push-to-talk transmits only while the key is down.
 - [ ] The speaking indicator matches who is actually talking.
 - [ ] Screen sharing still works, still with its own session, and its audio is unaffected.
-- [ ] Leaving and rejoining works, twice in a row — this is where an orphaned session shows up.
+- [ ] Leaving and rejoining works, twice in a row - this is where an orphaned session shows up.
 - [x] A client on the **previous** build can still hear a client on the new build.
 
 > **Still open.** Guild voice in both orders and old-build interop are confirmed; everything above
-> without a tick was not exercised. The DM call path is the one to worry about — it has had zero
+> without a tick was not exercised. The DM call path is the one to worry about - it has had zero
 > runtime exposure and contains a URL (`/api/v1/messaging/voice/calls/...`) that has never once been
 > hit successfully, because it was wrong until this phase.
 
@@ -2360,6 +2360,6 @@ Steps 1-8 are additive: the Rust engine is dormant until something calls `voice_
 ## What this phase does not do
 
 - **Playout is still the webview's.** Remote audio still arrives on the webview's peer connection and plays through `<audio>` elements. The jitter buffer and mixer built in the DSP foundation are not yet used by anything.
-- **Echo cancellation has no reference signal yet.** `process_render` is never called, because Rust does not render the mix until phase 2. AEC3 will run without a reference and cancel nothing until then — expect echo on speakers to be no better than it is today, and no worse.
+- **Echo cancellation has no reference signal yet.** `process_render` is never called, because Rust does not render the mix until phase 2. AEC3 will run without a reference and cancel nothing until then - expect echo on speakers to be no better than it is today, and no worse.
 - **Isle is untouched.** It keeps its own WebAudio path until phase 3.
 - **The dead settings are still dead.** `inputVolume` and `outputVolume` are wired in phase 4.

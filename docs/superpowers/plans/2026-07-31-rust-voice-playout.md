@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Move all voice and screen-share audio playout out of the webview and into Rust, so that one mixer owns everything the user hears — which is also what finally gives AEC3 a reference signal.
+**Goal:** Move all voice and screen-share audio playout out of the webview and into Rust, so that one mixer owns everything the user hears - which is also what finally gives AEC3 a reference signal.
 
-**Architecture:** The Rust session already opened by phase 1 gains a receive side. It subscribes to remote tracks on its *own* Cloudflare session, decodes each into a per-participant jitter buffer, mixes them at 10 ms, and plays the result through a cpal output stream. The mixed frame is fed back to `CaptureChain::render_reference` before it reaches the speakers — that hook exists and has never been called. The webview keeps its peer connection for video and screen *video* only; it stops creating `<audio>` elements entirely.
+**Architecture:** The Rust session already opened by phase 1 gains a receive side. It subscribes to remote tracks on its *own* Cloudflare session, decodes each into a per-participant jitter buffer, mixes them at 10 ms, and plays the result through a cpal output stream. The mixed frame is fed back to `CaptureChain::render_reference` before it reaches the speakers - that hook exists and has never been called. The webview keeps its peer connection for video and screen *video* only; it stops creating `<audio>` elements entirely.
 
 **Tech Stack:** webrtc-rs 0.14, cpal 0.15, opus (via the existing `codec.rs`), ringbuf 0.4, Angular 21 / Tauri 2.
 
@@ -24,21 +24,21 @@
 ## File Structure
 
 **New:**
-- `src-tauri/src/media/voice/playout.rs` — cpal output stream + ring. The mirror of `capture.rs`.
-- `src-tauri/src/media/voice/receive.rs` — one remote source: jitter buffer, decoder, 20→10 ms splitting, level metering.
+- `src-tauri/src/media/voice/playout.rs` - cpal output stream + ring. The mirror of `capture.rs`.
+- `src-tauri/src/media/voice/receive.rs` - one remote source: jitter buffer, decoder, 20→10 ms splitting, level metering.
 
 **Modified:**
-- `src-tauri/src/media/publisher/signalling.rs` — remote-track subscribe request shape.
-- `src-tauri/src/media/voice/rtc.rs` — recvonly transceivers, `on_track`, RTP → `jitter::Packet`.
-- `src-tauri/src/media/voice/session.rs` — the playout thread, mixer ownership, `render_reference` wiring.
-- `src-tauri/src/media/voice/mod.rs` — subscribe/unsubscribe/volume/deafen/output-device commands.
-- `src-tauri/src/lib.rs` — register the new commands.
-- `src/app/services/voice-engine.service.ts` — the Angular face of all of the above.
-- `src/app/services/voice-rtc.service.ts` — stop playing audio in the webview.
-- `src/app/services/voice-channel.service.ts` — volume/deafen/speaking routed to the engine.
-- `src/app/services/call-webrtc.service.ts` — the same for DM calls.
+- `src-tauri/src/media/publisher/signalling.rs` - remote-track subscribe request shape.
+- `src-tauri/src/media/voice/rtc.rs` - recvonly transceivers, `on_track`, RTP → `jitter::Packet`.
+- `src-tauri/src/media/voice/session.rs` - the playout thread, mixer ownership, `render_reference` wiring.
+- `src-tauri/src/media/voice/mod.rs` - subscribe/unsubscribe/volume/deafen/output-device commands.
+- `src-tauri/src/lib.rs` - register the new commands.
+- `src/app/services/voice-engine.service.ts` - the Angular face of all of the above.
+- `src/app/services/voice-rtc.service.ts` - stop playing audio in the webview.
+- `src/app/services/voice-channel.service.ts` - volume/deafen/speaking routed to the engine.
+- `src/app/services/call-webrtc.service.ts` - the same for DM calls.
 
-**Deliberately untouched:** `mixer.rs`, `jitter.rs`, `codec.rs`, `gate.rs`, `resample.rs`, `chain.rs`. Everything this phase needs from them already exists and is tested. If you find yourself editing them, stop and re-read — it probably means the new code is in the wrong shape.
+**Deliberately untouched:** `mixer.rs`, `jitter.rs`, `codec.rs`, `gate.rs`, `resample.rs`, `chain.rs`. Everything this phase needs from them already exists and is tested. If you find yourself editing them, stop and re-read - it probably means the new code is in the wrong shape.
 
 ---
 
@@ -52,7 +52,7 @@
 - Consumes: `ring::channel`, `ring::RingWriter` (from phase 1).
 - Produces:
   - `pub struct OutputStream(cpal::Stream)` with `unsafe impl Send`
-  - `pub fn open(device_id: Option<&str>) -> Result<(OutputStream, PlayoutSink, u32), String>` — stream, the writer half, and the device's sample rate
+  - `pub fn open(device_id: Option<&str>) -> Result<(OutputStream, PlayoutSink, u32), String>` - stream, the writer half, and the device's sample rate
   - `pub struct PlayoutSink` with `pub fn write_stereo(&mut self, frame: &[f32])` and `pub fn underruns(&self) -> u64`
   - `pub fn upmix(mono_or_stereo: &[f32], src_channels: usize, dst_channels: usize, out: &mut Vec<f32>)`
 
@@ -127,7 +127,7 @@ mod tests {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `cargo test --no-default-features playout`
-Expected: FAIL — `playout` does not exist.
+Expected: FAIL - `playout` does not exist.
 
 - [ ] **Step 3: Implement**
 
@@ -313,7 +313,7 @@ fn fill(
 
 - [ ] **Step 4: Add `pop_into` to `RingReader`**
 
-`read_frame` is fixed at `FRAME` samples, which the device callback cannot use — it asks for whatever size it likes. In `src-tauri/src/media/voice/ring.rs`:
+`read_frame` is fixed at `FRAME` samples, which the device callback cannot use - it asks for whatever size it likes. In `src-tauri/src/media/voice/ring.rs`:
 
 ```rust
     /// Pop as many samples as will fit, returning how many were actually available.
@@ -381,11 +381,11 @@ git commit -m "feat: open the voice output device"
   - `pub struct RemoteSource`
   - `pub fn new() -> Result<Self, String>`
   - `pub fn push(&mut self, packet: Packet, arrival_ms: u64)`
-  - `pub fn next_frame(&mut self) -> &[f32]` — always exactly `FRAME` samples, concealed if nothing arrived
-  - `pub fn level(&self) -> f32` — smoothed RMS, for the speaking indicator
+  - `pub fn next_frame(&mut self) -> &[f32]` - always exactly `FRAME` samples, concealed if nothing arrived
+  - `pub fn level(&self) -> f32` - smoothed RMS, for the speaking indicator
   - `pub fn speaking(&self) -> bool`
 
-**Why this is its own file:** the 20 ms packet / 10 ms frame mismatch is the whole content of it. Opus gives 960 samples per packet, the mixer wants 480 per call, and the jitter buffer must only be popped once per *packet*, not once per frame. Getting that wrong pops the buffer twice as fast as packets arrive and drains it into permanent concealment — which sounds like a robot voice that never recovers.
+**Why this is its own file:** the 20 ms packet / 10 ms frame mismatch is the whole content of it. Opus gives 960 samples per packet, the mixer wants 480 per call, and the jitter buffer must only be popped once per *packet*, not once per frame. Getting that wrong pops the buffer twice as fast as packets arrive and drains it into permanent concealment - which sounds like a robot voice that never recovers.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -476,7 +476,7 @@ mod tests {
 - [ ] **Step 2: Run to verify failure**
 
 Run: `cargo test --no-default-features receive`
-Expected: FAIL — no such module.
+Expected: FAIL - no such module.
 
 - [ ] **Step 3: Implement**
 
@@ -598,7 +598,7 @@ Add `mod receive;` to `src-tauri/src/media/voice/mod.rs`.
 Run: `cargo test --no-default-features receive`
 Expected: PASS, 6 tests.
 
-If `a_late_duplicate_does_not_produce_a_double_frame` fails, the dedupe belongs in `jitter.rs` and this plan's "deliberately untouched" note was wrong — fix it there, with its own test, rather than working around it here.
+If `a_late_duplicate_does_not_produce_a_double_frame` fails, the dedupe belongs in `jitter.rs` and this plan's "deliberately untouched" note was wrong - fix it there, with its own test, rather than working around it here.
 
 - [ ] **Step 5: Commit**
 
@@ -650,7 +650,7 @@ The existing `tracks_new` is typed to `&[LocalTrack]`, whose `mid` field a remot
 - [ ] **Step 2: Run to verify failure**
 
 Run: `cargo test --no-default-features signalling`
-Expected: FAIL — `RemoteTrack` not found.
+Expected: FAIL - `RemoteTrack` not found.
 
 - [ ] **Step 3: Implement**
 
@@ -724,10 +724,10 @@ git commit -m "feat: request remote tracks from Rust"
 **Interfaces:**
 - Consumes: `signalling::RemoteTrack`, `jitter::Packet`.
 - Produces, on `VoicePublication`:
-  - `pub async fn subscribe(&self, sources: &[(String, String)]) -> Result<Vec<String>, String>` — takes `(cf_session_id, track_name)` pairs, returns the mids Cloudflare assigned, in the same order
-  - `pub fn on_audio(&self, sink: mpsc::Sender<(String, Packet)>)` — every RTP packet on a subscribed track, keyed by mid
+  - `pub async fn subscribe(&self, sources: &[(String, String)]) -> Result<Vec<String>, String>` - takes `(cf_session_id, track_name)` pairs, returns the mids Cloudflare assigned, in the same order
+  - `pub fn on_audio(&self, sink: mpsc::Sender<(String, Packet)>)` - every RTP packet on a subscribed track, keyed by mid
 
-**The ordering trap:** `on_track` can fire before `subscribe` returns, because Cloudflare starts sending as soon as it answers. Register the handler *once, at construction*, not per subscription, and key by mid. A handler installed after the answer misses the first packets, and worse, a mid→participant map written after `set_remote_description` misses them permanently — this is the same class of bug as the webview's `pendingTracks` replay queue.
+**The ordering trap:** `on_track` can fire before `subscribe` returns, because Cloudflare starts sending as soon as it answers. Register the handler *once, at construction*, not per subscription, and key by mid. A handler installed after the answer misses the first packets, and worse, a mid→participant map written after `set_remote_description` misses them permanently - this is the same class of bug as the webview's `pendingTracks` replay queue.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -755,7 +755,7 @@ git commit -m "feat: request remote tracks from Rust"
 - [ ] **Step 2: Run to verify failure**
 
 Run: `cargo test --no-default-features rtc`
-Expected: FAIL — `subscription_tracks` not found.
+Expected: FAIL - `subscription_tracks` not found.
 
 - [ ] **Step 3: Implement the pure helper first**
 
@@ -897,7 +897,7 @@ Store `packet_sink` on `VoicePublication` and expose:
     }
 ```
 
-Note: no ICE gathering wait here — the connection is already established by the publish, and a subscribe is a renegotiation of it. Adding a gathering wait would reintroduce phase 1's stall.
+Note: no ICE gathering wait here - the connection is already established by the publish, and a subscribe is a renegotiation of it. Adding a gathering wait would reintroduce phase 1's stall.
 
 - [ ] **Step 6: Run the tests, then commit**
 
@@ -980,7 +980,7 @@ pub struct SourceEntry {
 - [ ] **Step 3: Run to verify failure**
 
 Run: `cargo test --no-default-features session`
-Expected: FAIL — `reference_from` not found.
+Expected: FAIL - `reference_from` not found.
 
 - [ ] **Step 4: Implement the reference downmix**
 
@@ -1074,7 +1074,7 @@ Inside the existing capture loop, immediately before `chain.push(...)`:
                 }
 ```
 
-Then remove `#[allow(dead_code)]` from `CaptureChain::render_reference` — it now has a caller.
+Then remove `#[allow(dead_code)]` from `CaptureChain::render_reference` - it now has a caller.
 
 - [ ] **Step 7: Feed subscribed packets into the sources**
 
@@ -1170,7 +1170,7 @@ with the commands delegating through `with_active(|h| ...)`, matching the existi
 
 - [ ] **Step 3: Register in `lib.rs`**
 
-Add all five to the **desktop** `invoke_handler` block, immediately after `media::voice::voice_set_processing,`. Not the mobile one — phase 1's commands are in the desktop block only.
+Add all five to the **desktop** `invoke_handler` block, immediately after `media::voice::voice_set_processing,`. Not the mobile one - phase 1's commands are in the desktop block only.
 
 - [ ] **Step 4: Run the tests, then commit**
 
@@ -1200,7 +1200,7 @@ readonly remoteLevels: Signal<ReadonlyMap<string, RemoteLevel>>
 
 - [ ] **Step 1: Extend the event channel**
 
-`VoiceEvent` gains a `kind: 'levels'` variant carrying `RemoteLevel[]`, emitted from the playout thread at ~10 Hz (not per frame — 100 events/second through the IPC channel is waste, and the indicator cannot be read faster than a screen refresh anyway).
+`VoiceEvent` gains a `kind: 'levels'` variant carrying `RemoteLevel[]`, emitted from the playout thread at ~10 Hz (not per frame - 100 events/second through the IPC channel is waste, and the indicator cannot be read faster than a screen refresh anyway).
 
 ```typescript
         channel.onmessage = event => {
@@ -1258,7 +1258,7 @@ git commit -m "feat: expose remote audio control to Angular"
     }
 ```
 
-Note the signature loses `guildId`/`channelId` — Rust's session already knows its target. Update both call sites in `voice-channel.service.ts`.
+Note the signature loses `guildId`/`channelId` - Rust's session already knows its target. Update both call sites in `voice-channel.service.ts`.
 
 - [ ] **Step 2: Delete the webview playout**
 
@@ -1300,10 +1300,10 @@ request, and its own doc comment names **the Cloudflare session create** as one 
 backend validates it on.
 
 **The Rust engine sends no such header.** `DeviceIdResolver` treats a missing header as
-`WasProvided: false` and buckets it as `"default"` rather than rejecting it — so nothing fails
+`WasProvided: false` and buckets it as `"default"` rather than rejecting it - so nothing fails
 loudly. But the Rust session is the *primary* one, and for a DM call `CreateSession(primary: true)`
 is what runs `Call.ConnectDevice`. So the call would be connected under device `"default"` while
-every other request from the same client — accept, decline, leave — carries the real id. That is
+every other request from the same client - accept, decline, leave - carries the real id. That is
 precisely the split-brain the device id was introduced to prevent, and device-takeover detection
 compares those two values.
 
@@ -1312,7 +1312,7 @@ split-brain risk. That was true when the frontend sent the header nowhere. It no
 
 The fix is small and belongs on the Rust side: `Signalling` takes an optional device id and sends it
 as `X-Device-Id`, `voice_start` gains a parameter, and `VoiceEngineService.start` passes
-`await identity.deviceId()`. Not implemented here — the interceptor is still uncommitted work in
+`await identity.deviceId()`. Not implemented here - the interceptor is still uncommitted work in
 someone else's tree, and racing it would produce a conflict rather than a fix. Coordinate first.
 
 ### Task 11: Verify at runtime, with two clients
@@ -1323,11 +1323,11 @@ someone else's tree, and racing it would produce a conflict rather than a fix. C
 - [ ] Deafen silences everything and does not stop your own transmission.
 - [ ] Speaking indicators match who is talking, for remote participants.
 - [ ] Screen-share audio plays, and muting it does not mute that user's voice.
-- [ ] **Echo test:** speakers at a normal level, no headphones, both sides talking. This is the phase's actual goal — compare against a recording from before it.
+- [ ] **Echo test:** speakers at a normal level, no headphones, both sides talking. This is the phase's actual goal - compare against a recording from before it.
 - [ ] A client on the previous build still interoperates.
 - [ ] Leaving and rejoining twice leaves no orphaned session and no stuck audio device.
 
-**Watch for:** a climbing `PlayoutSink::underruns` (the mixer thread is not keeping up), robot-voice that never recovers (the jitter buffer is being popped per frame instead of per packet — Task 2's trap), and echo that is *present but weak* (the reference downmix is wrong — Task 5, Step 4).
+**Watch for:** a climbing `PlayoutSink::underruns` (the mixer thread is not keeping up), robot-voice that never recovers (the jitter buffer is being popped per frame instead of per packet - Task 2's trap), and echo that is *present but weak* (the reference downmix is wrong - Task 5, Step 4).
 
 ---
 

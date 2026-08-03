@@ -76,12 +76,10 @@ export class AccountSwitchService {
             return false;
         }
 
+        // Commits the live slot as part of the write. Nothing after the re-entry runs, so anything
+        // the next boot needs has to be persisted by the time this returns.
         if (!await this.accounts.activate(slotId)) return false;
 
-        // Belt and braces. `activate` already mirrors it through the registry's publish step, but
-        // this value is what the next boot reads before any Angular code runs, and a switch that
-        // reloaded into the previous account would look exactly like the switch silently failing.
-        setActiveSlotId(slotId);
         this.environment.reenter('overview');
         return true;
     }
@@ -152,10 +150,10 @@ export class AccountSwitchService {
 
         if (!wasActive) return;
 
-        // `remove` promotes the most recently used survivor, or leaves none live. The second case
-        // is the only one that must not land on `/overview`: there is no session to render it.
+        // `remove` has already promoted the most recently used survivor, or left none live. The
+        // second case is the only one that must not land on `/overview`: there is no session to
+        // render it with.
         const next = await this.accounts.activeSlot();
-        setActiveSlotId(await this.accounts.activeSlotId());
         this.environment.reenter(next ? 'overview' : 'authentication');
     }
 }

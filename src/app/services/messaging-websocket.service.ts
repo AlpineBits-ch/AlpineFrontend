@@ -174,6 +174,15 @@ interface MlsStateChangedPushPayload {
 
 interface MessageCreatedPayload {
     messageId: string;
+    /**
+     * The message's *stored* timestamp, not this device's receipt time.
+     *
+     * <p>Optional only so a client can outlive a server that predates it - every live server sends
+     * it. Falling back to `new Date()` is what this used to do unconditionally, and the two drift
+     * by however long the message spent on the broker, which is enough to sort a burst wrongly and
+     * to put a visible clock skew on the bubble.</p>
+     */
+    createdAt?: string;
     content: string;
     authorId: string;
     conversationId: string;
@@ -517,6 +526,8 @@ export class MessagingWebsocketService {
         if (data.conversationId) extra['conversationId'] = data.conversationId;
         if (data.channelId) extra['channelId'] = data.channelId;
 
+        const createdAt = data.createdAt ? new Date(data.createdAt) : new Date();
+
         // Emit the message first so the UI updates immediately, regardless of notification delays.
         this.messageObservable.next({
             id: data.messageId,
@@ -524,8 +535,8 @@ export class MessagingWebsocketService {
             authorId: data.authorId,
             conversationId: data.conversationId,
             channelId: data.channelId,
-            createdAt: new Date(),
-            updatedAt: new Date(),
+            createdAt,
+            updatedAt: createdAt,
             isPending: false,
             isFailed: false,
             attachments: data.attachments,

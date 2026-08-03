@@ -6,7 +6,7 @@
 
 **Architecture:** A new `DeviceIdentityService` becomes the single owner of the client device id (the same UUID `MlsService` already persists). An HTTP interceptor stamps `X-Device-Id` on every API request and recovers from the new `400 Unknown X-Device-Id` by re-registering once. The Rust media layer, which issues its own HTTP requests to the Cloudflare session endpoint, sends the same header so the webview and Rust are never seen as two devices. On top of that foundation: push tokens carry their device, login and QR carry the device id, the sessions UI can forget a device, and the call/voice layer gains per-device events.
 
-**Tech Stack:** Angular 21 (signals, functional HTTP interceptors), RxJS, `@microsoft/signalr`, Tauri 2 (`@tauri-apps/plugin-store`, `tauri-plugin-secure-storage-api`), Rust (`reqwest`), Vitest via `@angular/build:unit-test` (globals enabled — no need to import `describe`/`it`/`expect`/`vi`).
+**Tech Stack:** Angular 21 (signals, functional HTTP interceptors), RxJS, `@microsoft/signalr`, Tauri 2 (`@tauri-apps/plugin-store`, `tauri-plugin-secure-storage-api`), Rust (`reqwest`), Vitest via `@angular/build:unit-test` (globals enabled - no need to import `describe`/`it`/`expect`/`vi`).
 
 ## Global Constraints
 
@@ -14,11 +14,11 @@
 - **The backend is implemented but NOT deployed.** The `ConsolidateDeviceConcepts` migration has not been applied. Every endpoint here will behave as documented only after deploy. Implement the full contract now; do not gate behind a feature flag.
 - **Never generate a second device identifier.** The one and only id is the value at `settings.json` key `mls_device_id`. MLS keychain entries are named `alpine_mls_{deviceId}_{pub|priv|identity}`; a forked id orphans every stored signing key.
 - **`ensureRegistered()` must never call `MlsService.generateKeyPackages()`.** That mints a fresh Ed25519 keypair and silently orphans this device from every MLS group it belongs to.
-- All API paths go through the gateway base URL from `ApiConfigService.baseUrl()` (a signal — call it). Never hardcode `https://api.venta.gg`.
+- All API paths go through the gateway base URL from `ApiConfigService.baseUrl()` (a signal - call it). Never hardcode `https://api.venta.gg`.
 - Header name is exactly `X-Device-Id`. Hub query param is exactly `deviceId`. Token-request form field is exactly `device_id`. QR-login body field is exactly `clientDeviceId`.
 - Toasts in this codebase are **not** translated (see `ToastService`'s own comment and `call-state.service.ts:101`). Use plain English strings in toasts. Only the settings UI uses `| translate`.
 - `src/assets/i18n/locales` is a **git submodule** (`git@github.com:AlpineBits-ch/venta-i18n.git`). Locale keys are flat, dot-separated. String changes need their own commit inside the submodule, then a pointer-bump commit in the parent repo.
-- Test command: **`bun run ng test --watch=false`**. Not `npx ng test` — dependencies were installed with bun, which writes `.bunx`/`.exe` shims instead of the plain `ng` file npx looks for, so npx fails with "could not determine executable to run". Rust test command: `cargo test --manifest-path src-tauri/Cargo.toml`.
+- Test command: **`bun run ng test --watch=false`**. Not `npx ng test` - dependencies were installed with bun, which writes `.bunx`/`.exe` shims instead of the plain `ng` file npx looks for, so npx fails with "could not determine executable to run". Rust test command: `cargo test --manifest-path src-tauri/Cargo.toml`.
 - Baseline before this plan: 68 test files, 796 tests, all passing.
 - Do not bulk-edit files with PowerShell 5.1 string replacement: `Get-Content` reads a BOM-less UTF-8 file as ANSI and silently mangles every non-ASCII character. Use the Edit tool, or `[System.IO.File]::ReadAllText` with an explicit `UTF8Encoding($false)`.
 - Follow the existing file style: 4-space indent, single quotes, `inject()` over constructor params.
@@ -28,29 +28,29 @@
 ## File Structure
 
 **Created:**
-- `src/app/services/device-identity.service.ts` — owns the device id and its server registration. Everything else consumes it.
+- `src/app/services/device-identity.service.ts` - owns the device id and its server registration. Everything else consumes it.
 - `src/app/services/device-identity.service.spec.ts`
-- `src/app/interceptors/device-id-interceptor.ts` — stamps the header; recovers from `400 Unknown X-Device-Id`.
+- `src/app/interceptors/device-id-interceptor.ts` - stamps the header; recovers from `400 Unknown X-Device-Id`.
 - `src/app/interceptors/device-id-interceptor.spec.ts`
 
 **Modified:**
-- `src/app/services/mls.service.ts` — device-id methods delegate to `DeviceIdentityService`.
-- `src/app/services/device.service.ts` — gains `deleteDevice()`.
-- `src/app/app.config.ts` — registers the interceptor.
-- `src-tauri/src/media/publisher/signalling.rs` — sends `X-Device-Id`.
-- `src-tauri/src/media/voice/mod.rs`, `src-tauri/src/media/publisher/mod.rs` — accept `device_id`.
-- `src/app/services/voice-engine.service.ts`, `rust-media.service.ts`, `screen-publish.ts`, `voice-rtc.service.ts`, `call-webrtc.service.ts`, `call-session.service.ts` — pass the device id to Rust.
-- `src/app/services/realtime-connection.service.ts` — lazy connection with `?deviceId=`.
-- `src/app/services/user-token.service.ts` — new push-token endpoint plus deregistration.
-- `src/app/features/settings/logout-dialog/logout-dialog.component.ts` — deregisters push on sign-out.
-- `src/app/services/auth.service.ts`, `qr-login.service.ts`, `src/app/dtos/request/qr-login.dto.ts` — device id at login.
-- `src/app/dtos/response/login-session.dto.ts`, `devices-settings.component.{ts,html}` — sessions UI.
-- `src/app/services/voice.service.ts`, `call-session.service.ts`, `call-state.service.ts`, `voice-websocket.service.ts`, `call-webrtc.service.ts`, `guild-websocket.service.ts`, `voice-channel.service.ts`, `call-panel.component.{ts,html}` — multi-device call/voice behaviour.
-- `src/assets/i18n/locales/{en,de,fr}.json` — new settings strings (submodule).
+- `src/app/services/mls.service.ts` - device-id methods delegate to `DeviceIdentityService`.
+- `src/app/services/device.service.ts` - gains `deleteDevice()`.
+- `src/app/app.config.ts` - registers the interceptor.
+- `src-tauri/src/media/publisher/signalling.rs` - sends `X-Device-Id`.
+- `src-tauri/src/media/voice/mod.rs`, `src-tauri/src/media/publisher/mod.rs` - accept `device_id`.
+- `src/app/services/voice-engine.service.ts`, `rust-media.service.ts`, `screen-publish.ts`, `voice-rtc.service.ts`, `call-webrtc.service.ts`, `call-session.service.ts` - pass the device id to Rust.
+- `src/app/services/realtime-connection.service.ts` - lazy connection with `?deviceId=`.
+- `src/app/services/user-token.service.ts` - new push-token endpoint plus deregistration.
+- `src/app/features/settings/logout-dialog/logout-dialog.component.ts` - deregisters push on sign-out.
+- `src/app/services/auth.service.ts`, `qr-login.service.ts`, `src/app/dtos/request/qr-login.dto.ts` - device id at login.
+- `src/app/dtos/response/login-session.dto.ts`, `devices-settings.component.{ts,html}` - sessions UI.
+- `src/app/services/voice.service.ts`, `call-session.service.ts`, `call-state.service.ts`, `voice-websocket.service.ts`, `call-webrtc.service.ts`, `guild-websocket.service.ts`, `voice-channel.service.ts`, `call-panel.component.{ts,html}` - multi-device call/voice behaviour.
+- `src/assets/i18n/locales/{en,de,fr}.json` - new settings strings (submodule).
 
 ---
 
-## Task 1: `DeviceIdentityService` — the device id
+## Task 1: `DeviceIdentityService` - the device id
 
 **Files:**
 - Create: `src/app/services/device-identity.service.ts`
@@ -154,7 +154,7 @@ it('reset clears the persisted id and the cache', async () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test --watch=false`
-Expected: FAIL — cannot resolve `./device-identity.service`.
+Expected: FAIL - cannot resolve `./device-identity.service`.
 
 - [ ] **Step 3: Create the service**
 
@@ -253,12 +253,12 @@ Replace both methods with:
     }
 ```
 
-Delete the now-unused `LazyStore` usages only if no other reference remains — lines 139-140 still use it, so keep the import.
+Delete the now-unused `LazyStore` usages only if no other reference remains - lines 139-140 still use it, so keep the import.
 
 - [ ] **Step 5: Run test to verify it passes**
 
 Run: `bun run ng test --watch=false`
-Expected: PASS — the five new tests plus the existing `mls.service.spec.ts` suite.
+Expected: PASS - the five new tests plus the existing `mls.service.spec.ts` suite.
 
 - [ ] **Step 6: Commit**
 
@@ -361,7 +361,7 @@ describe('registration', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test --watch=false`
-Expected: FAIL — `service.ensureRegistered is not a function`.
+Expected: FAIL - `service.ensureRegistered is not a function`.
 
 - [ ] **Step 3: Add the delete endpoint to `DeviceService`**
 
@@ -622,7 +622,7 @@ it('does not attempt recovery on the device-registration endpoint itself', async
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test --watch=false`
-Expected: FAIL — cannot resolve `./device-id-interceptor`.
+Expected: FAIL - cannot resolve `./device-id-interceptor`.
 
 - [ ] **Step 3: Create the interceptor**
 
@@ -719,7 +719,7 @@ to:
 - [ ] **Step 5: Run test to verify it passes**
 
 Run: `bun run ng test --watch=false`
-Expected: PASS. The existing `token-interceptor.spec.ts` suite must still pass — it configures its own interceptor list, so it is unaffected.
+Expected: PASS. The existing `token-interceptor.spec.ts` suite must still pass - it configures its own interceptor list, so it is unaffected.
 
 - [ ] **Step 6: Commit**
 
@@ -730,7 +730,7 @@ git commit -m "feat: send X-Device-Id on API requests and recover from an unknow
 
 ---
 
-## Task 4: Rust parity — `X-Device-Id` from the media layer
+## Task 4: Rust parity - `X-Device-Id` from the media layer
 
 **Files:**
 - Modify: `src-tauri/src/media/publisher/signalling.rs:113-140,215-237,255-277,280-320`
@@ -747,7 +747,7 @@ git commit -m "feat: send X-Device-Id on API requests and recover from an unknow
 - Consumes: `DeviceIdentityService.deviceId()` (Task 1).
 - Produces: `Signalling::new(base_url, token, device_id, target, role)`; `VoiceEngineService.start(target, apiBase, token, deviceId)`; `ScreenPublishOptions.deviceId`; `publishOptions(choice, shareId, apiBase, token, deviceId, target)`.
 
-**Why this task cannot be deferred:** today neither the webview nor Rust sends the header, so both land in the implicit `default` bucket and agree. Task 3 just made the webview send a real id. Until this task lands, Rust opens the **primary** Cloudflare session as `default` while the webview joins as the real device — two devices for one user, with the audio-bearing session on the wrong one, which is exactly what device-takeover detection kicks.
+**Why this task cannot be deferred:** today neither the webview nor Rust sends the header, so both land in the implicit `default` bucket and agree. Task 3 just made the webview send a real id. Until this task lands, Rust opens the **primary** Cloudflare session as `default` while the webview joins as the real device - two devices for one user, with the audio-bearing session on the wrong one, which is exactly what device-takeover detection kicks.
 
 - [ ] **Step 1: Write the failing Rust test**
 
@@ -786,7 +786,7 @@ Add:
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cargo test --manifest-path src-tauri/Cargo.toml`
-Expected: FAIL — `Signalling::new` takes 4 arguments, and there is no `device_id` method.
+Expected: FAIL - `Signalling::new` takes 4 arguments, and there is no `device_id` method.
 
 - [ ] **Step 3: Thread the device id through `Signalling`**
 
@@ -1021,7 +1021,7 @@ Add to each of those four services' field declarations:
     private readonly deviceIdentity = inject(DeviceIdentityService);
 ```
 
-with the import `import {DeviceIdentityService} from './device-identity.service';` (adjust the relative path for `call-session.service.ts` — it is in the same `services/` directory, so the same path works).
+with the import `import {DeviceIdentityService} from './device-identity.service';` (adjust the relative path for `call-session.service.ts` - it is in the same `services/` directory, so the same path works).
 
 - [ ] **Step 8: Run the full suite**
 
@@ -1156,7 +1156,7 @@ it('connects without the parameter when the device id cannot be resolved', async
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test --watch=false`
-Expected: FAIL — the URL has no `?deviceId=`, and `on()` reaches the connection immediately because it is built in the constructor.
+Expected: FAIL - the URL has no `?deviceId=`, and `on()` reaches the connection immediately because it is built in the constructor.
 
 - [ ] **Step 3: Rewrite the service**
 
@@ -1464,7 +1464,7 @@ it('does nothing on deregister when no token was ever registered', async () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test --watch=false`
-Expected: FAIL — the service posts to `device-token` with a bare `{token}`, and `deregisterToken` does not exist.
+Expected: FAIL - the service posts to `device-token` with a bare `{token}`, and `deregisterToken` does not exist.
 
 - [ ] **Step 3: Rewrite the service**
 
@@ -1575,7 +1575,7 @@ export class UserTokenService {
 }
 ```
 
-The unused `environment` and `WikiDto` imports from the old file are dropped deliberately — neither was referenced.
+The unused `environment` and `WikiDto` imports from the old file are dropped deliberately - neither was referenced.
 
 - [ ] **Step 4: Deregister on sign-out**
 
@@ -1711,7 +1711,7 @@ it('passes the mfa code through unchanged', async () => {
 });
 ```
 
-Add to `src/app/services/qr-login.service.spec.ts` — extend the existing `setup()` providers with:
+Add to `src/app/services/qr-login.service.spec.ts` - extend the existing `setup()` providers with:
 
 ```ts
             {provide: DeviceIdentityService, useValue: {deviceId: async () => 'device-abc'}},
@@ -1736,7 +1736,7 @@ it('carries the client device id into the pairing', async () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test --watch=false`
-Expected: FAIL — `params.device_id` is undefined and the QR body has no `clientDeviceId`.
+Expected: FAIL - `params.device_id` is undefined and the QR body has no `clientDeviceId`.
 
 - [ ] **Step 3: Add the device id to `AuthService.login`**
 
@@ -1841,7 +1841,7 @@ git commit -m "feat: link login sessions to the device that created them"
 
 ---
 
-## Task 8: Sessions UI — show the device and let it be forgotten
+## Task 8: Sessions UI - show the device and let it be forgotten
 
 **Files:**
 - Modify: `src/app/dtos/response/login-session.dto.ts`
@@ -2055,7 +2055,7 @@ Expected: success. Template type-checking catches a mistyped signal or method na
 Run: `bun run ng test --watch=false`
 Expected: PASS.
 
-- [ ] **Step 6: Commit — submodule first, then the parent**
+- [ ] **Step 6: Commit - submodule first, then the parent**
 
 ```bash
 git -C src/assets/i18n/locales add en.json de.json fr.json
@@ -2165,7 +2165,7 @@ it('clears the alone deadline once someone rejoins', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test --watch=false`
-Expected: FAIL — `end()` calls `endCall`, and `setAloneDeadline` does not exist.
+Expected: FAIL - `end()` calls `endCall`, and `setAloneDeadline` does not exist.
 
 - [ ] **Step 3: Add `leaveCall` to `VoiceService`**
 
@@ -2344,7 +2344,7 @@ it.each([
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test --watch=false`
-Expected: FAIL — none of the new observables or `describeCallEndedReason` exist.
+Expected: FAIL - none of the new observables or `describeCallEndedReason` exist.
 
 - [ ] **Step 3: Add the types, observables and registrations**
 
@@ -2551,7 +2551,7 @@ it('ignores a takeover for a call we are not in', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test --watch=false`
-Expected: FAIL — the ring stays up; no subscription handles these events.
+Expected: FAIL - the ring stays up; no subscription handles these events.
 
 - [ ] **Step 3: Add the subscriptions**
 
@@ -2657,7 +2657,7 @@ it('ignores an unparseable deadline rather than rendering "Invalid Date"', () =>
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test --watch=false`
-Expected: FAIL — cannot resolve `./alone-countdown`.
+Expected: FAIL - cannot resolve `./alone-countdown`.
 
 - [ ] **Step 3: Create the formatter**
 
@@ -2723,7 +2723,7 @@ Replace the `callEndedObservable` subscription (lines 838-840) with:
             }),
 ```
 
-`ToastService` is not injected into `CallWebRtcService` yet — add it:
+`ToastService` is not injected into `CallWebRtcService` yet - add it:
 
 ```ts
 import {ToastService} from './toast.service';
@@ -2765,7 +2765,7 @@ Run: `bun run ng test --watch=false`
 Expected: PASS, including the existing call/voice suites.
 
 Run: `bun run ng build --configuration development`
-Expected: success — this catches a template reference to a member that does not exist.
+Expected: success - this catches a template reference to a member that does not exist.
 
 - [ ] **Step 7: Manual visual check**
 
@@ -2780,7 +2780,7 @@ git commit -m "feat: react to per-device departures, the alone timeout and end r
 
 ---
 
-## Task 13: Guild voice — kicked by another device
+## Task 13: Guild voice - kicked by another device
 
 **Files:**
 - Modify: `src/app/services/guild-websocket.service.ts:86-92,334-337,455-466`
@@ -2889,7 +2889,7 @@ it('ignores a kick for a channel we are not in', async () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test --watch=false`
-Expected: FAIL — nothing subscribes to `kickedByOtherDeviceObservable`.
+Expected: FAIL - nothing subscribes to `kickedByOtherDeviceObservable`.
 
 - [ ] **Step 3: Add the event to `GuildWebsocketService`**
 
@@ -2985,7 +2985,7 @@ git commit -m "fix: leave the channel cleanly when another device takes it over"
 
 **Interfaces:** none.
 
-**Why:** guide §4.4. The accepting device is now excluded from the cancel push while its siblings receive it — the reverse of the old behaviour. A call UI that tore down an active call on a cancel push regardless of which device answered will now break in a new way.
+**Why:** guide §4.4. The accepting device is now excluded from the cancel push while its siblings receive it - the reverse of the old behaviour. A call UI that tore down an active call on a cancel push regardless of which device answered will now break in a new way.
 
 - [x] **Step 1: Find the cancel-push path**
 
@@ -2993,13 +2993,13 @@ git commit -m "fix: leave the channel cleanly when another device takes it over"
 
 **Finding (2026-07-31): no change needed.** Nothing in the push path can tear down a call.
 
-`NotificationService.action$` is fed from exactly two places — the Windows `notification-action` Tauri event (`notification.service.ts:115`) and the plugin's `onAction` on every other platform (`notification.service.ts:136`). It has two subscribers: one raises the window (`notification.service.ts:42`), and one reads `event.extra.conversationId` and opens that conversation (`main-page.component.ts:188`). Neither touches `CallStateService` or `CallSessionService`.
+`NotificationService.action$` is fed from exactly two places - the Windows `notification-action` Tauri event (`notification.service.ts:115`) and the plugin's `onAction` on every other platform (`notification.service.ts:136`). It has two subscribers: one raises the window (`notification.service.ts:42`), and one reads `event.extra.conversationId` and opens that conversation (`main-page.component.ts:188`). Neither touches `CallStateService` or `CallSessionService`.
 
 Every call-teardown site is SignalR- or user-driven:
 
 | Site | Trigger |
 |---|---|
-| `call-webrtc.service.ts:706,715` | `syncParticipants()` — authoritative REST fetch on reconnect |
+| `call-webrtc.service.ts:706,715` | `syncParticipants()` - authoritative REST fetch on reconnect |
 | `call-webrtc.service.ts:819` | `call.CallEnded` handler |
 | `call-state.service.ts:70` | `call.CallDeviceTakeover` handler |
 | `call-state.service.ts:94` | outgoing-call race resolving to `ended` |
@@ -3008,17 +3008,17 @@ Every call-teardown site is SignalR- or user-driven:
 
 Likewise every `incomingCall.set(null)` is either a local action (accept/reject) or `dismissIncomingIfMatches`, which Task 11 drives from `CallEnded`, `CallAccepted` and `CallDeviceDismissed`.
 
-So the hazard guide §4.4 warns about — a sibling device receiving the cancel push and tearing down its own active call — cannot occur here: this client derives all call state from the hub and treats a push purely as a prompt to focus a conversation. Re-check this if a push payload is ever wired into call state.
+So the hazard guide §4.4 warns about - a sibling device receiving the cancel push and tearing down its own active call - cannot occur here: this client derives all call state from the hub and treats a push purely as a prompt to focus a conversation. Re-check this if a push payload is ever wired into call state.
 
-- [x] **Step 3: Run the full suite** — 864 tests pass.
+- [x] **Step 3: Run the full suite** - 864 tests pass.
 
-- [x] **Step 4: Commit** — recorded here rather than in a code commit, since the audit changed no code.
+- [x] **Step 4: Commit** - recorded here rather than in a code commit, since the audit changed no code.
 
 ---
 
 ## Post-implementation verification
 
-These cannot be checked until the backend deploy. Run them then, in order — the first is the one that would do real damage if wrong.
+These cannot be checked until the backend deploy. Run them then, in order - the first is the one that would do real damage if wrong.
 
 - [ ] **Rust and webview report the same device.** Join a guild voice channel. The backend must record **one** device for the join, not two. If it records two, the Rust `X-Device-Id` (Task 4) is not reaching the session endpoint and device-takeover detection will kick the user off their own call.
 - [ ] `X-Device-Id` is present on call accept/decline/leave, the Cloudflare session create, and guild voice join (dev tools network tab).

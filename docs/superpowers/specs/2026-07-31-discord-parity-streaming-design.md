@@ -1,4 +1,4 @@
-# Discord-Parity Streaming — Design
+# Discord-Parity Streaming - Design
 
 **Date:** 2026-07-31
 **Status:** Approved
@@ -14,7 +14,7 @@ Three complaints, one root cause each:
    from ~300 kbps and the first 15–30 s of every stream look bad regardless of the configured cap.
 
 2. **Too many audio/streaming settings.** The Voice & Video page exposes four bitrate dropdowns
-   (mic audio, screen audio, camera video, screen video). Discord exposes none — voice bitrate is a
+   (mic audio, screen audio, camera video, screen video). Discord exposes none - voice bitrate is a
    per-channel server setting, and stream quality is chosen in the Go Live flow as resolution +
    framerate. Our knobs are also *harmful*: framerate is inferred from bitrate
    (`screenVideoBitrate >= 8000 ? 30 : 15`, duplicated in `voice-rtc.service.ts:451` and
@@ -46,22 +46,22 @@ Additional defects found while investigating:
 - **Voice & Video settings:** input/output device + volume, mic test, input mode (voice activity /
   push to talk), camera + preview, and an Advanced group (echo cancellation, noise suppression
   None/Standard/Krisp, automatic gain control, attenuation, QoS). **No bitrate controls anywhere.**
-- **Stream quality:** chosen in the Go Live flow — resolution (720p / 1080p / 1440p / Source) and
+- **Stream quality:** chosen in the Go Live flow - resolution (720p / 1080p / 1440p / Source) and
   framerate (15 / 30 / 60), changeable mid-stream via a stream-settings cog without restarting.
 - **Capture:** OS-native (DXGI / Windows Graphics Capture, DLL injection for some games) feeding a
-  hardware encoder (NVENC/AMF/QuickSync) producing H.264, HEVC or AV1. Frames stay in GPU memory —
+  hardware encoder (NVENC/AMF/QuickSync) producing H.264, HEVC or AV1. Frames stay in GPU memory -
   no lossy intermediate format, no canvas.
 - **Degradation:** under congestion the encoder **drops frames**; it does not shed resolution.
 - **No simulcast.** The streamer sends one stream at the slowest viewer's rate; the viewer-side
   "Stream Quality" menu is a decode-side cap.
 
-Discord is Electron, which exposes `desktopCapturer.getSources()` + `chromeMediaSourceId` — a custom
+Discord is Electron, which exposes `desktopCapturer.getSources()` + `chromeMediaSourceId` - a custom
 picker driving Chromium's native capture. WebView2/Tauri has no equivalent (`getDisplayMedia` there
 always forces Chromium's own picker), which is why this codebase built the JPEG-over-IPC bridge.
 
 ## Decisions
 
-- No artificial quality gating — every resolution and framerate is available to everyone.
+- No artificial quality gating - every resolution and framerate is available to everyone.
 - No per-viewer quality, and therefore no simulcast. Discord doesn't simulcast either.
 - Camera stays on `getUserMedia` for now; only the ignored-device bug is fixed.
 - All quality controls move into the share flow, with the last-used preset remembered.
@@ -106,8 +106,8 @@ matching Discord's non-configurability. Per-channel voice bitrate is possible fu
 
 Applied to every screen sender, in both `voice-rtc.service.ts` and `call-webrtc.service.ts`:
 
-- `contentHint = 'detail'` — screen content is text and UI, not motion.
-- `degradationPreference = 'maintain-resolution'` — drop frames, not pixels. This is Discord's
+- `contentHint = 'detail'` - screen content is text and UI, not motion.
+- `degradationPreference = 'maintain-resolution'` - drop frames, not pixels. This is Discord's
   behaviour and directly addresses the "unsharp, slowly catches itself" symptom.
 - `encodings[0].maxBitrate = bitrateFor(preset) * 1000`
 - `encodings[0].minBitrate ≈ 60% of maxBitrate` and `x-google-start-bitrate` munged into the SDP
@@ -117,8 +117,8 @@ The 2 fps regression that originally motivated `'motion'` cannot recur, because 
 bitrate are now chosen together.
 
 Both services currently duplicate bitrate/codec-preference logic. This work extracts the shared
-parts into `src/app/services/webrtc-encoding.ts` — a small pure module holding `applyEncoding()`,
-`preferCodecs()` and the SDP start-bitrate munge — consumed by both. This keeps the change from
+parts into `src/app/services/webrtc-encoding.ts` - a small pure module holding `applyEncoding()`,
+`preferCodecs()` and the SDP start-bitrate munge - consumed by both. This keeps the change from
 being made twice and drifting again.
 
 ### 3. Fixed geometry
@@ -156,7 +156,7 @@ New `src-tauri/src/media/publisher/`:
 | `signalling.rs` | Calls the existing backend endpoints with a bearer token passed from JS |
 
 The publisher opens its **own** Cloudflare session via the endpoints that already exist
-(`/voice/session`, `/voice/cf/tracks/new`, `/voice/cf/renegotiate`, `/voice/cf/tracks/close` —
+(`/voice/session`, `/voice/cf/tracks/new`, `/voice/cf/renegotiate`, `/voice/cf/tracks/close` -
 `guild-voice.service.ts:74-99`) and publishes `screen-<shareId>`.
 
 The frontend subscribe path is untouched: it already keys purely off `{cfSessionId, trackName}`
@@ -164,7 +164,7 @@ The frontend subscribe path is untouched: it already keys purely off `{cfSession
 `isStreaming`. `publishScreen` becomes an `invoke` returning `{ cfSessionId, trackName }`.
 
 **Self-preview:** Rust emits a separate low-rate preview channel (5 fps, small JPEG). This is the
-one place JPEG is genuinely appropriate — it's a thumbnail, not the stream.
+one place JPEG is genuinely appropriate - it's a thumbnail, not the stream.
 
 Gated behind a `rustPublisher` feature flag with the current pipeline as fallback, so the two can
 coexist while the new path is proven.
@@ -175,11 +175,11 @@ The "Streaming Quality" section is deleted entirely. Resulting shape:
 
 - **Input Device** + Input Volume slider
 - **Output Device** + Output Volume slider
-- Mic test (unchanged — it works well)
-- **Input Mode** — Voice Activity / Push to Talk (unchanged)
+- Mic test (unchanged - it works well)
+- **Input Mode** - Voice Activity / Push to Talk (unchanged)
 - **Camera** + preview (unchanged)
 - **Advanced** (collapsed by default): Echo Cancellation, Noise Suppression
-  (**None / Standard / Enhanced (RNNoise)** — one select replacing today's two separate toggles,
+  (**None / Standard / Enhanced (RNNoise)** - one select replacing today's two separate toggles,
   mirroring Discord's None/Standard/Krisp), Automatic Gain Control, Voice Gate Strength
 - **Isle Proximity Voice** (unchanged)
 
@@ -198,12 +198,12 @@ migration in `AudioSettingsService.load()` must:
 
 Two steps, matching Go Live.
 
-**Step 1 — Source.** Tabs renamed *Screens* / *Applications*. The grid uses each source's real
+**Step 1 - Source.** Tabs renamed *Screens* / *Applications*. The grid uses each source's real
 aspect ratio with `object-contain` rather than cropping everything into a fixed `16/10` box with
 `object-cover`, so the thumbnail honestly represents what will be shared. Live preview retained.
 
-**Step 2 — Stream Quality.** A resolution row (720p / 1080p / 1440p / Source), a framerate row
-(15 / 30 / 60), and a **Share system audio** toggle — today loopback is captured unconditionally
+**Step 2 - Stream Quality.** A resolution row (720p / 1080p / 1440p / Source), a framerate row
+(15 / 30 / 60), and a **Share system audio** toggle - today loopback is captured unconditionally
 with no way to decline. Primary action is "Go Live".
 
 `ScreenPickerService.show()` changes its resolved type from `string | null` to
@@ -222,18 +222,18 @@ Viewer-side fixes:
 
 - `overflow-hidden` on the stream tile, and drag-to-pan when zoom exceeds 100%.
 - The FPS readout moves behind the cog instead of sitting permanently on the tile.
-- `object-contain` is retained — it is correct.
+- `object-contain` is retained - it is correct.
 
 ## Testing
 
 **Unit (Angular):**
-- `stream-preset.spec.ts` — bitrate table lookup, every resolution/framerate combination resolves,
+- `stream-preset.spec.ts` - bitrate table lookup, every resolution/framerate combination resolves,
   `boxFor('source')` returns null.
-- `geometry.spec.ts` — aspect preservation, even-dimension rounding, ultrawide (5120×1440),
+- `geometry.spec.ts` - aspect preservation, even-dimension rounding, ultrawide (5120×1440),
   portrait (1080×1920), source passthrough, sources smaller than the target box (no upscaling).
-- `audio-settings.service.spec.ts` — migration drops removed keys, folds both noise-suppression
+- `audio-settings.service.spec.ts` - migration drops removed keys, folds both noise-suppression
   toggles into each of the three modes, defaults new keys, and is idempotent across two loads.
-- `screen-picker.service.spec.ts` — the resolved shape carries preset and audio choice; cancel
+- `screen-picker.service.spec.ts` - the resolved shape carries preset and audio choice; cancel
   resolves null.
 
 **Unit (Rust):**
@@ -253,9 +253,9 @@ Viewer-side fixes:
 | P0 | Preset contract, degradation policy, fixed geometry | Blur, aspect-ratio breakage |
 | P1 | Settings simplification + migration | Too many settings |
 | P2 | Two-step picker, mid-stream cog, viewer UI fixes | Picker and stream UI |
-| P3 | `webrtc-rs` ↔ Cloudflare H.264 interop spike | — (de-risks P4) |
+| P3 | `webrtc-rs` ↔ Cloudflare H.264 interop spike | - (de-risks P4) |
 | P4 | Rust encoder + publisher behind a flag | Root-cause sharpness |
-| P5 | Retire the JPEG frame path except for previews | — |
+| P5 | Retire the JPEG frame path except for previews | - |
 
 P0–P2 fix every reported complaint using the current pipeline. P3–P5 replace the engine underneath
 the same preset contract, so the UI does not change again.
@@ -265,4 +265,4 @@ the same preset contract, so the UI does not change again.
 - Simulcast and per-viewer quality (Discord does not do this either).
 - Moving the camera to the Rust capture path.
 - Per-channel voice bitrate as a server setting.
-- AV1/HEVC encoding — the `VideoEncoder` trait leaves room for it, but H.264 ships first.
+- AV1/HEVC encoding - the `VideoEncoder` trait leaves room for it, but H.264 ships first.

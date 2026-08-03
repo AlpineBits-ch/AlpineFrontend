@@ -1,6 +1,6 @@
 [package]
 name = "Venta"
-version = "3.0.165"
+version = "3.0.166"
 description = ""
 authors = ["you"]
 edition = "2021"
@@ -109,6 +109,21 @@ webrtc-audio-processing-sys = { path = "vendor/webrtc-audio-processing-sys" }
 # at runtime, so unpatched a debug build of the app crashes the moment spatial audio is enabled.
 # The vendored copy changes that one addition and nothing else - see `ALPINE PATCH` in its lib.rs.
 hrtf = { path = "vendor/hrtf" }
+
+# Upstream `tauri-plugin-window-state` reads the maximized bit when the window closes, and on
+# Windows that reading is false for a window minimized *from* maximized - tao caches the bit and
+# clears it on WM_SIZE/SIZE_MINIMIZED. Minimize a maximized window, close it, and the saved state
+# says "not maximized" while its x/y still hold the maximized origin, so the next launch puts the
+# window off the top-left corner of the monitor at whatever size predated the maximize. That state
+# is self-sustaining: it describes a perfectly ordinary un-maximized window, so closing that window
+# saves it straight back and every launch afterwards lands in the same corner.
+# The vendored copy records the bit from the resize events instead, where the platform reports it
+# correctly, and leaves it alone while minimized - see the `ALPINE PATCH` comments in its lib.rs.
+# Upstream's x/y-holds-the-maximized-origin arrangement is left as it is: it is sound as long as the
+# bit that gates it is, because `restore_state` reads prev_x/prev_y whenever the bit is set.
+# Guarding the move handler on `is_maximized()` instead does nothing on Windows - tao sends Moved
+# from WM_WINDOWPOSCHANGED before DefSubclassProc raises the WM_SIZE that sets the bit.
+tauri-plugin-window-state = { path = "vendor/tauri-plugin-window-state" }
 
 [features]
 default = ["aec"]

@@ -1,4 +1,4 @@
-# Third-party notices — design
+# Third-party notices - design
 
 **Date:** 2026-07-31
 **Status:** approved, implementing
@@ -13,10 +13,10 @@ obligation, and several obligations are stronger than a bare MIT line:
   feature is on. Its binary-form clause explicitly requires reproducing the notice "in the
   documentation and/or other materials provided with the distribution".
 - The SADIE II HRIR sphere (Apache-2.0, University of York) is `include_bytes!`'d into the binary
-  at `src-tauri/src/media/voice/mixer.rs:53` — 18 MB of third-party data.
+  at `src-tauri/src/media/voice/mixer.rs:53` - 18 MB of third-party data.
 - `emoji-datasource-twitter` declares MIT, but `angular.json` copies its sprite sheet into the
   build output, and those sprites are Twemoji graphics under **CC-BY-4.0**.
-- `jpeg-encoder` is `(MIT OR Apache-2.0) AND IJG` — the `AND` makes the IJG credit mandatory
+- `jpeg-encoder` is `(MIT OR Apache-2.0) AND IJG` - the `AND` makes the IJG credit mandatory
   regardless of which permissive licence is chosen.
 
 None of these are visible to a naive dependency scanner. Three of the four are invisible to any
@@ -33,7 +33,7 @@ not need a fourth tool.
 
 Angular asset rather than Tauri resource: the notices are UI text and the About page is UI. An
 asset needs no `bundle.resources` entry, no fs capability scope, and works identically under
-`ng serve` — a Tauri resource does not exist during web dev, which would break the page there.
+`ng serve` - a Tauri resource does not exist during web dev, which would break the page there.
 
 `cargo-about` was considered and rejected. It is not installed, and requiring `cargo install
 cargo-about` for regeneration buys little: all 904 crate sources are already extracted under
@@ -53,7 +53,7 @@ over-includes a few build-only crates such as `tauri-build`. Over-attribution is
 under-attribution is not.
 
 **npm collector.** Breadth-first over the production closure, seeded from `dependencies` only.
-`devDependencies` are excluded — they do not ship. Each name resolves through nested-then-ancestor
+`devDependencies` are excluded - they do not ship. Each name resolves through nested-then-ancestor
 `node_modules`, matching Node's own resolution.
 
 **Licence text resolution**, identical for both ecosystems:
@@ -80,7 +80,7 @@ CC-BY-4.0.
 ### `scripts/extra-notices.md`
 
 Hand-written appendix, appended verbatim. Covers the five obligations no scanner can see: bundled
-WebRTC C++, the SADIE II sphere, Twemoji graphics, the IJG credit, and OpenH264 — including the
+WebRTC C++, the SADIE II sphere, Twemoji graphics, the IJG credit, and OpenH264 - including the
 statement that Cisco's binary is fetched at runtime and never redistributed, which is what keeps
 the AVC royalty burden off this project.
 
@@ -92,7 +92,7 @@ the AVC royalty burden off this project.
 
 `pages/about-settings/`, following the existing nine-page pattern, plus an `about` nav entry in
 `settings-modal.component.ts`. Fetches the asset over `HttpClient` and renders it through `marked`
-+ `dompurify` — both already runtime dependencies, so no new packages.
++ `dompurify` - both already runtime dependencies, so no new packages.
 
 The page absorbs the existing "About" section from `other-settings` (app version and the
 update-check button) and that section is deleted there. Two About blocks in one settings modal

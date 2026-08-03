@@ -302,6 +302,14 @@ export interface WsEventCancelled {
 
 export interface GuildMessageCreatedPayload {
     messageId: string;
+    /**
+     * The message's *stored* timestamp, not this device's receipt time.
+     *
+     * <p>Optional only so a client can outlive a server that predates it - every live server sends
+     * it. Falling back to `new Date()` is what this used to do unconditionally, and the two drift
+     * by however long the message spent on the broker.</p>
+     */
+    createdAt?: string;
     content: string;
     authorId: string;
     conversationId: string | undefined;
@@ -315,14 +323,15 @@ export interface GuildMessageCreatedPayload {
 }
 
 export function mapGuildMessageCreatedPayload(data: GuildMessageCreatedPayload): MessageDto {
+    const createdAt = data.createdAt ? new Date(data.createdAt) : new Date();
     return {
         id: data.messageId,
         content: data.content,
         authorId: data.authorId,
         conversationId: data.conversationId,
         channelId: data.channelId,
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt,
+        updatedAt: createdAt,
         isPending: false,
         isFailed: false,
         attachments: data.attachments,

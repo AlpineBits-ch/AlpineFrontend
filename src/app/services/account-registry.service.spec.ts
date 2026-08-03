@@ -33,10 +33,30 @@ vi.mock('@tauri-apps/plugin-store', () => ({
 import {TestBed} from '@angular/core/testing';
 import {LazyStore} from '@tauri-apps/plugin-store';
 import {AccountRegistryService, BOOTSTRAP_SLOT_ID} from './account-registry.service';
+import {setActiveSlotId} from './scoped-oauth-storage';
 
 const LazyStoreMock = LazyStore as unknown as {
     files: Map<string, Map<string, unknown>>;
 };
+
+/**
+ * Which slot is live lives in `localStorage`, not in the registry file - see `RegistryFile`. This
+ * runner's global has no methods, so without a stand-in every commit would silently no-op and every
+ * read would answer "nobody is signed in".
+ */
+const localStore = new Map<string, string>();
+
+beforeAll(() => {
+    Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: {
+            getItem: (k: string) => localStore.get(k) ?? null,
+            setItem: (k: string, v: string) => void localStore.set(k, String(v)),
+            removeItem: (k: string) => void localStore.delete(k),
+            clear: () => localStore.clear(),
+        },
+    });
+});
 
 function freshService(): AccountRegistryService {
     TestBed.resetTestingModule();
@@ -49,6 +69,7 @@ describe('AccountRegistryService', () => {
 
     beforeEach(() => {
         LazyStoreMock.files.clear();
+        localStore.clear();
         service = freshService();
     });
 
@@ -167,7 +188,7 @@ describe('AccountRegistryService', () => {
         expect(await service.activeSlotId()).toBe(b.id);
     });
 
-    it('survives a restart - the file, not the in-memory signal, is the source of truth', async () => {
+    it('survives a restart - persisted state, not the in-memory signal, is the source of truth', async () => {
         const slot = await service.ensureSlot({
             userId: 'user-1', serverUrl: 'https://a.example', username: 'ada',
         });
@@ -176,6 +197,21 @@ describe('AccountRegistryService', () => {
 
         expect(await restarted.activeSlotId()).toBe(slot.id);
         expect((await restarted.list())[0].username).toBe('ada');
+    });
+
+    it('does not move the live slot merely by being read', async () => {
+        await service.ensureSlot({userId: 'user-1', serverUrl: 'https://a.example'});
+        // What "Add Account" does: sets the live slot aside without removing any slot.
+        setActiveSlotId(BOOTSTRAP_SLOT_ID);
+
+        const restarted = freshService();
+        await restarted.list();
+        await restarted.activeSlot();
+
+        // The read path republishing a live slot from the file is what made "Add Account" a page
+        // refresh: the first thing on the login screen to ask for a device id put the previous
+        // account back, and its tokens came into view again.
+        expect(await restarted.activeSlotId()).toBe(BOOTSTRAP_SLOT_ID);
     });
 
     it('reads a store that has never been written as empty rather than throwing', async () => {

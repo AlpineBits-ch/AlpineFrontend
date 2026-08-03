@@ -2,26 +2,26 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Let guild members with `ManageEmojis` upload/delete per-guild custom emoji from a new Guild Settings page, and let any member react to guild-channel messages with those emoji (in addition to today's unicode reactions) — reusing the already-live backend endpoints and realtime events.
+**Goal:** Let guild members with `ManageEmojis` upload/delete per-guild custom emoji from a new Guild Settings page, and let any member react to guild-channel messages with those emoji (in addition to today's unicode reactions) - reusing the already-live backend endpoints and realtime events.
 
-**Architecture:** A new `GuildEmojiService` + `GuildEmojiStore` (per-guild cached list, refreshed on `guild.EmojiCreated`/`EmojiDeleted` and revalidated hourly to dodge presigned-URL expiry) back a new `EmojiSettingsComponent` guild-settings page. On the reaction side, `MessageReaction`/`CreateReactionDto`/the realtime `ReactionEvent` all gain an optional `emojiId`. `ReactionPickerComponent` is extended to inject the guild's custom emoji into emoji-mart's `custom` config (guild channels only, never DMs — `guildId` is simply not passed down in DMs), and its output type changes from a plain unicode string to a small `EmojiSelection` union so callers can tell a unicode pick apart from a custom-emoji pick. `MessageReactionBarComponent` renders custom-emoji reactions as an `<img>` (resolved through the same store) with a `:name:` text fallback when the emoji has since been deleted, exactly as the backend guide specifies.
+**Architecture:** A new `GuildEmojiService` + `GuildEmojiStore` (per-guild cached list, refreshed on `guild.EmojiCreated`/`EmojiDeleted` and revalidated hourly to dodge presigned-URL expiry) back a new `EmojiSettingsComponent` guild-settings page. On the reaction side, `MessageReaction`/`CreateReactionDto`/the realtime `ReactionEvent` all gain an optional `emojiId`. `ReactionPickerComponent` is extended to inject the guild's custom emoji into emoji-mart's `custom` config (guild channels only, never DMs - `guildId` is simply not passed down in DMs), and its output type changes from a plain unicode string to a small `EmojiSelection` union so callers can tell a unicode pick apart from a custom-emoji pick. `MessageReactionBarComponent` renders custom-emoji reactions as an `<img>` (resolved through the same store) with a `:name:` text fallback when the emoji has since been deleted, exactly as the backend guide specifies.
 
-**Tech Stack:** Angular 21 (signals, `input()`, new `@if`/`@for` control flow), `@ngrx/signals` (new `GuildEmojiStore`, mirroring the existing `MessageStore`), Vitest (`*.spec.ts`, run via `ng test`), PrimeNG (`Button`, `Dialog`, `InputText`, `Checkbox`), `emoji-mart` v5.6 (already a dependency — its `custom` prop and `onEmojiSelect` payload shape are confirmed directly against `node_modules/emoji-mart/dist/module.js` in Task 7, not guessed).
+**Tech Stack:** Angular 21 (signals, `input()`, new `@if`/`@for` control flow), `@ngrx/signals` (new `GuildEmojiStore`, mirroring the existing `MessageStore`), Vitest (`*.spec.ts`, run via `ng test`), PrimeNG (`Button`, `Dialog`, `InputText`, `Checkbox`), `emoji-mart` v5.6 (already a dependency - its `custom` prop and `onEmojiSelect` payload shape are confirmed directly against `node_modules/emoji-mart/dist/module.js` in Task 7, not guessed).
 
 ## Global Constraints
 
-- `GET https://api.venta.gg/api/v1/guild/guilds/{guildId}/emojis` — list, requires `ViewChannel` (any member).
-- `POST https://api.venta.gg/api/v1/guild/guilds/{guildId}/emojis` — upload, multipart (`name`, `animated`, `file`), requires `ManageEmojis`. Duplicate name (case-insensitive) returns `409`.
-- `DELETE https://api.venta.gg/api/v1/guild/guilds/{guildId}/emojis/{emojiId}` — delete, requires `ManageEmojis`.
-- `ManageEmojis` is a new permission bit with no default grantees — add it to the canonical `Permissions`/`PERM_GROUPS` in `permissions.enum.ts` only. Do **not** add it to the channel-permission-override editor's local group list (`permission-override-editor.component.ts`) — that list is deliberately missing other guild-only permissions too (`ManageGuild`, `KickMembers`, etc.), since per-channel overrides for a guild-wide setting don't make sense.
-- `imageUrl` on a `GuildEmoji` is presigned and expires in ~1h — cache the emoji list but refetch (not just the URL) once it's been an hour; never persist `imageUrl` beyond the in-memory cache.
-- Reacting: `POST .../messages/{messageId}/reactions` body is `{channelId, emojiId}` (no `reaction` field) for a custom emoji, or the existing `{conversationId, reaction, channelId?}` for unicode. Custom-emoji reactions are guild-channel only — never send `emojiId` alongside `conversationId` (the server 400s this; the client-side fix is simply that `ReactionPickerComponent` never receives a `guildId` in DM contexts, so the custom-emoji section of the picker never renders there).
-- Removing a reaction is unchanged regardless of emoji kind — always `{reaction: <name-or-unicode>, contextId, channelId?}`, no `emojiId` involved.
+- `GET https://api.venta.gg/api/v1/guild/guilds/{guildId}/emojis` - list, requires `ViewChannel` (any member).
+- `POST https://api.venta.gg/api/v1/guild/guilds/{guildId}/emojis` - upload, multipart (`name`, `animated`, `file`), requires `ManageEmojis`. Duplicate name (case-insensitive) returns `409`.
+- `DELETE https://api.venta.gg/api/v1/guild/guilds/{guildId}/emojis/{emojiId}` - delete, requires `ManageEmojis`.
+- `ManageEmojis` is a new permission bit with no default grantees - add it to the canonical `Permissions`/`PERM_GROUPS` in `permissions.enum.ts` only. Do **not** add it to the channel-permission-override editor's local group list (`permission-override-editor.component.ts`) - that list is deliberately missing other guild-only permissions too (`ManageGuild`, `KickMembers`, etc.), since per-channel overrides for a guild-wide setting don't make sense.
+- `imageUrl` on a `GuildEmoji` is presigned and expires in ~1h - cache the emoji list but refetch (not just the URL) once it's been an hour; never persist `imageUrl` beyond the in-memory cache.
+- Reacting: `POST .../messages/{messageId}/reactions` body is `{channelId, emojiId}` (no `reaction` field) for a custom emoji, or the existing `{conversationId, reaction, channelId?}` for unicode. Custom-emoji reactions are guild-channel only - never send `emojiId` alongside `conversationId` (the server 400s this; the client-side fix is simply that `ReactionPickerComponent` never receives a `guildId` in DM contexts, so the custom-emoji section of the picker never renders there).
+- Removing a reaction is unchanged regardless of emoji kind - always `{reaction: <name-or-unicode>, contextId, channelId?}`, no `emojiId` involved.
 - Every reaction read back from history/realtime carries `emojiId` (`null`/absent for unicode). `emoji` is always populated (unicode char, or the custom emoji's name as text fallback).
-- No inline `:name:` autocomplete/rendering in message *content* — reactions only, per the backend guide's "Known limitations."
-- No animated-emoji-specific playback handling beyond passing the `animated` flag through — out of scope.
-- A deleted emoji's existing reactions keep their `emojiId`/name but won't resolve against the current list — render the `:name:` text fallback in that case, don't hide or error.
-- Full spec: see the "Custom guild emoji — frontend integration guide" section of the conversation this plan originated from (not a repo file — inline in the planning session).
+- No inline `:name:` autocomplete/rendering in message *content* - reactions only, per the backend guide's "Known limitations."
+- No animated-emoji-specific playback handling beyond passing the `animated` flag through - out of scope.
+- A deleted emoji's existing reactions keep their `emojiId`/name but won't resolve against the current list - render the `:name:` text fallback in that case, don't hide or error.
+- Full spec: see the "Custom guild emoji - frontend integration guide" section of the conversation this plan originated from (not a repo file - inline in the planning session).
 
 ---
 
@@ -33,7 +33,7 @@
 - Create: `src/app/dtos/response/guild-emoji.dto.ts`
 
 **Interfaces:**
-- Produces: `Permissions.ManageEmojis`, `GuildEmojiDto` — consumed by every later task.
+- Produces: `Permissions.ManageEmojis`, `GuildEmojiDto` - consumed by every later task.
 
 - [ ] **Step 1: Write the failing permission tests**
 
@@ -48,7 +48,7 @@ In `src/app/enums/permissions.enum.spec.ts`, add a new test inside the existing 
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `npx ng test --include='**/permissions.enum.spec.ts'`
-Expected: FAIL — `Permissions.ManageEmojis` is `undefined`. The pre-existing `'places every PermissionKey except None in exactly one group'` test in the same file will also fail once Step 3 adds the bit but before Step 4 adds it to a group — that's expected and is exactly what that test is for.
+Expected: FAIL - `Permissions.ManageEmojis` is `undefined`. The pre-existing `'places every PermissionKey except None in exactly one group'` test in the same file will also fail once Step 3 adds the bit but before Step 4 adds it to a group - that's expected and is exactly what that test is for.
 
 - [ ] **Step 3: Add the permission bit**
 
@@ -128,7 +128,7 @@ export interface GuildEmojiDto {
     animated: boolean;
     createdByUserId: string;
     createdAt: string;
-    /** Presigned, expires ~1h — refetch the list (not just this URL) once it's been an hour. */
+    /** Presigned, expires ~1h - refetch the list (not just this URL) once it's been an hour. */
     imageUrl: string;
 }
 ```
@@ -155,7 +155,7 @@ git commit -m "feat: add ManageEmojis permission and GuildEmoji model"
 
 **Interfaces:**
 - Consumes: `GuildEmojiDto` (Task 1).
-- Produces: `GuildEmojiService.getEmojis(guildId)`, `.uploadEmoji(guildId, {name, animated, file})`, `.deleteEmoji(guildId, emojiId)` — consumed by Task 4 (store) and Task 5 (settings page).
+- Produces: `GuildEmojiService.getEmojis(guildId)`, `.uploadEmoji(guildId, {name, animated, file})`, `.deleteEmoji(guildId, emojiId)` - consumed by Task 4 (store) and Task 5 (settings page).
 
 - [ ] **Step 1: Write the failing service tests**
 
@@ -222,7 +222,7 @@ describe('GuildEmojiService', () => {
 - [ ] **Step 2: Run the tests to verify they fail**
 
 Run: `npx ng test --include='**/guild-emoji.service.spec.ts'`
-Expected: FAIL — `GuildEmojiService` doesn't exist yet.
+Expected: FAIL - `GuildEmojiService` doesn't exist yet.
 
 - [ ] **Step 3: Implement the service**
 
@@ -279,7 +279,7 @@ git commit -m "feat: add GuildEmojiService"
 - Modify: `src/app/services/guild-websocket.service.ts`
 
 **Interfaces:**
-- Produces: `WsEmojiCreated`, `WsEmojiDeleted` interfaces, `GuildWebsocketService.emojiCreatedObservable`/`emojiDeletedObservable` — consumed by Task 4 (store).
+- Produces: `WsEmojiCreated`, `WsEmojiDeleted` interfaces, `GuildWebsocketService.emojiCreatedObservable`/`emojiDeletedObservable` - consumed by Task 4 (store).
 
 - [ ] **Step 1: Add the event interfaces**
 
@@ -336,7 +336,7 @@ git commit -m "feat: listen for guild.EmojiCreated/EmojiDeleted realtime events"
 
 **Interfaces:**
 - Consumes: `GuildEmojiService` (Task 2), `GuildWebsocketService.emojiCreatedObservable`/`emojiDeletedObservable` (Task 3).
-- Produces: `GuildEmojiStore.ensureLoaded(guildId)`, `.getEmojis(guildId): GuildEmojiDto[]` — consumed by Task 5 (settings page) and Task 7 (reaction picker).
+- Produces: `GuildEmojiStore.ensureLoaded(guildId)`, `.getEmojis(guildId): GuildEmojiDto[]` - consumed by Task 5 (settings page) and Task 7 (reaction picker).
 
 - [ ] **Step 1: Implement the store**
 
@@ -441,7 +441,7 @@ export const GuildEmojiStore = signalStore(
 - [ ] **Step 2: Type-check**
 
 Run: `npx ng build --configuration development`
-Expected: builds successfully (store isn't injected anywhere yet — this only confirms it compiles standalone).
+Expected: builds successfully (store isn't injected anywhere yet - this only confirms it compiles standalone).
 
 - [ ] **Step 3: Commit**
 
@@ -462,7 +462,7 @@ git commit -m "feat: add GuildEmojiStore with realtime sync"
 
 **Interfaces:**
 - Consumes: `GuildEmojiService` (Task 2), `GuildEmojiStore` (Task 4), `Permissions.ManageEmojis` (Task 1).
-- Produces: `EmojiSettingsComponent` with `guild = input.required<GuildDto>()` — wired into the settings modal's page switch, no other task depends on it.
+- Produces: `EmojiSettingsComponent` with `guild = input.required<GuildDto>()` - wired into the settings modal's page switch, no other task depends on it.
 
 - [ ] **Step 1: Implement the component**
 
@@ -730,13 +730,13 @@ Expected: builds successfully.
 - [ ] **Step 5: Manual verification**
 
 Run the app:
-1. Open Guild Settings → Emojis as a member without `ManageEmojis` — confirm the list renders (possibly empty) but there's no "Upload Emoji" button and no per-row delete button.
-2. Grant yourself `ManageEmojis` (via the Roles page), reopen Emojis — confirm "Upload Emoji" now appears.
-3. Click it, pick a small PNG — confirm a dialog opens with a preview, a name pre-filled from the filename, and an Animated checkbox; submit.
+1. Open Guild Settings → Emojis as a member without `ManageEmojis` - confirm the list renders (possibly empty) but there's no "Upload Emoji" button and no per-row delete button.
+2. Grant yourself `ManageEmojis` (via the Roles page), reopen Emojis - confirm "Upload Emoji" now appears.
+3. Click it, pick a small PNG - confirm a dialog opens with a preview, a name pre-filled from the filename, and an Animated checkbox; submit.
 4. Confirm the new emoji appears in the grid immediately (via `GuildEmojiStore.addEmoji`), and again after a full page reload (confirms the upload persisted).
-5. Try uploading a second emoji with the exact same name — confirm a "already exists" toast appears (409 handling).
-6. Delete an emoji — confirm it disappears from the grid.
-7. From a second account/session, upload an emoji — confirm the first account's list updates live via `guild.EmojiCreated` (Task 3/4's realtime wiring) without a manual refresh.
+5. Try uploading a second emoji with the exact same name - confirm a "already exists" toast appears (409 handling).
+6. Delete an emoji - confirm it disappears from the grid.
+7. From a second account/session, upload an emoji - confirm the first account's list updates live via `guild.EmojiCreated` (Task 3/4's realtime wiring) without a manual refresh.
 
 - [ ] **Step 6: Commit**
 
@@ -756,8 +756,8 @@ git commit -m "feat: add Emoji Settings page to guild settings"
 - Modify: `src/app/stores/message.store.ts`
 
 **Interfaces:**
-- Produces: `MessageReaction.emojiId?: string | null`, `CreateReactionDto.emojiId?: string` (and `reaction` becomes optional), `ReactionEvent.emojiId?: string` — consumed by Task 7 and Task 8.
-- Produces: updated `MessageStore.applyReactionAdded`/`applyReactionRemoved` that match by `emojiId` when present, else by `emoji` text — no interface change, same method names/signatures, just corrected matching logic.
+- Produces: `MessageReaction.emojiId?: string | null`, `CreateReactionDto.emojiId?: string` (and `reaction` becomes optional), `ReactionEvent.emojiId?: string` - consumed by Task 7 and Task 8.
+- Produces: updated `MessageStore.applyReactionAdded`/`applyReactionRemoved` that match by `emojiId` when present, else by `emoji` text - no interface change, same method names/signatures, just corrected matching logic.
 
 - [ ] **Step 1: Add `emojiId` to `MessageReaction`**
 
@@ -928,9 +928,9 @@ git commit -m "feat: add emojiId to reaction model and fix store matching for cu
 
 **Interfaces:**
 - Consumes: `GuildEmojiStore` (Task 4).
-- Produces: `EmojiSelection` interface (`{native?: string; customEmojiId?: string; customEmojiName?: string}`), `ReactionPickerComponent.guildId: InputSignal<string | undefined>`, `emojiSelected: OutputEmitterRef<EmojiSelection>` (type change from `string`) — consumed by Task 8.
+- Produces: `EmojiSelection` interface (`{native?: string; customEmojiId?: string; customEmojiName?: string}`), `ReactionPickerComponent.guildId: InputSignal<string | undefined>`, `emojiSelected: OutputEmitterRef<EmojiSelection>` (type change from `string`) - consumed by Task 8.
 
-Before writing code, this task rests on emoji-mart's exact runtime contract for `custom` and the `onEmojiSelect` payload. That contract has already been verified against the installed package for this plan (not guessed) — see `node_modules/emoji-mart/README.md`'s "Custom emojis" section for the `custom` prop shape (`[{id, name, emojis: [{id, name, keywords, skins: [{src}]}]}]`), and `node_modules/emoji-mart/dist/module.js` (search for `d10ac59fbe52a745`, the internal function that builds the `onEmojiSelect` payload) confirming the emitted object always has `.id`/`.name`, has `.native` set only for standard unicode emoji (undefined for custom), and has `.src` set only for custom emoji (copied from `skin.src`). If the installed `emoji-mart` version has since changed, re-check that function before trusting the `emoji.src` discriminator below.
+Before writing code, this task rests on emoji-mart's exact runtime contract for `custom` and the `onEmojiSelect` payload. That contract has already been verified against the installed package for this plan (not guessed) - see `node_modules/emoji-mart/README.md`'s "Custom emojis" section for the `custom` prop shape (`[{id, name, emojis: [{id, name, keywords, skins: [{src}]}]}]`), and `node_modules/emoji-mart/dist/module.js` (search for `d10ac59fbe52a745`, the internal function that builds the `onEmojiSelect` payload) confirming the emitted object always has `.id`/`.name`, has `.native` set only for standard unicode emoji (undefined for custom), and has `.src` set only for custom emoji (copied from `skin.src`). If the installed `emoji-mart` version has since changed, re-check that function before trusting the `emoji.src` discriminator below.
 
 - [ ] **Step 1: Add the `EmojiSelection` type and `guildId` input**
 
@@ -1107,12 +1107,12 @@ After:
         this.isOpen.set(true);
 ```
 
-(The rest of `toggle()` — the `setTimeout`/outside-click-listener block — is unchanged.)
+(The rest of `toggle()` - the `setTimeout`/outside-click-listener block - is unchanged.)
 
 - [ ] **Step 4: Type-check**
 
 Run: `npx ng build --configuration development`
-Expected: FAILS at this point — every current consumer of `emojiSelected` (`MessageHoverToolbarComponent`, `MessageReactionBarComponent`) still expects a plain `string`. That's expected; Task 8 fixes every call site. Confirm the errors are exactly the type mismatches you expect (in `message-hover-toolbar.component.html`/`.ts` and `message-reaction-bar.component.html`/`.ts`) before moving on — if anything else fails, stop and investigate before proceeding to Task 8.
+Expected: FAILS at this point - every current consumer of `emojiSelected` (`MessageHoverToolbarComponent`, `MessageReactionBarComponent`) still expects a plain `string`. That's expected; Task 8 fixes every call site. Confirm the errors are exactly the type mismatches you expect (in `message-hover-toolbar.component.html`/`.ts` and `message-reaction-bar.component.html`/`.ts`) before moving on - if anything else fails, stop and investigate before proceeding to Task 8.
 
 - [ ] **Step 5: Commit**
 
@@ -1133,7 +1133,7 @@ git commit -m "feat: add custom guild emoji to the reaction picker"
 
 **Interfaces:**
 - Consumes: `EmojiSelection`, `ReactionPickerComponent.guildId` (Task 7).
-- Produces: `MessageHoverToolbarComponent.guildId: InputSignal<string | undefined>`, `.emojiToggled: OutputEmitterRef<EmojiSelection>`; `MessageReactionBarComponent.guildId: InputSignal<string | undefined>`, `.emojiToggled: OutputEmitterRef<EmojiSelection>` — consumed by Task 9 (`MessageComponent`).
+- Produces: `MessageHoverToolbarComponent.guildId: InputSignal<string | undefined>`, `.emojiToggled: OutputEmitterRef<EmojiSelection>`; `MessageReactionBarComponent.guildId: InputSignal<string | undefined>`, `.emojiToggled: OutputEmitterRef<EmojiSelection>` - consumed by Task 9 (`MessageComponent`).
 
 - [ ] **Step 1: Update `MessageHoverToolbarComponent`**
 
@@ -1310,7 +1310,7 @@ After:
 - [ ] **Step 3: Type-check**
 
 Run: `npx ng build --configuration development`
-Expected: still FAILS — `MessageComponent`'s bindings to `(emojiToggled)="toggleReaction($event)"` now pass an `EmojiSelection` where `toggleReaction` still expects a `string`. Confirm the errors are isolated to `message.component.ts`/`.html` before proceeding to Task 9.
+Expected: still FAILS - `MessageComponent`'s bindings to `(emojiToggled)="toggleReaction($event)"` now pass an `EmojiSelection` where `toggleReaction` still expects a `string`. Confirm the errors are isolated to `message.component.ts`/`.html` before proceeding to Task 9.
 
 - [ ] **Step 4: Commit**
 
@@ -1330,7 +1330,7 @@ git commit -m "feat: render and toggle custom emoji reactions in the hover toolb
 
 **Interfaces:**
 - Consumes: `EmojiSelection` (Task 7), `guildId` inputs on `MessageHoverToolbarComponent`/`MessageReactionBarComponent` (Task 8).
-- Produces: `MessageComponent.guildId: InputSignal<string | undefined>` — this closes the loop; no later task depends on it.
+- Produces: `MessageComponent.guildId: InputSignal<string | undefined>` - this closes the loop; no later task depends on it.
 
 - [ ] **Step 1: Add `guildId` input and rewrite `toggleReaction`/`hasOwnReaction`**
 
@@ -1467,7 +1467,7 @@ After:
                     [reactions]="message().reactions!"/>
 ```
 
-(Note: the pin plan (`2026-07-30-message-pinning.md`) also adds `[canPinMessages]` to the hover toolbar around this same block — if both plans are implemented, merge the attribute lists rather than letting one overwrite the other.)
+(Note: the pin plan (`2026-07-30-message-pinning.md`) also adds `[canPinMessages]` to the hover toolbar around this same block - if both plans are implemented, merge the attribute lists rather than letting one overwrite the other.)
 
 - [ ] **Step 3: Bind `guildId` from `ChannelComponent`**
 
@@ -1496,22 +1496,22 @@ After:
                                              [message]="row.message"></app-message>
 ```
 
-`ChannelComponent` already exposes `protected guildId = computed(() => this.channel().guildId);` — no `.ts` change needed here. `ConversationComponent` is intentionally left unchanged: without a `guildId` binding, `MessageComponent.guildId()` stays `undefined` for every DM message, so `ReactionPickerComponent` never receives a `guildId` there and the custom-emoji section of the picker never renders in DMs — exactly the restriction the backend enforces server-side (400 on `emojiId` + `conversationId`).
+`ChannelComponent` already exposes `protected guildId = computed(() => this.channel().guildId);` - no `.ts` change needed here. `ConversationComponent` is intentionally left unchanged: without a `guildId` binding, `MessageComponent.guildId()` stays `undefined` for every DM message, so `ReactionPickerComponent` never receives a `guildId` there and the custom-emoji section of the picker never renders in DMs - exactly the restriction the backend enforces server-side (400 on `emojiId` + `conversationId`).
 
 - [ ] **Step 4: Type-check**
 
 Run: `npx ng build --configuration development`
-Expected: builds successfully — this resolves the type errors left open at the end of Task 7 and Task 8.
+Expected: builds successfully - this resolves the type errors left open at the end of Task 7 and Task 8.
 
 - [ ] **Step 5: Manual verification (end-to-end)**
 
 Run the app:
-1. In a guild channel, open the reaction picker (either the hover toolbar's or the reaction bar's trailing picker) — confirm a "This Server" category appears (only if you've uploaded at least one emoji via Task 5) alongside the standard unicode categories.
-2. Pick a custom emoji — confirm it posts a reaction that renders as the emoji's image (not text), and the request sent used `emojiId` with no `reaction` field (check the network tab).
-3. Click the same custom-emoji reaction pill again to remove it — confirm the request used `{reaction: <name>, contextId, channelId}` (no `emojiId`), and the pill disappears.
-4. In a DM, open the reaction picker — confirm there is no "This Server" category (custom emoji never appear in DMs).
+1. In a guild channel, open the reaction picker (either the hover toolbar's or the reaction bar's trailing picker) - confirm a "This Server" category appears (only if you've uploaded at least one emoji via Task 5) alongside the standard unicode categories.
+2. Pick a custom emoji - confirm it posts a reaction that renders as the emoji's image (not text), and the request sent used `emojiId` with no `reaction` field (check the network tab).
+3. Click the same custom-emoji reaction pill again to remove it - confirm the request used `{reaction: <name>, contextId, channelId}` (no `emojiId`), and the pill disappears.
+4. In a DM, open the reaction picker - confirm there is no "This Server" category (custom emoji never appear in DMs).
 5. From a second account, react to the same message with a unicode emoji and confirm both reaction kinds coexist correctly and update live via the existing realtime path.
-6. Delete the custom emoji from Guild Settings → Emojis while it's still attached to an existing reaction — confirm the reaction pill now renders as plain text `:name:` instead of breaking or disappearing (the `imageUrl()` fallback from Task 8).
+6. Delete the custom emoji from Guild Settings → Emojis while it's still attached to an existing reaction - confirm the reaction pill now renders as plain text `:name:` instead of breaking or disappearing (the `imageUrl()` fallback from Task 8).
 
 - [ ] **Step 6: Commit**
 

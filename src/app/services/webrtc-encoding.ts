@@ -1,6 +1,6 @@
 import {bitrateFor, StreamPreset} from '../models/stream-preset';
 
-/** Voice audio is fixed, matching Discord — bitrate there is a per-channel server setting. */
+/** Voice audio is fixed, matching Discord - bitrate there is a per-channel server setting. */
 export const VOICE_AUDIO_KBPS = 64;
 /** Screen-share audio is fixed stereo. */
 export const STREAM_AUDIO_KBPS = 128;
@@ -11,7 +11,7 @@ export const CAMERA_KBPS = 2500;
  * Fraction of the target bitrate used as the encoding floor.
  *
  * Without a floor, congestion control ramps from ~300 kbps and the first 15-30 s of every stream is
- * mush regardless of the cap — the "slowly catches itself" symptom.
+ * mush regardless of the cap - the "slowly catches itself" symptom.
  */
 const MIN_BITRATE_RATIO = 0.6;
 
@@ -30,7 +30,7 @@ interface EncodingWithMinBitrate extends RTCRtpEncodingParameters {
  * The two load-bearing settings are `contentHint = 'detail'` and
  * `degradationPreference = 'maintain-resolution'`: together they tell the encoder that this is text
  * and UI, and that under congestion it should drop frames rather than shed resolution. That is what
- * Discord does. The previous `'motion'` hint did the opposite — the encoder scaled the picture down
+ * Discord does. The previous `'motion'` hint did the opposite - the encoder scaled the picture down
  * on any bandwidth dip and climbed back over tens of seconds, which is why streams looked soft.
  */
 export async function applyScreenEncoding(sender: RTCRtpSender, preset: StreamPreset): Promise<void> {

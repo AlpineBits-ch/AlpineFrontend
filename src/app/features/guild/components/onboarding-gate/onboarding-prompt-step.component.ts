@@ -21,11 +21,11 @@ import {OnboardingPrompt, OnboardingPromptOption, OnboardingPromptType} from '..
             @if (prompt().singleSelect) {
                 <p-select (ngModelChange)="setSingle($event)" [filter]="options().length > 8"
                           [ngModel]="singleValue()" [options]="dropdownOptions()" [showClear]="!prompt().required"
-                          appendTo="body" optionLabel="label" optionValue="value" placeholder="—" styleClass="w-full"/>
+                          appendTo="body" optionLabel="label" optionValue="value" placeholder="-" styleClass="w-full"/>
             } @else {
                 <p-multiSelect (ngModelChange)="selectionChange.emit($event)" [filter]="options().length > 8"
                                [ngModel]="selected()" [options]="dropdownOptions()" appendTo="body" optionLabel="label"
-                               optionValue="value" placeholder="—" styleClass="w-full"/>
+                               optionValue="value" placeholder="-" styleClass="w-full"/>
             }
         } @else {
             <div class="grid gap-2 sm:grid-cols-2">

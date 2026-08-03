@@ -4,7 +4,7 @@
 
 **Goal:** Add authenticator-app two-factor auth (enroll / enable / disable / recovery codes / login challenge) and a forgot-password flow to the Alpine client.
 
-**Architecture:** Two new root-provided services (`MfaService`, `PasswordResetService`) wrapping the Identity gateway endpoints. MFA settings live on a new "Security" page inside the existing user settings modal. The login challenge and the forgot-password flow are new dialogs mounted alongside the existing `app-email-verification-dialog`, driven by signal-based visibility services — the exact pattern `EmailVerificationService` already uses. `AuthService.login` gains an optional `mfaCode` parameter.
+**Architecture:** Two new root-provided services (`MfaService`, `PasswordResetService`) wrapping the Identity gateway endpoints. MFA settings live on a new "Security" page inside the existing user settings modal. The login challenge and the forgot-password flow are new dialogs mounted alongside the existing `app-email-verification-dialog`, driven by signal-based visibility services - the exact pattern `EmailVerificationService` already uses. `AuthService.login` gains an optional `mfaCode` parameter.
 
 **Tech Stack:** Angular 21 signals, PrimeNG 21 (`Dialog`, `Button`, `InputText`, `InputOtp`, `Password`), Tailwind v4 theme tokens, `qrcode` npm package, `@ngx-translate/core`.
 
@@ -14,8 +14,8 @@
 - **Font sizes use rem-based Tailwind classes** (`text-[0.625rem]`, not `text-[10px]`) so they scale with `--base-font-size`.
 - **Scrollable areas use the `thin-scrollbar` class** from `styles.css`. Never inline scrollbar styles.
 - **PrimeNG buttons:** `<p-button>` with `(onClick)`, never `(click)`. Icon-only toolbar buttons use `icon="pi pi-..." [text]="true" severity="secondary" size="small"`.
-- **All URLs go through the gateway** `this.apiConfig.baseUrl()` — never `environment.apiUrl` in new services (existing files that use it are not in scope to change). Identity endpoints are under `/api/v1/identity`.
-- **All user-facing strings must be i18n keys** added to `src/assets/i18n/locales/en.json`, `de.json`, and `fr.json`. That directory is a git submodule (`venta-i18n`) — commit there separately. Keys are flat dotted strings (e.g. `"SETTINGS.SECURITY.TITLE": "Security"`), matching the existing file layout.
+- **All URLs go through the gateway** `this.apiConfig.baseUrl()` - never `environment.apiUrl` in new services (existing files that use it are not in scope to change). Identity endpoints are under `/api/v1/identity`.
+- **All user-facing strings must be i18n keys** added to `src/assets/i18n/locales/en.json`, `de.json`, and `fr.json`. That directory is a git submodule (`venta-i18n`) - commit there separately. Keys are flat dotted strings (e.g. `"SETTINGS.SECURITY.TITLE": "Security"`), matching the existing file layout.
 - **Visual target is Discord**, adapted to the existing Alpine look. Match the layout/spacing conventions of the sibling settings pages already in the repo.
 - Use `ChangeDetectionStrategy.OnPush` on all new components.
 - Do not modify `src-tauri/Cargo.lock` (a pre-existing local modification exists).
@@ -32,7 +32,7 @@
 
 **Interfaces:**
 - Consumes: `ApiConfigService.baseUrl()` (signal getter, call as a function).
-- Produces: `MfaEnrollResponse`, `MfaRecoveryCodesResponse`, `MfaService.{enroll,enable,disable,regenerateRecoveryCodes}`, `PasswordResetService.{requestReset,resetPassword}` — used by Tasks 3, 4, 5.
+- Produces: `MfaEnrollResponse`, `MfaRecoveryCodesResponse`, `MfaService.{enroll,enable,disable,regenerateRecoveryCodes}`, `PasswordResetService.{requestReset,resetPassword}` - used by Tasks 3, 4, 5.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -90,7 +90,7 @@ describe('MfaService', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `ng test --watch=false --include='**/mfa.service.spec.ts'`
-Expected: FAIL — cannot resolve `./mfa.service`.
+Expected: FAIL - cannot resolve `./mfa.service`.
 
 - [ ] **Step 3: Write the DTOs**
 
@@ -100,7 +100,7 @@ Create `src/app/dtos/response/mfa.dto.ts`:
 export interface MfaEnrollResponse {
     /** Base32 authenticator secret, shown as selectable text for manual entry. */
     secret: string;
-    /** Full `otpauth://totp/...` URI — render this as the QR code. */
+    /** Full `otpauth://totp/...` URI - render this as the QR code. */
     otpAuthUri: string;
 }
 
@@ -209,7 +209,7 @@ git commit -m "feat: add MFA and password-reset API services"
 - Create: `src/app/components/qr-code/qr-code.component.ts`
 
 **Interfaces:**
-- Produces: `<app-qr-code [data]="uri()" />` — a self-contained canvas renderer used by Task 3.
+- Produces: `<app-qr-code [data]="uri()" />` - a self-contained canvas renderer used by Task 3.
 
 - [ ] **Step 1: Install the dependency**
 
@@ -452,10 +452,10 @@ export class SecuritySettingsComponent {
 Create `security-settings.component.html`. Match the sibling settings pages' structure: a `<h3>` section heading, a muted description paragraph, then the control. Requirements:
 
 - **Section heading** `{{ 'SETTINGS.SECURITY.SECTION_2FA' | translate }}`.
-- **`@if (stage() === 'idle')`** — description text plus a `<p-button [label]="'SETTINGS.SECURITY.ENABLE' | translate" severity="primary" size="small" (onClick)="beginEnroll()" [loading]="busy()" />`.
-- **`@if (stage() === 'enrolling')`** — a `bg-card border border-border rounded-lg p-4` panel containing: `<app-qr-code [data]="otpAuthUri()" />`, the secret in a `font-mono select-all text-text-secondary` block with a copy icon-button, a `<p-inputotp [(ngModel)]="code" [length]="6" [integerOnly]="true" />`, and Confirm / Cancel buttons side by side using `styleClass="flex-1 justify-center"`.
-- **`@if (stage() === 'enabled')`** — a status row with `pi pi-check-circle` in `text-online`, plus "Disable" (`severity="danger"`) and "Generate new recovery codes" (`severity="secondary"`) buttons.
-- **`@if (recoveryCodes(); as codes)`** — a `<p-dialog>` (not dismissable by backdrop click: `[closable]="false"`) with a `grid grid-cols-2 gap-2 font-mono text-[0.8125rem]` list of `@for (c of codes; track c)`, plus Copy / Download / "I've saved them" buttons. Copy the warning copy: these are shown once and cannot be viewed again.
+- **`@if (stage() === 'idle')`** - description text plus a `<p-button [label]="'SETTINGS.SECURITY.ENABLE' | translate" severity="primary" size="small" (onClick)="beginEnroll()" [loading]="busy()" />`.
+- **`@if (stage() === 'enrolling')`** - a `bg-card border border-border rounded-lg p-4` panel containing: `<app-qr-code [data]="otpAuthUri()" />`, the secret in a `font-mono select-all text-text-secondary` block with a copy icon-button, a `<p-inputotp [(ngModel)]="code" [length]="6" [integerOnly]="true" />`, and Confirm / Cancel buttons side by side using `styleClass="flex-1 justify-center"`.
+- **`@if (stage() === 'enabled')`** - a status row with `pi pi-check-circle` in `text-online`, plus "Disable" (`severity="danger"`) and "Generate new recovery codes" (`severity="secondary"`) buttons.
+- **`@if (recoveryCodes(); as codes)`** - a `<p-dialog>` (not dismissable by backdrop click: `[closable]="false"`) with a `grid grid-cols-2 gap-2 font-mono text-[0.8125rem]` list of `@for (c of codes; track c)`, plus Copy / Download / "I've saved them" buttons. Copy the warning copy: these are shown once and cannot be viewed again.
 - **Two confirmation `<p-dialog>`s** for disable and regenerate, each with a `<input pInputText type="password" [(ngModel)]="password">` and a confirm button. The regenerate dialog must warn that existing codes stop working immediately.
 
 Use `thin-scrollbar` on the recovery-code list container. All strings via `| translate`.
@@ -473,7 +473,7 @@ In `settings-modal.component.html`, add a `@case ('security') { <app-security-se
 - [ ] **Step 4: Verify**
 
 Run: `ng build`
-Expected: succeeds. Then run the full suite: `ng test --watch=false` — expected: still green (no new tests here).
+Expected: succeeds. Then run the full suite: `ng test --watch=false` - expected: still green (no new tests here).
 
 - [ ] **Step 5: Commit**
 
@@ -562,7 +562,7 @@ describe('mfaErrorKind', () => {
 - [ ] **Step 3: Run it to verify it fails**
 
 Run: `ng test --watch=false --include='**/mfa-challenge.service.spec.ts'`
-Expected: FAIL — cannot resolve `./mfa-challenge.service`.
+Expected: FAIL - cannot resolve `./mfa-challenge.service`.
 
 - [ ] **Step 4: Write the service**
 
@@ -640,11 +640,11 @@ Create `mfa-challenge-dialog.component.ts` modeled directly on `src/app/features
 - Bind `[(visible)]` to `MfaChallengeService.visible`.
 - A 6-digit `<p-inputotp [(ngModel)]="code" [length]="6" [integerOnly]="true" />` plus a secondary "Use a recovery code instead" toggle that swaps it for a plain `<input pInputText>` (recovery codes are 8 characters and contain letters, so they cannot go through the integer-only OTP input).
 - Submit calls `authService.login(username, password, code)`. On success: `userSettings.load()`, `router.navigate(['/overview'])`, dismiss.
-- On error, call `mfaErrorKind(err)`: `'invalid'` → inline "That code isn't right — try again" and clear the field; anything else → `toast.httpError` and dismiss.
+- On error, call `mfaErrorKind(err)`: `'invalid'` → inline "That code isn't right - try again" and clear the field; anything else → `toast.httpError` and dismiss.
 
 - [ ] **Step 7: Wire the login page**
 
-In `login.component.ts`, inject `MfaChallengeService` and extend the existing `catchError` in `login()`. The current block starts with `const status = err?.status ?? err?.reason?.status;` — insert the MFA branch **before** the existing `if (status === 403)` check:
+In `login.component.ts`, inject `MfaChallengeService` and extend the existing `catchError` in `login()`. The current block starts with `const status = err?.status ?? err?.reason?.status;` - insert the MFA branch **before** the existing `if (status === 403)` check:
 
 ```ts
                 if (mfaErrorKind(err) === 'required') {
@@ -715,8 +715,8 @@ export class PasswordResetDialogService {
 
 Create `password-reset-dialog.component.ts` with two stages in one dialog, driven by a `stage` signal (`'request' | 'reset'`):
 
-- **`request` stage:** an email `<input pInputText>` and a submit button calling `PasswordResetService.requestReset(email)`. On **any** response (including errors) advance to `'reset'` and show the same neutral copy — the endpoint deliberately returns 202 regardless of whether the account exists, so branching on it would leak account existence. Do not show a success toast implying an email was definitely sent.
-- **`reset` stage:** a 6-character code input (plain `<input pInputText>`, **not** `p-inputotp` — the code is alphanumeric, e.g. `a1b2c3`), a new-password field, a confirm-password field, and a submit calling `resetPassword(email, code, newPassword)`.
+- **`request` stage:** an email `<input pInputText>` and a submit button calling `PasswordResetService.requestReset(email)`. On **any** response (including errors) advance to `'reset'` and show the same neutral copy - the endpoint deliberately returns 202 regardless of whether the account exists, so branching on it would leak account existence. Do not show a success toast implying an email was definitely sent.
+- **`reset` stage:** a 6-character code input (plain `<input pInputText>`, **not** `p-inputotp` - the code is alphanumeric, e.g. `a1b2c3`), a new-password field, a confirm-password field, and a submit calling `resetPassword(email, code, newPassword)`.
   - `200` → toast success, dismiss, stay on the login screen so they can sign in with the new password.
   - `400` with a plain string body → inline "That code is invalid or has expired."
   - `400` ValidationProblem → read `err.error.errors.newPassword` (a `string[]`) and render those messages verbatim under the password field; they are already user-facing.
@@ -783,7 +783,7 @@ Also grep the `.html` files for `{{ 'X.Y' | translate }}` occurrences the above 
 
 - [ ] **Step 2: Add every key to all three locale files**
 
-The files are **flat** — each key is a full dotted string at the top level, e.g.:
+The files are **flat** - each key is a full dotted string at the top level, e.g.:
 
 ```json
 "SETTINGS.NAV.SECURITY": "Security",
@@ -792,7 +792,7 @@ The files are **flat** — each key is a full dotted string at the top level, e.
 "LOGIN.LOGIN.FORGOT_PASSWORD": "Forgot password?"
 ```
 
-Insert new keys next to their topical neighbours (all `SETTINGS.SECURITY.*` together, after the existing `SETTINGS.PRIVACY.*` block). Provide real German and French translations — do not copy the English string into `de.json`/`fr.json`.
+Insert new keys next to their topical neighbours (all `SETTINGS.SECURITY.*` together, after the existing `SETTINGS.PRIVACY.*` block). Provide real German and French translations - do not copy the English string into `de.json`/`fr.json`.
 
 - [ ] **Step 3: Verify the JSON parses and keys match across locales**
 
@@ -821,5 +821,5 @@ git commit -m "chore: bump i18n submodule for MFA and password-reset strings"
 ## Notes for the controller
 
 - Task 2 changes `package.json`; no other plan in this batch touches it.
-- Task 4 and Task 5 both modify `login.component.ts` and the same dialog host template — they are sequential tasks in this plan, so no conflict, but a merge against other plans is not expected to touch these files.
-- Only Task 6 touches the i18n submodule. **Every other plan in this batch also has an i18n task** — conflicts in `en.json`/`de.json`/`fr.json` are expected at integration and should be resolved by taking the union of added keys.
+- Task 4 and Task 5 both modify `login.component.ts` and the same dialog host template - they are sequential tasks in this plan, so no conflict, but a merge against other plans is not expected to touch these files.
+- Only Task 6 touches the i18n submodule. **Every other plan in this batch also has an i18n task** - conflicts in `en.json`/`de.json`/`fr.json` are expected at integration and should be resolved by taking the union of added keys.

@@ -4,7 +4,7 @@
 
 **Goal:** Add Discord-equivalent guild scheduled events (list, create, edit, cancel, mark interested, realtime sync) and server templates (save a guild's structure as a template, preview one, create a guild from it).
 
-**Architecture:** Two new services over the `/api/v1/guild` gateway base. Events get a `signalStore` (`ScheduledEventStore`) because their state is shared between the events panel and realtime SignalR handlers, mirroring the existing `GuildEmojiStore`. Templates need no store — every flow is a one-shot request/response. The events panel is a right-hand side panel modeled on the existing `ThreadPanelComponent`; templates surface as a guild-settings page plus a new tab in the create-guild modal. A new `ManageEvents` permission bit is added to the client permission model.
+**Architecture:** Two new services over the `/api/v1/guild` gateway base. Events get a `signalStore` (`ScheduledEventStore`) because their state is shared between the events panel and realtime SignalR handlers, mirroring the existing `GuildEmojiStore`. Templates need no store - every flow is a one-shot request/response. The events panel is a right-hand side panel modeled on the existing `ThreadPanelComponent`; templates surface as a guild-settings page plus a new tab in the create-guild modal. A new `ManageEvents` permission bit is added to the client permission model.
 
 **Tech Stack:** Angular 21 signals, `@ngrx/signals` (`signalStore`, `withEntities`, `withMethods`, `patchState`), PrimeNG 21 (`Dialog`, `Button`, `InputText`, `Textarea`, `DatePicker`, `Select`), Tailwind v4 theme tokens, `@ngx-translate/core`.
 
@@ -16,7 +16,7 @@
 - **PrimeNG buttons:** `<p-button>` with `(onClick)`, never `(click)`.
 - **All URLs through `this.apiConfig.baseUrl()`**; guild endpoints under `/api/v1/guild`.
 - **Enums serialize as strings.** `status` is `"Scheduled" | "Active" | "Completed" | "Cancelled"`; template channel `type` is `"Text" | "Voice" | "Forum" | "Announcement"`.
-- **All user-facing strings must be i18n keys** in `en.json`, `de.json`, `fr.json` (flat dotted keys). That directory is the `venta-i18n` git submodule — commit inside it first.
+- **All user-facing strings must be i18n keys** in `en.json`, `de.json`, `fr.json` (flat dotted keys). That directory is the `venta-i18n` git submodule - commit inside it first.
 - **Visual target is Discord**, adapted to Alpine's conventions.
 - Use `ChangeDetectionStrategy.OnPush` on all new components.
 - Permission gating uses `src/app/enums/permissions.enum.ts`: `parsePermissions`, `hasPermission`.
@@ -31,7 +31,7 @@
 - Modify: `src/app/enums/permissions.enum.spec.ts`
 
 **Interfaces:**
-- Produces: `Permissions.ManageEvents` — consumed by Tasks 4 and 5.
+- Produces: `Permissions.ManageEvents` - consumed by Tasks 4 and 5.
 
 **Read first:** `src/app/enums/permissions.enum.ts` in full. Bits must match the backend exactly; the backend declares `ManageEvents = 1ul << 38` in `Guild.Domain/Enums/Permissions.cs`, directly after `ManageEmojis = 1ul << 37`.
 
@@ -55,7 +55,7 @@ Make sure the imports at the top of that spec include everything referenced.
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `ng test --watch=false --include='**/permissions.enum.spec.ts'`
-Expected: FAIL — `Permissions.ManageEvents` is undefined.
+Expected: FAIL - `Permissions.ManageEvents` is undefined.
 
 - [ ] **Step 3: Add the bit**
 
@@ -97,7 +97,7 @@ git commit -m "feat: add ManageEvents permission bit"
 - Test: `src/app/services/scheduled-event.service.spec.ts`
 
 **Interfaces:**
-- Produces: `ScheduledEventDto`, `ScheduledEventStatus`, `CreateScheduledEventDto`, `UpdateScheduledEventDto`, `ScheduledEventService.{list,create,update,cancel,markInterested,removeInterest}` — consumed by Tasks 3-4.
+- Produces: `ScheduledEventDto`, `ScheduledEventStatus`, `CreateScheduledEventDto`, `UpdateScheduledEventDto`, `ScheduledEventService.{list,create,update,cancel,markInterested,removeInterest}` - consumed by Tasks 3-4.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -165,7 +165,7 @@ describe('ScheduledEventService', () => {
 - [ ] **Step 2: Run it to verify it fails**
 
 Run: `ng test --watch=false --include='**/scheduled-event.service.spec.ts'`
-Expected: FAIL — cannot resolve the service.
+Expected: FAIL - cannot resolve the service.
 
 - [ ] **Step 3: Write the DTOs**
 
@@ -290,7 +290,7 @@ git commit -m "feat: add scheduled event DTOs and service"
 - Consumes: `ScheduledEventService` (Task 2).
 - Produces: `ScheduledEventStore` with `{loadFor, create, update, cancel, toggleInterest, eventsForGuild, loading}`; `GuildWebsocketService.{eventCreatedObservable, eventUpdatedObservable, eventCancelledObservable}`.
 
-**Read first:** `src/app/stores/guild-emoji.store.ts` in full — this store must follow its structure (`signalStore` + `withEntities` + `withState` + `withMethods`), and `src/app/services/guild-websocket.service.ts` around lines 398-434 for the `Subject` + `this.realtime.on(...)` registration pattern.
+**Read first:** `src/app/stores/guild-emoji.store.ts` in full - this store must follow its structure (`signalStore` + `withEntities` + `withState` + `withMethods`), and `src/app/services/guild-websocket.service.ts` around lines 398-434 for the `Subject` + `this.realtime.on(...)` registration pattern.
 
 - [ ] **Step 1: Add the realtime events**
 
@@ -342,7 +342,7 @@ Provide `ScheduledEventService` as a stub object returning `of(...)`/`throwError
 - [ ] **Step 3: Run it to verify it fails**
 
 Run: `ng test --watch=false --include='**/scheduled-event.store.spec.ts'`
-Expected: FAIL — cannot resolve the store.
+Expected: FAIL - cannot resolve the store.
 
 - [ ] **Step 4: Write the store**
 
@@ -351,13 +351,13 @@ Create `src/app/stores/scheduled-event.store.ts` following `guild-emoji.store.ts
 - `signalStore({providedIn: 'root'}, withEntities<ScheduledEventDto>(), withState({loadingGuilds: {} as Record<string, boolean>, loadedGuilds: {} as Record<string, boolean>}))`.
 - `eventsForGuild(guildId)`: entities filtered by `guildId`, sorted ascending by `startsAt`.
 - `loadFor(guildId)`: no-op if already loading or loaded; otherwise sets loading, calls `service.list`, upserts entities, clears loading. On error, clear loading **and** the loaded flag so a retry is possible.
-- `toggleInterest(event)`: optimistic — flip `isInterested` and adjust `interestedCount` by ±1 before the call; on error, restore both to the pre-call values. Call `markInterested`/`removeInterest` accordingly.
+- `toggleInterest(event)`: optimistic - flip `isInterested` and adjust `interestedCount` by ±1 before the call; on error, restore both to the pre-call values. Call `markInterested`/`removeInterest` accordingly.
 - `create` / `update`: upsert the returned entity.
 - `cancel(eventId)`: remove the entity (the list endpoint excludes cancelled events, so keeping it would desync on reload).
-- `applyRealtimeCreatedOrUpdated(guildId)`: the realtime payload carries only `{guildId, eventId, title, startsAt}` — not enough to build a full `ScheduledEventDto` (no `interestedCount`/`isInterested`). Clear the guild's `loadedGuilds` flag and call `loadFor(guildId)` to refetch rather than synthesizing a partial entity.
+- `applyRealtimeCreatedOrUpdated(guildId)`: the realtime payload carries only `{guildId, eventId, title, startsAt}` - not enough to build a full `ScheduledEventDto` (no `interestedCount`/`isInterested`). Clear the guild's `loadedGuilds` flag and call `loadFor(guildId)` to refetch rather than synthesizing a partial entity.
 - `applyRealtimeCancelled(eventId)`: remove the entity.
 
-**Do not** wire an `effect()` that both reads and patches the same store slice — an earlier feature in this codebase caused a request storm that way. Subscribe to the websocket subjects from the panel component (Task 4) or in `withHooks` `onInit` with a plain `subscribe`, never from an `effect` that also writes state the effect reads.
+**Do not** wire an `effect()` that both reads and patches the same store slice - an earlier feature in this codebase caused a request storm that way. Subscribe to the websocket subjects from the panel component (Task 4) or in `withHooks` `onInit` with a plain `subscribe`, never from an `effect` that also writes state the effect reads.
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
@@ -401,7 +401,7 @@ git commit -m "feat: add scheduled event store with realtime sync"
 `events-panel.component.html`:
 
 - Panel header: title `{{ 'EVENTS.TITLE' | translate }}` plus, `@if (canManage())`, a `<p-button icon="pi pi-plus" [text]="true" severity="secondary" size="small" (onClick)="openCreate()" />`.
-- Body: `thin-scrollbar` scroll container, `@for` over `upcoming()` rendering an event card — `bg-card border border-border rounded-lg p-3` with:
+- Body: `thin-scrollbar` scroll container, `@for` over `upcoming()` rendering an event card - `bg-card border border-border rounded-lg p-3` with:
   - a date/time line in `text-[0.75rem] text-[var(--color-brand-dim)] uppercase`, formatted with `DatePipe`,
   - the title in `text-text-primary font-medium`,
   - `@if (event.description)` a clamped description in `text-[0.8125rem] text-text-secondary`,
@@ -410,13 +410,13 @@ git commit -m "feat: add scheduled event store with realtime sync"
   - `@if (canManage())` edit and cancel icon-buttons.
 - An empty state when `upcoming()` is empty.
 - A collapsed "Past events" section rendering `past()` at reduced opacity.
-- Add a muted footer note that no reminders are sent — the backend pushes nothing as an event approaches, so the UI must not imply otherwise.
+- Add a muted footer note that no reminders are sent - the backend pushes nothing as an event approaches, so the UI must not imply otherwise.
 
 - [ ] **Step 2: Write the editor dialog**
 
-`event-editor-dialog.component.ts` — a `<p-dialog>` used for both create and edit:
+`event-editor-dialog.component.ts` - a `<p-dialog>` used for both create and edit:
 
-- Inputs: `guildId`, `event` (nullable — null means create), `visible` model.
+- Inputs: `guildId`, `event` (nullable - null means create), `visible` model.
 - Fields: title (`InputText`, required), description (`Textarea`), `startsAt` (`<p-datepicker [showTime]="true" hourFormat="24">`), `endsAt` (same, optional), location (`InputText`), voice channel (`<p-select>` over the guild's `ChannelType.Voice` channels, with a clear option).
 - Client-side validation mirroring the server: title non-empty; `endsAt`, if set, must be strictly after `startsAt` (the server 400s otherwise).
 - Convert the `Date` values from `p-datepicker` to ISO strings with `.toISOString()` before sending.
@@ -525,13 +525,13 @@ export interface UseTemplateDto {
 }
 ```
 
-**Note:** the template snapshot may contain `type: "Announcement"`, which the messaging-parity plan adds to `ChannelType`. If `ChannelType.Announcement` does not exist yet when this task runs, add it — it is a one-line addition and both plans converge on the same value `Announcement = 'Announcement'`.
+**Note:** the template snapshot may contain `type: "Announcement"`, which the messaging-parity plan adds to `ChannelType`. If `ChannelType.Announcement` does not exist yet when this task runs, add it - it is a one-line addition and both plans converge on the same value `Announcement = 'Announcement'`.
 
 - [ ] **Step 4: Write the service**
 
 Create `guild-template.service.ts` with `createFromGuild`, `get`, `useTemplate`, following the `GuildEmojiService` shape exactly (private `base` getter off `apiConfig.baseUrl()`, one method per endpoint, no state).
 
-`createFromGuild` returns `{id, name, description, createdAt}`; `useTemplate` returns `{id, name}` for the **new guild** — treat it exactly like the normal create-guild response.
+`createFromGuild` returns `{id, name, description, createdAt}`; `useTemplate` returns `{id, name}` for the **new guild** - treat it exactly like the normal create-guild response.
 
 - [ ] **Step 5: Run the tests to verify they pass**
 
@@ -543,19 +543,19 @@ Expected: PASS (3 tests).
 `templates-settings.component.ts` + `.html`:
 
 - A name field, a description field, and a "Save as template" `<p-button>` calling `createFromGuild`.
-- On success, show the resulting template id prominently with a copy button, and copy explaining it is shareable by id like an invite code — **there is no template directory**, so an id nobody saved is unrecoverable. Make that consequence explicit in the UI copy.
+- On success, show the resulting template id prominently with a copy button, and copy explaining it is shareable by id like an invite code - **there is no template directory**, so an id nobody saved is unrecoverable. Make that consequence explicit in the UI copy.
 - A muted list of what a template does and does not capture (structure and role permission bitmasks yes; permission overwrites, members, and messages no).
 - Register in the guild settings modal under the **`Community`** nav group: `{id: 'templates', label: 'Templates', icon: 'pi pi-clone'}` plus the matching `@case`.
 
 - [ ] **Step 7: Add "create from template" to the create-guild modal**
 
-Read `create-guild-modal.component.ts` and `.html` first — it already has a "Import from Discord" alternate path whose structure this should mirror.
+Read `create-guild-modal.component.ts` and `.html` first - it already has a "Import from Discord" alternate path whose structure this should mirror.
 
 - Add a "Use a template" mode alongside the existing create and import paths.
 - Input: a template id (accept a pasted full URL too and extract the trailing id segment).
 - On blur/submit, call `templateService.get(id)`; on `404`, show an inline "No template with that code" message.
 - On success, render `<app-template-preview [template]="template()" />`: a summary line ("Creates 3 categories, 8 channels, 4 roles"), a category/channel tree using the same channel-type icons as the sidebar, and a role list with color swatches (`[style.background-color]="role.color"`).
-- A name field for the new guild, then a "Create" button calling `useTemplate`. On success, reuse the existing post-create-guild navigation path — the response has the same `{id, name}` shape.
+- A name field for the new guild, then a "Create" button calling `useTemplate`. On success, reuse the existing post-create-guild navigation path - the response has the same `{id, name}` shape.
 - Note in the UI that roles may need reordering after creation, since the backend does not preserve exact positions.
 
 - [ ] **Step 8: Verify**
@@ -611,8 +611,8 @@ git commit -m "chore: bump i18n submodule for events and templates strings"
 
 **Expected merge conflicts with sibling plans in this batch:**
 
-- `guild-settings-modal.component.ts` (`navGroups` + `imports`) and `.html` (`@case` blocks) — also modified by the guild-safety plan. Resolve by union.
-- `src/app/services/guild-websocket.service.ts` — this plan adds three event subjects and handlers; the messaging-parity plan may also touch the file. Both are purely additive; resolve by union.
-- `src/app/dtos/response/guild.dto.ts` — Task 5 may add `ChannelType.Announcement`, which the messaging-parity plan also adds. Identical value; keep one.
-- `src/app/enums/permissions.enum.ts` — only this plan touches it in this batch.
-- The three i18n locale files — union of added keys.
+- `guild-settings-modal.component.ts` (`navGroups` + `imports`) and `.html` (`@case` blocks) - also modified by the guild-safety plan. Resolve by union.
+- `src/app/services/guild-websocket.service.ts` - this plan adds three event subjects and handlers; the messaging-parity plan may also touch the file. Both are purely additive; resolve by union.
+- `src/app/dtos/response/guild.dto.ts` - Task 5 may add `ChannelType.Announcement`, which the messaging-parity plan also adds. Identical value; keep one.
+- `src/app/enums/permissions.enum.ts` - only this plan touches it in this batch.
+- The three i18n locale files - union of added keys.

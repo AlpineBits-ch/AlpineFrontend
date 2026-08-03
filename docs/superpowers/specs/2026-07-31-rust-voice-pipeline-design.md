@@ -34,7 +34,7 @@ user on speakers with "Enhanced" selected is echoing into the call. This is the 
 against Discord.
 
 **The pre/de-emphasis pair is unstable** (`audio.rs:294-319`). De-emphasis is
-`y[n] = x[n] + 0.95·y[n-1]` — a leaky integrator with roughly 26 dB of DC gain and no bound. Any DC
+`y[n] = x[n] + 0.95·y[n-1]` - a leaky integrator with roughly 26 dB of DC gain and no bound. Any DC
 offset from the microphone walks the signal off. RNNoise already weights its own bands; the wrapper
 buys nothing in exchange for the instability.
 
@@ -53,7 +53,7 @@ device aliases audibly.
 
 **The worklet FIFO cannot hold sync.** The cpal device clock and the `AudioContext` clock are
 independent and will drift. `audio-capture-processor.js` has no drift correction, so the buffer
-either grows without bound — latency creeping up for the length of the call — or drains. Once it
+either grows without bound - latency creeping up for the length of the call - or drains. Once it
 underruns, `_ready` stays `true`, so it emits a silence gap every quantum from then on. There is no
 resync path.
 
@@ -66,7 +66,7 @@ sees a sample, on top of RNNoise's 10 ms and the network. Discord's mouth-to-ear
 Without in-band FEC every lost packet is an audible hole.
 
 **Settings that do nothing.** `inputVolume` and `outputVolume` are read only by the settings
-component — there is no application site anywhere. `echoCancellation` is silently ignored on the
+component - there is no application site anywhere. `echoCancellation` is silently ignored on the
 Rust path. `vadStrength` gates inside Rust while `inputSensitivity` gates in JS on a cloned track:
 two unrelated VADs on one signal, costing two extra `AudioContext`s per call.
 
@@ -83,10 +83,10 @@ fixing them separately costs close to replacing them.
 | | Publishes | Subscribes | Cloudflare session |
 |---|---|---|---|
 | Rust voice (new) | microphone | all remote voice + screen-audio | `primary=true` |
-| Rust screen (exists) | screen H.264 | — | `primary=false` |
+| Rust screen (exists) | screen H.264 | - | `primary=false` |
 | Webview | camera | remote camera + screen video | `primary=false` |
 
-The backend already accepts `?primary=false` — `publisher/signalling.rs:137` relies on it. Moving
+The backend already accepts `?primary=false` - `publisher/signalling.rs:137` relies on it. Moving
 audio to Rust is therefore a query-parameter flip on the webview's `createSession`, not a backend
 change. The Rust voice session takes `primary=true` because it publishes the track the backend
 records as the participant's `audioTrackName`.
@@ -102,7 +102,7 @@ Because Rust renders the mix itself, it feeds that mix directly into APM's `proc
 That is more accurate than device loopback: no extra capture latency, and no other application's
 audio polluting the reference. AEC3's delay estimator absorbs the output device buffer.
 
-The trade-off is the same one Chrome and Discord make — audio played by *other* applications through
+The trade-off is the same one Chrome and Discord make - audio played by *other* applications through
 the same speakers is not cancelled.
 
 This is a simplification the full-Rust playout decision buys. A capture-only rewrite would have had
@@ -125,7 +125,7 @@ PLAYOUT   Cloudflare → webrtc-rs on_track (N remote tracks)
                  └──────────────────────────────────→ APM reverse stream
 ```
 
-Every stage operates on 10 ms frames — APM's native size and RNNoise's frame size — so no stage
+Every stage operates on 10 ms frames - APM's native size and RNNoise's frame size - so no stage
 rebuffers against another.
 
 ### Threading and real-time discipline
@@ -183,12 +183,12 @@ Windows, macOS and Linux are all first-class. No platform may be left on the old
 
 | Dependency | Portability |
 |---|---|
-| `cpal` 0.15 | WASAPI / CoreAudio / ALSA-PulseAudio — already a dependency |
+| `cpal` 0.15 | WASAPI / CoreAudio / ALSA-PulseAudio - already a dependency |
 | `webrtc-audio-processing` 2.1 | C++ build; needs a working toolchain on each platform |
 | `opus` 0.3 | Vendored libopus |
 | `rubato` 4 | Pure Rust |
 | `hrtf` 0.8 | Pure Rust, bundled HRIR dataset |
-| `webrtc` 0.14 | Pure Rust — already a dependency |
+| `webrtc` 0.14 | Pure Rust - already a dependency |
 
 Only the APM carries real portability risk. It is isolated behind `trait AudioProcessor` and gated
 behind a cargo feature, so a platform where it cannot be built falls back to the passthrough
@@ -196,7 +196,7 @@ implementation and loses AEC rather than losing voice. Phase 0 verifies the buil
 code is written; the Windows build is verifiable on the development machine, and macOS and Linux are
 verified in CI or on a build host before the phase closes.
 
-The existing Windows-only `loopback_win.rs` is untouched — it serves screen-share system audio, not
+The existing Windows-only `loopback_win.rs` is untouched - it serves screen-share system audio, not
 the AEC reference, and that role does not change.
 
 ## Angular changes
@@ -216,29 +216,29 @@ no call service branches on platform.
 
 Currently-dead settings become real: `inputVolume`, `outputVolume` and `echoCancellation` all push
 to Rust, as do per-user volume and deafen. `vadStrength` and `inputSensitivity` collapse into one
-control — there is no reason for two VADs on one signal. The migration in
+control - there is no reason for two VADs on one signal. The migration in
 `audio-settings.service.ts` must stay idempotent, as it already documents.
 
 Noise suppression keeps Discord's three-way shape, described by effect rather than implementation.
 No option mentions RNNoise, APM or any other internal name:
 
-- **Off** — "No filtering. Best if your microphone or audio interface already cleans up the signal."
-- **Standard** — "Removes steady background noise like fans, hum and air conditioning."
-- **Enhanced** — "Also removes keyboard clicks, dishes and background chatter. Uses more CPU."
+- **Off** - "No filtering. Best if your microphone or audio interface already cleans up the signal."
+- **Standard** - "Removes steady background noise like fans, hum and air conditioning."
+- **Enhanced** - "Also removes keyboard clicks, dishes and background chatter. Uses more CPU."
 
 ## Testing
 
-Rust unit tests, all pure — no devices, no network:
+Rust unit tests, all pure - no devices, no network:
 
-- **`jitter`** — in-order delivery, reordering, duplicates, gaps invoking PLC, in-band FEC recovery,
+- **`jitter`** - in-order delivery, reordering, duplicates, gaps invoking PLC, in-band FEC recovery,
   late-arrival drop, target-delay convergence against synthetic jitter traces, buffer bounds under
   sustained early and late arrival.
-- **`mixer`** — the limiter never clips, per-user gain, deafen zeroes output, HRTF placement puts
+- **`mixer`** - the limiter never clips, per-user gain, deafen zeroes output, HRTF placement puts
   the expected energy in each ear.
-- **`gate`** — mute beats push-to-talk beats VAD, hysteresis hold and release timing.
-- **`resample`** — conversion accuracy, and no energy above Nyquist for a swept input.
-- **`codec`** — encode/decode roundtrip, FEC and DTX flags reach the encoder.
-- **`process`** — settings map to APM config correctly, verified against the fake.
+- **`gate`** - mute beats push-to-talk beats VAD, hysteresis hold and release timing.
+- **`resample`** - conversion accuracy, and no energy above Nyquist for a swept input.
+- **`codec`** - encode/decode roundtrip, FEC and DTX flags reach the encoder.
+- **`process`** - settings map to APM config correctly, verified against the fake.
 
 Angular specs: settings migration idempotence with the new fields, settings→Rust config mapping, and
 `VoiceEngineService` command and event plumbing against a fake `invoke`.

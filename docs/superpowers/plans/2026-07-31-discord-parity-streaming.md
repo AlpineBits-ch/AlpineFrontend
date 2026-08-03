@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give screen sharing Discord's quality model — resolution × framerate presets chosen at share time, frame-dropping degradation, fixed capture geometry — and replace the JPEG-over-IPC capture pipeline with a Rust-native H.264 publisher.
+**Goal:** Give screen sharing Discord's quality model - resolution × framerate presets chosen at share time, frame-dropping degradation, fixed capture geometry - and replace the JPEG-over-IPC capture pipeline with a Rust-native H.264 publisher.
 
 **Architecture:** A single `StreamPreset` (resolution + framerate) derives bitrate, replacing four user-facing bitrate dropdowns. Screen senders use `contentHint='detail'` + `degradationPreference='maintain-resolution'` so the encoder drops frames instead of pixels. Capture geometry is solved once at share start and never changes mid-session. Later phases move capture, encoding and RTP publishing entirely into Rust, publishing to Cloudflare Realtime through the backend endpoints that already exist.
 
@@ -12,7 +12,7 @@
 
 - Spec: `docs/superpowers/specs/2026-07-31-discord-parity-streaming-design.md`.
 - Bitrate is **derived** from `StreamPreset`, never user-settable. No bitrate control may appear in settings UI.
-- No simulcast, no per-viewer quality — out of scope by decision.
+- No simulcast, no per-viewer quality - out of scope by decision.
 - Every resolution and framerate is available to every user; no tier gating.
 - Tailwind tokens only: `bg-sidebar`, `bg-card`, `text-text-primary`, `border-border-subtle` etc. Never raw hex.
 - Font sizes use rem-based Tailwind classes (`text-[0.625rem]`, not `text-[10px]`).
@@ -94,7 +94,7 @@ describe('stream-preset', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test`
-Expected: FAIL — cannot resolve `./stream-preset`.
+Expected: FAIL - cannot resolve `./stream-preset`.
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -226,7 +226,7 @@ describe('solveGeometry', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test`
-Expected: FAIL — cannot resolve `./capture-geometry`.
+Expected: FAIL - cannot resolve `./capture-geometry`.
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -381,7 +381,7 @@ describe('audio bitrate constants', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test`
-Expected: FAIL — cannot resolve `./webrtc-encoding`.
+Expected: FAIL - cannot resolve `./webrtc-encoding`.
 
 - [ ] **Step 3: Write minimal implementation**
 
@@ -389,7 +389,7 @@ Expected: FAIL — cannot resolve `./webrtc-encoding`.
 // src/app/services/webrtc-encoding.ts
 import {bitrateFor, StreamPreset} from '../models/stream-preset';
 
-/** Voice audio is fixed, matching Discord — bitrate there is a per-channel server setting. */
+/** Voice audio is fixed, matching Discord - bitrate there is a per-channel server setting. */
 export const VOICE_AUDIO_KBPS = 64;
 /** Screen-share audio is fixed stereo. */
 export const STREAM_AUDIO_KBPS = 128;
@@ -398,7 +398,7 @@ export const STREAM_AUDIO_KBPS = 128;
  * Fraction of the target bitrate used as the encoding floor.
  *
  * Without a floor, congestion control ramps from ~300 kbps and the first 15-30 s of every stream is
- * mush regardless of the cap — the "slowly catches itself" symptom.
+ * mush regardless of the cap - the "slowly catches itself" symptom.
  */
 const MIN_BITRATE_RATIO = 0.6;
 
@@ -528,7 +528,7 @@ async startScreenCapture(sourceId: string, geometry: CaptureGeometry, fps = 30):
 
     // Sized once, from the solved geometry. Resizing a canvas that captureStream() is already
     // attached to changes the track's dimensions mid-session, forcing a renegotiation and a
-    // keyframe — which is what used to tear the stream when a shared window was resized.
+    // keyframe - which is what used to tear the stream when a shared window was resized.
     const canvas = document.createElement('canvas');
     canvas.width = geometry.width;
     canvas.height = geometry.height;
@@ -542,7 +542,7 @@ async startScreenCapture(sourceId: string, geometry: CaptureGeometry, fps = 30):
 
     const track = stream.getVideoTracks()[0];
     if (!track) throw new Error('No video track from canvas');
-    // 'detail' — screen content is text and UI. Combined with maintain-resolution degradation on
+    // 'detail' - screen content is text and UI. Combined with maintain-resolution degradation on
     // the sender, the encoder drops frames under congestion instead of shedding resolution.
     try {
         (track as { contentHint?: string }).contentHint = 'detail';
@@ -621,7 +621,7 @@ Update the registration in `src-tauri/src/lib.rs`: replace
 
 Run: `bun run ng build --configuration development`
 Expected: success. Any remaining reference to `setScreenResolution` or `StreamResolution` imported
-from `rust-media.service` is a compile error to fix — the canonical `StreamResolution` now lives in
+from `rust-media.service` is a compile error to fix - the canonical `StreamResolution` now lives in
 `models/stream-preset.ts`.
 
 - [ ] **Step 5: Commit**
@@ -897,7 +897,7 @@ describe('AudioSettingsService migration', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test`
-Expected: FAIL — `noiseSuppressionMode` does not exist.
+Expected: FAIL - `noiseSuppressionMode` does not exist.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -1182,7 +1182,7 @@ describe('ScreenPickerService', () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `bun run ng test`
-Expected: FAIL — `select` takes a string, `lastPreset` does not exist.
+Expected: FAIL - `select` takes a string, `lastPreset` does not exist.
 
 - [ ] **Step 3: Write the implementation**
 
@@ -1408,7 +1408,7 @@ Wrap the source grid in `@if (step() === 'source')` and add the quality step:
 ```
 
 Replace the footer so it shows Back/Go Live on the quality step and Cancel/Next on the source step.
-**Rewrite the corrupted Share button entirely** — the old markup had an unterminated
+**Rewrite the corrupted Share button entirely** - the old markup had an unterminated
 `[class.bg-white` binding and leaked `cursor-pointer/10]=!selectedId()"` into the static class:
 
 ```html
@@ -1508,7 +1508,7 @@ protected applyPreset(share: CallScreenShare, patch: Partial<StreamPreset>): voi
 }
 ```
 
-Reset pan when zoom returns to 1 — add to `zoomOut`:
+Reset pan when zoom returns to 1 - add to `zoomOut`:
 
 ```ts
 if (cur - 0.25 <= 1) this._pan.update(p => ({...p, [shareId]: {x: 0, y: 0}}));
@@ -1613,7 +1613,7 @@ git commit -m "feat: change stream quality mid-share and pan a zoomed stream"
 ### Task 12: `webrtc-rs` ↔ Cloudflare interop spike
 
 This is a **spike**: its deliverable is a yes/no answer plus a throwaway binary, not production
-code. It gates Tasks 13-14. If it fails, stop and re-plan — the P0-P2 work already shipped stands on
+code. It gates Tasks 13-14. If it fails, stop and re-plan - the P0-P2 work already shipped stands on
 its own.
 
 **Files:**
@@ -1716,7 +1716,7 @@ mod tests {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd src-tauri && cargo test publisher::encoder`
-Expected: FAIL — module does not exist.
+Expected: FAIL - module does not exist.
 
 - [ ] **Step 3: Implement `encoder.rs` and `encoder_sw.rs`**
 
@@ -1815,7 +1815,7 @@ git commit -m "feat: publish screen shares to the SFU from Rust"
 
 Cap the JPEG channel at 5 fps and a 480-pixel-wide output, rename the commands to
 `start_screen_preview` / `stop_screen_preview`, and delete the canvas `captureStream` plumbing in
-`rust-media.service.ts` — the preview renders straight into an `<img>`.
+`rust-media.service.ts` - the preview renders straight into an `<img>`.
 
 - [ ] **Step 2: Flip the flag on and delete the fallback branch**
 
@@ -1855,12 +1855,12 @@ remains the load-bearing risk for Tasks 14-15 and must be proven before either i
 
 **Licensing: resolved.** Building OpenH264 from source does *not* carry Cisco's patent grant, which
 covers only their precompiled binary. The crate is now on `default-features = false,
-features = ["libloading"]` — `source` no longer appears anywhere in the dependency tree — and
+features = ["libloading"]` - `source` no longer appears anywhere in the dependency tree - and
 `media::publisher::openh264_blob` fetches Cisco's binary at runtime.
 
 Verified end to end on Windows x86_64: `https://ciscobinary.openh264.org/openh264-2.6.0-win64.dll.bz2`
 returns 452 KB over HTTPS, decompresses to 978 KB, and hashes to
-`2076cb56…b24691` — matching `openh264-sys2`'s baked-in list, so `from_blob_path` accepts it. With
+`2076cb56…b24691` - matching `openh264-sys2`'s baked-in list, so `from_blob_path` accepts it. With
 the cache cleared, the encoder tests re-download and pass.
 
 Design constraints this imposes:

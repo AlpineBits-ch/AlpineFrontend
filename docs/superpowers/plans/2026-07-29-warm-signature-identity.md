@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Give Alpine its own visual signature distinct from Discord — a darker/richer blue-violet brand color, a static (non-morphing) rounded-square icon shape, a weight-driven text hierarchy replacing ad hoc opacity values, a two-speed motion scale, and a mountain-peak empty-state motif — per `docs/superpowers/specs/2026-07-29-warm-signature-identity-design.md`.
+**Goal:** Give Alpine its own visual signature distinct from Discord - a darker/richer blue-violet brand color, a static (non-morphing) rounded-square icon shape, a weight-driven text hierarchy replacing ad hoc opacity values, a two-speed motion scale, and a mountain-peak empty-state motif - per `docs/superpowers/specs/2026-07-29-warm-signature-identity-design.md`.
 
-**Architecture:** Token-layer change (same shape as the prior `2026-07-28-preset-contrast-and-brand-sync` plan): update the small set of source-of-truth values in `theme.model.ts` and `styles.css`'s `@theme` block, then apply the new tokens across the handful of components that currently hardcode the old values or bypass the token system entirely. `alpine-preset.ts`'s `accent` primitive already derives from `DEFAULT_THEME.colors.brand` via `palette()` (from the prior brand-sync pass), so it needs no edit — the new brand color propagates through PrimeNG automatically.
+**Architecture:** Token-layer change (same shape as the prior `2026-07-28-preset-contrast-and-brand-sync` plan): update the small set of source-of-truth values in `theme.model.ts` and `styles.css`'s `@theme` block, then apply the new tokens across the handful of components that currently hardcode the old values or bypass the token system entirely. `alpine-preset.ts`'s `accent` primitive already derives from `DEFAULT_THEME.colors.brand` via `palette()` (from the prior brand-sync pass), so it needs no edit - the new brand color propagates through PrimeNG automatically.
 
 **Tech Stack:** Angular 21, PrimeNG 21 (`@primeuix/themes`), Tailwind CSS v4 (`@tailwindcss/postcss`), TypeScript.
 
@@ -14,12 +14,12 @@
 - No change to `online`/`connecting`/`offline` semantic colors, or to `success`/`warn`/`danger`/`info` in `alpine-preset.ts`.
 - No change to light-mode support (app is dark-only).
 - No `ThemeService`/appearance-settings UI changes.
-- This is a pure token/template change set — no new business logic, so verification is `ng build` + `grep` (confirming no old literals remain) + a manual visual check, not new unit tests, matching how the prior `2026-07-28-preset-contrast-and-brand-sync` plan verified equivalent token-only changes.
+- This is a pure token/template change set - no new business logic, so verification is `ng build` + `grep` (confirming no old literals remain) + a manual visual check, not new unit tests, matching how the prior `2026-07-28-preset-contrast-and-brand-sync` plan verified equivalent token-only changes.
 - `ng build` must succeed after every task.
 
 ---
 
-### Task 1: Brand color swap — source of truth + default-swatch literals
+### Task 1: Brand color swap - source of truth + default-swatch literals
 
 **Files:**
 - Modify: `src/app/models/theme.model.ts:37-40`
@@ -30,9 +30,9 @@
 - Modify: `src/app/features/guild/components/guild-settings-modal/pages/roles-settings/roles-settings.component.html:20,99`
 
 **Interfaces:**
-- Produces: `var(--color-brand)` = `#4B5BC4`, `var(--color-brand-hover)` = `#3E4EAE`, `var(--color-brand-dim)` = `#7E8AE0`, `var(--color-brand-dark)` = `#333F8C` — consumed by every later task in this plan, and (via `alpine-preset.ts`'s existing `palette(DEFAULT_THEME.colors.brand)` call) by all PrimeNG components without further edits.
+- Produces: `var(--color-brand)` = `#4B5BC4`, `var(--color-brand-hover)` = `#3E4EAE`, `var(--color-brand-dim)` = `#7E8AE0`, `var(--color-brand-dark)` = `#333F8C` - consumed by every later task in this plan, and (via `alpine-preset.ts`'s existing `palette(DEFAULT_THEME.colors.brand)` call) by all PrimeNG components without further edits.
 
-- [ ] **Step 1: `theme.model.ts` — update `DEFAULT_THEME.colors`**
+- [ ] **Step 1: `theme.model.ts` - update `DEFAULT_THEME.colors`**
 
 Replace:
 
@@ -52,7 +52,7 @@ with:
         brandDark: '#333F8C',
 ```
 
-- [ ] **Step 2: `styles.css` — sync the `@theme` brand tokens**
+- [ ] **Step 2: `styles.css` - sync the `@theme` brand tokens**
 
 Replace:
 
@@ -72,7 +72,7 @@ with:
   --color-brand-dark:  #333F8C;
 ```
 
-- [ ] **Step 3: `styles.css` — fix the doc-comment example values**
+- [ ] **Step 3: `styles.css` - fix the doc-comment example values**
 
 Replace:
 
@@ -90,7 +90,7 @@ with:
  *   bg-brand/15        → brand indigo-blue at 15% opacity (active tab bg)
 ```
 
-- [ ] **Step 4: `index.html` — preboot spinner ring color**
+- [ ] **Step 4: `index.html` - preboot spinner ring color**
 
 Replace:
 
@@ -108,9 +108,9 @@ with:
         border-right-color: rgba(75, 91, 196, 0.55);
 ```
 
-(This renders before `styles.css`'s custom properties are available, so it stays a plain literal — `rgba(75, 91, 196, X)` is `#4B5BC4` in decimal RGB.)
+(This renders before `styles.css`'s custom properties are available, so it stays a plain literal - `rgba(75, 91, 196, X)` is `#4B5BC4` in decimal RGB.)
 
-- [ ] **Step 5: `profile-settings.component.html` — accent-color-picker default**
+- [ ] **Step 5: `profile-settings.component.html` - accent-color-picker default**
 
 Replace:
 
@@ -124,7 +124,7 @@ with:
                            [value]="accentColorEdit() || '#4B5BC4'"
 ```
 
-- [ ] **Step 6: `roles-settings.component.ts` — role-color signal defaults (4 occurrences)**
+- [ ] **Step 6: `roles-settings.component.ts` - role-color signal defaults (4 occurrences)**
 
 Replace:
 
@@ -174,7 +174,7 @@ with:
             this.editColor() !== (r.color ?? '#4B5BC4') ||
 ```
 
-- [ ] **Step 7: `roles-settings.component.html` — swatch fallback + placeholder**
+- [ ] **Step 7: `roles-settings.component.html` - swatch fallback + placeholder**
 
 Replace:
 
@@ -219,14 +219,14 @@ git commit -m "feat: switch brand accent to Royal Indigo-Blue"
 
 ---
 
-### Task 2: New tokens — text hierarchy, motion scale, icon radius
+### Task 2: New tokens - text hierarchy, motion scale, icon radius
 
 **Files:**
 - Modify: `src/styles.css:199-209`
 
 **Interfaces:**
 - Consumes: nothing new.
-- Produces: `var(--color-text-primary)` = `0.88`, `var(--color-text-secondary)` = `0.62`, `var(--color-text-muted)` = `0.42`, `var(--color-text-faint)` = `0.24`; Tailwind utilities `duration-fast` (100ms), `duration-base` (200ms), `ease-brand` (`cubic-bezier(0.2,0,0,1)`); Tailwind utility `rounded-icon` (12px) — all consumed by Tasks 3, 5, and 6.
+- Produces: `var(--color-text-primary)` = `0.88`, `var(--color-text-secondary)` = `0.62`, `var(--color-text-muted)` = `0.42`, `var(--color-text-faint)` = `0.24`; Tailwind utilities `duration-fast` (100ms), `duration-base` (200ms), `ease-brand` (`cubic-bezier(0.2,0,0,1)`); Tailwind utility `rounded-icon` (12px) - all consumed by Tasks 3, 5, and 6.
 
 - [ ] **Step 1: Update the 4 text-opacity levels**
 
@@ -248,7 +248,7 @@ with:
   --color-text-faint:     rgba(255 255 255 / 0.24);
 ```
 
-(`--color-text-faint` had zero usages in the codebase before this change — confirmed by grepping `text-faint|color-text-faint` across `src` — so redefining its value from `0.06` to `0.24` is safe. Its role also changes from an unused "barely-there wash" to the fourth rung of the text hierarchy: dividers and placeholder hints.)
+(`--color-text-faint` had zero usages in the codebase before this change - confirmed by grepping `text-faint|color-text-faint` across `src` - so redefining its value from `0.06` to `0.24` is safe. Its role also changes from an unused "barely-there wash" to the fourth rung of the text hierarchy: dividers and placeholder hints.)
 
 - [ ] **Step 2: Add motion and icon-radius tokens after the border tokens**
 
@@ -268,12 +268,12 @@ with:
   --color-border-subtle:  rgba(255 255 255 / 0.10);
   --color-border-default: rgba(255 255 255 / 0.16);
 
-  /* ── Motion — exactly two speeds, one curve, used everywhere ── */
+  /* ── Motion - exactly two speeds, one curve, used everywhere ── */
   --duration-fast: 100ms;  /* immediate feedback: buttons, presses */
   --duration-base: 200ms;  /* everything else: hovers, panel/list transitions */
   --ease-brand: cubic-bezier(0.2, 0, 0, 1);
 
-  /* ── Icon/tile shape — uniform rounded-square, no morphing ──── */
+  /* ── Icon/tile shape - uniform rounded-square, no morphing ──── */
   --radius-icon: 12px;
 }
 ```
@@ -281,7 +281,7 @@ with:
 - [ ] **Step 3: Verify build**
 
 Run: `ng build`
-Expected: succeeds with no errors. (Tailwind v4 turns `--duration-fast`/`--duration-base`/`--ease-brand`/`--radius-icon` theme keys into the `duration-fast`, `duration-base`, `ease-brand`, `rounded-icon` utilities used by later tasks — no other wiring needed.)
+Expected: succeeds with no errors. (Tailwind v4 turns `--duration-fast`/`--duration-base`/`--ease-brand`/`--radius-icon` theme keys into the `duration-fast`, `duration-base`, `ease-brand`, `rounded-icon` utilities used by later tasks - no other wiring needed.)
 
 - [ ] **Step 4: Commit**
 
@@ -301,9 +301,9 @@ git commit -m "feat: add text-hierarchy, motion, and icon-radius design tokens"
 **Interfaces:**
 - Consumes: `rounded-icon` utility (from Task 2).
 
-`ServerIconComponent` currently animates its own `border-radius` between `rounded-full` (idle) and `rounded-2xl` (active/hover) via `transition-[border-radius] duration-200 ease-out` — this is the exact "nightmare" flagged during design review. Replace with one static shape, no transition.
+`ServerIconComponent` currently animates its own `border-radius` between `rounded-full` (idle) and `rounded-2xl` (active/hover) via `transition-[border-radius] duration-200 ease-out` - this is the exact "nightmare" flagged during design review. Replace with one static shape, no transition.
 
-- [ ] **Step 1: `server-icon.component.html` — static shape, no morph**
+- [ ] **Step 1: `server-icon.component.html` - static shape, no morph**
 
 Replace:
 
@@ -331,9 +331,9 @@ with:
             class="w-11 h-11 flex items-center justify-center border-0 cursor-pointer text-sm font-bold overflow-hidden">
 ```
 
-(`serverData().isActive` is still used elsewhere by the parent — `server-taskbar.component.html`'s left-pill indicator — so the input itself is untouched; only this template's shape logic drops it.)
+(`serverData().isActive` is still used elsewhere by the parent - `server-taskbar.component.html`'s left-pill indicator - so the input itself is untouched; only this template's shape logic drops it.)
 
-- [ ] **Step 2: `server-taskbar.component.html` — home button**
+- [ ] **Step 2: `server-taskbar.component.html` - home button**
 
 Replace:
 
@@ -347,7 +347,7 @@ with:
             class="w-11 h-11 flex items-center justify-center transition-colors cursor-pointer border-0 shrink-0 rounded-icon"
 ```
 
-- [ ] **Step 3: `server-taskbar.component.html` — add-server button**
+- [ ] **Step 3: `server-taskbar.component.html` - add-server button**
 
 Replace:
 
@@ -373,7 +373,7 @@ Expected: succeeds with no errors.
 
 - [ ] **Step 6: Manual check**
 
-Launch the app (`run` skill) and hover/click between server icons in the rail: confirm the icon shape stays a static rounded square at all times (idle, hover, active) — no shape animation — and the left-pill indicator is the only active-state signal.
+Launch the app (`run` skill) and hover/click between server icons in the rail: confirm the icon shape stays a static rounded square at all times (idle, hover, active) - no shape animation - and the left-pill indicator is the only active-state signal.
 
 - [ ] **Step 7: Commit**
 
@@ -437,7 +437,7 @@ with:
   `,
 ```
 
-(The `icon` input stays `input.required<string>()` — still consumed by the `sm` branch, unchanged.)
+(The `icon` input stays `input.required<string>()` - still consumed by the `sm` branch, unchanged.)
 
 - [ ] **Step 2: Verify build**
 
@@ -446,7 +446,7 @@ Expected: succeeds with no errors.
 
 - [ ] **Step 3: Manual check**
 
-Launch the app (`run` skill), navigate to a full-panel empty state (e.g. Home → Friends tab with zero friends, or the Blocked tab with nothing blocked) and confirm the mountain-peak motif renders in place of the old bare icon, tinted with the new brand-dim color. Confirm the `sm` (compact) empty-state contexts — e.g. an empty activity feed or DM list — are unchanged.
+Launch the app (`run` skill), navigate to a full-panel empty state (e.g. Home → Friends tab with zero friends, or the Blocked tab with nothing blocked) and confirm the mountain-peak motif renders in place of the old bare icon, tinted with the new brand-dim color. Confirm the `sm` (compact) empty-state contexts - e.g. an empty activity feed or DM list - are unchanged.
 
 - [ ] **Step 4: Commit**
 
@@ -457,7 +457,7 @@ git commit -m "feat: replace bare icon with mountain-peak motif in full-panel em
 
 ---
 
-### Task 5: Text-hierarchy sweep — `message.component.html`
+### Task 5: Text-hierarchy sweep - `message.component.html`
 
 **Files:**
 - Modify: `src/app/features/messaging/components/conversation/message/message.component.html`
@@ -465,7 +465,7 @@ git commit -m "feat: replace bare icon with mountain-peak motif in full-panel em
 **Interfaces:**
 - Consumes: `var(--color-text-primary/secondary/muted/faint)` (from Task 2).
 
-This file has the highest count of ad hoc opacity values in the app (8+ distinct `text-white/NN` values with no consistent rule). Map each to one of the 4 fixed levels, pairing weight with role per the design spec. **Not touched:** `isPending`/`isFailed` status colors (`text-white/40`, `text-rose-300`, `text-rose-400`) — these are transient state indicators, not part of the readable-text hierarchy, and are left exactly as they are.
+This file has the highest count of ad hoc opacity values in the app (8+ distinct `text-white/NN` values with no consistent rule). Map each to one of the 4 fixed levels, pairing weight with role per the design spec. **Not touched:** `isPending`/`isFailed` status colors (`text-white/40`, `text-rose-300`, `text-rose-400`) - these are transient state indicators, not part of the readable-text hierarchy, and are left exactly as they are.
 
 - [ ] **Step 1: Grouped-row hover timestamp (muted)**
 
@@ -517,7 +517,7 @@ with:
                 } @else {
 ```
 
-- [ ] **Step 3: Username — bot and non-bot branches (primary, weight 700)**
+- [ ] **Step 3: Username - bot and non-bot branches (primary, weight 700)**
 
 Replace:
 
@@ -559,7 +559,7 @@ with:
                     <span class="text-[11px] font-medium text-[var(--color-text-muted)]">{{ message().createdAt | date: 'shortTime' }}</span>
 ```
 
-- [ ] **Step 4: Message body text (secondary) — `isPending`/`isFailed` states untouched**
+- [ ] **Step 4: Message body text (secondary) - `isPending`/`isFailed` states untouched**
 
 Replace:
 
@@ -613,7 +613,7 @@ git commit -m "refactor: apply weight-driven text hierarchy to message.component
 
 ---
 
-### Task 6: Text-hierarchy sweep — `home.component.html` and `dm-sidepanel.component.html`
+### Task 6: Text-hierarchy sweep - `home.component.html` and `dm-sidepanel.component.html`
 
 **Files:**
 - Modify: `src/app/features/main-page/pages/home/home.component.html`
@@ -622,9 +622,9 @@ git commit -m "refactor: apply weight-driven text hierarchy to message.component
 **Interfaces:**
 - Consumes: `var(--color-text-primary/secondary/muted/faint)` (from Task 2).
 
-`action-sidepanel.component.html` was checked and contains no text-hierarchy classes (it only switches between `dm-sidepanel` and `channel-list`) — not part of this sweep. Dynamic status-color text (`statusTextClass()`, online/offline dots) and the deliberately-dimmed "blocked user" row styling are left untouched — they're semantic-state colors, not part of the plain-text hierarchy.
+`action-sidepanel.component.html` was checked and contains no text-hierarchy classes (it only switches between `dm-sidepanel` and `channel-list`) - not part of this sweep. Dynamic status-color text (`statusTextClass()`, online/offline dots) and the deliberately-dimmed "blocked user" row styling are left untouched - they're semantic-state colors, not part of the plain-text hierarchy.
 
-- [ ] **Step 1: `home.component.html` — page title (primary)**
+- [ ] **Step 1: `home.component.html` - page title (primary)**
 
 Replace:
 
@@ -640,7 +640,7 @@ with:
                     <h1 class="text-[15px] font-bold text-[var(--color-text-primary)]">{{ 'HOME.TITLE' | translate }}</h1>
 ```
 
-- [ ] **Step 2: `home.component.html` — add-friend hint text (muted) and panel title (primary)**
+- [ ] **Step 2: `home.component.html` - add-friend hint text (muted) and panel title (primary)**
 
 Replace:
 
@@ -658,7 +658,7 @@ with:
                             class="text-brand-dim/70">sarah</span></p>
 ```
 
-- [ ] **Step 3: `home.component.html` — friends-list section count label (muted)**
+- [ ] **Step 3: `home.component.html` - friends-list section count label (muted)**
 
 Replace:
 
@@ -676,7 +676,7 @@ with:
                     </p>
 ```
 
-- [ ] **Step 4: `home.component.html` — friend row name (primary)**
+- [ ] **Step 4: `home.component.html` - friend row name (primary)**
 
 Replace:
 
@@ -694,7 +694,7 @@ with:
                                 <p [ngClass]="statusTextClass(getOnlineStatus(rel.target.userId))"
 ```
 
-- [ ] **Step 5: `home.component.html` — incoming/outgoing section labels (muted, 2 occurrences)**
+- [ ] **Step 5: `home.component.html` - incoming/outgoing section labels (muted, 2 occurrences)**
 
 Replace:
 
@@ -728,7 +728,7 @@ with:
                     </p>
 ```
 
-- [ ] **Step 6: `home.component.html` — incoming/outgoing row names (primary, 2 occurrences)**
+- [ ] **Step 6: `home.component.html` - incoming/outgoing row names (primary, 2 occurrences)**
 
 Replace:
 
@@ -766,7 +766,7 @@ with:
                                 </div>
 ```
 
-- [ ] **Step 7: `home.component.html` — blocked-tab count label (muted)**
+- [ ] **Step 7: `home.component.html` - blocked-tab count label (muted)**
 
 Replace:
 
@@ -784,9 +784,9 @@ with:
                 </p>
 ```
 
-(The blocked-row name itself, `text-white/50` on line ~212, is left unchanged — it's the deliberately-dimmed "this user is blocked" state, not part of the general hierarchy.)
+(The blocked-row name itself, `text-white/50` on line ~212, is left unchanged - it's the deliberately-dimmed "this user is blocked" state, not part of the general hierarchy.)
 
-- [ ] **Step 8: `dm-sidepanel.component.html` — "Direct Messages" section label (muted)**
+- [ ] **Step 8: `dm-sidepanel.component.html` - "Direct Messages" section label (muted)**
 
 Replace:
 
@@ -818,7 +818,7 @@ git commit -m "refactor: apply weight-driven text hierarchy to home and DM sideb
 
 ---
 
-### Task 7: Motion sweep — apply `duration-fast`/`duration-base`/`ease-brand` to known ad hoc transitions
+### Task 7: Motion sweep - apply `duration-fast`/`duration-base`/`ease-brand` to known ad hoc transitions
 
 **Files:**
 - Modify: `src/app/features/guild/components/server-taskbar/server-taskbar.component.html`
@@ -828,9 +828,9 @@ git commit -m "refactor: apply weight-driven text hierarchy to home and DM sideb
 **Interfaces:**
 - Consumes: `duration-fast`, `duration-base`, `ease-brand` Tailwind utilities (from Task 2).
 
-These are the three ad hoc `duration-200`/`duration-300` instances identified during design research (Task 3 already removed a fourth — the icon-shape morph transition). This is not an exhaustive app-wide transition sweep, just the specific mixed-duration spots called out in the design spec.
+These are the three ad hoc `duration-200`/`duration-300` instances identified during design research (Task 3 already removed a fourth - the icon-shape morph transition). This is not an exhaustive app-wide transition sweep, just the specific mixed-duration spots called out in the design spec.
 
-- [ ] **Step 1: `server-taskbar.component.html` — active-server pill indicator**
+- [ ] **Step 1: `server-taskbar.component.html` - active-server pill indicator**
 
 Replace:
 
@@ -846,7 +846,7 @@ with:
                         class="absolute left-0 top-1/2 -translate-y-1/2 w-1 rounded-r-full bg-white transition-[height,opacity] duration-base ease-brand pointer-events-none">
 ```
 
-- [ ] **Step 2: `main-page.component.html` — mobile nav drawer slide**
+- [ ] **Step 2: `main-page.component.html` - mobile nav drawer slide**
 
 Replace:
 
@@ -862,7 +862,7 @@ with:
               lg:relative lg:top-auto lg:bottom-auto lg:z-auto lg:![translate:none]">
 ```
 
-- [ ] **Step 3: `message.component.html` — row hover/pending transition**
+- [ ] **Step 3: `message.component.html` - row hover/pending transition**
 
 Replace:
 
@@ -888,7 +888,7 @@ Expected: succeeds with no errors.
 
 - [ ] **Step 6: Manual check**
 
-Launch the app (`run` skill): hover over server icons (pill indicator grows/shrinks), resize the window below the `lg` breakpoint and toggle the mobile nav drawer, and hover a message row — confirm all three still animate smoothly, just on the shared 200ms/`ease-brand` curve instead of their previous individually-chosen values.
+Launch the app (`run` skill): hover over server icons (pill indicator grows/shrinks), resize the window below the `lg` breakpoint and toggle the mobile nav drawer, and hover a message row - confirm all three still animate smoothly, just on the shared 200ms/`ease-brand` curve instead of their previous individually-chosen values.
 
 - [ ] **Step 7: Commit**
 
@@ -908,13 +908,13 @@ git commit -m "refactor: apply the shared duration-base/ease-brand motion tokens
 **Interfaces:**
 - Consumes: nothing new.
 
-Found during manual review (not in the original design spec): in the same channel list, text-channel rows render their name at `text-[0.8rem]` (~12.8px) while voice-channel rows render theirs at a fixed `text-[15px]` — two different sizes for what should be one visual rhythm. First attempt unified both at `0.9375rem` (the 15px voice-channel size promoted to rem) — user feedback after seeing it live: too large, "just FAT". Corrected direction: unify both at the smaller `0.8rem` instead (the pre-existing text-channel size), which also fixes the voice-channel side's raw-pixel-value violation of the project's rem-based font-size convention (`text-[0.625rem]` not `text-[10px]`) without changing the size anyone was already used to.
+Found during manual review (not in the original design spec): in the same channel list, text-channel rows render their name at `text-[0.8rem]` (~12.8px) while voice-channel rows render theirs at a fixed `text-[15px]` - two different sizes for what should be one visual rhythm. First attempt unified both at `0.9375rem` (the 15px voice-channel size promoted to rem) - user feedback after seeing it live: too large, "just FAT". Corrected direction: unify both at the smaller `0.8rem` instead (the pre-existing text-channel size), which also fixes the voice-channel side's raw-pixel-value violation of the project's rem-based font-size convention (`text-[0.625rem]` not `text-[10px]`) without changing the size anyone was already used to.
 
-- [ ] **Step 1: `text-channel-item.component.html` — already at the target size, no change needed**
+- [ ] **Step 1: `text-channel-item.component.html` - already at the target size, no change needed**
 
-`text-channel-item.component.html:14` already reads `text-[0.8rem] font-medium truncate flex-1 pointer-events-none` — this is the target value, so this file needs no edit for this task. (Confirm it hasn't drifted from this value before moving on.)
+`text-channel-item.component.html:14` already reads `text-[0.8rem] font-medium truncate flex-1 pointer-events-none` - this is the target value, so this file needs no edit for this task. (Confirm it hasn't drifted from this value before moving on.)
 
-- [ ] **Step 2: `voice-channel-item.component.html` — convert the fixed-px size down to match, in rem**
+- [ ] **Step 2: `voice-channel-item.component.html` - convert the fixed-px size down to match, in rem**
 
 Replace:
 

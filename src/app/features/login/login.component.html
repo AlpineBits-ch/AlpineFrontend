@@ -48,6 +48,26 @@
                 <span class="text-[0.9375rem] font-semibold tracking-tight text-slate-200">Venta</span>
             </div>
 
+            <!-- The way back out of "Add Account". Reaching this screen sets the live account
+                 aside without signing it out, so without this the only route back to an account
+                 that is still perfectly signed in is to type its password again. -->
+            @if (returnableAccounts().length > 0) {
+                <div class="flex flex-col gap-1.5 mb-4">
+                    @for (slot of returnableAccounts(); track slot.id) {
+                        <button (click)="returnTo(slot)"
+                                class="flex w-full items-center gap-2.5 rounded-[10px] border
+                                       border-white/[0.06] bg-white/[0.04] px-3 py-2 text-left
+                                       transition-colors hover:bg-white/[0.08]"
+                                type="button">
+                            <i class="pi pi-arrow-left text-[0.75rem] text-slate-500"></i>
+                            <span class="min-w-0 flex-1 truncate text-[0.8125rem] text-slate-200">
+                                {{ 'LOGIN.RETURN_TO' | translate:{name: slot.displayName || slot.username} }}
+                            </span>
+                        </button>
+                    }
+                </div>
+            }
+
             <!-- Mode toggle. QR keeps "Sign in" lit: it is a way of signing in, not a third account action. -->
             <div class="flex bg-white/[0.05] border border-white/[0.06] rounded-[12px] p-[3px] gap-[3px] mb-5">
                 <button

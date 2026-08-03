@@ -9,7 +9,8 @@ import {Popover} from 'primeng/popover';
 import {Menu} from 'primeng/menu';
 import {MenuItem} from 'primeng/api';
 import {NavigationService} from '../features/main-page/navigation.service';
-import {InboxEntry, InboxService} from '../services/inbox.service';
+import {InboxService} from '../services/inbox.service';
+import {InboxPanelComponent} from './inbox-panel/inbox-panel.component';
 import {SettingsUiService} from '../services/settings-ui.service';
 import {ConversationUtilsService} from '../services/conversation-utils.service';
 import {ApiConfigService} from '../services/api-config.service';
@@ -35,7 +36,7 @@ interface TitlebarContext {
 
 @Component({
     selector: 'app-titlebar',
-    imports: [TranslateModule, Popover, Menu],
+    imports: [TranslateModule, Popover, Menu, InboxPanelComponent],
     templateUrl: './titlebar.component.html',
     styleUrl: './titlebar.component.css',
 })
@@ -202,16 +203,15 @@ export class TitlebarComponent implements OnInit, OnDestroy {
         this.failedIcons.update(set => new Set(set).add(url));
     }
 
+    /**
+     * The fetch is on the popover's `onShow`, not here.
+     *
+     * <p>Both tabs and the badge are loaded when the panel appears rather than at launch: the
+     * inbox spans every guild, and paying for that on a cold start buys a number nobody is
+     * looking at yet.</p>
+     */
     protected toggleInbox(event: Event): void {
-        // Read state is loaded per guild by the channel list, so guilds not visited this session
-        // have none until asked for. Opening the inbox is that ask.
-        this.inbox.primeReadState();
         this.inboxPopover?.toggle(event);
-    }
-
-    protected openEntry(entry: InboxEntry): void {
-        this.inbox.open(entry);
-        this.inboxPopover?.hide();
     }
 
     private readonly onMouseUp = (event: MouseEvent): void => {
