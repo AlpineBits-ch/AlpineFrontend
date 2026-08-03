@@ -1,7 +1,8 @@
+import {signal} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideHttpClient} from '@angular/common/http';
-import {of} from 'rxjs';
+import {of, Subject} from 'rxjs';
 import {InboxService} from './inbox.service';
 import {ApiConfigService} from './api-config.service';
 import {GuildService} from './guild.service';
@@ -9,7 +10,7 @@ import {GuildReadStateService} from './guild-read-state.service';
 import {ConversationStore} from '../stores/conversation.store';
 import {ProfileService} from './profile.service';
 import {NavigationService} from '../features/main-page/navigation.service';
-import {RealtimeConnectionService} from './realtime-connection.service';
+import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
 import {MlsService} from './mls.service';
 import {MlsSyncService} from './mls-sync.service';
 import {MlsHealthService} from './mls-health.service';
@@ -27,6 +28,12 @@ const INBOX = `${BASE}/api/v1/guild/inbox`;
 
 /** Handlers registered on the fake hub, so a test can fire a server event by name. */
 const hubHandlers = new Map<string, (payload: unknown) => void>();
+
+/** The fake hub's connection state, so a test can drive the connected edge the badge primes on. */
+let connectionState = signal(ConnectionState.Disconnected);
+
+/** Stands in for `GuildReadStateService.channelRead$`, so a test can read a channel. */
+let channelRead = new Subject<string>();
 
 function breadcrumb(overrides: Partial<InboxBreadcrumb> = {}): InboxBreadcrumb {
     return {
@@ -95,13 +102,22 @@ function page(overrides: Partial<InboxUnreadPage> = {}): InboxUnreadPage {
 
 function setup() {
     hubHandlers.clear();
+    connectionState = signal(ConnectionState.Disconnected);
+    channelRead = new Subject<string>();
+    // Explicit, so one test that throws before its module is torn down does not turn every later
+    // test in the file into "the test module has already been instantiated" and bury the real
+    // failure seven reports down.
+    TestBed.resetTestingModule();
     TestBed.configureTestingModule({
         providers: [
             provideHttpClient(),
             provideHttpClientTesting(),
             {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
             {provide: GuildService, useValue: {guilds: () => []}},
-            {provide: GuildReadStateService, useValue: {markChannelRead: () => undefined}},
+            {
+                provide: GuildReadStateService,
+                useValue: {markChannelRead: () => undefined, channelRead$: channelRead},
+            },
             {provide: ConversationStore, useValue: {entities: () => []}},
             {
                 provide: ProfileService,
@@ -113,6 +129,7 @@ function setup() {
                 useValue: {
                     on: (event: string, handler: (payload: unknown) => void) =>
                         hubHandlers.set(event, handler),
+                    connectionState,
                 },
             },
             // Plaintext previews never reach the decryptor's MLS calls, and the encrypted-path
@@ -306,6 +323,28 @@ describe('InboxService', () => {
     });
 
     describe('badge', () => {
+        it('counts unread channels alongside mentions', async () => {
+            const {service, ctrl} = setup();
+            await loadSummary(service, ctrl, {unreadChannelCount: 3, mentionCount: 6});
+
+            expect(service.badgeLabel()).toBe('9');
+        });
+
+        it('shows a badge for unread channels even when nothing mentioned the user', async () => {
+            const {service, ctrl} = setup();
+            await loadSummary(service, ctrl, {unreadChannelCount: 3, mentionCount: 0});
+
+            // The case the button exists for: a DM and a channel of replies, no ping in either.
+            expect(service.badgeLabel()).toBe('3');
+        });
+
+        it('renders 99+ when the two counts sum past the cap', async () => {
+            const {service, ctrl} = setup();
+            await loadSummary(service, ctrl, {unreadChannelCount: 60, mentionCount: 60});
+
+            expect(service.badgeLabel()).toBe('99+');
+        });
+
         it('renders 99+ when the server reports the count as capped', async () => {
             const {service, ctrl} = setup();
             await loadSummary(service, ctrl, {unreadChannelCount: 4, mentionCount: 12, capped: true});
@@ -329,6 +368,79 @@ describe('InboxService', () => {
             await loadSummary(service, ctrl, {mentionCount: 0});
 
             expect(service.badgeLabel()).toBeNull();
+        });
+    });
+
+    describe('keeping the badge current', () => {
+        it('fetches the count when the connection comes up, with the panel never opened', async () => {
+            const {service, ctrl} = setup();
+
+            connectionState.set(ConnectionState.Connected);
+            TestBed.tick();
+
+            ctrl.expectOne(`${INBOX}/summary`)
+                .flush({unreadChannelCount: 2, mentionCount: 1, capped: false});
+            await settle();
+
+            // The whole point: this is a cold start, and `open` was never called.
+            expect(service.badgeLabel()).toBe('3');
+        });
+
+        it('refetches on a reconnect, because nothing replays what the socket missed', async () => {
+            const {service, ctrl} = setup();
+            connectionState.set(ConnectionState.Connected);
+            TestBed.tick();
+            ctrl.expectOne(`${INBOX}/summary`)
+                .flush({unreadChannelCount: 0, mentionCount: 0, capped: false});
+            await settle();
+
+            connectionState.set(ConnectionState.Connecting);
+            TestBed.tick();
+            // Nothing to ask while it is down.
+            ctrl.expectNone(`${INBOX}/summary`);
+
+            connectionState.set(ConnectionState.Connected);
+            TestBed.tick();
+            ctrl.expectOne(`${INBOX}/summary`)
+                .flush({unreadChannelCount: 0, mentionCount: 4, capped: false});
+            await settle();
+
+            expect(service.badgeLabel()).toBe('4');
+        });
+
+        it('does not refetch when the connection reports connected twice', async () => {
+            const {ctrl} = setup();
+            connectionState.set(ConnectionState.Connected);
+            TestBed.tick();
+            ctrl.expectOne(`${INBOX}/summary`)
+                .flush({unreadChannelCount: 0, mentionCount: 0, capped: false});
+            await settle();
+
+            connectionState.set(ConnectionState.Connected);
+            TestBed.tick();
+
+            ctrl.expectNone(`${INBOX}/summary`);
+        });
+
+        it('refetches once after a burst of channels is read elsewhere in the app', async () => {
+            vi.useFakeTimers();
+            try {
+                const {service, ctrl} = setup();
+
+                channelRead.next('chan_1');
+                channelRead.next('chan_2');
+                // Clicking through a server is one burst, not one request per stop.
+                ctrl.expectNone(`${INBOX}/summary`);
+
+                await vi.advanceTimersByTimeAsync(2_000);
+                ctrl.expectOne(`${INBOX}/summary`)
+                    .flush({unreadChannelCount: 0, mentionCount: 4, capped: false});
+                await vi.advanceTimersByTimeAsync(0);
+
+                expect(service.badgeLabel()).toBe('4');
+            } finally {
+                vi.useRealTimers();
+            }
         });
     });
 

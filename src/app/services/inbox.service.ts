@@ -1,5 +1,6 @@
-import {computed, inject, Injectable, signal} from '@angular/core';
-import {firstValueFrom} from 'rxjs';
+import {computed, effect, inject, Injectable, signal} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
+import {debounceTime, firstValueFrom} from 'rxjs';
 import {ChannelDto, ChannelType, GuildDto} from '../dtos/response/guild.dto';
 import {MessageDto} from '../dtos/response/message.dto';
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
@@ -20,7 +21,7 @@ import {GuildReadStateService} from './guild-read-state.service';
 import {ConversationStore} from '../stores/conversation.store';
 import {ProfileService} from './profile.service';
 import {NavigationService} from '../features/main-page/navigation.service';
-import {RealtimeConnectionService} from './realtime-connection.service';
+import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
 import {MlsService} from './mls.service';
 import {MlsSyncService} from './mls-sync.service';
 import {MlsHealthService} from './mls-health.service';
@@ -39,6 +40,14 @@ const MENTIONS_PAGE_SIZE = 25;
  * the bound is what stops a pathological run spinning forever.</p>
  */
 const MAX_EMPTY_HOPS = 10;
+
+/**
+ * How long a burst of channel reads is allowed to settle before the badge is refetched.
+ *
+ * <p>Clicking through a server marks a channel read per stop, and each one moves the badge. The
+ * count is one cheap request, so the trailing edge of the burst is where to spend it.</p>
+ */
+const READ_RESYNC_DEBOUNCE_MS = 2_000;
 
 /** A preview whose body could not be decoded, so the row still says *something*. */
 export interface InboxPreview {
@@ -121,12 +130,25 @@ export class InboxService {
         {unreadChannelCount: 0, mentionCount: 0, capped: false});
     readonly summary = this._summary.asReadonly();
 
-    /** What the titlebar badge draws. `capped` means the real number is higher than reported. */
+    /**
+     * What the titlebar badge draws, or null for no badge at all.
+     *
+     * <p>Both counts, added. A mention is the louder of the two, but a badge that only counted
+     * mentions stayed dark through a DM and a full channel of replies - which is exactly the
+     * activity the button exists to lead the user back to.</p>
+     *
+     * <p>`capped` means the server stopped counting before it finished, so the numbers are a floor
+     * and the sum of two floors is still a floor - it renders as `99+` whatever it adds up to.</p>
+     */
     readonly badgeLabel = computed(() => {
-        const {mentionCount, capped} = this._summary();
-        if (mentionCount <= 0) return null;
-        return capped || mentionCount > 99 ? '99+' : String(mentionCount);
+        const {unreadChannelCount, mentionCount, capped} = this._summary();
+        const total = unreadChannelCount + mentionCount;
+        if (total <= 0) return null;
+        return capped || total > 99 ? '99+' : String(total);
     });
+
+    /** Whether the last state the connection effect saw was `Connected`, so it can spot edges. */
+    private wasConnected = false;
 
     constructor() {
         // Registered here rather than in a dedicated `inbox-websocket.service.ts`: there are two
@@ -135,6 +157,32 @@ export class InboxService {
         // at bootstrap, and `on` is safe before `start`.
         this.realtime.on('inbox.MentionAdded', (d: InboxMentionAdded) => this.onMentionAdded(d));
         this.realtime.on('inbox.ReadStateChanged', (d: InboxReadStateChanged) => this.onReadStateChanged(d));
+
+        // The badge is fetched here rather than left to `open`, which is what the popout calls.
+        // Fetching it only on open meant the count arrived at the one moment nobody needed it -
+        // on a cold start the summary was zeroed, so the button drew no badge until the user
+        // opened the panel that would have told them anyway.
+        //
+        // On the connected edge specifically, for two reasons. It is the first moment there is a
+        // session to ask about - the titlebar renders on the login route too, and this service is
+        // constructed with it. And a reconnect lands on the same edge: SignalR replays nothing it
+        // dropped, so every `MentionAdded` that fired while the socket was down is invisible until
+        // something refetches, which is this.
+        effect(() => {
+            const connected = this.realtime.connectionState() === ConnectionState.Connected;
+            if (connected === this.wasConnected) return;
+            this.wasConnected = connected;
+            if (connected) void this.refreshSummary();
+        });
+
+        // Reading a channel is the ordinary way the badge goes down, and the read happens in the
+        // channel view, which knows nothing about the inbox. Refetched rather than decremented:
+        // the local read state and the server's unread set are built from different inputs, so
+        // arithmetic across them drifts, and this costs one request per burst to be exactly right.
+        this.readState.channelRead$.pipe(
+            debounceTime(READ_RESYNC_DEBOUNCE_MS),
+            takeUntilDestroyed(),
+        ).subscribe(() => void this.refreshSummary());
     }
 
     // ── Loading ─────────────────────────────────────────────────────────────

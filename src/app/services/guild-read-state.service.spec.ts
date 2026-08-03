@@ -180,3 +180,36 @@ describe('GuildReadStateService.aggregate', () => {
         expect(service.aggregate(['p1'])).toEqual({isUnread: false, mentionCount: 0});
     });
 });
+
+describe('GuildReadStateService.channelRead$', () => {
+    beforeEach(() => TestBed.resetTestingModule());
+
+    it('announces a channel going from unread to read', () => {
+        const {service, ws} = setup();
+        const seen: string[] = [];
+        service.channelRead$.subscribe(id => seen.push(id));
+
+        deliver(ws, 'p1', ['me']);
+        service.markChannelRead('p1');
+
+        expect(seen).toEqual(['p1']);
+    });
+
+    /**
+     * The channel view re-marks its channel read on every message that lands while it is open, and
+     * the server-taskbar's Mark as read walks a whole guild whether or not a channel was unread. A
+     * badge refetch on each of those would be asking a question whose answer cannot have changed.
+     */
+    it('stays silent when the channel was already read', () => {
+        const {service, ws} = setup();
+        const seen: string[] = [];
+        service.channelRead$.subscribe(id => seen.push(id));
+
+        deliver(ws, 'p1', ['me']);
+        service.markChannelRead('p1');
+        service.markChannelRead('p1');
+        service.markChannelRead('never-unread');
+
+        expect(seen).toEqual(['p1']);
+    });
+});

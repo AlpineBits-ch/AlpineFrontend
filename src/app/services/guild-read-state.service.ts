@@ -1,5 +1,5 @@
 import {inject, Injectable, signal} from '@angular/core';
-import {firstValueFrom} from 'rxjs';
+import {firstValueFrom, Observable, Subject} from 'rxjs';
 import {GuildWebsocketService} from './guild-websocket.service';
 import {NavigationService} from '../features/main-page/navigation.service';
 import {InboxApiService} from './inbox-api.service';
@@ -24,6 +24,23 @@ export class GuildReadStateService {
     private seeded = false;
     private _channelStates = signal<Record<string, ChannelReadState>>({});
     readonly channelStates = this._channelStates.asReadonly();
+
+    private readonly _channelRead = new Subject<string>();
+
+    /**
+     * A channel just went from unread to read, anywhere in the app.
+     *
+     * <p>Exists for the titlebar badge. That badge counts unread channels, and the two ways a
+     * channel goes quiet - opening it, and Mark as read on a server - both land here and nowhere
+     * the inbox can see, so without this the badge kept counting channels the user had just read
+     * and only corrected itself on the next reconnect.</p>
+     *
+     * <p><b>Only real transitions are emitted.</b> Scrolling a channel re-marks it read on every
+     * new message, and the server-taskbar's Mark as read walks every channel in a guild whether or
+     * not it was unread; a subscriber refetching on each of those would be answering a question
+     * whose answer cannot have changed.</p>
+     */
+    readonly channelRead$: Observable<string> = this._channelRead.asObservable();
 
     constructor() {
         this.guildWs.messageObservable.subscribe(msg => {
@@ -91,7 +108,9 @@ export class GuildReadStateService {
     }
 
     markChannelRead(channelId: string): void {
+        const wasUnread = this._channelStates()[channelId]?.isUnread ?? false;
         this._channelStates.update(s => ({...s, [channelId]: {isUnread: false, mentionCount: 0}}));
+        if (wasUnread) this._channelRead.next(channelId);
     }
 
     getChannelState(channelId: string): ChannelReadState {
