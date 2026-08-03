@@ -17,6 +17,7 @@ import {TranslateModule} from '@ngx-translate/core';
 import {AccountStatus, UserDto} from '../../../../../dtos/response/UserDto';
 import {FONT_LABELS, FONT_STACKS, safeAccentColor} from '../../../../../models/profile-font.model';
 import {cacheBustedUrl} from '../../../../../models/profile-image.model';
+import {BrokenImageService} from '../../../../../services/broken-image.service';
 import {ProfileFont} from '../../../../../dtos/response/profile.dto';
 
 @Component({
@@ -40,7 +41,13 @@ export class ProfileSettingsComponent implements OnInit {
         .map(([value, label]) => ({value, label}));
     protected readonly FONT_STACKS = FONT_STACKS;
     protected readonly safeAccentColor = safeAccentColor;
-    protected readonly cacheBustedUrl = cacheBustedUrl;
+    private readonly brokenImages = inject(BrokenImageService);
+    /** Empty once the banner URL has proven to serve nothing - see {@link BrokenImageService}. */
+    protected bannerUrl = computed((): string | undefined => {
+        const profile = this.ownProfile();
+        const url = cacheBustedUrl(profile?.bannerUrl, profile?.updatedAt);
+        return this.brokenImages.isBroken(url) ? undefined : url;
+    });
     protected bioEdit = signal('');
     protected accentColorEdit = signal('');
     protected fontEdit = signal<ProfileFont>(ProfileFont.Default);
@@ -197,6 +204,10 @@ export class ProfileSettingsComponent implements OnInit {
 
     protected onAvatarError(): void {
         this.avatarError.set(true);
+    }
+
+    protected onBannerError(): void {
+        this.brokenImages.markBroken(this.bannerUrl());
     }
 
     protected removeAvatar(): void {

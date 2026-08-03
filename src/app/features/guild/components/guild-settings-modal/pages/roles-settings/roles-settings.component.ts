@@ -14,6 +14,7 @@ import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
 import {CreateRoleDto, GuildService, UpdateRoleDto} from '../../../../../../services/guild.service';
 import {GuildWebsocketService} from '../../../../../../services/guild-websocket.service';
 import {ProfileService} from '../../../../../../services/profile.service';
+import {BrokenImageService} from '../../../../../../services/broken-image.service';
 import {ToastService} from '../../../../../../services/toast.service';
 import {parsePermissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
 import {PermissionToggleComponent} from '../../../../shared/permission-toggle/permission-toggle.component';
@@ -77,6 +78,7 @@ export class RolesSettingsComponent implements OnInit {
     private guildWsService = inject(GuildWebsocketService);
     private destroyRef = inject(DestroyRef);
     private profileService = inject(ProfileService);
+    private brokenImages = inject(BrokenImageService);
     roleMembersDisplay = computed<RoleMemberDisplay[]>(() =>
         this.roleMembers().map(rm => {
             const userId = rm.member?.userId ?? rm.userId ?? '';
@@ -332,6 +334,17 @@ export class RolesSettingsComponent implements OnInit {
         return profile?.userName ?? (userId ? userId.slice(0, 8) + '…' : '?');
     }
 
+    // The API sends an avatarUrl for every profile, uploaded or not, so a URL that has already
+    // failed is the only signal that this member has no avatar. See BrokenImageService.
+    avatarUrl(profile: ProfileDto | undefined): string | undefined {
+        const url = profile?.avatarUrl;
+        return this.brokenImages.isBroken(url) ? undefined : url;
+    }
+
+    onAvatarError(url: string): void {
+        this.brokenImages.markBroken(url);
+    }
+
     openAddDialog(): void {
         this.addSearch.set('');
         this.addCandidates.set([]);
@@ -391,7 +404,7 @@ export class RolesSettingsComponent implements OnInit {
     // ── Add member dialog ──────────────────────────────────────────────────────
 
     addAvatarUrl(member: GuildMemberDto): string | undefined {
-        return member.profile?.avatarUrl;
+        return this.avatarUrl(member.profile);
     }
 
     private resetMembersTab(): void {

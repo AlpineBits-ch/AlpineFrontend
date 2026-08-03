@@ -2,10 +2,10 @@
     <div class="relative">
 
         <!-- Banner -->
-        <div [style.background]="!p.bannerUrl ? safeAccentColor(p.accentColor) : null"
+        <div [style.background]="!bannerUrl() ? safeAccentColor(p.accentColor) : null"
              class="profile-banner">
-            @if (p.bannerUrl) {
-                <img [src]="cacheBustedUrl(p.bannerUrl, p.updatedAt)" alt="" class="profile-banner-img"/>
+            @if (bannerUrl(); as url) {
+                <img (error)="onBannerError()" [src]="url" alt="" class="profile-banner-img"/>
             }
         </div>
 

@@ -199,9 +199,10 @@
 
                                     <!-- Avatar -->
                                     <div class="w-8 h-8 rounded-full overflow-hidden bg-card shrink-0 flex items-center justify-center">
-                                        @if (row.profile?.avatarUrl) {
-                                            <img [alt]="displayName(row.profile, row.userId)"
-                                                 [src]="row.profile!.avatarUrl!"
+                                        @if (avatarUrl(row.profile); as url) {
+                                            <img (error)="onAvatarError(url)"
+                                                 [alt]="displayName(row.profile, row.userId)"
+                                                 [src]="url"
                                                  class="w-full h-full object-cover"/>
                                         } @else {
                                             <span class="text-xs font-semibold text-white/40">{{ displayName(row.profile, row.userId).charAt(0).toUpperCase() }}</span>
@@ -341,8 +342,8 @@
 
                         <!-- Avatar -->
                         <div class="w-8 h-8 rounded-full overflow-hidden bg-card shrink-0 flex items-center justify-center">
-                            @if (addAvatarUrl(member)) {
-                                <img [alt]="addDisplayName(member)" [src]="addAvatarUrl(member)!"
+                            @if (addAvatarUrl(member); as url) {
+                                <img (error)="onAvatarError(url)" [alt]="addDisplayName(member)" [src]="url"
                                      class="w-full h-full object-cover"/>
                             } @else {
                                 <span class="text-xs font-semibold text-white/40">{{ addDisplayName(member).charAt(0).toUpperCase() }}</span>

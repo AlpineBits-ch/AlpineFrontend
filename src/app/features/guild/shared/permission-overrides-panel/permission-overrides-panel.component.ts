@@ -1,4 +1,4 @@
-import {Component, computed, input, output, signal, ViewChild} from '@angular/core';
+import {Component, computed, inject, input, output, signal, ViewChild} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Popover} from 'primeng/popover';
 import {Button} from 'primeng/button';
@@ -8,6 +8,7 @@ import {
     PermOverride,
 } from '../permission-override-editor/permission-override-editor.component';
 import {ChannelType} from '../../../../dtos/response/guild.dto';
+import {BrokenImageService} from '../../../../services/broken-image.service';
 
 export interface OverrideEntry {
     id: string;
@@ -48,6 +49,18 @@ export class PermissionOverridesPanelComponent {
     });
 
     @ViewChild('addPopover') private addPopoverRef!: Popover;
+
+    private brokenImages = inject(BrokenImageService);
+
+    // The API sends an avatarUrl for every profile, uploaded or not, so a URL that has already
+    // failed is the only signal that this entry has no avatar. See BrokenImageService.
+    protected avatarUrl(entry: OverrideEntry): string | undefined {
+        return this.brokenImages.isBroken(entry.avatarUrl) ? undefined : entry.avatarUrl ?? undefined;
+    }
+
+    protected onAvatarError(url: string): void {
+        this.brokenImages.markBroken(url);
+    }
 
     select(id: string): void {
         this.selectedId.set(id);

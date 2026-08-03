@@ -44,8 +44,9 @@
 
                     <!-- Avatar -->
                     <div class="w-9 h-9 rounded-full overflow-hidden bg-card shrink-0 flex items-center justify-center">
-                        @if (avatarUrl(row)) {
-                            <img [alt]="displayName(row)" [src]="avatarUrl(row)!" class="w-full h-full object-cover"/>
+                        @if (avatarUrl(row); as url) {
+                            <img (error)="onAvatarError(url)" [alt]="displayName(row)" [src]="url"
+                                 class="w-full h-full object-cover"/>
                         } @else {
                             <span class="text-sm font-semibold text-white/40">{{ displayName(row).charAt(0).toUpperCase() }}</span>
                         }

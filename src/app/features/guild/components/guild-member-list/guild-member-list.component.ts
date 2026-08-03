@@ -28,6 +28,7 @@ import {UserNameStyleDirective} from '../../../../directives/user-name-style.dir
 import {UserNameStyleInput} from '../../../../models/profile-font.model';
 import {BotInstallDialogService} from '../../../bot-install/bot-install-dialog.service';
 import {ProfileDialogService} from '../../../../services/profile-dialog.service';
+import {BrokenImageService} from '../../../../services/broken-image.service';
 
 export interface MemberRoleGroup {
     role: RoleDto;
@@ -70,6 +71,7 @@ export class GuildMemberListComponent implements OnChanges {
     private guildWsService = inject(GuildWebsocketService);
     private botInstallDialogService = inject(BotInstallDialogService);
     private toastService = inject(ToastService);
+    private brokenImages = inject(BrokenImageService);
     private destroyRef = inject(DestroyRef);
     private readonly TAKE = 50;
     private nextSkip = 0;
@@ -136,9 +138,21 @@ export class GuildMemberListComponent implements OnChanges {
         return member.profile?.userName ?? member.userId.slice(0, 8) + '…';
     }
 
+    /**
+     * Undefined for a member with no avatar, which shows the initial instead.
+     *
+     * <p>Having a profile is not having an avatar - this URL is built from the profile id and
+     * resolves only for members who uploaded one - so the miss is only known once the request
+     * fails, and {@link BrokenImageService} is what remembers it.</p>
+     */
     avatarUrl(member: GuildMemberDto): string | undefined {
         if (!member.profile) return undefined;
-        return `${environment.apiUrl}/api/v1/social/profiles/${member.profile.id}/avatar`;
+        const url = `${environment.apiUrl}/api/v1/social/profiles/${member.profile.id}/avatar`;
+        return this.brokenImages.isBroken(url) ? undefined : url;
+    }
+
+    onAvatarError(url: string): void {
+        this.brokenImages.markBroken(url);
     }
 
     isBot(member: GuildMemberDto): boolean {

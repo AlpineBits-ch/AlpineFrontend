@@ -4,6 +4,8 @@ import {catchError, EMPTY, Observable, of, switchMap, tap} from 'rxjs';
 import {environment} from '../../environments/environment';
 import {OnlineStatus, ProfileDto, ProfileFont} from '../dtos/response/profile.dto';
 import {ApiConfigService} from "./api-config.service";
+import {BrokenImageService} from './broken-image.service';
+import {cacheBustedUrl} from '../models/profile-image.model';
 
 // ── Circuit breaker config ───────────────────────────────────────────────────
 
@@ -40,6 +42,7 @@ export class ProfileService {
     private byUserId = signal<Record<string, ProfileDto>>({});
 
     private apiConfig = inject(ApiConfigService);
+    private brokenImages = inject(BrokenImageService);
 
     // ── Circuit breaker state ────────────────────────────────────────────────
 
@@ -139,7 +142,7 @@ export class ProfileService {
                 form,
                 {responseType: 'text'},
             )
-            .pipe(switchMap(() => this.getSelf()));
+            .pipe(switchMap(() => this.getSelf()), tap(p => this.retryImages(p)));
     }
 
     public uploadBanner(file: File): Observable<ProfileDto> {
@@ -153,7 +156,7 @@ export class ProfileService {
                 form,
                 {responseType: 'text'},
             )
-            .pipe(switchMap(() => this.getSelf()));
+            .pipe(switchMap(() => this.getSelf()), tap(p => this.retryImages(p)));
     }
 
     public removeAvatar(): Observable<ProfileDto> {
@@ -164,7 +167,22 @@ export class ProfileService {
                 `${this.apiConfig.baseUrl()}/api/v1/social/profiles/${current.id}/avatar`,
                 {responseType: 'text'},
             )
-            .pipe(switchMap(() => this.getSelf()));
+            .pipe(switchMap(() => this.getSelf()), tap(p => this.retryImages(p)));
+    }
+
+    /**
+     * Lets the profile's images be requested again after the user changed one.
+     *
+     * <p>An avatar or banner URL is derived from the profile id, so it does not change when the
+     * image behind it does. Without this, a profile that had no banner - and whose URL is
+     * therefore recorded as serving nothing - would keep showing the accent colour after an
+     * upload, because nothing about the URL says it now resolves.</p>
+     */
+    private retryImages(profile: ProfileDto): void {
+        for (const url of [profile.avatarUrl, profile.bannerUrl]) {
+            this.brokenImages.clear(url);
+            this.brokenImages.clear(cacheBustedUrl(url, profile.updatedAt));
+        }
     }
 
     // ── Fire-and-forget resolvers ────────────────────────────────────────────

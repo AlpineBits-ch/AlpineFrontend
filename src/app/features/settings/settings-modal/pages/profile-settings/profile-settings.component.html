@@ -111,8 +111,8 @@
             Banner</h2>
 
         <div class="relative w-full h-28 rounded-xl overflow-hidden bg-white/[0.04] border border-white/[0.09]">
-            @if (ownProfile()?.bannerUrl) {
-                <img [src]="cacheBustedUrl(ownProfile()!.bannerUrl, ownProfile()!.updatedAt)" alt="Banner" class="w-full h-full object-cover"/>
+            @if (bannerUrl(); as url) {
+                <img (error)="onBannerError()" [src]="url" alt="Banner" class="w-full h-full object-cover"/>
             } @else if (safeAccentColor(ownProfile()?.accentColor)) {
                 <div [style.background]="safeAccentColor(ownProfile()!.accentColor)" class="w-full h-full"></div>
             }

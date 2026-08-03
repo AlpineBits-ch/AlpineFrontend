@@ -10,6 +10,7 @@ import {BanDto} from '../../../../../../dtos/response/ban.dto';
 import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
 import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
+import {BrokenImageService} from '../../../../../../services/broken-image.service';
 import {ToastService} from '../../../../../../services/toast.service';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
@@ -51,6 +52,7 @@ export class BansSettingsComponent implements OnInit {
 
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
+    private brokenImages = inject(BrokenImageService);
     private toastService = inject(ToastService);
     private translate = inject(TranslateService);
 
@@ -83,6 +85,17 @@ export class BansSettingsComponent implements OnInit {
 
     displayName(row: BanRow): string {
         return row.profile?.userName ?? row.ban.userId.slice(0, 8) + '…';
+    }
+
+    // The API sends an avatarUrl for every profile, uploaded or not, so a URL that has already
+    // failed is the only signal that this user has no avatar. See BrokenImageService.
+    avatarUrl(row: BanRow): string | undefined {
+        const url = row.profile?.avatarUrl;
+        return this.brokenImages.isBroken(url) ? undefined : url;
+    }
+
+    onAvatarError(url: string): void {
+        this.brokenImages.markBroken(url);
     }
 
     openBanDialog(): void {
