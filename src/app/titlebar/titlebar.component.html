@@ -1,5 +1,12 @@
 @if (isTauri()) {
-    <div (dblclick)="toggleMaximize()" class="titlebar" data-tauri-drag-region>
+    <!-- No `(dblclick)` handler here on purpose. Tauri's injected drag script already invokes
+         `internal_toggle_maximize` on the mousedown of a double click over a drag region, so a
+         binding on top of it toggled twice - the window snapped out of maximized and straight back
+         in. `deep` rather than a bare attribute because the script otherwise only counts direct
+         hits on the element carrying it, which the logo, the app name and the gaps between the
+         buttons are not; it stops at any button or link on the way up, so the controls are
+         untouched. -->
+    <div class="titlebar" data-tauri-drag-region="deep">
 
         @if (isMac()) {
             <!-- macOS: traffic lights on the left -->
@@ -13,7 +20,10 @@
             </div>
         }
 
-        <div class="identity" data-tauri-drag-region>
+        <!-- These three carried their own `data-tauri-drag-region` and must not: the script
+             returns at the *first* element in the path that has the attribute, so a bare one here
+             would answer "direct hits only" and never reach the `deep` on the bar. -->
+        <div class="identity">
             <img alt="Venta" class="logo-mark" src="assets/branding/logo-mark.svg"/>
             @if (!inAppShell()) {
                 <span class="app-name">Venta</span>
@@ -46,13 +56,13 @@
             </div>
         }
 
-        <div class="grow" data-tauri-drag-region></div>
+        <div class="grow"></div>
 
         @if (inAppShell()) {
             @let ctx = context();
             <!-- Absolutely positioned so it centres on the window rather than on whatever space the
                  two button groups happen to leave, which is what makes it read as a title. -->
-            <div class="context" data-tauri-drag-region>
+            <div class="context">
                 @if (ctx.iconUrl && !iconFailed()) {
                     <img (error)="onIconError(ctx.iconUrl!)" [src]="ctx.iconUrl" alt="" class="context-icon"/>
                 } @else if (ctx.iconUrl) {

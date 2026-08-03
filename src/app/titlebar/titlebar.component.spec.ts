@@ -109,3 +109,42 @@ describe('TitlebarComponent help menu labels', () => {
         expect(labels()).toEqual(['Tastenkürzel', 'Über Venta']);
     });
 });
+
+/**
+ * The bar is only drawn under Tauri, and `ngOnInit` refuses to set that flag without
+ * `__TAURI_INTERNALS__` on the window. Flipping the signal by hand is what renders the chrome
+ * without pretending a whole Tauri runtime exists.
+ */
+function chrome() {
+    const {fixture} = setup();
+    const instance = fixture.componentInstance as never as {
+        isTauri: {set(value: boolean): void};
+        toggleMaximize(): void;
+    };
+    instance.isTauri.set(true);
+    fixture.detectChanges();
+    const bar = (fixture.nativeElement as HTMLElement).querySelector('.titlebar') as HTMLElement;
+    return {fixture, instance, bar};
+}
+
+describe('TitlebarComponent double-click to maximize', () => {
+    it('leaves it to the drag region rather than toggling a second time', () => {
+        const {instance, bar} = chrome();
+        // Tauri's injected drag script already invokes `internal_toggle_maximize` on the
+        // *mousedown* of a double click. A `(dblclick)` binding on top of it is a second toggle,
+        // which restores the window and then puts it straight back.
+        const toggle = vi.spyOn(instance, 'toggleMaximize').mockImplementation(() => undefined);
+
+        bar.dispatchEvent(new MouseEvent('dblclick', {bubbles: true, detail: 2}));
+
+        expect(toggle).not.toHaveBeenCalled();
+    });
+
+    it('marks the whole bar as a drag region so non-controls still count', () => {
+        const {bar} = chrome();
+        // Without the handler, only what Tauri recognises drags or maximizes - and a bare
+        // attribute means "direct hits on this element only", which the logo and the gaps
+        // between buttons are not.
+        expect(bar.getAttribute('data-tauri-drag-region')).toBe('deep');
+    });
+});
