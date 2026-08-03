@@ -95,6 +95,19 @@ export class VoiceService {
         return this.client.get<CallDto>(`${this.base}/call/${callId}`);
     }
 
+    /**
+     * The call ringing for this user right now, or `null` when none is - the server answers 204,
+     * which Angular hands back as a null body.
+     *
+     * `call.IncomingCall` is broadcast once and never replayed, so a client that was not connected
+     * at that moment - the app opened while somebody was already calling, or a socket that
+     * reconnected after the fact - never learns it is being called at all. This is the catch-up
+     * read for that, and the incoming-call counterpart to {@link getCall}.
+     */
+    getPendingCall(): Observable<CallDto | null> {
+        return this.client.get<CallDto | null>(`${this.base}/call/pending`);
+    }
+
     // ── Cloudflare Calls proxy endpoints ─────────────────────────────────────
     //
     // All CF Calls requests are proxied through the backend so the App ID and

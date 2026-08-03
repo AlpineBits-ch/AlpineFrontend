@@ -1,6 +1,10 @@
 ﻿export interface CallDto {
     id: string;
     conversationId: string;
+    /** Who placed the call. The reliable way to name the caller on the incoming-call card:
+     *  "the participant that isn't me" picks an arbitrary one of them once a call has three
+     *  people in it. Optional only because the field is newer than this interface. */
+    creatorId?: string;
     /** Backend `CallStatus` enum as a string (Pending/Ringing/Rejected/Connected/Completed) -
      *  used to detect a missed `call.CallEnded` event on reconnect. */
     status?: string;

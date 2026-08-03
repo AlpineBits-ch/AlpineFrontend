@@ -1,6 +1,7 @@
-import {inject, Injectable, OnDestroy, signal} from '@angular/core';
+import {effect, inject, Injectable, OnDestroy, signal, untracked} from '@angular/core';
 import {first, map, race, Subscription} from 'rxjs';
 import {CallDto} from '../dtos/response/call.dto';
+import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
 import {ConversationStore} from '../stores/conversation.store';
 import {ProfileService} from './profile.service';
 import {VoiceService} from './voice.service';
@@ -35,6 +36,11 @@ export class CallStateService implements OnDestroy {
     private navService = inject(NavigationService);
     private soundSettings = inject(SoundSettingsService);
     private toast = inject(ToastService);
+    private realtime = inject(RealtimeConnectionService);
+    /** In-flight guard for {@link catchUpOnPendingCall}. A signal so it is read the same way as
+     *  every other piece of state here, and so a future consumer (a "checking..." indicator) can
+     *  bind to it without this becoming a second source of truth. */
+    private readonly catchingUp = signal(false);
     private ringTimer: ReturnType<typeof setTimeout> | null = null;
     private pendingCallDto: CallDto | null = null;
     private pendingCallSub: Subscription | null = null;
@@ -71,7 +77,54 @@ export class CallStateService implements OnDestroy {
             this.toast.info('You joined this call on another device');
         }));
 
+        // `call.IncomingCall` is broadcast once and never replayed, so every way of not being
+        // connected at that instant ends with the same silence: somebody is calling and this client
+        // shows nothing. The app opened while the phone was already ringing is the common one - the
+        // socket connects seconds after the event went out - and a reconnect after a dropped
+        // connection has exactly the same gap. Ask the server instead of hoping.
+        //
+        // An effect rather than a transition check: it runs once on creation with whatever the
+        // connection state already is, which is the cold-start case (this service is constructed
+        // lazily, often after the socket is already up), and again on every change.
+        //
+        // `connectionState` is the effect's only dependency, hence the untracked call: everything
+        // downstream reads `session()`, `incomingCall()` and `catchingUp()`, and tracking those
+        // would re-run this on every ring, answer and hang-up.
+        effect(() => {
+            if (this.realtime.connectionState() !== ConnectionState.Connected) return;
+            untracked(() => this.catchUpOnPendingCall());
+        });
+
         document.addEventListener('keydown', this.devKeyHandler);
+    }
+
+    /**
+     * Asks the server whether a call is ringing for this user that this client was never told
+     * about, and raises the incoming-call card if so.
+     *
+     * Cheap enough to run on every connect: the answer is 204-with-no-body essentially always, and
+     * the guards below mean it never disturbs a call already in progress or one already ringing.
+     */
+    private catchUpOnPendingCall(): void {
+        if (this.catchingUp()) return;
+        if (this.callSession.session() || this.incomingCall()) return;
+        this.catchingUp.set(true);
+        this.voiceService.getPendingCall().subscribe({
+            next: (call) => {
+                this.catchingUp.set(false);
+                if (!call) return;
+                // Re-checked after the round trip: the real `call.IncomingCall` landing, or the
+                // user starting a call of their own, both leave state this must not overwrite.
+                if (this.callSession.session() || this.incomingCall()) return;
+                this.incomingCall.set(this.resolveCallInfo(call));
+                this.startRingtone();
+            },
+            // Silent: this is a background catch-up nobody asked for, and the next connect - or the
+            // live event, or the call push - tries again.
+            error: () => {
+                this.catchingUp.set(false);
+            },
+        });
     }
 
     startCall(conversationId: string, participants: string[], displayName: string, avatarLabel: string): void {
@@ -219,7 +272,12 @@ export class CallStateService implements OnDestroy {
 
     private resolveCallInfo(call: CallDto): IncomingCallState {
         const ownId = this.profileService.ownProfile()?.userId;
-        const callerIds = call.participants.map(p => p.userId).filter(id => id !== ownId);
+        // `creatorId` when the server sent one: filtering the roster picks an arbitrary invitee
+        // once a call has three people in it, and with no own profile loaded yet it matches
+        // everyone - including this user - so the card can end up naming its own recipient.
+        const callerIds = call.creatorId
+            ? [call.creatorId]
+            : call.participants.map(p => p.userId).filter(id => id !== ownId);
 
         const conv = this.conversationStore.entities().find(c =>
             callerIds.some(id => c.members.some(m => m.userId === id))
