@@ -231,7 +231,8 @@
                         <!-- Username -->
                         <div class="flex flex-col gap-1">
                             <label class="field-label">{{ 'LOGIN.REGISTER.USERNAME' | translate }}</label>
-                            <input [formField]="registerForm.username"
+                            <input (input)="clearServerError('username')"
+                                   [formField]="registerForm.username"
                                    [placeholder]="'LOGIN.REGISTER.USERNAME_PLACEHOLDER' | translate"
                                    autocomplete="username"
                                    pInputText type="text"/>
@@ -240,12 +241,16 @@
                                     <span class="field-error">{{ error.message }}</span>
                                 }
                             }
+                            @if (serverErrors().username) {
+                                <span class="field-error">{{ serverErrors().username! | translate }}</span>
+                            }
                         </div>
 
                         <!-- Email -->
                         <div class="flex flex-col gap-1">
                             <label class="field-label">{{ 'LOGIN.REGISTER.EMAIL' | translate }}</label>
-                            <input [formField]="registerForm.email"
+                            <input (input)="clearServerError('email')"
+                                   [formField]="registerForm.email"
                                    [placeholder]="'LOGIN.REGISTER.EMAIL_PLACEHOLDER' | translate"
                                    autocomplete="email"
                                    inputmode="email" pInputText
@@ -255,18 +260,25 @@
                                     <span class="field-error">{{ error.message }}</span>
                                 }
                             }
+                            @if (serverErrors().email) {
+                                <span class="field-error">{{ serverErrors().email! | translate }}</span>
+                            }
                         </div>
 
                         <!-- Date of birth -->
                         <div class="flex flex-col gap-1">
                             <label class="field-label">{{ 'LOGIN.REGISTER.DOB' | translate }}</label>
-                            <input [formField]="registerForm.birthdate"
+                            <input (input)="clearServerError('birthdate')"
+                                   [formField]="registerForm.birthdate"
                                    [placeholder]="'LOGIN.REGISTER.DOB_PLACEHOLDER' | translate" autocomplete="bday"
                                    pInputText type="text"/>
                             @if (registerForm.birthdate().touched() && registerForm.birthdate().invalid()) {
                                 @for (error of registerForm.birthdate().errors(); track error) {
                                     <span class="field-error">{{ error.message }}</span>
                                 }
+                            }
+                            @if (serverErrors().birthdate) {
+                                <span class="field-error">{{ serverErrors().birthdate! | translate }}</span>
                             }
                         </div>
 

@@ -17,7 +17,9 @@
                  style="background: color-mix(in srgb, var(--color-brand) 12%, transparent)">
                 <i class="pi pi-envelope text-sm" style="color: var(--color-brand-dim)"></i>
             </div>
-            <span class="text-base font-semibold" style="color: var(--color-text-primary)">Verify Your Email</span>
+            <span class="text-base font-semibold" style="color: var(--color-text-primary)">
+                {{ (uncertain() ? 'LOGIN.VERIFY.TITLE_PENDING' : 'LOGIN.VERIFY.TITLE') | translate }}
+            </span>
         </div>
     </ng-template>
 
@@ -25,14 +27,14 @@
 
         <div class="flex flex-col gap-1.5">
             <p class="text-sm m-0" style="color: var(--color-text-secondary)">
-                We sent a 6-digit verification code to:
+                {{ (uncertain() ? 'LOGIN.VERIFY.PENDING_SENT_TO' : 'LOGIN.VERIFY.SENT_TO') | translate }}
             </p>
             <div class="px-3 py-2 rounded-lg border text-sm font-medium"
                  style="background: rgba(255,255,255,0.03); border-color: var(--color-border-default); color: var(--color-text-primary)">
                 {{ email() }}
             </div>
             <p class="text-xs m-0" style="color: var(--color-text-muted)">
-                Check your inbox and enter the code below. It expires in 5 minutes.
+                {{ (uncertain() ? 'LOGIN.VERIFY.PENDING_HINT' : 'LOGIN.VERIFY.HINT') | translate }}
             </p>
         </div>
 
@@ -45,6 +47,33 @@
                     styleClass="gap-2"/>
         </div>
 
+        <!-- The whole recovery path for someone whose address already had a verified account: they
+             received a "someone tried to sign up" notice with no code in it, and the server is not
+             allowed to tell us - or them - anything more specific. Equal weight with the code entry
+             above is the point, not a fallback. -->
+        @if (uncertain()) {
+            <div class="flex flex-col items-center gap-1 pt-1 border-t"
+                 style="border-color: var(--color-border-subtle)">
+                <p class="text-xs m-0 pt-3" style="color: var(--color-text-muted)">
+                    {{ 'LOGIN.VERIFY.HAVE_ACCOUNT' | translate }}
+                </p>
+                <div class="flex items-center gap-1">
+                    <p-button
+                            (onClick)="goToSignIn()"
+                            [label]="'LOGIN.VERIFY.SIGN_IN' | translate"
+                            [text]="true"
+                            severity="secondary"
+                            size="small"/>
+                    <p-button
+                            (onClick)="openPasswordReset()"
+                            [label]="'LOGIN.VERIFY.FORGOT_PASSWORD' | translate"
+                            [text]="true"
+                            severity="secondary"
+                            size="small"/>
+                </div>
+            </div>
+        }
+
     </div>
 
     <ng-template pTemplate="footer">
@@ -52,7 +81,9 @@
             <p-button
                     (onClick)="resend()"
                     [disabled]="resendCooldown() > 0 || resendLoading()"
-                    [label]="resendCooldown() > 0 ? 'Resend in ' + resendCooldown() + 's' : 'Resend Code'"
+                    [label]="resendCooldown() > 0
+                        ? ('LOGIN.VERIFY.RESEND_IN' | translate: {seconds: resendCooldown()})
+                        : ('LOGIN.VERIFY.RESEND' | translate)"
                     [loading]="resendLoading()"
                     [text]="true"
                     severity="secondary"
@@ -61,7 +92,7 @@
                     (onClick)="verify()"
                     [disabled]="code().length < 6 || loading()"
                     [loading]="loading()"
-                    label="Verify"
+                    [label]="'LOGIN.VERIFY.SUBMIT' | translate"
                     severity="primary"
                     size="small"/>
         </div>

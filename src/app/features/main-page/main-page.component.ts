@@ -1,4 +1,4 @@
-import {Component, computed, effect, HostListener, inject, OnDestroy, signal, ViewChild} from '@angular/core';
+﻿import {Component, computed, effect, HostListener, inject, OnDestroy, signal, ViewChild} from '@angular/core';
 import {AuthService} from '../../services/auth.service';
 import {Router} from '@angular/router';
 import {HomeComponent} from './pages/home/home.component';
@@ -189,7 +189,7 @@ export class MainPageComponent implements OnDestroy {
     private teardown = inject(SessionTeardownService);
     private apiConfig = inject(ApiConfigService);
     private profileService = inject(ProfileService);
-    /** Conversations read for the launch-time §B sweep. Filtering them costs no requests. */
+    /** Conversations read for the launch-time Â§B sweep. Filtering them costs no requests. */
     private static readonly SWEEP_PAGE_SIZE = 100;
     private actionSub = new Subscription();
 
@@ -223,7 +223,7 @@ export class MainPageComponent implements OnDestroy {
                     const reason = (e as any)?.reason;
                     const status = reason?.status ?? reason?.error?.status;
                     if (status === 403) {
-                        this.emailVerification.show(this.resolveEmail(), 'navigate-login');
+                        this.emailVerification.show(this.resolveEmail(), {action: 'navigate-login'});
                     }
                 }
             }),
@@ -372,7 +372,7 @@ export class MainPageComponent implements OnDestroy {
             user = await firstValueFrom(this.userService.getSelf());
         } catch (err) {
             if ((err as {status?: number} | null)?.status === 403) {
-                this.emailVerification.show(this.resolveEmail(), 'navigate-login');
+                this.emailVerification.show(this.resolveEmail(), {action: 'navigate-login'});
                 return false;
             }
             // Not being able to read the account means none of these questions can be answered -
@@ -468,7 +468,7 @@ export class MainPageComponent implements OnDestroy {
     }
 
     /**
-     * Contract §B discovery, for conversations.
+     * Contract Â§B discovery, for conversations.
      *
      * <p>Enumerates this account's conversations and hands them to
      * {@link MlsJoinRequestService.sweepForAdmission}, which decides locally which of them this
@@ -477,7 +477,7 @@ export class MainPageComponent implements OnDestroy {
      * nothing for someone who does not know which conversations they are missing from, and nothing
      * at all for the ones they never open.</p>
      *
-     * <p><b>Conversations only, deliberately.</b> §B's discovery step is written in terms of the
+     * <p><b>Conversations only, deliberately.</b> Â§B's discovery step is written in terms of the
      * conversation list, channels already carry an explicit ask affordance in
      * `ChannelAccessBannerComponent`, and enumerating every channel of every guild at launch is a
      * different order of magnitude of work for a case the user is already given a button for.</p>
@@ -580,7 +580,7 @@ export class MainPageComponent implements OnDestroy {
             error: err => {
                 const status = (err as {status?: number} | null)?.status;
                 if (status === 403) {
-                    this.emailVerification.show(this.resolveEmail(), 'navigate-login');
+                    this.emailVerification.show(this.resolveEmail(), {action: 'navigate-login'});
                 } else {
                     console.error('Failed to fetch user:', err);
                 }
