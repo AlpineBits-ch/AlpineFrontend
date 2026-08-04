@@ -199,6 +199,11 @@ export class ChannelComponent implements AfterViewInit {
         return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.PinMessages);
     });
 
+    /** Lets a moderator dismiss a link preview on someone else's message. */
+    protected canDeleteAnyMessage = computed(() =>
+        hasPermission(this.threadPermissions(), Permissions.Superadmin)
+        || hasPermission(this.threadPermissions(), Permissions.DeleteAnyMessage));
+
     private threadPermissions = computed(() => {
         const member = this.ownMember();
         if (!member) return 0n;

@@ -409,6 +409,9 @@ export interface GuildMessageCreatedPayload {
     inReplyTo: string | undefined;
     mentions: string[] | undefined;
     embedsJson: string | undefined;
+    /** Message bitfield. A message can arrive already suppressed - a restored edit, a backfill. */
+    flags?: number;
+    editedAt?: string | null;
     type: string;
     systemMessageVariant: number | undefined;
 }
@@ -449,6 +452,9 @@ export interface GuildMessageUpdatedPayload {
     authorId: string;
     content: WireMessageContent;
     embedsJson?: string | null;
+    flags?: number;
+    editedAt?: string | null;
+    isAuthorEdit?: boolean;
 }
 
 /**
@@ -467,6 +473,10 @@ export function mapGuildMessageUpdatedPayload(data: GuildMessageUpdatedPayload):
         authorId: data.authorId,
         conversationId: undefined,
         channelId: data.channelId,
+        embedsJson: data.embedsJson,
+        flags: data.flags,
+        editedAt: data.editedAt,
+        isAuthorEdit: data.isAuthorEdit,
     };
 }
 
@@ -621,6 +631,8 @@ export function mapGuildMessageCreatedPayload(data: GuildMessageCreatedPayload):
         senderDeviceId: undefined,
         type: data.type as MessageType,
         embedsJson: data.embedsJson,
+        flags: data.flags,
+        editedAt: data.editedAt,
         systemMessageVariant: data.systemMessageVariant,
     };
 }

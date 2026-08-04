@@ -13,7 +13,14 @@ import {
     ViewChild
 } from '@angular/core';
 import {takeUntilDestroyed, toObservable, toSignal} from '@angular/core/rxjs-interop';
-import {MessageAttachment, MessageDto, MessageEmbed, PinMessageResponse} from "../../../../../dtos/response/message.dto";
+import {
+    MessageAttachment,
+    MessageDto,
+    MessageEmbed,
+    MessageEmbedMedia,
+    MessageFlags,
+    PinMessageResponse
+} from "../../../../../dtos/response/message.dto";
 import {BotCommandDto} from '../../../../../dtos/response/bot-command.dto';
 import {AppAvatarComponent} from "../../../../../components/avatar/avatar.component";
 import {AsyncPipe, DatePipe, NgClass} from "@angular/common";
@@ -79,7 +86,18 @@ export class MessageComponent {
     private static readonly INVITE_URL_RE = /https:\/\/venta\.gg\/invite\/([A-Za-z0-9_-]+)/g;
     public profileService = inject(ProfileService);
     protected navService = inject(NavigationService);
-    lightbox = signal<{ loading: boolean; att: AttachmentDto | null; name: string } | null>(null);
+    /**
+     * The full-size overlay. Fed both by attachments (which need a metadata fetch first) and by
+     * embed images (which already know their URL), so it holds a URL rather than an attachment.
+     */
+    lightbox = signal<{
+        loading: boolean;
+        url: string | null;
+        name: string;
+        attachment: AttachmentDto | null;
+        /** The origin's own address, for "open original". Absent for our own attachments. */
+        originalUrl?: string;
+    } | null>(null);
     public message = input.required<MessageDto>();
     public guildChannels = input<ChannelDto[]>([]);
     public guildRoles = input<RoleDto[]>([]);
@@ -87,6 +105,8 @@ export class MessageComponent {
     public guildId = input<string | undefined>();
     public isGrouped = input<boolean>(false);
     public canPinMessages = input<boolean>(false);
+    /** `DeleteAnyMessage` in this channel - the one permission that may dismiss someone else's preview. */
+    public canDeleteAnyMessage = input<boolean>(false);
     public channelType = input<ChannelType | undefined>();
     public reply = output<MessageDto>();
     public jumpTo = output<string>();
@@ -108,8 +128,30 @@ export class MessageComponent {
 
         return /^(\p{Emoji_Presentation}|\p{Emoji}\uFE0F?|\u200D)+$/u.test(content);
     });
+    /**
+     * The body as it should be *displayed*, with the sender's no-preview brackets taken off.
+     *
+     * <p>Wrapping a URL in angle brackets - `&lt;https://example.com&gt;` - is how a sender opts out
+     * of a preview, and it is what the server reads. Showing the brackets would leak that mechanic
+     * into the conversation as punctuation nobody typed on purpose.</p>
+     *
+     * <p>Display only: {@link startEdit} keeps the raw text, so an edit round-trips the brackets
+     * and does not silently re-enable a preview the sender had suppressed.</p>
+     */
+    public readonly displayContent = computed(() =>
+        this.content().replace(/<(https?:\/\/[^\s<>]+)>/g, '$1'));
+
+    /**
+     * Whether there is a body to render alongside whatever cards this message carries.
+     *
+     * <p>This used to be "render the text only when there are no embeds", which was survivable
+     * while every embed was a bot's whole message. A link preview is an attachment to something a
+     * person actually wrote, so that rule swallowed the message the moment its card arrived.</p>
+     */
+    public readonly hasRenderableContent = computed(() => this.displayContent().trim().length > 0);
+
     public contentSegments = computed(() => {
-        const text = this.content();
+        const text = this.displayContent();
         const msg = this.message();
         let segments: { type: 'text' | 'mention' | 'role' | 'everyone' | 'here' | 'channel' | 'gif' | 'emoji' | 'flag' | 'invite'; value: string; refId?: string }[] = [];
 
@@ -331,11 +373,67 @@ export class MessageComponent {
         const json = this.message().embedsJson;
         if (!json) return [];
         try {
-            return JSON.parse(json);
+            const parsed = JSON.parse(json);
+            return Array.isArray(parsed) ? parsed : [];
         } catch {
             return [];
         }
     });
+
+    /**
+     * True when a person removed this message's previews - for everyone, not just for them.
+     *
+     * <p>Also the answer to *why* there are no embeds: suppressed by somebody, as opposed to never
+     * generated. Nothing else can tell those apart, and offering "restore preview" on a message
+     * that never had one is a button that does nothing.</p>
+     */
+    public readonly embedsSuppressed = computed(() =>
+        ((this.message().flags ?? 0) & MessageFlags.SuppressEmbeds) !== 0);
+
+    /**
+     * Whether the message's text carries a link the server could unfurl.
+     *
+     * <p>Used only to decide whether restoring a suppressed preview is worth offering. Mirrors the
+     * two server-side opt-outs so the offer does not appear where nothing would come back: a URL
+     * inside a code span or fence is never unfurled, and neither is one the sender deliberately
+     * wrapped in angle brackets.</p>
+     */
+    public readonly hasUnfurlableLink = computed(() => {
+        if (this.isUndecryptable()) return false;
+        const withoutCode = this.content()
+            .replace(/```[\s\S]*?```/g, ' ')
+            .replace(/`[^`\n]*`/g, ' ');
+        return /(^|[^<\w])https?:\/\/[^\s<>]+/.test(withoutCode);
+    });
+
+    /**
+     * Whether to offer the ✕ at all.
+     *
+     * <p>The author always may. In a channel, so may anyone holding `DeleteAnyMessage`; in a DM
+     * nobody but the author does, however the permission bit happens to be set elsewhere. Rendered
+     * from the same rule the server enforces, so the button is never one that 403s.</p>
+     */
+    public readonly canSuppressEmbeds = computed(() => {
+        const msg = this.message();
+        if (msg.isPending || msg.isFailed || msg.isEphemeral || msg.isBotCommandPlaceholder) return false;
+        if (this.isOwn()) return true;
+        return !msg.conversationId && this.canDeleteAnyMessage();
+    });
+
+    /** The subtle "preview hidden - show" row: only where a preview could actually come back. */
+    public readonly canRestoreEmbeds = computed(() =>
+        this.embedsSuppressed() && this.canSuppressEmbeds() && this.hasUnfurlableLink());
+
+    /**
+     * The "(edited)" marker, driven by `editedAt` and never by `updatedAt`.
+     *
+     * <p>`updatedAt` is bumped by anything that writes the row - a preview attaching, a pin - so
+     * driving the marker off it labels every message containing a link as edited, by nobody, a
+     * second after it was posted.</p>
+     */
+    public readonly isEdited = computed(() => !!this.message().editedAt);
+
+    protected readonly suppressingEmbeds = signal(false);
     private fileService = inject(FileService);
     private messagingService = inject(MessagingService);
     private messageStore = inject(MessageStore);
@@ -407,11 +505,48 @@ export class MessageComponent {
     }
 
     openLightbox(minimal: MessageAttachment): void {
-        this.lightbox.set({loading: true, att: null, name: minimal.fileName});
+        this.lightbox.set({loading: true, url: null, name: minimal.fileName, attachment: null});
         this.fileService.getAttachmentMetadataById(minimal.id).subscribe({
-            next: att => this.lightbox.update(s => s ? {...s, loading: false, att} : s),
+            next: att => this.lightbox.update(s => s ? {...s, loading: false, url: att.url, attachment: att} : s),
             error: () => this.lightbox.set(null),
         });
+    }
+
+    /**
+     * Opens an embed image full-size.
+     *
+     * <p>Shows the proxied copy, exactly as the card does - blowing an image up is not a reason to
+     * start talking to the origin. `originalUrl` is kept only so "open original" has somewhere to
+     * go, and it takes an explicit click.</p>
+     */
+    openEmbedMedia(media: MessageEmbedMedia): void {
+        const src = media.proxyUrl ?? media.url;
+        if (!src) return;
+        this.lightbox.set({
+            loading: false,
+            url: src,
+            name: this.mediaFileName(media.url),
+            attachment: null,
+            originalUrl: media.url,
+        });
+    }
+
+    /** Best-effort display name for an embed image - the last path segment, or nothing. */
+    private mediaFileName(url: string): string {
+        try {
+            return decodeURIComponent(new URL(url).pathname.split('/').filter(Boolean).pop() ?? '');
+        } catch {
+            return '';
+        }
+    }
+
+    downloadFromLightbox(): void {
+        const state = this.lightbox();
+        if (state?.attachment) {
+            this.download(state.attachment);
+        } else if (state?.url) {
+            void openUrl(state.url);
+        }
     }
 
     download(att: { id: string; fileName: string }): void {
@@ -653,6 +788,34 @@ export class MessageComponent {
                 error: () => this.messageStore.applyUnpinned({messageId: msg.id, authorId: msg.authorId, unpinnedById: own}),
             });
         }
+    }
+
+    /**
+     * Dismisses or restores every preview on this message, for everyone who can see it.
+     *
+     * <p>Applied optimistically and rolled back on failure. Restoring cannot bring the old card
+     * back from here - the server re-queues the unfurl and it returns over `*.MessageUpdated` -
+     * so the space simply stays empty for a moment.</p>
+     */
+    toggleEmbedSuppression(): void {
+        const msg = this.message();
+        if (this.suppressingEmbeds() || !this.canSuppressEmbeds()) return;
+
+        const suppress = !this.embedsSuppressed();
+        const previousEmbeds = msg.embedsJson;
+        this.suppressingEmbeds.set(true);
+        this.messageStore.applyEmbedSuppression(msg.id, suppress);
+
+        this.messagingService.setEmbedSuppression(msg.id, suppress)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+                next: () => this.suppressingEmbeds.set(false),
+                error: err => {
+                    this.suppressingEmbeds.set(false);
+                    this.messageStore.applyEmbedSuppression(msg.id, !suppress, previousEmbeds);
+                    this.toast.httpError(this.translate.instant('MESSAGE.EMBED_SUPPRESS_FAILED'), err);
+                },
+            });
     }
 
     protected publish(): void {

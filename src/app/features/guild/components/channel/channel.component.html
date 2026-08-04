@@ -242,6 +242,7 @@
                             } @else {
                                 <app-message (jumpTo)="jumpToMessage($event)"
                                              (reply)="onReply($event)"
+                                             [canDeleteAnyMessage]="canDeleteAnyMessage()"
                                              [canPinMessages]="canPinMessages()"
                                              [guildBots]="botCommandService.currentGuildBots()"
                                              [guildChannels]="guildChannels()"

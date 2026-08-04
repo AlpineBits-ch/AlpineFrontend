@@ -158,7 +158,7 @@
                 <i class="pi pi-exclamation-circle text-[13px]"></i>
                 <span>Didn't respond</span>
             </div>
-        } @else if (!embeds().length) {
+        } @else if (hasRenderableContent()) {
             <!-- Normal message content -->
             <div (click)="onLinkClick($event)"
                  [ngClass]="message().isFailed ? 'text-rose-300' : message().isPending ? 'text-white/40' : 'text-[var(--color-text-secondary)]'"
@@ -238,12 +238,47 @@
             </div>
         }
 
-        @if (embeds().length) {
-            <div class="flex flex-col gap-2 mt-2">
+        <!--
+          Cards arrive seconds after the message, never with it. The list is animated in rather than
+          snapped in so a preview landing under a message somebody is already reading reads as an
+          addition, not as the message changing under them.
+        -->
+        @if (embeds().length && !embedsSuppressed()) {
+            <div class="group/embeds relative flex flex-col gap-2 mt-2 w-fit max-w-full embed-enter">
                 @for (embed of embeds(); track $index) {
-                    <app-embed-card [embed]="embed"/>
+                    <app-embed-card (openMedia)="openEmbedMedia($event)" [embed]="embed"/>
+                }
+
+                @if (canSuppressEmbeds()) {
+                    <button (click)="toggleEmbedSuppression()"
+                            [disabled]="suppressingEmbeds()"
+                            [title]="'MESSAGE.EMBED_REMOVE' | translate"
+                            class="absolute -top-1.5 -right-1.5 w-6 h-6 rounded-full bg-app-bg/95 backdrop-blur-sm
+                                   border border-border-default text-white/45
+                                   hover:text-rose-300 hover:border-rose-400/40 hover:bg-app-bg
+                                   flex items-center justify-center cursor-pointer transition-all
+                                   opacity-0 group-hover/embeds:opacity-100 focus-visible:opacity-100
+                                   disabled:opacity-40 disabled:cursor-default"
+                            type="button">
+                        <i class="pi pi-times text-[0.625rem]"></i>
+                    </button>
                 }
             </div>
+        }
+
+        <!-- Someone dismissed the preview. Only offered where one could actually come back. -->
+        @if (canRestoreEmbeds()) {
+            <button (click)="toggleEmbedSuppression()"
+                    [disabled]="suppressingEmbeds()"
+                    class="mt-1.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-md w-fit
+                           bg-white/[0.03] border border-border-subtle text-[0.6875rem] text-white/35
+                           hover:text-white/60 hover:border-border-default cursor-pointer transition-colors
+                           disabled:opacity-40 disabled:cursor-default"
+                    type="button">
+                <i class="pi pi-eye-slash text-[0.625rem]"></i>
+                <span>{{ 'MESSAGE.EMBED_HIDDEN' | translate }}</span>
+                <span class="text-brand-dim">{{ 'MESSAGE.EMBED_RESTORE' | translate }}</span>
+            </button>
         }
 
         <!-- Image lightbox -->
@@ -265,16 +300,17 @@
                             <i class="pi pi-spin pi-spinner text-2xl"></i>
                             <span class="text-sm truncate max-w-[20rem]">{{ lightbox()!.name }}</span>
                         </div>
-                    } @else if (lightbox()!.att) {
-                        <img [alt]="lightbox()!.att!.fileName"
-                             [src]="lightbox()!.att!.url"
+                    } @else if (lightbox()!.url) {
+                        <img [alt]="lightbox()!.name"
+                             [src]="lightbox()!.url!"
                              class="max-w-[90vw] max-h-[85vh] object-contain rounded-xl block"/>
                         <div class="absolute top-2 right-2 flex gap-1.5">
-                            <button (click)="download(lightbox()!.att!)"
+                            <button (click)="downloadFromLightbox()"
                                     class="w-8 h-8 rounded-lg bg-black/70 border border-white/[0.12] flex items-center justify-center text-white/60 hover:text-white cursor-pointer transition-colors backdrop-blur-sm">
                                 <i class="pi pi-download text-xs"></i>
                             </button>
-                            <button (click)="openUrl(lightbox()!.att!.url)"
+                            <!-- Opens the origin's own address, and only on an explicit click. -->
+                            <button (click)="openUrl(lightbox()!.originalUrl ?? lightbox()!.url!)"
                                     class="w-8 h-8 rounded-lg bg-black/70 border border-white/[0.12] flex items-center justify-center text-white/60 hover:text-white cursor-pointer transition-colors backdrop-blur-sm">
                                 <i class="pi pi-external-link text-xs"></i>
                             </button>
@@ -283,7 +319,9 @@
                                 <i class="pi pi-times text-xs"></i>
                             </button>
                         </div>
-                        <p class="text-xs text-white/40 m-0">{{ lightbox()!.att!.fileName }}</p>
+                        @if (lightbox()!.name) {
+                            <p class="text-xs text-white/40 m-0">{{ lightbox()!.name }}</p>
+                        }
                     }
                 </div>
             }
@@ -298,9 +336,9 @@
                     [reactions]="message().reactions!"/>
         }
 
-        <!-- Edited label -->
-        @if (!message().isPending && !message().isFailed && message().updatedAt > message().createdAt) {
-            <span class="text-[10px] italic text-[var(--color-text-faint)] mt-0.5">Edited</span>
+        <!-- Edited label. Driven by editedAt: updatedAt is bumped by previews and pins too. -->
+        @if (!message().isPending && !message().isFailed && isEdited()) {
+            <span class="text-[10px] italic text-[var(--color-text-faint)] mt-0.5">{{ 'MESSAGE.EDITED' | translate }}</span>
         }
 
         <!-- Delete confirmation -->

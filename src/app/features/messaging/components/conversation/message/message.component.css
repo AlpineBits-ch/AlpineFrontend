@@ -174,3 +174,30 @@
 :host ::ng-deep .mention-chip-channel:hover {
     text-decoration: underline;
 }
+
+/*
+ * A link preview lands seconds after the message it belongs to, never with it. Fading and lifting
+ * it into place marks it as something arriving rather than as the message rewriting itself under
+ * whoever is reading it. Held to opacity and a few pixels - the reserved box means the layout is
+ * already the right size, so nothing around it moves.
+ */
+.embed-enter {
+    animation: embed-enter 220ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes embed-enter {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .embed-enter {
+        animation: none;
+    }
+}

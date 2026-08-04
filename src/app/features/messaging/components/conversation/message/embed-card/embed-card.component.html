@@ -1,30 +1,154 @@
-<div class="relative bg-card border border-border-default rounded-xl pl-5 pr-4 py-3.5 mt-1 max-w-md w-fit">
-    <div class="absolute left-1 top-1 bottom-1 w-1 rounded-full" [style.background-color]="accentColor()"></div>
-    @if (embed().author?.name) {
-        <p class="text-xs font-medium text-white/70 mb-1">{{ embed().author!.name }}</p>
-    }
-    @if (embed().title) {
-        @if (embed().url) {
-            <p (click)="openUrl(embed().url!)"
-               class="text-[15px] font-semibold text-brand-dim hover:underline cursor-pointer mb-1">{{ embed().title }}</p>
-        } @else {
-            <p class="text-[15px] font-semibold text-white/90 mb-1">{{ embed().title }}</p>
-        }
-    }
-    @if (embed().description) {
-        <div [innerHTML]="embed().description | markdown" class="text-sm text-white/70 leading-relaxed mb-1"></div>
-    }
-    @if (embed().fields.length) {
-        <div class="grid grid-cols-3 gap-x-4 gap-y-2 mt-2">
-            @for (field of embed().fields; track $index) {
-                <div [class]="field.inline ? '' : 'col-span-3'">
-                    <p class="text-xs font-semibold text-white/80 mb-0.5">{{ field.name }}</p>
-                    <div [innerHTML]="field.value | markdown" class="text-xs text-white/60"></div>
-                </div>
-            }
+@switch (mode()) {
+
+    <!-- A link straight to an image file: just the image, no chrome at all. -->
+    @case ('plain-image') {
+        <div class="mt-1 w-fit max-w-full">
+            <app-embed-media (open)="openMedia.emit($event)"
+                             [alt]="embed().title ?? ''"
+                             [maxHeight]="350"
+                             [maxWidth]="432"
+                             [media]="plainImage()!"/>
         </div>
     }
-    @if (embed().footer?.text) {
-        <p class="text-[11px] text-white/35 mt-2">{{ embed().footer!.text }}</p>
+
+    <!-- An animated GIF the origin serves as a video: autoplay, muted, looping, no controls. -->
+    @case ('gifv') {
+        <div [style.height.px]="gifBox()?.height"
+             [style.width.px]="gifBox()?.width"
+             class="relative mt-1 w-fit max-w-full overflow-hidden rounded-lg bg-white/[0.03]">
+            <video [src]="gifSrc()!"
+                   autoplay
+                   class="block w-full h-full object-cover max-h-[300px]"
+                   loop
+                   muted
+                   playsinline></video>
+            <span class="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/70 backdrop-blur-sm
+                         text-[0.5625rem] font-bold tracking-wide text-white/80 pointer-events-none">GIF</span>
+        </div>
     }
-</div>
+
+    <!-- Everything else: the bordered card, with an accent rail down its left edge. -->
+    @default {
+        <article class="relative bg-card border border-border-default rounded-xl pl-5 pr-4 py-3.5 mt-1
+                        max-w-[28rem] w-fit overflow-hidden">
+            <div [style.background-color]="accentColor()"
+                 class="absolute left-1 top-1 bottom-1 w-1 rounded-full"></div>
+
+            @if (hasText() || sideThumbnail()) {
+            <div class="flex gap-3">
+                <div class="flex-1 min-w-0 flex flex-col">
+
+                    @if (embed().provider?.name) {
+                        @if (embed().provider!.url) {
+                            <button (click)="openUrl(embed().provider!.url!)"
+                                    class="self-start p-0 border-0 bg-transparent cursor-pointer
+                                           text-[0.6875rem] text-white/40 hover:text-white/60 hover:underline
+                                           transition-colors truncate max-w-full"
+                                    type="button">{{ embed().provider!.name }}
+                            </button>
+                        } @else {
+                            <p class="text-[0.6875rem] text-white/40 truncate">{{ embed().provider!.name }}</p>
+                        }
+                    }
+
+                    @if (embed().author?.name) {
+                        <div class="flex items-center gap-1.5 mt-1 min-w-0">
+                            @if (authorIcon()) {
+                                <img [src]="authorIcon()!" alt="" class="w-4 h-4 rounded-full object-cover shrink-0"/>
+                            }
+                            @if (embed().author!.url) {
+                                <button (click)="openUrl(embed().author!.url!)"
+                                        class="p-0 border-0 bg-transparent cursor-pointer text-xs font-medium
+                                               text-white/70 hover:underline truncate"
+                                        type="button">{{ embed().author!.name }}
+                                </button>
+                            } @else {
+                                <p class="text-xs font-medium text-white/70 truncate">{{ embed().author!.name }}</p>
+                            }
+                        </div>
+                    }
+
+                    @if (embed().title) {
+                        @if (embed().url) {
+                            <button (click)="openUrl(embed().url!)"
+                                    class="self-start mt-1 p-0 border-0 bg-transparent cursor-pointer text-left
+                                           text-[0.9375rem] font-semibold text-brand-dim hover:underline"
+                                    type="button">{{ embed().title }}
+                            </button>
+                        } @else {
+                            <p class="mt-1 text-[0.9375rem] font-semibold text-white/90">{{ embed().title }}</p>
+                        }
+                    }
+
+                    @if (embed().description) {
+                        @if (allowMarkdown()) {
+                            <div [innerHTML]="embed().description | markdown"
+                                 class="mt-1 text-sm text-white/70 leading-relaxed"></div>
+                        } @else {
+                            <p class="mt-1 text-sm text-white/70 leading-relaxed whitespace-pre-wrap break-words line-clamp-6">{{ embed().description }}</p>
+                        }
+                    }
+
+                    @if (fields().length) {
+                        <div class="grid grid-cols-3 gap-x-4 gap-y-2 mt-2">
+                            @for (field of fields(); track $index) {
+                                <div [class]="field.inline ? '' : 'col-span-3'">
+                                    <p class="text-xs font-semibold text-white/80 mb-0.5">{{ field.name }}</p>
+                                    <div [innerHTML]="field.value | markdown" class="text-xs text-white/60"></div>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                @if (sideThumbnail(); as thumb) {
+                    <div class="shrink-0 pt-0.5">
+                        <app-embed-media (open)="openMedia.emit($event)"
+                                         [alt]="embed().title ?? ''"
+                                         [maxHeight]="80"
+                                         [maxWidth]="80"
+                                         [media]="thumb"
+                                         rounded="rounded-md"/>
+                    </div>
+                }
+            </div>
+            }
+
+            @if (player(); as video) {
+                <div class="mt-2.5">
+                    <app-embed-player [maxWidth]="400"
+                                      [poster]="poster()"
+                                      [title]="embed().title ?? ''"
+                                      [video]="video"/>
+                </div>
+            }
+
+            @if (hero(); as image) {
+                <div class="mt-2.5">
+                    <app-embed-media (open)="openMedia.emit($event)"
+                                     [alt]="embed().title ?? ''"
+                                     [maxHeight]="300"
+                                     [maxWidth]="400"
+                                     [media]="image"/>
+                </div>
+            }
+
+            @if (footerText() || embed().timestamp) {
+                <div class="flex items-center gap-1.5 mt-2 text-[0.6875rem] text-white/35 min-w-0">
+                    @if (footerIcon()) {
+                        <img [src]="footerIcon()!" alt="" class="w-3.5 h-3.5 rounded-full object-cover shrink-0"/>
+                    }
+                    @if (footerText()) {
+                        <span class="truncate">{{ footerText() }}</span>
+                    }
+                    @if (footerText() && embed().timestamp) {
+                        <span class="shrink-0">•</span>
+                    }
+                    @if (embed().timestamp) {
+                        <span class="shrink-0">{{ embed().timestamp | date: 'mediumDate' }}</span>
+                    }
+                </div>
+            }
+        </article>
+    }
+}

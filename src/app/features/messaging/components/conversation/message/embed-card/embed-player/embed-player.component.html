@@ -1,0 +1,39 @@
+<div [style.height.px]="box().height"
+     [style.width.px]="box().width"
+     class="relative overflow-hidden rounded-lg bg-black/40 max-w-full">
+
+    @if (playing() && frameSrc()) {
+        <iframe [src]="frameSrc()!"
+                [title]="title() || 'Embedded player'"
+                allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                class="absolute inset-0 w-full h-full border-0"
+                loading="lazy"
+                referrerpolicy="no-referrer"
+                sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
+    } @else {
+        <button (click)="play()"
+                [disabled]="!framable()"
+                class="group/play absolute inset-0 w-full h-full p-0 border-0 bg-transparent cursor-pointer disabled:cursor-default"
+                type="button">
+            @if (poster(); as art) {
+                <app-embed-media [alt]="title()"
+                                 [clickable]="false"
+                                 [maxHeight]="box().height"
+                                 [maxWidth]="box().width"
+                                 [media]="art"
+                                 rounded="rounded-none"/>
+            }
+
+            @if (framable()) {
+                <span class="absolute inset-0 flex items-center justify-center bg-black/25 group-hover/play:bg-black/40 transition-colors">
+                    <span class="flex items-center justify-center w-14 h-14 rounded-full bg-black/65 backdrop-blur-sm
+                                 border border-white/20 text-white/90 shadow-lg
+                                 group-hover/play:scale-110 group-hover/play:bg-brand/85 group-hover/play:border-brand-dim/60
+                                 transition-all duration-200">
+                        <i class="pi pi-play text-lg translate-x-[2px]"></i>
+                    </span>
+                </span>
+            }
+        </button>
+    }
+</div>

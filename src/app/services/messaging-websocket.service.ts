@@ -24,6 +24,21 @@ export interface MessageUpdatedEvent {
     authorId: string;
     conversationId: string | undefined;
     channelId: string | undefined;
+    /** JSON-encoded `MessageEmbed[]`, or null when the message has none. */
+    embedsJson?: string | null;
+    /** Message bitfield - carries the suppress-embeds bit. */
+    flags?: number;
+    /** When the author last changed the text. Null when this update was not an author edit. */
+    editedAt?: string | null;
+    /**
+     * False for updates the author did not cause - a preview attaching, a suppression.
+     *
+     * <p>This event used to skip the author entirely, on the grounds that their own client had
+     * already rendered the edit. That reasoning does not hold for an update they did not make, so
+     * previews and suppressions are delivered to everyone; this flag is how the two are told
+     * apart.</p>
+     */
+    isAuthorEdit?: boolean;
 }
 
 export interface ConversationMemberRemoved {
@@ -197,6 +212,9 @@ interface MessageCreatedPayload {
     mlsSequenceNumber: number | undefined;
     senderDeviceId: string | undefined;
     embedsJson: string | undefined;
+    /** Message bitfield. A message can arrive already suppressed - a restore, a backfill. */
+    flags?: number;
+    editedAt?: string | null;
 }
 
 /**
@@ -560,6 +578,8 @@ export class MessagingWebsocketService {
             senderDeviceId: data.senderDeviceId,
             type: MessageType.Message,
             embedsJson: data.embedsJson,
+            flags: data.flags,
+            editedAt: data.editedAt,
             undecryptable,
         });
 

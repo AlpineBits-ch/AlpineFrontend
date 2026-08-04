@@ -8,7 +8,7 @@ import {
     upsertEntity,
     withEntities
 } from '@ngrx/signals/entities';
-import {MessageDto, MessageReaction} from '../dtos/response/message.dto';
+import {MessageDto, MessageFlags, MessageReaction} from '../dtos/response/message.dto';
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
 import {MessagingService} from '../services/messaging.service';
 import {MlsReplayedMessage, MlsService} from '../services/mls.service';
@@ -253,11 +253,34 @@ export const MessageStore = signalStore(
             // An edit for a message we have never seen carries no context to judge it against.
             if (!existing) return;
 
+            // Everything this update carries that is not the body. Applied on every path below,
+            // including the one that refuses the body: a message whose decrypt failed still gets
+            // its suppression flag, and a card that arrived alongside an unreadable edit is still
+            // the server's own text rather than the author's.
+            const metadata: Partial<MessageDto> = {
+                ...(event.embedsJson !== undefined ? {embedsJson: event.embedsJson ?? undefined} : {}),
+                ...(event.flags !== undefined ? {flags: event.flags} : {}),
+                ...(event.editedAt !== undefined ? {editedAt: event.editedAt} : {}),
+            };
+
+            // <b>A preview attaching is not an edit.</b> The server sends the same event for both,
+            // and re-applying `content` on an update the author never made is wrong twice over: it
+            // reruns the body through a decrypt, and MLS ratchets forward only - so the second
+            // decrypt of the same ciphertext fails and the message is marked undecryptable, blanking
+            // a message that had arrived and rendered perfectly well seconds earlier.
+            if (event.isAuthorEdit === false) {
+                patchState(store, updateEntity({
+                    id: event.messageId,
+                    changes: {...metadata, updatedAt: new Date()},
+                }));
+                return;
+            }
+
             const contextId = existing.conversationId ?? existing.channelId;
             if (existing.encryptionState !== MessageEncryptionState.Encrypted || !contextId) {
                 patchState(store, updateEntity({
                     id: event.messageId,
-                    changes: {content: event.content, updatedAt: new Date()},
+                    changes: {...metadata, content: event.content, updatedAt: new Date()},
                 }));
                 return;
             }
@@ -281,7 +304,7 @@ export const MessageStore = signalStore(
                 mlsHealth.recordFailure(contextId, isChannel, 'decrypt-failed');
                 patchState(store, updateEntity({
                     id: event.messageId,
-                    changes: {undecryptable: true, updatedAt: new Date()},
+                    changes: {...metadata, undecryptable: true, updatedAt: new Date()},
                 }));
                 return;
             }
@@ -290,7 +313,26 @@ export const MessageStore = signalStore(
                 contextId, generation ?? null, event.messageId, plaintext, existing.authorId);
             patchState(store, updateEntity({
                 id: event.messageId,
-                changes: {content: plaintext, undecryptable: false, updatedAt: new Date()},
+                changes: {...metadata, content: plaintext, undecryptable: false, updatedAt: new Date()},
+            }));
+        },
+
+        /**
+         * Optimistically hides or restores a message's previews while the PATCH is in flight.
+         *
+         * <p>Restoring cannot put the old card back - the server re-queues the unfurl and the card
+         * returns over `*.MessageUpdated` - so this only clears the flag and lets the space fill in
+         * a moment later.</p>
+         */
+        applyEmbedSuppression(messageId: string, suppressed: boolean, embedsJson?: string): void {
+            const existing = store.entityMap()[messageId];
+            if (!existing) return;
+            const flags = suppressed
+                ? (existing.flags ?? 0) | MessageFlags.SuppressEmbeds
+                : (existing.flags ?? 0) & ~MessageFlags.SuppressEmbeds;
+            patchState(store, updateEntity({
+                id: messageId,
+                changes: {flags, embedsJson: suppressed ? undefined : embedsJson},
             }));
         },
 

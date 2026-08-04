@@ -261,6 +261,92 @@ describe('MessageStore.applyRemoteUpdate', () => {
         expect(sync.decryptMessage).not.toHaveBeenCalled();
     });
 
+    /**
+     * A link preview arrives as `MessageUpdated` on a message nobody edited. Treating it as an edit
+     * re-runs the body through the decryptor, and MLS decrypts a given ciphertext exactly once - so
+     * the second attempt fails and blanks a message that had rendered fine seconds earlier.
+     */
+    it('attaches a preview without re-decrypting the body', async () => {
+        const {store, sync} = setup();
+        store.addMessage(encryptedMessage({content: 'cGxhaW50ZXh0'}));
+
+        await store.applyRemoteUpdate({
+            messageId: 'msg-1',
+            content: 'Y2lwaGVydGV4dA==',
+            authorId: 'user-2',
+            conversationId: CONTEXT,
+            channelId: undefined,
+            embedsJson: '[{"type":"link","title":"Example"}]',
+            isAuthorEdit: false,
+        });
+
+        const stored = store.entityMap()['msg-1'];
+        expect(stored.embedsJson).toBe('[{"type":"link","title":"Example"}]');
+        expect(stored.content).toBe('cGxhaW50ZXh0');
+        expect(stored.undecryptable).toBeFalsy();
+        expect(sync.decryptMessage).not.toHaveBeenCalled();
+    });
+
+    it('applies a suppression to a plaintext message without calling it an edit', async () => {
+        const {store} = setup();
+        store.addMessage(encryptedMessage({
+            encryptionState: MessageEncryptionState.Plain,
+            content: 'hello',
+            embedsJson: '[{"type":"link"}]',
+        }));
+
+        await store.applyRemoteUpdate({
+            messageId: 'msg-1', content: 'hello', authorId: 'user-2',
+            conversationId: CONTEXT, channelId: undefined,
+            embedsJson: null, flags: 4, isAuthorEdit: false,
+        });
+
+        const stored = store.entityMap()['msg-1'];
+        expect(stored.flags).toBe(4);
+        expect(stored.embedsJson).toBeUndefined();
+        // Nobody edited anything, so nothing may end up labelled "(edited)".
+        expect(stored.editedAt).toBeFalsy();
+    });
+
+    it('still records the flags on an edit it refuses to render', async () => {
+        const {store, sync} = setup();
+        store.addMessage(encryptedMessage());
+        sync.decryptMessage.mockResolvedValue(null);
+
+        await store.applyRemoteUpdate({
+            messageId: 'msg-1', content: 'SSBhbSB0aGUgc2VydmVy', authorId: 'user-2',
+            conversationId: CONTEXT, channelId: undefined,
+            flags: 4, isAuthorEdit: true,
+        });
+
+        expect(store.entityMap()['msg-1'].undecryptable).toBe(true);
+        expect(store.entityMap()['msg-1'].flags).toBe(4);
+    });
+
+    it('carries editedAt through a real author edit', async () => {
+        const {store} = setup();
+        store.addMessage(encryptedMessage({encryptionState: MessageEncryptionState.Plain}));
+
+        await store.applyRemoteUpdate({
+            messageId: 'msg-1', content: 'edited', authorId: 'user-2',
+            conversationId: CONTEXT, channelId: undefined,
+            editedAt: '2026-08-04T10:00:00Z', isAuthorEdit: true,
+        });
+
+        expect(store.entityMap()['msg-1'].editedAt).toBe('2026-08-04T10:00:00Z');
+    });
+
+    it('sets and clears the suppress bit without disturbing the rest of the flags', () => {
+        const {store} = setup();
+        store.addMessage(encryptedMessage({flags: 1}));
+
+        store.applyEmbedSuppression('msg-1', true);
+        expect(store.entityMap()['msg-1'].flags).toBe(1 | 4);
+
+        store.applyEmbedSuppression('msg-1', false);
+        expect(store.entityMap()['msg-1'].flags).toBe(1);
+    });
+
     it('keys the cached edit on the context and generation, not the server id alone', async () => {
         const {store, mls, sync} = setup();
         store.addMessage(encryptedMessage());

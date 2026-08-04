@@ -3,7 +3,7 @@ import {HttpClient, HttpParams} from "@angular/common/http";
 import {Observable, Subject} from "rxjs";
 import {environment} from "../../environments/environment";
 import {CreateMessageDto} from "../dtos/request/create-message.dto";
-import {MessageDto, PinMessageResponse} from "../dtos/response/message.dto";
+import {EmbedSuppressionResponse, MessageDto, PinMessageResponse} from "../dtos/response/message.dto";
 import {CreateReactionDto} from "../dtos/request/create-reaction.dto";
 import {RemoveReactionDto} from "../dtos/request/remove-reaction.dto";
 import {ApiConfigService} from "./api-config.service";
@@ -107,5 +107,20 @@ export class MessagingService {
     public publishMessage(messageId: string): Observable<PublishResponse> {
         return this.httpClient.post<PublishResponse>(
             `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/${messageId}/publish`, null);
+    }
+
+    /**
+     * Removes - or restores - every preview on a message, for everyone who can see it.
+     *
+     * <p>This is message state, not a per-viewer preference: dismissing a preview dismisses it for
+     * the whole channel, which is the point of the feature. Allowed for the author, and for anyone
+     * holding `DeleteAnyMessage` in that channel; in a DM, the author only.</p>
+     *
+     * <p>Restoring re-queues the unfurl rather than returning the old card, so the preview comes
+     * back a moment later over `*.MessageUpdated` - never in this response.</p>
+     */
+    public setEmbedSuppression(messageId: string, suppress: boolean): Observable<EmbedSuppressionResponse> {
+        return this.httpClient.patch<EmbedSuppressionResponse>(
+            `${this.apiConfig.baseUrl()}/api/v1/messaging/messaging/${messageId}/embeds`, {suppress});
     }
 }
