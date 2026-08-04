@@ -3,12 +3,14 @@ import {DatePipe} from '@angular/common';
 import {Button} from 'primeng/button';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {HttpErrorResponse} from '@angular/common/http';
+import {save} from '@tauri-apps/plugin-dialog';
 import {
     canDownload,
     DATA_EXPORT_TERMINAL,
     DataExportDto,
     DataExportService,
     DataExportStatus,
+    downloadErrorStatus,
 } from '../../../../../../services/data-export.service';
 import {ToastService} from '../../../../../../services/toast.service';
 
@@ -120,30 +122,68 @@ export class DataExportComponent implements OnInit, OnDestroy {
         if (this.downloading()) return;
         this.downloading.set(item.exportId);
 
+        // The desktop shell writes the artifact to disk itself; the webview cannot fetch it, since
+        // the signed storage URL the endpoint redirects to is not CORS-enabled. See
+        // DataExportService.saveToDisk.
+        if (this.exports.canSaveToDisk) {
+            void this.saveToDisk(item);
+            return;
+        }
+
         this.exports.download(item.exportId).subscribe({
             next: blob => {
-                this.saveBlob(blob, `echo-data-export-${item.exportId}.zip`);
+                this.saveBlob(blob, this.filename(item));
                 this.downloading.set(null);
             },
             error: (err: HttpErrorResponse) => {
                 this.downloading.set(null);
-                // 409 and 410 are answers about the export, not transport failures: the artifact
-                // was never built, or it has already been deleted. Both need a different next step
-                // from "try again", so neither is folded into the generic message. The list is
-                // re-read because a 410 means the local copy's status is stale.
-                if (err.status === 410) {
-                    this.toast.error(this.translate.instant('SETTINGS.PRIVACY.EXPORT_EXPIRED_ERROR'));
-                    this.refresh();
-                    return;
-                }
-                if (err.status === 409) {
-                    this.toast.error(this.translate.instant('SETTINGS.PRIVACY.EXPORT_FAILED_ERROR'));
-                    this.refresh();
-                    return;
-                }
-                this.toast.error(this.translate.instant('SETTINGS.PRIVACY.EXPORT_DOWNLOAD_ERROR'));
+                this.reportDownloadError(err);
             },
         });
+    }
+
+    private async saveToDisk(item: DataExportDto): Promise<void> {
+        try {
+            // Asked before the request rather than after: an export runs to whatever the account
+            // weighs, and a cancelled save should not have cost the user that download first.
+            const dest = await save({
+                defaultPath: this.filename(item),
+                filters: [{name: 'Zip archive', extensions: ['zip']}],
+            });
+            if (dest === null) return;
+
+            await this.exports.saveToDisk(item.exportId, dest);
+            this.toast.success(this.translate.instant('SETTINGS.PRIVACY.EXPORT_SAVED'));
+        } catch (err) {
+            this.reportDownloadError(err);
+        } finally {
+            this.downloading.set(null);
+        }
+    }
+
+    /**
+     * 409 and 410 are answers about the export, not transport failures: the artifact was never
+     * built, or it has already been deleted. Both need a different next step from "try again", so
+     * neither is folded into the generic message. The list is re-read because a 410 means the local
+     * copy's status is stale.
+     */
+    private reportDownloadError(err: unknown): void {
+        const status = downloadErrorStatus(err);
+        if (status === 410) {
+            this.toast.error(this.translate.instant('SETTINGS.PRIVACY.EXPORT_EXPIRED_ERROR'));
+            this.refresh();
+            return;
+        }
+        if (status === 409) {
+            this.toast.error(this.translate.instant('SETTINGS.PRIVACY.EXPORT_FAILED_ERROR'));
+            this.refresh();
+            return;
+        }
+        this.toast.error(this.translate.instant('SETTINGS.PRIVACY.EXPORT_DOWNLOAD_ERROR'));
+    }
+
+    private filename(item: DataExportDto): string {
+        return `echo-data-export-${item.exportId}.zip`;
     }
 
     protected statusKey(status: DataExportStatus): string {

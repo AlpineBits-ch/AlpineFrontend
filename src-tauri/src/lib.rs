@@ -12,6 +12,9 @@ mod ptt_hook;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod desktop_notifications;
 
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod data_export;
+
 #[cfg(target_os = "windows")]
 mod windows_notifications;
 
@@ -390,6 +393,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             prepare_notification,
             send_windows_toast,
             prepare_notification_icon,
+            data_export::download_data_export,
             crypto::crypto::generate_key,
             crypto::crypto::generate_key_pairs,
             crypto::crypto::setup_master_key,

@@ -1,7 +1,10 @@
 import {inject, Injectable} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
+import {invoke, isTauri} from '@tauri-apps/api/core';
 import {ApiConfigService} from './api-config.service';
+import {AuthService} from './auth.service';
+import {PlatformService} from './platform.service';
 
 export type DataExportStatus = 'Pending' | 'Running' | 'Ready' | 'Partial' | 'Failed' | 'Expired';
 
@@ -53,6 +56,8 @@ export function canDownload(status: DataExportStatus): boolean {
 export class DataExportService {
     private http = inject(HttpClient);
     private apiConfig = inject(ApiConfigService);
+    private auth = inject(AuthService);
+    private platform = inject(PlatformService);
 
     private get base(): string {
         return this.apiConfig.baseUrl() + '/api/v1/identity/data-exports';
@@ -67,14 +72,54 @@ export class DataExportService {
     }
 
     /**
-     * Fetches the artifact.
+     * True when the artifact can be written straight to disk by the shell.
      *
-     * <p>The endpoint answers `302` to a short-lived signed URL. This reads the result as a blob
-     * and lets the HTTP stack follow the redirect, rather than surfacing the signed URL: the
-     * endpoint is authenticated, so a plain navigation would arrive without the bearer, and handing
-     * the signed URL to the page would put a bearer-free download credential somewhere it can be
-     * copied out of. Browsers strip `Authorization` on a cross-origin redirect, so the storage host
-     * sees only the signature it issued.</p>
+     * <p>Off the desktop shell the caller has no choice but {@link download}, CORS and all.</p>
+     */
+    get canSaveToDisk(): boolean {
+        return isTauri() && !this.platform.isMobile;
+    }
+
+    /**
+     * Downloads the artifact to `dest` through the native HTTP client.
+     *
+     * <p><b>Why not the webview.</b> The endpoint answers `302` to a short-lived signed URL on
+     * Google Cloud Storage, and that bucket serves no `Access-Control-Allow-Origin`. Following the
+     * redirect from the webview - which is what {@link download} does - is therefore blocked by
+     * CORS, and the app reports a download failure for an artifact that is sitting there intact:
+     * the same URL downloads fine pasted into a browser, because a navigation is not CORS-checked.
+     * CORS is a browser policy, so a native client is not subject to it. Should the bucket ever
+     * grow a CORS policy, {@link download} becomes viable again - but this path stays the better
+     * one regardless, because it streams to the chosen file instead of holding an
+     * account-sized zip in webview memory as a `Blob`.</p>
+     *
+     * <p>The bearer is passed explicitly because the HTTP interceptors do not reach a request made
+     * outside the webview. `reqwest` drops it when the redirect crosses to the storage host, so the
+     * signed URL is still fetched with nothing but its own signature.</p>
+     *
+     * <p>Rejects with a {@link DataExportDownloadError}.</p>
+     */
+    async saveToDisk(exportId: string, dest: string): Promise<void> {
+        const url = `${this.base}/${exportId}/download`;
+        try {
+            await invoke<number>('download_data_export',
+                {url, token: await this.auth.ensureValidToken(), dest});
+        } catch (err) {
+            // The interceptor's refresh-and-retry does not reach a request made outside the
+            // webview, so a 401 is answered here rather than surfacing as "could not download" -
+            // a token the server rejects while still looking unexpired would otherwise cost the
+            // user the whole download.
+            if (downloadErrorStatus(err) !== 401) throw err;
+            await invoke<number>('download_data_export',
+                {url, token: await this.auth.refresh(), dest});
+        }
+    }
+
+    /**
+     * Fetches the artifact as a blob.
+     *
+     * <p>Kept for shells without {@link saveToDisk} - see the CORS caveat there, which applies in
+     * full to this path.</p>
      *
      * <p>Errors are meaningful and the caller must distinguish them: `409` is a `Failed` export,
      * `410` an expired one - a different sentence and a different next step each.</p>
@@ -82,4 +127,23 @@ export class DataExportService {
     download(exportId: string): Observable<Blob> {
         return this.http.get(`${this.base}/${exportId}/download`, {responseType: 'blob'});
     }
+}
+
+/** The shape `saveToDisk` rejects with; mirrors `DownloadError` in `src-tauri/src/data_export.rs`. */
+export interface DataExportDownloadError {
+    /** The endpoint's status, or `null` when nothing answered. */
+    status: number | null;
+    message: string;
+}
+
+/**
+ * Reads the status out of whatever a download path rejected with.
+ *
+ * <p>Returns `null` for a transport failure, and for anything unrecognised - a caller that cannot
+ * tell which export answer it got must fall back to the generic message rather than guess.</p>
+ */
+export function downloadErrorStatus(err: unknown): number | null {
+    if (typeof err !== 'object' || err === null) return null;
+    const status = (err as { status?: unknown }).status;
+    return typeof status === 'number' && status > 0 ? status : null;
 }
