@@ -1,7 +1,6 @@
 import {inject, Injectable} from '@angular/core';
 import {HttpClient} from "@angular/common/http";
 import {catchError, from, Observable, switchMap, tap, throwError} from "rxjs";
-import {environment} from "../../environments/environment";
 import {OAuthService, TokenResponse} from "angular-oauth2-oidc";
 import {ApiConfigService} from "./api-config.service";
 import {DeviceIdentityService} from "./device-identity.service";
@@ -18,8 +17,18 @@ export class AuthService {
     private deviceIdentity = inject(DeviceIdentityService);
     private _activeRefresh: Promise<string> | null = null;
 
+    /**
+     * Creates an account on the server the login screen selected.
+     *
+     * <p>Answers `202` with no `userId` - registration is asynchronous and there is no account to
+     * name yet, so nothing here reads the body. Callers must not either.</p>
+     *
+     * <p>Addressed through {@link ApiConfigService} rather than `environment.apiUrl`: the sign-up
+     * form lets the user pick a server, and the compile-time constant quietly registered every one
+     * of them on venta.gg instead - including the email and password they typed.</p>
+     */
     public register(email: string, username: string, password: string, birthdate: Date): Observable<unknown> {
-        return this.http.post(`${environment.apiUrl}/api/v1/identity/authentication/register`, {
+        return this.http.post(`${this.apiConfig.baseUrl()}/api/v1/identity/authentication/register`, {
             email,
             password,
             birthdate,
@@ -105,7 +114,7 @@ export class AuthService {
     }
 
     public getJsonSettings(): Observable<unknown> {
-        return this.http.get(`${environment.apiUrl}/api/v1/identity/users/self/settings`);
+        return this.http.get(`${this.apiConfig.baseUrl()}/api/v1/identity/users/self/settings`);
     }
 
     /**
@@ -113,13 +122,15 @@ export class AuthService {
      *
      * <p>Checked against the server's limits first (T0-6). The server rejects an oversized or
      * non-object document with 413/400; failing here instead means the caller gets a reason it can
-     * act on rather than a save that silently stopped working at some size nobody measured.</p>
+     * act on rather than a save that silently stopped working at some size nobody measured. The
+     * local check is a courtesy, not the enforcement point - a server with a smaller ceiling still
+     * answers 413, and callers must handle it.</p>
      */
     public updateJsonSettings(settings: unknown): Observable<unknown> {
         const check = checkJsonSettings(settings);
         if (!check.ok) {
             return throwError(() => new Error(`Refusing to save settings blob: ${check.reason}`));
         }
-        return this.http.put(`${environment.apiUrl}/api/v1/identity/users/self/settings`, settings);
+        return this.http.put(`${this.apiConfig.baseUrl()}/api/v1/identity/users/self/settings`, settings);
     }
 }

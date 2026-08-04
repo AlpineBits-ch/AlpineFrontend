@@ -56,7 +56,9 @@ import {ProfileDialogService} from '../../../../services/profile-dialog.service'
 import {fileIcon, isGroupedWithPrevious} from './message-utils';
 import {readableContent, UNDECRYPTABLE_SHORT} from '../../../../helpers/message-content.helper';
 import {toBase64} from "../../../../helpers/base64.helper";
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
+import {ToastService} from '../../../../services/toast.service';
+import {describeRefusal} from '../../../../core/refusal-message';
 import {PinnedMessagesPanelComponent} from '../pinned-messages-panel/pinned-messages-panel.component';
 
 @Component({
@@ -169,6 +171,8 @@ export class ConversationComponent implements AfterViewInit {
     // ticks while the ringing banner is shown.
     protected ringElapsed = signal('0:00');
     private messagingWs = inject(MessagingWebsocketService);
+    private toast = inject(ToastService);
+    private translate = inject(TranslateService);
 
     // ── Messages ─────────────────────────────────────────────────────────────
     @ViewChild('messageScroll') private scrollRef!: ElementRef<HTMLDivElement>;
@@ -504,11 +508,27 @@ export class ConversationComponent implements AfterViewInit {
                 this.messageStore.confirmMessage(tempId, confirmed);
                 this.messagingService.messageSentObservable.next(confirmed);
             }),
-            catchError(() => {
+            catchError(err => {
                 this.messageStore.failMessage(tempId);
+                this.explainSendFailure(err);
                 return EMPTY;
             }),
         ).subscribe();
+    }
+
+    /**
+     * Says why a send was refused, when the server gave a reason.
+     *
+     * <p>One-to-one sends are now gated on the recipient's DM policy, so a message that has always
+     * gone through can start coming back `403` - or `503` when the policy data is unreachable. The
+     * failed-message marker alone reads as a network blip and invites the user to retry forever
+     * against a decision that will not change. Anything without a policy reason keeps the old
+     * silent treatment: the marker is already in the timeline and a toast per dropped packet is
+     * worse than none.</p>
+     */
+    private explainSendFailure(err: unknown): void {
+        const notice = describeRefusal(err);
+        if (notice) this.toast.error(this.translate.instant(notice.messageKey));
     }
 
     private createEncryptedMessage(event: {
@@ -583,6 +603,7 @@ export class ConversationComponent implements AfterViewInit {
             catchError(err => {
                 console.error('Failed to send encrypted message', err);
                 this.messageStore.failMessage(tempId);
+                this.explainSendFailure(err);
                 return EMPTY;
             }),
         ).subscribe();

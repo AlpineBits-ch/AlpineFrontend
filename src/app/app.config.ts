@@ -17,6 +17,7 @@ import {provideHttpClient, withInterceptors} from "@angular/common/http";
 import {tokenInterceptor} from "./interceptors/token-interceptor";
 import {deviceIdInterceptor} from "./interceptors/device-id-interceptor";
 import {timeoutInterceptor} from "./interceptors/timeout.interceptor";
+import {rateLimitInterceptor} from "./interceptors/rate-limit-interceptor";
 import {GlobalErrorHandler} from "./core/global-error-handler";
 import {ThemeService} from './services/theme.service';
 import {LanguageService} from './services/language.service';
@@ -65,7 +66,10 @@ export function storageFactory(): OAuthStorage {
 
 export const appConfig: ApplicationConfig = {
     providers: [
-        provideHttpClient(withInterceptors([tokenInterceptor, deviceIdInterceptor, timeoutInterceptor])),
+        // rateLimit is outermost so a backoff wait is not charged against the request timeout.
+        provideHttpClient(withInterceptors([
+            rateLimitInterceptor, tokenInterceptor, deviceIdInterceptor, timeoutInterceptor,
+        ])),
         provideOAuthClient(),
         {provide: OAuthStorage, useFactory: storageFactory},
         {provide: ErrorHandler, useClass: GlobalErrorHandler},

@@ -4,14 +4,32 @@ import {Button} from 'primeng/button';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {HttpErrorResponse} from '@angular/common/http';
 import {
+    canDownload,
     DATA_EXPORT_TERMINAL,
     DataExportDto,
     DataExportService,
+    DataExportStatus,
 } from '../../../../../../services/data-export.service';
 import {ToastService} from '../../../../../../services/toast.service';
 
 /** How often an in-progress export is re-checked. The saga fans out across every service. */
 const POLL_INTERVAL_MS = 5_000;
+
+/**
+ * How long until another export may be requested, rounded up to whole hours.
+ *
+ * <p>The limit is a day, so an exact countdown is false precision; "try again in 7 hours" is the
+ * useful form. `retryAfterSeconds` is the documented field, with the header as the fallback.</p>
+ */
+function retryAfterHours(err: HttpErrorResponse): number | null {
+    const body = err.error as { retryAfterSeconds?: unknown } | null;
+    const fromBody = body && typeof body === 'object' ? Number(body.retryAfterSeconds) : NaN;
+    const seconds = Number.isFinite(fromBody) && fromBody > 0
+        ? fromBody
+        : Number(err.headers.get('Retry-After'));
+    if (!Number.isFinite(seconds) || seconds <= 0) return null;
+    return Math.max(1, Math.ceil(seconds / 3600));
+}
 
 /**
  * Request, track and download a copy of the account's data (T1-7).
@@ -81,11 +99,19 @@ export class DataExportComponent implements OnInit, OnDestroy {
             },
             error: (err: HttpErrorResponse) => {
                 this.requesting.set(false);
-                // 429 is the one-per-24h limit, which is a normal answer rather than a fault.
-                const key = err.status === 429
-                    ? 'SETTINGS.PRIVACY.EXPORT_RATE_LIMITED'
-                    : 'SETTINGS.PRIVACY.EXPORT_REQUEST_ERROR';
-                this.toast.error(this.translate.instant(key));
+                // 429 here is the one-per-24h export limit, not the gateway's request bucket, so
+                // it is a normal answer rather than a fault - and it carries how long to wait.
+                if (err.status === 429) {
+                    const hours = retryAfterHours(err);
+                    this.toast.error(this.translate.instant(
+                        hours === null
+                            ? 'SETTINGS.PRIVACY.EXPORT_RATE_LIMITED'
+                            : 'SETTINGS.PRIVACY.EXPORT_RATE_LIMITED_IN',
+                        {hours},
+                    ));
+                    return;
+                }
+                this.toast.error(this.translate.instant('SETTINGS.PRIVACY.EXPORT_REQUEST_ERROR'));
             },
         });
     }
@@ -99,15 +125,33 @@ export class DataExportComponent implements OnInit, OnDestroy {
                 this.saveBlob(blob, `echo-data-export-${item.exportId}.zip`);
                 this.downloading.set(null);
             },
-            error: () => {
+            error: (err: HttpErrorResponse) => {
                 this.downloading.set(null);
+                // 409 and 410 are answers about the export, not transport failures: the artifact
+                // was never built, or it has already been deleted. Both need a different next step
+                // from "try again", so neither is folded into the generic message. The list is
+                // re-read because a 410 means the local copy's status is stale.
+                if (err.status === 410) {
+                    this.toast.error(this.translate.instant('SETTINGS.PRIVACY.EXPORT_EXPIRED_ERROR'));
+                    this.refresh();
+                    return;
+                }
+                if (err.status === 409) {
+                    this.toast.error(this.translate.instant('SETTINGS.PRIVACY.EXPORT_FAILED_ERROR'));
+                    this.refresh();
+                    return;
+                }
                 this.toast.error(this.translate.instant('SETTINGS.PRIVACY.EXPORT_DOWNLOAD_ERROR'));
             },
         });
     }
 
-    protected statusKey(status: DataExportDto['status']): string {
+    protected statusKey(status: DataExportStatus): string {
         return `SETTINGS.PRIVACY.EXPORT_STATUS_${status.toUpperCase()}`;
+    }
+
+    protected isDownloadable(status: DataExportStatus): boolean {
+        return canDownload(status);
     }
 
     private saveBlob(blob: Blob, filename: string): void {

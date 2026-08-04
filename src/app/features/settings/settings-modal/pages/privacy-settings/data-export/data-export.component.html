@@ -24,22 +24,49 @@
         }
 
         @for (item of items(); track item.exportId) {
-            <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
-                <div class="pr-4">
-                    <p class="text-sm text-white/60">{{ statusKey(item.status) | translate }}</p>
-                    <p class="text-xs text-white/25 mt-0.5">
-                        {{ 'SETTINGS.PRIVACY.EXPORT_REQUESTED_AT' | translate }}
-                        {{ item.requestedAt | date:'medium' }}
-                        @if (item.expiresAt && item.status === 'Ready') {
-                            · {{ 'SETTINGS.PRIVACY.EXPORT_EXPIRES' | translate }} {{ item.expiresAt | date:'medium' }}
+            <div class="bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+                <div class="flex items-center justify-between">
+                    <div class="pr-4">
+                        <p class="text-sm text-white/60">{{ statusKey(item.status) | translate }}</p>
+                        <p class="text-xs text-white/25 mt-0.5">
+                            {{ 'SETTINGS.PRIVACY.EXPORT_REQUESTED_AT' | translate }}
+                            {{ item.requestedAt | date:'medium' }}
+                            @if (item.expiresAt && isDownloadable(item.status)) {
+                                · {{ 'SETTINGS.PRIVACY.EXPORT_EXPIRES' | translate }} {{ item.expiresAt | date:'medium' }}
+                            }
+                        </p>
+                    </div>
+                    @if (isDownloadable(item.status)) {
+                        <p-button [label]="'SETTINGS.PRIVACY.EXPORT_DOWNLOAD' | translate"
+                                  severity="secondary" size="small"
+                                  [loading]="downloading() === item.exportId"
+                                  (onClick)="download(item)"/>
+                    }
+                </div>
+
+                <!-- Partial is downloadable, so the warning sits beside the button rather than in
+                     place of it, and names what is missing - "incomplete" alone is not actionable. -->
+                @if (item.status === 'Partial') {
+                    <p class="text-xs text-amber-300/70 mt-2 border-t border-white/[0.06] pt-2">
+                        {{ 'SETTINGS.PRIVACY.EXPORT_PARTIAL_WARNING' | translate }}
+                        @if (item.missingServices.length > 0) {
+                            <span class="text-white/40">{{ item.missingServices.join(', ') }}</span>
+                        } @else if (item.failureReason) {
+                            <span class="text-white/40">{{ item.failureReason }}</span>
                         }
                     </p>
-                </div>
-                @if (item.status === 'Ready') {
-                    <p-button [label]="'SETTINGS.PRIVACY.EXPORT_DOWNLOAD' | translate"
-                              severity="secondary" size="small"
-                              [loading]="downloading() === item.exportId"
-                              (onClick)="download(item)"/>
+                }
+
+                @if (item.status === 'Failed' && item.failureReason) {
+                    <p class="text-xs text-rose-300/70 mt-2 border-t border-white/[0.06] pt-2">
+                        {{ item.failureReason }}
+                    </p>
+                }
+
+                @if (item.status === 'Expired') {
+                    <p class="text-xs text-white/35 mt-2 border-t border-white/[0.06] pt-2">
+                        {{ 'SETTINGS.PRIVACY.EXPORT_EXPIRED_HINT' | translate }}
+                    </p>
                 }
             </div>
         }

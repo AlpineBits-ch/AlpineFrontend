@@ -1,17 +1,22 @@
 import {inject, Injectable} from '@angular/core';
 import {Observable} from "rxjs";
-import {
-    MinimalProfileId,
-    RelationshipModel
-} from "../features/friendship/components/friendship-modal/dto/relationship.model";
+import {RelationshipModel} from "../features/friendship/components/friendship-modal/dto/relationship.model";
 import {HttpClient, HttpParams} from "@angular/common/http";
 import {ApiConfigService} from "./api-config.service";
 
-/** One entry of the caller's block list. */
+/**
+ * One entry of the caller's block list.
+ *
+ * <p>Flat rather than nesting a profile, and it carries three ids that are not interchangeable:
+ * `userId` is the Identity id the block endpoints take, `profileId` is the Social id profile routes
+ * take, and `relationshipId` names the row. Unblocking keys on <b>`userId`</b>.</p>
+ */
 export interface BlockedUserDto {
-    /** The relationship row, which is what `unblock` and the realtime events key on. */
-    id: string;
-    user: MinimalProfileId;
+    relationshipId: string;
+    profileId: string;
+    userId: string;
+    userName: string;
+    avatarUrl: string | undefined;
     blockedAt: string;
 }
 
@@ -19,6 +24,9 @@ export interface BlockedUsersPage {
     blocked: BlockedUserDto[];
     nextCursor: string | null;
 }
+
+/** The server's ceiling; asking for more is a 400 rather than a silent clamp. */
+export const BLOCKED_PAGE_MAX = 100;
 
 @Injectable({
     providedIn: 'root',
@@ -76,8 +84,16 @@ export class RelationshipService {
         return this.httpClient.delete<void>(`${this.base}/${userId}/block`);
     }
 
-    public getBlockedUsers(cursor?: string | null): Observable<BlockedUsersPage> {
-        const params = cursor ? new HttpParams().set('cursor', cursor) : undefined;
+    /**
+     * One page of the block list, newest first.
+     *
+     * <p>Keyset paged: `nextCursor` is opaque and is the only valid way to ask for the next page.
+     * A cursor the server does not recognise is a 400, so it must be passed back verbatim rather
+     * than reconstructed.</p>
+     */
+    public getBlockedUsers(cursor?: string | null, limit = 50): Observable<BlockedUsersPage> {
+        let params = new HttpParams().set('limit', Math.min(limit, BLOCKED_PAGE_MAX));
+        if (cursor) params = params.set('cursor', cursor);
         return this.httpClient.get<BlockedUsersPage>(`${this.base}/blocked`, {params});
     }
 }

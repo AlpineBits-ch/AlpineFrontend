@@ -15,17 +15,17 @@
     } @else if (blocked().length === 0) {
         <p class="text-sm text-white/35">{{ 'SETTINGS.PRIVACY.BLOCKED_EMPTY' | translate }}</p>
     } @else {
-        @for (entry of blocked(); track entry.id) {
+        @for (entry of blocked(); track entry.relationshipId) {
             <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
                 <div>
-                    <p class="text-sm text-white/60">{{ entry.user.userName }}</p>
+                    <p class="text-sm text-white/60">{{ entry.userName }}</p>
                     <p class="text-xs text-white/25 mt-0.5">
                         {{ 'SETTINGS.PRIVACY.BLOCKED_SINCE' | translate }} {{ entry.blockedAt | date:'mediumDate' }}
                     </p>
                 </div>
                 <p-button [label]="'SETTINGS.PRIVACY.UNBLOCK' | translate"
                           severity="secondary" size="small"
-                          [loading]="isPending(entry.user.userId)"
+                          [loading]="isPending(entry.userId)"
                           (onClick)="unblock(entry)"/>
             </div>
         }

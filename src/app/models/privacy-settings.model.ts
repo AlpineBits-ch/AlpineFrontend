@@ -134,10 +134,25 @@ export const PRIVACY_SETTINGS_DEFAULTS: PrivacySettings = {
  * The machine-readable codes the API returns instead of a bare 403, so the client can tell
  * "you are not allowed" apart from "that was malformed" - and, for the minor floor, tell the user
  * *which* field the server refused.
+ *
+ * <p>Note the two shapes the code arrives in: the conversation and messaging refusals put it under
+ * `error`, while the friend-request and settings refusals use `code`. {@link refusalCode} reads
+ * both rather than making every call site remember which family it is talking to.</p>
  */
 export const PRIVACY_REFUSAL_CODES = {
     recipientDmPolicy: 'recipient_dm_policy',
     blocked: 'blocked',
+    explicitContentFiltered: 'explicit_content_filtered',
     friendRequestPolicy: 'friend_request_policy',
     minorRestriction: 'minor_restriction',
+    /** 503, not 403. The policy data was unreachable - the answer is unknown, not "no". */
+    privacyLookupUnavailable: 'privacy_lookup_unavailable',
+    positionalVoiceConsent: 'positional_voice_consent',
 } as const;
+
+/**
+ * The longest retention window the server accepts (ten years). `0` and negatives are rejected
+ * outright; `null` is the separate, meaningful "keep forever".
+ */
+export const DM_RETENTION_MAX_DAYS = 3650;
+export const DM_RETENTION_MIN_DAYS = 1;

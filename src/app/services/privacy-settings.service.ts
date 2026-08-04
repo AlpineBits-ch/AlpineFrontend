@@ -20,11 +20,21 @@ import {
  */
 export type PrivacySettingsStatus = 'idle' | 'loading' | 'ready' | 'unavailable';
 
-/** Reads a machine-readable refusal code out of whatever shape the API wrapped it in. */
+/**
+ * Reads a machine-readable refusal code out of whatever shape the API wrapped it in.
+ *
+ * <p><b>`error` comes first and is not optional.</b> The conversation, messaging and voice refusals
+ * send `{"error": "recipient_dm_policy", "userId": "..."}`, while the friend-request, minor-floor
+ * and consent refusals send `{"code": "..."}`. Reading only one of the two turns every refusal in
+ * the other family into an unrecognised error and back into the generic "something went wrong"
+ * this exists to replace.</p>
+ */
 export function refusalCode(err: HttpErrorResponse): string | null {
-    const body = err.error as { code?: unknown; errorCode?: unknown; detail?: unknown } | null;
+    const body = err.error as {
+        error?: unknown; code?: unknown; errorCode?: unknown; detail?: unknown;
+    } | null;
     if (!body || typeof body !== 'object') return null;
-    for (const candidate of [body.code, body.errorCode, body.detail]) {
+    for (const candidate of [body.error, body.code, body.errorCode, body.detail]) {
         if (typeof candidate === 'string' && candidate.length > 0) return candidate;
     }
     return null;

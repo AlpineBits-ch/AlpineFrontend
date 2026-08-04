@@ -59,16 +59,18 @@ export class BlockedUsersComponent implements OnInit {
     }
 
     protected unblock(entry: BlockedUserDto): void {
-        const userId = entry.user.userId;
+        // The Identity user id, not the relationship row - the block endpoints are keyed on the
+        // person, which is what makes unblocking idempotent after the row has already gone.
+        const userId = entry.userId;
         if (this.isPending(userId)) return;
         this.markPending(userId, true);
 
         this.relationships.unblockUser(userId).subscribe({
             next: () => {
-                this.blocked.update(list => list.filter(b => b.user.userId !== userId));
+                this.blocked.update(list => list.filter(b => b.userId !== userId));
                 this.markPending(userId, false);
                 this.toast.success(
-                    this.translate.instant('SETTINGS.PRIVACY.UNBLOCK_SUCCESS', {name: entry.user.userName}),
+                    this.translate.instant('SETTINGS.PRIVACY.UNBLOCK_SUCCESS', {name: entry.userName}),
                 );
             },
             error: () => {

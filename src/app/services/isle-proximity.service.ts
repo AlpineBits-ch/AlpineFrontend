@@ -14,7 +14,8 @@ import {UserService} from './user.service';
 import {ToastService} from './toast.service';
 import {SoundSettingsService} from './sound-settings.service';
 import {RealtimeConnectionService, ConnectionState} from './realtime-connection.service';
-import {PrivacySettingsService} from './privacy-settings.service';
+import {PrivacySettingsService, refusalCode} from './privacy-settings.service';
+import {PRIVACY_REFUSAL_CODES} from '../models/privacy-settings.model';
 
 /**
  * Public surface for Isle proximity voice -the UI binds to this.
@@ -95,6 +96,20 @@ export class IsleProximityService {
             }
         });
 
+        // Withdrawing positional-voice consent takes effect immediately: the server unregisters
+        // the account and drops its published track the moment the setting is written. Mirroring
+        // that locally is not cosmetic - without it the bar keeps showing a live session, the mic
+        // stays open, and the user believes they are still being heard positionally after
+        // switching the consent off. Only tears down on a real false; the flag reads permissive
+        // while the record is unknown, so a settings reload cannot drop a live call.
+        effect(() => {
+            const allowed = this.privacy.allowPositionalVoiceCapture();
+            if (!allowed && (this.isVoiceActive() || this.isConnecting())) {
+                void this.leave(true);
+                this.toast.error('Proximity voice ended - positional voice capture was turned off');
+            }
+        });
+
         // Keep the live spatial graph in sync with settings while connected.
         // Output-device changes apply instantly via AudioContext.setSinkId -no
         // reconnect, no dropped peers.
@@ -143,7 +158,14 @@ export class IsleProximityService {
             try {
                 await firstValueFrom(this.api.join());
             } catch (err) {
-                if (err instanceof HttpErrorResponse && err.status === 400) {
+                // The server enforces the same consent independently, and it is the authority: the
+                // local flag can be stale (another device just changed it, or the record never
+                // loaded). Naming the reason matters because the remedy is a settings toggle, not
+                // a retry.
+                if (err instanceof HttpErrorResponse && err.status === 403
+                    && refusalCode(err) === PRIVACY_REFUSAL_CODES.positionalVoiceConsent) {
+                    this.toast.error('Positional voice capture is turned off in your privacy settings');
+                } else if (err instanceof HttpErrorResponse && err.status === 400) {
                     this.toast.error('Link your Steam account to use proximity chat');
                 } else {
                     this.toast.httpError('Could not join Isle proximity chat', err);

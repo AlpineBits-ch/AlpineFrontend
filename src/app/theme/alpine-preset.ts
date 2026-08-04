@@ -467,5 +467,138 @@ export const AlpinePreset = definePreset(Aura, {
                 },
             },
         },
+
+        // The closed control matches `inputtext` because that is what it is - a field. The open
+        // panel matches `menu` rather than the field, because that is what it behaves like, and
+        // an overlay tinted like an input reads as a second input floating over the page.
+        select: {
+            colorScheme: {
+                dark: {
+                    root: {
+                        background: '#121821',
+                        disabledBackground: 'rgba(255,255,255,0.02)',
+                        filledBackground: '#121821',
+                        filledHoverBackground: '#121821',
+                        filledFocusBackground: '#121821',
+
+                        borderColor: BORDER_SUBTLE,
+                        hoverBorderColor: BORDER_DEFAULT,
+                        focusBorderColor: '{accent.400}',
+
+                        color: '{zinc.50}',
+                        disabledColor: 'rgba(255,255,255,0.30)',
+                        placeholderColor: '{zinc.400}',
+
+                        shadow: 'inset 0 1px 0 rgba(255,255,255,0.02)',
+
+                        focusRing: {
+                            color: '{accent.400}',
+                            shadow: '0 0 0 2px rgba(124,114,255,0.32)',
+                        },
+                    },
+
+                    dropdown: {
+                        color: '{zinc.400}',
+                    },
+
+                    overlay: {
+                        background: '{zinc.800}',
+                        borderColor: BORDER_SUBTLE,
+                        color: '{zinc.100}',
+
+                        shadow: `
+              0 0 0 1px rgba(255,255,255,0.08),
+              0 12px 40px rgba(0,0,0,0.50)
+            `,
+                    },
+
+                    option: {
+                        color: '{zinc.100}',
+                        focusColor: '{zinc.50}',
+                        focusBackground: 'rgba(255,255,255,0.07)',
+
+                        // Selected is the accent at low opacity rather than a solid fill: the row
+                        // still has to read as a list item, and a solid accent bar makes the open
+                        // panel look like it has a header.
+                        selectedColor: '{zinc.50}',
+                        selectedBackground: 'rgba(124,114,255,0.20)',
+                        selectedFocusColor: '{zinc.50}',
+                        selectedFocusBackground: 'rgba(124,114,255,0.28)',
+                    },
+
+                    optionGroup: {
+                        background: 'transparent',
+                        color: '{zinc.400}',
+                    },
+
+                    clearIcon: {
+                        color: '{zinc.400}',
+                    },
+
+                    emptyMessage: {
+                        color: '{zinc.400}',
+                    },
+                },
+            },
+        },
+
+        radiobutton: {
+            colorScheme: {
+                dark: {
+                    root: {
+                        // Same reasoning as checkbox: a radio is a mark on whatever surface it
+                        // sits on, not an input-coloured hole punched in it.
+                        background: 'rgba(255,255,255,0.04)',
+                        checkedBackground: '{accent.500}',
+                        checkedHoverBackground: '{accent.400}',
+                        disabledBackground: 'rgba(255,255,255,0.02)',
+                        filledBackground: 'rgba(255,255,255,0.04)',
+
+                        borderColor: BORDER_DEFAULT,
+                        hoverBorderColor: 'rgba(255,255,255,0.28)',
+                        focusBorderColor: '{accent.400}',
+                        checkedBorderColor: '{accent.500}',
+                        checkedHoverBorderColor: '{accent.400}',
+                        checkedFocusBorderColor: '{accent.400}',
+                        checkedDisabledBorderColor: BORDER_DEFAULT,
+
+                        focusRing: {
+                            color: '{accent.400}',
+                            shadow: '0 0 0 2px rgba(124,114,255,0.32)',
+                        },
+                    },
+
+                    icon: {
+                        // White for the same reason as the checkbox tick - the generated contrast
+                        // colour lands dark against this accent.
+                        checkedColor: '#ffffff',
+                        checkedHoverColor: '#ffffff',
+                        disabledColor: 'rgba(255,255,255,0.30)',
+                    },
+                },
+            },
+        },
+
+        // The field itself inherits `inputtext`; only the spinner buttons need saying, and they
+        // are deliberately quiet - they sit inside the field and must not out-weigh its content.
+        inputnumber: {
+            colorScheme: {
+                dark: {
+                    button: {
+                        background: 'transparent',
+                        hoverBackground: 'rgba(255,255,255,0.07)',
+                        activeBackground: 'rgba(255,255,255,0.10)',
+
+                        borderColor: BORDER_SUBTLE,
+                        hoverBorderColor: BORDER_SUBTLE,
+                        activeBorderColor: BORDER_SUBTLE,
+
+                        color: '{zinc.400}',
+                        hoverColor: '{zinc.200}',
+                        activeColor: '{zinc.100}',
+                    },
+                },
+            },
+        },
     },
 });

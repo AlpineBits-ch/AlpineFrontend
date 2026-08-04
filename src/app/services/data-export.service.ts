@@ -3,25 +3,51 @@ import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {ApiConfigService} from './api-config.service';
 
-export type DataExportStatus = 'Pending' | 'Running' | 'Ready' | 'Failed' | 'Expired';
+export type DataExportStatus = 'Pending' | 'Running' | 'Ready' | 'Partial' | 'Failed' | 'Expired';
 
 export interface DataExportDto {
     exportId: string;
     status: DataExportStatus;
     requestedAt: string;
+    completedAt: string | null;
     /** Set once the artifact exists; it is deleted at this point (7 days by default). */
     expiresAt: string | null;
+    /** A sentence explaining a `Failed`, or what was left out of a `Partial`. */
+    failureReason: string | null;
+    /**
+     * Services that did not return their data in time for a `Partial`. Empty for every other
+     * status. Named in the UI - "some of your data is missing" without saying which is not an
+     * answer the user can do anything with.
+     */
+    missingServices: string[];
 }
 
 /** Statuses that will not change again without a new request. */
-export const DATA_EXPORT_TERMINAL: readonly DataExportStatus[] = ['Ready', 'Failed', 'Expired'];
+export const DATA_EXPORT_TERMINAL: readonly DataExportStatus[] =
+    ['Ready', 'Partial', 'Failed', 'Expired'];
+
+/**
+ * Statuses the server will actually serve an artifact for.
+ *
+ * <p><b>`Partial` belongs here.</b> A client gating the button on `Ready` alone hides a download
+ * the server would happily serve, and leaves the user believing their export failed when most of
+ * it is sitting there ready - so this is a set rather than an equality check, and new
+ * partially-successful statuses join it rather than falling through to "broken".</p>
+ */
+export const DATA_EXPORT_DOWNLOADABLE: readonly DataExportStatus[] = ['Ready', 'Partial'];
+
+export function canDownload(status: DataExportStatus): boolean {
+    return DATA_EXPORT_DOWNLOADABLE.includes(status);
+}
 
 /**
  * GDPR Art. 15/20 data exports (T1-7).
  *
  * <p>The export is assembled asynchronously by a saga across every service, so requesting one
- * returns a 202 and the client polls. One request per account per 24h is enforced server-side;
- * the client surfaces the refusal rather than trying to predict it.</p>
+ * returns a 202 and the client polls - there is no push notification. One request per account per
+ * 24h is enforced server-side; the client surfaces the refusal rather than trying to predict it.
+ * `Failed` and `Partial` exports do not count against that limit, which is why a failed export
+ * still leaves the request button live.</p>
  */
 @Injectable({providedIn: 'root'})
 export class DataExportService {
@@ -43,12 +69,15 @@ export class DataExportService {
     /**
      * Fetches the artifact.
      *
-     * <p>Read as a blob rather than by pointing the browser at the URL: the endpoint is
-     * authenticated, and a plain navigation would arrive without the bearer token. The redirect to
-     * the signed URL is followed by the HTTP stack, so what lands here is the zip itself. That
-     * does mean it is held in memory - acceptable for a personal archive, and the alternative
-     * (handing the signed URL to the client) would put a downloadable credential somewhere it can
-     * be copied out of.</p>
+     * <p>The endpoint answers `302` to a short-lived signed URL. This reads the result as a blob
+     * and lets the HTTP stack follow the redirect, rather than surfacing the signed URL: the
+     * endpoint is authenticated, so a plain navigation would arrive without the bearer, and handing
+     * the signed URL to the page would put a bearer-free download credential somewhere it can be
+     * copied out of. Browsers strip `Authorization` on a cross-origin redirect, so the storage host
+     * sees only the signature it issued.</p>
+     *
+     * <p>Errors are meaningful and the caller must distinguish them: `409` is a `Failed` export,
+     * `410` an expired one - a different sentence and a different next step each.</p>
      */
     download(exportId: string): Observable<Blob> {
         return this.http.get(`${this.base}/${exportId}/download`, {responseType: 'blob'});

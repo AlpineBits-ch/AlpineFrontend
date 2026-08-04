@@ -10,6 +10,8 @@ import {PrivacySettingsService} from '../../../../../services/privacy-settings.s
 import {ToastService} from '../../../../../services/toast.service';
 import {
     DirectMessagePolicy,
+    DM_RETENTION_MAX_DAYS,
+    DM_RETENTION_MIN_DAYS,
     ExplicitContentFilter,
     FriendRequestPolicy,
     PrivacySettings,
@@ -81,6 +83,8 @@ export class PrivacySettingsComponent implements OnInit {
 
     /** Retention is edited as a number box that is only live once the user opts in. */
     protected readonly retentionEnabled = signal(false);
+    protected readonly retentionMin = DM_RETENTION_MIN_DAYS;
+    protected readonly retentionMax = DM_RETENTION_MAX_DAYS;
 
     protected readonly consentToggles: ToggleRow[] = [
         {
@@ -240,12 +244,22 @@ export class PrivacySettingsComponent implements OnInit {
 
     protected onRetentionToggle(enabled: boolean): void {
         this.retentionEnabled.set(enabled);
+        // null is not an omission here - it is the meaningful "keep forever", and the endpoint
+        // reads it as a real value rather than skipping the field.
         this.write('dmRetentionDays', enabled ? 30 : null);
     }
 
+    /**
+     * Writes a retention window, refusing values the server would 400 on.
+     *
+     * <p>Clamped rather than sent and rejected: the number box can emit a half-typed value on every
+     * keystroke, and a `0` in transit is not a request to keep nothing, it is a user midway through
+     * typing `30`.</p>
+     */
     protected onRetentionDays(days: number | null): void {
-        if (days === null || days < 1) return;
-        this.write('dmRetentionDays', days);
+        if (days === null || !Number.isFinite(days)) return;
+        const clamped = Math.min(Math.max(Math.round(days), DM_RETENTION_MIN_DAYS), DM_RETENTION_MAX_DAYS);
+        this.write('dmRetentionDays', clamped);
     }
 
     /**
