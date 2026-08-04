@@ -534,10 +534,6 @@ export const AlpinePreset = definePreset(Aura, {
                     clearIcon: {
                         color: '{zinc.400}',
                     },
-
-                    emptyMessage: {
-                        color: '{zinc.400}',
-                    },
                 },
             },
         },
