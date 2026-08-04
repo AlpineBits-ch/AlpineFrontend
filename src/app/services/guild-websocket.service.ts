@@ -23,6 +23,7 @@ import {ReorderRolesDto} from "../dtos/request/reorder-roles.dto";
 import {ProfileService} from "./profile.service";
 import {OnlineStatus} from "../dtos/response/profile.dto";
 import {ForumConfig, ForumTag} from "../dtos/response/forum.dto";
+import {PrivacySettingsService} from "./privacy-settings.service";
 
 export interface ChannelTypingEvent {
     channelId: string;
@@ -721,6 +722,7 @@ export class GuildWebsocketService {
     readonly eventUpdatedObservable = new Subject<WsEventUpdated>();
     readonly eventCancelledObservable = new Subject<WsEventCancelled>();
     private realtime = inject(RealtimeConnectionService);
+    private privacy = inject(PrivacySettingsService);
     private notificationService = inject(NotificationService);
     private profileService = inject(ProfileService);
     private mlsService = inject(MlsService);
@@ -743,7 +745,10 @@ export class GuildWebsocketService {
         await this.realtime.start();
     }
 
+    /** Suppressed when the account has turned typing indicators off (T2-18). See the note on the
+     * messaging equivalent for why read state is not gated with it. */
     invokeStartTyping(channelId: string): void {
+        if (!this.privacy.sendTypingIndicators()) return;
         void this.realtime.invoke('guild.StartTyping', channelId);
     }
 

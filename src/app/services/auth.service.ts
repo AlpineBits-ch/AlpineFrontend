@@ -6,6 +6,7 @@ import {OAuthService, TokenResponse} from "angular-oauth2-oidc";
 import {ApiConfigService} from "./api-config.service";
 import {DeviceIdentityService} from "./device-identity.service";
 import {describeCurrentDevice} from "./device-description";
+import {checkJsonSettings} from "../core/json-settings-limits";
 
 @Injectable({
     providedIn: 'root',
@@ -107,7 +108,18 @@ export class AuthService {
         return this.http.get(`${environment.apiUrl}/api/v1/identity/users/self/settings`);
     }
 
+    /**
+     * Writes the client-owned UI settings blob.
+     *
+     * <p>Checked against the server's limits first (T0-6). The server rejects an oversized or
+     * non-object document with 413/400; failing here instead means the caller gets a reason it can
+     * act on rather than a save that silently stopped working at some size nobody measured.</p>
+     */
     public updateJsonSettings(settings: unknown): Observable<unknown> {
+        const check = checkJsonSettings(settings);
+        if (!check.ok) {
+            return throwError(() => new Error(`Refusing to save settings blob: ${check.reason}`));
+        }
         return this.http.put(`${environment.apiUrl}/api/v1/identity/users/self/settings`, settings);
     }
 }

@@ -31,10 +31,12 @@ import {parseInstallBotLink} from './features/bot-install/bot-install-link.util'
 import {DiscordImportProgressDialogComponent} from './features/discord-import/discord-import-progress-dialog.component';
 import {DiscordImportProgressService} from './features/discord-import/discord-import-progress.service';
 import {parseDiscordImportLink} from './features/discord-import/discord-import-link.util';
+import {TelemetryConsentService} from './services/telemetry-consent.service';
+import {LegalConsentDialogComponent} from './components/legal-consent-dialog/legal-consent-dialog.component';
 
 @Component({
     selector: "app-root",
-    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, MfaChallengeDialogComponent, PasswordResetDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent, BotCommandDialogComponent, BotModalDialogComponent, DiscordImportProgressDialogComponent],
+    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, MfaChallengeDialogComponent, PasswordResetDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent, BotCommandDialogComponent, BotModalDialogComponent, DiscordImportProgressDialogComponent, LegalConsentDialogComponent],
     templateUrl: "./app.component.html",
     styleUrl: "./app.component.css",
 })
@@ -53,6 +55,9 @@ export class AppComponent implements OnInit, OnDestroy {
     private discordImportProgressService = inject(DiscordImportProgressService);
     private destroyRef = inject(DestroyRef);
     private windowChrome = inject(WindowChromeService);
+    // Injected for its side effect: it holds the effect that keeps the identity on crash reports
+    // in step with the account's data-collection consent. Nothing reads it back.
+    private telemetryConsent = inject(TelemetryConsentService);
     private updateInterval: ReturnType<typeof setInterval> | null = null;
 
     @HostListener('document:contextmenu', ['$event'])

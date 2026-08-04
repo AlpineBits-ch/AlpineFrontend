@@ -14,6 +14,7 @@ import {UserService} from './user.service';
 import {ToastService} from './toast.service';
 import {SoundSettingsService} from './sound-settings.service';
 import {RealtimeConnectionService, ConnectionState} from './realtime-connection.service';
+import {PrivacySettingsService} from './privacy-settings.service';
 
 /**
  * Public surface for Isle proximity voice -the UI binds to this.
@@ -48,6 +49,7 @@ export class IsleProximityService {
     private toast = inject(ToastService);
     private sounds = inject(SoundSettingsService);
     private realtime = inject(RealtimeConnectionService);
+    private privacy = inject(PrivacySettingsService);
 
     // ── State the UI reads ──────────────────────────────────────────────────
     readonly isGameConnected = signal(false);
@@ -126,6 +128,16 @@ export class IsleProximityService {
 
     async join(): Promise<void> {
         if (this.isConnecting() || this.isVoiceActive()) return;
+
+        // Positional capture registers this account's position against a voice track, which is a
+        // good deal more than "is in a voice call". Declining it (T2-19) does not stop the user
+        // speaking in ordinary voice channels - it stops them being registered for the positional
+        // path at all, so there is nothing to opt out of downstream.
+        if (!this.privacy.allowPositionalVoiceCapture()) {
+            this.toast.error('Positional voice capture is turned off in your privacy settings');
+            return;
+        }
+
         this.isConnecting.set(true);
         try {
             try {

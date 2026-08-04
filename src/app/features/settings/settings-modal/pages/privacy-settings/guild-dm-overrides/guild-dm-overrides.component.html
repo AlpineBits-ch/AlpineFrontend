@@ -1,0 +1,14 @@
+@if (applies() && guilds().length > 0) {
+    <div class="flex flex-col gap-2">
+        <p class="text-xs text-white/35 mt-2">{{ 'GUILD_SETTINGS.PRIVACY.ALLOW_DMS_DESC' | translate }}</p>
+
+        @for (guild of guilds(); track guild.id) {
+            <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+                <p class="text-sm text-white/60">{{ guild.name }}</p>
+                <p-toggleswitch [disabled]="isPending(guild.id)"
+                                [ngModel]="allows(guild.id)"
+                                (ngModelChange)="toggle(guild.id, $event)"/>
+            </div>
+        }
+    </div>
+}

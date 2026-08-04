@@ -13,8 +13,10 @@ import {ConversationService} from "../../../../services/conversation.service";
 import {ConversationEncryption} from "../../../../enums/conversation-encryption.enum";
 import {ConversationStore} from "../../../../stores/conversation.store";
 import {NavigationService} from "../../../main-page/navigation.service";
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {SocialKeyGateService} from '../../../../services/social-key-gate.service';
+import {ToastService} from '../../../../services/toast.service';
+import {refusalMessageKey} from '../../../../core/refusal-message';
 
 @Component({
     selector: 'app-friendship-modal',
@@ -44,6 +46,8 @@ export class FriendshipModalComponent {
     private conversationStore = inject(ConversationStore);
     private navService = inject(NavigationService);
     private socialGate = inject(SocialKeyGateService);
+    private toast = inject(ToastService);
+    private translate = inject(TranslateService);
 
     constructor() {
         // The store keeps itself current from the social.* realtime events -no reload here.
@@ -60,7 +64,17 @@ export class FriendshipModalComponent {
             });
             return;
         }
-        this.relationshipStore.sendRequest(username).subscribe(() => this.friendId = '');
+        this.relationshipStore.sendRequest(username).subscribe({
+            next: () => this.friendId = '',
+            // The target's friend-request policy or a block can refuse this (T2-15). The message
+            // stays vague on purpose: which rule refused, and whether the account exists at all,
+            // are both things the endpoint must not become a way to find out.
+            error: (err: unknown) => {
+                const key = refusalMessageKey(err);
+                if (key) this.toast.error(this.translate.instant(key));
+                else this.toast.httpError('Could not send that friend request', err);
+            },
+        });
     }
 
     public acceptFriendRequest(id: string) {
@@ -95,10 +109,19 @@ export class FriendshipModalComponent {
             encryption: ConversationEncryption.Plain,
             name: undefined,
             deviceWelcomes: [],
-        }).subscribe(conv => {
-            this.conversationStore.addConversation(conv);
-            this.navService.openConversation(conv);
-            this.isVisible.set(false);
+        }).subscribe({
+            next: conv => {
+                this.conversationStore.addConversation(conv);
+                this.navService.openConversation(conv);
+                this.isVisible.set(false);
+            },
+            // Refused by the recipient's DM policy or a block (T0-2) - say so rather than leaving
+            // the modal sitting open with no explanation.
+            error: (err: unknown) => {
+                const key = refusalMessageKey(err);
+                if (key) this.toast.error(this.translate.instant(key));
+                else this.toast.httpError('Could not open that conversation', err);
+            },
         });
     }
 }

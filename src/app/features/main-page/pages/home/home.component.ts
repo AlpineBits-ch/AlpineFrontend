@@ -14,7 +14,9 @@ import {OnlineStatus} from "../../../../dtos/response/profile.dto";
 import {ProfileDialogService} from "../../../../services/profile-dialog.service";
 import {NavigationService} from "../../navigation.service";
 import {ConversationStore} from "../../../../stores/conversation.store";
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
+import {ToastService} from '../../../../services/toast.service';
+import {refusalMessageKey} from '../../../../core/refusal-message';
 
 type FriendsTab = 'online' | 'all' | 'pending' | 'blocked';
 
@@ -42,6 +44,8 @@ export class HomeComponent {
     private profileService = inject(ProfileService);
     public onlineFriends = computed(() => this.friends().filter(r => this.isActiveStatus(this.profileService.getOnlineStatus(r.other.userId))));
     private conversationStore = inject(ConversationStore);
+    private toast = inject(ToastService);
+    private translate = inject(TranslateService);
 
     constructor() {
         // The store keeps itself current from the social.* realtime events -no reload here.
@@ -122,9 +126,20 @@ export class HomeComponent {
             name: undefined,
             encryption: ConversationEncryption.Plain,
             deviceWelcomes: [],
-        }).subscribe(conv => {
-            this.conversationStore.addConversation(conv);
-            this.navService.openConversation(conv);
+        }).subscribe({
+            next: conv => {
+                this.conversationStore.addConversation(conv);
+                this.navService.openConversation(conv);
+            },
+            // The recipient's DM policy or a block can refuse this (T0-2). Without a handler the
+            // click simply did nothing, which reads as the app being broken rather than as an answer.
+            error: (err: unknown) => this.reportConversationFailure(err),
         });
+    }
+
+    private reportConversationFailure(err: unknown): void {
+        const key = refusalMessageKey(err);
+        if (key) this.toast.error(this.translate.instant(key));
+        else this.toast.httpError('Could not open that conversation', err);
     }
 }

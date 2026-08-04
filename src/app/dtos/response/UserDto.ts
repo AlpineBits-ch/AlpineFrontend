@@ -79,4 +79,27 @@ export interface UserDto {
      * runs at launch or is deferred to the first social action - see `SocialKeyGateService`.
      */
     interests?: UserInterest[];
+    /**
+     * Legal documents whose current version this account has not accepted (T1-10).
+     *
+     * <p>Publishing a new Terms or Privacy version leaves existing consents intact and instead
+     * lists the document here until the account accepts it. Optional, and an absent field must be
+     * read as <i>nothing outstanding</i> rather than as unknown: a self-hosted server predating
+     * consent records sends no such field, and treating that as "consent required" would put every
+     * one of its users behind a prompt whose accept endpoint answers 404.</p>
+     */
+    consentRequired?: ConsentRequirement[];
+}
+
+/** A document version the account still has to accept. */
+export interface ConsentRequirement {
+    documentType: LegalDocumentType;
+    version: string;
+    url: string;
+}
+
+export enum LegalDocumentType {
+    Terms = 'Terms',
+    Privacy = 'Privacy',
+    Cookies = 'Cookies',
 }

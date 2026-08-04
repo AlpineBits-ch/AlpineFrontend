@@ -149,6 +149,28 @@ export const RelationshipStore = signalStore(
                 );
             },
 
+            /**
+             * Blocks a user (T0-3).
+             *
+             * <p>Keyed by <b>user</b> id, not relationship id: a block is the one relationship you
+             * can create with someone you have no row with at all. It also removes an existing
+             * friendship and cancels a pending request either way round, so the whole list is
+             * refetched rather than patched - working out locally which rows the server just
+             * deleted would be guessing at its rules.</p>
+             */
+            block(userId: string): Observable<void> {
+                return relationshipService.blockUser(userId).pipe(
+                    tap(() => fetchList()),
+                );
+            },
+
+            /** Lifts a block. Idempotent server-side. */
+            unblock(userId: string): Observable<void> {
+                return relationshipService.unblockUser(userId).pipe(
+                    tap(() => fetchList()),
+                );
+            },
+
             applyRealtime(e: RelationshipEvent): void {
                 if (e.status === RelationshipStatus.None) {
                     patchState(store, removeEntity(e.relationshipId));

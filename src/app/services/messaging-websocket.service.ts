@@ -13,6 +13,7 @@ import {MlsHealthService} from './mls-health.service';
 import {ConversationService} from './conversation.service';
 import {fromBase64} from "../helpers/base64.helper";
 import {ConnectionState, RealtimeConnectionService} from "./realtime-connection.service";
+import {PrivacySettingsService} from "./privacy-settings.service";
 
 // Re-exported for existing importers (connection-status, guild-websocket, …).
 export {ConnectionState};
@@ -261,6 +262,7 @@ export class MessagingWebsocketService {
     public messagePinnedObservable = new Subject<MessagePinnedEvent>()
     public messageUnpinnedObservable = new Subject<MessageUnpinnedEvent>()
     private realtime = inject(RealtimeConnectionService);
+    private privacy = inject(PrivacySettingsService);
     private notificationService = inject(NotificationService);
     private profileService = inject(ProfileService);
     private mlsService = inject(MlsService);
@@ -296,7 +298,17 @@ export class MessagingWebsocketService {
         await this.realtime.invoke('conversation.UpdateLastRead', {conversationId, id});
     }
 
+    /**
+     * Announces that the user is typing.
+     *
+     * <p>Suppressed when the account has turned typing indicators off (T2-18). Gated here rather
+     * than at each composer so every caller is covered by construction. Read state deliberately is
+     * <i>not</i> gated alongside it: `UpdateLastRead` also drives the user's own unread badges, so
+     * withholding it would break their client rather than anyone else's view. Keeping a read
+     * receipt from other people is the server's half of that setting.</p>
+     */
     invokeStartTyping(conversationId: string): void {
+        if (!this.privacy.sendTypingIndicators()) return;
         void this.realtime.invoke('conversation.StartTyping', conversationId);
     }
 

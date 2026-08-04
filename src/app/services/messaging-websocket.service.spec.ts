@@ -16,6 +16,7 @@ import {MlsHealthService} from './mls-health.service';
 import {NotificationService} from './notification.service';
 import {ProfileService} from './profile.service';
 import {ConversationService} from './conversation.service';
+import {PrivacySettingsService} from './privacy-settings.service';
 import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
 import {MessageDto} from '../dtos/response/message.dto';
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
@@ -72,6 +73,9 @@ function setup() {
             }},
             {provide: NotificationService, useValue: {createNotification: vi.fn(async () => undefined)}},
             {provide: ConversationService, useValue: {}},
+            // Only the typing gate is read here (T2-18). Stubbed rather than real so this spec does
+            // not have to stand up ApiConfigService and the OAuth stack behind it.
+            {provide: PrivacySettingsService, useValue: {sendTypingIndicators: () => true}},
             {provide: RealtimeConnectionService, useValue: {
                 on: vi.fn((event: string, handler: (payload: never) => void) => {
                     handlers.set(event, handler);

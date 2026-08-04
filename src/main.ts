@@ -4,15 +4,24 @@ import { AppComponent } from "./app/app.component";
 import { appConfig } from "./app/app.config";
 import { getSecureKey } from "./app/platform/crypto";
 import * as Sentry from "@sentry/angular";
+import { installId, scrubBreadcrumb, scrubEvent } from "./app/core/telemetry-privacy";
+
+// Crash reporting is service-operational and starts before anyone is signed in, so it starts
+// *unidentified*: a per-install pseudonym, no user info, no request bodies. If the account has
+// consented to identified telemetry, TelemetryConsentService swaps in the real user id once the
+// privacy record has loaded - see T0-4 in docs/specs/privacy.md. Init cannot wait for that answer,
+// and the safe direction to be wrong in is anonymous.
 Sentry.init({
     dsn: "https://fd38719fd718686505847669170b7da4@o4511596550946816.ingest.de.sentry.io/4511596570673232",
     dataCollection: {
-        // To disable sending user data and HTTP bodies, uncomment the lines below. For more info visit:
         // https://docs.sentry.io/platforms/javascript/guides/angular/configuration/options/#dataCollection
-        // userInfo: false,
-        // httpBodies: []
-    }
+        userInfo: false,
+        httpBodies: [],
+    },
+    beforeSend: event => scrubEvent(event),
+    beforeBreadcrumb: breadcrumb => scrubBreadcrumb(breadcrumb),
 });
+Sentry.setUser({ id: installId() });
 getSecureKey().then(res => {
     console.log('generated key: ', res, '')
 });
