@@ -19,6 +19,8 @@ import {deviceIdInterceptor} from "./interceptors/device-id-interceptor";
 import {timeoutInterceptor} from "./interceptors/timeout.interceptor";
 import {GlobalErrorHandler} from "./core/global-error-handler";
 import {ThemeService} from './services/theme.service';
+import {LanguageService} from './services/language.service';
+import {DEFAULT_LANGUAGE, storedLanguage} from './models/language.model';
 import {provideTranslateService} from '@ngx-translate/core';
 import {provideTranslateHttpLoader} from '@ngx-translate/http-loader';
 import {AlpinePreset} from './theme/alpine-preset';
@@ -83,12 +85,14 @@ export const appConfig: ApplicationConfig = {
         },
         provideBrowserGlobalErrorListeners(),
         provideTranslateService({
-            defaultLanguage: 'en',
+            // Resolved from storage here rather than in LanguageService, so the very first load
+            // request is for the language the user picked - not English, swapped a tick later.
+            lang: storedLanguage(),
             loader: provideTranslateHttpLoader({
                 prefix: './assets/i18n/locales/',
                 suffix: '.json',
             }),
-            fallbackLang: 'en'
+            fallbackLang: DEFAULT_LANGUAGE
         }),
         provideZoneChangeDetection({eventCoalescing: true}),
         provideRouter(routes),
@@ -104,6 +108,7 @@ export const appConfig: ApplicationConfig = {
         provideAnimations(),
         provideAppInitializer(() => {
             inject(ThemeService);
+            inject(LanguageService);
         })
 
     ],

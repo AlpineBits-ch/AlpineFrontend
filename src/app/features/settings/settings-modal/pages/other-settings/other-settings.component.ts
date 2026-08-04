@@ -4,6 +4,7 @@ import {Select} from 'primeng/select';
 import {FormsModule} from '@angular/forms';
 import {TranslateModule} from '@ngx-translate/core';
 import {UserSettingsService} from '../../../../../services/user-settings.service';
+import {LanguageService} from '../../../../../services/language.service';
 import {AppInfoService} from '../../../../../services/app-info.service';
 import {UserService} from '../../../../../services/user.service';
 import {OnboardingService} from '../../../../../services/onboarding.service';
@@ -17,10 +18,6 @@ import {UserInterest} from '../../../../../dtos/response/UserDto';
     styleUrl: './other-settings.component.css',
 })
 export class OtherSettingsComponent {
-    selectedLanguage = 'en-us';
-    public readonly languages = [
-        {label: 'English (US)', value: 'en-us'},
-    ];
     public readonly systemToggles = [
         {label: 'Minimize to tray', desc: 'Keep Alpine running in the system tray when closed.'},
         {label: 'Run in background', desc: 'Continue receiving notifications when minimized.'},
@@ -42,6 +39,7 @@ export class OtherSettingsComponent {
         },
     ];
     protected readonly userSettings = inject(UserSettingsService);
+    protected readonly language = inject(LanguageService);
     protected readonly appInfo = inject(AppInfoService);
     private readonly userService = inject(UserService);
     private readonly onboarding = inject(OnboardingService);
