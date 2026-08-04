@@ -3,12 +3,25 @@
      class="relative overflow-hidden rounded-lg bg-black/40 max-w-full">
 
     @if (playing() && frameSrc()) {
+        <!--
+          referrerpolicy is "strict-origin-when-cross-origin", NOT "no-referrer".
+
+          YouTube's /embed/ endpoint refuses to configure a player for a request carrying no
+          Referer header at all - it answers "Error 153, video player configuration error" instead
+          of playing anything. "no-referrer" strips that header, so every YouTube embed failed the
+          moment it was clicked. Verified by loading the same video three ways from one page: only
+          the no-referrer frame errored.
+
+          This still sends the origin and nothing else - "http://tauri.localhost/", a constant for
+          every desktop install - so which channel or message the viewer is reading never leaves
+          the app. That was the part worth protecting; the bare origin was not.
+        -->
         <iframe [src]="frameSrc()!"
                 [title]="title() || 'Embedded player'"
                 allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                 class="absolute inset-0 w-full h-full border-0"
                 loading="lazy"
-                referrerpolicy="no-referrer"
+                referrerpolicy="strict-origin-when-cross-origin"
                 sandbox="allow-scripts allow-same-origin allow-presentation"></iframe>
     } @else {
         <button (click)="play()"
