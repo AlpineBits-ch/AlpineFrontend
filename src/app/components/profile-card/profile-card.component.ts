@@ -1,19 +1,21 @@
-import {Component, computed, inject, input, output} from '@angular/core';
+import {Component, input, output} from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {ProfileDto} from '../../dtos/response/profile.dto';
-import {UserStatusDotComponent} from '../user-status-dot/user-status-dot.component';
-import {UserNameStyleDirective} from '../../directives/user-name-style.directive';
-import {safeAccentColor} from '../../models/profile-font.model';
-import {cacheBustedUrl} from '../../models/profile-image.model';
-import {BrokenImageService} from '../../services/broken-image.service';
 import {ActivityCardComponent} from '../activity-card/activity-card.component';
+import {ProfileHeaderComponent} from '../profile-header/profile-header.component';
 import {Activity} from '../../models/activity.model';
 
+/**
+ * Somebody's profile as a card: who they are, what they are doing, and since when.
+ *
+ * <p>The identity half - banner, avatar, name, bio - lives in {@link ProfileHeaderComponent}, which
+ * the bottom bar's self menu also uses. What stays here is the part only a full profile wants: live
+ * activity, and the two dates underneath it.</p>
+ */
 @Component({
     selector: 'app-profile-card',
-    imports: [DatePipe, UserStatusDotComponent, UserNameStyleDirective, ActivityCardComponent],
+    imports: [DatePipe, ActivityCardComponent, ProfileHeaderComponent],
     templateUrl: './profile-card.component.html',
-    styleUrl: './profile-card.component.css',
 })
 export class ProfileCardComponent {
     profile = input<ProfileDto | undefined>(undefined);
@@ -32,40 +34,4 @@ export class ProfileCardComponent {
 
     avatarClick = output<void>();
     avatarErrorChange = output<void>();
-
-    protected readonly safeAccentColor = safeAccentColor;
-
-    private readonly brokenImages = inject(BrokenImageService);
-
-    /**
-     * The banner to draw, or nothing - which leaves the accent colour showing.
-     *
-     * <p>A populated `bannerUrl` is not evidence of a banner: the API builds one for every
-     * profile from its id, so the request 404s for anyone who never uploaded an image. Until it
-     * has been tried the URL has to be treated as good, which is why the failure is remembered
-     * rather than predicted.</p>
-     */
-    protected bannerUrl = computed((): string | undefined => {
-        const profile = this.profile();
-        const url = cacheBustedUrl(profile?.bannerUrl, profile?.updatedAt);
-        return this.brokenImages.isBroken(url) ? undefined : url;
-    });
-
-    protected avatarLabel = computed(() =>
-        this.profile()?.userName?.[0]?.toUpperCase() ?? '?'
-    );
-
-    protected onAvatarClick(): void {
-        if (this.profile()?.avatarUrl && !this.avatarError()) {
-            this.avatarClick.emit();
-        }
-    }
-
-    protected onAvatarError(): void {
-        this.avatarErrorChange.emit();
-    }
-
-    protected onBannerError(): void {
-        this.brokenImages.markBroken(this.bannerUrl());
-    }
 }
