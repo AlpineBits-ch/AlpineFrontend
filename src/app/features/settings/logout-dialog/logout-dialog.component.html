@@ -32,7 +32,8 @@
                 <div class="lo-actions">
                     <p-button (onClick)="close()" [text]="true" label="Cancel" severity="secondary"
                               styleClass="flex-1 justify-center"/>
-                    <p-button (onClick)="chooseSkip()" [outlined]="true" label="Skip" severity="secondary"
+                    <p-button (onClick)="chooseSkip()" [outlined]="true" data-testid="logout-skip-export"
+                              label="Skip" severity="secondary"
                               styleClass="flex-1 justify-center"/>
                     <p-button (onClick)="chooseExport()" icon="pi pi-download" label="Export Keys"
                               severity="primary"
@@ -151,8 +152,8 @@
                     <p-button (onClick)="backToPrompt()" [text]="true" icon="pi pi-arrow-left" label="Go Back"
                               severity="secondary"
                               styleClass="flex-1 justify-center"/>
-                    <p-button (onClick)="skipAndLogout()" [outlined]="true" label="Log Out Anyway"
-                              severity="danger"
+                    <p-button (onClick)="skipAndLogout()" [outlined]="true" data-testid="logout-confirm"
+                              label="Log Out Anyway" severity="danger"
                               styleClass="flex-1 justify-center"/>
                 </div>
 
