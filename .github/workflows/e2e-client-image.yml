@@ -28,12 +28,15 @@
 # Setup this workflow needs that cannot live in the file
 # ---------------------------------------------------------------------------------------------
 #
-#   E2E_DISPATCH_TOKEN - MUST BE CREATED. A PAT with `repo` scope (fine-grained equivalent:
-#   Contents: read-write on AlpineBits-ch/venta-e2e) stored as a repository secret here. The
-#   built-in GITHUB_TOKEN cannot do this: its permissions stop at this repository, so it cannot
-#   dispatch into another one. Until the secret exists the final step fails and everything before
-#   it - including the image push - still succeeds, so a missing token delays the E2E run rather
-#   than losing the build.
+#   E2E_DISPATCH_TOKEN - set. A token that can dispatch into AlpineBits-ch/venta-e2e. The built-in
+#   GITHUB_TOKEN cannot: its permissions stop at this repository, so it cannot trigger a workflow
+#   in another one. venta-e2e is public, so a classic PAT needs only `public_repo` rather than full
+#   `repo`; the fine-grained equivalent is Contents: read-write on that repository alone. Either
+#   way it can start a workflow and nothing else - keep it that narrow.
+#
+#   If it is ever removed, the dispatch step SKIPS rather than failing. The image is this job's
+#   product; notifying venta-e2e is a convenience on top of it, and venta-e2e's nightly cron picks
+#   up `latest` regardless, so a missing token costs promptness rather than coverage.
 #
 # GHCR needs no secret: GITHUB_TOKEN with `packages: write` is enough, same as Echo's
 # docker-build.yml. The package it creates is private by default and venta-e2e will need read
@@ -77,6 +80,16 @@ jobs:
     permissions:
       contents: read
       packages: write
+
+    # Lifted to a job-level env purely so the dispatch step's `if` can test it.
+    #
+    # The `secrets` context is NOT available in an `if` at job or step level - only in `with:` and
+    # `env:`. Writing `if: ${{ secrets.E2E_DISPATCH_TOKEN != '' }}` does not evaluate to false, it
+    # fails to PARSE, and a workflow that does not parse produces a run with zero jobs whose name
+    # falls back to the file path. That is exactly how this file broke once already, so the
+    # indirection below is load-bearing rather than stylistic.
+    env:
+      HAS_DISPATCH_TOKEN: ${{ secrets.E2E_DISPATCH_TOKEN != '' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -278,7 +291,7 @@ jobs:
       # The nightly cron in venta-e2e picks up `latest` regardless, so a missing token costs
       # promptness, not coverage. Create the secret to get the immediate run back.
       - name: Notify venta-e2e
-        if: ${{ secrets.E2E_DISPATCH_TOKEN != '' }}
+        if: ${{ env.HAS_DISPATCH_TOKEN == 'true' }}
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.E2E_DISPATCH_TOKEN }}
@@ -293,7 +306,7 @@ jobs:
             }
 
       - name: Say so when the dispatch was skipped
-        if: ${{ secrets.E2E_DISPATCH_TOKEN == '' }}
+        if: ${{ env.HAS_DISPATCH_TOKEN != 'true' }}
         run: |
           echo "::notice::Image published as ${{ steps.image.outputs.ref }}, but venta-e2e was not"\
                "notified: the E2E_DISPATCH_TOKEN secret is not set. The nightly run will still pick"\
