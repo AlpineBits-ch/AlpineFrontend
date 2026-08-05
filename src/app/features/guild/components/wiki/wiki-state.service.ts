@@ -167,6 +167,11 @@ export class WikiStateService {
     afterSaved(page: WikiPageDto): void {
         this.editorDefaults.set(null);
         this.pendingRemoteUpdate.set(null);
+        // Our own write comes back over the websocket a moment later. Refetching the page in
+        // response to it would replace what we already hold with an identical copy, and the
+        // in-flight `pageLoading` swaps the article out for a spinner while it does - a visible
+        // flash for no new information.
+        this.suppressNextPageRefresh = true;
         this.loadWiki(this.guildId(), page);
     }
 
@@ -234,9 +239,23 @@ export class WikiStateService {
                 const current = this.selectedPage();
                 if (current) {
                     const summary = wiki.pages.find(p => p.id === current.id);
-                    if (summary) this.selectedPage.update(p => p ? {...p, ...summary} : p);
+                    if (summary) this.selectedPage.update(p => p ? mergeSummary(p, summary) : p);
                 }
             }
         });
     }
+}
+
+/**
+ * Refreshes the open page's metadata from the wiki listing without touching its body.
+ *
+ * `content` is dropped on purpose. The listing carries it only when explicitly asked
+ * (`?includeContent=true`), so spreading the summary wholesale overwrote the loaded body with
+ * `undefined` and blanked the page on screen until the next full fetch - which is exactly what
+ * happened on the second `loadWiki` a save triggers. Any future opt-in field on the summary needs
+ * the same treatment, which is why this is a named function rather than an inline spread.
+ */
+export function mergeSummary(page: WikiPageDto, summary: WikiPageSummaryDto): WikiPageDto {
+    const {content: _optIn, ...metadata} = summary;
+    return {...page, ...metadata};
 }

@@ -297,6 +297,10 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
 
     save(): void {
         if (this.saving() || !this.title().trim()) return;
+        // Before anything else: a debounce still in flight would fire ~800ms from now and write
+        // the draft straight back over the one this save is about to clear, leaving a phantom
+        // "unsaved changes" banner on a page that was just published.
+        clearTimeout(this.draftTimer);
         this.saving.set(true);
         this.saveStatusChanged.emit('saving');
         const summary = this.editSummary().trim();
@@ -363,7 +367,19 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         if (!this.editing()) return;
         clearTimeout(this.draftTimer);
         this.draftTimer = setTimeout(() => {
+            // Re-checked at fire time, not only at schedule time: the 800ms window is long enough
+            // to leave edit mode inside, and a draft written after that is one nobody asked for.
+            if (!this.editing()) return;
             const page = this.page();
+            // Nothing to keep if this matches what the server already holds. Compared the same way
+            // `divergesFrom` compares on the way back out, so a draft exists only when restoring it
+            // would visibly change something.
+            const unchanged = this.title() === (page?.title ?? '')
+                && this.markdown() === (page?.content ?? '');
+            if (unchanged) {
+                this.drafts.clear(this.guildId(), page?.id ?? null);
+                return;
+            }
             this.drafts.write(this.guildId(), page?.id ?? null, {
                 title: this.title(),
                 content: this.markdown(),
