@@ -13,7 +13,7 @@
     @switch (step()) {
 
         @case ('input') {
-            <div class="dr-panel">
+            <div class="dr-panel" data-testid="device-registration">
 
                 <div class="dr-icon-wrap">
                     <div class="dr-icon-ring">
@@ -33,6 +33,7 @@
                             (input)="onDeviceNameInput($event)"
                             (keydown.enter)="onRegister()"
                             [value]="deviceName()"
+                            data-testid="device-registration-name"
                             pInputText
                             placeholder="e.g. Work MacBook, iPhone 15"
                             type="text"
@@ -49,6 +50,7 @@
                         (onClick)="onRegister()"
                         icon="pi pi-arrow-right"
                         iconPos="right"
+                        data-testid="device-registration-submit"
                         label="Register Device"
                         styleClass="w-full justify-center mt-2"
                 />
@@ -56,7 +58,7 @@
             </div>
         }
         @case ('processing') {
-            <div class="dr-panel dr-centered">
+            <div class="dr-panel dr-centered" data-testid="device-registration">
                 <div class="dr-spinner-ring">
                     <i class="pi pi-spin pi-spinner text-3xl" style="color: var(--color-brand)"></i>
                 </div>
@@ -65,7 +67,7 @@
             </div>
         }
         @case ('done') {
-            <div class="dr-panel dr-centered">
+            <div class="dr-panel dr-centered" data-testid="device-registration">
                 <div class="dr-check-ring">
                     <i class="pi pi-check text-2xl" style="color: var(--color-online)"></i>
                 </div>

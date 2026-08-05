@@ -2,6 +2,7 @@
      account's whole task right now, and a modal floating over a UI it cannot use yet only
      invites attempts to dismiss it. -->
 <div class="fixed inset-0 z-[1200] bg-app-bg flex flex-col"
+     data-testid="onboarding"
      style="padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom)">
 
     <!-- The overlay covers the titlebar, so it has to carry its own drag region or the window
@@ -31,6 +32,8 @@
                         @for (choice of choices; track choice.interest) {
                             <button (click)="toggle(choice.interest)"
                                     [attr.aria-pressed]="isSelected(choice.interest)"
+                                    [attr.data-interest]="choice.interest"
+                                    data-testid="onboarding-choice"
                                     [class]="isSelected(choice.interest)
                                         ? 'border-brand bg-[color-mix(in_srgb,var(--color-brand)_10%,transparent)]'
                                         : 'border-border bg-card hover:bg-hover'"
@@ -106,11 +109,13 @@
                 <p-button (onClick)="finish()" [disabled]="state.submitting()"
                           [label]="(state.submitting() ? 'ACCOUNT_ONBOARDING.SAVING'
                                                        : 'ACCOUNT_ONBOARDING.GET_STARTED') | translate"
+                          data-testid="onboarding-finish"
                           icon="pi pi-arrow-right" iconPos="right" size="small"/>
             } @else {
                 <span></span>
                 <p-button (onClick)="toDone()" [disabled]="!canContinue()"
                           [label]="'COMMON.CONTINUE' | translate"
+                          data-testid="onboarding-continue"
                           icon="pi pi-arrow-right" iconPos="right" size="small"/>
             }
         </div>

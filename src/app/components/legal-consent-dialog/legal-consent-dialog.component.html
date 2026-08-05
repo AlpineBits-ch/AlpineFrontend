@@ -10,7 +10,7 @@
             [resizable]="false"
             [showHeader]="false"
             [style]="{ width: '440px' }">
-        <div class="flex flex-col gap-5 p-6">
+        <div class="flex flex-col gap-5 p-6" data-testid="legal-consent">
             <div class="flex flex-col gap-2">
                 <h2 class="text-lg font-semibold text-white/85">{{ 'LEGAL.CONSENT_REQUIRED_TITLE' | translate }}</h2>
                 <p class="text-sm text-white/45">{{ 'LEGAL.CONSENT_REQUIRED_BODY' | translate }}</p>
@@ -33,6 +33,7 @@
             <p class="text-xs text-white/25">{{ 'LEGAL.WITHDRAW_NOTE' | translate }}</p>
 
             <p-button [label]="'LEGAL.ACCEPT' | translate"
+                      data-testid="legal-consent-accept"
                       severity="primary"
                       styleClass="w-full justify-center"
                       [loading]="accepting()"
