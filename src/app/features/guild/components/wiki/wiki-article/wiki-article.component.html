@@ -23,3 +23,12 @@
 <input #fileInputEl (change)="onFilesSelected($event)"
        accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar"
        class="hidden" multiple type="file"/>
+
+<!-- Editor chrome, all of it on demand: nothing here is on screen while you are just reading. -->
+<app-wiki-bubble-menu #bubbleMenu [editor]="instance"/>
+<app-wiki-slash-menu #slashMenu (selected)="applySlashItem($event)"
+                     [editor]="instance" [open]="slashOpen()"
+                     [position]="suggestPosition()" [query]="suggestQuery()"/>
+<app-wiki-link-menu #linkMenu (selected)="applyPageLink($event)"
+                    [open]="linkMenuOpen()" [pages]="wiki()?.pages ?? []"
+                    [position]="suggestPosition()" [query]="suggestQuery()"/>

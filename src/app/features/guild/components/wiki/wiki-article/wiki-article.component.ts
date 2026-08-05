@@ -11,17 +11,21 @@ import {
     ViewChild,
 } from '@angular/core';
 import {FormsModule} from '@angular/forms';
-import {Editor} from '@tiptap/core';
-import {WikiDto, WikiPageDto} from '../../../../../dtos/response/wiki.dto';
+import {Editor, Extension} from '@tiptap/core';
+import {WikiDto, WikiPageDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
 import {FileService} from '../../../../../services/file.service';
 import {Heading} from '../wiki-toc';
-import {parseWikiHref} from '../wiki-links';
+import {parseWikiHref, wikiHref} from '../wiki-links';
 import {wikiExtensions} from './wiki-extensions';
+import {SuggestState, wikiSuggestPlugin} from './wiki-suggest.plugin';
+import {WikiBubbleMenuComponent} from './wiki-bubble-menu.component';
+import {SlashItem, WikiSlashMenuComponent} from './wiki-slash-menu.component';
+import {WikiLinkMenuComponent} from './wiki-link-menu.component';
 
 @Component({
     selector: 'app-wiki-article',
-    imports: [FormsModule],
+    imports: [FormsModule, WikiBubbleMenuComponent, WikiSlashMenuComponent, WikiLinkMenuComponent],
     templateUrl: './wiki-article.component.html',
     styleUrl: './wiki-article.component.css',
     host: {class: 'flex flex-col flex-1 min-h-0 overflow-hidden'},
@@ -40,14 +44,23 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
 
     @ViewChild('editorEl') editorEl?: ElementRef<HTMLDivElement>;
     @ViewChild('fileInputEl') fileInputEl?: ElementRef<HTMLInputElement>;
+    @ViewChild('bubbleMenu') bubbleMenu?: WikiBubbleMenuComponent;
+    @ViewChild('slashMenu') slashMenu?: WikiSlashMenuComponent;
+    @ViewChild('linkMenu') linkMenu?: WikiLinkMenuComponent;
 
     protected readonly title = signal('');
     protected readonly saving = signal(false);
+    protected readonly slashOpen = signal(false);
+    protected readonly linkMenuOpen = signal(false);
+    protected readonly suggestQuery = signal('');
+    protected readonly suggestPosition = signal({top: 0, left: 0});
 
     private readonly wikiService = inject(WikiService);
     private readonly fileService = inject(FileService);
     private editor?: Editor;
     private clickHandler?: (e: MouseEvent) => void;
+    private keydownHandler?: (e: KeyboardEvent) => void;
+    private suggest: SuggestState | null = null;
 
     constructor() {
         // Loading a different page replaces the document; toggling editing must not.
@@ -78,7 +91,13 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         if (!this.editorEl) return;
         this.editor = new Editor({
             element: this.editorEl.nativeElement,
-            extensions: wikiExtensions('Start writing…'),
+            extensions: [
+                ...wikiExtensions('Type / for blocks, [[ to link a page…'),
+                Extension.create({
+                    name: 'wikiSuggest',
+                    addProseMirrorPlugins: () => [wikiSuggestPlugin(s => this.onSuggest(s))],
+                }),
+            ],
             editable: this.editing(),
             content: '',
             onUpdate: () => {
@@ -86,6 +105,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
                 this.emitHeadings();
                 this.markBrokenLinks();
             },
+            onSelectionUpdate: () => this.bubbleMenu?.sync(),
         });
         this.setContent(this.page()?.content ?? '');
 
@@ -100,12 +120,27 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             this.wikiLinkClicked.emit(pageId);
         };
         this.editorEl.nativeElement.addEventListener('click', this.clickHandler);
+
+        // Captured, so arrow keys drive the open menu instead of moving the caret out from
+        // under it. Only consumed while a menu is actually open.
+        this.keydownHandler = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                if (this.slashOpen() || this.linkMenuOpen()) {
+                    event.preventDefault();
+                    this.closeMenus();
+                }
+                return;
+            }
+            const consumed = this.slashMenu?.handleKey(event.key) || this.linkMenu?.handleKey(event.key);
+            if (consumed) event.preventDefault();
+        };
+        this.editorEl.nativeElement.addEventListener('keydown', this.keydownHandler, true);
     }
 
     ngOnDestroy(): void {
-        if (this.clickHandler) {
-            this.editorEl?.nativeElement.removeEventListener('click', this.clickHandler);
-        }
+        const el = this.editorEl?.nativeElement;
+        if (el && this.clickHandler) el.removeEventListener('click', this.clickHandler);
+        if (el && this.keydownHandler) el.removeEventListener('keydown', this.keydownHandler, true);
         this.editor?.destroy();
     }
 
@@ -131,11 +166,78 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         });
     }
 
+    /** Removes the trigger text before running a block command, so "/table" does not survive. */
+    protected applySlashItem(item: SlashItem): void {
+        const editor = this.editor;
+        if (!editor) return;
+        this.deleteTriggerRun();
+        item.run(editor);
+        this.closeMenus();
+    }
+
+    /**
+     * Replaces the whole `[[query` run with a link mark carrying a `wiki:` href. An ordinary
+     * Link mark, not a custom node - the markdown serializer already round-trips those, so the
+     * link survives save and reload with no custom serializer.
+     */
+    protected applyPageLink(page: WikiPageSummaryDto): void {
+        const editor = this.editor;
+        if (!editor) return;
+        this.deleteTriggerRun();
+        editor.chain()
+            .focus()
+            .insertContent({
+                type: 'text',
+                text: page.title,
+                marks: [{type: 'link', attrs: {href: wikiHref(page.id)}}],
+            })
+            // Without this the link mark stays active and the next character typed joins the link.
+            .unsetMark('link')
+            .run();
+        this.closeMenus();
+    }
+
     protected onFilesSelected(event: Event): void {
         const input = event.target as HTMLInputElement;
         const files = input.files ? Array.from(input.files) : [];
         input.value = '';
         for (const file of files) this.uploadFile(file);
+    }
+
+    private onSuggest(state: SuggestState | null): void {
+        this.suggest = state;
+        if (!state || !this.editing() || !this.editor) {
+            this.closeMenus();
+            return;
+        }
+        const coords = this.editor.view.coordsAtPos(this.editor.state.selection.from);
+        this.suggestPosition.set({top: coords.bottom + 6, left: coords.left});
+        this.suggestQuery.set(state.query);
+
+        if (state.trigger === '/') {
+            if (!this.slashOpen()) this.slashMenu?.reset();
+            this.slashOpen.set(true);
+            this.linkMenuOpen.set(false);
+        } else {
+            if (!this.linkMenuOpen()) this.linkMenu?.reset();
+            this.linkMenuOpen.set(true);
+            this.slashOpen.set(false);
+        }
+    }
+
+    /** Deletes the `/query` or `[[query` run that opened the menu. */
+    private deleteTriggerRun(): void {
+        const editor = this.editor;
+        const suggest = this.suggest;
+        if (!editor || !suggest) return;
+        const {$from} = editor.state.selection;
+        const start = $from.start() + suggest.from;
+        editor.chain().focus().deleteRange({from: start, to: $from.pos}).run();
+    }
+
+    private closeMenus(): void {
+        this.slashOpen.set(false);
+        this.linkMenuOpen.set(false);
     }
 
     private uploadFile(file: File): void {
