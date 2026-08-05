@@ -1,0 +1,25 @@
+<div class="flex flex-col h-full min-w-0">
+
+    <!-- Body. This padding is the ONLY padding for both modes: read and edit render the same
+         element, so there is no second value that could drift out of step. -->
+    <div #scrollEl class="flex-1 min-h-0 overflow-y-auto thin-scrollbar">
+        <div class="mx-auto w-full max-w-[68ch] px-8 py-10">
+
+            <!-- Title. A separate DTO field rendered as the first line of the body, so the
+                 header above can stay a slim breadcrumb bar. -->
+            <input (ngModelChange)="title.set($event)"
+                   [class.cursor-default]="!editing()"
+                   [ngModel]="title()"
+                   [readOnly]="!editing()"
+                   class="mb-2 w-full border-0 bg-transparent text-[2rem] font-bold leading-tight
+                          text-white/90 outline-none placeholder-white/20"
+                   placeholder="Untitled"/>
+
+            <div #editorEl class="wiki-content wiki-article-body"></div>
+        </div>
+    </div>
+</div>
+
+<input #fileInputEl (change)="onFilesSelected($event)"
+       accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.rar"
+       class="hidden" multiple type="file"/>

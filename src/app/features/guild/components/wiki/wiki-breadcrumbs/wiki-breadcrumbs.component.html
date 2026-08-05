@@ -1,0 +1,47 @@
+<header class="flex shrink-0 items-center gap-2 border-b border-white/[0.08] px-4 py-2">
+
+    <!-- Trail -->
+    <nav class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+        @for (segment of trail(); track segment.id) {
+            @if (!$first) {
+                <i class="pi pi-angle-right shrink-0 text-[0.625rem] text-white/25"></i>
+            }
+            @if (isLast(segment)) {
+                <span class="truncate text-[0.8125rem] text-white/75">{{ segment.label }}</span>
+            } @else if (segment.kind === 'page') {
+                <button (click)="onSegment(segment)"
+                        class="shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[0.8125rem]
+                               text-white/45 hover:text-white/75">
+                    {{ segment.label }}
+                </button>
+            } @else {
+                <span class="shrink-0 text-[0.8125rem] text-white/35">{{ segment.label }}</span>
+            }
+        }
+    </nav>
+
+    <!-- Status -->
+    @if (statusLabel()) {
+        <span class="shrink-0 text-[0.75rem] text-white/35">{{ statusLabel() }}</span>
+    }
+
+    <!-- Actions -->
+    <div class="flex shrink-0 items-center gap-1">
+        @if (editing()) {
+            <p-button (onClick)="cancel.emit()" label="Cancel" severity="secondary" size="small"/>
+            <p-button (onClick)="save.emit()" icon="pi pi-check" label="Save" severity="primary"
+                      size="small"/>
+        } @else {
+            <p-button (onClick)="history.emit()" [text]="true" icon="pi pi-clock" pTooltip="History"
+                      severity="secondary" size="small" tooltipPosition="bottom"/>
+            @if (canEdit()) {
+                <p-button (onClick)="edit.emit()" [text]="true" icon="pi pi-pencil" pTooltip="Edit"
+                          severity="secondary" size="small" tooltipPosition="bottom"/>
+            }
+            @if (canDelete()) {
+                <p-button (onClick)="deletePage.emit()" [text]="true" icon="pi pi-trash"
+                          pTooltip="Delete" severity="danger" size="small" tooltipPosition="bottom"/>
+            }
+        }
+    </div>
+</header>

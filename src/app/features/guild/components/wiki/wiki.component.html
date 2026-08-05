@@ -24,6 +24,20 @@
             </button>
         }
 
+        @if (state.wikiView() === 'page' || state.wikiView() === 'editor') {
+            <app-wiki-breadcrumbs (cancel)="state.cancelEditor()"
+                                  (deletePage)="showDeleteDialog.set(true)"
+                                  (edit)="state.openEditor(state.selectedPage() ?? undefined)"
+                                  (history)="state.openHistory()"
+                                  (openSegment)="state.openPage($event)"
+                                  (save)="article()?.save()"
+                                  [canDelete]="true"
+                                  [canEdit]="true"
+                                  [editing]="state.wikiView() === 'editor'"
+                                  [pageId]="(state.wikiView() === 'editor' ? state.editingPage()?.id : state.selectedPage()?.id) ?? null"
+                                  [wiki]="state.wiki()"/>
+        }
+
         @switch (state.wikiView()) {
             @case ('home') {
                 <app-wiki-home (newPage)="state.openEditor()"
@@ -38,21 +52,28 @@
                         <span class="text-sm">Loading page…</span>
                     </div>
                 } @else if (state.selectedPage(); as page) {
-                    <app-wiki-page-view (deleted)="state.afterDeleted()"
-                                        (edit)="state.openEditor($event)"
-                                        (history)="state.openHistory()"
-                                        [guildId]="guildId()"
-                                        [page]="page"
-                                        class="flex-1 min-h-0"/>
+                    <app-wiki-article #article
+                                      (headingsChanged)="headings.set($event)"
+                                      (saved)="onEditorSaved($event)"
+                                      (wikiLinkClicked)="openLinkedPage($event)"
+                                      [editing]="false"
+                                      [guildId]="guildId()"
+                                      [page]="page"
+                                      [wiki]="state.wiki()"
+                                      class="flex-1 min-h-0"/>
                 }
             }
             @case ('editor') {
-                <app-wiki-editor (cancelled)="state.cancelEditor()"
-                                 (saved)="onEditorSaved($event)"
-                                 [guildId]="guildId()"
-                                 [page]="state.editingPage()"
-                                 [wiki]="state.wiki()"
-                                 class="flex-1 min-h-0"/>
+                <app-wiki-article #article
+                                  (cancelled)="state.cancelEditor()"
+                                  (headingsChanged)="headings.set($event)"
+                                  (saved)="onEditorSaved($event)"
+                                  (wikiLinkClicked)="openLinkedPage($event)"
+                                  [editing]="true"
+                                  [guildId]="guildId()"
+                                  [page]="state.editingPage()"
+                                  [wiki]="state.wiki()"
+                                  class="flex-1 min-h-0"/>
             }
             @case ('history') {
                 @if (state.selectedPage(); as page) {
@@ -66,3 +87,28 @@
         }
     </div>
 </div>
+
+<!-- Delete confirmation -->
+<p-dialog
+        [(visible)]="showDeleteDialog"
+        [closable]="true" [dismissableMask]="true" [draggable]="false" [modal]="true"
+        [resizable]="false" [style]="{width: '380px'}"
+        appendTo="body">
+    <ng-template pTemplate="header">
+        <div class="flex items-center gap-2">
+            <i class="pi pi-trash text-rose-400"></i>
+            <span class="text-sm font-semibold text-white/85">Delete Page</span>
+        </div>
+    </ng-template>
+    <p class="py-2 text-sm text-white/60">
+        Are you sure you want to delete
+        <strong class="text-white/80">{{ state.selectedPage()?.title }}</strong>? This cannot be
+        undone.
+    </p>
+    <div class="mt-4 flex justify-end gap-2 border-t border-white/[0.06] pt-4">
+        <p-button (onClick)="showDeleteDialog.set(false)" label="Cancel" severity="secondary"
+                  size="small"/>
+        <p-button (onClick)="confirmDelete()" [loading]="deleting()" label="Delete" severity="danger"
+                  size="small"/>
+    </div>
+</p-dialog>
