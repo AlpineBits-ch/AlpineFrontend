@@ -16,9 +16,11 @@ export interface CategoryTreeNode {
 })
 export class WikiHomeComponent {
     readonly wiki = input<WikiDto | null>(null);
+    readonly canCreate = input(false);
 
     readonly openPage = output<WikiPageSummaryDto>();
     readonly newPage = output<void>();
+    readonly draftWithAi = output<void>();
 
     protected pinnedPages = computed(() =>
         (this.wiki()?.pages ?? []).filter(p => p.isPinned),

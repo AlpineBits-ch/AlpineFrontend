@@ -22,25 +22,33 @@
 
     <!-- Status -->
     @if (statusLabel()) {
-        <span class="shrink-0 text-[0.75rem] text-white/35">{{ statusLabel() }}</span>
+        <span class="shrink-0 text-[0.75rem] text-white/35">{{ statusLabel() | translate }}</span>
     }
 
     <!-- Actions -->
     <div class="flex shrink-0 items-center gap-1">
+        <!-- Gated on edit permission only, never on having connected a provider: a member who has
+             not connected one yet is exactly who this button is for, and it opens the dialog in a
+             connect state rather than doing nothing. -->
+        @if (canEdit()) {
+            <p-button (onClick)="draftWithAi.emit()" [text]="true" icon="pi pi-sparkles"
+                      [pTooltip]="'WIKI.AI.BUTTON' | translate" severity="secondary" size="small"
+                      tooltipPosition="bottom"/>
+        }
         @if (editing()) {
-            <p-button (onClick)="cancel.emit()" label="Cancel" severity="secondary" size="small"/>
-            <p-button (onClick)="save.emit()" icon="pi pi-check" label="Save" severity="primary"
+            <p-button (onClick)="cancel.emit()" [label]="'COMMON.CANCEL' | translate" severity="secondary" size="small"/>
+            <p-button (onClick)="save.emit()" icon="pi pi-check" [label]="'WIKI.SAVE' | translate" severity="primary"
                       size="small"/>
         } @else {
-            <p-button (onClick)="history.emit()" [text]="true" icon="pi pi-clock" pTooltip="History"
+            <p-button (onClick)="history.emit()" [text]="true" icon="pi pi-clock" [pTooltip]="'WIKI.HISTORY' | translate"
                       severity="secondary" size="small" tooltipPosition="bottom"/>
             @if (canEdit()) {
-                <p-button (onClick)="edit.emit()" [text]="true" icon="pi pi-pencil" pTooltip="Edit"
+                <p-button (onClick)="edit.emit()" [text]="true" icon="pi pi-pencil" [pTooltip]="'WIKI.EDIT' | translate"
                           severity="secondary" size="small" tooltipPosition="bottom"/>
             }
             @if (canDelete()) {
                 <p-button (onClick)="deletePage.emit()" [text]="true" icon="pi pi-trash"
-                          pTooltip="Delete" severity="danger" size="small" tooltipPosition="bottom"/>
+                          [pTooltip]="'WIKI.DELETE' | translate" severity="danger" size="small" tooltipPosition="bottom"/>
             }
         }
     </div>

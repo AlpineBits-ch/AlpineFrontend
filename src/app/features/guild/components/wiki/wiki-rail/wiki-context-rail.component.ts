@@ -1,3 +1,4 @@
+import {TranslateModule} from '@ngx-translate/core';
 import {Component, computed, effect, inject, input, output} from '@angular/core';
 import {WikiDto, WikiPageDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {ProfileService} from '../../../../../services/profile.service';
@@ -14,7 +15,7 @@ import {buildToc, Heading, TocEntry} from '../wiki-toc';
  */
 @Component({
     selector: 'app-wiki-context-rail',
-    imports: [AppAvatarComponent],
+    imports: [AppAvatarComponent, TranslateModule],
     templateUrl: './wiki-context-rail.component.html',
     host: {class: 'flex flex-col h-full min-h-0'},
 })

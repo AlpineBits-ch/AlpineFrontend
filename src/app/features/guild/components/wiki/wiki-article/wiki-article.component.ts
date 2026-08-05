@@ -12,6 +12,8 @@ import {
     ViewChild,
 } from '@angular/core';
 import {FormsModule} from '@angular/forms';
+import {Button} from 'primeng/button';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Editor, Extension} from '@tiptap/core';
 import {WikiDto, WikiPageDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
@@ -30,8 +32,8 @@ import {WikiToolbarComponent} from './wiki-toolbar.component';
 @Component({
     selector: 'app-wiki-article',
     imports: [
-        FormsModule, WikiBubbleMenuComponent, WikiSlashMenuComponent, WikiLinkMenuComponent,
-        WikiToolbarComponent,
+        FormsModule, Button, TranslateModule, WikiBubbleMenuComponent, WikiSlashMenuComponent,
+        WikiLinkMenuComponent, WikiToolbarComponent,
     ],
     templateUrl: './wiki-article.component.html',
     styleUrl: './wiki-article.component.css',
@@ -42,6 +44,8 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     readonly wiki = input<WikiDto | null>(null);
     readonly guildId = input.required<string>();
     readonly editing = input(false);
+    /** Whether to offer the two "fill this page" actions on an empty page. */
+    readonly canEdit = input(false);
 
     readonly saved = output<WikiPageDto>();
     readonly cancelled = output<void>();
@@ -49,6 +53,8 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     readonly wikiLinkClicked = output<string>();
     readonly dirtyChanged = output<boolean>();
     readonly saveStatusChanged = output<'idle' | 'draft' | 'saving' | 'saved'>();
+    readonly requestEdit = output<void>();
+    readonly requestAi = output<void>();
 
     @ViewChild('editorEl') editorEl?: ElementRef<HTMLDivElement>;
     @ViewChild('fileInputEl') fileInputEl?: ElementRef<HTMLInputElement>;
@@ -96,13 +102,23 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         return this.markdown() !== (this.page()?.content ?? '');
     });
 
-    /** Bumped on every edit so `summaryApplies` re-reads the non-reactive editor document. */
+    /**
+     * A saved-but-empty page is a dead end otherwise: nothing on screen, and no hint that the
+     * next move is yours. Read mode only - while editing, the placeholder does this job.
+     */
+    protected readonly showEmptyState = computed(() => {
+        this.contentVersion();
+        return !this.editing() && this.canEdit() && !this.markdown().trim();
+    });
+
+    /** Bumped on every edit so the computeds above re-read the non-reactive editor document. */
     private readonly contentVersion = signal(0);
 
     private readonly wikiService = inject(WikiService);
     private readonly fileService = inject(FileService);
     private readonly drafts = inject(WikiDraftsService);
     private readonly wikiState = inject(WikiStateService);
+    private readonly translate = inject(TranslateService);
     private draftTimer?: ReturnType<typeof setTimeout>;
     private editor?: Editor;
     private clickHandler?: (e: MouseEvent) => void;
@@ -151,7 +167,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         this.editor = new Editor({
             element: this.editorEl.nativeElement,
             extensions: [
-                ...wikiExtensions('Type / for blocks, [[ to link a page…'),
+                ...wikiExtensions(this.translate.instant('WIKI.ARTICLE.PLACEHOLDER')),
                 Extension.create({
                     name: 'wikiSuggest',
                     addProseMirrorPlugins: () => [wikiSuggestPlugin(s => this.onSuggest(s))],
@@ -215,7 +231,40 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     /** What would be saved right now, from whichever surface is currently authoritative. */
     markdown(): string {
         if (this.sourceMode()) return this.sourceText();
-        return (this.editor as unknown as { getMarkdown(): string } | undefined)?.getMarkdown() ?? '';
+        return this.editor?.getMarkdown() ?? '';
+    }
+
+    /**
+     * Drops generated markdown in at the caret.
+     *
+     * A normal editor transaction, not a content reset: the result is one ⌘Z away from being gone
+     * and autosaves as a draft like anything else typed. Nothing here touches the server.
+     */
+    insertMarkdown(markdown: string): void {
+        if (this.sourceMode()) {
+            this.onSourceInput(joinBlocks(this.sourceText(), markdown));
+            return;
+        }
+        this.editor?.chain().focus().insertContent(markdown, {contentType: 'markdown'}).run();
+    }
+
+    /** Same, for the whole body. Still one undoable step. */
+    replaceMarkdown(markdown: string): void {
+        if (this.sourceMode()) {
+            this.onSourceInput(markdown);
+            return;
+        }
+        this.editor?.chain().focus().selectAll()
+            .insertContent(markdown, {contentType: 'markdown'}).run();
+    }
+
+    /** The draft request needs the current body, whichever surface holds it. */
+    currentContent(): string {
+        return this.markdown();
+    }
+
+    currentTitle(): string {
+        return this.title();
     }
 
     /** Swaps between the rich surface and the raw markdown behind it, in both directions. */
@@ -301,10 +350,12 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         const savedAt = this.pendingDraft()?.savedAt;
         if (!savedAt) return '';
         const minutes = Math.floor((Date.now() - savedAt) / 60000);
-        if (minutes < 1) return 'just now';
-        if (minutes < 60) return `${minutes}m ago`;
+        if (minutes < 1) return this.translate.instant('WIKI.DRAFT.AGE_JUST_NOW');
+        if (minutes < 60) return this.translate.instant('WIKI.DRAFT.AGE_MINUTES', {n: minutes});
         const hours = Math.floor(minutes / 60);
-        return hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`;
+        return hours < 24
+            ? this.translate.instant('WIKI.DRAFT.AGE_HOURS', {n: hours})
+            : this.translate.instant('WIKI.DRAFT.AGE_DAYS', {n: Math.floor(hours / 24)});
     }
 
     /** Debounced so a burst of typing costs one write, not one per keystroke. */
@@ -442,10 +493,13 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         } else if (content.trimStart().startsWith('<')) {
             this.editor.commands.setContent(content);
         } else {
-            this.editor.commands.setContent(content, {contentType: 'markdown'} as never);
+            this.editor.commands.setContent(content, {contentType: 'markdown'});
         }
         this.emitHeadings();
         this.markBrokenLinks();
+        // setContent does not always emit an update, and the empty-state check reads the document
+        // through this counter rather than through a signal the editor does not have.
+        this.contentVersion.update(v => v + 1);
     }
 
     private emitHeadings(): void {
@@ -474,4 +528,10 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             anchor.setAttribute('data-wiki-broken', String(!known.has(pageId)));
         });
     }
+}
+
+/** Appends with a blank line between, so two blocks do not weld into one paragraph. */
+function joinBlocks(existing: string, addition: string): string {
+    if (!existing.trim()) return addition;
+    return `${existing.replace(/\s+$/, '')}\n\n${addition}`;
 }

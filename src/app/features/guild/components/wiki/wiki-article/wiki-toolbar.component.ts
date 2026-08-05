@@ -2,12 +2,13 @@ import {Component, input, output, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Editor} from '@tiptap/core';
 import {Tooltip} from 'primeng/tooltip';
+import {TranslateModule} from '@ngx-translate/core';
 
 interface ToolbarAction {
     /** Text glyph. PrimeIcons has no bold/italic/underline/strike, and letters read better anyway. */
     label?: string;
     icon?: string;
-    title: string;
+    titleKey: string;
     /** Mark or node name for the active check. Omitted for one-shot inserts. */
     active?: string;
     attrs?: Record<string, unknown>;
@@ -28,7 +29,7 @@ interface ToolbarAction {
  */
 @Component({
     selector: 'app-wiki-toolbar',
-    imports: [Tooltip, FormsModule],
+    imports: [Tooltip, FormsModule, TranslateModule],
     template: `
         <div class="relative flex shrink-0 flex-wrap items-center gap-0.5 border-b
                     border-white/[0.08] bg-sidebar/60 px-4 py-1.5">
@@ -36,13 +37,13 @@ interface ToolbarAction {
                 @if (!$first) {
                     <span class="mx-1 h-4 w-px shrink-0 bg-white/[0.10]"></span>
                 }
-                @for (action of group; track action.title) {
+                @for (action of group; track action.titleKey) {
                     <button (click)="run(action)"
                             [class.bg-hover]="isActive(action)"
                             [class.text-brand-dim]="isActive(action)"
                             [class]="action.className"
                             [disabled]="sourceMode()"
-                            [pTooltip]="action.title"
+                            [pTooltip]="action.titleKey | translate"
                             class="flex h-7 min-w-7 cursor-pointer items-center justify-center
                                    rounded-md border-0 bg-transparent px-1.5 text-white/50
                                    transition-colors hover:bg-hover hover:text-white/90
@@ -64,13 +65,14 @@ interface ToolbarAction {
             <button (click)="toggleSource.emit()"
                     [class.bg-hover]="sourceMode()"
                     [class.text-brand-dim]="sourceMode()"
-                    [pTooltip]="sourceMode() ? 'Back to rich text' : 'Edit the markdown directly'"
+                    [pTooltip]="(sourceMode() ? 'WIKI.TOOLBAR.SOURCE_OFF' : 'WIKI.TOOLBAR.SOURCE_ON')
+                                    | translate"
                     class="flex h-7 cursor-pointer items-center gap-1.5 rounded-md border-0
                            bg-transparent px-2 text-[0.6875rem] font-medium text-white/50
                            transition-colors hover:bg-hover hover:text-white/90"
                     tooltipPosition="bottom" type="button">
                 <i class="pi pi-code text-[0.75rem]"></i>
-                Markdown
+                {{ 'WIKI.TOOLBAR.MARKDOWN' | translate }}
             </button>
 
             <!-- Link entry. An inline row rather than a modal: a dialog moves focus far enough
@@ -87,12 +89,12 @@ interface ToolbarAction {
                     <button (click)="commitLink()"
                             class="cursor-pointer rounded border-0 bg-brand/20 px-2 py-1
                                    text-[0.6875rem] font-medium text-brand-dim hover:bg-brand/30"
-                            type="button">Apply
+                            type="button">{{ 'WIKI.TOOLBAR.LINK_APPLY' | translate }}
                     </button>
                     <button (click)="removeLink()"
                             class="cursor-pointer border-0 bg-transparent px-1 text-[0.6875rem]
                                    text-white/40 hover:text-white/70"
-                            type="button">Remove
+                            type="button">{{ 'WIKI.TOOLBAR.LINK_REMOVE' | translate }}
                     </button>
                 </div>
             }
@@ -112,31 +114,31 @@ export class WikiToolbarComponent {
 
     protected readonly groups: ToolbarAction[][] = [
         [
-            {label: 'B', title: 'Bold', active: 'bold', className: 'font-bold', run: e => e.chain().focus().toggleBold().run()},
-            {label: 'I', title: 'Italic', active: 'italic', className: 'italic', run: e => e.chain().focus().toggleItalic().run()},
-            {label: 'U', title: 'Underline', active: 'underline', className: 'underline', run: e => e.chain().focus().toggleUnderline().run()},
-            {label: 'S', title: 'Strikethrough', active: 'strike', className: 'line-through', run: e => e.chain().focus().toggleStrike().run()},
-            {label: '<>', title: 'Inline code', active: 'code', className: 'font-mono text-[0.6875rem]', run: e => e.chain().focus().toggleCode().run()},
+            {label: 'B', titleKey: 'WIKI.FORMAT.BOLD', active: 'bold', className: 'font-bold', run: e => e.chain().focus().toggleBold().run()},
+            {label: 'I', titleKey: 'WIKI.FORMAT.ITALIC', active: 'italic', className: 'italic', run: e => e.chain().focus().toggleItalic().run()},
+            {label: 'U', titleKey: 'WIKI.FORMAT.UNDERLINE', active: 'underline', className: 'underline', run: e => e.chain().focus().toggleUnderline().run()},
+            {label: 'S', titleKey: 'WIKI.FORMAT.STRIKETHROUGH', active: 'strike', className: 'line-through', run: e => e.chain().focus().toggleStrike().run()},
+            {label: '<>', titleKey: 'WIKI.FORMAT.INLINE_CODE', active: 'code', className: 'font-mono text-[0.6875rem]', run: e => e.chain().focus().toggleCode().run()},
         ],
         [
-            {label: 'H1', title: 'Heading 1', active: 'heading', attrs: {level: 1}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 1}).run()},
-            {label: 'H2', title: 'Heading 2', active: 'heading', attrs: {level: 2}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 2}).run()},
-            {label: 'H3', title: 'Heading 3', active: 'heading', attrs: {level: 3}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 3}).run()},
+            {label: 'H1', titleKey: 'WIKI.BLOCK.HEADING_1', active: 'heading', attrs: {level: 1}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 1}).run()},
+            {label: 'H2', titleKey: 'WIKI.BLOCK.HEADING_2', active: 'heading', attrs: {level: 2}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 2}).run()},
+            {label: 'H3', titleKey: 'WIKI.BLOCK.HEADING_3', active: 'heading', attrs: {level: 3}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 3}).run()},
         ],
         [
-            {icon: 'pi-list', title: 'Bullet list', active: 'bulletList', run: e => e.chain().focus().toggleBulletList().run()},
-            {icon: 'pi-sort-numeric-up-alt', title: 'Numbered list', active: 'orderedList', run: e => e.chain().focus().toggleOrderedList().run()},
-            {icon: 'pi-check-square', title: 'Task list', active: 'taskList', run: e => e.chain().focus().toggleTaskList().run()},
+            {icon: 'pi-list', titleKey: 'WIKI.BLOCK.BULLET_LIST', active: 'bulletList', run: e => e.chain().focus().toggleBulletList().run()},
+            {icon: 'pi-sort-numeric-up-alt', titleKey: 'WIKI.BLOCK.NUMBERED_LIST', active: 'orderedList', run: e => e.chain().focus().toggleOrderedList().run()},
+            {icon: 'pi-check-square', titleKey: 'WIKI.BLOCK.TASK_LIST', active: 'taskList', run: e => e.chain().focus().toggleTaskList().run()},
         ],
         [
-            {icon: 'pi-comment', title: 'Quote', active: 'blockquote', run: e => e.chain().focus().toggleBlockquote().run()},
-            {icon: 'pi-code', title: 'Code block', active: 'codeBlock', run: e => e.chain().focus().toggleCodeBlock().run()},
-            {icon: 'pi-table', title: 'Table', run: e => e.chain().focus().insertTable({rows: 3, cols: 3, withHeaderRow: true}).run()},
-            {icon: 'pi-minus', title: 'Divider', run: e => e.chain().focus().setHorizontalRule().run()},
+            {icon: 'pi-comment', titleKey: 'WIKI.BLOCK.QUOTE', active: 'blockquote', run: e => e.chain().focus().toggleBlockquote().run()},
+            {icon: 'pi-code', titleKey: 'WIKI.BLOCK.CODE_BLOCK', active: 'codeBlock', run: e => e.chain().focus().toggleCodeBlock().run()},
+            {icon: 'pi-table', titleKey: 'WIKI.BLOCK.TABLE', run: e => e.chain().focus().insertTable({rows: 3, cols: 3, withHeaderRow: true}).run()},
+            {icon: 'pi-minus', titleKey: 'WIKI.BLOCK.DIVIDER', run: e => e.chain().focus().setHorizontalRule().run()},
         ],
         [
-            {icon: 'pi-link', title: 'Link', active: 'link', run: () => undefined},
-            {icon: 'pi-image', title: 'Image', run: () => undefined},
+            {icon: 'pi-link', titleKey: 'WIKI.FORMAT.LINK', active: 'link', run: () => undefined},
+            {icon: 'pi-image', titleKey: 'WIKI.FORMAT.IMAGE', run: () => undefined},
         ],
     ];
 
@@ -146,11 +148,11 @@ export class WikiToolbarComponent {
     }
 
     protected run(action: ToolbarAction): void {
-        if (action.title === 'Image') {
+        if (action.titleKey === 'WIKI.FORMAT.IMAGE') {
             this.insertImage.emit();
             return;
         }
-        if (action.title === 'Link') {
+        if (action.titleKey === 'WIKI.FORMAT.LINK') {
             this.openLink();
             return;
         }

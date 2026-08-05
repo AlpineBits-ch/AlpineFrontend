@@ -6,15 +6,17 @@
                     px-6 py-2.5">
             <i class="pi pi-history text-[0.8125rem] text-brand-dim"></i>
             <span class="flex-1 text-[0.8125rem] text-white/70">
-                Unsaved changes from {{ draftAge() }}
+                {{ 'WIKI.DRAFT.UNSAVED' | translate: {age: draftAge()} }}
             </span>
             <button (click)="restoreDraft()"
                     class="cursor-pointer rounded border-0 bg-brand/20 px-3 py-1 text-[0.75rem]
-                           font-medium text-brand-dim hover:bg-brand/30">Restore
+                           font-medium text-brand-dim hover:bg-brand/30">
+                {{ 'WIKI.DRAFT.RESTORE' | translate }}
             </button>
             <button (click)="discardDraft()"
                     class="cursor-pointer border-0 bg-transparent px-1 text-[0.75rem] text-white/40
-                           hover:text-white/65">Discard
+                           hover:text-white/65">
+                {{ 'WIKI.DRAFT.DISCARD' | translate }}
             </button>
         </div>
     }
@@ -38,7 +40,7 @@
                    [readOnly]="!editing()"
                    class="mb-2 w-full border-0 bg-transparent text-[2rem] font-bold leading-tight
                           text-white/90 outline-none placeholder-white/20"
-                   placeholder="Untitled"/>
+                   [placeholder]="'WIKI.ARTICLE.UNTITLED' | translate"/>
 
             <!-- Kept mounted, never destroyed: source mode hides this rather than tearing the
                  editor down, so toggling back keeps the undo history and the caret. -->
@@ -49,13 +51,36 @@
             <div #editorEl [class.hidden]="sourceMode()"
                  class="wiki-content wiki-wysiwyg wiki-article-body"></div>
 
+            <!-- A saved page with nothing in it. Both ways to fill it are offered here, including
+                 the AI one before any provider is connected - the point of use is where a feature
+                 gets discovered, not a settings page you would have to already know about. -->
+            @if (showEmptyState()) {
+                <div class="rounded-xl border border-dashed border-white/[0.12] px-6 py-10 text-center">
+                    <i class="pi pi-file-edit mb-3 block text-2xl text-white/15"></i>
+                    <p class="mb-1 text-sm text-white/45">
+                        {{ 'WIKI.ARTICLE.EMPTY_TITLE' | translate }}
+                    </p>
+                    <p class="mb-5 text-xs text-white/25">
+                        {{ 'WIKI.ARTICLE.EMPTY_HINT' | translate }}
+                    </p>
+                    <div class="flex items-center justify-center gap-2">
+                        <p-button (onClick)="requestEdit.emit()" icon="pi pi-pencil"
+                                  [label]="'WIKI.ARTICLE.START_EDITING' | translate"
+                                  severity="primary" size="small"/>
+                        <p-button (onClick)="requestAi.emit()" icon="pi pi-sparkles"
+                                  [label]="'WIKI.ARTICLE.WRITE_WITH_AI' | translate"
+                                  severity="secondary" size="small"/>
+                    </div>
+                </div>
+            }
+
             @if (sourceMode()) {
                 <textarea (ngModelChange)="onSourceInput($event)"
                           [ngModel]="sourceText()"
                           class="min-h-[24rem] w-full resize-y border-0 bg-transparent font-mono
                                  text-[0.8125rem] leading-relaxed text-white/80 outline-none
                                  placeholder-white/20 thin-scrollbar"
-                          placeholder="# Heading&#10;&#10;Write markdown here…"
+                          [placeholder]="'WIKI.ARTICLE.SOURCE_PLACEHOLDER' | translate"
                           spellcheck="false"></textarea>
             }
 
@@ -69,7 +94,7 @@
                            [ngModel]="editSummary()"
                            class="flex-1 border-0 bg-transparent text-[0.8125rem] text-white/70
                                   outline-none placeholder-white/25"
-                           placeholder="What changed? (optional)"/>
+                           [placeholder]="'WIKI.ARTICLE.SUMMARY_PLACEHOLDER' | translate"/>
                 </div>
             }
         </div>

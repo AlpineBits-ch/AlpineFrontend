@@ -1,4 +1,5 @@
 import {Component, computed, input, output, signal} from '@angular/core';
+import {TranslateModule} from '@ngx-translate/core';
 import {WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {searchWiki} from '../wiki-search';
 
@@ -10,6 +11,7 @@ import {searchWiki} from '../wiki-search';
  */
 @Component({
     selector: 'app-wiki-link-menu',
+    imports: [TranslateModule],
     template: `
         @if (open()) {
             <div [style.left.px]="position().left" [style.top.px]="position().top"
@@ -26,7 +28,9 @@ import {searchWiki} from '../wiki-search';
                     </button>
                 }
                 @if (matches().length === 0) {
-                    <p class="px-3 py-2 text-[0.75rem] text-white/30">No page matches</p>
+                    <p class="px-3 py-2 text-[0.75rem] text-white/30">
+                        {{ 'WIKI.LINK_MENU.NO_MATCH' | translate }}
+                    </p>
                 }
             </div>
         }

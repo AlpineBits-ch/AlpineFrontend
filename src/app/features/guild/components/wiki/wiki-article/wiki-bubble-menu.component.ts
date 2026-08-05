@@ -1,9 +1,10 @@
 import {Component, input, signal} from '@angular/core';
+import {TranslateModule} from '@ngx-translate/core';
 import {Editor} from '@tiptap/core';
 
 interface BubbleAction {
     label: string;
-    title: string;
+    titleKey: string;
     mark: string;
     attrs?: Record<string, unknown>;
     run: (editor: Editor) => void;
@@ -19,16 +20,17 @@ interface BubbleAction {
  */
 @Component({
     selector: 'app-wiki-bubble-menu',
+    imports: [TranslateModule],
     template: `
         @if (visible()) {
             <div [style.left.px]="position().left" [style.top.px]="position().top"
                  class="fixed z-50 flex -translate-x-1/2 -translate-y-full items-center gap-0.5
                         rounded-lg border border-border bg-card px-1 py-1 shadow-xl">
-                @for (action of actions; track action.title) {
+                @for (action of actions; track action.titleKey) {
                     <button (click)="apply(action)"
                             [class.text-brand-dim]="isActive(action)"
                             [class]="action.className"
-                            [title]="action.title"
+                            [title]="action.titleKey | translate"
                             class="flex h-7 min-w-7 cursor-pointer items-center justify-center
                                    rounded-md border-0 bg-transparent px-1.5 text-white/55
                                    transition-colors hover:bg-hover hover:text-white/90">
@@ -46,15 +48,15 @@ export class WikiBubbleMenuComponent {
     protected readonly position = signal({top: 0, left: 0});
 
     protected readonly actions: BubbleAction[] = [
-        {label: 'B', title: 'Bold', mark: 'bold', className: 'font-bold', run: e => e.chain().focus().toggleBold().run()},
-        {label: 'I', title: 'Italic', mark: 'italic', className: 'italic', run: e => e.chain().focus().toggleItalic().run()},
-        {label: 'U', title: 'Underline', mark: 'underline', className: 'underline', run: e => e.chain().focus().toggleUnderline().run()},
-        {label: 'S', title: 'Strikethrough', mark: 'strike', className: 'line-through', run: e => e.chain().focus().toggleStrike().run()},
-        {label: '<>', title: 'Inline code', mark: 'code', className: 'font-mono text-[0.6875rem]', run: e => e.chain().focus().toggleCode().run()},
-        {label: 'H1', title: 'Heading 1', mark: 'heading', attrs: {level: 1}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 1}).run()},
-        {label: 'H2', title: 'Heading 2', mark: 'heading', attrs: {level: 2}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 2}).run()},
-        {label: 'H3', title: 'Heading 3', mark: 'heading', attrs: {level: 3}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 3}).run()},
-        {label: '❝', title: 'Quote', mark: 'blockquote', run: e => e.chain().focus().toggleBlockquote().run()},
+        {label: 'B', titleKey: 'WIKI.FORMAT.BOLD', mark: 'bold', className: 'font-bold', run: e => e.chain().focus().toggleBold().run()},
+        {label: 'I', titleKey: 'WIKI.FORMAT.ITALIC', mark: 'italic', className: 'italic', run: e => e.chain().focus().toggleItalic().run()},
+        {label: 'U', titleKey: 'WIKI.FORMAT.UNDERLINE', mark: 'underline', className: 'underline', run: e => e.chain().focus().toggleUnderline().run()},
+        {label: 'S', titleKey: 'WIKI.FORMAT.STRIKETHROUGH', mark: 'strike', className: 'line-through', run: e => e.chain().focus().toggleStrike().run()},
+        {label: '<>', titleKey: 'WIKI.FORMAT.INLINE_CODE', mark: 'code', className: 'font-mono text-[0.6875rem]', run: e => e.chain().focus().toggleCode().run()},
+        {label: 'H1', titleKey: 'WIKI.BLOCK.HEADING_1', mark: 'heading', attrs: {level: 1}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 1}).run()},
+        {label: 'H2', titleKey: 'WIKI.BLOCK.HEADING_2', mark: 'heading', attrs: {level: 2}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 2}).run()},
+        {label: 'H3', titleKey: 'WIKI.BLOCK.HEADING_3', mark: 'heading', attrs: {level: 3}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 3}).run()},
+        {label: '❝', titleKey: 'WIKI.BLOCK.QUOTE', mark: 'blockquote', run: e => e.chain().focus().toggleBlockquote().run()},
     ];
 
     /** Called by the article on every selection change. */

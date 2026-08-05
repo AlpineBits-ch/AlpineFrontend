@@ -9,6 +9,7 @@ import {
     viewChild,
 } from '@angular/core';
 import {Button} from 'primeng/button';
+import {TranslateModule} from '@ngx-translate/core';
 import {Dialog} from 'primeng/dialog';
 import {PrimeTemplate} from 'primeng/api';
 import {WikiStateService} from './wiki-state.service';
@@ -21,6 +22,7 @@ import {WikiPageDto} from '../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../services/wiki.service';
 import {WikiContextRailComponent} from './wiki-rail/wiki-context-rail.component';
 import {WikiSearchPaletteComponent} from './wiki-search/wiki-search-palette.component';
+import {WikiAiDialogComponent} from './wiki-ai/wiki-ai-dialog.component';
 import {buildToc, Heading, TocEntry} from './wiki-toc';
 import {canEditPage} from './wiki-permissions';
 
@@ -34,7 +36,7 @@ const NAV_WIDTH_MAX = 420;
     imports: [
         WikiNavComponent, WikiHomeComponent, WikiArticleComponent, WikiBreadcrumbsComponent,
         WikiContextRailComponent, WikiSearchPaletteComponent, WikiHistoryComponent,
-        Button, Dialog, PrimeTemplate,
+        WikiAiDialogComponent, Button, Dialog, PrimeTemplate, TranslateModule,
     ],
     templateUrl: './wiki.component.html',
     styleUrl: './wiki.component.css',
@@ -49,6 +51,7 @@ export class WikiComponent {
     /** Fed by the article as its document changes; consumed by the context rail's TOC. */
     protected readonly headings = signal<Heading[]>([]);
     protected readonly searchOpen = signal(false);
+    protected readonly aiOpen = signal(false);
     protected readonly saveStatus = signal<SaveStatus>('idle');
     protected readonly showDeleteDialog = signal(false);
     protected readonly deleting = signal(false);
@@ -62,6 +65,14 @@ export class WikiComponent {
     protected readonly articlePage = computed(() =>
         this.state.wikiView() === 'editor' ? this.state.editingPage() : this.state.selectedPage(),
     );
+
+    /** Context for the model: what else lives in this wiki, minus the page being written. */
+    protected readonly siblingTitles = computed(() => {
+        const currentId = this.articlePage()?.id;
+        return (this.state.wiki()?.pages ?? [])
+            .filter(p => p.id !== currentId)
+            .map(p => p.title);
+    });
 
     /** EditOwnWikiPages needs the page's author, so this is per-page rather than per-guild. */
     protected readonly canEditCurrent = computed(() => {
@@ -93,6 +104,33 @@ export class WikiComponent {
 
     protected onEditorSaved(page: WikiPageDto): void {
         this.state.afterSaved(page);
+    }
+
+    /**
+     * Opening from a page that is only being read switches to editing first.
+     *
+     * Generating into a document you cannot type into would leave the result nowhere to go, and
+     * the article is the same element in both modes, so this costs nothing.
+     */
+    protected openAiDialog(): void {
+        if (this.state.wikiView() !== 'editor') {
+            this.state.openEditor(this.state.selectedPage() ?? undefined);
+        }
+        this.aiOpen.set(true);
+    }
+
+    /** From the empty-wiki state: a brand new page with the dialog already open. */
+    protected startAiPage(): void {
+        this.state.openEditor();
+        this.aiOpen.set(true);
+    }
+
+    protected onAiInsert(markdown: string): void {
+        this.article()?.insertMarkdown(markdown);
+    }
+
+    protected onAiReplace(markdown: string): void {
+        this.article()?.replaceMarkdown(markdown);
     }
 
     protected openLinkedPage(pageId: string): void {

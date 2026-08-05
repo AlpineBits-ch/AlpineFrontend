@@ -11,6 +11,7 @@ import {
     ViewChild,
 } from '@angular/core';
 import {FormsModule} from '@angular/forms';
+import {TranslateModule} from '@ngx-translate/core';
 import {WikiDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiContentCacheService} from '../wiki-content-cache.service';
 import {searchWiki} from '../wiki-search';
@@ -25,7 +26,7 @@ import {searchWiki} from '../wiki-search';
  */
 @Component({
     selector: 'app-wiki-search-palette',
-    imports: [FormsModule],
+    imports: [FormsModule, TranslateModule],
     templateUrl: './wiki-search-palette.component.html',
 })
 export class WikiSearchPaletteComponent implements AfterViewInit {

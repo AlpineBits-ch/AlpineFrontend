@@ -19,7 +19,7 @@
                     class="absolute left-2 top-2 z-10 flex h-7 w-7 cursor-pointer items-center
                            justify-center rounded-lg border border-border bg-card text-white/45
                            hover:text-white/80"
-                    title="Show pages">
+                    [title]="'WIKI.SHOW_PAGES' | translate">
                 <i class="pi pi-angle-right text-[0.75rem]"></i>
             </button>
         }
@@ -27,6 +27,7 @@
         @if (state.wikiView() === 'page' || state.wikiView() === 'editor') {
             <app-wiki-breadcrumbs (cancel)="state.cancelEditor()"
                                   (deletePage)="showDeleteDialog.set(true)"
+                                  (draftWithAi)="openAiDialog()"
                                   (edit)="state.openEditor(state.selectedPage() ?? undefined)"
                                   (history)="state.openHistory()"
                                   (openSegment)="state.openPage($event)"
@@ -45,8 +46,10 @@
              layout jump the redesign set out to remove and the source of the repeated
              "linkify already initialized" warnings. -->
         @if (state.wikiView() === 'home') {
-            <app-wiki-home (newPage)="state.openEditor()"
+            <app-wiki-home (draftWithAi)="startAiPage()"
+                           (newPage)="state.openEditor()"
                            (openPage)="state.openPage($event)"
+                           [canCreate]="state.abilities().canCreate"
                            [wiki]="state.wiki()"
                            class="flex-1 min-h-0"/>
         } @else if (state.wikiView() === 'history') {
@@ -60,7 +63,7 @@
         } @else if (state.wikiView() === 'page' && state.pageLoading()) {
             <div class="flex-1 flex flex-col items-center justify-center gap-3 text-white/20">
                 <i class="pi pi-spin pi-spinner text-2xl"></i>
-                <span class="text-sm">Loading page…</span>
+                <span class="text-sm">{{ 'WIKI.LOADING_PAGE' | translate }}</span>
             </div>
         } @else if (state.wikiView() === 'editor' || state.selectedPage()) {
             <app-wiki-article #article
@@ -92,6 +95,14 @@
     }
 </div>
 
+<app-wiki-ai-dialog (closed)="aiOpen.set(false)"
+                   (insert)="onAiInsert($event)"
+                   (replace)="onAiReplace($event)"
+                   [existingContent]="article()?.currentContent() ?? ''"
+                   [open]="aiOpen()"
+                   [pageTitle]="article()?.currentTitle() ?? ''"
+                   [pageTitles]="siblingTitles()"/>
+
 <app-wiki-search-palette (closed)="searchOpen.set(false)"
                         (pageSelected)="state.openPage($event)"
                         [guildId]="guildId()"
@@ -107,18 +118,16 @@
     <ng-template pTemplate="header">
         <div class="flex items-center gap-2">
             <i class="pi pi-trash text-rose-400"></i>
-            <span class="text-sm font-semibold text-white/85">Delete Page</span>
+            <span class="text-sm font-semibold text-white/85">{{ 'WIKI.DIALOG.DELETE_TITLE' | translate }}</span>
         </div>
     </ng-template>
     <p class="py-2 text-sm text-white/60">
-        Are you sure you want to delete
-        <strong class="text-white/80">{{ state.selectedPage()?.title }}</strong>? This cannot be
-        undone.
+        {{ 'WIKI.DIALOG.DELETE_BODY' | translate: {title: state.selectedPage()?.title} }}
     </p>
     <div class="mt-4 flex justify-end gap-2 border-t border-white/[0.06] pt-4">
-        <p-button (onClick)="showDeleteDialog.set(false)" label="Cancel" severity="secondary"
+        <p-button (onClick)="showDeleteDialog.set(false)" [label]="'COMMON.CANCEL' | translate" severity="secondary"
                   size="small"/>
-        <p-button (onClick)="confirmDelete()" [loading]="deleting()" label="Delete" severity="danger"
+        <p-button (onClick)="confirmDelete()" [loading]="deleting()" [label]="'WIKI.DELETE' | translate" severity="danger"
                   size="small"/>
     </div>
 </p-dialog>

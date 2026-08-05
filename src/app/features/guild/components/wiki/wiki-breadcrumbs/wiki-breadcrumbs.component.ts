@@ -1,6 +1,7 @@
 import {Component, computed, input, output} from '@angular/core';
 import {Button} from 'primeng/button';
 import {Tooltip} from 'primeng/tooltip';
+import {TranslateModule} from '@ngx-translate/core';
 import {WikiDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {buildTrail, TrailSegment} from './wiki-trail';
 
@@ -14,7 +15,7 @@ export type SaveStatus = 'idle' | 'draft' | 'saving' | 'saved';
  */
 @Component({
     selector: 'app-wiki-breadcrumbs',
-    imports: [Button, Tooltip],
+    imports: [Button, Tooltip, TranslateModule],
     templateUrl: './wiki-breadcrumbs.component.html',
 })
 export class WikiBreadcrumbsComponent {
@@ -26,6 +27,7 @@ export class WikiBreadcrumbsComponent {
     readonly canDelete = input(false);
 
     readonly openSegment = output<WikiPageSummaryDto>();
+    readonly draftWithAi = output<void>();
     readonly edit = output<void>();
     readonly save = output<void>();
     readonly cancel = output<void>();
@@ -37,11 +39,11 @@ export class WikiBreadcrumbsComponent {
     protected readonly statusLabel = computed(() => {
         switch (this.saveStatus()) {
             case 'draft':
-                return 'Draft saved';
+                return 'WIKI.STATUS.DRAFT_SAVED';
             case 'saving':
-                return 'Saving…';
+                return 'WIKI.STATUS.SAVING';
             case 'saved':
-                return 'Saved';
+                return 'WIKI.STATUS.SAVED';
             default:
                 return '';
         }

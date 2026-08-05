@@ -4,7 +4,7 @@
     @if (toc().length) {
         <section class="mb-6">
             <h2 class="mb-2 text-[0.625rem] font-semibold uppercase tracking-widest text-white/30">
-                On this page
+                {{ 'WIKI.RAIL.ON_THIS_PAGE' | translate }}
             </h2>
             <nav class="flex flex-col gap-0.5">
                 @for (entry of toc(); track entry.id) {
@@ -25,7 +25,7 @@
     @if (page()) {
         <section class="mb-6">
             <h2 class="mb-2 text-[0.625rem] font-semibold uppercase tracking-widest text-white/30">
-                Linked from
+                {{ 'WIKI.RAIL.LINKED_FROM' | translate }}
             </h2>
             @if (backlinks().length) {
                 <div class="flex flex-col gap-0.5">
@@ -40,11 +40,11 @@
                     }
                 </div>
             } @else if (cache.warming()) {
-                <p class="text-[0.75rem] text-white/30">Still indexing…</p>
+                <p class="text-[0.75rem] text-white/30">{{ 'WIKI.RAIL.INDEXING' | translate }}</p>
             } @else if (cache.failed()) {
-                <p class="text-[0.75rem] text-white/40">Couldn't load page contents.</p>
+                <p class="text-[0.75rem] text-white/40">{{ 'WIKI.RAIL.LOAD_FAILED' | translate }}</p>
             } @else {
-                <p class="text-[0.75rem] text-white/30">No pages link here.</p>
+                <p class="text-[0.75rem] text-white/30">{{ 'WIKI.RAIL.NO_BACKLINKS' | translate }}</p>
             }
         </section>
     }
@@ -56,7 +56,7 @@
                 <app-avatar [userId]="p.authorId"/>
                 <div class="min-w-0">
                     <p class="truncate text-[0.75rem] text-white/60">
-                        {{ author()?.userName ?? 'Created by' }}
+                        {{ author()?.userName ?? ('WIKI.RAIL.CREATED_BY' | translate) }}
                     </p>
                     <p class="text-[0.6875rem] text-white/30">{{ formatDate(p.createdAt) }}</p>
                 </div>
@@ -67,20 +67,20 @@
                     <app-avatar [userId]="p.lastEditorId"/>
                     <div class="min-w-0">
                         <p class="truncate text-[0.75rem] text-white/60">
-                            Last edited by {{ editor.userName }}
+                            {{ 'WIKI.RAIL.LAST_EDITED_BY' | translate: {name: editor.userName} }}
                         </p>
                         <p class="text-[0.6875rem] text-white/30">{{ formatDate(p.updatedAt) }}</p>
                     </div>
                 </div>
             } @else {
                 <p class="mt-3 text-[0.6875rem] text-white/30">
-                    Updated {{ formatDate(p.updatedAt) }}
+                    {{ 'WIKI.RAIL.UPDATED' | translate: {date: formatDate(p.updatedAt)} }}
                 </p>
             }
 
             @if (p.revisionCount > 0) {
                 <p class="mt-3 text-[0.6875rem] text-white/30">
-                    {{ p.revisionCount }} {{ p.revisionCount === 1 ? 'revision' : 'revisions' }}
+                    {{ (p.revisionCount === 1 ? 'WIKI.RAIL.REVISION_ONE' : 'WIKI.RAIL.REVISION_MANY') | translate: {n: p.revisionCount} }}
                 </p>
             }
         </section>

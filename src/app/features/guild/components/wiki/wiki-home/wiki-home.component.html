@@ -5,20 +5,20 @@
         <!-- Hero -->
         <div class="flex items-center justify-between mb-8">
             <div>
-                <h1 class="text-2xl font-bold text-white/90 mb-1">Wiki</h1>
+                <h1 class="text-2xl font-bold text-white/90 mb-1">{{ 'WIKI.HOME' | translate }}</h1>
                 <p class="text-sm text-white/40">
-                    {{ totalPages() }} {{ totalPages() === 1 ? 'page' : 'pages' }}
-                    &middot; {{ totalCategories() }} {{ totalCategories() === 1 ? 'category' : 'categories' }}
+                    {{ (totalPages() === 1 ? 'WIKI.HOME_PAGE.PAGE_ONE' : 'WIKI.HOME_PAGE.PAGE_MANY') | translate: {n: totalPages()} }}
+                    &middot; {{ (totalCategories() === 1 ? 'WIKI.HOME_PAGE.CATEGORY_ONE' : 'WIKI.HOME_PAGE.CATEGORY_MANY') | translate: {n: totalCategories()} }}
                 </p>
             </div>
-            <p-button (onClick)="newPage.emit()" icon="pi pi-plus" label="New Page" severity="primary"
+            <p-button (onClick)="newPage.emit()" icon="pi pi-plus" [label]="'WIKI.HOME_PAGE.NEW_PAGE' | translate" severity="primary"
                       size="small"/>
         </div>
 
         <!-- Pinned pages -->
         @if (pinnedPages().length > 0) {
             <section class="mb-8">
-                <h2 class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">Pinned</h2>
+                <h2 class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">{{ 'WIKI.PINNED' | translate }}</h2>
                 <div class="grid grid-cols-2 gap-3">
                     @for (page of pinnedPages(); track page.id) {
                         <button (click)="openPage.emit(page)"
@@ -26,7 +26,7 @@
                             <i class="pi pi-bookmark text-brand-dim mt-0.5 shrink-0"></i>
                             <div class="min-w-0">
                                 <p class="text-sm font-semibold text-white/85 truncate">{{ page.title }}</p>
-                                <p class="text-xs text-white/35 mt-0.5">Updated {{ formatDate(page.updatedAt) }}</p>
+                                <p class="text-xs text-white/35 mt-0.5">{{ 'WIKI.RAIL.UPDATED' | translate: {date: formatDate(page.updatedAt)} }}</p>
                             </div>
                         </button>
                     }
@@ -37,7 +37,7 @@
         <!-- Categories overview -->
         @if (categoryTreeNodes().length > 0) {
             <section class="mb-8">
-                <h2 class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">Categories</h2>
+                <h2 class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">{{ 'WIKI.CATEGORIES' | translate }}</h2>
                 <div class="space-y-2">
                     @for (node of categoryTreeNodes(); track node.category.id) {
                         <div [style.marginLeft]="(node.depth * 20) + 'px'"
@@ -45,8 +45,7 @@
                             <div class="flex items-center gap-2 mb-2">
                                 <i [class]="node.depth === 0 ? 'pi pi-folder text-brand-dim/70 text-sm' : 'pi pi-folder text-white/30 text-xs'"></i>
                                 <span [class]="node.depth === 0 ? 'text-sm font-semibold text-white/80' : 'text-xs font-semibold text-white/60'">{{ node.category.name }}</span>
-                                <span class="text-xs text-white/30 ml-auto">{{ rootPages(node.category.id).length }}
-                                    pages</span>
+                                <span class="text-xs text-white/30 ml-auto">{{ 'WIKI.HOME_PAGE.PAGE_MANY' | translate: {n: rootPages(node.category.id).length} }}</span>
                             </div>
                             @if (rootPages(node.category.id).length > 0) {
                                 <div class="flex flex-wrap gap-2">
@@ -57,8 +56,7 @@
                                         </button>
                                     }
                                     @if (rootPages(node.category.id).length > 5) {
-                                        <span class="text-xs text-white/30 px-2 py-1">+{{ rootPages(node.category.id).length - 5 }}
-                                            more</span>
+                                        <span class="text-xs text-white/30 px-2 py-1">{{ 'WIKI.HOME_PAGE.MORE' | translate: {n: rootPages(node.category.id).length - 5} }}</span>
                                     }
                                 </div>
                             }
@@ -71,7 +69,7 @@
         <!-- Recent activity -->
         @if (recentPages().length > 0) {
             <section>
-                <h2 class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">Recently Updated</h2>
+                <h2 class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">{{ 'WIKI.RECENTLY_UPDATED' | translate }}</h2>
                 <div class="space-y-1">
                     @for (page of recentPages(); track page.id) {
                         <button (click)="openPage.emit(page)"
@@ -95,10 +93,18 @@
         @if (!(wiki()?.pages?.length) && wiki() !== null) {
             <div class="text-center py-20">
                 <i class="pi pi-book text-4xl text-white/10 mb-4 block"></i>
-                <p class="text-white/40 text-sm mb-1">This wiki is empty.</p>
-                <p class="text-white/25 text-xs mb-6">Start by creating your first page.</p>
-                <p-button (onClick)="newPage.emit()" icon="pi pi-plus" label="Create First Page" severity="primary"
-                          size="small"/>
+                <p class="text-white/40 text-sm mb-1">{{ 'WIKI.HOME_PAGE.EMPTY' | translate }}</p>
+                <p class="text-white/25 text-xs mb-6">{{ 'WIKI.HOME_PAGE.EMPTY_HINT' | translate }}</p>
+                <!-- The AI action sits beside the ordinary one, offered before any provider is
+                     connected: a feature you have to already know about to discover is not one. -->
+                <div class="flex items-center justify-center gap-2">
+                    <p-button (onClick)="newPage.emit()" icon="pi pi-plus" [label]="'WIKI.HOME_PAGE.CREATE_FIRST' | translate"
+                              severity="primary" size="small"/>
+                    @if (canCreate()) {
+                        <p-button (onClick)="draftWithAi.emit()" icon="pi pi-sparkles"
+                                  [label]="'WIKI.AI.DRAFT_ONE' | translate" severity="secondary" size="small"/>
+                    }
+                </div>
             </div>
         }
 

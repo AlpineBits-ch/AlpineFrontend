@@ -5,7 +5,7 @@
         <p-button (onClick)="back.emit()" [text]="true" icon="pi pi-arrow-left" severity="secondary"
                   size="small"/>
         <div>
-            <p class="text-sm font-semibold text-white/80">Revision History</p>
+            <p class="text-sm font-semibold text-white/80">{{ 'WIKI.HISTORY_PAGE.TITLE' | translate }}</p>
             <p class="text-xs text-white/35">{{ page().title }}</p>
         </div>
     </header>
@@ -22,11 +22,11 @@
             } @else if (revisions().length === 0) {
                 <div class="text-center py-16">
                     <i class="pi pi-clock text-3xl text-white/10 mb-3 block"></i>
-                    <p class="text-white/30 text-sm">No revision history yet.</p>
+                    <p class="text-white/30 text-sm">{{ 'WIKI.HISTORY_PAGE.EMPTY' | translate }}</p>
                 </div>
             } @else {
                 <div class="mb-3 flex items-center gap-2">
-                    <span class="text-[0.6875rem] text-white/30">Compare against</span>
+                    <span class="text-[0.6875rem] text-white/30">{{ 'WIKI.HISTORY_PAGE.COMPARE_AGAINST' | translate }}</span>
                     @for (mode of ['previous', 'current']; track mode) {
                         <button (click)="compareMode.set(mode === 'current' ? 'current' : 'previous')"
                                 [class.bg-hover]="compareMode() === mode"
@@ -34,7 +34,7 @@
                                 [class.text-white/40]="compareMode() !== mode"
                                 class="cursor-pointer rounded-md border-0 bg-transparent px-2 py-1
                                        text-[0.6875rem] hover:bg-hover">
-                            {{ mode }}
+                            {{ (mode === 'current' ? 'WIKI.HISTORY_PAGE.COMPARE_CURRENT' : 'WIKI.HISTORY_PAGE.COMPARE_PREVIOUS') | translate }}
                         </button>
                     }
                 </div>
@@ -53,7 +53,7 @@
                                     @if (rev.summary) {
                                         <p class="text-sm text-white/80 mb-0.5">{{ rev.summary }}</p>
                                     } @else {
-                                        <p class="text-sm text-white/45 italic mb-0.5">No summary</p>
+                                        <p class="text-sm text-white/45 italic mb-0.5">{{ 'WIKI.HISTORY_PAGE.NO_SUMMARY' | translate }}</p>
                                     }
                                     <p class="flex items-center gap-2 text-xs text-white/30">
                                         {{ formatDate(rev.createdAt) }}
@@ -73,18 +73,18 @@
                                 <div class="flex items-center gap-2 shrink-0">
                                     <p-button
                                             (onClick)="togglePreview(rev.id)"
-                                            [icon]="expandedRevId() === rev.id ? 'pi pi-eye-slash' : 'pi pi-eye'" [pTooltip]="expandedRevId() === rev.id ? 'Hide content' : 'View content'" [text]="true"
+                                            [icon]="expandedRevId() === rev.id ? 'pi pi-eye-slash' : 'pi pi-eye'" [pTooltip]="(expandedRevId() === rev.id ? 'WIKI.HISTORY_PAGE.HIDE_DIFF' : 'WIKI.HISTORY_PAGE.SHOW_DIFF') | translate" [text]="true"
                                             severity="secondary"
                                             size="small"
                                             tooltipPosition="top"/>
                                     @if (!first) {
                                         @if (state.abilities().canManageRevisions) {
-                                            <p-button (onClick)="restoreRevision(rev)" [loading]="restoringId() === rev.id" label="Restore"
+                                            <p-button (onClick)="restoreRevision(rev)" [loading]="restoringId() === rev.id" [label]="'WIKI.RESTORE' | translate"
                                                       severity="secondary"
                                                       size="small"/>
                                         }
                                     } @else {
-                                        <span class="text-[11px] text-white/30 bg-white/[0.04] px-2 py-1 rounded-md">Current</span>
+                                        <span class="text-[11px] text-white/30 bg-white/[0.04] px-2 py-1 rounded-md">{{ 'WIKI.HISTORY_PAGE.CURRENT' | translate }}</span>
                                     }
                                 </div>
                             </div>
@@ -94,7 +94,7 @@
                             @if (expandedRevId() === rev.id) {
                                 <div class="px-4 pb-5 border-t border-white/[0.06]">
                                     <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest pt-3 pb-2">
-                                        Changes</p>
+                                        {{ 'WIKI.HISTORY_PAGE.CHANGES' | translate }}</p>
                                     @let lines = diffFor(rev);
                                     @if (lines.length) {
                                         <div class="overflow-x-auto rounded-lg border border-white/[0.06] bg-app-bg font-mono text-[0.75rem]">
@@ -108,7 +108,7 @@
                                             }
                                         </div>
                                     } @else {
-                                        <p class="text-sm text-white/30 italic">No changes in this revision.</p>
+                                        <p class="text-sm text-white/30 italic">{{ 'WIKI.HISTORY_PAGE.NO_CHANGES' | translate }}</p>
                                     }
                                 </div>
                             }

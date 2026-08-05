@@ -12,7 +12,7 @@
                        [ngModel]="query()"
                        class="flex-1 border-0 bg-transparent text-[0.9375rem] text-white/85
                               outline-none placeholder-white/25"
-                       placeholder="Search pages…"/>
+                       [placeholder]="'WIKI.SEARCH.PLACEHOLDER' | translate"/>
                 <kbd class="rounded border border-border px-1.5 py-0.5 text-[0.625rem] text-white/30">
                     esc
                 </kbd>
@@ -45,9 +45,9 @@
                 } @empty {
                     <p class="px-4 py-6 text-center text-[0.8125rem] text-white/30">
                         @if (query().trim()) {
-                            No pages match "{{ query() }}"
+                            {{ 'WIKI.SEARCH.NO_MATCH' | translate: {query: query()} }}
                         } @else {
-                            Start typing to search
+                            {{ 'WIKI.SEARCH.START_TYPING' | translate }}
                         }
                     </p>
                 }
@@ -57,26 +57,26 @@
             <div class="flex items-center justify-between gap-3 border-t border-white/[0.08]
                         px-4 py-2">
                 @if (cache.warming()) {
-                    <span class="text-[0.75rem] text-white/35">Loading page contents…</span>
+                    <span class="text-[0.75rem] text-white/35">{{ 'WIKI.SEARCH.LOADING_CONTENTS' | translate }}</span>
                 } @else if (cache.failed()) {
                     <span class="text-[0.75rem] text-white/45">
-                        Couldn't load page contents — titles and tags only
+                        {{ 'WIKI.SEARCH.LOAD_FAILED' | translate }}
                     </span>
                     <button (click)="searchContents()"
                             class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2
                                    py-1 text-[0.75rem] text-white/70 hover:bg-hover">
-                        Retry
+                        {{ 'WIKI.SEARCH.RETRY' | translate }}
                     </button>
                 } @else if (cache.warmed()) {
                     <span class="text-[0.75rem] text-white/35">
-                        Searching titles, tags and contents
+                        {{ 'WIKI.SEARCH.SCOPE_FULL' | translate }}
                     </span>
                 } @else {
-                    <span class="text-[0.75rem] text-white/35">Titles and tags</span>
+                    <span class="text-[0.75rem] text-white/35">{{ 'WIKI.SEARCH.SCOPE_TITLES' | translate }}</span>
                     <button (click)="searchContents()"
                             class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2
                                    py-1 text-[0.75rem] text-white/70 hover:bg-hover">
-                        Search page contents
+                        {{ 'WIKI.SEARCH.SEARCH_CONTENTS' | translate }}
                     </button>
                 }
             </div>

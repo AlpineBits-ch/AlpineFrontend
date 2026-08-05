@@ -11,7 +11,7 @@ import {MenuItem, PrimeTemplate} from 'primeng/api';
 import {WikiCategoryDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
 import {WikiStateService} from '../wiki-state.service';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
 export interface CategoryTreeNode {
     category: WikiCategoryDto;
@@ -62,7 +62,7 @@ export class WikiNavComponent {
     protected newCategoryParentId = signal<string | undefined>(undefined);
     protected creatingCategory = signal(false);
     protected parentCategoryOptions = computed(() => [
-        {label: 'None (root)', value: undefined},
+        {label: this.translate.instant('WIKI.NAV.CATEGORY_ROOT'), value: undefined},
         ...(this.state.wiki()?.categories ?? [])
             .sort((a, b) => a.position - b.position)
             .map(c => ({label: c.name, value: c.id})),
@@ -73,6 +73,7 @@ export class WikiNavComponent {
     protected categoryToDelete = signal<WikiCategoryDto | null>(null);
     protected deletingCategory = signal(false);
     private readonly wikiService = inject(WikiService);
+    private readonly translate = inject(TranslateService);
     @ViewChild('catCtxMenu') private catCtxMenu?: ContextMenu;
     // ── Drag state ────────────────────────────────────────────────────────────
     private dragging: { type: 'category' | 'page'; id: string } | null = null;
@@ -107,7 +108,7 @@ export class WikiNavComponent {
         if (!this.state.abilities().canCreate) return;
         this.ctxMenuItems = [
             {
-                label: 'New Page Here',
+                label: this.translate.instant('WIKI.NAV.NEW_PAGE_HERE'),
                 icon: 'pi pi-file-plus',
                 command: () => {
                     this.state.openEditor(undefined, {categoryId: category.id});
@@ -122,7 +123,7 @@ export class WikiNavComponent {
         if (!this.state.abilities().canCreate) return;
         const items: MenuItem[] = [
             {
-                label: 'Add Article Here',
+                label: this.translate.instant('WIKI.NAV.ADD_ARTICLE_HERE'),
                 icon: 'pi pi-file-plus',
                 command: () => {
                     this.state.openEditor(undefined, {categoryId: page.categoryId, parentPageId: page.id});
