@@ -1,0 +1,49 @@
+@if (ownActivity(); as activity) {
+    <!-- Inset, rounded, one surface lighter than the panel. The separation from the user row below
+         is elevation rather than a hairline: a rule across the full width reads as a table, which
+         is what this strip used to look like. -->
+    <div class="mx-2 mt-2 p-2 rounded-xl bg-card hover:bg-hover transition-colors duration-[120ms] ease-out">
+        <div class="flex items-center gap-2.5 min-w-0">
+
+            <!-- Art slot. Fixed square so that real cover art, when it starts arriving, replaces
+                 the tile without moving anything around it. -->
+            <div class="shrink-0 w-10 h-10 rounded-lg overflow-hidden">
+                @if (artUrl(); as url) {
+                    <img [src]="url" [alt]="activity.name" (error)="onArtError(url)"
+                         class="w-full h-full object-cover"/>
+                } @else {
+                    <div class="w-full h-full bg-brand/20 flex items-center justify-center select-none">
+                        <span class="text-[1rem] font-bold text-brand-dim">{{ monogram() }}</span>
+                    </div>
+                }
+            </div>
+
+            <!-- The game, then whether the room can see it. What the game reports about itself -
+                 details, state, party, elapsed - is not repeated here; the profile popover's
+                 activity card already renders all of it, and this strip has one line to spend. -->
+            <div class="flex-1 min-w-0">
+                <p class="text-[0.8125rem] font-medium text-text-primary truncate leading-tight">
+                    {{ activity.name }}
+                </p>
+                <p class="text-[0.75rem] text-text-muted truncate leading-tight mt-0.5">
+                    {{ (isSharing() ? 'ACTIVITY.SHARING' : 'ACTIVITY.NOT_SHARING') | translate }}
+                </p>
+            </div>
+
+            <!-- Always drawn, so the card does not reflow the moment a voice channel is joined.
+                 Disabled outside voice because there is nowhere to publish to: toggleScreenShare
+                 early-returns without a joined guild and channel. -->
+            <button type="button" (click)="onShare()" [disabled]="!canShare()"
+                    [title]="shareTooltipKey() | translate"
+                    [class]="isSharing()
+                        ? 'bg-brand/15 text-brand-dim hover:bg-brand/25'
+                        : 'text-text-secondary hover:bg-white/[0.06] hover:text-text-primary'"
+                    class="w-8 h-8 shrink-0 flex items-center justify-center rounded-lg border-0 cursor-pointer
+                           transition-colors duration-[120ms] ease-out
+                           disabled:opacity-40 disabled:cursor-default disabled:hover:bg-transparent">
+                <i class="pi pi-desktop" style="font-size: 1rem"></i>
+            </button>
+
+        </div>
+    </div>
+}

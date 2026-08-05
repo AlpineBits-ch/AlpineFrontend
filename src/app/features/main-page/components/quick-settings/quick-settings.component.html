@@ -8,39 +8,11 @@
      wider than 308px, so the left panel was being stretched by its own footer and overhung the
      sidebar it is supposed to sit under. `w-0` takes this element out of that calculation;
      `min-w-full` then stretches it back to whatever the columns above settled on. -->
-<div class="shrink-0 w-0 min-w-full bg-sidebar border-t border-white/[0.10] overflow-hidden">
+<div class="shrink-0 w-0 min-w-full bg-sidebar border-t border-border-subtle overflow-hidden">
 
-    <!-- Activity strip: its own row above the user row, the way Discord does it.
-         This used to be the second line inside the name block, which is what made the row too wide
-         to fit - a title like "Microsoft Flight Simulator 2024" had to share one line with the
-         avatar and every button. Given its own row it uses the whole panel width and truncates
-         against nothing but the panel edge.
+    <app-self-activity-card/>
 
-         Two lines and an artwork tile rather than one small line, matching Discord: the game name
-         is the thing being read, so it gets the primary weight, and what the game reports about
-         itself goes underneath rather than being crammed onto the same line. -->
-    @if (ownActivity(); as activity) {
-        <div class="flex items-center gap-2.5 px-3 py-2.5 border-b border-white/[0.06] min-w-0">
-
-            <!-- Artwork slot. Fixed square so real cover art later is a swap, not a re-layout. -->
-            <div class="shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] flex items-center justify-center">
-                <i class="pi {{ activityIcon() }} text-white/40" style="font-size: 1rem"></i>
-            </div>
-
-            <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-white/85 truncate leading-tight">{{ activity.name }}</p>
-                <p class="text-xs text-white/45 truncate leading-tight mt-0.5">
-                    @if (activitySubtitle(); as subtitle) {
-                        {{ subtitle }}
-                    } @else {
-                        {{ activityTypeKey() ?? '' | translate }}
-                    }
-                </p>
-            </div>
-        </div>
-    }
-
-    <div class="flex items-center gap-1.5 p-3 min-w-0">
+    <div class="flex items-center gap-1 px-2 py-2 min-w-0">
 
         <!-- Avatar + name (clickable -opens self-profile popover) -->
         @if (profileService.ownProfile(); as own) {
@@ -90,11 +62,11 @@
                     (click)="voiceSvc.toggleMute()"
                     [ngClass]="voiceSvc.localState().isMuted
           ? 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25'
-          : 'text-white/50 hover:bg-white/[0.07] hover:text-white/75'"
+          : 'text-text-secondary hover:bg-white/[0.06] hover:text-text-primary'"
                     [title]="(voiceSvc.localState().isMuted ? 'QUICK_SETTINGS.UNMUTE' : 'QUICK_SETTINGS.MUTE') | translate"
-                    class="w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer border-0 shrink-0">
+                    class="w-8 h-8 flex items-center justify-center rounded-lg transition-colors duration-[120ms] ease-out cursor-pointer border-0 shrink-0">
                 <i [ngClass]="voiceSvc.localState().isMuted ? 'pi-microphone-slash' : 'pi-microphone'"
-                   class="pi text-sm"></i>
+                   class="pi" style="font-size: 1.125rem"></i>
             </button>
 
             <!-- Deafen (only when in voice) -->
@@ -102,10 +74,10 @@
                     (click)="voiceSvc.toggleDeafen()"
                     [ngClass]="voiceSvc.localState().isDeafened
           ? 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25'
-          : 'text-white/50 hover:bg-white/[0.07] hover:text-white/75'"
+          : 'text-text-secondary hover:bg-white/[0.06] hover:text-text-primary'"
                     [title]="(voiceSvc.localState().isDeafened ? 'QUICK_SETTINGS.UNDEAFEN' : 'QUICK_SETTINGS.DEAFEN') | translate"
-                    class="w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer border-0 shrink-0">
-                <i class="pi pi-volume-off text-sm"></i>
+                    class="w-8 h-8 flex items-center justify-center rounded-lg transition-colors duration-[120ms] ease-out cursor-pointer border-0 shrink-0">
+                <i class="pi pi-volume-off" style="font-size: 1.125rem"></i>
             </button>
         }
 

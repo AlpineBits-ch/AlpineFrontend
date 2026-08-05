@@ -64,7 +64,31 @@ export class ScreenPickerComponent implements OnDestroy {
             if (stream) el.play().catch(() => {
             });
         });
+
+        // Open on the window the caller asked for, once the list has arrived.
+        //
+        // This lands the user on the Windows tab with the game already selected and previewing,
+        // one click from going live - but it stops there. The picker is the confirmation step, and
+        // a match good enough to preselect is still not good enough to publish unasked.
+        effect(() => {
+            const preferred = this.picker.preferredSourceId();
+            const sources = this.picker.sources();
+            if (!preferred || this.appliedPreference === preferred) return;
+
+            const source = sources.find(s => s.id === preferred);
+            if (!source) return;
+
+            this.appliedPreference = preferred;
+            this.activeTab.set('windows');
+            this.select(source);
+        });
     }
+
+    /**
+     * The preference already acted on, so re-running the effect - which every `sources` write does
+     * - cannot restart the preview under a user who has since picked something else.
+     */
+    private appliedPreference: string | null = null;
 
     get monitors(): ScreenSource[] {
         return this.picker.sources().filter(s => s.isMonitor);
@@ -139,5 +163,6 @@ export class ScreenPickerComponent implements OnDestroy {
     private reset(): void {
         this.selectedSource.set(null);
         this.step.set('source');
+        this.appliedPreference = null;
     }
 }
