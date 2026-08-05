@@ -35,6 +35,20 @@
                    placeholder="Untitled"/>
 
             <div #editorEl class="wiki-content wiki-article-body"></div>
+
+            <!-- Edit summary. Offered only when the body changed, because the server attaches
+                 it to the revision that change creates and there is none otherwise. -->
+            @if (summaryApplies()) {
+                <div class="mt-6 flex items-center gap-2 border-t border-white/[0.06] pt-4">
+                    <i class="pi pi-pencil text-[0.75rem] text-white/25"></i>
+                    <input (keydown.enter)="save()"
+                           (ngModelChange)="editSummary.set($event)"
+                           [ngModel]="editSummary()"
+                           class="flex-1 border-0 bg-transparent text-[0.8125rem] text-white/70
+                                  outline-none placeholder-white/25"
+                           placeholder="What changed? (optional)"/>
+                </div>
+            }
         </div>
     </div>
 </div>

@@ -25,6 +25,20 @@
                     <p class="text-white/30 text-sm">No revision history yet.</p>
                 </div>
             } @else {
+                <div class="mb-3 flex items-center gap-2">
+                    <span class="text-[0.6875rem] text-white/30">Compare against</span>
+                    @for (mode of ['previous', 'current']; track mode) {
+                        <button (click)="compareMode.set(mode === 'current' ? 'current' : 'previous')"
+                                [class.bg-hover]="compareMode() === mode"
+                                [class.text-white/80]="compareMode() === mode"
+                                [class.text-white/40]="compareMode() !== mode"
+                                class="cursor-pointer rounded-md border-0 bg-transparent px-2 py-1
+                                       text-[0.6875rem] hover:bg-hover">
+                            {{ mode }}
+                        </button>
+                    }
+                </div>
+
                 <div class="space-y-2">
                     @for (rev of revisions(); track rev.id; let first = $first) {
                         <div [style.borderColor]="expandedRevId() === rev.id ? 'color-mix(in srgb, var(--color-brand-dim) 35%, transparent)' : 'rgba(255,255,255,0.10)'"
@@ -41,7 +55,20 @@
                                     } @else {
                                         <p class="text-sm text-white/45 italic mb-0.5">No summary</p>
                                     }
-                                    <p class="text-xs text-white/30">{{ formatDate(rev.createdAt) }}</p>
+                                    <p class="flex items-center gap-2 text-xs text-white/30">
+                                        {{ formatDate(rev.createdAt) }}
+                                        @let stat = statFor(rev);
+                                        @if (stat.added || stat.removed) {
+                                            <span class="font-mono text-[0.6875rem]">
+                                                @if (stat.added) {
+                                                    <span class="text-emerald-400/70">+{{ stat.added }}</span>
+                                                }
+                                                @if (stat.removed) {
+                                                    <span class="text-rose-400/70">−{{ stat.removed }}</span>
+                                                }
+                                            </span>
+                                        }
+                                    </p>
                                 </div>
                                 <div class="flex items-center gap-2 shrink-0">
                                     <p-button
@@ -62,16 +89,26 @@
                                 </div>
                             </div>
 
-                            <!-- Expandable content preview -->
+                            <!-- Expandable diff. Whole rendered revisions told you what the page
+                                 said, never what the revision changed. -->
                             @if (expandedRevId() === rev.id) {
                                 <div class="px-4 pb-5 border-t border-white/[0.06]">
                                     <p class="text-[10px] font-semibold text-white/25 uppercase tracking-widest pt-3 pb-2">
-                                        Content</p>
-                                    @if (rev.content) {
-                                        <div [innerHTML]="renderContent(rev.content)"
-                                             class="wiki-content text-[0.875rem]"></div>
+                                        Changes</p>
+                                    @let lines = diffFor(rev);
+                                    @if (lines.length) {
+                                        <div class="overflow-x-auto rounded-lg border border-white/[0.06] bg-app-bg font-mono text-[0.75rem]">
+                                            @for (line of lines; track $index) {
+                                                <div [class]="line.type === 'add' ? 'bg-emerald-500/10 text-emerald-300/90'
+                                                            : line.type === 'del' ? 'bg-rose-500/10 text-rose-300/90'
+                                                            : 'text-white/45'"
+                                                     class="whitespace-pre-wrap px-3 py-0.5"><span
+                                                        class="mr-2 select-none opacity-40">{{ line.type === 'add' ? '+' : line.type === 'del' ? '−' : ' ' }}</span>{{ line.text }}
+                                                </div>
+                                            }
+                                        </div>
                                     } @else {
-                                        <p class="text-sm text-white/30 italic">No content in this revision.</p>
+                                        <p class="text-sm text-white/30 italic">No changes in this revision.</p>
                                     }
                                 </div>
                             }

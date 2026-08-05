@@ -1,6 +1,7 @@
 import {
     AfterViewInit,
     Component,
+    computed,
     effect,
     ElementRef,
     inject,
@@ -59,6 +60,21 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     protected readonly suggestPosition = signal({top: 0, left: 0});
 
     protected readonly pendingDraft = signal<WikiDraft | null>(null);
+    protected readonly editSummary = signal('');
+
+    /**
+     * Only offered when the body actually changed. The server ignores a summary on a
+     * metadata-only update because no revision is created to carry it, so showing the field
+     * there would invite the user to write a note that is silently dropped.
+     */
+    protected readonly summaryApplies = computed(() => {
+        if (!this.editing()) return false;
+        this.contentVersion();
+        return this.markdown() !== (this.page()?.content ?? '');
+    });
+
+    /** Bumped on every edit so `summaryApplies` re-reads the non-reactive editor document. */
+    private readonly contentVersion = signal(0);
 
     private readonly wikiService = inject(WikiService);
     private readonly fileService = inject(FileService);
@@ -125,6 +141,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
                 this.emitHeadings();
                 this.markBrokenLinks();
                 this.scheduleDraft();
+                this.contentVersion.update(v => v + 1);
             },
             onSelectionUpdate: () => this.bubbleMenu?.sync(),
         });
@@ -179,7 +196,12 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         if (this.saving() || !this.title().trim()) return;
         this.saving.set(true);
         this.saveStatusChanged.emit('saving');
-        const base = {title: this.title().trim(), content: this.markdown()};
+        const summary = this.editSummary().trim();
+        const base = {
+            title: this.title().trim(),
+            content: this.markdown(),
+            ...(this.summaryApplies() && summary ? {summary} : {}),
+        };
         const editingId = this.page()?.id;
         const request = editingId
             ? this.wikiService.updatePage(this.guildId(), editingId, base)
@@ -192,6 +214,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
                 // identical to what is now on the server.
                 this.drafts.clear(this.guildId(), editingId ?? null);
                 this.pendingDraft.set(null);
+                this.editSummary.set('');
                 this.saveStatusChanged.emit('saved');
                 this.saved.emit(page);
             },
