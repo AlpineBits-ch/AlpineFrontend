@@ -424,6 +424,42 @@ export class MlsService {
         return (await this.storesForAccount()).registry;
     }
 
+    /**
+     * A registry lookup that answers "nothing recorded" where there is no engine, instead of
+     * rejecting.
+     *
+     * <p><b>Not a swallowed error, and the difference is the whole justification.</b> This registry
+     * records what <i>this device</i> has done with MLS - which group it holds for a context, which
+     * generation it last saw live, how high its encryption floor has ever been. A build with no
+     * engine has provably done none of it, so `null` is the true answer rather than a fallback. The
+     * store behind it is a Tauri store, so without this each of those reads rejected instead.</p>
+     *
+     * <p>Reads only, and deliberately not the writes beside them. An engine command refuses through
+     * `requireTauri()`; a registry write refuses because the store itself is a Tauri store and
+     * rejects. Both stay refusals, because there "no engine" is a reason not to proceed rather than
+     * an answer - only a read has a truthful one.</p>
+     *
+     * <p><b>What this fixed.</b> Both of the client's central paths were dead in a browser and both
+     * looked like something else:</p>
+     * <ul>
+     *   <li><b>Sending a channel message.</b> `ChannelComponent.send()` asks for the known
+     *       generation and the floor before it composes anything - deliberately, so cleartext is
+     *       refused locally rather than after it has left the machine. The rejection propagated out
+     *       of the send, and the message rendered as "Failed to send" with no request made.</li>
+     *   <li><b>Receiving one.</b> `guild.MessageCreated` asks for the floor before handing the
+     *       message to the store, to refuse rendering cleartext in a context this device has
+     *       encrypted (§L.9). It does not catch, correctly - swallowing a store failure there would
+     *       render the very downgrade the check exists to stop. So the rejection escaped the handler
+     *       and <b>no incoming channel message was ever rendered in a browser</b>. Only the sender's
+     *       own optimistic echo appeared, which is why it looked like it worked for whoever typed.
+     *       </li>
+     * </ul>
+     */
+    private async readRegistry<T>(key: string): Promise<T | null> {
+        if (!isTauri()) return null;
+        return (await (await this.registry()).get<T>(key)) ?? null;
+    }
+
     private async cacheStore(): Promise<LazyStore> {
         return (await this.storesForAccount()).cache;
     }
@@ -486,9 +522,12 @@ export class MlsService {
      *
      * <p>A non-null value means this context <b>was</b> encrypted here, whatever the server says
      * now. Cleartext composition must be refused above it.</p>
+     *
+     * <p>Answers null rather than rejecting where there is no engine - see {@link readRegistry},
+     * which explains why that is the true answer and what it fixed.</p>
      */
     async getEncryptionFloor(contextId: string): Promise<number | null> {
-        return (await (await this.registry()).get<number>(MlsService.encryptionFloorKey(contextId))) ?? null;
+        return this.readRegistry<number>(MlsService.encryptionFloorKey(contextId));
     }
 
     /** Raises the floor. Monotonic - a lower generation is ignored rather than written. */
@@ -512,12 +551,12 @@ export class MlsService {
     }
 
     async getGroupId(contextId: string, generation: number): Promise<string | null> {
-        return (await (await this.registry()).get<string>(MlsService.groupKey(contextId, generation))) ?? null;
+        return this.readRegistry<string>(MlsService.groupKey(contextId, generation));
     }
 
     /** The generation this device last saw as live for the context, if any. */
     async getKnownGeneration(contextId: string): Promise<number | null> {
-        return (await (await this.registry()).get<number>(MlsService.activeGenerationKey(contextId))) ?? null;
+        return this.readRegistry<number>(MlsService.activeGenerationKey(contextId));
     }
 
     /**

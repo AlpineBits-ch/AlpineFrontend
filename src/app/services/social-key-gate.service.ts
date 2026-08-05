@@ -1,6 +1,7 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {UserService} from './user.service';
 import {OnboardingService} from './onboarding.service';
+import {MasterKeyService} from './master-key.service';
 
 /**
  * Stands between an account with no master key and the first action that deserves one.
@@ -19,11 +20,20 @@ import {OnboardingService} from './onboarding.service';
  * <p>This service owns the single key-setup dialog's visibility so the launch-time path
  * ({@link promptNow}) and the deferred path ({@link require}) drive one instance rather than two
  * competing ones.</p>
+ *
+ * <p><b>Silent where there is no key engine.</b> Every step of the ceremony this gate raises is a
+ * Tauri command, so outside Tauri it cannot be completed at any price - `generate_recovery_code`
+ * rejects before the first screen has been left, and the dialog reports "Could not generate a
+ * recovery code. Please try again." forever. Raised in front of an action, it is a dead end whose
+ * only exit is the "Not now" that cancels what the user asked for; raised at launch, it is
+ * `[closable]="false"` and has no exit at all. So both entry points ask
+ * {@link MasterKeyService.isAvailable} first - see {@link isSatisfied}.</p>
  */
 @Injectable({providedIn: 'root'})
 export class SocialKeyGateService {
     private userService = inject(UserService);
     private onboarding = inject(OnboardingService);
+    private masterKey = inject(MasterKeyService);
 
     readonly dialogVisible = signal(false);
     /** Launch-time setup has no way out, as it always has. A deferred prompt must have one. */
@@ -50,8 +60,20 @@ export class SocialKeyGateService {
      *
      * <p>Fails open on an unloaded `self`: the launch sequence fetches it before any gated surface
      * is reachable, so a null here is not a state worth blocking a send over.</p>
+     *
+     * <p><b>And fails open where the key engine does not exist</b>, which is the same judgement
+     * applied to a harder case. The question this method answers is "may the caller proceed", not
+     * "does the account hold a key" - and a build with no engine can never answer the second one
+     * yes, however long it blocks. Gating on it there does not defer the setup, it forbids the
+     * action: creating a guild and sending a message become impossible in a browser, and the user
+     * is shown a ceremony that fails at its first step with a message inviting them to try again.
+     * Nothing is protected by that. The master key is not an access control, and a build with no
+     * engine also has no MLS, no local key store and no device backup - so there is no encrypted
+     * history for it to have kept, and none is lost by proceeding. The ask returns, correctly, the
+     * first time the account is opened somewhere that can actually do it.</p>
      */
     isSatisfied(): boolean {
+        if (!this.masterKey.isAvailable()) return true;
         if (this.keyWritten()) return true;
         const user = this.userService.self();
         if (!user) return true;
@@ -78,8 +100,14 @@ export class SocialKeyGateService {
     /**
      * The launch-time prompt, for an account that asked for the messaging half up front. Same
      * dialog, no escape hatch, no action waiting behind it.
+     *
+     * <p>Does nothing without a key engine, and that case is worse than the deferred one rather
+     * than merely equivalent: this dialog is `[closable]="false"` and offers no "Not now", so a
+     * browser session that reached it would sit on an uncompletable ceremony over the whole shell
+     * with no way forward and no way back. See {@link isSatisfied}.</p>
      */
     promptNow(): void {
+        if (!this.masterKey.isAvailable()) return;
         this.raisedByGate = false;
         this.dismissible.set(false);
         this.dialogVisible.set(true);

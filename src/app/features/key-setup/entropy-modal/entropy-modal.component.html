@@ -31,7 +31,8 @@
       <span class="text-xs" style="color: var(--color-text-muted)">
         Auto-completing in {{ timeRemaining() }}s
       </span>
-            <p-button (onClick)="skip()" [text]="true" label="Skip" severity="secondary" size="small"/>
+            <p-button (onClick)="skip()" data-testid="entropy-skip" [text]="true" label="Skip" severity="secondary"
+                      size="small"/>
         </div>
     </div>
 

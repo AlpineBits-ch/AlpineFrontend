@@ -236,7 +236,13 @@
                 <!-- Messages list -->
                 <div class="flex flex-col gap-0.5 pb-4">
                     @for (row of messageRows(); track row.message.id) {
-                        <div data-testid="message-item" [attr.data-message-id]="row.message.id">
+                        <!-- `data-message-state` is what tells a message that was sent apart from
+                             one that is still trying or has given up. All three render here with
+                             their text, so without it "the message is on screen" is just as true of
+                             a failed send. -->
+                        <div data-testid="message-item"
+                             [attr.data-message-id]="row.message.id"
+                             [attr.data-message-state]="row.message.isFailed ? 'failed' : row.message.isPending ? 'pending' : 'sent'">
                             @if (row.message.type === MessageType.GuildMemberJoin || row.message.type === MessageType.GuildMemberLeave) {
                                 <app-system-message [message]="row.message"/>
                             } @else {

@@ -2364,6 +2364,33 @@ describe('MlsService', () => {
             await service.registerGroup(CTX, 2, 'Z3JvdXA=');
             expect(await service.getEncryptionFloor('other-context')).toBeNull();
         });
+
+        /**
+         * The registry readers answer outside Tauri instead of refusing, because null is the
+         * *true* answer there: a device with no engine has held no group, seen no generation and
+         * encrypted nothing.
+         *
+         * <p>It matters because both of the client's central paths ask before they do anything.
+         * `ChannelComponent.send()` reads the generation and the floor so cleartext is refused
+         * locally rather than after it has left the machine, and `guild.MessageCreated` reads the
+         * floor before handing an incoming message to the store, deliberately without catching -
+         * swallowing a store failure there would render the very downgrade the check exists to stop
+         * (§L.9). A rejection therefore killed both: sending rendered "Failed to send" with no
+         * request made, and <b>no incoming channel message was rendered in a browser at all</b> -
+         * only the sender's own optimistic echo, which is why it looked like it worked for whoever
+         * typed.</p>
+         */
+        it('answers null rather than throwing when there is no engine', async () => {
+            await service.registerGroup(CTX, 2, 'Z3JvdXA=');
+            vi.mocked(isTauri).mockReturnValue(false);
+            try {
+                await expect(service.getEncryptionFloor(CTX)).resolves.toBeNull();
+                await expect(service.getKnownGeneration(CTX)).resolves.toBeNull();
+                await expect(service.getGroupId(CTX, 2)).resolves.toBeNull();
+            } finally {
+                vi.mocked(isTauri).mockReturnValue(true);
+            }
+        });
     });
 
     // ─────────────────────────────────────────────────────────────────────────

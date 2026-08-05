@@ -40,7 +40,10 @@
         </div>
     }
 
-    <div class="px-1 flex flex-col gap-4">
+    <!-- Spans every step of the wizard, so its presence is "the modal is open" and its absence is
+         "the modal has closed" - which is the only signal a caller gets that creation finished,
+         since close() is what submit() calls on success. -->
+    <div class="px-1 flex flex-col gap-4" data-testid="create-guild-modal">
 
         @switch (step()) {
 
@@ -53,6 +56,7 @@
                 <div class="flex flex-col gap-2">
                     <button (click)="showKindStep()"
                             [disabled]="importingFromDiscord()"
+                            data-testid="create-guild-path-own"
                             class="group flex items-center gap-3 px-3.5 py-3 rounded-xl border border-white/[0.08] bg-white/[0.03]
                                    hover:border-brand/40 hover:bg-brand/[0.07] transition-all cursor-pointer text-left
                                    disabled:opacity-50 disabled:cursor-default">
@@ -68,6 +72,7 @@
 
                     <button (click)="showTemplateMode()"
                             [disabled]="importingFromDiscord()"
+                            data-testid="create-guild-path-template"
                             class="group flex items-center gap-3 px-3.5 py-3 rounded-xl border border-white/[0.08] bg-white/[0.03]
                                    hover:border-white/20 hover:bg-white/[0.06] transition-all cursor-pointer text-left
                                    disabled:opacity-50 disabled:cursor-default">
@@ -83,6 +88,7 @@
 
                     <button (click)="startDiscordImport()"
                             [disabled]="importingFromDiscord()"
+                            data-testid="create-guild-path-discord"
                             class="group flex items-center gap-3 px-3.5 py-3 rounded-xl border border-white/[0.08] bg-white/[0.03]
                                    hover:border-white/20 hover:bg-white/[0.06] transition-all cursor-pointer text-left
                                    disabled:opacity-50 disabled:cursor-default">
@@ -112,6 +118,8 @@
                     @for (meta of kinds; track meta.kind) {
                         <button (click)="selectKind(meta.kind)"
                                 (dblclick)="chooseKind(meta.kind)"
+                                data-testid="create-guild-kind"
+                                [attr.data-guild-kind]="meta.kind"
                                 [attr.aria-checked]="kind() === meta.kind"
                                 [class]="kind() === meta.kind
                                     ? 'border-brand/50 bg-brand/[0.10]'
@@ -239,6 +247,7 @@
                     <p-button (onClick)="back()" [label]="'CREATE_GUILD.BACK' | translate" [text]="true"
                               severity="secondary" size="small"/>
                     <p-button (onClick)="continueFromKind()" [label]="'CREATE_GUILD.CONTINUE' | translate"
+                              data-testid="create-guild-kind-continue"
                               severity="primary" size="small"/>
                 }
                 @case ('details') {

@@ -32,6 +32,7 @@
                         (contextmenu)="onServerContextMenu($event, guilds()[$index])"
                         data-testid="guild-list-item"
                         [attr.data-guild-id]="server.id"
+                        [attr.data-guild-name]="server.name"
                         [serverData]="server">
                 </app-server-icon>
             </div>

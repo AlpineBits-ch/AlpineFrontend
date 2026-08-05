@@ -1,5 +1,5 @@
 import {Injectable} from '@angular/core';
-import {invoke} from '@tauri-apps/api/core';
+import {invoke, isTauri} from '@tauri-apps/api/core';
 import {EncryptedMasterKey} from '../dtos/response/UserDto';
 
 /** Both wrappings of one master key, produced together so they provably seal the same bytes. */
@@ -73,6 +73,25 @@ function isCredentialRejection(err: unknown): boolean {
  */
 @Injectable({providedIn: 'root'})
 export class MasterKeyService {
+    /**
+     * Whether this build can do any of the below at all.
+     *
+     * <p>Every method on this service is a Tauri command. Outside Tauri there is no
+     * `__TAURI_INTERNALS__`, so `invoke` is a read off `undefined` and each of them rejects before
+     * a single byte of crypto happens - {@link generateRecoveryCode} included, which is the first
+     * irreversible step of setup and the one that makes the whole ceremony unfinishable in a
+     * browser.</p>
+     *
+     * <p>Stated as a question callers may ask rather than left for them to discover by catching,
+     * because the two situations are not the same kind of thing: a command that failed is worth
+     * retrying and worth reporting, and a platform with no engine is neither. `MlsService` draws
+     * the same line with `MlsUnavailableError` - this is the non-throwing half of it, for the
+     * callers whose right answer is to not ask.</p>
+     */
+    isAvailable(): boolean {
+        return isTauri();
+    }
+
     /**
      * Generates the master key and wraps it under both credentials in one call.
      *
