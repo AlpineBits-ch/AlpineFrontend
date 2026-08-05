@@ -9,9 +9,12 @@ import {GuildWebsocketService} from '../../../../services/guild-websocket.servic
 import {ProfileService} from '../../../../services/profile.service';
 import {VoiceChannelService} from '../../../../services/voice-channel.service';
 import {ToastService} from '../../../../services/toast.service';
+import {MinuteClockService} from '../../../../services/minute-clock.service';
 import {ScheduledEventDto, ScheduledEventStatus} from '../../../../dtos/response/scheduled-event.dto';
 
-const NOW = Date.UTC(2026, 7, 1, 12, 0, 0); // 2026-08-01T12:00:00Z
+// Local-time components, not a UTC string: the day grouping compares local calendar days.
+const NOW = new Date(2026, 7, 1, 12, 0, 0).getTime();
+const MINUTE = 60 * 1000;
 
 function event(id: string, overrides: Partial<ScheduledEventDto> = {}): ScheduledEventDto {
     return {
@@ -20,7 +23,7 @@ function event(id: string, overrides: Partial<ScheduledEventDto> = {}): Schedule
         creatorUserId: 'u1',
         title: `Event ${id}`,
         description: null,
-        startsAt: new Date(NOW + 60 * 60 * 1000).toISOString(),
+        startsAt: new Date(NOW + 60 * MINUTE).toISOString(),
         endsAt: null,
         location: null,
         voiceChannelId: null,
@@ -49,6 +52,9 @@ class FakeGuildWebsocketService {
 
 function setup(events: ScheduledEventDto[], memberPermissions = '') {
     const api = new FakeScheduledEventService();
+    // The clock is faked rather than pinned through the component, so the split depends on a value
+    // the test owns instead of on wall time.
+    const now: WritableSignal<number> = signal(NOW);
 
     TestBed.configureTestingModule({
         imports: [EventsPanelComponent],
@@ -58,8 +64,16 @@ function setup(events: ScheduledEventDto[], memberPermissions = '') {
             {provide: ScheduledEventService, useValue: api},
             {provide: GuildWebsocketService, useValue: new FakeGuildWebsocketService()},
             {provide: ProfileService, useValue: {ownProfile: signal(undefined)}},
-            {provide: VoiceChannelService, useValue: {joinedChannelId: () => null, joinChannel: () => undefined}},
+            {
+                provide: VoiceChannelService,
+                useValue: {
+                    joinedChannelId: () => null,
+                    joinChannel: () => undefined,
+                    channelParticipants: signal(new Map()),
+                },
+            },
             {provide: ToastService, useValue: {success: () => undefined, httpError: () => undefined}},
+            {provide: MinuteClockService, useValue: {now, retain: () => undefined}},
         ],
     });
 
@@ -73,69 +87,137 @@ function setup(events: ScheduledEventDto[], memberPermissions = '') {
     fixture.detectChanges();
 
     const component = fixture.componentInstance;
-    // The component's own clock signal is private; pinning it makes the
-    // upcoming/past split deterministic instead of dependent on wall time.
-    const now = component['now'] as WritableSignal<number>;
-    now.set(NOW);
+    const ids = (list: ScheduledEventDto[]) => list.map(e => e.id);
 
     return {
         fixture,
         component,
         now,
-        upcoming: () => (component['upcoming']() as ScheduledEventDto[]).map(e => e.id),
-        past: () => (component['past']() as ScheduledEventDto[]).map(e => e.id),
+        live: () => ids(component['live']()),
+        upcoming: () => ids(component['upcoming']()),
+        past: () => ids(component['past']()),
+        groups: () => component['upcomingGroups']()
+            .map(g => [g.bucket, ids(g.events)] as [string, string[]]),
     };
 }
 
-describe('EventsPanelComponent upcoming/past split', () => {
-    it('keeps an event that has started but not ended in upcoming', () => {
-        const {upcoming, past} = setup([
+describe('EventsPanelComponent live/upcoming/past split', () => {
+    it('files an event that has started but not ended under live, not upcoming', () => {
+        const {live, upcoming, past} = setup([
             event('running', {
-                startsAt: new Date(NOW - 30 * 60 * 1000).toISOString(),
-                endsAt: new Date(NOW + 30 * 60 * 1000).toISOString(),
+                startsAt: new Date(NOW - 30 * MINUTE).toISOString(),
+                endsAt: new Date(NOW + 30 * MINUTE).toISOString(),
             }),
         ]);
 
-        expect(upcoming()).toEqual(['running']);
+        expect(live()).toEqual(['running']);
+        expect(upcoming()).toEqual([]);
         expect(past()).toEqual([]);
     });
 
-    it('falls back to startsAt when endsAt is null', () => {
-        const {upcoming, past} = setup([
-            event('future', {startsAt: new Date(NOW + 60 * 1000).toISOString(), endsAt: null}),
-            event('finished', {startsAt: new Date(NOW - 60 * 1000).toISOString(), endsAt: null}),
+    it('keeps a just-started event with no end time live rather than filing it under past', () => {
+        // Before the grace window this event was live for zero seconds.
+        const {live, past} = setup([
+            event('open-ended', {startsAt: new Date(NOW - MINUTE).toISOString(), endsAt: null}),
         ]);
 
-        expect(upcoming()).toEqual(['future']);
-        expect(past()).toEqual(['finished']);
+        expect(live()).toEqual(['open-ended']);
+        expect(past()).toEqual([]);
     });
 
-    it('treats a blank endsAt like an absent one instead of dropping the event from both lists', () => {
-        // `new Date('')` is NaN, and NaN compares false in both directions - without the
-        // fallback the event would vanish from upcoming AND past.
-        const {upcoming, past} = setup([
-            event('blank-future', {startsAt: new Date(NOW + 60 * 1000).toISOString(), endsAt: ''}),
-            event('blank-past', {startsAt: new Date(NOW - 60 * 1000).toISOString(), endsAt: ''}),
+    it('treats a blank endsAt like an absent one instead of dropping the event from every list', () => {
+        const {live, upcoming, past} = setup([
+            event('blank-future', {startsAt: new Date(NOW + MINUTE).toISOString(), endsAt: ''}),
+            event('blank-running', {startsAt: new Date(NOW - MINUTE).toISOString(), endsAt: ''}),
         ]);
 
         expect(upcoming()).toEqual(['blank-future']);
-        expect(past()).toEqual(['blank-past']);
+        expect(live()).toEqual(['blank-running']);
+        expect(past()).toEqual([]);
     });
 
-    it('moves an event from upcoming to past as the clock advances', () => {
-        const {now, upcoming, past} = setup([
+    it('walks an event from upcoming to live to past as the clock advances', () => {
+        const {now, live, upcoming, past} = setup([
             event('e1', {
-                startsAt: new Date(NOW + 10 * 60 * 1000).toISOString(),
-                endsAt: new Date(NOW + 20 * 60 * 1000).toISOString(),
+                startsAt: new Date(NOW + 10 * MINUTE).toISOString(),
+                endsAt: new Date(NOW + 20 * MINUTE).toISOString(),
             }),
         ]);
 
         expect(upcoming()).toEqual(['e1']);
-        expect(past()).toEqual([]);
 
-        now.set(NOW + 21 * 60 * 1000);
-
+        now.set(NOW + 15 * MINUTE);
+        expect(live()).toEqual(['e1']);
         expect(upcoming()).toEqual([]);
+
+        now.set(NOW + 21 * MINUTE);
         expect(past()).toEqual(['e1']);
+        expect(live()).toEqual([]);
+    });
+
+    it('orders past events most recent first', () => {
+        const {past} = setup([
+            event('older', {
+                startsAt: new Date(NOW - 300 * MINUTE).toISOString(),
+                endsAt: new Date(NOW - 290 * MINUTE).toISOString(),
+            }),
+            event('newer', {
+                startsAt: new Date(NOW - 200 * MINUTE).toISOString(),
+                endsAt: new Date(NOW - 190 * MINUTE).toISOString(),
+            }),
+        ]);
+
+        expect(past()).toEqual(['newer', 'older']);
+    });
+});
+
+describe('EventsPanelComponent day grouping', () => {
+    it('groups upcoming events by calendar day in start order', () => {
+        const {groups} = setup([
+            event('today-1', {startsAt: new Date(2026, 7, 1, 18, 0).toISOString()}),
+            event('today-2', {startsAt: new Date(2026, 7, 1, 20, 0).toISOString()}),
+            event('tomorrow-1', {startsAt: new Date(2026, 7, 2, 9, 0).toISOString()}),
+            event('later-1', {startsAt: new Date(2026, 7, 5, 9, 0).toISOString()}),
+        ]);
+
+        expect(groups()).toEqual([
+            ['today', ['today-1', 'today-2']],
+            ['tomorrow', ['tomorrow-1']],
+            ['later', ['later-1']],
+        ]);
+    });
+
+    it('gives two separate later days their own groups', () => {
+        const {groups} = setup([
+            event('a', {startsAt: new Date(2026, 7, 5, 9, 0).toISOString()}),
+            event('b', {startsAt: new Date(2026, 7, 6, 9, 0).toISOString()}),
+        ]);
+
+        expect(groups().map(([bucket]) => bucket)).toEqual(['later', 'later']);
+        expect(groups().map(([, ids]) => ids)).toEqual([['a'], ['b']]);
+    });
+});
+
+describe('EventsPanelComponent empty state', () => {
+    it('stays out of the empty state while an event is live', () => {
+        const {component} = setup([
+            event('running', {
+                startsAt: new Date(NOW - MINUTE).toISOString(),
+                endsAt: new Date(NOW + MINUTE).toISOString(),
+            }),
+        ]);
+
+        expect(component['showEmpty']()).toBe(false);
+    });
+
+    it('shows the empty state when everything has finished', () => {
+        const {component} = setup([
+            event('done', {
+                startsAt: new Date(NOW - 300 * MINUTE).toISOString(),
+                endsAt: new Date(NOW - 290 * MINUTE).toISOString(),
+            }),
+        ]);
+
+        expect(component['showEmpty']()).toBe(true);
     });
 });

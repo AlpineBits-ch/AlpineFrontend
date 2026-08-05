@@ -6,105 +6,112 @@
                   icon="pi pi-times" severity="secondary" size="small" tooltipPosition="bottom"/>
         <span class="flex-1 min-w-0 truncate text-sm font-semibold text-text-primary">{{ 'EVENTS.TITLE' | translate }}</span>
         @if (canManage()) {
-            <p-button (onClick)="openCreate()" [text]="true" icon="pi pi-plus" severity="secondary" size="small"/>
+            <p-button (onClick)="openCreate()" [pTooltip]="'EVENTS.CREATE_TOOLTIP' | translate" [text]="true"
+                      icon="pi pi-plus" severity="secondary" size="small" tooltipPosition="bottom"/>
         }
     </div>
 
     <!-- Body -->
-    <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar p-3 space-y-2">
+    <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-3 py-3">
 
         @if (showLoading()) {
-            <p class="flex items-center justify-center gap-2 text-[0.8125rem] text-text-muted py-6">
+            <p class="flex items-center justify-center gap-2 py-8 m-0 text-[0.8125rem] text-text-muted">
                 <i class="pi pi-spin pi-spinner text-[0.75rem]"></i>{{ 'COMMON.LOADING' | translate }}
             </p>
         } @else if (showError()) {
-            <div class="flex flex-col items-center gap-2 py-6">
-                <p class="text-[0.8125rem] text-text-secondary text-center m-0">{{ 'EVENTS.LOAD_ERROR' | translate }}</p>
+            <div class="flex flex-col items-center gap-2 py-8">
+                <p class="m-0 text-center text-[0.8125rem] text-text-secondary">{{ 'EVENTS.LOAD_ERROR' | translate }}</p>
                 <p-button (onClick)="retry()" [label]="'COMMON.RETRY' | translate" [text]="true" icon="pi pi-refresh"
                           severity="secondary" size="small"/>
             </div>
         } @else if (showEmpty()) {
-            <p class="text-[0.8125rem] text-text-muted text-center py-6">{{ 'EVENTS.EMPTY' | translate }}</p>
+            <!-- An empty screen is an invitation to act, so the create button lives here too.
+                 The no-reminders note sits here rather than in a permanent footer bar: it is
+                 information when there is nothing else to read, and an apology when there is. -->
+            <div class="flex flex-col items-center gap-3 px-4 py-10 text-center">
+                <div class="grid size-12 place-items-center rounded-2xl bg-white/[0.04]">
+                    <i class="pi pi-calendar text-[1.125rem] text-text-muted"></i>
+                </div>
+                <div>
+                    <p class="m-0 text-[0.875rem] font-semibold text-text-primary">{{ 'EVENTS.EMPTY_TITLE' | translate }}</p>
+                    <p class="m-0 mt-1 text-[0.8125rem] text-text-secondary">{{ 'EVENTS.EMPTY_SUBTITLE' | translate }}</p>
+                </div>
+                @if (canManage()) {
+                    <p-button (onClick)="openCreate()" [label]="'EVENTS.CREATE_FIRST' | translate" icon="pi pi-plus"
+                              severity="primary" size="small"/>
+                }
+                <p class="m-0 mt-1 text-[0.6875rem] leading-relaxed text-text-muted">
+                    {{ 'EVENTS.NO_REMINDERS_NOTE' | translate }}
+                </p>
+            </div>
         } @else {
-            @for (event of upcoming(); track event.id) {
-                <div class="bg-card border border-border rounded-lg p-3">
-                    <div class="text-[0.75rem] text-[var(--color-brand-dim)] uppercase">
-                        {{ event.startsAt | date:'EEE, MMM d · h:mm a' }}
-                    </div>
-                    <div class="text-text-primary font-medium mt-0.5">{{ event.title }}</div>
 
-                    @if (event.description) {
-                        <p class="text-[0.8125rem] text-text-secondary mt-1 line-clamp-2">{{ event.description }}</p>
+            @if (live().length > 0) {
+                <h3 class="mb-2 px-1 text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted">
+                    {{ 'EVENTS.HAPPENING_NOW' | translate }}
+                </h3>
+                <div class="mb-5 space-y-2">
+                    @for (event of live(); track event.id) {
+                        <app-event-card (cancel)="confirmCancel(event)"
+                                        (edit)="openEdit(event)"
+                                        (interest)="toggleInterest(event)"
+                                        (joinVoice)="joinVoice(event.voiceChannelId!)"
+                                        [canManage]="canManage()"
+                                        [event]="event"
+                                        phase="live"/>
                     }
+                </div>
+            }
 
-                    @if (event.location) {
-                        <div class="flex items-center gap-1.5 text-[0.75rem] text-text-secondary mt-2">
-                            <i class="pi pi-map-marker"></i>
-                            <span>{{ event.location }}</span>
-                        </div>
-                    }
-
-                    @if (event.voiceChannelId; as voiceChannelId) {
-                        <div class="flex items-center gap-1.5 text-[0.75rem] text-text-secondary mt-1.5">
-                            <i class="pi pi-volume-up"></i>
-                            <span>{{ voiceChannelName(voiceChannelId) }}</span>
-                            <p-button (onClick)="joinVoice(voiceChannelId)" [label]="'EVENTS.JOIN_VOICE' | translate"
-                                      [text]="true" severity="secondary" size="small"/>
-                        </div>
-                    }
-
-                    <div class="flex items-center justify-between mt-2">
-                        <button (click)="toggleInterest(event)"
-                                [class.text-connecting]="event.isInterested"
-                                class="flex items-center gap-1.5 text-[0.75rem] text-text-secondary border-0 bg-transparent cursor-pointer p-0">
-                            <i [class]="event.isInterested ? 'pi pi-star-fill' : 'pi pi-star'"></i>
-                            <span>{{ event.interestedCount }}</span>
-                        </button>
-
-                        @if (canManage()) {
-                            <div class="flex items-center gap-1">
-                                <p-button (onClick)="openEdit(event)" [text]="true" icon="pi pi-pencil"
-                                          severity="secondary" size="small"/>
-                                <p-button (onClick)="confirmCancel(event)" [text]="true" icon="pi pi-trash"
-                                          severity="danger" size="small"/>
-                            </div>
+            <!-- Day headers are the section headers for everything that has not started, so there
+                 is no generic "Upcoming" above them - that would be a label on a label. -->
+            @for (group of upcomingGroups(); track group.key) {
+                <h3 class="mb-2 px-1 text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted">
+                    @switch (group.bucket) {
+                        @case ('today') {
+                            {{ 'EVENTS.TODAY' | translate }}
                         }
-                    </div>
+                        @case ('tomorrow') {
+                            {{ 'EVENTS.TOMORROW' | translate }}
+                        }
+                        @default {
+                            {{ group.events[0].startsAt | date:'EEE, MMM d' }}
+                        }
+                    }
+                </h3>
+                <div class="mb-5 space-y-2">
+                    @for (event of group.events; track event.id) {
+                        <app-event-card (cancel)="confirmCancel(event)"
+                                        (edit)="openEdit(event)"
+                                        (interest)="toggleInterest(event)"
+                                        (joinVoice)="joinVoice(event.voiceChannelId!)"
+                                        [canManage]="canManage()"
+                                        [event]="event"
+                                        phase="upcoming"/>
+                    }
                 </div>
             }
         }
 
         <!-- Past events -->
         @if (past().length > 0) {
-            <div class="pt-2">
-                <button (click)="showPast.set(!showPast())"
-                        class="flex items-center gap-1.5 text-[0.6875rem] font-semibold text-text-muted uppercase tracking-widest border-0 bg-transparent cursor-pointer px-1 py-1">
-                    <i [class.pi-chevron-right]="!showPast()" [class.pi-chevron-down]="showPast()" class="pi"></i>
-                    {{ 'EVENTS.PAST' | translate }} ({{ past().length }})
-                </button>
+            <button (click)="showPast.set(!showPast())"
+                    class="flex items-center gap-1.5 border-0 bg-transparent px-1 py-1 cursor-pointer
+                           text-[0.6875rem] font-semibold uppercase tracking-widest text-text-muted
+                           hover:text-text-secondary transition-colors">
+                <i [class.pi-chevron-down]="showPast()" [class.pi-chevron-right]="!showPast()"
+                   class="pi text-[0.625rem]"></i>
+                {{ 'EVENTS.PAST' | translate }} ({{ past().length }})
+            </button>
 
-                @if (showPast()) {
-                    <div class="space-y-2 mt-1 opacity-50">
-                        @for (event of past(); track event.id) {
-                            <div class="bg-card border border-border rounded-lg p-3">
-                                <div class="text-[0.75rem] text-[var(--color-brand-dim)] uppercase">
-                                    {{ event.startsAt | date:'EEE, MMM d · h:mm a' }}
-                                </div>
-                                <div class="text-text-primary font-medium mt-0.5">{{ event.title }}</div>
-                                @if (event.description) {
-                                    <p class="text-[0.8125rem] text-text-secondary mt-1 line-clamp-2">{{ event.description }}</p>
-                                }
-                            </div>
-                        }
-                    </div>
-                }
-            </div>
+            @if (showPast()) {
+                <div class="mt-2 space-y-2 opacity-60">
+                    @for (event of past(); track event.id) {
+                        <app-event-card [canManage]="false" [event]="event" phase="past"/>
+                    }
+                </div>
+            }
         }
-    </div>
-
-    <!-- Footer -->
-    <div class="px-3 py-2 border-t border-white/[0.10] shrink-0">
-        <p class="text-[0.6875rem] text-text-muted text-center">{{ 'EVENTS.NO_REMINDERS_NOTE' | translate }}</p>
     </div>
 </div>
 

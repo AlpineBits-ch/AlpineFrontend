@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal, untracked} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, effect, inject, input, signal, untracked} from '@angular/core';
 import {DatePipe} from '@angular/common';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Button} from 'primeng/button';
@@ -13,11 +13,22 @@ import {ProfileService} from '../../../../services/profile.service';
 import {VoiceChannelService} from '../../../../services/voice-channel.service';
 import {ToastService} from '../../../../services/toast.service';
 import {EventEditorDialogComponent} from './event-editor-dialog.component';
+import {MinuteClockService} from '../../../../services/minute-clock.service';
+import {EventCardComponent} from './event-card.component';
+import {DayBucket, dayBucket, phaseOf, startTime} from './event-timing';
+
+/** A run of consecutive upcoming events that share a day header. */
+export interface EventDayGroup {
+    /** Stable `@for` track key: the bucket name for today/tomorrow, the date string otherwise. */
+    key: string;
+    bucket: DayBucket;
+    events: ScheduledEventDto[];
+}
 
 @Component({
     selector: 'app-events-panel',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [DatePipe, TranslateModule, Button, Tooltip, ConfirmDialog, EventEditorDialogComponent],
+    imports: [DatePipe, TranslateModule, Button, Tooltip, ConfirmDialog, EventEditorDialogComponent, EventCardComponent],
     providers: [ConfirmationService],
     templateUrl: './events-panel.component.html',
 })
@@ -32,7 +43,6 @@ export class EventsPanelComponent {
     private readonly toastService = inject(ToastService);
     private readonly translate = inject(TranslateService);
     private readonly confirmationService = inject(ConfirmationService);
-    private readonly destroyRef = inject(DestroyRef);
 
     // Mirrors ChannelListComponent.canReorder / EmojiSettingsComponent.canManageEmojis:
     // the guild owner short-circuits first (SelfGuildMemberDto.permissions does not
@@ -47,26 +57,49 @@ export class EventsPanelComponent {
         return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.ManageEvents);
     });
 
-    // `Date.now()` isn't itself a reactive read, so a computed that only calls it
-    // directly would never re-evaluate as time passes -it'd need some *other* signal
-    // to change first to notice an event had ended. This local clock is that signal:
-    // a plain `signal<number>`, ticked by a 60s interval (minute-granularity UI, no
-    // need to poll faster), read by `upcoming`/`past` below so they recompute on their
-    // own. It never touches the store and can't trigger `loadFor` or any HTTP call.
-    private readonly now = signal(Date.now());
-    private readonly nowIntervalId = setInterval(() => this.now.set(Date.now()), 60_000);
+    // One shared clock rather than a per-component interval - the sidebar's Events row and every
+    // voice channel row read the same signal. See MinuteClockService for why ActivityTickerService
+    // cannot be reused for timestamps that are in the future.
+    protected readonly clock = inject(MinuteClockService);
 
-    // The server never advances an event's status past Scheduled except via cancel
-    // (and cancelled events are excluded from the list entirely) -so "happening" vs
-    // "over" must be derived from the timestamps, never from `status`.
+    // The server never advances an event's status past Scheduled except via cancel (and cancelled
+    // events are excluded from the list entirely) -so live vs over is derived from the timestamps,
+    // never from `status`. That derivation lives in ./event-timing, which is pure and tested on its
+    // own; this component only decides which list each phase goes in.
     private readonly events = computed(() => this.store.eventsForGuild(this.guildId()));
-    protected upcoming = computed(() =>
-        this.events().filter(e => this.endBoundary(e) >= this.now()));
-    protected past = computed(() =>
+
+    // Most recently started first: the thing that just began is the thing you are looking for.
+    protected live = computed(() =>
         this.events()
-            .filter(e => this.endBoundary(e) < this.now())
-            .slice()
-            .reverse());
+            .filter(e => phaseOf(e, this.clock.now()) === 'live')
+            .sort((a, b) => startTime(b) - startTime(a)));
+
+    // `events()` is already ascending by start, and filter preserves order.
+    protected upcoming = computed(() =>
+        this.events().filter(e => phaseOf(e, this.clock.now()) === 'upcoming'));
+
+    protected past = computed(() =>
+        this.events().filter(e => phaseOf(e, this.clock.now()) === 'past').reverse());
+
+    /**
+     * Upcoming events cut into day groups. Grouping consecutive runs is only correct because
+     * `upcoming()` is sorted ascending by start - which it is, from the store.
+     */
+    protected upcomingGroups = computed<EventDayGroup[]>(() => {
+        const now = this.clock.now();
+        const groups: EventDayGroup[] = [];
+
+        for (const event of this.upcoming()) {
+            const bucket = dayBucket(event.startsAt, now);
+            const key = bucket === 'later' ? new Date(event.startsAt).toDateString() : bucket;
+            const last = groups.at(-1);
+
+            if (last?.key === key) last.events.push(event);
+            else groups.push({key, bucket, events: [event]});
+        }
+
+        return groups;
+    });
 
     // Load state, so the panel never claims "no upcoming events" while the request is
     // still in flight or after it failed.
@@ -75,14 +108,15 @@ export class EventsPanelComponent {
     protected showError = computed(() =>
         !this.isLoading() && this.store.loadError(this.guildId()) && this.events().length === 0);
     protected showEmpty = computed(() =>
-        !this.showLoading() && !this.showError() && this.upcoming().length === 0);
+        !this.showLoading() && !this.showError()
+        && this.live().length === 0 && this.upcoming().length === 0);
 
     protected showPast = signal(false);
     protected editorVisible = signal(false);
     protected editingEvent = signal<ScheduledEventDto | null>(null);
 
     constructor() {
-        this.destroyRef.onDestroy(() => clearInterval(this.nowIntervalId));
+        this.clock.retain();
 
         // `loadFor` reads AND patches loadingGuilds/loadedGuilds internally -tracking
         // only `guildId()` here (and calling loadFor untracked) keeps this effect from
@@ -100,17 +134,6 @@ export class EventsPanelComponent {
 
     protected retry(): void {
         this.store.loadFor(this.guildId());
-    }
-
-    /**
-     * Epoch ms at which an event counts as over: its end when present and parseable,
-     * otherwise its start. A blank or unparseable `endsAt` must fall back to `startsAt` -
-     * a bare `new Date('')` yields NaN, and NaN compares false both ways, silently
-     * dropping the event from the upcoming *and* past lists.
-     */
-    private endBoundary(event: ScheduledEventDto): number {
-        const end = event.endsAt ? new Date(event.endsAt).getTime() : Number.NaN;
-        return Number.isNaN(end) ? new Date(event.startsAt).getTime() : end;
     }
 
     protected openCreate(): void {
@@ -156,11 +179,5 @@ export class EventsPanelComponent {
         if (this.voiceChannelSvc.joinedChannelId() !== channel.id) {
             this.voiceChannelSvc.joinChannel(channel, ws.guild.name);
         }
-    }
-
-    protected voiceChannelName(channelId: string): string | null {
-        const ws = this.navService.workspace();
-        if (ws.type !== 'server') return null;
-        return ws.guild.channels.find(c => c.id === channelId)?.name ?? null;
     }
 }
