@@ -3855,9 +3855,34 @@ git commit -m "feat(wiki): draft pages with a user-supplied AI provider key"
 
 ## Progress — as of 2026-08-05
 
-**Done: tasks 1–18. Remaining: 19 (i18n) and 20 (AI drafting).** Full app suite green at the last
-commit: 174 files, 2287 tests. Every task below is committed; `git log --oneline` on `main` shows
-the sequence.
+**All 20 tasks done, plus three follow-ups from the first real run.** Full app suite green:
+176 files, 2313 tests. Everything is committed and pushed on `main`; `git log --oneline` shows
+the sequence. The locale JSON landed in its own submodule commit (`f2de159` in venta-i18n).
+
+### Follow-ups after the first launch (commit `c70234e`)
+
+The redesign shipped with four defects that only a running app could show, all now fixed:
+
+1. **Edit was unreachable.** `wikiAbilities` read only the member's permission bits, and the guild
+   owner's own member record does not reliably carry Superadmin — the caveat `memberCanManageGuild`
+   already documents. Ownership is now passed in explicitly as `wikiAbilities(perms, isOwner)`.
+2. **The client permission enum stopped at bit 49 while the server has gone to 54**, so
+   `parsePermissions` warned on every load and silently dropped `MentionEveryone`, `ManageRoles`,
+   `ManageWebhooks`, `ChangeNickname` and `ManageNicknames` from every mask it parsed. This was
+   never wiki-specific.
+3. **Formatting had become undiscoverable.** The bubble menu needs a selection first and the slash
+   menu needs you to know to type `/`, so the editor read as a plain text box. There is now a
+   formatting bar shown only while editing, plus a Markdown toggle that swaps the rich surface for
+   the raw source and back.
+4. **The task-list checkbox landed on its own line with the caret stranded below it.** Every rule
+   targeting ProseMirror's DOM is scoped to `.wiki-wysiwyg`, a class the merged read/edit element
+   never carried. Worth remembering: component styles cannot reach that subtree at all.
+
+Two smaller things went with them: StarterKit 3 already bundles Link and Underline, so registering
+them again left it undefined which configuration won — including the protocol allowlist, which is a
+sanitisation control; and the article is now rendered once for both reading and editing rather than
+as two `@switch` branches, which had been tearing down and rebuilding the editor on every Edit
+click.
 
 **Server work is done and committed separately** in the Echo repo (`7ae3a50`): `summary` on
 `UpdateWikiPageDto`, `?includeContent=true` on `GetWiki`, and the `Include(p => p.Revisions)` N+1
@@ -3893,14 +3918,19 @@ replaced with a grouped count. 1295 server tests pass. Nothing further is needed
 
 ### Not yet verified in the running app
 
-Everything is verified by compiler and unit tests only — **the app has not been launched**. Two
-claims specifically deserve eyes before being trusted:
+The app has now been launched once, which is where the four defects above came from. Everything
+below is still verified by compiler and unit tests only:
 
-1. **No layout shift between read and edit.** This is the load-bearing claim of the whole redesign.
-   It should hold structurally (one TipTap instance, one set of padding), but it is exactly the
-   kind of thing that type-checks and looks wrong.
+1. **No layout shift between read and edit.** The load-bearing claim of the whole redesign. It got
+   structurally stronger with the single-instance fix (one component across both modes rather than
+   two `@switch` branches), but it has still not been watched.
 2. **Legacy HTML pages.** Content saved before the markdown switch takes a different `setContent`
-   branch. That path has been reasoned about, not observed.
+   branch. Reasoned about, not observed.
+3. **The whole AI drafting flow.** No request has ever been made against a real provider. The three
+   SDK call shapes were read out of the installed type definitions rather than guessed, but streaming,
+   CORS from the Tauri origin, abort mid-stream, and the keychain round-trip on Windows are all
+   unobserved. The lazy chunks do build and split as intended.
+4. **The markdown source toggle** round-tripping a real page through `getMarkdown` and back.
 
 ## Post-implementation
 
