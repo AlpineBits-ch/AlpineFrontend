@@ -9,17 +9,38 @@ import {
     setActiveSlotId,
 } from './scoped-oauth-storage';
 
-/** Where a re-entry lands. The app uses hash routing, so a bare reload keeps the current route. */
+/** Where a re-entry lands. A bare reload would keep the current route, which is the whole problem. */
 export type ReentryTarget = 'overview' | 'authentication';
+
+/**
+ * The URL a re-entry navigates to.
+ *
+ * <p>A path, not a fragment, and that is the entire point of this function existing separately.
+ * `reenter` used to set `window.location.hash = '#/authentication'` and then reload, on the stated
+ * assumption that the app used hash routing. It does not: `app.config.ts` imports
+ * `withHashLocation` and then calls plain `provideRouter(routes)` without it. So the assignment
+ * changed only the fragment, the reload landed back on `/overview`, and the router - which reads
+ * the path - brought the shell up with no session. That is exactly the "empty app rather than the
+ * login screen" this was written to prevent, and signing out hit it every time.</p>
+ *
+ * <p>Extracted so the shape can be asserted. The production `reenter` is a replaceable field, so
+ * every existing test substitutes it and none of them ever executed the broken line.</p>
+ */
+export function reentryUrl(target: ReentryTarget): string {
+    return `/${target}`;
+}
 
 /** How the app is re-entered as a different account. Injected so the switch can be tested. */
 export interface SwitchEnvironment {
     /**
      * Tears the process down and starts it again at `target`, as whichever slot is now live.
      *
-     * <p>The target is explicit because hash routing makes a bare reload keep the route it was on.
-     * Signing out of the last account and reloading in place would boot `MainPageComponent` with
-     * no session, which renders as an empty app rather than as the login screen.</p>
+     * <p>The target is explicit because a bare reload keeps the route it was on. Signing out of the
+     * last account and reloading in place would boot `MainPageComponent` with no session, which
+     * renders as an empty app rather than as the login screen.</p>
+     *
+     * <p>It must navigate by <b>path</b>. See {@link reentryUrl} - assuming hash routing here is
+     * what made signing out land on an empty shell.</p>
      */
     reenter: (target: ReentryTarget) => void;
     /** True when leaving now would drop a call. */
@@ -54,10 +75,10 @@ export class AccountSwitchService {
      * where there is exactly one right answer for each.</p>
      */
     environment: SwitchEnvironment = {
-        reenter: target => {
-            window.location.hash = `#/${target}`;
-            window.location.reload();
-        },
+        // location.assign, not a hash write plus reload. Assigning a URL that differs in more than
+        // the fragment is itself a full document load, so the reload is not merely redundant - it
+        // would race the navigation it follows.
+        reenter: target => window.location.assign(reentryUrl(target)),
         // Wired to the call service by whoever owns the switcher UI. Defaults to "no call", which
         // is the safe default for the check and the wrong one to leave unwired - see the switcher.
         callIsLive: () => false,

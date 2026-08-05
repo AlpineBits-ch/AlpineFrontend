@@ -35,7 +35,7 @@ vi.mock('@tauri-apps/plugin-store', () => ({
 
 import {TestBed} from '@angular/core/testing';
 import {LazyStore} from '@tauri-apps/plugin-store';
-import {AccountSwitchService, ReentryTarget} from './account-switch.service';
+import {AccountSwitchService, ReentryTarget, reentryUrl} from './account-switch.service';
 import {AccountRegistryService} from './account-registry.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {SessionTeardownService} from './session-teardown.service';
@@ -412,5 +412,28 @@ describe('the live slot mirror', () => {
 
         expect(activeSlotId()).toBe(b.id);
         expect(await registry.activeSlotId()).toBe(b.id);
+    });
+});
+
+/**
+ * The production `reenter` target, which every other test in this file substitutes away.
+ *
+ * <p>That substitution is why the real implementation shipped broken: it set
+ * `window.location.hash` and reloaded, assuming hash routing the app does not use, so signing out
+ * reloaded the route it was already on and brought the shell up with no session. These assertions
+ * exist to make that specific mistake impossible to reintroduce quietly.</p>
+ */
+describe('reentryUrl', () => {
+    it('navigates by path, never by fragment', () => {
+        for (const target of ['overview', 'authentication'] as const) {
+            const url = reentryUrl(target);
+            expect(url.startsWith('/')).toBe(true);
+            expect(url).not.toContain('#');
+        }
+    });
+
+    it('names the route the caller asked for', () => {
+        expect(reentryUrl('authentication')).toBe('/authentication');
+        expect(reentryUrl('overview')).toBe('/overview');
     });
 });
