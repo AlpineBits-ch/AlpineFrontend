@@ -49,6 +49,22 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
                 return throwError(() => err);
             }
 
+            // A 401 with no refresh token to spend cannot be recovered, so do not ask.
+            // angular-oauth2-oidc does not check first: it posts `refresh_token=null` as a literal
+            // string and lets the server reject it. After logout that POST goes to the DEFAULT
+            // host, because ApiConfigService.reset() has just cleared the chosen server, so a
+            // signed-out self-hosted client sits there posting nulls at api.venta.gg. Observed
+            // doing exactly that.
+            //
+            // Ends the session rather than merely rethrowing. The outcome is the same one the
+            // round trip would have produced - a rejected refresh, then softLogout - so skipping
+            // the request must not also skip the consequence, or a 401 with no token would leave
+            // the app half signed in with no route back to the login screen.
+            if (!oAuthService.getRefreshToken()) {
+                softLogout(oAuthService, router);
+                return throwError(() => err);
+            }
+
             if (!isRefreshing) {
                 isRefreshing = true;
                 refreshPromise = oAuthService.refreshToken()

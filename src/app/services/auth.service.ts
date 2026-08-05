@@ -88,6 +88,16 @@ export class AuthService {
      * hit the token endpoint exactly once -no racing over a single-use refresh token.
      */
     public refresh(): Promise<string> {
+        // Nothing to refresh with, so do not ask. angular-oauth2-oidc does not check first - it
+        // posts `refresh_token=null` as a literal string and lets the server reject it. Harmless
+        // on its own, but it is a POST to whichever host is configured at that moment, and after
+        // logout that is the default one, because ApiConfigService.reset() has just cleared the
+        // chosen server. A signed-out self-hosted client would sit there posting nulls at
+        // api.venta.gg. Observed doing exactly that; the value really was the string "null".
+        if (!this.oauthService.getRefreshToken()) {
+            return Promise.reject(new Error('No refresh token'));
+        }
+
         if (!this._activeRefresh) {
             this._activeRefresh = this.oauthService.refreshToken()
                 .then(() => {

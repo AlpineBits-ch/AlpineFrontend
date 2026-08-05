@@ -27,6 +27,10 @@ const API = 'https://api.venta.gg/test';
 function setup() {
     const oAuth = {
         getAccessToken: vi.fn(() => 'old-token') as ReturnType<typeof vi.fn>,
+        // Present because the interceptor will not spend a refresh token it does not have. Every
+        // test here is about what happens once a refresh IS attempted, so the default is one that
+        // exists; the "no refresh token" case has its own test at the end of this file.
+        getRefreshToken: vi.fn(() => 'refresh-token') as ReturnType<typeof vi.fn>,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         refreshToken: vi.fn() as any,
         logOut: vi.fn(),
@@ -267,4 +271,30 @@ it('does not try to refresh when a status call answers 401', async () => {
     // server's problem, and refreshing on it would burn the refresh token during an outage.
     expect(oAuth.refreshToken).not.toHaveBeenCalled();
     expect(oAuth.logOut).not.toHaveBeenCalled();
+});
+
+it('does not post a refresh it has no token for, and ends the session instead', async () => {
+    const {http, ctrl, oAuth, router} = setup();
+    oAuth.getRefreshToken.mockReturnValue(null);
+
+    http.get(API).subscribe({
+        next: () => {
+        }, error: () => {
+        }
+    });
+
+    ctrl.expectOne(API).flush('Unauthorized', {status: 401, statusText: 'Unauthorized'});
+    await tick();
+
+    // angular-oauth2-oidc does not check first - it posts `refresh_token=null` as a literal
+    // string. After logout that POST goes to the DEFAULT host, because ApiConfigService.reset()
+    // has just cleared the chosen server, so a signed-out self-hosted client would sit there
+    // posting nulls at api.venta.gg.
+    expect(oAuth.refreshToken).not.toHaveBeenCalled();
+
+    // But the session still has to end. Skipping the request must not skip the consequence: the
+    // round trip would have failed and called softLogout, and without this the app is left half
+    // signed in with no route back to the login screen.
+    expect(oAuth.logOut).toHaveBeenCalledTimes(1);
+    expect(router.navigate).toHaveBeenCalledWith(['/authentication']);
 });
