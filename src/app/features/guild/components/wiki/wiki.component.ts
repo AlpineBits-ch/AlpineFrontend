@@ -10,7 +10,8 @@ import {WikiHistoryComponent} from './wiki-history/wiki-history.component';
 import {WikiHomeComponent} from './wiki-home/wiki-home.component';
 import {WikiPageDto} from '../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../services/wiki.service';
-import {Heading} from './wiki-toc';
+import {WikiContextRailComponent} from './wiki-rail/wiki-context-rail.component';
+import {buildToc, Heading, TocEntry} from './wiki-toc';
 
 const NAV_WIDTH_KEY = 'wiki-nav-width';
 const NAV_WIDTH_DEFAULT = 260;
@@ -21,7 +22,7 @@ const NAV_WIDTH_MAX = 420;
     selector: 'app-wiki',
     imports: [
         WikiNavComponent, WikiHomeComponent, WikiArticleComponent, WikiBreadcrumbsComponent,
-        WikiHistoryComponent, Button, Dialog, PrimeTemplate,
+        WikiContextRailComponent, WikiHistoryComponent, Button, Dialog, PrimeTemplate,
     ],
     templateUrl: './wiki.component.html',
     styleUrl: './wiki.component.css',
@@ -56,6 +57,23 @@ export class WikiComponent {
     protected openLinkedPage(pageId: string): void {
         const summary = this.state.wiki()?.pages.find(p => p.id === pageId);
         if (summary) this.state.openPage(summary);
+    }
+
+    /**
+     * Scrolls to a heading by its position in the document rather than by an id attribute.
+     *
+     * The rendered headings carry no ids - they come from ProseMirror, which owns that DOM - so
+     * matching on slug text would break on two headings that share a title. `buildToc` emits in
+     * document order, so the Nth entry is the Nth heading element.
+     */
+    protected scrollToHeading(entry: TocEntry): void {
+        const index = buildToc(this.headings()).findIndex(e => e.id === entry.id);
+        if (index < 0) return;
+        const headings = document.querySelectorAll(
+            '.wiki-article-body h1, .wiki-article-body h2, .wiki-article-body h3, ' +
+            '.wiki-article-body h4, .wiki-article-body h5, .wiki-article-body h6',
+        );
+        headings[index]?.scrollIntoView({behavior: 'smooth', block: 'start'});
     }
 
     protected confirmDelete(): void {

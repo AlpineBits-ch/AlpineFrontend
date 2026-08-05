@@ -86,6 +86,20 @@
             }
         }
     </div>
+
+    <!-- Context rail. Occupies the width the article deliberately does not take, which is what
+         turns the old dead gutter into something useful. -->
+    @if (state.wikiView() === 'page' || state.wikiView() === 'editor') {
+        <div class="hidden xl:flex w-[17.5rem] shrink-0 h-full bg-sidebar border-l border-white/[0.10]">
+            <app-wiki-context-rail (openPage)="state.openPage($event)"
+                                   (tocEntrySelected)="scrollToHeading($event)"
+                                   [guildId]="guildId()"
+                                   [headings]="headings()"
+                                   [page]="state.selectedPage()"
+                                   [wiki]="state.wiki()"
+                                   class="flex-1 min-w-0"/>
+        </div>
+    }
 </div>
 
 <!-- Delete confirmation -->

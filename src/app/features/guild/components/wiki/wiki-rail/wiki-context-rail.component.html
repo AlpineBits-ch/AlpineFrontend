@@ -1,0 +1,88 @@
+<div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-4 py-5">
+
+    <!-- On this page -->
+    @if (toc().length) {
+        <section class="mb-6">
+            <h2 class="mb-2 text-[0.625rem] font-semibold uppercase tracking-widest text-white/30">
+                On this page
+            </h2>
+            <nav class="flex flex-col gap-0.5">
+                @for (entry of toc(); track entry.id) {
+                    <button (click)="tocEntrySelected.emit(entry)"
+                            [class.text-brand-dim]="activeHeadingId() === entry.id"
+                            [class.text-white/50]="activeHeadingId() !== entry.id"
+                            [style.paddingLeft.px]="(entry.level - 1) * 10"
+                            class="cursor-pointer truncate border-0 bg-transparent py-1 text-left
+                                   text-[0.8125rem] hover:text-white/85">
+                        {{ entry.text }}
+                    </button>
+                }
+            </nav>
+        </section>
+    }
+
+    <!-- Linked from -->
+    @if (page()) {
+        <section class="mb-6">
+            <h2 class="mb-2 text-[0.625rem] font-semibold uppercase tracking-widest text-white/30">
+                Linked from
+            </h2>
+            @if (backlinks().length) {
+                <div class="flex flex-col gap-0.5">
+                    @for (source of backlinks(); track source.id) {
+                        <button (click)="openPage.emit(source)"
+                                class="flex cursor-pointer items-center gap-2 rounded-md border-0
+                                       bg-transparent px-1 py-1 text-left text-[0.8125rem]
+                                       text-white/55 hover:bg-hover hover:text-white/85">
+                            <i class="pi pi-file shrink-0 text-[0.6875rem] text-white/30"></i>
+                            <span class="truncate">{{ source.title }}</span>
+                        </button>
+                    }
+                </div>
+            } @else if (cache.warming()) {
+                <p class="text-[0.75rem] text-white/30">Still indexing…</p>
+            } @else if (cache.failed()) {
+                <p class="text-[0.75rem] text-white/40">Couldn't load page contents.</p>
+            } @else {
+                <p class="text-[0.75rem] text-white/30">No pages link here.</p>
+            }
+        </section>
+    }
+
+    <!-- Attribution -->
+    @if (page(); as p) {
+        <section class="border-t border-white/[0.06] pt-4">
+            <div class="flex items-center gap-2">
+                <app-avatar [userId]="p.authorId"/>
+                <div class="min-w-0">
+                    <p class="truncate text-[0.75rem] text-white/60">
+                        {{ author()?.userName ?? 'Created by' }}
+                    </p>
+                    <p class="text-[0.6875rem] text-white/30">{{ formatDate(p.createdAt) }}</p>
+                </div>
+            </div>
+
+            @if (lastEditor(); as editor) {
+                <div class="mt-3 flex items-center gap-2">
+                    <app-avatar [userId]="p.lastEditorId"/>
+                    <div class="min-w-0">
+                        <p class="truncate text-[0.75rem] text-white/60">
+                            Last edited by {{ editor.userName }}
+                        </p>
+                        <p class="text-[0.6875rem] text-white/30">{{ formatDate(p.updatedAt) }}</p>
+                    </div>
+                </div>
+            } @else {
+                <p class="mt-3 text-[0.6875rem] text-white/30">
+                    Updated {{ formatDate(p.updatedAt) }}
+                </p>
+            }
+
+            @if (p.revisionCount > 0) {
+                <p class="mt-3 text-[0.6875rem] text-white/30">
+                    {{ p.revisionCount }} {{ p.revisionCount === 1 ? 'revision' : 'revisions' }}
+                </p>
+            }
+        </section>
+    }
+</div>
