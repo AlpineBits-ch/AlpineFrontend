@@ -17,6 +17,7 @@ import {SupportSettingsComponent} from "./pages/support-settings/support-setting
 import {
     PlatformStatusSettingsComponent,
 } from "./pages/platform-status-settings/platform-status-settings.component";
+import {AiSettingsComponent} from "./pages/ai-settings/ai-settings.component";
 import {LogoutDialogComponent} from "../logout-dialog/logout-dialog.component";
 import {TranslateModule} from '@ngx-translate/core';
 
@@ -65,6 +66,7 @@ export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
             {id: 'voice-video', labelKey: 'SETTINGS.NAV.VOICE_VIDEO', icon: 'pi pi-microphone'},
             {id: 'keybinds', labelKey: 'SETTINGS.NAV.KEYBINDS', icon: 'pi pi-key'},
             {id: 'appearance', labelKey: 'SETTINGS.NAV.APPEARANCE', icon: 'pi pi-palette'},
+            {id: 'ai', labelKey: 'SETTINGS.NAV.AI', icon: 'pi pi-sparkles'},
             {id: 'other', labelKey: 'SETTINGS.NAV.OTHER', icon: 'pi pi-cog'},
             {id: 'support', labelKey: 'SETTINGS.NAV.SUPPORT', icon: 'pi pi-question-circle'},
             {id: 'platform-status', labelKey: 'SETTINGS.NAV.PLATFORM_STATUS', icon: 'pi pi-wave-pulse'},
@@ -92,6 +94,7 @@ export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
         AboutSettingsComponent,
         SupportSettingsComponent,
         PlatformStatusSettingsComponent,
+        AiSettingsComponent,
         LogoutDialogComponent,
         TranslateModule,
     ],
