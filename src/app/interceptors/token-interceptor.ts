@@ -5,6 +5,7 @@ import {Router} from "@angular/router";
 import {catchError, from, switchMap, throwError} from "rxjs";
 import {environment} from "../../environments/environment";
 import {ApiConfigService} from "../services/api-config.service";
+import {isAnonymousStatusUrl} from "../services/status-api.service";
 
 // Shared across all interceptor invocations. When a refresh is in-flight every
 // concurrent 401 waits on the same Promise instead of triggering its own
@@ -30,6 +31,9 @@ export const tokenInterceptor: HttpInterceptorFn = (req, next) => {
 
     if (request.url.includes('connect/token')) return next(request);
     if (!request.url.startsWith(currentBase)) return next(request);
+    // Platform status is anonymous on purpose: it has to answer when sign-in itself is what is
+    // broken, and a bearer token attached to it can only turn a working call into a 401.
+    if (isAnonymousStatusUrl(request.url)) return next(request);
 
     const oAuthService = inject(OAuthService);
     const router = inject(Router);

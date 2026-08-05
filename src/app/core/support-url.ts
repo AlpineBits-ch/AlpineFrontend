@@ -13,7 +13,7 @@
  * adopting that field later is a one-line change at the call sites.</p>
  */
 
-export type SiteLabel = 'support' | 'docs' | 'admin';
+export type SiteLabel = 'support' | 'docs' | 'admin' | 'status';
 
 /**
  * `https://api.venta.gg` -> `https://support.venta.gg`; `https://venta.gg` -> `https://support.venta.gg`.
@@ -45,6 +45,16 @@ export function siteHost(apiUrl: string, label: SiteLabel): string {
 /** The anonymous support site. Reachable while signed out, which is the whole point of it. */
 export function supportUrl(apiUrl: string): string {
     return siteHost(apiUrl, 'support');
+}
+
+/**
+ * The public platform status page, for the "see the real thing" link out of settings.
+ *
+ * <p>Only ever a destination. The status *data* is read from the API host like every other call -
+ * see {@link import('../services/status-api.service').StatusApiService}.</p>
+ */
+export function statusUrl(apiUrl: string): string {
+    return siteHost(apiUrl, 'status');
 }
 
 /** Where a restricted account files its one appeal. */

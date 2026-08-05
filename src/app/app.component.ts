@@ -33,10 +33,12 @@ import {DiscordImportProgressService} from './features/discord-import/discord-im
 import {parseDiscordImportLink} from './features/discord-import/discord-import-link.util';
 import {TelemetryConsentService} from './services/telemetry-consent.service';
 import {LegalConsentDialogComponent} from './components/legal-consent-dialog/legal-consent-dialog.component';
+import {StatusBannerComponent} from './components/status-banner/status-banner.component';
+import {PlatformStatusService} from './services/platform-status.service';
 
 @Component({
     selector: "app-root",
-    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, MfaChallengeDialogComponent, PasswordResetDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent, BotCommandDialogComponent, BotModalDialogComponent, DiscordImportProgressDialogComponent, LegalConsentDialogComponent],
+    imports: [RouterOutlet, CallOverlayComponent, TitlebarComponent, ResizeHandlesComponent, UpdateDialogComponent, Toast, ScreenPickerComponent, EmailVerificationDialogComponent, MfaChallengeDialogComponent, PasswordResetDialogComponent, InviteDialogComponent, IsleProximityBarComponent, BotInstallDialogComponent, BotCommandDialogComponent, BotModalDialogComponent, DiscordImportProgressDialogComponent, LegalConsentDialogComponent, StatusBannerComponent],
     templateUrl: "./app.component.html",
     styleUrl: "./app.component.css",
 })
@@ -58,6 +60,7 @@ export class AppComponent implements OnInit, OnDestroy {
     // Injected for its side effect: it holds the effect that keeps the identity on crash reports
     // in step with the account's data-collection consent. Nothing reads it back.
     private telemetryConsent = inject(TelemetryConsentService);
+    private platformStatus = inject(PlatformStatusService);
     private updateInterval: ReturnType<typeof setInterval> | null = null;
 
     @HostListener('document:contextmenu', ['$event'])
@@ -77,6 +80,10 @@ export class AppComponent implements OnInit, OnDestroy {
         // because both outlive it: the radius belongs to app-root, and the drag fallback exists
         // precisely for the moments the titlebar is covered.
         void this.windowChrome.start();
+
+        // Started here rather than on the main page: the answer to "is it me or is it them" is
+        // most wanted on the login screen, which is where an identity outage strands people.
+        this.platformStatus.start();
 
         void onOpenUrl((urls) => {
             for (const url of urls) this.handleDeepLink(url);

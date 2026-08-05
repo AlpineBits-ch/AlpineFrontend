@@ -235,3 +235,36 @@ it('passes through requests not targeting the API origin', async () => {
     expect(oAuth.refreshToken).not.toHaveBeenCalled();
     expect(oAuth.logOut).not.toHaveBeenCalled();
 });
+
+// ---------------------------------------------------------------------------
+// Platform status is anonymous
+// ---------------------------------------------------------------------------
+
+it('sends platform status calls without a bearer token even while signed in', () => {
+    const {http, ctrl} = setup();
+
+    http.get('https://api.venta.gg/api/v1/status/summary').subscribe();
+
+    const req = ctrl.expectOne('https://api.venta.gg/api/v1/status/summary');
+    expect(req.request.headers.has('Authorization')).toBe(false);
+    req.flush({indicator: 'operational'});
+});
+
+it('does not try to refresh when a status call answers 401', async () => {
+    const {http, ctrl, oAuth} = setup();
+
+    http.get('https://api.venta.gg/api/v1/status/summary').subscribe({
+        next: () => {
+        }, error: () => {
+        }
+    });
+
+    ctrl.expectOne('https://api.venta.gg/api/v1/status/summary')
+        .flush('Unauthorized', {status: 401, statusText: 'Unauthorized'});
+    await tick();
+
+    // The whole point of the endpoint is that it answers when auth does not. A 401 here is the
+    // server's problem, and refreshing on it would burn the refresh token during an outage.
+    expect(oAuth.refreshToken).not.toHaveBeenCalled();
+    expect(oAuth.logOut).not.toHaveBeenCalled();
+});

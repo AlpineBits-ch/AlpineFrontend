@@ -19,6 +19,7 @@ import {deviceIdInterceptor} from "./interceptors/device-id-interceptor";
 import {timeoutInterceptor} from "./interceptors/timeout.interceptor";
 import {rateLimitInterceptor} from "./interceptors/rate-limit-interceptor";
 import {serverClockInterceptor} from "./interceptors/server-clock-interceptor";
+import {statusProbeInterceptor} from "./interceptors/status-probe-interceptor";
 import {GlobalErrorHandler} from "./core/global-error-handler";
 import {ThemeService} from './services/theme.service';
 import {LanguageService} from './services/language.service';
@@ -71,9 +72,12 @@ export const appConfig: ApplicationConfig = {
         // serverClock is innermost because it brackets the round trip with two local readings to
         // place the server's `Date` in the middle of it - time spent queued behind a rate-limit
         // backoff is not network latency, and charging it as such would skew the skew.
+        // statusProbe sits outermost so it sees the failure the user actually experienced -
+        // inside rateLimit it would miss the retries, and inside token it would miss the 401
+        // refresh path giving up.
         provideHttpClient(withInterceptors([
-            rateLimitInterceptor, tokenInterceptor, deviceIdInterceptor, timeoutInterceptor,
-            serverClockInterceptor,
+            statusProbeInterceptor, rateLimitInterceptor, tokenInterceptor, deviceIdInterceptor,
+            timeoutInterceptor, serverClockInterceptor,
         ])),
         provideOAuthClient(),
         {provide: OAuthStorage, useFactory: storageFactory},

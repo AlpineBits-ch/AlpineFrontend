@@ -14,6 +14,9 @@ import {SecuritySettingsComponent} from "./pages/security-settings/security-sett
 import {DevicesSettingsComponent} from "./pages/devices-settings/devices-settings.component";
 import {AboutSettingsComponent} from "./pages/about-settings/about-settings.component";
 import {SupportSettingsComponent} from "./pages/support-settings/support-settings.component";
+import {
+    PlatformStatusSettingsComponent,
+} from "./pages/platform-status-settings/platform-status-settings.component";
 import {LogoutDialogComponent} from "../logout-dialog/logout-dialog.component";
 import {TranslateModule} from '@ngx-translate/core';
 
@@ -64,6 +67,7 @@ export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
             {id: 'appearance', labelKey: 'SETTINGS.NAV.APPEARANCE', icon: 'pi pi-palette'},
             {id: 'other', labelKey: 'SETTINGS.NAV.OTHER', icon: 'pi pi-cog'},
             {id: 'support', labelKey: 'SETTINGS.NAV.SUPPORT', icon: 'pi pi-question-circle'},
+            {id: 'platform-status', labelKey: 'SETTINGS.NAV.PLATFORM_STATUS', icon: 'pi pi-wave-pulse'},
             {id: 'about', labelKey: 'SETTINGS.NAV.ABOUT', icon: 'pi pi-info-circle'},
         ],
     },
@@ -87,6 +91,7 @@ export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
         DevicesSettingsComponent,
         AboutSettingsComponent,
         SupportSettingsComponent,
+        PlatformStatusSettingsComponent,
         LogoutDialogComponent,
         TranslateModule,
     ],
