@@ -538,6 +538,122 @@ export const AlpinePreset = definePreset(Aura, {
             },
         },
 
+        /**
+         * The calendar overlay. Added because it was the one overlay component with no entry here,
+         * and it shipped white-on-dark - the same failure the checkbox above documents.
+         *
+         * <p>Aura resolves the panel from `{content.background}`, which does have a dark value.
+         * That is not enough on its own: every other overlay in this preset - `select`, `menu`,
+         * `popover` - states its surface literally rather than inheriting, so the calendar was the
+         * only floating surface whose colour was decided somewhere else. It now matches them, which
+         * is also why it reads as the same object as the channel-picker dropdown directly above it
+         * in the event editor.</p>
+         *
+         * <p>The panel is `{zinc.800}`, not the `{zinc.900}` content default: it floats above a
+         * modal that is already `{zinc.900}`, and a popover the same colour as the dialog behind it
+         * has no edge.</p>
+         */
+        datepicker: {
+            colorScheme: {
+                dark: {
+                    panel: {
+                        background: '{zinc.800}',
+                        borderColor: BORDER_SUBTLE,
+                        color: '{zinc.100}',
+
+                        shadow: `
+              0 0 0 1px rgba(255,255,255,0.08),
+              0 12px 40px rgba(0,0,0,0.50)
+            `,
+                    },
+
+                    header: {
+                        background: 'transparent',
+                        borderColor: BORDER_SUBTLE,
+                        color: '{zinc.100}',
+                    },
+
+                    // The month/year buttons are navigation, not fields - quiet until hovered.
+                    selectMonth: {
+                        color: '{zinc.100}',
+                        hoverColor: '{zinc.50}',
+                        hoverBackground: 'rgba(255,255,255,0.07)',
+                    },
+
+                    selectYear: {
+                        color: '{zinc.100}',
+                        hoverColor: '{zinc.50}',
+                        hoverBackground: 'rgba(255,255,255,0.07)',
+                    },
+
+                    // Column headings, not data: muted so the numbers below them carry the grid.
+                    weekDay: {
+                        color: '{zinc.400}',
+                    },
+
+                    date: {
+                        color: '{zinc.100}',
+                        hoverColor: '{zinc.50}',
+                        hoverBackground: 'rgba(255,255,255,0.07)',
+
+                        selectedBackground: '{accent.500}',
+                        selectedColor: '#ffffff',
+
+                        // A range is a band behind several days, so it stays translucent - a solid
+                        // accent across a week would out-weigh the single selected day inside it.
+                        rangeSelectedBackground: 'rgba(124,114,255,0.20)',
+                        rangeSelectedColor: '{zinc.50}',
+
+                        focusRing: {
+                            color: '{accent.400}',
+                            shadow: '0 0 0 2px rgba(124,114,255,0.32)',
+                        },
+                    },
+
+                    // Today is a hint, not a selection: a filled ring would compete with the
+                    // selected day for the same meaning.
+                    today: {
+                        background: 'rgba(255,255,255,0.09)',
+                        color: '{zinc.50}',
+                    },
+
+                    // The month/year grid pages reuse the day cell's colours via `content`, so only
+                    // the group divider needs saying.
+                    group: {
+                        borderColor: BORDER_SUBTLE,
+                    },
+
+                    buttonbar: {
+                        borderColor: BORDER_SUBTLE,
+                    },
+
+                    timePicker: {
+                        borderColor: BORDER_SUBTLE,
+                    },
+
+                    // The trigger button sits inside the field, so it matches `inputnumber`'s
+                    // spinner rather than standing on its own.
+                    dropdown: {
+                        background: 'transparent',
+                        hoverBackground: 'rgba(255,255,255,0.07)',
+                        activeBackground: 'rgba(255,255,255,0.10)',
+
+                        borderColor: BORDER_SUBTLE,
+                        hoverBorderColor: BORDER_DEFAULT,
+                        activeBorderColor: BORDER_DEFAULT,
+
+                        color: '{zinc.400}',
+                        hoverColor: '{zinc.200}',
+                        activeColor: '{zinc.100}',
+                    },
+
+                    inputIcon: {
+                        color: '{zinc.400}',
+                    },
+                },
+            },
+        },
+
         radiobutton: {
             colorScheme: {
                 dark: {
