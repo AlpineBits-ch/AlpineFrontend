@@ -81,12 +81,14 @@
             <div class="flex bg-white/[0.05] border border-white/[0.06] rounded-[12px] p-[3px] gap-[3px] mb-5">
                 <button
                         (click)="switchToMode('login')"
+                        data-testid="tab-signin"
                         [ngClass]="{ 'bg-white/[0.09] text-slate-100 shadow-sm': mode() !== 'register', 'text-slate-500 hover:text-slate-400': mode() === 'register' }"
                         class="flex-1 py-2 px-2 rounded-[9px] text-[0.8125rem] font-medium cursor-pointer transition-all duration-150 border-0 outline-none bg-transparent touch-manipulation">
                     {{ 'LOGIN.TAB.SIGN_IN' | translate }}
                 </button>
                 <button
                         (click)="switchToMode('register')"
+                        data-testid="tab-register"
                         [ngClass]="{ 'bg-white/[0.09] text-slate-100 shadow-sm': mode() === 'register', 'text-slate-500 hover:text-slate-400': mode() !== 'register' }"
                         class="flex-1 py-2 px-2 rounded-[9px] text-[0.8125rem] font-medium cursor-pointer transition-all duration-150 border-0 outline-none bg-transparent touch-manipulation">
                     {{ 'LOGIN.TAB.CREATE_ACCOUNT' | translate }}
@@ -105,6 +107,7 @@
                         <label class="field-label">{{ 'LOGIN.LOGIN.USERNAME' | translate }}</label>
                         <input (keydown.enter)="login()" [formField]="loginForm.username"
                                autocomplete="username"
+                               data-testid="login-username"
                                placeholder="username or user@selfhosted.com"
                                pInputText type="text"/>
                         <div class="flex items-center gap-1.5 mt-0.5">
@@ -133,6 +136,7 @@
                         <input (keydown.enter)="login()" [formField]="loginForm.password"
                                [placeholder]="'LOGIN.LOGIN.PASSWORD_PLACEHOLDER' | translate"
                                autocomplete="current-password"
+                               data-testid="login-password"
                                pPassword type="password"/>
                         <button (click)="openPasswordReset()"
                                 class="text-xs text-text-muted hover:text-[var(--color-brand-dim)] transition-colors self-end bg-transparent border-0 cursor-pointer"
@@ -149,6 +153,7 @@
                     }
 
                     <p-button (onClick)="login()" [disabled]="!loginEnabled()"
+                              data-testid="login-submit"
                               [label]="'LOGIN.LOGIN.SUBMIT' | translate"/>
 
                     <div class="or-rule">{{ 'LOGIN.OR' | translate }}</div>
@@ -186,8 +191,10 @@
                                     <i [class]="serverDomain() === 'venta.gg' ? 'pi pi-cloud' : 'pi pi-server'"
                                        class="text-sm text-white/30 shrink-0"></i>
                                 }
-                                <span class="flex-1 text-sm text-white/60">{{ serverDomain() }}</span>
+                                <span class="flex-1 text-sm text-white/60"
+                                      data-testid="server-chip">{{ serverDomain() }}</span>
                                 <button (click)="startEditServer()"
+                                        data-testid="server-edit-button"
                                         class="text-[0.6875rem] text-[color-mix(in_srgb,var(--color-brand-dim)_60%,transparent)] hover:text-[var(--color-brand-dim)] bg-transparent border-0 cursor-pointer transition-colors px-0 shrink-0"
                                         type="button">
                                     {{ 'LOGIN.SERVER.CHANGE' | translate }}
@@ -203,15 +210,18 @@
                                             [(ngModel)]="serverInputValue"
                                             autocomplete="off"
                                             class="flex-1 bg-transparent border-0 outline-none py-2.5 text-sm text-white/80 placeholder:text-white/25"
+                                            data-testid="server-input"
                                             placeholder="selfhosted.com"
                                             type="text"/>
                                 </div>
                                 <button (click)="confirmServer()"
+                                        data-testid="server-confirm"
                                         class="w-9 h-9 flex items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)] hover:bg-[color-mix(in_srgb,var(--color-brand)_30%,transparent)] text-[var(--color-brand-dim)] border-0 cursor-pointer transition-colors shrink-0"
                                         type="button">
                                     <i class="pi pi-check text-sm"></i>
                                 </button>
                                 <button (click)="cancelServerEdit()"
+                                        data-testid="server-cancel"
                                         class="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-white/[0.06] text-white/40 border-0 cursor-pointer transition-colors shrink-0"
                                         type="button">
                                     <i class="pi pi-times text-sm"></i>
@@ -219,7 +229,7 @@
                             </div>
                         }
                         @if (serverConfigError() && !serverConfigLoading()) {
-                            <p class="field-hint text-rose-400/80">
+                            <p class="field-hint text-rose-400/80" data-testid="server-config-error">
                                 <i class="pi pi-exclamation-circle text-[0.625rem]"></i>
                                 {{ 'LOGIN.SERVER.UNREACHABLE' | translate }}
                             </p>
@@ -244,6 +254,7 @@
                                    [formField]="registerForm.username"
                                    [placeholder]="'LOGIN.REGISTER.USERNAME_PLACEHOLDER' | translate"
                                    autocomplete="username"
+                                   data-testid="register-username"
                                    pInputText type="text"/>
                             @if (registerForm.username().touched() && registerForm.username().invalid()) {
                                 @for (error of registerForm.username().errors(); track error) {
@@ -262,6 +273,7 @@
                                    [formField]="registerForm.email"
                                    [placeholder]="'LOGIN.REGISTER.EMAIL_PLACEHOLDER' | translate"
                                    autocomplete="email"
+                                   data-testid="register-email"
                                    inputmode="email" pInputText
                                    type="email"/>
                             @if (registerForm.email().touched() && registerForm.email().invalid()) {
@@ -280,6 +292,7 @@
                             <input (input)="clearServerError('birthdate')"
                                    [formField]="registerForm.birthdate"
                                    [placeholder]="'LOGIN.REGISTER.DOB_PLACEHOLDER' | translate" autocomplete="bday"
+                                   data-testid="register-birthdate"
                                    pInputText type="text"/>
                             @if (registerForm.birthdate().touched() && registerForm.birthdate().invalid()) {
                                 @for (error of registerForm.birthdate().errors(); track error) {
@@ -296,7 +309,7 @@
                             <label class="field-label">{{ 'LOGIN.REGISTER.PASSWORD' | translate }}</label>
                             <input (input)="passwordMismatch.set(false)" [formField]="registerForm.password"
                                    [placeholder]="'LOGIN.REGISTER.PASSWORD_PLACEHOLDER' | translate"
-                                   autocomplete="new-password" pPassword
+                                   autocomplete="new-password" data-testid="register-password" pPassword
                                    type="password"/>
                             @if (registerForm.password().touched() && registerForm.password().invalid()) {
                                 @for (error of registerForm.password().errors(); track error) {
@@ -311,7 +324,7 @@
                             <input (input)="passwordMismatch.set(false)" (keydown.enter)="register()"
                                    [formField]="registerForm.confirmPassword"
                                    [placeholder]="'LOGIN.REGISTER.CONFIRM_PASSWORD_PLACEHOLDER' | translate"
-                                   autocomplete="new-password" pPassword
+                                   autocomplete="new-password" data-testid="register-confirm-password" pPassword
                                    type="password"/>
                             @if (registerForm.confirmPassword().touched() && registerForm.confirmPassword().invalid()) {
                                 @for (error of registerForm.confirmPassword().errors(); track error) {
@@ -324,6 +337,7 @@
                         </div>
 
                         <p-button (onClick)="register()" [disabled]="!registerEnabled() || serverConfigError()"
+                                  data-testid="register-submit"
                                   [label]="'LOGIN.REGISTER.SUBMIT' | translate"/>
 
                         <p class="legal">

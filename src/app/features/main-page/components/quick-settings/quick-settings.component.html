@@ -101,7 +101,8 @@
             <!-- Three controls, not five. Status moved into the profile menu, where it can carry
                  its own name instead of being a bare dot, and the admin shield went with it - both
                  were squeezing this row at a 240px panel width. -->
-            <p-button (onClick)="isSettingsOpen.set(true)" [text]="true" icon="pi pi-cog" severity="secondary"
+            <p-button (onClick)="isSettingsOpen.set(true)" [text]="true" data-testid="user-menu" icon="pi pi-cog"
+                      severity="secondary"
                       size="small" styleClass="shrink-0"/>
 
         </div>

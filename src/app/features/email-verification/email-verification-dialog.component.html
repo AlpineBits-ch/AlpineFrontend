@@ -44,6 +44,7 @@
                     [integerOnly]="false"
                     [length]="6"
                     [ngModel]="code()"
+                    data-testid="verification-code-input"
                     styleClass="gap-2"/>
         </div>
 
@@ -86,6 +87,7 @@
                         : ('LOGIN.VERIFY.RESEND' | translate)"
                     [loading]="resendLoading()"
                     [text]="true"
+                    data-testid="verification-resend"
                     severity="secondary"
                     size="small"/>
             <p-button
@@ -93,6 +95,7 @@
                     [disabled]="code().length < 6 || loading()"
                     [loading]="loading()"
                     [label]="'LOGIN.VERIFY.SUBMIT' | translate"
+                    data-testid="verification-submit"
                     severity="primary"
                     size="small"/>
         </div>

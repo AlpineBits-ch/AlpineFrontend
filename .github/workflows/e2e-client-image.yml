@@ -1,0 +1,285 @@
+# Publishes a prebuilt, source-free static image of the Angular client so that the
+# AlpineBits-ch/venta-e2e suite can run against it.
+#
+# venta-e2e is PUBLIC and this repository is PRIVATE. The alternative design - checking this repo
+# out inside the E2E repo's CI - would put a cross-repo PAT for a private source tree into a public
+# workflow, so instead the direction is reversed: this repo builds, this repo pushes an image
+# containing only compiled output, and the E2E repo does nothing but `docker pull` and run.
+# See docs/specs/full-stack-e2e.md in the Echo repository for the wider design.
+#
+# ---------------------------------------------------------------------------------------------
+# The one requirement this workflow exists to enforce: NO SOURCE AND NO SOURCEMAPS IN THE IMAGE.
+# ---------------------------------------------------------------------------------------------
+#
+# angular.json sets `projects.alpine.architect.build.options.sourceMap: true` and the `production`
+# configuration does not override it, so a plain production build emits .map files - and Angular's
+# maps carry `sourcesContent`, i.e. the complete original TypeScript of every file in the bundle,
+# not merely its path. Measured on this commit: without the flag the build emits 56 .map files and
+# 20 bundles carrying a sourceMappingURL comment; with it, zero of both.
+#
+# If those reached the image, every Playwright trace in the public E2E repository would archive
+# this repository's source, which is the exact outcome this whole design exists to prevent. Hence
+# `--source-map=false` on the command line below, and hence three independent guards: the assertion
+# step after the build, the assertion baked into docker/e2e/Dockerfile, and the `location ~ \.map$`
+# 404 in docker/e2e/nginx.conf. The flag is passed on the command line rather than written into
+# angular.json deliberately, so that nothing about normal dev or release builds changes.
+#
+# ---------------------------------------------------------------------------------------------
+# Setup this workflow needs that cannot live in the file
+# ---------------------------------------------------------------------------------------------
+#
+#   E2E_DISPATCH_TOKEN - MUST BE CREATED. A PAT with `repo` scope (fine-grained equivalent:
+#   Contents: read-write on AlpineBits-ch/venta-e2e) stored as a repository secret here. The
+#   built-in GITHUB_TOKEN cannot do this: its permissions stop at this repository, so it cannot
+#   dispatch into another one. Until the secret exists the final step fails and everything before
+#   it - including the image push - still succeeds, so a missing token delays the E2E run rather
+#   than losing the build.
+#
+# GHCR needs no secret: GITHUB_TOKEN with `packages: write` is enough, same as Echo's
+# docker-build.yml. The package it creates is private by default and venta-e2e will need read
+# access granted to it, either by making the package public or by giving the E2E repo's runner a
+# token with `read:packages`.
+name: E2E Client Image
+
+on:
+  # `main` only. Feature branches would each publish a `latest` and race each other for the tag
+  # that the E2E suite pulls by default.
+  push:
+    branches: [main]
+    # Neither build.yml nor ci.yml filters paths, so this is a departure from the convention in
+    # this repository rather than a match for it - justified because those two are gates whose
+    # value is running on everything, while this one only produces an artifact, and a README edit
+    # cannot change the compiled output. Nothing here is load-bearing: delete it and the only cost
+    # is redundant builds.
+    #
+    # Kept deliberately narrow rather than a blanket '**/*.md'. angular.json copies all of
+    # src/assets into the bundle, so src/assets/THIRD-PARTY-NOTICES.md is part of the image
+    # payload; a blanket markdown filter would skip a run that genuinely changes what ships.
+    paths-ignore:
+      - 'docs/**'
+      - 'README.md'
+  # For re-publishing an image without an empty commit, which is what you want when the E2E suite
+  # needs a rerun against unchanged client code.
+  workflow_dispatch:
+
+# Matches ci.yml's shape. `main` pushes are not cancelled there because every commit on a protected
+# branch keeps its own verdict; here the reason is different but points the same way - a cancelled
+# run may have pushed the image already and then never dispatched, leaving venta-e2e pinned to a
+# build it was never told about.
+concurrency:
+  group: e2e-client-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Build and publish the E2E client image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # src/assets/i18n/locales is the AlpineBits-ch/venta-i18n submodule and it is not optional
+      # here: ngx-translate loads its JSON at runtime, so without it the app renders with raw
+      # translation keys where every label should be, and an E2E suite that selects on visible
+      # text sees nothing it expects.
+      #
+      # Same two-step form as ci.yml and build.yml rather than `submodules: true` on the checkout,
+      # because .gitmodules gives the URL in SSH form (git@github.com:...); the rewrite is what
+      # makes it resolvable with the checkout credentials. The `git@github-alpine:` line covers the
+      # SSH host alias some clones use.
+      - name: Force HTTPS for submodules
+        run: |
+          git config --global url."https://github.com/".insteadOf "git@github-alpine:"
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+
+      - name: Update submodules
+        run: git submodule update --init --recursive
+
+      # bun, not npm/npx: this repository's lockfile is bun.lock and there is no working
+      # package-lock to install from.
+      - uses: oven-sh/setup-bun@v2
+
+      # setup-bun caches the bun binary, not the packages. Both cache keys below are deliberately
+      # identical to ci.yml's, so this job restores the cache that job already warmed. Two
+      # workflows saving the same key is harmless - the second save is a no-op with an "already
+      # exists" notice - and sharing beats each workflow spending its own slice of the one 10 GB
+      # repo-wide budget.
+      - name: Cache bun package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Cache Angular build cache
+        uses: actions/cache@v4
+        with:
+          path: .angular/cache
+          key: angular-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: angular-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # `bun x ng build`, deliberately not `bun run build`. That script is
+      # `ng build && bun run sentry:sourcemaps`, which (a) needs SENTRY_AUTH_TOKEN and (b) exists
+      # to *upload sourcemaps*, having first run `sentry-cli sourcemaps inject` over ./dist - the
+      # precise opposite of this workflow's requirement. Splitting the compile out is the same
+      # thing ci.yml does, for an overlapping reason.
+      #
+      # --source-map=false: see the header. This is the load-bearing flag.
+      #
+      # --configuration production is spelled out even though angular.json makes it the default,
+      # matching ci.yml: changing defaultConfiguration must not be able to quietly downgrade this
+      # to an unoptimised development build with sourcemaps back on.
+      #
+      # This is deliberately the ordinary `production` build, environment.ts and all, so the thing
+      # under test is the artifact users actually run rather than an E2E-only variant of it.
+      #
+      # It does mean the client boots pointed at https://api.venta.gg, because environment.ts
+      # hardcodes it. It gets redirected at the local stack exactly the way a self-hoster redirects
+      # it: through the client's own federation server picker, which LoginComponent.register()
+      # commits via `apiConfigService.setServer(domain)` before it calls the API. There is no `e2e`
+      # angular configuration and none is wanted - an earlier draft of the spec proposed one, and
+      # the server picker made it unnecessary. Please do not add one on the strength of this file.
+      #
+      # The residual hazard is worth naming: a test that never sets the picker would register
+      # against PRODUCTION. venta-e2e carries a mandatory Playwright route guard that aborts any
+      # request leaving the local stack and fails the run, so that mistake cannot reach the live
+      # service. See docs/specs/full-stack-e2e.md, "The production guard".
+      - name: Build Angular (production, sourcemaps off)
+        run: bun x ng build --configuration production --source-map=false
+
+      # The check the header is about. It runs against dist/ before anything is packaged, so a
+      # failure here names the problem directly instead of surfacing later as a Docker build error.
+      #
+      # `find -print -quit` and `grep -rl` rather than eyeballing the log: an emitted .map is easy
+      # to miss in Angular's output and the consequence of missing it is publishing this
+      # repository's source to a public repository's CI artifacts.
+      - name: Assert the build carries no sourcemaps and no source
+        run: |
+          set -euo pipefail
+          out=dist/alpine/browser
+          test -f "$out/index.html" || { echo "::error::$out/index.html is missing - did the build output move?"; exit 1; }
+
+          fail=0
+
+          maps=$(find "$out" -name '*.map' || true)
+          if [ -n "$maps" ]; then
+            echo "::error::sourcemap files were emitted into the image payload"
+            printf '%s\n' "$maps"
+            fail=1
+          fi
+
+          refs=$(grep -rlI 'sourceMappingURL' "$out" || true)
+          if [ -n "$refs" ]; then
+            echo "::error::a bundle still references a sourcemap"
+            printf '%s\n' "$refs"
+            fail=1
+          fi
+
+          ts=$(find "$out" -name '*.ts' -o -name '*.tsx' || true)
+          if [ -n "$ts" ]; then
+            echo "::error::TypeScript source was emitted into the image payload"
+            printf '%s\n' "$ts"
+            fail=1
+          fi
+
+          [ "$fail" -eq 0 ] || exit 1
+          echo "clean: no .map files, no sourceMappingURL references, no TypeScript in $out"
+
+      # The docker build context is this staging directory and nothing else. Pointing the context
+      # at the repository root would hand the daemon every .ts file in the repo, plus node_modules
+      # and src-tauri/target, for an image defined by carrying no source - and a .dockerignore
+      # would be the only thing standing between the two, which is one careless edit away from
+      # failing open. Here there is nothing to exclude because there is nothing else present.
+      - name: Stage the image build context
+        run: |
+          set -euo pipefail
+          rm -rf .image-context
+          mkdir -p .image-context
+          cp -R dist/alpine/browser .image-context/browser
+          cp docker/e2e/nginx.conf .image-context/nginx.conf
+          echo "context contents:"
+          ls -la .image-context
+
+      # No QEMU, for the same reason as Echo's docker-build.yml: linux/amd64 is the runner's own
+      # architecture, so there is nothing to emulate.
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tag scheme copied verbatim from Echo's docker-build.yml, and that is the point rather than
+      # tidiness: venta-e2e pins a backend build and a client build the same way, so a red run
+      # names one commit on each side. The image name is spelled out in lowercase rather than
+      # built from github.repository_owner ("AlpineBits-ch") because the E2E repo's compose file
+      # refers to it by literal string; metadata-action would lowercase it either way.
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/alpinebits-ch/venta-client-e2e
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .image-context
+          file: docker/e2e/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Read the immutable tag back out of what metadata-action actually produced rather than
+      # recomputing GITHUB_SHA's short form by hand: `type=sha`'s length is metadata-action's
+      # business, and a locally reconstructed tag that drifts from it would dispatch venta-e2e to
+      # pull an image that does not exist. `latest` is filtered out because the whole value of the
+      # dispatch is naming one exact build.
+      - name: Resolve the immutable image reference
+        id: image
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          ref=$(printf '%s\n' "$TAGS" | grep -v ':latest$' | head -n 1)
+          if [ -z "$ref" ]; then
+            echo "::error::no immutable (non-latest) tag was produced; nothing to pin the E2E run to"
+            exit 1
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "tag=${ref##*:}" >> "$GITHUB_OUTPUT"
+          echo "pinned image: $ref"
+
+      # Fires only after a successful push, so venta-e2e is never told about an image that is not
+      # in the registry. It carries the exact tag rather than `latest` so the suite runs against
+      # this build specifically and a failure is attributable to this commit.
+      #
+      # Requires the E2E_DISPATCH_TOKEN secret described in the header - it does not exist yet and
+      # must be created before this step can succeed.
+      - name: Notify venta-e2e
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.E2E_DISPATCH_TOKEN }}
+          repository: AlpineBits-ch/venta-e2e
+          event-type: client-updated
+          client-payload: |
+            {
+              "image": "${{ steps.image.outputs.ref }}",
+              "tag": "${{ steps.image.outputs.tag }}",
+              "client_sha": "${{ github.sha }}",
+              "client_ref": "${{ github.ref_name }}"
+            }

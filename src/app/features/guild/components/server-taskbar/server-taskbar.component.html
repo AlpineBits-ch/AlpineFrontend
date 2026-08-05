@@ -30,6 +30,8 @@
                 <app-server-icon
                         (click)="navService.selectServer(guilds()[$index])"
                         (contextmenu)="onServerContextMenu($event, guilds()[$index])"
+                        data-testid="guild-list-item"
+                        [attr.data-guild-id]="server.id"
                         [serverData]="server">
                 </app-server-icon>
             </div>
@@ -39,6 +41,7 @@
     <!-- Add server button -->
     <button
             (click)="showCreateModal.set(true)"
+            data-testid="create-guild-button"
             class="w-11 h-11 rounded-icon border border-dashed border-white/20 text-white/30 hover:text-brand-dim hover:border-brand-dim hover:bg-brand/10 flex items-center justify-center transition-colors text-xl leading-none cursor-pointer bg-transparent shrink-0">
         +
     </button>
