@@ -1,8 +1,11 @@
 @if (ownActivity(); as activity) {
-    <!-- Inset, rounded, one surface lighter than the panel. The separation from the user row below
-         is elevation rather than a hairline: a rule across the full width reads as a table, which
-         is what this strip used to look like. -->
-    <div class="mx-2 mt-2 p-2 rounded-xl bg-card hover:bg-hover transition-colors duration-[120ms] ease-out">
+    <!-- Rounded, one surface lighter than the panel. The separation from the user row below is
+         elevation rather than a hairline: a rule across the full width reads as a table, which is
+         what this strip used to look like.
+
+         No horizontal margin of its own - the footer's padding already insets it, and adding more
+         here would set it in from a row it is supposed to line up with. -->
+    <div class="mb-1 p-2 rounded-xl bg-card hover:bg-hover transition-colors duration-[120ms] ease-out">
         <div class="flex items-center gap-2.5 min-w-0">
 
             <!-- Art slot. Fixed square so that real cover art, when it starts arriving, replaces

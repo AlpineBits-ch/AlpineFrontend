@@ -8,16 +8,22 @@
      wider than 308px, so the left panel was being stretched by its own footer and overhung the
      sidebar it is supposed to sit under. `w-0` takes this element out of that calculation;
      `min-w-full` then stretches it back to whatever the columns above settled on. -->
-<div class="shrink-0 w-0 min-w-full bg-sidebar border-t border-border-subtle overflow-hidden">
+<!-- The padding lives on the footer, not on each row inside it, so everything here sits inset from
+     the panel edge by the same amount - which is what makes the region read as the bottom of the
+     channel list rather than as a slab bolted underneath it. -->
+<div class="shrink-0 w-0 min-w-full bg-sidebar border-t border-border-subtle overflow-hidden p-2">
 
     <app-self-activity-card/>
 
-    <div class="flex items-center gap-1 px-2 py-2 min-w-0">
+    <!-- `py-1` on top of the footer's own padding. The row is two lines of text against a 32px
+         avatar, which fits in 33px and looked wedged between the card above and the panel edge
+         below; the extra breathing room is what the height buys. -->
+    <div class="flex items-center gap-1 py-1 min-w-0">
 
         <!-- Avatar + name (clickable -opens self-profile popover) -->
         @if (profileService.ownProfile(); as own) {
             <button (click)="openSelfProfilePopover($event)"
-                    class="flex items-center gap-1.5 flex-1 min-w-0 rounded-lg p-1 -m-1 hover:bg-white/[0.06] transition-colors duration-[120ms] ease-out cursor-pointer border-0 text-left">
+                    class="flex items-center gap-1.5 flex-1 min-w-0 rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-white/[0.06] transition-colors duration-[120ms] ease-out cursor-pointer border-0 text-left">
 
                 <!-- Avatar + status dot.
                      The dot answers "what have I told people I am", which is not the same question
@@ -46,7 +52,7 @@
         } @else {
             <!-- Nothing is known yet. A skeleton says so; an empty row implies the panel is broken
                  and a default name implies something false about who is signed in. -->
-            <div class="flex items-center gap-1.5 flex-1 min-w-0 p-1 -m-1">
+            <div class="flex items-center gap-1.5 flex-1 min-w-0 px-1.5 py-1 -mx-1.5">
                 <div class="w-8 h-8 shrink-0 mr-1 rounded-full bg-white/[0.06] animate-pulse"></div>
                 <div class="flex-1 min-w-0">
                     <div class="h-3 w-24 rounded-md bg-white/[0.08] animate-pulse"></div>
