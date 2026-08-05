@@ -1,11 +1,9 @@
 @if (ownActivity(); as activity) {
-    <!-- Rounded, one surface lighter than the panel. The separation from the user row below is
-         elevation rather than a hairline: a rule across the full width reads as a table, which is
-         what this strip used to look like.
-
-         No horizontal margin of its own - the footer's padding already insets it, and adding more
-         here would set it in from a row it is supposed to line up with. -->
-    <div class="mb-1 p-2 rounded-xl bg-card hover:bg-hover transition-colors duration-[120ms] ease-out">
+    <!-- A row inside the footer's card, not a card of its own: no surface, no rounding, no margin.
+         The divider below it separates two rows within one container, which is a different thing
+         from the full-bleed rule this strip used to carry across the whole panel - that one made
+         the footer read as a table. -->
+    <div class="p-2 border-b border-border-subtle hover:bg-hover transition-colors duration-[120ms] ease-out">
         <div class="flex items-center gap-2.5 min-w-0">
 
             <!-- Art slot. Fixed square so that real cover art, when it starts arriving, replaces

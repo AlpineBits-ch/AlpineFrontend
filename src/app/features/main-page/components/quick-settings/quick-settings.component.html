@@ -8,89 +8,102 @@
      wider than 308px, so the left panel was being stretched by its own footer and overhung the
      sidebar it is supposed to sit under. `w-0` takes this element out of that calculation;
      `min-w-full` then stretches it back to whatever the columns above settled on. -->
-<!-- The padding lives on the footer, not on each row inside it, so everything here sits inset from
-     the panel edge by the same amount - which is what makes the region read as the bottom of the
-     channel list rather than as a slab bolted underneath it. -->
-<div class="shrink-0 w-0 min-w-full bg-sidebar border-t border-border-subtle overflow-hidden p-2">
+<!-- No top border and no background of its own: the panel behind is the same colour as the channel
+     list, so the footer is just the bottom of that list with a card resting on it. A rule here
+     would draw a second boundary a few pixels above the card's own edge. -->
+<div class="shrink-0 w-0 min-w-full bg-sidebar overflow-hidden p-2">
 
-    <app-self-activity-card/>
+    <!-- One container holding both rows, not a card above a bare strip.
+         The activity row and the user row are two parts of the same object - the second is where
+         you are, the first is what you are doing - and giving only one of them a raised surface
+         left the other looking like the panel had run out. Inside a rounded container a divider
+         reads as a menu separator; the same rule full-bleed across the panel read as a table. -->
+    <div class="rounded-xl bg-card overflow-hidden">
 
-    <!-- `py-1` on top of the footer's own padding. The row is two lines of text against a 32px
-         avatar, which fits in 33px and looked wedged between the card above and the panel edge
-         below; the extra breathing room is what the height buys. -->
-    <div class="flex items-center gap-1 py-1 min-w-0">
+        <app-self-activity-card/>
 
-        <!-- Avatar + name (clickable -opens self-profile popover) -->
-        @if (profileService.ownProfile(); as own) {
-            <button (click)="openSelfProfilePopover($event)"
-                    class="flex items-center gap-1.5 flex-1 min-w-0 rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-white/[0.06] transition-colors duration-[120ms] ease-out cursor-pointer border-0 text-left">
+        <!-- Slightly taller than the activity row above it. It carries two lines of text against a
+             32px avatar, which fits in 33px and looked wedged in at the tighter padding. -->
+        <div class="flex items-center gap-1 px-2 py-2.5 min-w-0">
 
-                <!-- Avatar + status dot.
-                     The dot answers "what have I told people I am", which is not the same question
-                     as "is my websocket up" - it used to answer the second one, which left a user
-                     who had set themselves Invisible looking green to themselves. -->
-                <div class="relative shrink-0 mr-1">
-                    <app-avatar [userId]="own.userId"/>
-                    <app-user-status-dot [status]="own.onlineStatus"
-                                         borderColor="border-sidebar"
-                                         size="md"/>
+            <!-- Avatar + name (clickable -opens self-profile popover).
+                 `-mx-1 px-1` keeps the avatar aligned with the artwork tile above while letting the
+                 hover pill bleed a little wider than its contents. -->
+            @if (profileService.ownProfile(); as own) {
+                <button (click)="openSelfProfilePopover($event)"
+                        class="flex items-center gap-1.5 flex-1 min-w-0 rounded-lg px-1 py-1 -mx-1 hover:bg-white/[0.06] transition-colors duration-[120ms] ease-out cursor-pointer border-0 text-left">
+
+                    <!-- Avatar + status dot.
+                         The dot answers "what have I told people I am", which is not the same
+                         question as "is my websocket up" - it used to answer the second one, which
+                         left a user who had set themselves Invisible looking green to themselves.
+
+                         `border-card`, not `border-sidebar`: the row moved onto the card surface,
+                         and the dot's ring and the notch in its silhouette are both drawn in
+                         whatever colour it is told sits behind it. -->
+                    <div class="relative shrink-0 mr-1">
+                        <app-avatar [userId]="own.userId"/>
+                        <app-user-status-dot [status]="own.onlineStatus"
+                                             borderColor="border-card"
+                                             size="md"/>
+                    </div>
+
+                    <!-- Name, then either the status or - when the socket is in trouble - the
+                         socket. Trouble outranks the status because it is the more urgent thing to
+                         say, and the dot is still carrying presence while it is being said. -->
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[0.875rem] font-medium text-text-primary truncate leading-tight">{{ own.userName }}</p>
+                        @if (showConnectionTrouble()) {
+                            <app-connection-status></app-connection-status>
+                        } @else if (statusLabelKey(); as key) {
+                            <p class="text-[0.75rem] text-text-muted truncate leading-tight mt-0.5">{{ key | translate }}</p>
+                        }
+                    </div>
+
+                </button>
+            } @else {
+                <!-- Nothing is known yet. A skeleton says so; an empty row implies the panel is
+                     broken, and a default name implies something false about who is signed in. -->
+                <div class="flex items-center gap-1.5 flex-1 min-w-0 px-1 py-1 -mx-1">
+                    <div class="w-8 h-8 shrink-0 mr-1 rounded-full bg-white/[0.06] animate-pulse"></div>
+                    <div class="flex-1 min-w-0">
+                        <div class="h-3 w-24 rounded-md bg-white/[0.08] animate-pulse"></div>
+                        <div class="h-2.5 w-16 rounded-md bg-white/[0.05] animate-pulse mt-1.5"></div>
+                    </div>
                 </div>
+            }
+            <app-self-profile-popover (addAccount)="startAddAccount()" (editProfile)="openProfileSettings()"
+                                      (openAdmin)="isAdminOpen.set(true)"/>
 
-                <!-- Name, then either the status or - when the socket is in trouble - the socket.
-                     Trouble outranks the status because it is the more urgent thing to say, and the
-                     dot is still carrying presence on its own while it is being said. -->
-                <div class="flex-1 min-w-0">
-                    <p class="text-[0.875rem] font-medium text-text-primary truncate leading-tight">{{ own.userName }}</p>
-                    @if (showConnectionTrouble()) {
-                        <app-connection-status></app-connection-status>
-                    } @else if (statusLabelKey(); as key) {
-                        <p class="text-[0.75rem] text-text-muted truncate leading-tight mt-0.5">{{ key | translate }}</p>
-                    }
-                </div>
+            <!-- Always present, in a call or not. Mute is a statement about this machine's
+                 microphone, so hiding the control outside a call both changed the row's shape on
+                 join and left no way to arrive in a channel already muted. -->
+            <app-voice-toggle
+                    [active]="voiceSvc.localState().isMuted"
+                    icon="pi-microphone"
+                    [label]="voiceSvc.localState().isMuted ? 'QUICK_SETTINGS.UNMUTE' : 'QUICK_SETTINGS.MUTE'"
+                    deviceLabel="QUICK_SETTINGS.INPUT_DEVICE"
+                    [devices]="catalog.mics()" [selected]="audio.settings().micId"
+                    (toggled)="voiceSvc.toggleMute()"
+                    (deviceChosen)="audio.update({micId: $event})"
+                    (openSettings)="openVoiceSettings()"/>
 
-            </button>
-        } @else {
-            <!-- Nothing is known yet. A skeleton says so; an empty row implies the panel is broken
-                 and a default name implies something false about who is signed in. -->
-            <div class="flex items-center gap-1.5 flex-1 min-w-0 px-1.5 py-1 -mx-1.5">
-                <div class="w-8 h-8 shrink-0 mr-1 rounded-full bg-white/[0.06] animate-pulse"></div>
-                <div class="flex-1 min-w-0">
-                    <div class="h-3 w-24 rounded-md bg-white/[0.08] animate-pulse"></div>
-                    <div class="h-2.5 w-16 rounded-md bg-white/[0.05] animate-pulse mt-1.5"></div>
-                </div>
-            </div>
-        }
-        <app-self-profile-popover (addAccount)="startAddAccount()" (editProfile)="openProfileSettings()"
-                                  (openAdmin)="isAdminOpen.set(true)"/>
+            <app-voice-toggle
+                    [active]="voiceSvc.localState().isDeafened"
+                    icon="pi-headphones"
+                    [label]="voiceSvc.localState().isDeafened ? 'QUICK_SETTINGS.UNDEAFEN' : 'QUICK_SETTINGS.DEAFEN'"
+                    deviceLabel="QUICK_SETTINGS.OUTPUT_DEVICE"
+                    [devices]="catalog.speakers()" [selected]="audio.settings().speakerId"
+                    (toggled)="voiceSvc.toggleDeafen()"
+                    (deviceChosen)="audio.update({speakerId: $event})"
+                    (openSettings)="openVoiceSettings()"/>
 
-        <!-- Always present, in a call or not. Mute is a statement about this machine's microphone,
-             so hiding the control outside a call both changed the row's shape on join and left no
-             way to arrive in a channel already muted. -->
-        <app-voice-toggle
-                [active]="voiceSvc.localState().isMuted"
-                icon="pi-microphone"
-                [label]="voiceSvc.localState().isMuted ? 'QUICK_SETTINGS.UNMUTE' : 'QUICK_SETTINGS.MUTE'"
-                deviceLabel="QUICK_SETTINGS.INPUT_DEVICE"
-                [devices]="catalog.mics()" [selected]="audio.settings().micId"
-                (toggled)="voiceSvc.toggleMute()"
-                (deviceChosen)="audio.update({micId: $event})"
-                (openSettings)="openVoiceSettings()"/>
+            <!-- Three controls, not five. Status moved into the profile menu, where it can carry
+                 its own name instead of being a bare dot, and the admin shield went with it - both
+                 were squeezing this row at a 240px panel width. -->
+            <p-button (onClick)="isSettingsOpen.set(true)" [text]="true" icon="pi pi-cog" severity="secondary"
+                      size="small" styleClass="shrink-0"/>
 
-        <app-voice-toggle
-                [active]="voiceSvc.localState().isDeafened"
-                icon="pi-headphones"
-                [label]="voiceSvc.localState().isDeafened ? 'QUICK_SETTINGS.UNDEAFEN' : 'QUICK_SETTINGS.DEAFEN'"
-                deviceLabel="QUICK_SETTINGS.OUTPUT_DEVICE"
-                [devices]="catalog.speakers()" [selected]="audio.settings().speakerId"
-                (toggled)="voiceSvc.toggleDeafen()"
-                (deviceChosen)="audio.update({speakerId: $event})"
-                (openSettings)="openVoiceSettings()"/>
-
-        <!-- Three controls, not five. Status moved into the profile menu, where it can carry its
-             own name instead of being a bare dot, and the admin shield went with it - both were
-             squeezing this row at a 240px panel width. -->
-        <p-button (onClick)="isSettingsOpen.set(true)" [text]="true" icon="pi pi-cog" severity="secondary" size="small"
-                  styleClass="shrink-0"/>
-
+        </div>
     </div>
 </div>
