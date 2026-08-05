@@ -273,7 +273,21 @@ export class RichPresenceService {
         try {
             // Closing the window tears the webview down before an ordinary teardown would run, so
             // the clear has to be hung off the close request itself.
-            this.unlistenClose = await getCurrentWindow().onCloseRequested(() => this.stop());
+            //
+            // <b>This listener owns the window's close.</b> Tauri calls `api.prevent_close()` for
+            // any window that has a JS `tauri://close-requested` listener and then relies on the
+            // JS wrapper to call `destroy()` once the handler resolves - so the moment this is
+            // registered, the titlebar's close button goes through here. A throw out of the
+            // handler skips the `destroy()` and the window silently refuses to close, which is
+            // why this can never be allowed to reject: clearing a presence is not worth a window
+            // the user cannot shut.
+            this.unlistenClose = await getCurrentWindow().onCloseRequested(() => {
+                try {
+                    this.stop();
+                } catch (err) {
+                    console.warn('[RichPresence] teardown on window close failed', err);
+                }
+            });
         } catch (err) {
             console.warn('[RichPresence] could not hook window close', err);
         }

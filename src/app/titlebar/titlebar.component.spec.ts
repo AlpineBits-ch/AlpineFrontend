@@ -4,6 +4,7 @@ import {Router} from '@angular/router';
 import {provideTranslateService, TranslateLoader, TranslateService} from '@ngx-translate/core';
 import {Observable, of, Subject} from 'rxjs';
 
+import defaultCapability from '../../../src-tauri/capabilities/default.json';
 import {TitlebarComponent} from './titlebar.component';
 import {InboxService} from '../services/inbox.service';
 import {IdentityWebsocketService} from '../services/identity-websocket.service';
@@ -166,6 +167,24 @@ function chrome() {
     const bar = (fixture.nativeElement as HTMLElement).querySelector('.titlebar') as HTMLElement;
     return {fixture, instance, bar};
 }
+
+describe('close button permissions', () => {
+    /**
+     * The close button was a no-op for a whole release and nothing said why.
+     *
+     * <p>Tauri calls `api.prevent_close()` for any window that has a JS `tauri://close-requested`
+     * listener and then leaves it to the JS wrapper to finish the job with `destroy()`.
+     * {@link RichPresenceService} registers such a listener as soon as the app shell mounts, so
+     * from that moment `destroy` - not `close` - is what actually shuts the window. It was never
+     * granted, the invoke was rejected by the ACL inside an event callback nobody was reading, and
+     * the button silently did nothing until the listener tore itself down and a second click got
+     * through natively.</p>
+     */
+    it('grants destroy as well as close', () => {
+        expect(defaultCapability.permissions).toContain('core:window:allow-close');
+        expect(defaultCapability.permissions).toContain('core:window:allow-destroy');
+    });
+});
 
 describe('TitlebarComponent double-click to maximize', () => {
     it('leaves it to the drag region rather than toggling a second time', () => {

@@ -18,7 +18,7 @@ export class WindowChromeService {
      * Matches `.titlebar`'s height in titlebar.component.css. The two have to agree: this is the
      * strip in which a press on an overlay is read as "move the window" rather than as a click.
      */
-    private static readonly TITLEBAR_HEIGHT = 32;
+    private static readonly TITLEBAR_HEIGHT = 38;
 
     /** True whenever the window sits flush to the screen edges, by either route. */
     readonly isFlush = signal(false);

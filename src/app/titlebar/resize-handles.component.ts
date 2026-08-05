@@ -2,7 +2,7 @@ import {Component, OnInit, signal} from '@angular/core';
 
 type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 'SouthEast' | 'SouthWest' | 'West';
 
-// The titlebar (32px) occupies the full top edge and its corners,
+// The titlebar (38px) occupies the full top edge and its corners,
 // so top/nw/ne handles are omitted -they would block drag and window controls.
 @Component({
     selector: 'app-resize-handles',
@@ -22,9 +22,9 @@ type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 
       z-index: 9999;
       pointer-events: all;
     }
-    /* Sides start below the 32px titlebar */
-    .e  { right: 0;  top: 36px; bottom: 12px; width:  5px; cursor: e-resize; }
-    .w  { left: 0;   top: 36px; bottom: 12px; width:  5px; cursor: w-resize; }
+    /* Sides start below the 38px titlebar */
+    .e  { right: 0;  top: 42px; bottom: 12px; width:  5px; cursor: e-resize; }
+    .w  { left: 0;   top: 42px; bottom: 12px; width:  5px; cursor: w-resize; }
     /* Bottom edge and corners are free of titlebar */
     .s  { bottom: 0; left: 12px; right: 12px; height: 5px; cursor: s-resize; }
     .sw { bottom: 0; left: 0;   width: 12px; height: 12px; cursor: sw-resize; }

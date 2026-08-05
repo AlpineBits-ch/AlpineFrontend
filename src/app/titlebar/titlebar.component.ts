@@ -208,8 +208,22 @@ export class TitlebarComponent implements OnInit, OnDestroy {
         void getCurrentWindow().toggleMaximize();
     }
 
+    /**
+     * Asks the window to close, and says so out loud when it cannot.
+     *
+     * <p>Not a bare `void`. A close that fails here fails silently and invisibly - the button
+     * looks pressed and nothing happens - which is exactly how the ACL gap behind
+     * `core:window:allow-destroy` went unnoticed: {@link RichPresenceService} registers a JS
+     * `close-requested` listener, Tauri therefore prevents the native close and delegates to JS,
+     * and the `destroy()` the JS wrapper follows up with was denied by the capability set. The
+     * rejection landed inside an event callback with nobody reading it.</p>
+     *
+     * <p>Note that `close()` resolving means the request was dispatched, not that the window went
+     * away: a listener is still free to prevent it. That is deliberate - it is what a future
+     * close-to-tray would hang off - so this reports failures rather than forcing a destroy.</p>
+     */
     protected close(): void {
-        void getCurrentWindow().close();
+        getCurrentWindow().close().catch(err => console.error('Could not close the window', err));
     }
 
     protected onIconError(url: string): void {
