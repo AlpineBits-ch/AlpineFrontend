@@ -149,6 +149,7 @@
                            [placeholder]="selectedKind().namePlaceholderKey | translate"
                            autofocus
                            class="w-full !bg-white/[0.04] !border-white/[0.08] placeholder:text-white/25 !rounded-xl !text-sm"
+                           data-testid="create-guild-name"
                            pInputText/>
                 </div>
 
@@ -245,6 +246,7 @@
                               [text]="true" severity="secondary" size="small"/>
                     <p-button (onClick)="submit()"
                               [disabled]="!name().trim() || loading()"
+                              data-testid="create-guild-submit"
                               [label]="'CREATE_GUILD.CREATE' | translate"
                               [loading]="loading()"
                               severity="primary"

@@ -6,6 +6,11 @@
 /out-tsc
 /bazel-out
 
+# Staging directory for the E2E client image. .github/workflows/e2e-client-image.yml assembles the
+# docker build context here (built output + docker/e2e/nginx.conf and nothing else) so that no
+# source can enter the context in the first place.
+/.image-context
+
 # Node
 /node_modules
 npm-debug.log

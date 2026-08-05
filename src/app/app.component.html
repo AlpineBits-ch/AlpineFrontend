@@ -1,4 +1,7 @@
-<p-toast position="top-center"/>
+<!-- Tagged because this is where sign-in and verification failures actually surface. Neither form
+     has an inline error node, so the negative-path tests have nothing else to assert against. It
+     carries every toast in the app, so a test must match on the message text, not on this alone. -->
+<p-toast data-testid="toast" position="top-center"/>
 @if (!isPopup) {
     <app-resize-handles/>
     <app-titlebar/>

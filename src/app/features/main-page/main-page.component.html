@@ -1,4 +1,9 @@
-<div class="flex flex-col w-full overflow-hidden bg-app-bg h-full">
+<!-- data-testid="app-ready" appears only once AppReadyService.markReady() has run, which is the one
+     honest "the shell rendered" signal. The #app-loading overlay is not: AppComponent removes it on
+     an 8s safety-net timer whether or not the launch succeeded, so waiting on that overlay to
+     disappear would let a failed boot pass as a slow one. -->
+<div [attr.data-testid]="appReady.ready() ? 'app-ready' : null"
+     class="flex flex-col w-full overflow-hidden bg-app-bg h-full">
     <app-account-deletion-banner (manage)="openAccountSettings()"/>
 
     <div class="flex flex-1 min-h-0 overflow-hidden">

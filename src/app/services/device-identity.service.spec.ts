@@ -12,6 +12,14 @@
  * of adopting that one would address all of it to a slot nothing looks up, which presents as this
  * device being silently ejected from every group it belongs to.</p>
  */
+// `isTauri` is stubbed true, and re-stubbed true in `beforeEach`, because everything outside the
+// "outside Tauri" block below is about the desktop path and would otherwise silently start
+// asserting against `localStorage`. `vi.clearAllMocks` clears calls but not implementations, so a
+// test that flips this to false would leak into every test after it without that reset.
+vi.mock('@tauri-apps/api/core', () => ({
+    invoke: vi.fn(),
+    isTauri: vi.fn(() => true),
+}));
 vi.mock('@tauri-apps/plugin-store');
 vi.mock('tauri-plugin-secure-storage-api', () => ({
     secureStorage: {getItem: vi.fn(), setItem: vi.fn(), removeItem: vi.fn()},
@@ -20,6 +28,7 @@ vi.mock('tauri-plugin-secure-storage-api', () => ({
 import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
+import {isTauri} from '@tauri-apps/api/core';
 import {LazyStore} from '@tauri-apps/plugin-store';
 import {secureStorage} from 'tauri-plugin-secure-storage-api';
 import {ApiConfigService} from './api-config.service';
@@ -57,9 +66,31 @@ class RegistryStub {
 
 let registry: RegistryStub;
 
+/**
+ * This runner's global `localStorage` exists but has no methods on it, so every read and write in
+ * the browser-backend tests would silently do nothing and the persistence they exist to prove
+ * would be unobservable. An in-memory stand-in makes it real. Same stand-in, same reason, as in
+ * `scoped-oauth-storage.spec.ts`.
+ */
+const browserStorage = new Map<string, string>();
+
+beforeAll(() => {
+    Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: {
+            getItem: (k: string) => browserStorage.get(k) ?? null,
+            setItem: (k: string, v: string) => void browserStorage.set(k, String(v)),
+            removeItem: (k: string) => void browserStorage.delete(k),
+            clear: () => browserStorage.clear(),
+        },
+    });
+});
+
 beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(isTauri).mockReturnValue(true);
     values.clear();
+    localStorage.clear();
     failNextGet = false;
     registry = new RegistryStub();
     // A regular function, not an arrow: the service calls `new LazyStore(...)`, and arrow
@@ -332,5 +363,142 @@ describe('registration', () => {
         );
         expect(req.request.method).toBe('DELETE');
         req.flush(null);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Outside Tauri
+// ---------------------------------------------------------------------------
+
+/**
+ * The `localStorage` fallback, and the reason a browser build is possible at all.
+ *
+ * <p>With no IPC host every `LazyStore` call rejects, and `MainPageComponent.runDeviceLaunch`
+ * reads the device id before its `try` - so one rejection here means `markReady` never runs and
+ * the app never leaves the loading overlay. These tests are as much about *not* reaching
+ * `LazyStore` as they are about what gets stored.</p>
+ *
+ * <p>The assertions are deliberately the same ones the desktop path is held to, restated against
+ * the other backend. The logic above the store is a single implementation, so the value of these
+ * is that it is provably backend-blind: mint, persist, isolate per slot, and adopt the pre-slot id
+ * exactly once.</p>
+ */
+describe('outside Tauri', () => {
+    /**
+     * Pinned as a literal rather than imported.
+     *
+     * <p>Once anything has booted in a browser this prefix is a persisted name, not an
+     * implementation detail: changing it orphans the id every existing browser session is using,
+     * which reads as those sessions being ejected from their groups. An import would have followed
+     * the rename silently.</p>
+     */
+    const PREFIX = 'alpine_device_identity::';
+
+    beforeEach(() => {
+        vi.mocked(isTauri).mockReturnValue(false);
+    });
+
+    function stored<T>(key: string): T | undefined {
+        const raw = localStorage.getItem(PREFIX + key);
+        return raw === null ? undefined : JSON.parse(raw) as T;
+    }
+
+    it('mints and persists an id without ever opening the Tauri store', async () => {
+        const service = setup('slot-a');
+
+        const id = await service.deviceId();
+
+        expect(id).toMatch(/^[0-9a-f-]{36}$/);
+        expect(stored('mls_device_ids')).toEqual({'slot-a': id});
+        // The gate is the whole guarantee: no IPC is attempted, so there is nothing to reject.
+        expect(LazyStore).not.toHaveBeenCalled();
+        expect(store.get).not.toHaveBeenCalled();
+        expect(store.set).not.toHaveBeenCalled();
+    });
+
+    it('returns the persisted id on a second boot rather than minting again', async () => {
+        const minted = await setup('slot-a').deviceId();
+
+        await expect(setup('slot-a').deviceId()).resolves.toBe(minted);
+    });
+
+    it('keeps one slot stable across repeated calls', async () => {
+        const service = setup('slot-a');
+
+        const [a, b] = await Promise.all([service.deviceId(), service.deviceId()]);
+
+        expect(b).toBe(a);
+    });
+
+    it('gives two accounts two different ids - the whole of the isolation', async () => {
+        const service = setup('slot-a');
+        const a = await service.deviceId();
+
+        registry.slotId = 'slot-b';
+        const b = await service.deviceId();
+
+        expect(b).not.toBe(a);
+        expect(stored('mls_device_ids')).toEqual({'slot-a': a, 'slot-b': b});
+    });
+
+    it('adopts the legacy installation id for the first slot rather than re-minting', async () => {
+        localStorage.setItem(`${PREFIX}mls_device_id`, JSON.stringify({value: 'legacy-device'}));
+        const service = setup('slot-a');
+
+        await expect(service.deviceId()).resolves.toBe('legacy-device');
+    });
+
+    it('hands the legacy id to one slot only - a second account gets a fresh one', async () => {
+        localStorage.setItem(`${PREFIX}mls_device_id`, JSON.stringify({value: 'legacy-device'}));
+        const service = setup('slot-a');
+        await expect(service.deviceId()).resolves.toBe('legacy-device');
+
+        registry.slotId = 'slot-b';
+        await expect(service.deviceId()).resolves.not.toBe('legacy-device');
+        // Still what slot-a adopted, for the same reason as in Tauri: a second account writing
+        // here would hand its id to every pre-slot code path.
+        expect(stored('mls_device_id')).toEqual({value: 'legacy-device'});
+    });
+
+    it('keeps the legacy id for the bootstrap slot, and mirrors a minted one back', async () => {
+        localStorage.setItem(`${PREFIX}mls_device_id`, JSON.stringify({value: 'legacy-device'}));
+        await expect(setup(BOOTSTRAP_SLOT_ID).deviceId()).resolves.toBe('legacy-device');
+
+        localStorage.clear();
+        const minted = await setup(BOOTSTRAP_SLOT_ID).deviceId();
+
+        expect(stored('mls_device_id')).toEqual({value: minted});
+    });
+
+    it('persists the same shape the Tauri store holds, so neither backend is a fork', async () => {
+        const service = setup(BOOTSTRAP_SLOT_ID);
+        const id = await service.deviceId();
+
+        // Byte for byte what `values` ends up holding on the desktop path above, only JSON encoded
+        // and prefixed. Anything flatter here would make the migration logic backend-specific.
+        expect(localStorage.getItem(`${PREFIX}mls_device_ids`))
+            .toBe(JSON.stringify({[BOOTSTRAP_SLOT_ID]: id}));
+        expect(localStorage.getItem(`${PREFIX}mls_device_id`))
+            .toBe(JSON.stringify({value: id}));
+    });
+
+    it('reset drops the live slot and the legacy mirror, and the next read mints anew', async () => {
+        const service = setup(BOOTSTRAP_SLOT_ID);
+        const first = await service.deviceId();
+
+        await service.reset();
+
+        expect(stored('mls_device_ids')).toEqual({});
+        expect(stored('mls_device_id')).toBeUndefined();
+        await expect(service.deviceId()).resolves.not.toBe(first);
+    });
+
+    it('mints rather than throwing when the stored value is corrupt', async () => {
+        localStorage.setItem(`${PREFIX}mls_device_ids`, 'not json');
+        const service = setup('slot-a');
+
+        // Boot survivability is the point. A value nothing can parse is a value nothing can act
+        // on, and stranding the launch on it is the exact failure this backend exists to remove.
+        await expect(service.deviceId()).resolves.toMatch(/^[0-9a-f-]{36}$/);
     });
 });

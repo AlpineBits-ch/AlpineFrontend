@@ -2,6 +2,8 @@
 
 <div (click)="open.emit()"
      (contextmenu)="openMenu.emit($event)"
+     data-testid="voice-participant"
+     [attr.data-user-id]="p.userId"
      class="flex items-center gap-2 pl-7 pr-2 py-0.5 rounded-md hover:bg-white/[0.04] cursor-pointer transition-colors">
     <div class="flex shrink-0">
         <app-avatar [label]="p.avatarLabel" [userId]="p.userId"

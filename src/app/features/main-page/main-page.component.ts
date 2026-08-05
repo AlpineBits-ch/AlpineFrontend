@@ -183,7 +183,10 @@ export class MainPageComponent implements OnDestroy {
     private conversationService = inject(ConversationService);
     private richPresenceService = inject(RichPresenceService);
     private emailVerification = inject(EmailVerificationService);
-    private appReady = inject(AppReadyService);
+    // Protected rather than private so the template can expose readiness to the DOM. See the
+    // `data-testid="app-ready"` binding on the root element: removing the loading overlay is not
+    // evidence that the app booted, because AppComponent's safety-net timer removes it either way.
+    protected appReady = inject(AppReadyService);
     private guildService = inject(GuildService);
     private joinRequests = inject(MlsJoinRequestService);
     private accounts = inject(AccountRegistryService);
