@@ -154,19 +154,19 @@ implementation, and degrades to readable text anywhere the content is viewed out
 
 ### 5. Search and backlinks share one content cache
 
-`getWiki` returns summaries without content, which constrains the design:
+`getWiki` returns summaries without content by default, so search works in two tiers:
 
 - **Tier 1 — titles and tags, zero requests.** Scored prefix > substring > subsequence over
   `wiki.pages`. Instant, always available, and covers the common case of "take me to that page".
 - **Tier 2 — content.** `wiki-content-cache.service` fills opportunistically as pages are opened,
-  and warms fully — throttled to ~6 concurrent requests, with visible progress — the first time
-  something needs it: a content search, or the backlinks panel becoming visible. Not on wiki load.
-  Entries are invalidated by the `wikiPageUpdated` / `wikiPageDeleted` websocket events already
-  subscribed in `wiki-state.service.ts:27`.
+  and warms fully the first time something needs complete coverage: a content search, or the
+  backlinks panel becoming visible. Not on wiki load. Entries are invalidated by the
+  `wikiPageUpdated` / `wikiPageDeleted` websocket events already subscribed in
+  `wiki-state.service.ts:27`.
 
-**Server ask (not a blocker):** full-text search and backlinks cost N requests on first use.
-A `GET /wiki?includeContent=true`, or a search endpoint, would make both instant. The feature
-works without it; it is the one place the client is papering over a missing API.
+The warm is **one request**, not N: the server now accepts
+`GET /api/v1/guilds/{guildId}/wiki?includeContent=true`, returning each page's body alongside its
+summary. See "Server changes" below.
 
 ### 6. Edit safety
 
@@ -186,10 +186,12 @@ mode from read view.
 input and avoids a dependency. History shows a revision selected against either its predecessor or
 current, and Restore confirms by *showing the diff* rather than asking blind.
 
-**Server ask (blocking, one field):** the edit-summary input cannot be built.
-`WikiRevisionDto.summary` exists, but `UpdateWikiPageDto` has no `summary` field, so there is no way
-to send one. Adding a UI control that silently discards its input would be worse than none. The
-History view will keep showing "No summary" until the server accepts it. Flagged, not worked around.
+**Edit summary.** An optional "What changed?" field offered on save, stored on the revision that
+save creates. `WikiRevision` has carried a `Summary` since the feature shipped and nothing could
+ever set it, which is why the History view shows "No summary" against every revision in every
+wiki. The server accepts it as of the change below. It is ignored when the content is unchanged,
+because there is then no revision to attach it to — so the field is only offered when the body has
+actually been edited.
 
 ### 7. Attribution and permissions
 
@@ -221,6 +223,28 @@ zero translate pipes; every string is hardcoded English. All user-facing strings
 `WIKI.*`. Per project convention, locales are a git submodule and the strings land in a separate
 commit from the code that references them.
 
+### 9. Server changes
+
+Both of the API gaps this design originally worked around are closed. Implemented in the Echo
+repository (`C:\Users\Domin\RiderProjects\Echo`), commit `7ae3a50`, all in
+`Guild.Application/Endpoints/WikiEndpoint.cs` and its DTOs, covered by seven new tests in
+`Guild.Tests/Endpoints/WikiEndpointTests.cs`:
+
+1. **`UpdateWikiPageDto.Summary`** — passed to the `WikiRevision` the update creates. Trimmed;
+   blank becomes null. Ignored when the content is unchanged.
+2. **`GET .../wiki?includeContent=true`** — populates `WikiPageSummaryDto.Content`, which is null
+   on the default listing. Turns the content warm from N requests into one.
+3. **Revision counts via a grouped count**, replacing `Include(p => p.Revisions)`. The Include
+   materialised every revision of every page — each carrying a full copy of the page body at that
+   point in time — purely to read `Count` on the loaded collection. A wiki with 50 pages and 10
+   revisions each pulled 500 page-sized rows to produce 50 integers, on every wiki load, growing
+   with edit history rather than with wiki size. This was pre-existing, not introduced here, but
+   adding content to the same response without fixing it would have compounded it.
+
+The client DTOs mirror this: `UpdateWikiPageDto` gains `summary?: string`,
+`WikiPageSummaryDto` gains `content?: string`, and `WikiService.getWiki` takes an
+`includeContent` flag.
+
 ## Data flow
 
 ```
@@ -239,8 +263,10 @@ it rather than replacing it, so the concurrency handling already built (`suppres
 
 ## Error handling
 
-- **Content cache warm fails partially:** search reports "N of M pages searched"; backlinks show
-  "incomplete". Silent partial results would be a lie about coverage.
+- **Content warm fails:** it is one request, so it fails whole rather than partially. Search falls
+  back to titles and tags with the reason stated and a retry offered; backlinks show "couldn't
+  load". Silently returning title-only results while looking like a full-text search would be a
+  lie about coverage.
 - **Draft restore conflicts with a remote edit:** the existing `pendingRemoteUpdate` banner takes
   precedence; the draft bar is suppressed until the conflict is resolved, so two competing "your
   content is stale" messages can never stack.

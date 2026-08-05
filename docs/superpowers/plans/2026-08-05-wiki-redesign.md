@@ -971,15 +971,60 @@ git commit -m "feat(wiki): localStorage draft persistence"
 
 ### Task 6: Page content cache
 
+The server accepts `?includeContent=true` as of Echo `7ae3a50`, so warming the cache is **one
+request**, not one per page. This task also plumbs `includeContent` and the new `summary` field
+through the client DTOs and `WikiService`.
+
 **Files:**
+- Modify: `src/app/dtos/response/wiki.dto.ts`
+- Modify: `src/app/dtos/request/wiki.dto.ts`
+- Modify: `src/app/services/wiki.service.ts`
+- Modify: `src/app/features/guild/components/wiki/wiki-state.service.ts`
 - Create: `src/app/features/guild/components/wiki/wiki-content-cache.service.ts`
 - Test: `src/app/features/guild/components/wiki/wiki-content-cache.service.spec.ts`
 
 **Interfaces:**
-- Consumes: `WikiService.getPage` from `src/app/services/wiki.service.ts`.
-- Produces: `WikiContentCacheService` with `content: Signal<ReadonlyMap<string, string>>`, `warming: Signal<boolean>`, `warmedCount: Signal<number>`, `totalCount: Signal<number>`, `put(pageId: string, content: string): void`, `invalidate(pageId: string): void`, `reset(): void`, `warm(guildId: string, pageIds: readonly string[]): void`. Used by Tasks 13, 15.
+- Consumes: `WikiService.getWikiWithContent(guildId)`.
+- Produces: `WikiPageSummaryDto` gains `content?: string`; `UpdateWikiPageDto` gains `summary?: string`; `WikiService.getWikiWithContent(guildId: string)`. `WikiContentCacheService` with `content: Signal<ReadonlyMap<string, string>>`, `warming: Signal<boolean>`, `failed: Signal<boolean>`, `warmed: Signal<boolean>`, `put(pageId: string, content: string): void`, `invalidate(pageId: string): void`, `reset(): void`, `warm(guildId: string): void`. Used by Tasks 13 and 15.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Extend the client DTOs and service**
+
+In `src/app/dtos/response/wiki.dto.ts`, add to `WikiPageSummaryDto`:
+
+```ts
+/** Present only when the wiki was fetched with `includeContent`. */
+content?: string;
+```
+
+In `src/app/dtos/request/wiki.dto.ts`, add to `UpdateWikiPageDto`:
+
+```ts
+/** Stored on the revision this update creates. Ignored when the content is unchanged. */
+summary?: string;
+```
+
+In `src/app/services/wiki.service.ts`, add a **separate** method rather than a flag on `getWiki`:
+
+```ts
+/**
+ * The content-bearing fetch, used to warm the search and backlink index.
+ *
+ * Deliberately not a flag on `getWiki`: that method swallows errors into an empty wiki so the
+ * tree degrades to "no pages yet" rather than a broken view. Reusing it here would turn a failed
+ * warm into a *successful* empty one, and search would report full-text coverage it does not
+ * have. This one lets the error through so the caller can say so.
+ */
+getWikiWithContent(guildId: string): Observable<WikiDto> {
+    return this.http.get<WikiDto>(`${this.base}/guilds/${guildId}/wiki`, {
+        params: {includeContent: true},
+    });
+}
+```
+
+Note that `WikiPageDto extends WikiPageSummaryDto` and redeclares `content: string` as required —
+that stays correct, since a single-page fetch always carries content.
+
+- [ ] **Step 2: Write the failing test**
 
 Create `wiki-content-cache.service.spec.ts`:
 
@@ -989,63 +1034,75 @@ import {of, Subject, throwError} from 'rxjs';
 import {WikiContentCacheService} from './wiki-content-cache.service';
 import {WikiService} from '../../../../services/wiki.service';
 
+function wikiWith(pages: {id: string; content?: string}[]) {
+    return {id: 'w', guildId: 'g1', categories: [], pages} as never;
+}
+
 describe('WikiContentCacheService', () => {
     let service: WikiContentCacheService;
-    let getPage: ReturnType<typeof vi.fn>;
+    let getWikiWithContent: ReturnType<typeof vi.fn>;
 
     beforeEach(() => {
-        getPage = vi.fn((_g: string, id: string) => of({id, content: `body of ${id}`} as never));
+        getWikiWithContent = vi.fn(() => of(wikiWith([
+            {id: 'p1', content: 'body one'},
+            {id: 'p2', content: 'body two'},
+        ])));
         TestBed.configureTestingModule({
-            providers: [{provide: WikiService, useValue: {getPage}}],
+            providers: [{provide: WikiService, useValue: {getWikiWithContent}}],
         });
         service = TestBed.inject(WikiContentCacheService);
     });
 
-    it('starts empty and not warming', () => {
+    it('starts empty, not warming and not warmed', () => {
         expect(service.content().size).toBe(0);
         expect(service.warming()).toBe(false);
+        expect(service.warmed()).toBe(false);
     });
 
-    it('stores content put into it directly', () => {
+    it('stores content put into it directly as pages are opened', () => {
         service.put('p1', 'hello');
         expect(service.content().get('p1')).toBe('hello');
     });
 
-    it('fetches every requested page when warmed', () => {
-        service.warm('g1', ['p1', 'p2', 'p3']);
-        expect(service.content().size).toBe(3);
-        expect(service.content().get('p2')).toBe('body of p2');
+    // One request for the whole wiki, not one per page.
+    it('fills every page from a single request', () => {
+        service.warm('g1');
+        expect(getWikiWithContent).toHaveBeenCalledTimes(1);
+        expect(getWikiWithContent).toHaveBeenCalledWith('g1');
+        expect(service.content().get('p2')).toBe('body two');
+        expect(service.warmed()).toBe(true);
     });
 
-    // Opening pages already fills the cache. Re-fetching them on warm would multiply
-    // requests on exactly the wikis where the cost already hurts most.
-    it('does not re-fetch pages already cached', () => {
-        service.put('p1', 'already here');
-        service.warm('g1', ['p1', 'p2']);
-        expect(getPage).toHaveBeenCalledTimes(1);
-        expect(service.content().get('p1')).toBe('already here');
-    });
-
-    it('clears warming once every page has settled', () => {
-        service.warm('g1', ['p1']);
+    it('clears warming once the request settles', () => {
+        service.warm('g1');
         expect(service.warming()).toBe(false);
     });
 
-    it('reports progress as a count against the total', () => {
-        service.warm('g1', ['p1', 'p2']);
-        expect(service.warmedCount()).toBe(2);
-        expect(service.totalCount()).toBe(2);
+    // The server omits content for a page it could not read; an empty string is a truthful
+    // "nothing to search" whereas undefined would break the search candidate mapping.
+    it('stores an empty body for a page returned without content', () => {
+        getWikiWithContent.mockReturnValue(of(wikiWith([{id: 'p1'}])));
+        service.warm('g1');
+        expect(service.content().get('p1')).toBe('');
     });
 
-    // A failed page must not strand the warm forever, or search would claim to still be
-    // loading for the rest of the session.
-    it('completes the warm even when a page fails to load', () => {
-        getPage.mockImplementation((_g: string, id: string) =>
-            id === 'p2' ? throwError(() => new Error('boom')) : of({id, content: 'ok'} as never));
-        service.warm('g1', ['p1', 'p2']);
+    // A failed warm must not look like a completed one, or search silently reports title-only
+    // results while presenting itself as full-text.
+    it('records a failure and does not claim to be warmed', () => {
+        getWikiWithContent.mockReturnValue(throwError(() => new Error('boom')));
+        service.warm('g1');
         expect(service.warming()).toBe(false);
-        expect(service.content().has('p2')).toBe(false);
-        expect(service.content().has('p1')).toBe(true);
+        expect(service.warmed()).toBe(false);
+        expect(service.failed()).toBe(true);
+    });
+
+    it('allows a retry after a failure', () => {
+        getWikiWithContent.mockReturnValueOnce(throwError(() => new Error('boom')));
+        service.warm('g1');
+        service.warm('g1');
+        expect(getWikiWithContent).toHaveBeenCalledTimes(2);
+        expect(service.warmed()).toBe(true);
+        expect(service.failed()).toBe(false);
     });
 
     it('drops an invalidated page so it is fetched again', () => {
@@ -1055,57 +1112,63 @@ describe('WikiContentCacheService', () => {
     });
 
     it('empties everything on reset', () => {
-        service.put('p1', 'x');
+        service.warm('g1');
         service.reset();
         expect(service.content().size).toBe(0);
-        expect(service.totalCount()).toBe(0);
+        expect(service.warmed()).toBe(false);
     });
 
-    it('ignores a second warm while one is already running', () => {
-        const gate = new Subject<never>();
-        getPage.mockImplementation(() => gate);
-        service.warm('g1', ['p1']);
-        service.warm('g1', ['p2']);
-        expect(getPage).toHaveBeenCalledTimes(1);
+    it('does not warm twice once it has succeeded', () => {
+        service.warm('g1');
+        service.warm('g1');
+        expect(getWikiWithContent).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores a second warm while one is in flight', () => {
+        getWikiWithContent.mockReturnValue(new Subject<never>());
+        service.warm('g1');
+        service.warm('g1');
+        expect(getWikiWithContent).toHaveBeenCalledTimes(1);
     });
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 3: Run test to verify it fails**
 
 Run: `./node_modules/.bin/ng test --include=src/app/features/guild/components/wiki/wiki-content-cache.service.spec.ts --watch=false`
 Expected: FAIL — cannot resolve `./wiki-content-cache.service`.
 
-- [ ] **Step 3: Write the implementation**
+- [ ] **Step 4: Write the implementation**
 
 Create `wiki-content-cache.service.ts`:
 
 ```ts
-import {computed, inject, Injectable, signal} from '@angular/core';
+import {inject, Injectable, signal} from '@angular/core';
 import {WikiService} from '../../../../services/wiki.service';
-
-/** Concurrent in-flight page fetches. High enough to finish quickly, low enough not to flood. */
-const WARM_CONCURRENCY = 6;
 
 /**
  * Session cache of page bodies.
  *
- * `getWiki` returns summaries without content, so full-text search and backlinks both need the
- * bodies and would otherwise each fetch them separately. One cache serves both: it fills
- * opportunistically as pages are opened, and can be warmed in full the first time a feature
- * actually needs complete coverage - never on wiki load, which would cost N requests for a
- * feature the user may not touch.
+ * `getWiki` returns summaries without content by default, so full-text search and backlinks both
+ * need the bodies and would otherwise each fetch them separately. One cache serves both: it fills
+ * opportunistically as pages are opened, and can be warmed in full the first time a feature needs
+ * complete coverage - never on wiki load, for a feature the user may not touch.
+ *
+ * The warm is a single `includeContent=true` request. It used to be one request per page; the
+ * server gained the flag precisely so this could stop being N.
  */
 @Injectable({providedIn: 'root'})
 export class WikiContentCacheService {
     private readonly store = signal<ReadonlyMap<string, string>>(new Map());
-    private readonly inFlight = signal(0);
-    private readonly total = signal(0);
+    private readonly isWarming = signal(false);
+    private readonly isWarmed = signal(false);
+    private readonly didFail = signal(false);
 
     readonly content = this.store.asReadonly();
-    readonly totalCount = this.total.asReadonly();
-    readonly warmedCount = computed(() => this.store().size);
-    readonly warming = computed(() => this.inFlight() > 0);
+    readonly warming = this.isWarming.asReadonly();
+    /** True only when every body is present, so callers can be honest about coverage. */
+    readonly warmed = this.isWarmed.asReadonly();
+    readonly failed = this.didFail.asReadonly();
 
     private readonly wikiService = inject(WikiService);
 
@@ -1119,60 +1182,83 @@ export class WikiContentCacheService {
             next.delete(pageId);
             return next;
         });
+        // One stale page is enough to make a backlink index wrong, so coverage is no longer
+        // complete until the next warm.
+        this.isWarmed.set(false);
     }
 
     reset(): void {
         this.store.set(new Map());
-        this.total.set(0);
-        this.inFlight.set(0);
+        this.isWarming.set(false);
+        this.isWarmed.set(false);
+        this.didFail.set(false);
     }
 
     /**
-     * Fetches every page not already cached. Re-entrant calls are ignored rather than queued -
-     * a second warm while one is running would double the request count for no extra coverage.
+     * Loads every page body in one request. A completed warm is not repeated; a failed one is
+     * retryable, because a failure that pinned the cache shut would leave search quietly
+     * title-only for the rest of the session.
      */
-    warm(guildId: string, pageIds: readonly string[]): void {
-        if (this.warming()) return;
-
-        const pending = pageIds.filter(id => !this.store().has(id));
-        this.total.set(this.store().size + pending.length);
-        if (!pending.length) return;
-
-        const queue = [...pending];
-        const next = (): void => {
-            const id = queue.shift();
-            if (id === undefined) return;
-            this.inFlight.update(n => n + 1);
-            this.wikiService.getPage(guildId, id).subscribe({
-                next: page => {
-                    this.put(id, page.content ?? '');
-                    this.inFlight.update(n => n - 1);
-                    next();
-                },
-                // A page that fails stays uncached and is simply absent from results. Letting
-                // it hold the warm open would leave search claiming to be loading forever.
-                error: () => {
-                    this.inFlight.update(n => n - 1);
-                    next();
-                },
-            });
-        };
-
-        for (let i = 0; i < Math.min(WARM_CONCURRENCY, queue.length); i++) next();
+    warm(guildId: string): void {
+        if (this.isWarming() || this.isWarmed()) return;
+        this.isWarming.set(true);
+        this.didFail.set(false);
+        this.wikiService.getWikiWithContent(guildId).subscribe({
+            next: wiki => {
+                this.store.update(map => {
+                    const next = new Map(map);
+                    // `?? ''` rather than a skip: an empty body is a truthful "nothing to
+                    // search here", while a missing key would break candidate mapping.
+                    for (const page of wiki.pages) next.set(page.id, page.content ?? '');
+                    return next;
+                });
+                this.isWarming.set(false);
+                this.isWarmed.set(true);
+            },
+            error: () => {
+                this.isWarming.set(false);
+                this.didFail.set(true);
+            },
+        });
     }
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 5: Run test to verify it passes**
 
 Run: `./node_modules/.bin/ng test --include=src/app/features/guild/components/wiki/wiki-content-cache.service.spec.ts --watch=false`
-Expected: PASS, 10 tests.
+Expected: PASS, 11 tests.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Keep the cache honest as pages change**
+
+A cache nothing invalidates goes stale, and stale bodies produce a backlink index that points at
+links no longer there. Wire it into the existing websocket subscriptions in
+`wiki-state.service.ts` — inject `WikiContentCacheService` and add one line to each handler that
+already exists:
+
+```ts
+// in the wikiPageUpdatedObservable handler, alongside the existing loadWiki call
+this.contentCache.invalidate(e.pageId);
+
+// in the wikiPageDeletedObservable handler
+this.contentCache.invalidate(e.pageId);
+```
+
+And in `initialize()`, inside the existing `if (this.guildId() !== guildId)` branch, so one
+guild's bodies are never searched under another's name:
+
+```ts
+this.contentCache.reset();
+```
+
+Also call `this.contentCache.put(page.id, page.content)` in the `openPage` success handler — that
+is the opportunistic fill, and it costs nothing since the content is already in hand.
+
+- [ ] **Step 7: Commit**
 
 ```bash
-git add src/app/features/guild/components/wiki/wiki-content-cache.service.ts src/app/features/guild/components/wiki/wiki-content-cache.service.spec.ts
-git commit -m "feat(wiki): shared page-content cache with throttled warm"
+git add src/app/dtos/request/wiki.dto.ts src/app/dtos/response/wiki.dto.ts src/app/services/wiki.service.ts src/app/features/guild/components/wiki/
+git commit -m "feat(wiki): shared page-content cache warmed by one includeContent request"
 ```
 
 ---
@@ -2736,8 +2822,8 @@ export class WikiContextRailComponent {
     });
 
     /** Backlinks are only trustworthy once every page body has been read. */
-    protected readonly backlinksComplete = computed(() =>
-        this.cache.warmedCount() >= (this.wiki()?.pages.length ?? 0));
+    protected readonly backlinksComplete = this.cache.warmed;
+    protected readonly backlinksFailed = this.cache.failed;
 
     protected readonly author = computed(() => {
         const id = this.page()?.authorId;
@@ -2751,11 +2837,10 @@ export class WikiContextRailComponent {
 
     constructor() {
         // Backlinks need every body, so opening the rail is what pays for the warm - not wiki
-        // load, which would cost N requests for a panel the user may never look at.
+        // load, for a panel the user may never look at.
         effect(() => {
-            const wiki = this.wiki();
             const guildId = this.guildId();
-            if (wiki && guildId) this.cache.warm(guildId, wiki.pages.map(p => p.id));
+            if (guildId) this.cache.warm(guildId);
         });
 
         effect(() => {
@@ -3019,23 +3104,27 @@ protected readonly results = computed(() => {
     );
 });
 
-/** Content coverage is opt-in, and its cost is stated rather than hidden. */
+/** Content coverage is opt-in: one request, taken only when asked for. */
 protected searchContents(): void {
-    const wiki = this.wiki();
-    if (wiki) this.cache.warm(this.guildId(), wiki.pages.map(p => p.id));
+    this.cache.warm(this.guildId());
 }
-
-protected readonly coverage = computed(() => ({
-    searched: this.cache.warmedCount(),
-    total: this.wiki()?.pages.length ?? 0,
-}));
 ```
 
 Template: a fixed full-screen overlay with `bg-black/60`, a centred `max-w-xl` `bg-card` panel with
 a search input autofocused on open, the result list showing title, category name and — for content
-hits — the snippet, and a footer that either offers `Search page contents` or reports
-`Searched N of M pages` while warming. Escape and backdrop click emit `closed`; Arrow keys and
-Enter drive selection.
+hits — the snippet. Escape and backdrop click emit `closed`; Arrow keys and Enter drive selection.
+
+The footer states coverage honestly, driven by the cache's three states:
+
+| State | Footer |
+|---|---|
+| `!warmed() && !warming() && !failed()` | `Search page contents` button — titles and tags only so far |
+| `warming()` | `Loading page contents…` |
+| `warmed()` | `Searching titles, tags and contents` |
+| `failed()` | `Couldn't load page contents — titles and tags only` + Retry |
+
+The `failed` row is the point of the cache's `failed` signal: presenting title-only results under
+a full-text banner would misreport what was searched.
 
 - [ ] **Step 2: Wire the shortcut**
 
@@ -3243,7 +3332,43 @@ previous / current` toggle above the list.
 Replace the bare Restore action with a confirmation dialog that renders `diffFor(revision)` under
 "Restoring will make these changes", so Restore is never a blind action.
 
-- [ ] **Step 4: Verify**
+- [ ] **Step 4: Add the edit-summary field**
+
+The server accepts `summary` on `UpdateWikiPageDto` as of Echo `7ae3a50`, and stores it on the
+revision the save creates. In `wiki-article.component.ts`, add:
+
+```ts
+protected readonly editSummary = signal('');
+
+/**
+ * Only offered when the body actually changed. The server ignores a summary on a
+ * metadata-only update because no revision is created to carry it, so showing the field
+ * there would invite the user to write a note that is silently dropped.
+ */
+protected readonly summaryApplies = computed(() =>
+    this.markdown() !== (this.page()?.content ?? ''));
+```
+
+Pass it in `save()`:
+
+```ts
+const base = {
+    title: this.title().trim(),
+    content: this.markdown(),
+    ...(this.summaryApplies() && this.editSummary().trim()
+        ? {summary: this.editSummary().trim()}
+        : {}),
+};
+```
+
+Clear `editSummary` on a successful save. Render it as a single-line input in the save affordance
+in the breadcrumb bar, shown only when `summaryApplies()`, placeholder `What changed? (optional)`,
+Enter submitting the save.
+
+In `wiki-history.component.html`, the existing "No summary" italic fallback stays — it is now
+truthful for old revisions rather than universal.
+
+- [ ] **Step 5: Verify**
 
 Run: `./node_modules/.bin/ng build --configuration development`
 Expected: build succeeds.
@@ -3252,11 +3377,14 @@ In the app: edit a page several times, open History, and confirm each revision s
 changed, that the stat chip matches the visible line counts, that the compare toggle flips the
 comparison, and that Restore previews the change before applying it.
 
-- [ ] **Step 5: Commit**
+Then edit a page with a summary and confirm it appears against that revision in History. Edit only
+the title and confirm no summary field is offered, since no revision is created.
+
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/app/features/guild/components/wiki/wiki-history/
-git commit -m "feat(wiki): line diffs in revision history and before restore"
+git add src/app/features/guild/components/wiki/
+git commit -m "feat(wiki): revision diffs and edit summaries"
 ```
 
 ---
