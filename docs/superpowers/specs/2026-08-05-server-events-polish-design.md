@@ -182,15 +182,20 @@ at — today realtime event creation is silently dropped until the panel has bee
 
 ### Live marker on the voice channel
 
-`voice-channel-item` gains an optional `liveEvent = input<ScheduledEventDto | null>(null)`. When
-set, a small `LIVE` pill renders on the right of the row.
+`voice-channel-item` gains a `liveEvent` computed and renders a small `LIVE` pill on the right of
+the row when it is non-null.
+
+It derives that itself — injecting `ScheduledEventStore` and `MinuteClockService` and filtering on
+`channel().guildId` / `channel().id` — rather than taking it as an input. That component already
+self-injects `VoiceChannelService` and `NavigationService` to derive `participants`, `isJoined`
+and `isActive`, so this follows its established shape. The alternative, computing a
+`Map<channelId, event>` in `channel-list` and passing it down, would have to drill the value
+through `channel-list-items`, a component whose entire responsibility is drag-and-drop ordering
+and which has no other reason to know events exist.
 
 The existing right-side slot is already occupied by either a lock icon (`isPrivate`) or the
 participant count. Precedence: lock, then LIVE pill, then count — the lock is a permission fact
 and must not be displaced by a transient one.
-
-`channel-list.component.ts` computes `liveEventsByChannel: Map<string, ScheduledEventDto>` and
-passes the lookup down, the same way `participants` already flow into that component.
 
 ## 4. i18n
 
@@ -201,21 +206,25 @@ submodule at `src/assets/i18n/locales`:
 |---|---|
 | `EVENTS.HAPPENING_NOW` | Happening now |
 | `EVENTS.LIVE` | Live |
-| `EVENTS.UPCOMING` | Upcoming |
 | `EVENTS.TODAY` | Today |
 | `EVENTS.TOMORROW` | Tomorrow |
 | `EVENTS.ENDS_RELATIVE` | Ends {{ when }} |
-| `EVENTS.STARTED_RELATIVE` | Started {{ when }} |
 | `EVENTS.INTERESTED` | Interested |
-| `EVENTS.INTERESTED_COUNT` | {{ count }} interested |
 | `EVENTS.EMPTY_TITLE` | No events scheduled |
 | `EVENTS.EMPTY_SUBTITLE` | Events you or a moderator schedule will show up here. |
-| `EVENTS.CREATE_FIRST` | Create Event |
+| `EVENTS.CREATE_FIRST` | Create event |
 | `EVENTS.CREATE_TOOLTIP` | Create event |
 | `EVENTS.IN_VOICE_COUNT` | {{ count }} in voice |
 
-The relative phrasings take the pipe's output as `{{ when }}` rather than concatenating, so
-languages that put the preposition elsewhere can move it.
+`ENDS_RELATIVE` takes the pipe's output as `{{ when }}` rather than concatenating, so a language
+that puts the preposition elsewhere can move it.
+
+There is no `UPCOMING` header key: the day headers (`TODAY` / `TOMORROW` / a formatted date) are
+the section headers for everything that has not started, so a generic one above them would be a
+label on a label.
+
+`COMMON.EDIT` and `EVENTS.CANCEL_CONFIRM_HEADER` already exist and cover the hover toolbar's two
+tooltips.
 
 `de.json` and `fr.json` currently carry 1488 keys against `en.json`'s 1917 — they are already
 partial. These keys get real translations in all three rather than widening that gap.
