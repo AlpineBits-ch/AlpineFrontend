@@ -1,8 +1,0 @@
-<!-- status-picker.component.html -->
-<button type="button"
-        (click)="menu.toggle($event)"
-        class="w-7 h-7 flex items-center justify-center rounded-lg transition-colors cursor-pointer border-0 shrink-0 text-white/50 hover:bg-white/[0.07] hover:text-white/75"
-        title="Set status">
-    <app-user-status-dot [standalone]="true" [status]="profileService.ownProfile()?.onlineStatus ?? null" size="lg"/>
-</button>
-<p-menu #menu [model]="menuItems" [popup]="true" appendTo="body"/>

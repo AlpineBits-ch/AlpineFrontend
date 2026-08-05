@@ -123,6 +123,31 @@ button, a, [role="button"], input, select, textarea, label {
   animation: speaking-ring 1.4s ease-in-out infinite;
 }
 
+/* ── Slashed icons ───────────────────────────────────────────────────────────
+   A diagonal bar across an icon, for the "off" half of a toggle - muted mic,
+   deafened headphones.
+
+   PrimeIcons ships `pi-microphone` and `pi-headphones` but no slashed variant of
+   either, and binding a `pi-microphone-slash` that does not exist renders an
+   empty glyph: the button reads as a bare coloured square with the icon gone.
+   So the slash is drawn rather than looked up, which also keeps the two toggles
+   consistent - whatever icon they carry, "off" looks the same.
+
+   Put on a positioned wrapper around the <i>, not on the <i> itself: the icon's
+   own ::before is the glyph. */
+.icon-slashed::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1.25em;
+  height: 0.115em;
+  min-height: 1.5px;
+  border-radius: 1px;
+  background: currentColor;
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
 /* ── Presence silhouettes ────────────────────────────────────────────────────
    The four statuses are told apart by shape as well as by hue. Colour alone
    fails a colour-blind reader outright, and it also fails everyone else at the

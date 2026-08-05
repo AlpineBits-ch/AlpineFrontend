@@ -1,5 +1,4 @@
 import {ChangeDetectionStrategy, Component, computed, inject, OnInit, output, signal} from '@angular/core';
-import {Button} from 'primeng/button';
 import {TranslateModule} from '@ngx-translate/core';
 import {AccountRegistryService, AccountSlot} from '../../../../services/account-registry.service';
 import {AccountSwitchService} from '../../../../services/account-switch.service';
@@ -19,7 +18,7 @@ import {CallSessionService} from '../../../../services/call-session.service';
  */
 @Component({
     selector: 'app-account-switcher',
-    imports: [Button, TranslateModule],
+    imports: [TranslateModule],
     templateUrl: './account-switcher.component.html',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })

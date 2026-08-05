@@ -19,10 +19,15 @@ import {DeviceOption} from '../../../../services/media-device-catalog.service';
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class VoiceToggleComponent {
-    /** Whether the thing this controls is currently off - muted, or deafened. */
+    /**
+     * Whether the thing this controls is currently off - muted, or deafened.
+     *
+     * <p>Drives both the red treatment and the slash across the icon. There is no separate "off"
+     * icon input: PrimeIcons has no slashed microphone or headphones, so the slash is drawn over
+     * whichever glyph the control carries.</p>
+     */
     active = input.required<boolean>();
     icon = input.required<string>();
-    activeIcon = input.required<string>();
     /** Translation key for the toggle's tooltip, which reads as the action, not the state. */
     label = input.required<string>();
     /** Translation key naming what the chevron lists, used as the menu's section header. */

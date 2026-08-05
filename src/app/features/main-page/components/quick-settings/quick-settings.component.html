@@ -54,14 +54,15 @@
                 </div>
             </div>
         }
-        <app-self-profile-popover (addAccount)="startAddAccount()" (editProfile)="openProfileSettings()"/>
+        <app-self-profile-popover (addAccount)="startAddAccount()" (editProfile)="openProfileSettings()"
+                                  (openAdmin)="isAdminOpen.set(true)"/>
 
         <!-- Always present, in a call or not. Mute is a statement about this machine's microphone,
              so hiding the control outside a call both changed the row's shape on join and left no
              way to arrive in a channel already muted. -->
         <app-voice-toggle
                 [active]="voiceSvc.localState().isMuted"
-                icon="pi-microphone" activeIcon="pi-microphone-slash"
+                icon="pi-microphone"
                 [label]="voiceSvc.localState().isMuted ? 'QUICK_SETTINGS.UNMUTE' : 'QUICK_SETTINGS.MUTE'"
                 deviceLabel="QUICK_SETTINGS.INPUT_DEVICE"
                 [devices]="catalog.mics()" [selected]="audio.settings().micId"
@@ -71,7 +72,7 @@
 
         <app-voice-toggle
                 [active]="voiceSvc.localState().isDeafened"
-                icon="pi-volume-up" activeIcon="pi-volume-off"
+                icon="pi-headphones"
                 [label]="voiceSvc.localState().isDeafened ? 'QUICK_SETTINGS.UNDEAFEN' : 'QUICK_SETTINGS.DEAFEN'"
                 deviceLabel="QUICK_SETTINGS.OUTPUT_DEVICE"
                 [devices]="catalog.speakers()" [selected]="audio.settings().speakerId"
@@ -79,16 +80,9 @@
                 (deviceChosen)="audio.update({speakerId: $event})"
                 (openSettings)="openVoiceSettings()"/>
 
-        <!-- Admin (only for Admin users) -->
-        @if (userService.self()?.userType === UserType.Admin) {
-            <p-button (onClick)="isAdminOpen.set(true)" [text]="true" icon="pi pi-shield" severity="secondary"
-                      size="small" styleClass="shrink-0" title="Admin Panel"/>
-        }
-
-        <!-- Self status picker -->
-        <app-status-picker/>
-
-        <!-- Settings -->
+        <!-- Three controls, not five. Status moved into the profile menu, where it can carry its
+             own name instead of being a bare dot, and the admin shield went with it - both were
+             squeezing this row at a 240px panel width. -->
         <p-button (onClick)="isSettingsOpen.set(true)" [text]="true" icon="pi pi-cog" severity="secondary" size="small"
                   styleClass="shrink-0"/>
 

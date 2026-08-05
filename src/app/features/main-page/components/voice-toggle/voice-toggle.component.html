@@ -8,7 +8,12 @@
                 : 'text-text-secondary hover:bg-white/[0.06] hover:text-text-primary'"
             class="w-8 h-8 flex items-center justify-center border-0 cursor-pointer
                    transition-colors duration-[120ms] ease-out">
-        <i [class]="'pi ' + (active() ? activeIcon() : icon())" style="font-size: 1.125rem"></i>
+        <!-- The slash is drawn, not looked up: PrimeIcons has no slashed microphone or headphones,
+             and binding a class that does not exist renders an empty glyph. -->
+        <span [class.icon-slashed]="active()"
+              class="relative flex items-center justify-center" style="font-size: 1.125rem">
+            <i [class]="'pi ' + icon()"></i>
+        </span>
     </button>
 
     <button type="button" (click)="openMenu($event)" [title]="deviceLabel() | translate"

@@ -1,4 +1,4 @@
-import {Component, computed, effect, inject, signal, ViewChild} from '@angular/core';
+﻿import {Component, computed, effect, inject, signal, ViewChild} from '@angular/core';
 import {ProfileService} from "../../../../services/profile.service";
 import {AppAvatarComponent} from "../../../../components/avatar/avatar.component";
 import {Button} from "primeng/button";
@@ -8,9 +8,7 @@ import {SettingsModalComponent} from "../../../../features/settings/settings-mod
 import {VoiceChannelService} from "../../../../services/voice-channel.service";
 import {TranslateModule} from '@ngx-translate/core';
 import {UserService} from "../../../../services/user.service";
-import {UserType} from "../../../../dtos/response/UserDto";
 import {AdminModalComponent} from "../../../../features/admin/admin-modal/admin-modal.component";
-import {StatusPickerComponent} from "../status-picker/status-picker.component";
 import {SelfProfilePopoverComponent} from "../self-profile-popover/self-profile-popover.component";
 import {SettingsUiService} from "../../../../services/settings-ui.service";
 import {AccountSwitchService} from "../../../../services/account-switch.service";
@@ -29,7 +27,6 @@ import {AudioSettingsService} from "../../../../services/audio-settings.service"
         ConnectionStatusComponent,
         SettingsModalComponent,
         AdminModalComponent,
-        StatusPickerComponent,
         SelfProfilePopoverComponent,
         UserStatusDotComponent,
         SelfActivityCardComponent,
@@ -48,7 +45,6 @@ export class QuickSettingsComponent {
     protected voiceSvc = inject(VoiceChannelService);
     protected catalog = inject(MediaDeviceCatalogService);
     protected audio = inject(AudioSettingsService);
-    protected readonly UserType = UserType;
 
     /**
      * What to call the status the user has put themselves in.
@@ -116,3 +112,4 @@ export class QuickSettingsComponent {
         this.switcher.beginAddAccount();
     }
 }
+
