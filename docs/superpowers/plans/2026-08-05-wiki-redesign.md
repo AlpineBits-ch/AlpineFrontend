@@ -3853,6 +3853,55 @@ git commit -m "feat(wiki): draft pages with a user-supplied AI provider key"
 
 ---
 
+## Progress — as of 2026-08-05
+
+**Done: tasks 1–18. Remaining: 19 (i18n) and 20 (AI drafting).** Full app suite green at the last
+commit: 174 files, 2287 tests. Every task below is committed; `git log --oneline` on `main` shows
+the sequence.
+
+**Server work is done and committed separately** in the Echo repo (`7ae3a50`): `summary` on
+`UpdateWikiPageDto`, `?includeContent=true` on `GetWiki`, and the `Include(p => p.Revisions)` N+1
+replaced with a grouped count. 1295 server tests pass. Nothing further is needed there.
+
+### Deviations from this plan, and why
+
+- **Tasks 8 and 9 landed in one commit.** Removing `NavigationService` from the tree component
+  breaks the old panel's copy of the same component, so the planned intermediate state was not
+  merely ugly — it was broken.
+- **Task 14 (breadcrumbs) landed with task 10.** Deleting `wiki-page-view` and `wiki-editor` left
+  nowhere to put Save, so the article was unusable until the bar existed.
+- **Task 13 uses `ProfileService`, not `getMembers(guildId, 0, 200)`.** `getCachedByUserId` +
+  `resolveByUserId` is what `app-avatar` already reads from, so the data is usually present and no
+  200-member fetch is needed. Strictly better than what this plan specified.
+- **`leaveWiki()` was added to `NavigationService`.** The plan said to delete `closeWikiPanel`
+  outright, but one of its behaviours was still load-bearing: stepping off the wiki when the Wiki
+  module is switched off underneath you. Only the panel half was removed.
+- **Two consumers this plan missed:** `channel-list.component.ts` used `wikiPanelGuildId` at `:120`
+  (`isWikiActive`) and `:290` (the module-switched-off effect). Both now key on `mainView`.
+
+### Things that will bite the next session
+
+- **`localStorage` in this test runner has no methods.** A spec that touches it must install the
+  Map-backed stand-in — copy the `beforeAll` block from `wiki-drafts.service.spec.ts`, which took
+  it from `account-registry.service.spec.ts`.
+- **`ng test` type-checks the whole app.** A compile error in any file fails every run, including
+  files you did not touch.
+- **Test command:** `./node_modules/.bin/ng test --include=<path> --watch=false`. Plain `npx ng`
+  does not resolve in this workspace.
+- **Another agent is working on the events panel** in the same tree. `navigation.service.ts` was
+  the shared file and is already settled; avoid `src/app/features/guild/components/events-panel/`.
+
+### Not yet verified in the running app
+
+Everything is verified by compiler and unit tests only — **the app has not been launched**. Two
+claims specifically deserve eyes before being trusted:
+
+1. **No layout shift between read and edit.** This is the load-bearing claim of the whole redesign.
+   It should hold structurally (one TipTap instance, one set of padding), but it is exactly the
+   kind of thing that type-checks and looks wrong.
+2. **Legacy HTML pages.** Content saved before the markdown switch takes a different `setContent`
+   branch. That path has been reasoned about, not observed.
+
 ## Post-implementation
 
 - [ ] Run the full suite: `./node_modules/.bin/ng test --watch=false`
