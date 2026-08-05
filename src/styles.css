@@ -123,6 +123,48 @@ button, a, [role="button"], input, select, textarea, label {
   animation: speaking-ring 1.4s ease-in-out infinite;
 }
 
+/* ── Presence silhouettes ────────────────────────────────────────────────────
+   The four statuses are told apart by shape as well as by hue. Colour alone
+   fails a colour-blind reader outright, and it also fails everyone else at the
+   10px these dots are usually drawn at, where amber and emerald are two similar
+   smudges.
+
+   The shape is an alpha mask over the *inner* disc of `app-user-status-dot`.
+   The notch it opens therefore shows the outer element, which carries the
+   surrounding surface colour - so the bite in the idle crescent reads as a bite
+   out of a dot rather than as a hole with an avatar behind it. That two-element
+   structure is the whole reason the component nests two divs; do not flatten it.
+
+   Masks are inline SVG rather than radial-gradients because the geometry has to
+   be exact at every size the dot is drawn, and a gradient stop that looks right
+   at 14px goes soft at 10px. */
+.status-shape-idle,
+.status-shape-dnd,
+.status-shape-invisible {
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: 100% 100%;
+  mask-size: 100% 100%;
+}
+
+/* A circle bitten out of the upper left. */
+.status-shape-idle {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Ccircle cx='4.6' cy='4.6' r='5.4' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Ccircle cx='4.6' cy='4.6' r='5.4' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
+}
+
+/* A rounded bar straight through the middle. */
+.status-shape-dnd {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Crect x='2.6' y='6.6' width='10.8' height='2.8' rx='1.4' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Crect x='2.6' y='6.6' width='10.8' height='2.8' rx='1.4' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
+}
+
+/* A hollow ring - invisible, and offline for anyone else. */
+.status-shape-invisible {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Ccircle cx='8' cy='8' r='3.8' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cmask id='m'%3E%3Crect width='16' height='16' fill='%23fff'/%3E%3Ccircle cx='8' cy='8' r='3.8' fill='%23000'/%3E%3C/mask%3E%3Ccircle cx='8' cy='8' r='8' fill='%23fff' mask='url(%23m)'/%3E%3C/svg%3E");
+}
+
 /**
  * Alpine Design System -Tailwind v4 theme tokens
  *
