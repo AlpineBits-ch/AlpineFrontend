@@ -1,4 +1,14 @@
-import {ChangeDetectionStrategy, Component, EventEmitter, inject, NgZone, OnDestroy, Output, signal} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    EventEmitter,
+    inject,
+    NgZone,
+    OnDestroy,
+    Output,
+    signal,
+} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {NgClass} from '@angular/common';
 import {Select} from 'primeng/select';
@@ -9,23 +19,13 @@ import {RadioButton} from 'primeng/radiobutton';
 import {TranslateModule} from '@ngx-translate/core';
 import {invoke} from '@tauri-apps/api/core';
 import {AudioSettings, AudioSettingsService} from '../../../../../services/audio-settings.service';
+import {DeviceOption, MediaDeviceCatalogService} from '../../../../../services/media-device-catalog.service';
 import {IsleProximityService} from '../../../../../services/isle-proximity.service';
 import {StreamSrcDirective} from '../../../../../directives/stream-src.directive';
-
-interface RustAudioDevice {
-    id: string;
-    name: string;
-    isDefault: boolean;
-}
 
 interface RustCameraDevice {
     id: string;
     name: string;
-}
-
-interface DeviceOption {
-    label: string;
-    value: string;
 }
 
 type NoiseSuppressionMode = AudioSettings['noiseSuppressionMode'];
@@ -41,8 +41,18 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     /** Bubbled up to the settings modal, which switches to the Keybinds page. */
     @Output() readonly openKeybinds = new EventEmitter<void>();
 
-    readonly micOptions = signal<DeviceOption[]>([{label: 'Default', value: 'default'}]);
-    readonly speakerOptions = signal<DeviceOption[]>([{label: 'Default', value: 'default'}]);
+    /**
+     * Mic and speaker lists come from the shared catalog, so this page and the bottom bar's device
+     * chevrons can never disagree about what is plugged in.
+     *
+     * <p>The "Default" entry is this page's own: an empty list means enumeration failed, and a
+     * settings dropdown with nothing in it reads as broken, where one offering the system default
+     * at least describes what will actually happen.</p>
+     */
+    readonly micOptions = computed<DeviceOption[]>(() =>
+        this.catalog.mics().length ? this.catalog.mics() : [{label: 'Default', value: 'default'}]);
+    readonly speakerOptions = computed<DeviceOption[]>(() =>
+        this.catalog.speakers().length ? this.catalog.speakers() : [{label: 'Default', value: 'default'}]);
     readonly cameraOptions = signal<DeviceOption[]>([{label: 'None', value: ''}]);
     /** Mirrors Discord's None / Standard / Krisp. */
     readonly noiseSuppressionOptions: { label: string; value: NoiseSuppressionMode }[] = [
@@ -64,6 +74,7 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     readonly permissionError = signal(false);
     readonly micBars = Array.from({length: 24}, (_, i) => i);
     private audioSettings = inject(AudioSettingsService);
+    private catalog = inject(MediaDeviceCatalogService);
     private proximity = inject(IsleProximityService);
     private zone = inject(NgZone);
     private audioCtx: AudioContext | null = null;
@@ -236,20 +247,18 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     }
 
     private async loadDevices(): Promise<void> {
+        // Audio goes through the shared catalog. Cameras stay here: this is the only surface that
+        // picks one, so there is nothing yet for a shared list to keep in agreement.
+        void this.catalog.refresh();
+
         try {
-            const [mics, speakers, cameras] = await Promise.all([
-                invoke<RustAudioDevice[]>('enumerate_audio_devices'),
-                invoke<RustAudioDevice[]>('enumerate_output_devices'),
-                invoke<RustCameraDevice[]>('enumerate_camera_devices'),
-            ]);
-            this.micOptions.set(mics.map(d => ({label: d.name, value: d.id})));
-            this.speakerOptions.set(speakers.map(d => ({label: d.name, value: d.id})));
+            const cameras = await invoke<RustCameraDevice[]>('enumerate_camera_devices');
             this.cameraOptions.set([
                 {label: 'None', value: ''},
                 ...cameras.map(d => ({label: d.name, value: d.id})),
             ]);
         } catch (e) {
-            console.error('[devices] enumeration failed', e);
+            console.error('[devices] camera enumeration failed', e);
         }
     }
 
