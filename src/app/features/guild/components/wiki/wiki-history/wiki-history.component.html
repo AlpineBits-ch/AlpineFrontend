@@ -51,9 +51,11 @@
                                             size="small"
                                             tooltipPosition="top"/>
                                     @if (!first) {
-                                        <p-button (onClick)="restoreRevision(rev)" [loading]="restoringId() === rev.id" label="Restore"
-                                                  severity="secondary"
-                                                  size="small"/>
+                                        @if (state.abilities().canManageRevisions) {
+                                            <p-button (onClick)="restoreRevision(rev)" [loading]="restoringId() === rev.id" label="Restore"
+                                                      severity="secondary"
+                                                      size="small"/>
+                                        }
                                     } @else {
                                         <span class="text-[11px] text-white/30 bg-white/[0.04] px-2 py-1 rounded-md">Current</span>
                                     }

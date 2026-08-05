@@ -102,6 +102,9 @@ export class WikiNavComponent {
 
     protected onCategoryContextMenu(event: MouseEvent, category: WikiCategoryDto): void {
         event.preventDefault();
+        // The only entry in this menu creates a page, so without that permission the menu is
+        // a list of one action that would 403.
+        if (!this.state.abilities().canCreate) return;
         this.ctxMenuItems = [
             {
                 label: 'New Page Here',
@@ -116,6 +119,7 @@ export class WikiNavComponent {
 
     protected onPageContextMenu(event: MouseEvent, page: WikiPageSummaryDto): void {
         event.preventDefault();
+        if (!this.state.abilities().canCreate) return;
         const items: MenuItem[] = [
             {
                 label: 'Add Article Here',

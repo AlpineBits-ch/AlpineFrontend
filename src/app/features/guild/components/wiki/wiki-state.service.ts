@@ -4,6 +4,10 @@ import {WikiService} from '../../../../services/wiki.service';
 import {WikiView} from './wiki.types';
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {WikiContentCacheService} from './wiki-content-cache.service';
+import {wikiAbilities, WikiAbilities} from './wiki-permissions';
+import {effectiveGuildPermissions} from '../../guild-permissions';
+import {GuildService} from '../../../../services/guild.service';
+import {ProfileService} from '../../../../services/profile.service';
 
 @Injectable({providedIn: 'root'})
 export class WikiStateService {
@@ -15,9 +19,17 @@ export class WikiStateService {
     readonly guildId = signal<string>('');
     readonly pageLoading = signal(false);
     readonly pendingRemoteUpdate = signal<WikiPageDto | null>(null);
+    /**
+     * What this member may do here. Starts at nothing and stays there until the fetch answers,
+     * so a control is never briefly offered to somebody who turns out not to hold the permission.
+     */
+    readonly abilities = signal<WikiAbilities>(wikiAbilities(0n));
+    readonly ownUserId = signal<string | null>(null);
     private readonly wikiService = inject(WikiService);
     private readonly ws = inject(GuildWebsocketService);
     private readonly contentCache = inject(WikiContentCacheService);
+    private readonly guildService = inject(GuildService);
+    private readonly profileService = inject(ProfileService);
     private suppressNextPageRefresh = false;
 
     constructor() {
@@ -98,6 +110,7 @@ export class WikiStateService {
             this.pageLoading.set(false);
             // One guild's bodies must never be searched under another guild's name.
             this.contentCache.reset();
+            this.loadAbilities(guildId);
         }
         this.loadWiki(guildId);
     }
@@ -182,6 +195,23 @@ export class WikiStateService {
 
     updateWikiOptimistic(fn: (wiki: WikiDto) => WikiDto): void {
         this.wiki.update(w => (w ? fn(w) : w));
+    }
+
+    /**
+     * Cleared before the fetch, not after: leaving the previous guild's answer live while the
+     * new request is in flight would show manage controls to a non-manager for the duration,
+     * and for the whole session if that request fails. Same guard the events panel uses.
+     */
+    private loadAbilities(guildId: string): void {
+        this.abilities.set(wikiAbilities(0n));
+        this.ownUserId.set(this.profileService.ownProfile()?.userId ?? null);
+        this.guildService.getOwnMember(guildId).subscribe({
+            next: member => {
+                this.abilities.set(wikiAbilities(effectiveGuildPermissions(member)));
+                this.ownUserId.set(member.userId ?? this.ownUserId());
+            },
+            error: () => this.abilities.set(wikiAbilities(0n)),
+        });
     }
 
     private loadWiki(guildId: string, navigateTo?: WikiPageDto): void {

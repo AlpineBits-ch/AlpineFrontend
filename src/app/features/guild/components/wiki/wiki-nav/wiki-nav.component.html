@@ -6,8 +6,10 @@
         <span class="text-sm font-semibold text-white/90 truncate flex-1">Wiki</span>
         <p-button (onClick)="search.emit()" [text]="true" icon="pi pi-search" pTooltip="Search (⌘K)"
                   severity="secondary" size="small" tooltipPosition="bottom"/>
-        <p-button (onClick)="newPage()" [text]="true" icon="pi pi-plus" pTooltip="New page"
-                  severity="secondary" size="small" tooltipPosition="bottom"/>
+        @if (state.abilities().canCreate) {
+            <p-button (onClick)="newPage()" [text]="true" icon="pi pi-plus" pTooltip="New page"
+                      severity="secondary" size="small" tooltipPosition="bottom"/>
+        }
     </div>
 
     <!-- Tree -->
@@ -47,15 +49,17 @@
                      (dragover)="onItemDragOver($event, node.category.id)"
                      (dragstart)="onCategoryDragStart($event, node.category)"
                      class="flex items-center justify-between px-2 py-1 group/cat cursor-grab"
-                     draggable="true">
+                     [attr.draggable]="state.abilities().canManageStructure ? true : null">
                     @if (node.depth > 0) {
                         <i class="pi pi-folder text-[10px] text-white/25 shrink-0 mr-1"></i>
                     }
                     <span class="text-[11px] font-semibold text-white/40 uppercase tracking-widest truncate flex-1">{{ node.category.name }}</span>
-                    <button (click)="deleteCategory(node.category)"
-                            class="opacity-0 group-hover/cat:opacity-100 w-4 h-4 flex items-center justify-center text-white/30 hover:text-rose-400 transition-all border-0 bg-transparent cursor-pointer rounded shrink-0">
-                        <i class="pi pi-trash text-[9px]"></i>
-                    </button>
+                    @if (state.abilities().canManageStructure) {
+                        <button (click)="deleteCategory(node.category)"
+                                class="opacity-0 group-hover/cat:opacity-100 w-4 h-4 flex items-center justify-center text-white/30 hover:text-rose-400 transition-all border-0 bg-transparent cursor-pointer rounded shrink-0">
+                            <i class="pi pi-trash text-[9px]"></i>
+                        </button>
+                    }
                 </div>
                 @let catPages = pageTreeForCategory(node.category.id);
                 @for (pn of catPages; track pn.page.id) {
@@ -71,7 +75,7 @@
               : isPageActive(pn.page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
                             [style.paddingLeft]="(8 + pn.depth * 14) + 'px'"
                             class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg text-left transition-all duration-200 border-0 cursor-grab"
-                            draggable="true">
+                            [attr.draggable]="state.abilities().canManageStructure ? true : null">
                         <i [ngClass]="pn.depth > 0 ? 'pi-file-minus text-white/30' : 'pi-file'"
                            class="pi text-[12px] shrink-0"></i>
                         <span class="text-[14px] truncate flex-1">{{ pn.page.title }}</span>
@@ -111,7 +115,7 @@
               : isPageActive(node.page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
                             [style.paddingLeft]="(8 + node.depth * 14) + 'px'"
                             class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg text-left transition-all duration-200 border-0 cursor-grab"
-                            draggable="true">
+                            [attr.draggable]="state.abilities().canManageStructure ? true : null">
                         <i [ngClass]="node.depth > 0 ? 'pi-file-minus text-white/30' : 'pi-file'"
                            class="pi text-[12px] shrink-0"></i>
                         <span class="text-[14px] truncate flex-1">{{ node.page.title }}</span>
@@ -131,13 +135,15 @@
         }
 
         <!-- Add category -->
-        <div class="mt-4 pt-3 border-t border-white/[0.05]">
-            <button (click)="showCategoryDialog.set(true)"
-                    class="w-full flex items-center gap-2 px-2 py-[6px] rounded-lg text-white/30 hover:text-white/55 hover:bg-white/[0.04] transition-all border border-dashed border-white/[0.08] cursor-pointer bg-transparent text-left">
-                <i class="pi pi-folder-plus text-[12px] shrink-0"></i>
-                <span class="text-[13px]">Add Category</span>
-            </button>
-        </div>
+        @if (state.abilities().canManageStructure) {
+            <div class="mt-4 pt-3 border-t border-white/[0.05]">
+                <button (click)="showCategoryDialog.set(true)"
+                        class="w-full flex items-center gap-2 px-2 py-[6px] rounded-lg text-white/30 hover:text-white/55 hover:bg-white/[0.04] transition-all border border-dashed border-white/[0.08] cursor-pointer bg-transparent text-left">
+                    <i class="pi pi-folder-plus text-[12px] shrink-0"></i>
+                    <span class="text-[13px]">Add Category</span>
+                </button>
+            </div>
+        }
 
     </div>
 </div>

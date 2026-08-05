@@ -1,4 +1,13 @@
-import {Component, effect, HostListener, inject, input, signal, viewChild} from '@angular/core';
+import {
+    Component,
+    computed,
+    effect,
+    HostListener,
+    inject,
+    input,
+    signal,
+    viewChild,
+} from '@angular/core';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
 import {PrimeTemplate} from 'primeng/api';
@@ -13,6 +22,7 @@ import {WikiService} from '../../../../services/wiki.service';
 import {WikiContextRailComponent} from './wiki-rail/wiki-context-rail.component';
 import {WikiSearchPaletteComponent} from './wiki-search/wiki-search-palette.component';
 import {buildToc, Heading, TocEntry} from './wiki-toc';
+import {canEditPage} from './wiki-permissions';
 
 const NAV_WIDTH_KEY = 'wiki-nav-width';
 const NAV_WIDTH_DEFAULT = 260;
@@ -44,6 +54,13 @@ export class WikiComponent {
     protected readonly deleting = signal(false);
     /** The live article, so the breadcrumb bar's Save can reach into the editor. */
     protected readonly article = viewChild(WikiArticleComponent);
+
+    /** EditOwnWikiPages needs the page's author, so this is per-page rather than per-guild. */
+    protected readonly canEditCurrent = computed(() => {
+        const page = this.state.selectedPage() ?? this.state.editingPage();
+        if (!page) return this.state.abilities().canCreate;
+        return canEditPage(this.state.abilities(), page.authorId, this.state.ownUserId());
+    });
 
     private readonly wikiService = inject(WikiService);
 

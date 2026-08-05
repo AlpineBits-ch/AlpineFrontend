@@ -5,6 +5,7 @@ import {Tooltip} from 'primeng/tooltip';
 import {WikiPageDto, WikiRevisionDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
 import {formatWikiDate, renderWikiMarkdown} from '../wiki.utils';
+import {WikiStateService} from '../wiki-state.service';
 import {TranslateModule} from '@ngx-translate/core';
 
 @Component({
@@ -23,6 +24,7 @@ export class WikiHistoryComponent {
     protected restoringId = signal<string | null>(null);
     protected expandedRevId = signal<string | null>(null);
     protected readonly formatDate = formatWikiDate;
+    protected readonly state = inject(WikiStateService);
     private readonly wikiService = inject(WikiService);
     private readonly sanitizer = inject(DomSanitizer);
 
