@@ -1,31 +1,87 @@
 <app-settings-modal [(isVisible)]="isSettingsOpen"></app-settings-modal>
 <app-admin-modal [(isVisible)]="isAdminOpen"></app-admin-modal>
 
-<div class="shrink-0 bg-sidebar border-t border-white/[0.10] p-3">
-    <div class="flex items-center gap-1.5">
+<!-- `w-0 min-w-full` is load-bearing, not a trick for its own sake. This footer is a child of a
+     `flex flex-col` whose width is intrinsic - it comes from the two columns above it, the 68px
+     server rail plus the 240px side panel. A normally-sized footer contributes its own max-content
+     width to that calculation, and this row's contents (avatar, name, and up to four buttons) are
+     wider than 308px, so the left panel was being stretched by its own footer and overhung the
+     sidebar it is supposed to sit under. `w-0` takes this element out of that calculation;
+     `min-w-full` then stretches it back to whatever the columns above settled on. -->
+<div class="shrink-0 w-0 min-w-full bg-sidebar border-t border-white/[0.10] overflow-hidden">
+
+    <!-- Activity strip: its own row above the user row, the way Discord does it.
+         This used to be the second line inside the name block, which is what made the row too wide
+         to fit - a title like "Microsoft Flight Simulator 2024" had to share one line with the
+         avatar and every button. Given its own row it uses the whole panel width and truncates
+         against nothing but the panel edge.
+
+         Two lines and an artwork tile rather than one small line, matching Discord: the game name
+         is the thing being read, so it gets the primary weight, and what the game reports about
+         itself goes underneath rather than being crammed onto the same line. -->
+    @if (ownActivity(); as activity) {
+        <div class="flex items-center gap-2.5 px-3 py-2.5 border-b border-white/[0.06] min-w-0">
+
+            <!-- Artwork slot. Fixed square so real cover art later is a swap, not a re-layout. -->
+            <div class="shrink-0 w-10 h-10 rounded-lg bg-white/[0.06] flex items-center justify-center">
+                <i class="pi {{ activityIcon() }} text-white/40" style="font-size: 1rem"></i>
+            </div>
+
+            <div class="flex-1 min-w-0">
+                <p class="text-sm font-medium text-white/85 truncate leading-tight">{{ activity.name }}</p>
+                <p class="text-xs text-white/45 truncate leading-tight mt-0.5">
+                    @if (activitySubtitle(); as subtitle) {
+                        {{ subtitle }}
+                    } @else {
+                        {{ activityTypeKey() ?? '' | translate }}
+                    }
+                </p>
+            </div>
+        </div>
+    }
+
+    <div class="flex items-center gap-1.5 p-3 min-w-0">
 
         <!-- Avatar + name (clickable -opens self-profile popover) -->
-        <button (click)="openSelfProfilePopover($event)"
-                class="flex items-center gap-1.5 flex-1 min-w-0 rounded-lg p-1 -m-1 hover:bg-white/[0.06] transition-colors cursor-pointer border-0 text-left">
+        @if (profileService.ownProfile(); as own) {
+            <button (click)="openSelfProfilePopover($event)"
+                    class="flex items-center gap-1.5 flex-1 min-w-0 rounded-lg p-1 -m-1 hover:bg-white/[0.06] transition-colors duration-[120ms] ease-out cursor-pointer border-0 text-left">
 
-            <!-- Avatar + status dot -->
-            <div class="relative shrink-0 mr-1">
-                <app-avatar [userId]="profileService.ownProfile()?.userId"/>
-                <div [ngClass]="{
-            'bg-online': websocketService.connectionState() === ConnectionState.Connected,
-            'bg-connecting': websocketService.connectionState() === ConnectionState.Connecting,
-            'bg-offline': websocketService.connectionState() === ConnectionState.Disconnected
-          }"
-                     class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-sidebar"></div>
+                <!-- Avatar + status dot.
+                     The dot answers "what have I told people I am", which is not the same question
+                     as "is my websocket up" - it used to answer the second one, which left a user
+                     who had set themselves Invisible looking green to themselves. -->
+                <div class="relative shrink-0 mr-1">
+                    <app-avatar [userId]="own.userId"/>
+                    <app-user-status-dot [status]="own.onlineStatus"
+                                         borderColor="border-sidebar"
+                                         size="md"/>
+                </div>
+
+                <!-- Name, then either the status or - when the socket is in trouble - the socket.
+                     Trouble outranks the status because it is the more urgent thing to say, and the
+                     dot is still carrying presence on its own while it is being said. -->
+                <div class="flex-1 min-w-0">
+                    <p class="text-[0.875rem] font-medium text-text-primary truncate leading-tight">{{ own.userName }}</p>
+                    @if (showConnectionTrouble()) {
+                        <app-connection-status></app-connection-status>
+                    } @else if (statusLabelKey(); as key) {
+                        <p class="text-[0.75rem] text-text-muted truncate leading-tight mt-0.5">{{ key | translate }}</p>
+                    }
+                </div>
+
+            </button>
+        } @else {
+            <!-- Nothing is known yet. A skeleton says so; an empty row implies the panel is broken
+                 and a default name implies something false about who is signed in. -->
+            <div class="flex items-center gap-1.5 flex-1 min-w-0 p-1 -m-1">
+                <div class="w-8 h-8 shrink-0 mr-1 rounded-full bg-white/[0.06] animate-pulse"></div>
+                <div class="flex-1 min-w-0">
+                    <div class="h-3 w-24 rounded-md bg-white/[0.08] animate-pulse"></div>
+                    <div class="h-2.5 w-16 rounded-md bg-white/[0.05] animate-pulse mt-1.5"></div>
+                </div>
             </div>
-
-            <!-- Name + connection status -->
-            <div class="flex-1 min-w-0">
-                <p class="text-sm font-medium text-white/85 truncate leading-tight">{{ profileService.ownProfile()?.userName }}</p>
-                <app-connection-status></app-connection-status>
-            </div>
-
-        </button>
+        }
         <app-self-profile-popover (addAccount)="startAddAccount()" (editProfile)="openProfileSettings()"/>
 
         <!-- Mute (only when in voice) -->
