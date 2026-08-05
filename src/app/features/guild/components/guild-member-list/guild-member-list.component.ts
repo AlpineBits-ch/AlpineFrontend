@@ -6,7 +6,7 @@ import {GuildMemberDto, SelfGuildMemberDto} from '../../../../dtos/response/memb
 import {OnlineStatus} from '../../../../dtos/response/profile.dto';
 import {MemberType} from '../../../../enums/member-type.enum';
 import {GuildService} from '../../../../services/guild.service';
-import {environment} from '../../../../../environments/environment';
+import {ApiConfigService} from '../../../../services/api-config.service';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Menu} from 'primeng/menu';
 import {MenuItem} from 'primeng/api';
@@ -79,6 +79,11 @@ export class GuildMemberListComponent implements OnChanges {
     private toastService = inject(ToastService);
     private brokenImages = inject(BrokenImageService);
     private userActivity = inject(UserActivityService);
+    // Deliberately not `environment.apiUrl`: that constant is the venta.gg address baked in at
+    // build time, so building an avatar URL from it sent every self-hosted and federated
+    // deployment to our servers for an image its own instance was already serving. This signal is
+    // the server the active account is really on.
+    private apiConfig = inject(ApiConfigService);
     private reportDialog = inject(ReportDialogService);
     private translate = inject(TranslateService);
     private destroyRef = inject(DestroyRef);
@@ -172,7 +177,7 @@ export class GuildMemberListComponent implements OnChanges {
      */
     avatarUrl(member: GuildMemberDto): string | undefined {
         if (!member.profile) return undefined;
-        const url = `${environment.apiUrl}/api/v1/social/profiles/${member.profile.id}/avatar`;
+        const url = `${this.apiConfig.baseUrl()}/api/v1/social/profiles/${member.profile.id}/avatar`;
         return this.brokenImages.isBroken(url) ? undefined : url;
     }
 
