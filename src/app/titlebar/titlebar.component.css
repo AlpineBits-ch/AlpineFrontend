@@ -5,7 +5,9 @@
 
 .titlebar {
     position: relative;
-    height: 32px;
+    /* Mirrored by WindowChromeService.TITLEBAR_HEIGHT and by the onboarding overlay's own drag
+       strip; all three have to move together. */
+    height: 38px;
     background: var(--color-app-bg);
     display: flex;
     align-items: center;
@@ -14,23 +16,30 @@
     border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
+/* Hairline strokes on a dark background alias into a hard, sparkly edge at the default
+   `crispEdges`-ish rasterisation. Geometric precision keeps the curves and diagonals smooth,
+   which is most of what makes these read as soft rather than scratchy. */
+.titlebar svg {
+    shape-rendering: geometricPrecision;
+}
+
 /* ── App identity ──────────────────────────────────────────────────────── */
 .identity {
     display: flex;
     align-items: center;
-    gap: 7px;
-    padding: 0 10px;
+    gap: 8px;
+    padding: 0 12px;
 }
 
 .logo-mark {
-    width: 18px;
-    height: 18px;
+    width: 20px;
+    height: 20px;
     object-fit: contain;
     flex-shrink: 0;
 }
 
 .app-name {
-    font-size: 12px;
+    font-size: 12.5px;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.38);
     letter-spacing: 0.02em;
@@ -57,12 +66,12 @@
 
 .chrome-btn {
     position: relative;
-    width: 26px;
-    height: 24px;
+    width: 30px;
+    height: 28px;
     border: none;
-    border-radius: 6px;
+    border-radius: 7px;
     background: transparent;
-    color: rgba(255, 255, 255, 0.55);
+    color: rgba(255, 255, 255, 0.5);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -73,7 +82,7 @@
 
 .chrome-btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.08);
-    color: rgba(255, 255, 255, 0.9);
+    color: rgba(255, 255, 255, 0.88);
 }
 
 .chrome-btn:disabled {
@@ -108,7 +117,7 @@
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
-    max-width: calc(100% - 420px);
+    max-width: calc(100% - 440px);
     display: flex;
     align-items: center;
     gap: 6px;
@@ -119,9 +128,9 @@
 
 .context-icon,
 .context-initial {
-    width: 16px;
-    height: 16px;
-    border-radius: 5px;
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
     flex-shrink: 0;
     object-fit: cover;
 }
@@ -129,7 +138,7 @@
 .context-initial {
     background: var(--color-hover);
     color: rgba(255, 255, 255, 0.7);
-    font-size: 0.5625rem;
+    font-size: 0.625rem;
     font-weight: 700;
     display: flex;
     align-items: center;
@@ -137,13 +146,13 @@
 }
 
 .context-glyph {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     color: rgba(255, 255, 255, 0.4);
     flex-shrink: 0;
 }
 
 .context-label {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.78);
     white-space: nowrap;
@@ -153,13 +162,13 @@
 }
 
 .context-sep {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     color: rgba(255, 255, 255, 0.22);
     flex-shrink: 0;
 }
 
 .context-detail {
-    font-size: 0.75rem;
+    font-size: 0.8125rem;
     font-weight: 500;
     color: rgba(255, 255, 255, 0.45);
     white-space: nowrap;
@@ -247,15 +256,15 @@
     display: flex;
     align-items: stretch;
     flex-shrink: 0;
-    height: 32px;
+    height: 38px;
 }
 
 .win-btn {
-    width: 46px;
-    height: 32px;
+    width: 48px;
+    height: 38px;
     border: none;
     background: transparent;
-    color: rgba(255, 255, 255, 0.42);
+    color: rgba(255, 255, 255, 0.45);
     cursor: pointer;
     display: flex;
     align-items: center;

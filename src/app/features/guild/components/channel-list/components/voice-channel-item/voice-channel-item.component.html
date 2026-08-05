@@ -17,8 +17,23 @@
         <i [ngClass]="isJoined() ? 'text-online/60' : 'text-white/35'"
            class="pi pi-volume-up text-[13px] shrink-0"></i>
         <span class="text-[0.8rem] font-medium truncate">{{ channel().name }}</span>
+        <!-- Lock first: it is a permission fact and must not be displaced by a transient one. The
+             LIVE pill then outranks the participant count, which is redundant anyway - every
+             participant is already listed as a row directly beneath this one. -->
         @if (channel().isPrivate) {
             <i class="pi pi-lock text-[11px] text-white/35 ml-auto shrink-0"></i>
+        } @else if (liveEvent(); as event) {
+            <span [pTooltip]="event.title"
+                  class="ml-auto shrink-0 flex items-center gap-1 rounded-md bg-online/15 px-1.5 py-0.5"
+                  tooltipPosition="right">
+                <span class="relative flex size-1.5">
+                    <span class="absolute inline-flex size-full animate-ping rounded-full bg-online opacity-60 motion-reduce:hidden"></span>
+                    <span class="relative inline-flex size-full rounded-full bg-online"></span>
+                </span>
+                <span class="text-[0.625rem] font-semibold uppercase tracking-widest text-online">
+                    {{ 'EVENTS.LIVE' | translate }}
+                </span>
+            </span>
         } @else if (participants().length > 0) {
             <span class="ml-auto text-[11px] text-white/40 shrink-0">{{ participants().length }}</span>
         }
