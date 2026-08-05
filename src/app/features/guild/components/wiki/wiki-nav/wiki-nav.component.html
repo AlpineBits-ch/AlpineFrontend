@@ -4,6 +4,8 @@
     <div class="flex items-center gap-1.5 px-3 py-3 border-b border-white/[0.10] shrink-0">
         <i class="pi pi-book text-brand-dim text-sm shrink-0"></i>
         <span class="text-sm font-semibold text-white/90 truncate flex-1">Wiki</span>
+        <p-button (onClick)="search.emit()" [text]="true" icon="pi pi-search" pTooltip="Search (⌘K)"
+                  severity="secondary" size="small" tooltipPosition="bottom"/>
         <p-button (onClick)="newPage()" [text]="true" icon="pi pi-plus" pTooltip="New page"
                   severity="secondary" size="small" tooltipPosition="bottom"/>
     </div>

@@ -1,4 +1,4 @@
-import {Component, effect, inject, input, signal, viewChild} from '@angular/core';
+import {Component, effect, HostListener, inject, input, signal, viewChild} from '@angular/core';
 import {Button} from 'primeng/button';
 import {Dialog} from 'primeng/dialog';
 import {PrimeTemplate} from 'primeng/api';
@@ -11,6 +11,7 @@ import {WikiHomeComponent} from './wiki-home/wiki-home.component';
 import {WikiPageDto} from '../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../services/wiki.service';
 import {WikiContextRailComponent} from './wiki-rail/wiki-context-rail.component';
+import {WikiSearchPaletteComponent} from './wiki-search/wiki-search-palette.component';
 import {buildToc, Heading, TocEntry} from './wiki-toc';
 
 const NAV_WIDTH_KEY = 'wiki-nav-width';
@@ -22,7 +23,8 @@ const NAV_WIDTH_MAX = 420;
     selector: 'app-wiki',
     imports: [
         WikiNavComponent, WikiHomeComponent, WikiArticleComponent, WikiBreadcrumbsComponent,
-        WikiContextRailComponent, WikiHistoryComponent, Button, Dialog, PrimeTemplate,
+        WikiContextRailComponent, WikiSearchPaletteComponent, WikiHistoryComponent,
+        Button, Dialog, PrimeTemplate,
     ],
     templateUrl: './wiki.component.html',
     styleUrl: './wiki.component.css',
@@ -36,6 +38,7 @@ export class WikiComponent {
     protected readonly navCollapsed = signal(false);
     /** Fed by the article as its document changes; consumed by the context rail's TOC. */
     protected readonly headings = signal<Heading[]>([]);
+    protected readonly searchOpen = signal(false);
     protected readonly showDeleteDialog = signal(false);
     protected readonly deleting = signal(false);
     /** The live article, so the breadcrumb bar's Save can reach into the editor. */
@@ -48,6 +51,18 @@ export class WikiComponent {
             const id = this.guildId();
             if (id) this.state.initialize(id);
         });
+    }
+
+    /**
+     * Scoped to the wiki rather than the app: this listener only exists while a wiki view is
+     * mounted, so ⌘K elsewhere in the app is unaffected.
+     */
+    @HostListener('document:keydown', ['$event'])
+    protected onDocumentKeydown(event: KeyboardEvent): void {
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+            event.preventDefault();
+            this.searchOpen.set(true);
+        }
     }
 
     protected onEditorSaved(page: WikiPageDto): void {

@@ -1,0 +1,85 @@
+@if (open()) {
+    <div (click)="closed.emit()" class="fixed inset-0 z-50 bg-black/60">
+        <div (click)="$event.stopPropagation()" (keydown)="onKeydown($event)"
+             class="mx-auto mt-[12vh] w-full max-w-xl overflow-hidden rounded-2xl border
+                    border-border bg-card shadow-2xl">
+
+            <!-- Query -->
+            <div class="flex items-center gap-3 border-b border-white/[0.08] px-4 py-3">
+                <i class="pi pi-search text-sm text-white/30"></i>
+                <input #queryInput
+                       (ngModelChange)="query.set($event)"
+                       [ngModel]="query()"
+                       class="flex-1 border-0 bg-transparent text-[0.9375rem] text-white/85
+                              outline-none placeholder-white/25"
+                       placeholder="Search pages…"/>
+                <kbd class="rounded border border-border px-1.5 py-0.5 text-[0.625rem] text-white/30">
+                    esc
+                </kbd>
+            </div>
+
+            <!-- Results -->
+            <div class="max-h-[50vh] overflow-y-auto thin-scrollbar">
+                @for (result of results(); track result.page.id; let i = $index) {
+                    <button (click)="choose(result.page)"
+                            [class.bg-hover]="i === activeIndex()"
+                            class="flex w-full cursor-pointer flex-col items-start gap-0.5 border-0
+                                   bg-transparent px-4 py-2.5 text-left hover:bg-hover">
+                        <span class="flex w-full items-center gap-2">
+                            <i class="pi pi-file shrink-0 text-[0.6875rem] text-white/30"></i>
+                            <span class="flex-1 truncate text-[0.875rem] text-white/80">
+                                {{ result.page.title }}
+                            </span>
+                            @if (result.page.categoryId) {
+                                <span class="shrink-0 text-[0.6875rem] text-white/30">
+                                    {{ categoryNames().get(result.page.categoryId) }}
+                                </span>
+                            }
+                        </span>
+                        @if (result.hit.snippet) {
+                            <span class="w-full truncate pl-5 text-[0.75rem] text-white/40">
+                                {{ result.hit.snippet }}
+                            </span>
+                        }
+                    </button>
+                } @empty {
+                    <p class="px-4 py-6 text-center text-[0.8125rem] text-white/30">
+                        @if (query().trim()) {
+                            No pages match "{{ query() }}"
+                        } @else {
+                            Start typing to search
+                        }
+                    </p>
+                }
+            </div>
+
+            <!-- Coverage. States what was actually searched rather than implying full text. -->
+            <div class="flex items-center justify-between gap-3 border-t border-white/[0.08]
+                        px-4 py-2">
+                @if (cache.warming()) {
+                    <span class="text-[0.75rem] text-white/35">Loading page contents…</span>
+                } @else if (cache.failed()) {
+                    <span class="text-[0.75rem] text-white/45">
+                        Couldn't load page contents — titles and tags only
+                    </span>
+                    <button (click)="searchContents()"
+                            class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2
+                                   py-1 text-[0.75rem] text-white/70 hover:bg-hover">
+                        Retry
+                    </button>
+                } @else if (cache.warmed()) {
+                    <span class="text-[0.75rem] text-white/35">
+                        Searching titles, tags and contents
+                    </span>
+                } @else {
+                    <span class="text-[0.75rem] text-white/35">Titles and tags</span>
+                    <button (click)="searchContents()"
+                            class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.06] px-2
+                                   py-1 text-[0.75rem] text-white/70 hover:bg-hover">
+                        Search page contents
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+}

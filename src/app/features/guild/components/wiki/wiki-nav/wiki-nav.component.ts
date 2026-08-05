@@ -1,4 +1,4 @@
-import {Component, computed, HostListener, inject, signal, ViewChild} from '@angular/core';
+import {Component, computed, HostListener, inject, output, signal, ViewChild} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
@@ -29,6 +29,9 @@ export interface PageTreeNode {
     templateUrl: './wiki-nav.component.html',
 })
 export class WikiNavComponent {
+    /** A keyboard shortcut nobody can see is not a feature, so the header carries a button too. */
+    readonly search = output<void>();
+
     protected readonly state = inject(WikiStateService);
     protected ctxMenuItems: MenuItem[] = [];
     protected categoryTreeNodes = computed((): CategoryTreeNode[] => {
