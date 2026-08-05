@@ -3776,10 +3776,42 @@ dangerouslyAllowBrowser: true})` with `chat.completions.create({stream: true})` 
 
 Add an `ai-settings` page to the settings modal alongside the existing pages: a provider select, a
 password-type key input per provider showing `••••••••` when one is stored (never the value — the
-service has no read-for-display path), a model input defaulting to `defaultModel`, Save and Remove
-buttons, and a short note stating plainly that keys are stored in the OS keychain, are never sent
-to the Echo server, and that requests go directly from this device to the provider and are billed
-to the user's own account.
+service has no read-for-display path), a model input defaulting to `defaultModel`, and Save /
+Remove buttons.
+
+**The privacy statement is a required part of the UI, not a footnote.** Connecting an account is
+asking for a credential that spends the user's money, so the page states, in plain language and
+before the input rather than under it:
+
+> **Your key stays on this device.** It's stored in your operating system's keychain — the same
+> place your encryption keys live. It is never sent to Alpine's servers, never synced between your
+> devices, and never shared with your server members. The only place it goes is the provider you
+> chose, when you generate a page. Requests are billed to your own account with them.
+
+Render it as a bordered note with `pi-lock`, in normal body text — not muted, not `text-[0.6875rem]`.
+The one thing users need to trust here is exactly this, so it must not read as boilerplate.
+
+- [ ] **Step 7a: Make the feature discoverable**
+
+A feature nobody can find is a feature that doesn't exist. The AI action is visible **before** any
+key is configured, and connecting is reachable from the point of use — never "go find it in
+settings first". Three entry points, all for a member who can edit but has no provider connected:
+
+1. **The wiki home empty state.** When a wiki has no pages, the existing "Create first page" panel
+   gains a second, secondary action: *Draft one with AI*.
+2. **The breadcrumb-bar AI button is always shown** to a member with edit permission — not gated on
+   `configured()`. Unconfigured, clicking it opens the draft dialog in a connect state rather than
+   doing nothing.
+3. **The empty-page state.** `wiki-article`'s "This page has no content yet" branch offers
+   *Write it with AI* beside *Start editing*.
+
+The connect state inside the draft dialog carries the same privacy note as the settings page (share
+one component — the sentence must not drift between the two places it appears), a provider picker,
+a key field, and a Connect button that saves and returns straight to the prompt box. Connecting
+never leaves the wiki.
+
+Suppress a one-time inline hint after it has been dismissed
+(`localStorage['wiki-ai-hint-dismissed']`) so it does not nag; the buttons themselves stay.
 
 - [ ] **Step 8: The draft dialog**
 
@@ -3789,8 +3821,9 @@ Cancel aborts via `AbortController`. Insert appends at the cursor; Replace swaps
 **both go through the normal editor transaction**, so the result is undoable with ⌘Z and autosaves
 as a draft like any other edit. Never save directly to the server.
 
-Add an AI button to the breadcrumb bar, shown only when `abilities().canEditAny || canEditOwn` and
-a provider is configured — a generate action on a page you cannot save is a dead end.
+Add an AI button to the breadcrumb bar, shown whenever `abilities().canEditAny || canEditOwn` —
+gated on edit permission only, **not** on having a key (a generate action on a page you cannot save
+is a dead end; one you simply haven't connected yet is the discovery path from Step 7a).
 
 - [ ] **Step 9: Verify**
 
@@ -3805,6 +3838,11 @@ In the app: add a key in settings, confirm reopening settings shows it as config
 displays the value. Generate a page and confirm text streams into the preview, Cancel stops it
 mid-stream, Insert lands in the editor, and ⌘Z undoes it in one step. Confirm the AI button is
 absent for a member without edit permission.
+
+Then verify discovery **with no key configured at all**: the AI button is still visible, clicking it
+offers to connect inline, and connecting returns to the prompt box without leaving the wiki. Confirm
+the empty-wiki and empty-page states both offer the AI action. Confirm the privacy note is legible
+at default text size in both places it appears and says the same thing in each.
 
 - [ ] **Step 10: Commit**
 
