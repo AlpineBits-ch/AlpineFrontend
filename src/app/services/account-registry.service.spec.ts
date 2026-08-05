@@ -5,6 +5,14 @@
  * a rename must not strand the account's device id, MLS state and message history behind a slot
  * nothing looks up any more.</p>
  */
+// Stubbed true, and re-stubbed true in `beforeEach`, because everything outside the "outside Tauri"
+// block below is about the desktop path and would otherwise silently start asserting against
+// `localStorage`. `vi.clearAllMocks` clears calls but not implementations, so a test that flips this
+// to false would leak into every test after it without that reset.
+vi.mock('@tauri-apps/api/core', () => ({
+    invoke: vi.fn(),
+    isTauri: vi.fn(() => true),
+}));
 vi.mock('@tauri-apps/plugin-store', () => ({
     // Named, and self-referencing: the factory is hoisted above every module-level binding, so a
     // reference to anything declared below it is a ReferenceError at construction time.
@@ -31,6 +39,7 @@ vi.mock('@tauri-apps/plugin-store', () => ({
 }));
 
 import {TestBed} from '@angular/core/testing';
+import {isTauri} from '@tauri-apps/api/core';
 import {LazyStore} from '@tauri-apps/plugin-store';
 import {AccountRegistryService, BOOTSTRAP_SLOT_ID} from './account-registry.service';
 import {setActiveSlotId} from './scoped-oauth-storage';
@@ -68,6 +77,7 @@ describe('AccountRegistryService', () => {
     let service: AccountRegistryService;
 
     beforeEach(() => {
+        vi.mocked(isTauri).mockReturnValue(true);
         LazyStoreMock.files.clear();
         localStore.clear();
         service = freshService();
@@ -220,5 +230,107 @@ describe('AccountRegistryService', () => {
 
         expect(await bare.list()).toEqual([]);
         expect(await bare.activeSlotId()).toBe(BOOTSTRAP_SLOT_ID);
+    });
+
+    /**
+     * The `localStorage` backend, and the reason the app boots in a browser at all.
+     *
+     * <p>This service is the *first* store reader on the launch path: `DeviceIdentityService`
+     * resolves the device id before anything else, and that goes through {@link activeSlotId},
+     * which awaits {@link read}. With no IPC host a `LazyStore` call here rejects, the rejection
+     * escapes `MainPageComponent.runDeviceLaunch` before its `try`, and the app never leaves the
+     * loading overlay - so nothing, not even a registration request, reaches the backend. Fixing
+     * `DeviceIdentityService` alone left that unchanged, which is what these tests pin.</p>
+     *
+     * <p>The assertions are the same ones the desktop path is held to, restated against the other
+     * backend: the logic above the store is one implementation, so the value here is that it is
+     * provably backend-blind.</p>
+     */
+    describe('outside Tauri', () => {
+        /**
+         * Pinned as a literal rather than imported, so a rename of the prefix has to be a
+         * deliberate edit here too. Once anything has booted in a browser this is a persisted
+         * name, not an implementation detail.
+         */
+        const PREFIX = 'alpine_settings::';
+
+        beforeEach(() => {
+            vi.mocked(isTauri).mockReturnValue(false);
+        });
+
+        it('reads an empty registry without ever opening the Tauri store', async () => {
+            const bare = freshService();
+
+            expect(await bare.list()).toEqual([]);
+            expect(await bare.activeSlotId()).toBe(BOOTSTRAP_SLOT_ID);
+            // The gate is the whole guarantee: no `LazyStore` was constructed, so there was no IPC
+            // to reject. A constructed one would have registered its file here.
+            expect(LazyStoreMock.files.size).toBe(0);
+        });
+
+        it('creates a slot on first sign-in and makes it live', async () => {
+            const bare = freshService();
+
+            const slot = await bare.ensureSlot({userId: 'user-1', serverUrl: 'https://a.example'});
+
+            expect(await bare.activeSlotId()).toBe(slot.id);
+            expect(await bare.list()).toHaveLength(1);
+            expect(LazyStoreMock.files.size).toBe(0);
+        });
+
+        it('survives a restart, so the slot keeps its device id and MLS state', async () => {
+            const slot = await freshService().ensureSlot({
+                userId: 'user-1', serverUrl: 'https://a.example', username: 'ada',
+            });
+
+            const restarted = freshService();
+
+            expect(await restarted.activeSlotId()).toBe(slot.id);
+            expect((await restarted.list())[0].username).toBe('ada');
+        });
+
+        it('persists under the shared settings prefix, in the shape the Tauri store holds', async () => {
+            const bare = freshService();
+            const slot = await bare.ensureSlot({userId: 'user-1', serverUrl: 'https://a.example'});
+
+            // Same key, same nesting as the store file. Anything flatter here would fork the read
+            // path per backend.
+            const raw = localStore.get(`${PREFIX}accounts`);
+            expect(JSON.parse(raw ?? 'null').slots.map((s: {id: string}) => s.id)).toEqual([slot.id]);
+        });
+
+        it('does not move the live slot merely by being read', async () => {
+            await freshService().ensureSlot({userId: 'user-1', serverUrl: 'https://a.example'});
+            // What "Add Account" does: sets the live slot aside without removing any slot.
+            setActiveSlotId(BOOTSTRAP_SLOT_ID);
+
+            const restarted = freshService();
+            await restarted.list();
+            await restarted.activeSlot();
+
+            expect(await restarted.activeSlotId()).toBe(BOOTSTRAP_SLOT_ID);
+        });
+
+        it('reads a corrupt registry as empty rather than stranding the launch', async () => {
+            localStore.set(`${PREFIX}accounts`, 'not json');
+
+            const bare = freshService();
+
+            // Boot survivability is the point, and it is the same rule the device id follows: a
+            // value nothing can parse is a value nothing can act on.
+            expect(await bare.list()).toEqual([]);
+            expect(await bare.activeSlotId()).toBe(BOOTSTRAP_SLOT_ID);
+        });
+
+        it('removes the live slot and falls back to the most recently used survivor', async () => {
+            const bare = freshService();
+            const a = await bare.ensureSlot({userId: 'user-1', serverUrl: 'https://a.example'});
+            const b = await bare.ensureSlot({userId: 'user-2', serverUrl: 'https://a.example'});
+            await bare.activate(a.id);
+
+            await bare.remove(a.id);
+
+            expect(await bare.activeSlotId()).toBe(b.id);
+        });
     });
 });

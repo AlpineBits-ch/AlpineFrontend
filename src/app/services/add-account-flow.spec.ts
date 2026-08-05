@@ -16,6 +16,14 @@
  * to be found" - rather than what any one module wrote. Reading the registry first, exactly as the
  * device-id interceptor does, is the point of the exercise and not incidental setup.</p>
  */
+// Pinned true so the registry keeps resolving to the `LazyStore` stub below. These tests are about
+// the desktop path, and the real `isTauri()` answers false under the runner - which would quietly
+// move the slot list into `localStorage`, where `LazyStoreMock.files.clear()` does not reach it and
+// state would leak from one simulated boot into the next.
+vi.mock('@tauri-apps/api/core', () => ({
+    invoke: vi.fn(),
+    isTauri: vi.fn(() => true),
+}));
 vi.mock('@tauri-apps/plugin-store', () => ({
     LazyStore: class LazyStoreStub {
         static readonly files = new Map<string, Map<string, unknown>>();

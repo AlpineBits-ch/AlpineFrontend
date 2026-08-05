@@ -268,9 +268,17 @@ jobs:
       # in the registry. It carries the exact tag rather than `latest` so the suite runs against
       # this build specifically and a failure is attributable to this commit.
       #
-      # Requires the E2E_DISPATCH_TOKEN secret described in the header - it does not exist yet and
-      # must be created before this step can succeed.
+      # Skipped rather than failed when E2E_DISPATCH_TOKEN is absent, and that distinction is the
+      # point. This job's product is the image; notifying venta-e2e is a convenience on top of it.
+      # The first run of this workflow published a perfectly good image and then reported failure
+      # with "Parameter token or opts.auth is required", which reads like the build broke when in
+      # fact nothing was wrong with it. A red run that everyone learns to ignore is worse than no
+      # signal at all.
+      #
+      # The nightly cron in venta-e2e picks up `latest` regardless, so a missing token costs
+      # promptness, not coverage. Create the secret to get the immediate run back.
       - name: Notify venta-e2e
+        if: ${{ secrets.E2E_DISPATCH_TOKEN != '' }}
         uses: peter-evans/repository-dispatch@v3
         with:
           token: ${{ secrets.E2E_DISPATCH_TOKEN }}
@@ -283,3 +291,10 @@ jobs:
               "client_sha": "${{ github.sha }}",
               "client_ref": "${{ github.ref_name }}"
             }
+
+      - name: Say so when the dispatch was skipped
+        if: ${{ secrets.E2E_DISPATCH_TOKEN == '' }}
+        run: |
+          echo "::notice::Image published as ${{ steps.image.outputs.ref }}, but venta-e2e was not"\
+               "notified: the E2E_DISPATCH_TOKEN secret is not set. The nightly run will still pick"\
+               "this up via the latest tag. Add the secret to trigger the suite immediately."
