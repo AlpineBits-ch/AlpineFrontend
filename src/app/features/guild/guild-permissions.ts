@@ -1,14 +1,27 @@
-import {GuildMemberDto} from '../../dtos/response/member.dto';
+import {GuildMemberDto, SelfGuildMemberDto} from '../../dtos/response/member.dto';
 import {hasPermission, parsePermissions, PermissionValue, Permissions} from '../../enums/permissions.enum';
 
 /**
- * A member's own permission bits unioned with every role they hold.
+ * What a member may actually do in this guild.
  *
- * Roles are where nearly all real permissions live, so reading `member.permissions`
- * alone reports far less access than the member actually has.
+ * Prefers the server's own answer (`effectivePermissions` on `GET /guilds/{id}/me`), which is the
+ * same mask every endpoint gates on: ownership, all roles, member allow/deny, implied bits, and
+ * the clamp to enabled modules.
+ *
+ * The fallback below - a union of the member's own bits with every role they hold - is what this
+ * used to do unconditionally, and it has one blind spot that matters: it cannot see ownership. The
+ * owner's member row carries no permissions and their only role is @everyone, so the union reports
+ * an ordinary member and every call site has to remember to check `guild.ownerId` separately.
+ * Keep the fallback for callers holding a plain `GuildMemberDto` and for a server that has not
+ * shipped the field yet; treat its result as incomplete for the owner.
  */
 export function effectiveGuildPermissions(member: GuildMemberDto | null | undefined): PermissionValue {
     if (!member) return 0n;
+
+    const resolved = (member as SelfGuildMemberDto).effectivePermissions;
+    // Only an absent field falls through. An empty string is a real answer - "no permissions" -
+    // and must not be quietly upgraded to the union.
+    if (resolved !== undefined && resolved !== null) return parsePermissions(resolved);
 
     const merged = (member.roleMembers ?? []).reduce((acc, {role}) => {
         if (!role.permissions) return acc;

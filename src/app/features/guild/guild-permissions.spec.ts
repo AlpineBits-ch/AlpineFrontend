@@ -30,6 +30,38 @@ describe('effectiveGuildPermissions', () => {
     it('grants nothing for a member that has not loaded', () => {
         expect(effectiveGuildPermissions(null)).toBe(0n);
     });
+
+    // The server's own answer wins where it exists. It is the mask every endpoint gates on, and
+    // unlike the union below it can see ownership - the whole reason the field was added.
+    it('prefers the server-resolved mask over the role union', () => {
+        const withResolved = {
+            permissions: '',
+            roleMembers: [{role: {permissions: 'ViewChannel'}}],
+            effectivePermissions: 'Superadmin',
+        } as unknown as GuildMemberDto;
+
+        expect(effectiveGuildPermissions(withResolved) & Permissions.Superadmin)
+            .toBe(Permissions.Superadmin);
+    });
+
+    // "None" is what the server sends for a member with nothing, and it must not be mistaken for
+    // "field absent" and quietly replaced by a union that would report more.
+    it('honours an explicit empty answer rather than falling back', () => {
+        const denied = {
+            permissions: 'ManageGuild',
+            roleMembers: [{role: {permissions: 'Superadmin'}}],
+            effectivePermissions: 'None',
+        } as unknown as GuildMemberDto;
+
+        expect(effectiveGuildPermissions(denied)).toBe(0n);
+    });
+
+    it('falls back to the union when the server has not shipped the field', () => {
+        const legacy = member('ViewChannel', ['ManageGuild']);
+
+        expect(effectiveGuildPermissions(legacy) & Permissions.ManageGuild)
+            .toBe(Permissions.ManageGuild);
+    });
 });
 
 describe('memberCanManageGuild', () => {

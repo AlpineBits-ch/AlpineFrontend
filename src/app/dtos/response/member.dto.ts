@@ -31,6 +31,20 @@ export interface GuildMemberDto {
 
 export interface SelfGuildMemberDto extends GuildMemberDto {
     roleMembers: { role: RoleDto }[]
+
+    /**
+     * What the caller may actually do in this guild, already resolved server-side: ownership,
+     * every role, their own allow/deny, implied bits, and the clamp to enabled modules.
+     *
+     * <p>Prefer this over unioning `roleMembers[].role.permissions` yourself. That union cannot
+     * see ownership — the owner's member row carries no permissions and their only role is
+     * @everyone — so every caller had to remember to compare against `guild.ownerId` as well, and
+     * the ones that forgot hid controls from the one person who always has them.</p>
+     *
+     * <p>Optional until the backend ships it. `undefined` means "not computed", not "none":
+     * `effectiveGuildPermissions` falls back to the old union when it is absent.</p>
+     */
+    effectivePermissions?: string
 }
 
 
