@@ -44,6 +44,32 @@ export interface VoiceLocalState {
     isScreenSharing: boolean;
 }
 
+const STICKY_VOICE_STATE_KEY = 'alpine_voice_local_state';
+
+/**
+ * Mute and deafen outlive the call they were set in.
+ *
+ * <p>They are statements about this machine's microphone and speakers, not about a channel. A user
+ * who mutes before joining means "do not transmit when I get there", and wiping the flag on join
+ * answers a question they did not ask — it also makes the always-visible mic button in the bottom
+ * bar a liar, since the state it shows would silently reset underneath it.</p>
+ *
+ * <p>Camera and screen share are deliberately <b>not</b> persisted. Each holds a live publication
+ * tied to the channel it was started in, so neither can mean anything after a channel change.</p>
+ */
+export function loadStickyVoiceState(): Pick<VoiceLocalState, 'isMuted' | 'isDeafened'> {
+    try {
+        const raw = localStorage.getItem(STICKY_VOICE_STATE_KEY);
+        if (!raw) return {isMuted: false, isDeafened: false};
+        const stored = JSON.parse(raw) as Partial<VoiceLocalState>;
+        // Explicit true, not truthiness: a corrupt blob should read as "not muted" rather than as
+        // whatever a stray string coerces to.
+        return {isMuted: stored.isMuted === true, isDeafened: stored.isDeafened === true};
+    } catch {
+        return {isMuted: false, isDeafened: false};
+    }
+}
+
 @Injectable({providedIn: 'root'})
 export class VoiceChannelService {
     readonly rtc = inject(VoiceRTCService);
@@ -54,8 +80,7 @@ export class VoiceChannelService {
 
     // ── Public state ───────────────────────────────────────────────────────────
     readonly localState = signal<VoiceLocalState>({
-        isMuted: false,
-        isDeafened: false,
+        ...loadStickyVoiceState(),
         isCameraOn: false,
         isScreenSharing: false
     });
@@ -184,7 +209,9 @@ export class VoiceChannelService {
             this.joinedGuildId.set(channel.guildId);
             this.joinedChannelName.set(channel.name);
             this.joinedGuildName.set(guildName);
-            this.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false});
+            // Mute and deafen survive the join - see loadStickyVoiceState. Only the two flags that
+            // hold a live publication are cleared.
+            this.localState.update(s => ({...s, isCameraOn: false, isScreenSharing: false}));
 
             try {
                 const state = await firstValueFrom(this.guildVoiceSvc.join(channel.guildId, channel.id));
@@ -198,7 +225,9 @@ export class VoiceChannelService {
                         displayName: profile?.userName ?? 'You',
                         avatarLabel: (profile?.userName?.[0] ?? 'Y').toUpperCase(),
                         avatarUrl: profile?.avatarUrl,
-                        isMuted: false,
+                        // Seeded, not assumed false: arriving muted and rendering yourself live is
+                        // the one state where the room and the roster disagree about the same fact.
+                        isMuted: this.localState().isMuted,
                         isSpeaking: false,
                         isCameraOn: false,
                         isScreenSharing: false,
@@ -227,6 +256,18 @@ export class VoiceChannelService {
                 // is shut. Nothing else calls syncMic until the user toggles something, so without
                 // this a push-to-talk user joins silent and has no way to tell why.
                 this.syncMic();
+
+                // Tell the room what it cannot infer. Everyone else builds their roster from the
+                // join event, which carries no mute state, so a user who arrived already muted
+                // would render as live to every other participant - their mic off, and the UI
+                // saying otherwise, which is the worst combination of the two.
+                const {isMuted, isDeafened} = this.localState();
+                if (isMuted) this.guildWsSvc.invokeVoiceMuteChanged(channel.id, true);
+                if (isDeafened) {
+                    this.guildWsSvc.invokeVoiceDeafenChanged(channel.id, true);
+                    this.rtc.setDeafened(true);
+                }
+
                 this.heartbeatTimer = setInterval(() => this.guildWsSvc.invokeVoiceHeartbeat(), 30_000);
             } catch (err) {
                 console.error('VoiceChannelService: join failed', err);
@@ -245,7 +286,9 @@ export class VoiceChannelService {
         this.joinedGuildId.set(null);
         this.joinedChannelName.set(null);
         this.joinedGuildName.set(null);
-        this.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false});
+        // Mute and deafen are preferences, not call state - they survive leaving too, so the bar's
+        // mic button still shows what the microphone is actually doing after the call ends.
+        this.localState.update(s => ({...s, isCameraOn: false, isScreenSharing: false}));
     }
 
     toggleMute(): void {
@@ -254,6 +297,7 @@ export class VoiceChannelService {
         const channelId = this.joinedChannelId();
         if (channelId) this.guildWsSvc.invokeVoiceMuteChanged(channelId, this.localState().isMuted);
         this.syncLocal();
+        this.persistSticky();
     }
 
     /** Push-to-talk gate, set by {@link CallHotkeyService} as the key is held/released. */
@@ -278,6 +322,22 @@ export class VoiceChannelService {
             this.guildWsSvc.invokeVoiceMuteChanged(channelId, isMuted);
         }
         this.syncLocal();
+        this.persistSticky();
+    }
+
+    /**
+     * Remember mute and deafen for the next launch.
+     *
+     * <p>Best-effort: storage can be unavailable or full, and a failed write here is not worth
+     * failing a mute over. The cost of losing it is one un-muted launch, which the button on screen
+     * reports accurately either way.</p>
+     */
+    private persistSticky(): void {
+        const {isMuted, isDeafened} = this.localState();
+        try {
+            localStorage.setItem(STICKY_VOICE_STATE_KEY, JSON.stringify({isMuted, isDeafened}));
+        } catch { /* storage unavailable */
+        }
     }
 
     /**
@@ -428,7 +488,7 @@ export class VoiceChannelService {
         this.joinedGuildId.set(null);
         this.joinedChannelName.set(null);
         this.joinedGuildName.set(null);
-        this.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false});
+        this.localState.update(s => ({...s, isCameraOn: false, isScreenSharing: false}));
         this.toast.info('You joined this channel from another device');
     }
 
