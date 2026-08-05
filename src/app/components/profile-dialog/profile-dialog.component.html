@@ -24,7 +24,10 @@
                 [profile]="profile()"/>
 
         @if (profile() && !isSelf()) {
-            <div class="px-4 pb-4 pt-1">
+            <!-- Block sits above Report deliberately. Blocking works immediately and needs
+                 nobody; a report is a queue. Offering only the queue leaves someone waiting on
+                 us while they are still being messaged. -->
+            <div class="flex flex-col gap-1 px-4 pb-4 pt-1">
                 @if (isBlocked()) {
                     <p-button [label]="'PROFILE.UNBLOCK' | translate"
                               severity="secondary" size="small"
@@ -37,6 +40,10 @@
                               styleClass="w-full justify-center"
                               (onClick)="askToBlock()"/>
                 }
+                <p-button [label]="'REPORT.TITLE_USER' | translate"
+                          icon="pi pi-flag" severity="secondary" size="small" [text]="true"
+                          styleClass="w-full justify-center"
+                          (onClick)="report()"/>
             </div>
         }
     </div>

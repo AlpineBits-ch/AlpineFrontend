@@ -48,6 +48,15 @@
                 <span class="text-[0.9375rem] font-semibold tracking-tight text-slate-200">Venta</span>
             </div>
 
+            <!-- A restricted account replaces the whole card: the form cannot succeed, so leaving
+                 it on screen only invites another attempt at the one thing that will not work. -->
+            @if (blocked(); as restricted) {
+                <app-blocked-sign-in
+                        (tryAnotherAccount)="tryAnotherAccount()"
+                        [apiBase]="blockedApiBase()"
+                        [reference]="restricted.reference"/>
+            } @else {
+
             <!-- The way back out of "Add Account". Reaching this screen sets the live account
                  aside without signing it out, so without this the only route back to an account
                  that is still perfectly signed in is to type its password again. -->
@@ -325,6 +334,19 @@
                         </p>
                     }
                 </div>
+            }
+
+            <!-- Anonymous, and reachable without an account - so it is the one route to a human
+                 for someone who cannot get in at all. -->
+            <button (click)="openSupport()"
+                    class="mt-4 mx-auto flex items-center gap-1.5 text-xs text-text-muted
+                           hover:text-[var(--color-brand-dim)] transition-colors bg-transparent
+                           border-0 cursor-pointer"
+                    type="button">
+                <i class="pi pi-question-circle text-[0.6875rem]"></i>
+                {{ 'LOGIN.GET_SUPPORT' | translate }}
+            </button>
+
             }
 
         </div>

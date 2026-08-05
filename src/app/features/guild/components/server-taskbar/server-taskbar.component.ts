@@ -21,6 +21,8 @@ import {NgClass} from '@angular/common';
 import {environment} from '../../../../../environments/environment';
 import {ContextMenu} from 'primeng/contextmenu';
 import {MenuItem} from 'primeng/api';
+import {TranslateService} from '@ngx-translate/core';
+import {ReportDialogService} from '../../../../services/report-dialog.service';
 import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-settings-modal.component';
 import {InviteType} from '../../../../dtos/response/invite.dto';
 import {ToastService} from '../../../../services/toast.service';
@@ -74,6 +76,8 @@ export class ServerTaskbarComponent implements OnInit {
     private guildUiActions = inject(GuildUiActionsService);
     private toastService = inject(ToastService);
     private guildWsService = inject(GuildWebsocketService);
+    private reportDialog = inject(ReportDialogService);
+    private translate = inject(TranslateService);
     private destroyRef = inject(DestroyRef);
     @ViewChild('guildContextMenu') private guildContextMenu!: ContextMenu;
 
@@ -272,6 +276,13 @@ export class ServerTaskbarComponent implements OnInit {
                 },
             },
             {separator: true},
+            // Reachable by every member, not just those who can open Server Settings - the people
+            // most likely to need it are the ones with no powers in the guild at all.
+            {
+                label: this.translate.instant('REPORT.TITLE_GUILD'),
+                icon: 'pi pi-flag',
+                command: () => this.reportServer(guild),
+            },
             {
                 label: 'Leave Server',
                 icon: 'pi pi-sign-out',
@@ -279,6 +290,21 @@ export class ServerTaskbarComponent implements OnInit {
                 command: () => this.leaveServer(guild),
             },
         ];
+    }
+
+    /**
+     * Reports the guild.
+     *
+     * <p>`targetUserId` is the owner: the server always wants an account behind a report, and for
+     * a guild that is whoever is answerable for it.</p>
+     */
+    private reportServer(guild: GuildDto): void {
+        this.reportDialog.open({
+            kind: 'Guild',
+            subjectId: guild.id,
+            targetUserId: guild.ownerId,
+            targetName: guild.name,
+        });
     }
 
     private markGuildAsRead(guild: GuildDto): void {

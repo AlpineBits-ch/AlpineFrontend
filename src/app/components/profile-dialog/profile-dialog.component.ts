@@ -18,6 +18,7 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {RelationshipStore} from '../../stores/relationship.store';
 import {ToastService} from '../../services/toast.service';
 import {UserActivityService} from '../../services/user-activity.service';
+import {ReportDialogService} from '../../services/report-dialog.service';
 
 @Component({
     selector: 'app-profile-dialog',
@@ -41,6 +42,7 @@ export class ProfileDialogComponent implements OnChanges {
     private toast = inject(ToastService);
     private translate = inject(TranslateService);
     private userActivity = inject(UserActivityService);
+    private reportDialog = inject(ReportDialogService);
 
     /**
      * Rich presence for whoever the card is showing.
@@ -88,6 +90,25 @@ export class ProfileDialogComponent implements OnChanges {
     }
 
     protected onHide(): void {
+        this.visibleChange.emit(false);
+    }
+
+    /**
+     * Hands off to the report dialog and closes this one, so the two modals do not stack.
+     *
+     * <p>No subject id: a report against a person is `subjectKind: 'User'`, which is the one kind
+     * the server does not want one for.</p>
+     */
+    protected report(): void {
+        const profile = this.profile();
+        if (!profile) return;
+
+        this.reportDialog.open({
+            kind: 'User',
+            targetUserId: profile.userId,
+            targetName: profile.userName,
+        });
+        this.dialogVisible = false;
         this.visibleChange.emit(false);
     }
 

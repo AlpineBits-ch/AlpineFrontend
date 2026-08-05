@@ -13,6 +13,7 @@ import {AppearanceSettingsComponent} from "./pages/appearance-settings/appearanc
 import {SecuritySettingsComponent} from "./pages/security-settings/security-settings.component";
 import {DevicesSettingsComponent} from "./pages/devices-settings/devices-settings.component";
 import {AboutSettingsComponent} from "./pages/about-settings/about-settings.component";
+import {SupportSettingsComponent} from "./pages/support-settings/support-settings.component";
 import {LogoutDialogComponent} from "../logout-dialog/logout-dialog.component";
 import {TranslateModule} from '@ngx-translate/core';
 
@@ -62,6 +63,7 @@ export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
             {id: 'keybinds', labelKey: 'SETTINGS.NAV.KEYBINDS', icon: 'pi pi-key'},
             {id: 'appearance', labelKey: 'SETTINGS.NAV.APPEARANCE', icon: 'pi pi-palette'},
             {id: 'other', labelKey: 'SETTINGS.NAV.OTHER', icon: 'pi pi-cog'},
+            {id: 'support', labelKey: 'SETTINGS.NAV.SUPPORT', icon: 'pi pi-question-circle'},
             {id: 'about', labelKey: 'SETTINGS.NAV.ABOUT', icon: 'pi pi-info-circle'},
         ],
     },
@@ -84,6 +86,7 @@ export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
         SecuritySettingsComponent,
         DevicesSettingsComponent,
         AboutSettingsComponent,
+        SupportSettingsComponent,
         LogoutDialogComponent,
         TranslateModule,
     ],

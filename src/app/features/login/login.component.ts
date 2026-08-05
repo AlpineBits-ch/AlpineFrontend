@@ -22,6 +22,9 @@ import {environment} from "../../../environments/environment";
 import {QrLoginPanelComponent} from "./qr-login-panel/qr-login-panel.component";
 import {AccountRegistryService, AccountSlot} from "../../services/account-registry.service";
 import {AccountSwitchService} from "../../services/account-switch.service";
+import {signInBlocked} from './sign-in-blocked';
+import {BlockedSignInComponent} from './blocked-sign-in/blocked-sign-in.component';
+import {SupportService} from '../../services/support.service';
 
 /** `qr` is a peer of `login`, not a sub-step of it: it produces its own token pair. */
 type AuthMode = 'login' | 'register' | 'qr';
@@ -49,7 +52,8 @@ interface RegisterModel {
         NgClass,
         FormsModule,
         TranslateModule,
-        QrLoginPanelComponent
+        QrLoginPanelComponent,
+        BlockedSignInComponent
     ],
     templateUrl: './login.component.html',
     styleUrl: './login.component.css',
@@ -64,6 +68,21 @@ export class Login {
     protected externalLinkService = inject(ExternalLinkService);
     protected authService = inject(AuthService);
     protected router = inject(Router);
+
+    /**
+     * Set when the server refused the sign-in because the account is restricted.
+     *
+     * <p>Replaces the whole auth card while it is set - see `blocked-sign-in.component.ts`. Nothing
+     * about this state touches stored data: a restriction gets lifted, and an appeal that succeeds
+     * should hand the account back a working client rather than an empty one.</p>
+     */
+    protected blocked = signal<ReturnType<typeof signInBlocked>>(null);
+
+    /**
+     * Which server refused. Captured at the moment of failure because the support site is derived
+     * from it, and a `user@selfhosted.com` identity must not be sent to our support site.
+     */
+    protected blockedApiBase = signal<string>(environment.apiUrl);
 
     // ── Login form ────────────────────────────────────────────────────────────
     protected loginModel = signal<LoginModel>({username: '', password: ''});
@@ -138,6 +157,7 @@ export class Login {
     private destroyRef = inject(DestroyRef);
     private accounts = inject(AccountRegistryService);
     private switcher = inject(AccountSwitchService);
+    private support = inject(SupportService);
 
     /**
      * Accounts already signed in on this machine, offered as a way back.
@@ -202,6 +222,24 @@ export class Login {
         void this.router.navigate(['/overview']);
     }
 
+    /**
+     * Leaves the blocked screen for a cleared sign-in form.
+     *
+     * <p>The password goes with it: the next person at this keyboard is by assumption someone
+     * else, and leaving a restricted account's credentials in the fields invites another attempt
+     * at the one thing that cannot work.</p>
+     */
+    protected tryAnotherAccount(): void {
+        this.blocked.set(null);
+        this.loginModel.set({username: '', password: ''});
+        this.mode.set('login');
+    }
+
+    /** The support site, reachable while signed out - which is the whole point of it. */
+    protected openSupport(): void {
+        this.support.openSupport(this.apiConfigService.baseUrl());
+    }
+
     protected openPasswordReset(): void {
         const value = this.loginModel().username;
         // The reset endpoints go through ApiConfigService.baseUrl(), which only points at a
@@ -227,6 +265,15 @@ export class Login {
                 if (mfaErrorKind(err) === 'required') {
                     const {username, password} = this.loginModel();
                     this.mfaChallenge.show(username, password);
+                    return EMPTY;
+                }
+                // Checked before the generic 403 branch below, which reads every refusal as an
+                // unconfirmed email. A restricted account used to land in the "check your inbox
+                // for a code" dialog and type codes that could never work.
+                const restricted = signInBlocked(err);
+                if (restricted) {
+                    this.blockedApiBase.set(this.apiConfigService.baseUrl());
+                    this.blocked.set(restricted);
                     return EMPTY;
                 }
                 const status = err?.status ?? err?.reason?.status;

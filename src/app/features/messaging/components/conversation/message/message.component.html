@@ -104,6 +104,7 @@
                     (emojiToggled)="toggleReaction($event)"
                     (pinToggled)="togglePin()"
                     (reply)="reply.emit(message())"
+                    (report)="reportMessage()"
                     [canPin]="canPin()"
                     [guildId]="guildId()"
                     [isOwn]="isOwn()"
@@ -403,6 +404,17 @@
                  text-sm text-left bg-transparent border-0 cursor-pointer transition-colors">
                     <i class="pi pi-trash text-base"></i>
                     Delete
+                </button>
+            }
+
+            <!-- On a phone this sheet is the only way to reach a message action, so Report has
+                 to live here too rather than only on the desktop hover toolbar. -->
+            @if (!isOwn()) {
+                <button (click)="reportMessage()"
+                        class="flex items-center gap-3 w-full px-3 py-3 rounded-xl text-white/80 hover:bg-white/[0.07]
+                 text-sm text-left bg-transparent border-0 cursor-pointer transition-colors">
+                    <i class="pi pi-flag text-base text-white/50"></i>
+                    {{ 'REPORT.TITLE_MESSAGE' | translate }}
                 </button>
             }
 

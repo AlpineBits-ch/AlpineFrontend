@@ -43,6 +43,16 @@
         </button>
     }
 
+    <!-- Only on someone else's message: reporting your own is a `self_report` refusal. -->
+    @if (!isOwn()) {
+        <button (click)="report.emit()"
+                class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-amber-400
+             hover:bg-amber-500/10 cursor-pointer border-0 bg-transparent transition-colors"
+                [title]="'REPORT.TITLE_MESSAGE' | translate">
+            <i class="pi pi-flag text-[10px]"></i>
+        </button>
+    }
+
     @if (isOwn()) {
         <button (click)="edit.emit()"
                 class="w-6 h-6 rounded flex items-center justify-center text-white/35 hover:text-white/75

@@ -76,6 +76,7 @@ import {AccountSwitchService} from '../../services/account-switch.service';
 import {SessionTeardownService} from '../../services/session-teardown.service';
 import {ApiConfigService} from '../../services/api-config.service';
 import {ProfileService} from '../../services/profile.service';
+import {ReportDialogComponent} from '../../components/report-dialog/report-dialog.component';
 
 @Component({
     selector: 'app-main-page',
@@ -110,6 +111,7 @@ import {ProfileService} from '../../services/profile.service';
         AccountOnboardingComponent,
         EventsPanelComponent,
         ForumPostListComponent,
+        ReportDialogComponent,
     ],
     templateUrl: './main-page.component.html',
     styleUrl: './main-page.component.css',

@@ -126,6 +126,10 @@
                 (visibleChange)="profileDialogSvc.close()"
                 [userId]="profileDialogSvc.selectedUserId()"/>
 
+        <!-- Opened from message toolbars, profile cards and member menus, none of which is a
+             sensible place to own a modal. -->
+        <app-report-dialog/>
+
         <app-device-registration-modal
                 (registered)="onDeviceRegistered($event)"
                 [visible]="showDeviceRegistration()"/>

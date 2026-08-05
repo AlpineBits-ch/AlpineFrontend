@@ -19,6 +19,7 @@ export class MessageHoverToolbarComponent {
     reply = output<void>();
     edit = output<void>();
     delete = output<void>();
+    report = output<void>();
     emojiToggled = output<EmojiSelection>();
     pinToggled = output<void>();
     publish = output<void>();

@@ -39,6 +39,7 @@ import {MlsService} from '../../../../../services/mls.service';
 import {MessageEncryptionState} from '../../../../../enums/message-encryption-state.enum';
 import {toBase64} from '../../../../../helpers/base64.helper';
 import {ProfileDialogService} from '../../../../../services/profile-dialog.service';
+import {ReportDialogService} from '../../../../../services/report-dialog.service';
 import {openUrl} from '@tauri-apps/plugin-opener';
 import {InviteCardComponent} from './invite-card/invite-card.component';
 import {EmbedCardComponent} from './embed-card/embed-card.component';
@@ -326,6 +327,7 @@ export class MessageComponent {
     readonly quickReactions = ['👍', '❤️', '😂'];
     protected readonly openUrl = openUrl;
     protected profileDialogSvc = inject(ProfileDialogService);
+    private reportDialog = inject(ReportDialogService);
     protected readonly replyAuthorName = computed(() => {
         const msg = this.replyMessage();
         if (!msg) return '';
@@ -673,6 +675,25 @@ export class MessageComponent {
 
     confirmDelete(): void {
         this.showDeleteConfirm.set(true);
+    }
+
+    /**
+     * Hands the message to the report dialog, which gathers the surrounding context itself.
+     *
+     * <p>The subject is the message, but the report is against its author - that is what the
+     * server records and what a moderator acts on.</p>
+     */
+    reportMessage(): void {
+        const message = this.message();
+        this.reportDialog.open({
+            kind: 'Message',
+            subjectId: message.id,
+            targetUserId: message.authorId,
+            targetName: this.profileService.getCachedByUserId(message.authorId)?.userName,
+            conversationId: message.conversationId,
+            channelId: message.channelId,
+        });
+        this.longPressMenu.set(false);
     }
 
     deleteMessage(): void {

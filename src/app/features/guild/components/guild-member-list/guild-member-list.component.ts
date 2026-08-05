@@ -7,7 +7,7 @@ import {OnlineStatus} from '../../../../dtos/response/profile.dto';
 import {MemberType} from '../../../../enums/member-type.enum';
 import {GuildService} from '../../../../services/guild.service';
 import {environment} from '../../../../../environments/environment';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Menu} from 'primeng/menu';
 import {MenuItem} from 'primeng/api';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
@@ -29,6 +29,7 @@ import {UserNameStyleDirective} from '../../../../directives/user-name-style.dir
 import {UserNameStyleInput} from '../../../../models/profile-font.model';
 import {BotInstallDialogService} from '../../../bot-install/bot-install-dialog.service';
 import {ProfileDialogService} from '../../../../services/profile-dialog.service';
+import {ReportDialogService} from '../../../../services/report-dialog.service';
 import {BrokenImageService} from '../../../../services/broken-image.service';
 import {HomeStatusBoardComponent} from '../home-status-board/home-status-board.component';
 import {ActivityLineComponent} from '../../../../components/activity-line/activity-line.component';
@@ -78,6 +79,8 @@ export class GuildMemberListComponent implements OnChanges {
     private toastService = inject(ToastService);
     private brokenImages = inject(BrokenImageService);
     private userActivity = inject(UserActivityService);
+    private reportDialog = inject(ReportDialogService);
+    private translate = inject(TranslateService);
     private destroyRef = inject(DestroyRef);
     private readonly TAKE = 50;
     private nextSkip = 0;
@@ -297,10 +300,29 @@ export class GuildMemberListComponent implements OnChanges {
         if (canAct && hasPermission(perms, Permissions.BanMembers)) {
             items.push({label: 'Ban', icon: 'pi pi-ban', styleClass: 'text-rose-400', command: () => this.ban(member)});
         }
+        // Available to everyone, including members with no moderation powers at all - which is
+        // the point: reporting is what you have when you cannot act yourself. Reporting your own
+        // account is a `self_report` refusal, so it is left off your own row.
+        if (member.userId !== own?.userId) {
+            if (items.length > 0) items.push({separator: true});
+            items.push({
+                label: this.translate.instant('REPORT.TITLE_MEMBER'),
+                icon: 'pi pi-flag',
+                command: () => this.report(member),
+            });
+        }
         if (items.length === 0) {
             items.push({label: 'No actions available', disabled: true});
         }
         return items;
+    }
+
+    private report(member: GuildMemberDto): void {
+        this.reportDialog.open({
+            kind: 'User',
+            targetUserId: member.userId,
+            targetName: member.nickname || member.profile?.userName,
+        });
     }
 
     private kick(member: GuildMemberDto): void {

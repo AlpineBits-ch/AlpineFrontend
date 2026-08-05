@@ -1,0 +1,49 @@
+<div class="flex flex-col gap-4">
+
+    <div class="flex flex-col items-center gap-3 text-center">
+        <div class="w-11 h-11 rounded-full flex items-center justify-center
+                    bg-rose-500/[0.12] border border-rose-500/25">
+            <i class="pi pi-ban text-lg text-rose-400"></i>
+        </div>
+        <h2 class="text-base font-semibold text-slate-100">
+            {{ 'LOGIN.BLOCKED.TITLE' | translate }}
+        </h2>
+    </div>
+
+    <div class="flex flex-col gap-2.5 text-[0.8125rem] leading-relaxed text-slate-400">
+        <p>{{ 'LOGIN.BLOCKED.RESTRICTED' | translate }}</p>
+        <p>{{ 'LOGIN.BLOCKED.EMAILED' | translate }}</p>
+        <p>{{ 'LOGIN.BLOCKED.APPEAL_ONCE' | translate }}</p>
+    </div>
+
+    <!-- Only once the server sends it. Monospace and never lowercased: it is meant to be
+         read off the screen and typed into the support site. -->
+    @if (reference()) {
+        <div class="flex items-center justify-between gap-2 rounded-[10px] border border-white/[0.08]
+                    bg-white/[0.04] px-3 py-2">
+            <span class="text-[0.6875rem] uppercase tracking-wide text-slate-500">
+                {{ 'LOGIN.BLOCKED.REFERENCE' | translate }}
+            </span>
+            <span class="font-mono text-[0.8125rem] text-slate-200 select-all">{{ reference() }}</span>
+        </div>
+    }
+
+    <div class="flex gap-2">
+        <p-button (onClick)="appeal()"
+                  [label]="'LOGIN.BLOCKED.APPEAL' | translate"
+                  icon="pi pi-external-link"
+                  styleClass="flex-1 justify-center"/>
+        <p-button (onClick)="contact()"
+                  [label]="'LOGIN.BLOCKED.CONTACT' | translate"
+                  severity="secondary"
+                  styleClass="flex-1 justify-center"/>
+    </div>
+
+    <button (click)="tryAnotherAccount.emit()"
+            class="text-xs text-text-muted hover:text-[var(--color-brand-dim)] transition-colors
+                   self-center bg-transparent border-0 cursor-pointer"
+            type="button">
+        {{ 'LOGIN.BLOCKED.TRY_ANOTHER' | translate }}
+    </button>
+
+</div>
