@@ -178,9 +178,25 @@ export const MessageStore = signalStore(
             patchState(store, upsertEntity(msg));
         },
 
-        /** Replace a pending (optimistic) message with the confirmed server response */
+        /**
+         * Replace a pending (optimistic) message with the confirmed server response.
+         *
+         * <p><b>Removed and re-inserted rather than updated in place, so the entity is keyed by the
+         * id it actually has.</b> `updateEntity` changes the record but not the key it is filed
+         * under, so a confirmed message stayed indexed by its temporary id while its own `id` field
+         * held the server's. Everything that reads the entity map by message id - a realtime echo,
+         * an edit, a delete, a reaction - then missed it and inserted a second copy.</p>
+         *
+         * <p>That is not hypothetical now: the server sends `guild.MessageCreated` to the author's
+         * other devices, and the sending device receives it too. Keyed correctly, that upsert lands
+         * on the message already there and changes nothing. Keyed by a temp id, it would have been
+         * a visible duplicate of everything you send.</p>
+         */
         confirmMessage(tempId: string, confirmed: MessageDto): void {
-            patchState(store, updateEntity({id: tempId, changes: {...confirmed, isPending: false, isFailed: false}}));
+            // Annotated, so `isPending: false` widens to boolean rather than being inferred as the
+            // literal `false` - which upsertEntity rejects against an EntityMap<MessageDto>.
+            const settled: MessageDto = {...confirmed, isPending: false, isFailed: false};
+            patchState(store, removeEntity(tempId), upsertEntity(settled));
         },
 
         /** Mark a pending message as failed */
