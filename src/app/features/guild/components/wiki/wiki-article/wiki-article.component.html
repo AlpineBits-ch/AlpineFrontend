@@ -1,5 +1,24 @@
 <div class="flex flex-col h-full min-w-0">
 
+    <!-- Unsaved draft recovery. Navigating away mid-edit used to lose the work outright. -->
+    @if (pendingDraft(); as draft) {
+        <div class="flex shrink-0 items-center gap-3 border-b border-brand/20 bg-brand/[0.06]
+                    px-6 py-2.5">
+            <i class="pi pi-history text-[0.8125rem] text-brand-dim"></i>
+            <span class="flex-1 text-[0.8125rem] text-white/70">
+                Unsaved changes from {{ draftAge() }}
+            </span>
+            <button (click)="restoreDraft()"
+                    class="cursor-pointer rounded border-0 bg-brand/20 px-3 py-1 text-[0.75rem]
+                           font-medium text-brand-dim hover:bg-brand/30">Restore
+            </button>
+            <button (click)="discardDraft()"
+                    class="cursor-pointer border-0 bg-transparent px-1 text-[0.75rem] text-white/40
+                           hover:text-white/65">Discard
+            </button>
+        </div>
+    }
+
     <!-- Body. This padding is the ONLY padding for both modes: read and edit render the same
          element, so there is no second value that could drift out of step. -->
     <div #scrollEl class="flex-1 min-h-0 overflow-y-auto thin-scrollbar">

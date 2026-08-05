@@ -35,6 +35,7 @@
                                   [canEdit]="true"
                                   [editing]="state.wikiView() === 'editor'"
                                   [pageId]="(state.wikiView() === 'editor' ? state.editingPage()?.id : state.selectedPage()?.id) ?? null"
+                                  [saveStatus]="saveStatus()"
                                   [wiki]="state.wiki()"/>
         }
 
@@ -54,6 +55,7 @@
                 } @else if (state.selectedPage(); as page) {
                     <app-wiki-article #article
                                       (headingsChanged)="headings.set($event)"
+                                      (saveStatusChanged)="saveStatus.set($event)"
                                       (saved)="onEditorSaved($event)"
                                       (wikiLinkClicked)="openLinkedPage($event)"
                                       [editing]="false"
@@ -67,6 +69,7 @@
                 <app-wiki-article #article
                                   (cancelled)="state.cancelEditor()"
                                   (headingsChanged)="headings.set($event)"
+                                      (saveStatusChanged)="saveStatus.set($event)"
                                   (saved)="onEditorSaved($event)"
                                   (wikiLinkClicked)="openLinkedPage($event)"
                                   [editing]="true"

@@ -5,7 +5,7 @@ import {PrimeTemplate} from 'primeng/api';
 import {WikiStateService} from './wiki-state.service';
 import {WikiNavComponent} from './wiki-nav/wiki-nav.component';
 import {WikiArticleComponent} from './wiki-article/wiki-article.component';
-import {WikiBreadcrumbsComponent} from './wiki-breadcrumbs/wiki-breadcrumbs.component';
+import {SaveStatus, WikiBreadcrumbsComponent} from './wiki-breadcrumbs/wiki-breadcrumbs.component';
 import {WikiHistoryComponent} from './wiki-history/wiki-history.component';
 import {WikiHomeComponent} from './wiki-home/wiki-home.component';
 import {WikiPageDto} from '../../../../dtos/response/wiki.dto';
@@ -39,6 +39,7 @@ export class WikiComponent {
     /** Fed by the article as its document changes; consumed by the context rail's TOC. */
     protected readonly headings = signal<Heading[]>([]);
     protected readonly searchOpen = signal(false);
+    protected readonly saveStatus = signal<SaveStatus>('idle');
     protected readonly showDeleteDialog = signal(false);
     protected readonly deleting = signal(false);
     /** The live article, so the breadcrumb bar's Save can reach into the editor. */

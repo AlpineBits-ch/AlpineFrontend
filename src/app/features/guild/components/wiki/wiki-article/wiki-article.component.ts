@@ -17,6 +17,8 @@ import {WikiService} from '../../../../../services/wiki.service';
 import {FileService} from '../../../../../services/file.service';
 import {Heading} from '../wiki-toc';
 import {parseWikiHref, wikiHref} from '../wiki-links';
+import {WikiDraft, WikiDraftsService} from '../wiki-drafts.service';
+import {WikiStateService} from '../wiki-state.service';
 import {wikiExtensions} from './wiki-extensions';
 import {SuggestState, wikiSuggestPlugin} from './wiki-suggest.plugin';
 import {WikiBubbleMenuComponent} from './wiki-bubble-menu.component';
@@ -41,6 +43,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     readonly headingsChanged = output<Heading[]>();
     readonly wikiLinkClicked = output<string>();
     readonly dirtyChanged = output<boolean>();
+    readonly saveStatusChanged = output<'idle' | 'draft' | 'saving' | 'saved'>();
 
     @ViewChild('editorEl') editorEl?: ElementRef<HTMLDivElement>;
     @ViewChild('fileInputEl') fileInputEl?: ElementRef<HTMLInputElement>;
@@ -55,8 +58,13 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     protected readonly suggestQuery = signal('');
     protected readonly suggestPosition = signal({top: 0, left: 0});
 
+    protected readonly pendingDraft = signal<WikiDraft | null>(null);
+
     private readonly wikiService = inject(WikiService);
     private readonly fileService = inject(FileService);
+    private readonly drafts = inject(WikiDraftsService);
+    private readonly wikiState = inject(WikiStateService);
+    private draftTimer?: ReturnType<typeof setTimeout>;
     private editor?: Editor;
     private clickHandler?: (e: MouseEvent) => void;
     private keydownHandler?: (e: KeyboardEvent) => void;
@@ -68,6 +76,18 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             const page = this.page();
             this.title.set(page?.title ?? '');
             if (this.editor) this.setContent(page?.content ?? '');
+
+            const existing = this.drafts.read(this.guildId(), page?.id ?? null);
+            // Suppressed while a remote conflict is showing: two competing "your content is
+            // stale" banners stacked on top of each other is worse than either alone.
+            const remoteConflict = this.wikiState.pendingRemoteUpdate()?.id === page?.id;
+            this.pendingDraft.set(
+                existing
+                && !remoteConflict
+                && this.drafts.divergesFrom(existing, page?.title ?? '', page?.content ?? '')
+                    ? existing
+                    : null,
+            );
         });
 
         effect(() => {
@@ -104,6 +124,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
                 this.dirtyChanged.emit(true);
                 this.emitHeadings();
                 this.markBrokenLinks();
+                this.scheduleDraft();
             },
             onSelectionUpdate: () => this.bubbleMenu?.sync(),
         });
@@ -124,6 +145,11 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         // Captured, so arrow keys drive the open menu instead of moving the caret out from
         // under it. Only consumed while a menu is actually open.
         this.keydownHandler = (event: KeyboardEvent) => {
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+                event.preventDefault();
+                this.save();
+                return;
+            }
             if (event.key === 'Escape') {
                 if (this.slashOpen() || this.linkMenuOpen()) {
                     event.preventDefault();
@@ -138,6 +164,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     }
 
     ngOnDestroy(): void {
+        clearTimeout(this.draftTimer);
         const el = this.editorEl?.nativeElement;
         if (el && this.clickHandler) el.removeEventListener('click', this.clickHandler);
         if (el && this.keydownHandler) el.removeEventListener('keydown', this.keydownHandler, true);
@@ -151,6 +178,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     save(): void {
         if (this.saving() || !this.title().trim()) return;
         this.saving.set(true);
+        this.saveStatusChanged.emit('saving');
         const base = {title: this.title().trim(), content: this.markdown()};
         const editingId = this.page()?.id;
         const request = editingId
@@ -160,10 +188,63 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             next: page => {
                 this.saving.set(false);
                 this.dirtyChanged.emit(false);
+                // The draft has been published, so keeping it would offer to "restore" content
+                // identical to what is now on the server.
+                this.drafts.clear(this.guildId(), editingId ?? null);
+                this.pendingDraft.set(null);
+                this.saveStatusChanged.emit('saved');
                 this.saved.emit(page);
             },
-            error: () => this.saving.set(false),
+            error: () => {
+                this.saving.set(false);
+                // Back to 'draft', not 'idle': the local copy is still there and still the
+                // user's only record of the edit.
+                this.saveStatusChanged.emit('draft');
+            },
         });
+    }
+
+    protected restoreDraft(): void {
+        const draft = this.pendingDraft();
+        if (!draft) return;
+        this.title.set(draft.title);
+        this.setContent(draft.content);
+        this.pendingDraft.set(null);
+    }
+
+    protected discardDraft(): void {
+        this.drafts.clear(this.guildId(), this.page()?.id ?? null);
+        this.pendingDraft.set(null);
+    }
+
+    protected draftAge(): string {
+        const savedAt = this.pendingDraft()?.savedAt;
+        if (!savedAt) return '';
+        const minutes = Math.floor((Date.now() - savedAt) / 60000);
+        if (minutes < 1) return 'just now';
+        if (minutes < 60) return `${minutes}m ago`;
+        const hours = Math.floor(minutes / 60);
+        return hours < 24 ? `${hours}h ago` : `${Math.floor(hours / 24)}d ago`;
+    }
+
+    /** Debounced so a burst of typing costs one write, not one per keystroke. */
+    private scheduleDraft(): void {
+        if (!this.editing()) return;
+        clearTimeout(this.draftTimer);
+        this.draftTimer = setTimeout(() => {
+            const page = this.page();
+            this.drafts.write(this.guildId(), page?.id ?? null, {
+                title: this.title(),
+                content: this.markdown(),
+                tags: [...(page?.tags ?? [])],
+                isPinned: page?.isPinned ?? false,
+                categoryId: page?.categoryId,
+                parentPageId: page?.parentPageId,
+                baseUpdatedAt: page?.updatedAt ? String(page.updatedAt) : null,
+                savedAt: Date.now(),
+            });
+            this.saveStatusChanged.emit('draft');
+        }, 800);
     }
 
     /** Removes the trigger text before running a block command, so "/table" does not survive. */
