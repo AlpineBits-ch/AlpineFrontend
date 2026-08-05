@@ -1,5 +1,4 @@
 import {Component, computed, effect, inject, signal, ViewChild} from '@angular/core';
-import {NgClass} from '@angular/common';
 import {ProfileService} from "../../../../services/profile.service";
 import {AppAvatarComponent} from "../../../../components/avatar/avatar.component";
 import {Button} from "primeng/button";
@@ -18,6 +17,9 @@ import {AccountSwitchService} from "../../../../services/account-switch.service"
 import {statusLabelKey as labelKeyForStatus} from "../../../../models/online-status.model";
 import {UserStatusDotComponent} from "../../../../components/user-status-dot/user-status-dot.component";
 import {SelfActivityCardComponent} from "../self-activity-card/self-activity-card.component";
+import {VoiceToggleComponent} from "../voice-toggle/voice-toggle.component";
+import {MediaDeviceCatalogService} from "../../../../services/media-device-catalog.service";
+import {AudioSettingsService} from "../../../../services/audio-settings.service";
 
 @Component({
     selector: 'app-quick-settings',
@@ -31,7 +33,7 @@ import {SelfActivityCardComponent} from "../self-activity-card/self-activity-car
         SelfProfilePopoverComponent,
         UserStatusDotComponent,
         SelfActivityCardComponent,
-        NgClass,
+        VoiceToggleComponent,
         TranslateModule,
     ],
     templateUrl: './quick-settings.component.html',
@@ -44,6 +46,8 @@ export class QuickSettingsComponent {
     protected userService = inject(UserService);
     protected websocketService = inject(MessagingWebsocketService);
     protected voiceSvc = inject(VoiceChannelService);
+    protected catalog = inject(MediaDeviceCatalogService);
+    protected audio = inject(AudioSettingsService);
     protected readonly UserType = UserType;
 
     /**
@@ -98,6 +102,12 @@ export class QuickSettingsComponent {
 
     public openProfileSettings(): void {
         this.settingsModal.selectPage('profile');
+        this.isSettingsOpen.set(true);
+    }
+
+    /** The escape hatch at the bottom of both device menus, for everything a chevron cannot hold. */
+    public openVoiceSettings(): void {
+        this.settingsModal.selectPage('voice-video');
         this.isSettingsOpen.set(true);
     }
 

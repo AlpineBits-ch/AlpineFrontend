@@ -1,0 +1,25 @@
+<!-- Toggle and chevron read as one control: a single rounded shell, a hairline between them, and
+     no gap. Two separate buttons side by side would look like two features. -->
+<div class="flex items-center shrink-0 rounded-lg overflow-hidden">
+
+    <button type="button" (click)="toggled.emit()" [title]="label() | translate"
+            [class]="active()
+                ? 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25'
+                : 'text-text-secondary hover:bg-white/[0.06] hover:text-text-primary'"
+            class="w-8 h-8 flex items-center justify-center border-0 cursor-pointer
+                   transition-colors duration-[120ms] ease-out">
+        <i [class]="'pi ' + (active() ? activeIcon() : icon())" style="font-size: 1.125rem"></i>
+    </button>
+
+    <button type="button" (click)="openMenu($event)" [title]="deviceLabel() | translate"
+            [class]="active()
+                ? 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25'
+                : 'text-text-muted hover:bg-white/[0.06] hover:text-text-primary'"
+            class="w-4 h-8 flex items-center justify-center border-0 cursor-pointer
+                   transition-colors duration-[120ms] ease-out">
+        <i class="pi pi-chevron-down" style="font-size: 0.5rem"></i>
+    </button>
+
+</div>
+
+<p-menu #menu [model]="menuItems()" [popup]="true" appendTo="body"/>

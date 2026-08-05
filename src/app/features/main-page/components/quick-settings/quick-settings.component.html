@@ -56,30 +56,28 @@
         }
         <app-self-profile-popover (addAccount)="startAddAccount()" (editProfile)="openProfileSettings()"/>
 
-        <!-- Mute (only when in voice) -->
-        @if (voiceSvc.isInVoice()) {
-            <button
-                    (click)="voiceSvc.toggleMute()"
-                    [ngClass]="voiceSvc.localState().isMuted
-          ? 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25'
-          : 'text-text-secondary hover:bg-white/[0.06] hover:text-text-primary'"
-                    [title]="(voiceSvc.localState().isMuted ? 'QUICK_SETTINGS.UNMUTE' : 'QUICK_SETTINGS.MUTE') | translate"
-                    class="w-8 h-8 flex items-center justify-center rounded-lg transition-colors duration-[120ms] ease-out cursor-pointer border-0 shrink-0">
-                <i [ngClass]="voiceSvc.localState().isMuted ? 'pi-microphone-slash' : 'pi-microphone'"
-                   class="pi" style="font-size: 1.125rem"></i>
-            </button>
+        <!-- Always present, in a call or not. Mute is a statement about this machine's microphone,
+             so hiding the control outside a call both changed the row's shape on join and left no
+             way to arrive in a channel already muted. -->
+        <app-voice-toggle
+                [active]="voiceSvc.localState().isMuted"
+                icon="pi-microphone" activeIcon="pi-microphone-slash"
+                [label]="voiceSvc.localState().isMuted ? 'QUICK_SETTINGS.UNMUTE' : 'QUICK_SETTINGS.MUTE'"
+                deviceLabel="QUICK_SETTINGS.INPUT_DEVICE"
+                [devices]="catalog.mics()" [selected]="audio.settings().micId"
+                (toggled)="voiceSvc.toggleMute()"
+                (deviceChosen)="audio.update({micId: $event})"
+                (openSettings)="openVoiceSettings()"/>
 
-            <!-- Deafen (only when in voice) -->
-            <button
-                    (click)="voiceSvc.toggleDeafen()"
-                    [ngClass]="voiceSvc.localState().isDeafened
-          ? 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25'
-          : 'text-text-secondary hover:bg-white/[0.06] hover:text-text-primary'"
-                    [title]="(voiceSvc.localState().isDeafened ? 'QUICK_SETTINGS.UNDEAFEN' : 'QUICK_SETTINGS.DEAFEN') | translate"
-                    class="w-8 h-8 flex items-center justify-center rounded-lg transition-colors duration-[120ms] ease-out cursor-pointer border-0 shrink-0">
-                <i class="pi pi-volume-off" style="font-size: 1.125rem"></i>
-            </button>
-        }
+        <app-voice-toggle
+                [active]="voiceSvc.localState().isDeafened"
+                icon="pi-volume-up" activeIcon="pi-volume-off"
+                [label]="voiceSvc.localState().isDeafened ? 'QUICK_SETTINGS.UNDEAFEN' : 'QUICK_SETTINGS.DEAFEN'"
+                deviceLabel="QUICK_SETTINGS.OUTPUT_DEVICE"
+                [devices]="catalog.speakers()" [selected]="audio.settings().speakerId"
+                (toggled)="voiceSvc.toggleDeafen()"
+                (deviceChosen)="audio.update({speakerId: $event})"
+                (openSettings)="openVoiceSettings()"/>
 
         <!-- Admin (only for Admin users) -->
         @if (userService.self()?.userType === UserType.Admin) {
