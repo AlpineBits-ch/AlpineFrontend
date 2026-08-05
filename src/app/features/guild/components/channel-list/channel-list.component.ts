@@ -16,7 +16,6 @@ import {NgClass} from '@angular/common';
 import {Menu} from 'primeng/menu';
 import {ContextMenu} from 'primeng/contextmenu';
 import {Button} from 'primeng/button';
-import {Tooltip} from 'primeng/tooltip';
 import {Dialog} from 'primeng/dialog';
 import {InputText} from 'primeng/inputtext';
 import {MenuItem, PrimeTemplate} from 'primeng/api';
@@ -58,6 +57,9 @@ import {
 } from './components/channel-drop-indicator/channel-drop-indicator.component';
 import {ChannelsAndRolesModalComponent} from '../channels-and-roles/channels-and-roles-modal.component';
 import {GuildOnboardingStateService} from '../../../../services/guild-onboarding-state.service';
+import {ScheduledEventStore} from '../../../../stores/scheduled-event.store';
+import {MinuteClockService} from '../../../../services/minute-clock.service';
+import {phaseOf} from '../events-panel/event-timing';
 
 @Component({
     selector: 'app-channel-list',
@@ -67,7 +69,6 @@ import {GuildOnboardingStateService} from '../../../../services/guild-onboarding
         Menu,
         ContextMenu,
         Button,
-        Tooltip,
         Dialog,
         InputText,
         ChannelListItemsComponent,
@@ -117,6 +118,15 @@ export class ChannelListComponent {
         [...this.localCategories()].sort((a, b) => a.position - b.position)
     );
     protected isWikiActive = computed(() => this.navService.wikiPanelGuildId() !== null);
+    // ── Events ────────────────────────────────────────────────────────────────
+    private eventStore = inject(ScheduledEventStore);
+    private minuteClock = inject(MinuteClockService);
+    protected isEventsActive = computed(() => this.navService.eventsPanelGuildId() === this.guild().id);
+    private guildEvents = computed(() => this.eventStore.eventsForGuild(this.guild().id));
+    protected hasLiveEvent = computed(() =>
+        this.guildEvents().some(e => phaseOf(e, this.minuteClock.now()) === 'live'));
+    protected upcomingEventCount = computed(() =>
+        this.guildEvents().filter(e => phaseOf(e, this.minuteClock.now()) === 'upcoming').length);
     // ── Modules ───────────────────────────────────────────────────────────────
     // Hidden, not disabled: a module that's off should be absent from navigation.
     // Existing channels of a disabled type stay put - switching Forums off blocks
@@ -256,6 +266,21 @@ export class ChannelListComponent {
             // Re-runs when guild.MemberUpdated says our own roles changed.
             this.ownMemberRevision.revision();
             this.guildService.getOwnMember(guildId).subscribe(m => this.ownMember.set(m));
+        });
+
+        this.minuteClock.retain();
+
+        // The Events row's count and live badge have to be truthful before the panel has ever been
+        // opened, so the list is fetched here rather than only by the panel. `loadFor` is idempotent
+        // inside its TTL, so the panel's own effect becomes a no-op instead of a second request.
+        //
+        // It also makes the guild `isTracked` in the store, which is what
+        // `applyRealtimeCreatedOrUpdated` gates on - without this, an event someone else creates is
+        // dropped on the floor until you have opened the panel at least once.
+        effect(() => {
+            const guildId = this.guild().id;
+            if (!this.hasEvents()) return;
+            untracked(() => this.eventStore.loadFor(guildId));
         });
 
         // Switching a module off while its panel is open would strand that panel in a

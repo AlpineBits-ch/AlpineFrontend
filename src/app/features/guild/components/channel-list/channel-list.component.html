@@ -10,23 +10,47 @@
         </button>
     </div>
 
-    <!-- Wiki quick-link + events. Both are modules: absent when switched off, never greyed out. -->
+    <!-- Wiki quick-link + events. Both are modules: absent when switched off, never greyed out.
+         Stacked rather than sharing a row - Events carries a label, a count and a live badge, none
+         of which fit beside the Wiki link. -->
     @if (hasWiki() || hasEvents()) {
-        <div class="px-2 pt-2 shrink-0 flex items-center gap-1 mb-1">
+        <div class="px-2 pt-2 shrink-0 flex flex-col gap-0.5 mb-1">
             @if (hasWiki()) {
                 <button (click)="openWiki()"
                         [ngClass]="isWikiActive() ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-                        class="flex-1 flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer">
+                        class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer">
                     <i [ngClass]="isWikiActive() ? 'text-brand-dim' : 'text-white/35'"
                        class="pi pi-book text-[13px] shrink-0"></i>
                     <span class="text-[15px] font-medium">{{ 'GUILD.WIKI' | translate }}</span>
                 </button>
-            } @else {
-                <span class="flex-1"></span>
             }
             @if (hasEvents()) {
-                <p-button (onClick)="toggleEvents()" [pTooltip]="'EVENTS.TITLE' | translate" [text]="true"
-                          icon="pi pi-calendar" severity="secondary" size="small" tooltipPosition="bottom"/>
+                <button (click)="toggleEvents()"
+                        [ngClass]="isEventsActive() ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
+                        class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer">
+                    <i [ngClass]="isEventsActive() ? 'text-brand-dim' : 'text-white/35'"
+                       class="pi pi-calendar text-[13px] shrink-0"></i>
+                    <span class="text-[15px] font-medium">{{ 'EVENTS.TITLE' | translate }}</span>
+
+                    <!-- Live wins over the count: "something is on right now" is the more urgent of
+                         the two, and both together is noise in a row this size. -->
+                    @if (hasLiveEvent()) {
+                        <span class="ml-auto shrink-0 flex items-center gap-1.5">
+                            <span class="relative flex size-1.5">
+                                <span class="absolute inline-flex size-full animate-ping rounded-full bg-online opacity-60 motion-reduce:hidden"></span>
+                                <span class="relative inline-flex size-full rounded-full bg-online"></span>
+                            </span>
+                            <span class="text-[0.625rem] font-semibold uppercase tracking-widest text-online">
+                                {{ 'EVENTS.LIVE' | translate }}
+                            </span>
+                        </span>
+                    } @else if (upcomingEventCount() > 0) {
+                        <span class="ml-auto shrink-0 min-w-5 rounded-full bg-white/[0.08] px-1.5 py-0.5
+                                     text-center text-[0.625rem] font-semibold text-white/60">
+                            {{ upcomingEventCount() }}
+                        </span>
+                    }
+                </button>
             }
         </div>
     }
