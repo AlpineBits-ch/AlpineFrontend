@@ -3499,6 +3499,322 @@ git commit -m "chore(i18n): bump locales for wiki strings"
 
 ---
 
+### Task 20: AI-assisted page drafting
+
+Client-side only. The user connects their own OpenAI, Gemini or Anthropic account and drafts a page
+from a prompt. **No key ever reaches the Echo server**, and no server change is involved.
+
+**Dependency exception.** This task adds `@anthropic-ai/sdk`, `openai`, and
+`@google/genai` — the three official SDKs. This is a deliberate carve-out from the plan's
+no-new-dependencies rule, which was scoped to the editor work. Hand-rolling three providers' HTTP,
+streaming, and error shapes is more code and more drift than three well-maintained clients. If the
+bundle cost is unacceptable, the fallback is `fetch` against all three REST APIs.
+
+**Files:**
+- Create: `src/app/services/ai-credentials.service.ts`
+- Create: `src/app/services/ai-provider.ts` (types + provider registry, pure)
+- Create: `src/app/services/ai-providers/anthropic.provider.ts`
+- Create: `src/app/services/ai-providers/openai.provider.ts`
+- Create: `src/app/services/ai-providers/gemini.provider.ts`
+- Create: `src/app/features/settings/settings-modal/pages/ai-settings/ai-settings.component.*`
+- Create: `src/app/features/guild/components/wiki/wiki-ai/wiki-ai-dialog.component.*`
+- Test: `src/app/services/ai-provider.spec.ts`
+- Test: `src/app/services/ai-credentials.service.spec.ts`
+- Modify: `src/app/features/guild/components/wiki/wiki-breadcrumbs/wiki-breadcrumbs.component.*`
+
+**Interfaces:**
+- Consumes: `secureStorage` from `tauri-plugin-secure-storage-api` (the pattern already used in `mls.service.ts:765`).
+- Produces: `type AiProviderId = 'anthropic' | 'openai' | 'gemini'`, `interface AiDraftRequest {prompt: string; title: string; existingContent: string; pageTitles: readonly string[]}`, `interface AiProvider {id: AiProviderId; label: string; defaultModel: string; draft(req: AiDraftRequest, apiKey: string, model: string, signal: AbortSignal): AsyncIterable<string>}`, `buildDraftPrompt(req: AiDraftRequest): string`, `AI_PROVIDERS: Record<AiProviderId, AiProvider>`, and `AiCredentialsService`.
+
+- [ ] **Step 1: Write the failing test for the pure prompt builder**
+
+The prompt builder is the only part worth unit-testing — the providers are thin SDK wrappers.
+Create `src/app/services/ai-provider.spec.ts`:
+
+```ts
+import {buildDraftPrompt} from './ai-provider';
+
+const base = {prompt: 'document the deploy process', title: 'Deploys', existingContent: '', pageTitles: []};
+
+describe('buildDraftPrompt', () => {
+    it('includes the user prompt and the page title', () => {
+        const out = buildDraftPrompt(base);
+        expect(out).toContain('document the deploy process');
+        expect(out).toContain('Deploys');
+    });
+
+    it('includes existing content when the page is not empty', () => {
+        expect(buildDraftPrompt({...base, existingContent: '## Current steps'}))
+            .toContain('## Current steps');
+    });
+
+    // An empty page must not send an empty "existing content" section - it reads to the model
+    // as "the page exists and is blank on purpose".
+    it('omits the existing-content section entirely for a blank page', () => {
+        expect(buildDraftPrompt(base).toLowerCase()).not.toContain('existing content');
+    });
+
+    it('lists sibling page titles so the model can reference them', () => {
+        expect(buildDraftPrompt({...base, pageTitles: ['Setup', 'Rollback']}))
+            .toContain('Rollback');
+    });
+
+    it('omits the sibling list when there are no other pages', () => {
+        expect(buildDraftPrompt(base).toLowerCase()).not.toContain('other pages');
+    });
+
+    // The output is fed straight into a markdown editor, so a model that wraps its answer in a
+    // code fence would produce a page that renders as one big code block.
+    it('tells the model to return bare markdown', () => {
+        expect(buildDraftPrompt(base).toLowerCase()).toContain('markdown');
+    });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Run: `./node_modules/.bin/ng test --include=src/app/services/ai-provider.spec.ts --watch=false`
+Expected: FAIL — cannot resolve `./ai-provider`.
+
+- [ ] **Step 3: Write the provider contract and prompt builder**
+
+Create `src/app/services/ai-provider.ts`:
+
+```ts
+export type AiProviderId = 'anthropic' | 'openai' | 'gemini';
+
+export interface AiDraftRequest {
+    /** What the user asked for. */
+    prompt: string;
+    title: string;
+    /** Current page body; empty for a new page. */
+    existingContent: string;
+    /** Other page titles in this wiki, so the model can reference real pages. */
+    pageTitles: readonly string[];
+}
+
+export interface AiProvider {
+    id: AiProviderId;
+    label: string;
+    defaultModel: string;
+    /** Streams the draft in chunks so the editor fills in as it generates. */
+    draft(
+        req: AiDraftRequest,
+        apiKey: string,
+        model: string,
+        signal: AbortSignal,
+    ): AsyncIterable<string>;
+}
+
+export const AI_SYSTEM_PROMPT = [
+    'You write documentation pages for a team wiki.',
+    'Return the page body as bare GitHub-flavoured Markdown - no code fence around the whole',
+    'answer, no preamble, no sign-off. Do not repeat the page title as a heading; it is rendered',
+    'separately. Prefer short sections with `##` headings, and keep the tone factual.',
+].join(' ');
+
+export function buildDraftPrompt(req: AiDraftRequest): string {
+    const parts = [`Page title: ${req.title || 'Untitled'}`, '', `Request: ${req.prompt}`];
+
+    // Both sections are omitted rather than sent empty: an empty "existing content" block
+    // reads as "this page is deliberately blank", and an empty page list as "this wiki has
+    // no other pages", neither of which is what an absent value means.
+    if (req.existingContent.trim()) {
+        parts.push('', 'Existing content to revise:', '', req.existingContent);
+    }
+    if (req.pageTitles.length) {
+        parts.push('', `Other pages in this wiki: ${req.pageTitles.join(', ')}`);
+    }
+    return parts.join('\n');
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+
+Run: `./node_modules/.bin/ng test --include=src/app/services/ai-provider.spec.ts --watch=false`
+Expected: PASS, 6 tests.
+
+- [ ] **Step 5: Store keys in the OS keychain, not localStorage**
+
+Create `src/app/services/ai-credentials.service.ts`:
+
+```ts
+import {Injectable, signal} from '@angular/core';
+import {secureStorage} from 'tauri-plugin-secure-storage-api';
+import {AiProviderId} from './ai-provider';
+
+const PROVIDER_KEY = 'wiki-ai-provider';
+const MODEL_KEY = 'wiki-ai-model';
+
+/**
+ * API keys go in the OS keychain via tauri-plugin-secure-storage, the same store the MLS
+ * identity keys use - never localStorage. A provider key is a bearer credential for the user's
+ * own billing account: anything that can read localStorage could spend their money.
+ *
+ * Nothing here is ever sent to the Echo server. The provider is called directly from the client.
+ */
+@Injectable({providedIn: 'root'})
+export class AiCredentialsService {
+    /** Which providers currently have a key stored. Drives the settings UI. */
+    readonly configured = signal<ReadonlySet<AiProviderId>>(new Set());
+
+    async setKey(provider: AiProviderId, key: string): Promise<void> {
+        await secureStorage.setItem(this.slot(provider), key);
+        this.configured.update(set => new Set(set).add(provider));
+    }
+
+    async getKey(provider: AiProviderId): Promise<string | null> {
+        try {
+            return await secureStorage.getItem(this.slot(provider));
+        } catch {
+            // A locked or unavailable keychain reads as "not configured" rather than throwing
+            // into the draft flow.
+            return null;
+        }
+    }
+
+    async clearKey(provider: AiProviderId): Promise<void> {
+        await secureStorage.setItem(this.slot(provider), '');
+        this.configured.update(set => {
+            const next = new Set(set);
+            next.delete(provider);
+            return next;
+        });
+    }
+
+    /** Refreshes `configured` at startup; keys themselves are never held in memory. */
+    async refresh(): Promise<void> {
+        const found = new Set<AiProviderId>();
+        for (const id of ['anthropic', 'openai', 'gemini'] as const) {
+            const key = await this.getKey(id);
+            if (key) found.add(id);
+        }
+        this.configured.set(found);
+    }
+
+    selectedProvider(): AiProviderId | null {
+        const stored = localStorage.getItem(PROVIDER_KEY);
+        return stored === 'anthropic' || stored === 'openai' || stored === 'gemini' ? stored : null;
+    }
+
+    /** Provider choice and model name are not secrets - only the key is. */
+    selectProvider(provider: AiProviderId, model: string): void {
+        localStorage.setItem(PROVIDER_KEY, provider);
+        localStorage.setItem(MODEL_KEY, model);
+    }
+
+    selectedModel(fallback: string): string {
+        return localStorage.getItem(MODEL_KEY) || fallback;
+    }
+
+    private slot(provider: AiProviderId): string {
+        return `wiki-ai-key-${provider}`;
+    }
+}
+```
+
+Write `ai-credentials.service.spec.ts` mocking `tauri-plugin-secure-storage-api` with `vi.mock`,
+covering: a stored key round-trips; `configured` updates on set and clear; `getKey` returns null
+when the keychain throws; `selectedProvider` rejects a garbage localStorage value.
+
+- [ ] **Step 6: Write the Anthropic provider**
+
+```bash
+bun add @anthropic-ai/sdk openai @google/genai
+```
+
+Create `src/app/services/ai-providers/anthropic.provider.ts`:
+
+```ts
+import Anthropic from '@anthropic-ai/sdk';
+import {AI_SYSTEM_PROMPT, AiDraftRequest, AiProvider, buildDraftPrompt} from '../ai-provider';
+
+export const anthropicProvider: AiProvider = {
+    id: 'anthropic',
+    label: 'Claude',
+    defaultModel: 'claude-opus-5',
+
+    async* draft(req: AiDraftRequest, apiKey: string, model: string, signal: AbortSignal) {
+        // The key is the user's own, held in the OS keychain and used from their own machine -
+        // this is a desktop app, not a web page serving other people's browsers, so the usual
+        // reason this flag exists (leaking a server-side key to every visitor) does not apply.
+        const client = new Anthropic({apiKey, dangerouslyAllowBrowser: true});
+
+        // Streaming, not create(): thinking is on by default on Opus 5 and counts against
+        // max_tokens, so a page-length answer is well past the point where a non-streaming
+        // request risks an HTTP timeout.
+        const stream = client.messages.stream({
+            model,
+            max_tokens: 16000,
+            system: AI_SYSTEM_PROMPT,
+            messages: [{role: 'user', content: buildDraftPrompt(req)}],
+        }, {signal});
+
+        for await (const event of stream) {
+            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+                yield event.delta.text;
+            }
+        }
+
+        // A refusal returns a normal 200 with no usable text; surfacing it as an error is more
+        // honest than leaving the editor mysteriously empty.
+        const final = await stream.finalMessage();
+        if (final.stop_reason === 'refusal') {
+            throw new Error('Claude declined this request.');
+        }
+    },
+};
+```
+
+Write `openai.provider.ts` and `gemini.provider.ts` to the same shape — `new OpenAI({apiKey,
+dangerouslyAllowBrowser: true})` with `chat.completions.create({stream: true})` yielding
+`chunk.choices[0]?.delta?.content`, and `new GoogleGenAI({apiKey})` with
+`models.generateContentStream` yielding `chunk.text`. Export all three from
+`AI_PROVIDERS` in `ai-provider.ts`.
+
+- [ ] **Step 7: Settings page**
+
+Add an `ai-settings` page to the settings modal alongside the existing pages: a provider select, a
+password-type key input per provider showing `••••••••` when one is stored (never the value — the
+service has no read-for-display path), a model input defaulting to `defaultModel`, Save and Remove
+buttons, and a short note stating plainly that keys are stored in the OS keychain, are never sent
+to the Echo server, and that requests go directly from this device to the provider and are billed
+to the user's own account.
+
+- [ ] **Step 8: The draft dialog**
+
+Create `wiki-ai/wiki-ai-dialog.component.*`: a `p-dialog` with a prompt textarea, a Generate
+button, a live-updating preview of the streamed markdown, and Cancel / Insert / Replace actions.
+Cancel aborts via `AbortController`. Insert appends at the cursor; Replace swaps the whole body —
+**both go through the normal editor transaction**, so the result is undoable with ⌘Z and autosaves
+as a draft like any other edit. Never save directly to the server.
+
+Add an AI button to the breadcrumb bar, shown only when `abilities().canEditAny || canEditOwn` and
+a provider is configured — a generate action on a page you cannot save is a dead end.
+
+- [ ] **Step 9: Verify**
+
+Run: `./node_modules/.bin/ng test --include=src/app/services/ai-provider.spec.ts --watch=false`
+Run: `./node_modules/.bin/ng test --include=src/app/services/ai-credentials.service.spec.ts --watch=false`
+Expected: PASS.
+
+Run: `./node_modules/.bin/ng build --configuration development`
+Expected: build succeeds.
+
+In the app: add a key in settings, confirm reopening settings shows it as configured but never
+displays the value. Generate a page and confirm text streams into the preview, Cancel stops it
+mid-stream, Insert lands in the editor, and ⌘Z undoes it in one step. Confirm the AI button is
+absent for a member without edit permission.
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add package.json bun.lock src/app/services src/app/features
+git commit -m "feat(wiki): draft pages with a user-supplied AI provider key"
+```
+
+---
+
 ## Post-implementation
 
 - [ ] Run the full suite: `./node_modules/.bin/ng test --watch=false`
