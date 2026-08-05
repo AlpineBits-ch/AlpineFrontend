@@ -3,6 +3,7 @@ import {WikiDto, WikiPageDto, WikiPageSummaryDto} from '../../../../dtos/respons
 import {WikiService} from '../../../../services/wiki.service';
 import {WikiView} from './wiki.types';
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
+import {WikiContentCacheService} from './wiki-content-cache.service';
 
 @Injectable({providedIn: 'root'})
 export class WikiStateService {
@@ -16,6 +17,7 @@ export class WikiStateService {
     readonly pendingRemoteUpdate = signal<WikiPageDto | null>(null);
     private readonly wikiService = inject(WikiService);
     private readonly ws = inject(GuildWebsocketService);
+    private readonly contentCache = inject(WikiContentCacheService);
     private suppressNextPageRefresh = false;
 
     constructor() {
@@ -27,6 +29,9 @@ export class WikiStateService {
         this.ws.wikiPageUpdatedObservable.subscribe(e => {
             if (e.guildId !== this.guildId()) return;
             this.loadWiki(this.guildId());
+            // A cache nothing invalidates goes stale, and stale bodies produce a backlink index
+            // pointing at links that are no longer there.
+            this.contentCache.invalidate(e.pageId);
 
             if (this.wikiView() === 'page' && this.selectedPage()?.id === e.pageId) {
                 if (this.suppressNextPageRefresh) {
@@ -54,6 +59,7 @@ export class WikiStateService {
 
         this.ws.wikiPageDeletedObservable.subscribe(e => {
             if (e.guildId !== this.guildId()) return;
+            this.contentCache.invalidate(e.pageId);
             const affectsSelected = this.selectedPage()?.id === e.pageId;
             const affectsEditing = this.editingPage()?.id === e.pageId;
             if (affectsSelected || affectsEditing) {
@@ -90,6 +96,8 @@ export class WikiStateService {
             this.editingPage.set(null);
             this.pendingRemoteUpdate.set(null);
             this.pageLoading.set(false);
+            // One guild's bodies must never be searched under another guild's name.
+            this.contentCache.reset();
         }
         this.loadWiki(guildId);
     }
@@ -108,6 +116,9 @@ export class WikiStateService {
             next: page => {
                 this.selectedPage.set(page);
                 this.pageLoading.set(false);
+                // Opportunistic fill: the body is already in hand, so caching it costs nothing
+                // and shrinks what a later full warm has to cover.
+                this.contentCache.put(page.id, page.content ?? '');
             },
             error: () => {
                 this.pageLoading.set(false);

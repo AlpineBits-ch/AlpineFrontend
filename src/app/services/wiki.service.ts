@@ -24,6 +24,20 @@ export class WikiService {
         );
     }
 
+    /**
+     * The content-bearing fetch, used to warm the search and backlink index.
+     *
+     * Deliberately not a flag on `getWiki`: that method swallows errors into an empty wiki so the
+     * tree degrades to "no pages yet" rather than a broken view. Reusing it here would turn a
+     * failed warm into a *successful* empty one, and search would report full-text coverage it
+     * does not have. This one lets the error through so the caller can say so.
+     */
+    getWikiWithContent(guildId: string): Observable<WikiDto> {
+        return this.http.get<WikiDto>(`${this.base}/guilds/${guildId}/wiki`, {
+            params: {includeContent: true},
+        });
+    }
+
     getPage(guildId: string, pageId: string): Observable<WikiPageDto> {
         return this.http.get<WikiPageDto>(`${this.base}/guilds/${guildId}/wiki/pages/${pageId}`);
     }

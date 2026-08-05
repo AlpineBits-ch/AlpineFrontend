@@ -15,6 +15,8 @@ export interface WikiPageSummaryDto {
     tags: string[];
     isPinned: boolean;
     revisionCount: number;
+    /** Present only when the wiki was fetched with `includeContent`. */
+    content?: string;
 }
 
 export interface WikiPageDto extends WikiPageSummaryDto {

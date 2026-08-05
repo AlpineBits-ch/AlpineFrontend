@@ -18,6 +18,8 @@ export interface UpdateWikiPageDto {
     visibility?: WikiVisibility;
     tags?: string[];
     isPinned?: boolean;
+    /** Stored on the revision this update creates. Ignored when the content is unchanged. */
+    summary?: string;
 }
 
 export interface CreateWikiCategoryDto {
