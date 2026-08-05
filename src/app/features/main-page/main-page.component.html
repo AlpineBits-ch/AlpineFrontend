@@ -33,12 +33,7 @@
 
         @let view = navService.mainView();
 
-        <!-- Wiki panel (second sidebar, slides in to the right of channels) -->
-        @if (navService.wikiPanelGuildId()) {
-            <app-wiki-panel/>
-        }
-
-        <!-- Events panel (second sidebar, same slot as the wiki panel) -->
+        <!-- Events panel (second sidebar) -->
         @if (navService.eventsPanelGuildId(); as eventsGuildId) {
             <app-events-panel [guildId]="eventsGuildId" [memberPermissions]="eventsMemberPermissions()"/>
         }

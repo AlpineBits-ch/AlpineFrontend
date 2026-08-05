@@ -56,7 +56,6 @@ import {
 import {ConversationService} from "../../services/conversation.service";
 import {RichPresenceService} from "../../services/rich-presence.service";
 import {WikiComponent} from '../guild/components/wiki/wiki.component';
-import {WikiPanelComponent} from '../guild/components/wiki/wiki-panel/wiki-panel.component';
 import {OnboardingGateComponent} from '../guild/components/onboarding-gate/onboarding-gate.component';
 import {EventsPanelComponent} from '../guild/components/events-panel/events-panel.component';
 import {GuildFeature, guildHasFeature} from '../guild/guild-features';
@@ -106,7 +105,6 @@ import {ReportDialogComponent} from '../../components/report-dialog/report-dialo
         KeySetupDialogComponent,
         MasterKeyRecoveryDialogComponent,
         WikiComponent,
-        WikiPanelComponent,
         OnboardingGateComponent,
         AccountOnboardingComponent,
         EventsPanelComponent,

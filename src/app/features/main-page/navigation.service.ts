@@ -38,7 +38,6 @@ export class NavigationService {
     readonly mainView = signal<MainView>({type: 'home'});
     readonly mobileNavOpen = signal(false);
     readonly mobileSection = signal<'conversations' | 'friends'>('conversations');
-    readonly wikiPanelGuildId = signal<string | null>(null);
     readonly eventsPanelGuildId = signal<string | null>(null);
 
     /**
@@ -90,7 +89,6 @@ export class NavigationService {
             const guild = guilds.find(g => g.id === state.guildId);
             if (!guild) return false;
             this.workspace.set({type: 'server', guild});
-            this.wikiPanelGuildId.set(null);
             this.eventsPanelGuildId.set(null);
             // A guild that has since switched its Wiki module off would otherwise restore
             // straight into a wiki with no way back to it in the sidebar.
@@ -130,7 +128,6 @@ export class NavigationService {
         this.workspace.set({type: 'dms'});
         this.mainView.set({type: 'home'});
         this.mobileSection.set('conversations');
-        this.wikiPanelGuildId.set(null);
         this.eventsPanelGuildId.set(null);
         this.saveNav();
     }
@@ -139,7 +136,6 @@ export class NavigationService {
         const current = this.workspace();
         if (current.type === 'server' && current.guild.id === guild.id) return;
         this.workspace.set({type: 'server', guild});
-        this.wikiPanelGuildId.set(null);
         this.eventsPanelGuildId.set(null);
         const first = guild.channels.find(c => c.type === ChannelType.Text) ?? guild.channels[0];
         if (first) this.mainView.set({type: 'channel', channel: first});
@@ -175,15 +171,13 @@ export class NavigationService {
 
     openChannel(channel: ChannelDto): void {
         // A forum post brings its own post-list pane, which lives in the same slot as the
-        // wiki and events panels - see main-page.component.html. Opening one closes those
-        // two, exactly as openWiki closes the events panel. Ordinary channels don't, so
-        // browsing text channels with the wiki panel open still works.
+        // events panel - see main-page.component.html. Opening one closes that panel.
+        // Ordinary channels don't, so browsing text channels with it open still works.
         //
         // This keys on Thread rather than on forumParentOf: openChannel has no channel list
-        // to resolve the parent against, and a non-forum thread closing those panels is
+        // to resolve the parent against, and a non-forum thread closing that panel is
         // harmless.
         if (channel.type === ChannelType.Thread) {
-            this.wikiPanelGuildId.set(null);
             this.eventsPanelGuildId.set(null);
         }
         this.mainView.set({type: 'channel', channel});
@@ -197,11 +191,12 @@ export class NavigationService {
         return view.type === 'channel' && view.channel.id === channelId;
     }
 
+    /**
+     * The wiki is a main view and nothing else. It used to also own a side panel in the same
+     * slot as the events panel, which is why this had to close that panel; it now lays out its
+     * own tree internally, so the two can coexist.
+     */
     openWiki(guildId: string): void {
-        this.wikiPanelGuildId.set(guildId);
-        // Both panels render in the same slot of main-page.component.html, so leaving the
-        // other one open produces a double sidebar. They are mutually exclusive.
-        this.eventsPanelGuildId.set(null);
         const current = this.mainView();
         if (current.type !== 'wiki' || current.guildId !== guildId) {
             this.mainView.set({type: 'wiki', guildId});
@@ -210,32 +205,28 @@ export class NavigationService {
         this.mobileNavOpen.set(false);
     }
 
-    showWikiContent(guildId: string): void {
-        this.mainView.set({type: 'wiki', guildId});
+    /**
+     * Steps off the wiki and back into the guild, used when the Wiki module is switched off
+     * while somebody is looking at it - otherwise they are stranded on a view whose entry point
+     * has just disappeared from the sidebar.
+     */
+    leaveWiki(): void {
+        if (this.mainView().type !== 'wiki') return;
+        const ws = this.workspace();
+        if (ws.type === 'server') {
+            const first = ws.guild.channels.find(c => c.type === ChannelType.Text) ?? ws.guild.channels[0];
+            if (first) this.mainView.set({type: 'channel', channel: first});
+            else this.mainView.set({type: 'home'});
+        } else {
+            this.mainView.set({type: 'home'});
+        }
         this.saveNav();
     }
 
-    closeWikiPanel(): void {
-        this.wikiPanelGuildId.set(null);
-        if (this.mainView().type === 'wiki') {
-            const ws = this.workspace();
-            if (ws.type === 'server') {
-                const first = ws.guild.channels.find(c => c.type === ChannelType.Text) ?? ws.guild.channels[0];
-                if (first) this.mainView.set({type: 'channel', channel: first});
-                else this.mainView.set({type: 'home'});
-            } else {
-                this.mainView.set({type: 'home'});
-            }
-            this.saveNav();
-        }
-    }
-
-    /** Pure toggle -unlike the wiki panel, events have no dedicated main-view route, so opening/closing both go through the same header button. */
+    /** The events panel has no dedicated main view, so opening and closing both go through here. */
     toggleEventsPanel(guildId: string): void {
         const next = this.eventsPanelGuildId() === guildId ? null : guildId;
         this.eventsPanelGuildId.set(next);
-        // Mutually exclusive with the wiki panel -they share the same layout slot.
-        if (next) this.wikiPanelGuildId.set(null);
     }
 
     closeEventsPanel(): void {
@@ -299,9 +290,6 @@ export class NavigationService {
         try {
             this.workspace.set(snap.workspace);
             this.mainView.set(snap.mainView);
-            // The wiki lives in a side panel as well as the main pane, so stepping onto or off a
-            // wiki entry has to move the panel with it or the two disagree about where you are.
-            this.wikiPanelGuildId.set(snap.mainView.type === 'wiki' ? snap.mainView.guildId : null);
             this.eventsPanelGuildId.set(null);
             this.mobileNavOpen.set(false);
             this.saveNav();

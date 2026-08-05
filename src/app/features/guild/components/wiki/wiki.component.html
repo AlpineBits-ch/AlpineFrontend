@@ -1,42 +1,68 @@
-<div class="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
-    @switch (state.wikiView()) {
-        @case ('home') {
-            <app-wiki-home (newPage)="state.openEditor()"
-                           (openPage)="state.openPage($event)"
-                           [wiki]="state.wiki()"
-                           class="flex-1 min-h-0"/>
-        }
-        @case ('page') {
-            @if (state.pageLoading()) {
-                <div class="flex-1 flex flex-col items-center justify-center gap-3 text-white/20">
-                    <i class="pi pi-spin pi-spinner text-2xl"></i>
-                    <span class="text-sm">Loading page…</span>
-                </div>
-            } @else if (state.selectedPage(); as page) {
-                <app-wiki-page-view (deleted)="state.afterDeleted()"
-                                    (edit)="state.openEditor($event)"
-                                    (history)="state.openHistory()"
-                                    [guildId]="guildId()"
-                                    [page]="page"
-                                    class="flex-1 min-h-0"/>
-            }
-        }
-        @case ('editor') {
-            <app-wiki-editor (cancelled)="state.cancelEditor()"
-                             (saved)="onEditorSaved($event)"
-                             [guildId]="guildId()"
-                             [page]="state.editingPage()"
-                             [wiki]="state.wiki()"
-                             class="flex-1 min-h-0"/>
-        }
-        @case ('history') {
-            @if (state.selectedPage(); as page) {
-                <app-wiki-history (back)="state.wikiView.set('page')"
-                                  (restored)="state.afterRestored($event)"
-                                  [guildId]="guildId()"
-                                  [page]="page"
-                                  class="flex-1 min-h-0"/>
-            }
-        }
+<div class="flex h-full min-w-0 flex-1 overflow-hidden bg-app-bg">
+
+    <!-- Nav -->
+    @if (!navCollapsed()) {
+        <div [style.width.px]="navWidth()"
+             class="hidden lg:flex shrink-0 h-full bg-sidebar border-r border-white/[0.10]">
+            <app-wiki-nav class="flex flex-col flex-1 min-h-0"/>
+        </div>
+        <!-- Drag handle. A 1px seam widened to a grabbable target by the ::after in the
+             stylesheet, so resizing never opens a visible gutter. -->
+        <div (mousedown)="startResize($event)"
+             class="hidden lg:block wiki-resize-handle shrink-0"></div>
     }
+
+    <!-- Article column -->
+    <div class="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
+        @if (navCollapsed()) {
+            <button (click)="navCollapsed.set(false)"
+                    class="absolute left-2 top-2 z-10 flex h-7 w-7 cursor-pointer items-center
+                           justify-center rounded-lg border border-border bg-card text-white/45
+                           hover:text-white/80"
+                    title="Show pages">
+                <i class="pi pi-angle-right text-[0.75rem]"></i>
+            </button>
+        }
+
+        @switch (state.wikiView()) {
+            @case ('home') {
+                <app-wiki-home (newPage)="state.openEditor()"
+                               (openPage)="state.openPage($event)"
+                               [wiki]="state.wiki()"
+                               class="flex-1 min-h-0"/>
+            }
+            @case ('page') {
+                @if (state.pageLoading()) {
+                    <div class="flex-1 flex flex-col items-center justify-center gap-3 text-white/20">
+                        <i class="pi pi-spin pi-spinner text-2xl"></i>
+                        <span class="text-sm">Loading page…</span>
+                    </div>
+                } @else if (state.selectedPage(); as page) {
+                    <app-wiki-page-view (deleted)="state.afterDeleted()"
+                                        (edit)="state.openEditor($event)"
+                                        (history)="state.openHistory()"
+                                        [guildId]="guildId()"
+                                        [page]="page"
+                                        class="flex-1 min-h-0"/>
+                }
+            }
+            @case ('editor') {
+                <app-wiki-editor (cancelled)="state.cancelEditor()"
+                                 (saved)="onEditorSaved($event)"
+                                 [guildId]="guildId()"
+                                 [page]="state.editingPage()"
+                                 [wiki]="state.wiki()"
+                                 class="flex-1 min-h-0"/>
+            }
+            @case ('history') {
+                @if (state.selectedPage(); as page) {
+                    <app-wiki-history (back)="state.wikiView.set('page')"
+                                      (restored)="state.afterRestored($event)"
+                                      [guildId]="guildId()"
+                                      [page]="page"
+                                      class="flex-1 min-h-0"/>
+                }
+            }
+        }
+    </div>
 </div>

@@ -6,11 +6,11 @@ import {Dialog} from 'primeng/dialog';
 import {InputText} from 'primeng/inputtext';
 import {Select} from 'primeng/select';
 import {ContextMenu} from 'primeng/contextmenu';
+import {Tooltip} from 'primeng/tooltip';
 import {MenuItem, PrimeTemplate} from 'primeng/api';
 import {WikiCategoryDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
 import {WikiStateService} from '../wiki-state.service';
-import {NavigationService} from '../../../../main-page/navigation.service';
 import {TranslateModule} from '@ngx-translate/core';
 
 export interface CategoryTreeNode {
@@ -24,11 +24,11 @@ export interface PageTreeNode {
 }
 
 @Component({
-    selector: 'app-wiki-sidebar',
-    imports: [NgClass, FormsModule, Button, Dialog, InputText, Select, ContextMenu, PrimeTemplate, TranslateModule],
-    templateUrl: './wiki-sidebar.component.html',
+    selector: 'app-wiki-nav',
+    imports: [NgClass, FormsModule, Button, Dialog, InputText, Select, ContextMenu, Tooltip, PrimeTemplate, TranslateModule],
+    templateUrl: './wiki-nav.component.html',
 })
-export class WikiSidebarComponent {
+export class WikiNavComponent {
     protected readonly state = inject(WikiStateService);
     protected ctxMenuItems: MenuItem[] = [];
     protected categoryTreeNodes = computed((): CategoryTreeNode[] => {
@@ -69,7 +69,6 @@ export class WikiSidebarComponent {
     protected nestTargetId = signal<string | null>(null);
     protected categoryToDelete = signal<WikiCategoryDto | null>(null);
     protected deletingCategory = signal(false);
-    private readonly navService = inject(NavigationService);
     private readonly wikiService = inject(WikiService);
     @ViewChild('catCtxMenu') private catCtxMenu?: ContextMenu;
     // ── Drag state ────────────────────────────────────────────────────────────
@@ -79,12 +78,14 @@ export class WikiSidebarComponent {
 
     protected goHome(): void {
         this.state.openHome();
-        this.navService.showWikiContent(this.state.guildId());
     }
 
     protected goPage(page: WikiPageSummaryDto): void {
         this.state.openPage(page);
-        this.navService.showWikiContent(this.state.guildId());
+    }
+
+    protected newPage(): void {
+        this.state.openEditor();
     }
 
     protected pageTreeForCategory(categoryId: string): PageTreeNode[] {
@@ -104,7 +105,6 @@ export class WikiSidebarComponent {
                 icon: 'pi pi-file-plus',
                 command: () => {
                     this.state.openEditor(undefined, {categoryId: category.id});
-                    this.navService.showWikiContent(this.state.guildId());
                 },
             },
         ];
@@ -119,7 +119,6 @@ export class WikiSidebarComponent {
                 icon: 'pi pi-file-plus',
                 command: () => {
                     this.state.openEditor(undefined, {categoryId: page.categoryId, parentPageId: page.id});
-                    this.navService.showWikiContent(this.state.guildId());
                 },
             },
         ];

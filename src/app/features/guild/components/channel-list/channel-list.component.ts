@@ -117,7 +117,10 @@ export class ChannelListComponent {
     protected sortedCategories = computed(() =>
         [...this.localCategories()].sort((a, b) => a.position - b.position)
     );
-    protected isWikiActive = computed(() => this.navService.wikiPanelGuildId() !== null);
+    protected isWikiActive = computed(() => {
+        const view = this.navService.mainView();
+        return view.type === 'wiki' && view.guildId === this.guild().id;
+    });
     // ── Events ────────────────────────────────────────────────────────────────
     private eventStore = inject(ScheduledEventStore);
     private minuteClock = inject(MinuteClockService);
@@ -283,14 +286,15 @@ export class ChannelListComponent {
             untracked(() => this.eventStore.loadFor(guildId));
         });
 
-        // Switching a module off while its panel is open would strand that panel in a
-        // sidebar slot whose entry point has just disappeared.
+        // Switching a module off while it is on screen would strand the user on a view whose
+        // entry point has just disappeared from the sidebar.
         effect(() => {
             const guildId = this.guild().id;
-            const wikiGone = !this.hasWiki() && this.navService.wikiPanelGuildId() === guildId;
+            const view = this.navService.mainView();
+            const wikiGone = !this.hasWiki() && view.type === 'wiki' && view.guildId === guildId;
             const eventsGone = !this.hasEvents() && this.navService.eventsPanelGuildId() === guildId;
             untracked(() => {
-                if (wikiGone) this.navService.closeWikiPanel();
+                if (wikiGone) this.navService.leaveWiki();
                 if (eventsGone) this.navService.closeEventsPanel();
             });
         });

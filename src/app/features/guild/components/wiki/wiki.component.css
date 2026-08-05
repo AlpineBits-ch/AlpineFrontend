@@ -1,1 +1,22 @@
 /* Container only -shared wiki styles live in src/styles.css */
+
+/* A 1px seam that is 9px grabbable. Widening the element itself would open a visible gutter. */
+.wiki-resize-handle {
+    width: 1px;
+    cursor: col-resize;
+    position: relative;
+    background: transparent;
+    transition: background 0.12s;
+}
+
+.wiki-resize-handle::after {
+    content: '';
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: -4px;
+    width: 9px;
+}
+
+.wiki-resize-handle:hover {
+    background: var(--color-brand-dim);
+}

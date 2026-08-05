@@ -123,19 +123,36 @@ describe('NavigationService history', () => {
         expect(nav.canGoForward()).toBe(false);
     });
 
-    it('moves the wiki side panel with the entry it steps onto', () => {
+    it('steps on and off the wiki through history', () => {
         const nav = setup();
         nav.selectServer(guild);
         nav.openWiki('g1');
         nav.openChannel(random);
-        expect(nav.wikiPanelGuildId()).toBe('g1');
+        expect(nav.mainView().type).toBe('channel');
 
         nav.back();
-        expect(nav.mainView().type).toBe('wiki');
-        expect(nav.wikiPanelGuildId()).toBe('g1');
+        expect(nav.mainView()).toEqual({type: 'wiki', guildId: 'g1'});
 
         nav.forward();
-        expect(nav.wikiPanelGuildId()).toBeNull();
+        expect(nav.mainView().type).toBe('channel');
+    });
+
+    // The wiki used to own a side panel in the events panel's layout slot and had to close it.
+    // It now lays out its own tree internally, so both can be on screen at once.
+    it('leaves the events panel open when the wiki is opened', () => {
+        const nav = setup();
+        nav.selectServer(guild);
+        nav.toggleEventsPanel('g1');
+        nav.openWiki('g1');
+        expect(nav.eventsPanelGuildId()).toBe('g1');
+    });
+
+    it('steps back into a channel when the wiki module is switched off underneath it', () => {
+        const nav = setup();
+        nav.selectServer(guild);
+        nav.openWiki('g1');
+        nav.leaveWiki();
+        expect(nav.mainView().type).not.toBe('wiki');
     });
 
     it('stops at the ends rather than falling off them', () => {
