@@ -6,10 +6,12 @@ import {UserNameStyleDirective} from '../../directives/user-name-style.directive
 import {safeAccentColor} from '../../models/profile-font.model';
 import {cacheBustedUrl} from '../../models/profile-image.model';
 import {BrokenImageService} from '../../services/broken-image.service';
+import {ActivityCardComponent} from '../activity-card/activity-card.component';
+import {Activity} from '../../models/activity.model';
 
 @Component({
     selector: 'app-profile-card',
-    imports: [DatePipe, UserStatusDotComponent, UserNameStyleDirective],
+    imports: [DatePipe, UserStatusDotComponent, UserNameStyleDirective, ActivityCardComponent],
     templateUrl: './profile-card.component.html',
     styleUrl: './profile-card.component.css',
 })
@@ -17,6 +19,16 @@ export class ProfileCardComponent {
     profile = input<ProfileDto | undefined>(undefined);
     friendsSince = input<Date | null>(null);
     avatarError = input(false);
+    /**
+     * Rich presence for the subject.
+     *
+     * <p>An input rather than a {@link UserActivityService} lookup, because everything else this
+     * card renders is one too - it is handed its data and draws it, which is what makes it usable
+     * from the profile dialog, the self popover and a test with no injector. Reaching into a store
+     * here would drag `ProfileService`, `ApiConfigService` and `OAuthService` into the dependency
+     * graph of a component that draws a banner.</p>
+     */
+    activities = input<Activity[]>([]);
 
     avatarClick = output<void>();
     avatarErrorChange = output<void>();

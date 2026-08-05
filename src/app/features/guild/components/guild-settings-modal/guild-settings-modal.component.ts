@@ -33,15 +33,88 @@ import {memberCanManageGuild} from '../../guild-permissions';
  */
 type Access = 'checking' | 'granted' | 'denied';
 
+/**
+ * One page in the guild settings nav.
+ *
+ * <p>Renamed from `label`/`title`, which is all that changed here - unlike the settings and admin
+ * navs, this one always held `GUILD_SETTINGS.NAV.*` keys and the template always translated them.
+ * The names were the only thing lying, and they were the reason the other two navs looked correct
+ * at a glance while rendering English. Naming a key a key is what stops that reading.</p>
+ */
 interface NavItem {
     id: string;
-    label: string;
+    labelKey: string;
     icon: string;
 }
 
 interface NavGroup {
-    title: string;
+    titleKey: string;
     items: NavItem[];
+}
+
+/**
+ * The guild settings nav for one guild.
+ *
+ * <p>Modules a guild has switched off are *absent* here, not disabled - a household should never
+ * see a Bans tab it can't press. `modules` itself is never gated: it is how a module gets switched
+ * back on, so hiding it would be a one-way door.</p>
+ *
+ * <p>A free function rather than the body of the `computed` it used to be, because it depends on
+ * nothing but the guild's feature set - so the feature-gated branches, which are the ones most
+ * likely to reference a key nobody added, can be exercised without standing up a component that
+ * wants `GuildService`, `ProfileService` and a `Dialog`. The `computed` is now one line.</p>
+ */
+export function buildGuildNavGroups(guild: Pick<GuildDto, 'features'> | null | undefined): NavGroup[] {
+    const features = guildFeatures(guild);
+    const groups: NavGroup[] = [
+        {
+            titleKey: 'GUILD_SETTINGS.NAV.GROUP_SERVER',
+            items: [
+                {id: 'overview', labelKey: 'GUILD_SETTINGS.NAV.OVERVIEW', icon: 'pi pi-home'},
+                {id: 'modules', labelKey: 'GUILD_SETTINGS.NAV.MODULES', icon: 'pi pi-th-large'},
+                {id: 'members', labelKey: 'GUILD_SETTINGS.NAV.MEMBERS', icon: 'pi pi-users'},
+                {id: 'roles', labelKey: 'GUILD_SETTINGS.NAV.ROLES', icon: 'pi pi-shield'},
+                ...(features.has(GuildFeature.Moderation)
+                    ? [{id: 'bans', labelKey: 'GUILD_SETTINGS.NAV.BANS', icon: 'pi pi-ban'}]
+                    : []),
+                ...(features.has(GuildFeature.AutoMod)
+                    ? [{id: 'moderation', labelKey: 'GUILD_SETTINGS.NAV.MODERATION', icon: 'pi pi-filter'}]
+                    : []),
+                ...(features.has(GuildFeature.Moderation)
+                    ? [{id: 'audit-log', labelKey: 'GUILD_SETTINGS.NAV.AUDIT_LOG', icon: 'pi pi-history'}]
+                    : []),
+            ],
+        },
+        {
+            titleKey: 'GUILD_SETTINGS.NAV.GROUP_COMMUNITY',
+            items: [
+                {id: 'invites', labelKey: 'GUILD_SETTINGS.NAV.INVITES', icon: 'pi pi-link'},
+                ...(features.has(GuildFeature.Emojis)
+                    ? [{id: 'emojis', labelKey: 'GUILD_SETTINGS.NAV.EMOJIS', icon: 'pi pi-face-smile'}]
+                    : []),
+                {id: 'templates', labelKey: 'GUILD_SETTINGS.NAV.TEMPLATES', icon: 'pi pi-clone'},
+                {id: 'discord-sync', labelKey: 'GUILD_SETTINGS.NAV.DISCORD_SYNC', icon: 'pi pi-discord'},
+                ...(features.has(GuildFeature.Onboarding)
+                    ? [{id: 'onboarding', labelKey: 'GUILD_SETTINGS.NAV.ONBOARDING', icon: 'pi pi-book'}]
+                    : []),
+            ],
+        },
+        // Guild-scoped household settings. Their own group rather than folded into Server:
+        // a community guild has neither flag, so the whole group disappears and nobody has to
+        // wonder why a chat server is asking about bedtimes.
+        {
+            titleKey: 'GUILD_SETTINGS.NAV.GROUP_HOUSEHOLD',
+            items: [
+                ...(features.has(GuildFeature.QuietHours)
+                    ? [{id: 'quiet-hours', labelKey: 'GUILD_SETTINGS.NAV.QUIET_HOURS', icon: 'pi pi-moon'}]
+                    : []),
+                ...(features.has(GuildFeature.GuestAccess)
+                    ? [{id: 'guest-access', labelKey: 'GUILD_SETTINGS.NAV.GUEST_ACCESS', icon: 'pi pi-key'}]
+                    : []),
+            ],
+        },
+    ];
+    return groups.filter(group => group.items.length > 0);
 }
 
 @Component({
@@ -114,63 +187,7 @@ export class GuildSettingsModalComponent {
     guildIconUrl = computed(() =>
         `${environment.apiUrl}/api/v1/guild/guilds/${this.guild().id}/icon`
     );
-    /**
-     * Modules a guild has switched off are *absent* here, not disabled - a household
-     * should never see a Bans tab it can't press. `modules` itself is never gated: it
-     * is how a module gets switched back on, so hiding it would be a one-way door.
-     */
-    navGroups = computed<NavGroup[]>(() => {
-        const features = guildFeatures(this.guild());
-        const groups: NavGroup[] = [
-            {
-                title: 'GUILD_SETTINGS.NAV.GROUP_SERVER',
-                items: [
-                    {id: 'overview', label: 'GUILD_SETTINGS.NAV.OVERVIEW', icon: 'pi pi-home'},
-                    {id: 'modules', label: 'GUILD_SETTINGS.NAV.MODULES', icon: 'pi pi-th-large'},
-                    {id: 'members', label: 'GUILD_SETTINGS.NAV.MEMBERS', icon: 'pi pi-users'},
-                    {id: 'roles', label: 'GUILD_SETTINGS.NAV.ROLES', icon: 'pi pi-shield'},
-                    ...(features.has(GuildFeature.Moderation)
-                        ? [{id: 'bans', label: 'GUILD_SETTINGS.NAV.BANS', icon: 'pi pi-ban'}]
-                        : []),
-                    ...(features.has(GuildFeature.AutoMod)
-                        ? [{id: 'moderation', label: 'GUILD_SETTINGS.NAV.MODERATION', icon: 'pi pi-filter'}]
-                        : []),
-                    ...(features.has(GuildFeature.Moderation)
-                        ? [{id: 'audit-log', label: 'GUILD_SETTINGS.NAV.AUDIT_LOG', icon: 'pi pi-history'}]
-                        : []),
-                ],
-            },
-            {
-                title: 'GUILD_SETTINGS.NAV.GROUP_COMMUNITY',
-                items: [
-                    {id: 'invites', label: 'GUILD_SETTINGS.NAV.INVITES', icon: 'pi pi-link'},
-                    ...(features.has(GuildFeature.Emojis)
-                        ? [{id: 'emojis', label: 'GUILD_SETTINGS.NAV.EMOJIS', icon: 'pi pi-face-smile'}]
-                        : []),
-                    {id: 'templates', label: 'GUILD_SETTINGS.NAV.TEMPLATES', icon: 'pi pi-clone'},
-                    {id: 'discord-sync', label: 'GUILD_SETTINGS.NAV.DISCORD_SYNC', icon: 'pi pi-discord'},
-                    ...(features.has(GuildFeature.Onboarding)
-                        ? [{id: 'onboarding', label: 'GUILD_SETTINGS.NAV.ONBOARDING', icon: 'pi pi-book'}]
-                        : []),
-                ],
-            },
-            // Guild-scoped household settings. Their own group rather than folded into Server:
-            // a community guild has neither flag, so the whole group disappears and nobody has to
-            // wonder why a chat server is asking about bedtimes.
-            {
-                title: 'GUILD_SETTINGS.NAV.GROUP_HOUSEHOLD',
-                items: [
-                    ...(features.has(GuildFeature.QuietHours)
-                        ? [{id: 'quiet-hours', label: 'GUILD_SETTINGS.NAV.QUIET_HOURS', icon: 'pi pi-moon'}]
-                        : []),
-                    ...(features.has(GuildFeature.GuestAccess)
-                        ? [{id: 'guest-access', label: 'GUILD_SETTINGS.NAV.GUEST_ACCESS', icon: 'pi pi-key'}]
-                        : []),
-                ],
-            },
-        ];
-        return groups.filter(group => group.items.length > 0);
-    });
+    navGroups = computed<NavGroup[]>(() => buildGuildNavGroups(this.guild()));
 
     constructor() {
         // Esc bypasses `requestClose`, so a page can be left dirty. Clearing on close
@@ -269,7 +286,7 @@ export class GuildSettingsModalComponent {
     currentLabel(): string {
         for (const g of this.navGroups()) {
             const found = g.items.find(i => i.id === this.activePage());
-            if (found) return found.label;
+            if (found) return found.labelKey;
         }
         return '';
     }

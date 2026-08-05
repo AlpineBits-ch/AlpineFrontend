@@ -17,6 +17,7 @@ import {ProfileCardComponent} from '../profile-card/profile-card.component';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {RelationshipStore} from '../../stores/relationship.store';
 import {ToastService} from '../../services/toast.service';
+import {UserActivityService} from '../../services/user-activity.service';
 
 @Component({
     selector: 'app-profile-dialog',
@@ -39,6 +40,18 @@ export class ProfileDialogComponent implements OnChanges {
     private relationships = inject(RelationshipStore);
     private toast = inject(ToastService);
     private translate = inject(TranslateService);
+    private userActivity = inject(UserActivityService);
+
+    /**
+     * Rich presence for whoever the card is showing.
+     *
+     * <p>Resolved here rather than inside the card so that the card stays a component that draws
+     * what it is given. Reading the store from a computed also means a dialog left open while the
+     * subject starts a game updates in place.</p>
+     */
+    protected readonly activities = computed(() =>
+        this.userActivity.activitiesFor(this.profile()?.userId)
+    );
 
     /** Blocking yourself is not a thing; the action is hidden on your own card. */
     protected readonly isSelf = computed(() => {

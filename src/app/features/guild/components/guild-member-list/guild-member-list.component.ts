@@ -1,5 +1,5 @@
 import {Component, computed, DestroyRef, inject, input, OnChanges, signal, SimpleChanges, ViewChild} from '@angular/core';
-import {NgClass} from '@angular/common';
+import {NgClass, NgTemplateOutlet} from '@angular/common';
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {GuildDto, RoleDto, RoleType} from '../../../../dtos/response/guild.dto';
 import {GuildMemberDto, SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
@@ -31,6 +31,9 @@ import {BotInstallDialogService} from '../../../bot-install/bot-install-dialog.s
 import {ProfileDialogService} from '../../../../services/profile-dialog.service';
 import {BrokenImageService} from '../../../../services/broken-image.service';
 import {HomeStatusBoardComponent} from '../home-status-board/home-status-board.component';
+import {ActivityLineComponent} from '../../../../components/activity-line/activity-line.component';
+import {UserActivityService} from '../../../../services/user-activity.service';
+import {Activity} from '../../../../models/activity.model';
 
 export interface MemberRoleGroup {
     role: RoleDto;
@@ -39,7 +42,7 @@ export interface MemberRoleGroup {
 
 @Component({
     selector: 'app-guild-member-list',
-    imports: [TranslateModule, Menu, UserStatusDotComponent, UserNameStyleDirective, NgClass, HomeStatusBoardComponent],
+    imports: [TranslateModule, Menu, UserStatusDotComponent, UserNameStyleDirective, NgClass, NgTemplateOutlet, HomeStatusBoardComponent, ActivityLineComponent],
     templateUrl: './guild-member-list.component.html',
 })
 export class GuildMemberListComponent implements OnChanges {
@@ -74,6 +77,7 @@ export class GuildMemberListComponent implements OnChanges {
     private botInstallDialogService = inject(BotInstallDialogService);
     private toastService = inject(ToastService);
     private brokenImages = inject(BrokenImageService);
+    private userActivity = inject(UserActivityService);
     private destroyRef = inject(DestroyRef);
     private readonly TAKE = 50;
     private nextSkip = 0;
@@ -181,6 +185,18 @@ export class GuildMemberListComponent implements OnChanges {
         return this.isBot(member) ? OnlineStatus.Online : member.status;
     }
 
+    /**
+     * The member's game line, or null.
+     *
+     * <p>Read from {@link UserActivityService} rather than from the row, because the row is a
+     * snapshot from the last page fetch while the store is kept current by `guild.PresenceChanged`.
+     * The rows are seeded into the store on fetch, so the two never disagree about a member that
+     * has not changed.</p>
+     */
+    activityFor(member: GuildMemberDto): Activity | null {
+        return this.userActivity.primaryFor(member.userId);
+    }
+
     // Role color is only used as a fallback -a member's own profile accent color (Nitro-style
     // personalization) always wins when set, matching UserNameStyleDirective's precedence.
     nameStyleFor(member: GuildMemberDto): UserNameStyleInput {
@@ -224,6 +240,12 @@ export class GuildMemberListComponent implements OnChanges {
         this.guildService.getMembers(guildId, skip, this.TAKE).subscribe({
             next: incoming => {
                 if (this.guild().id !== guildId) return;
+
+                // Hydrates presence for the page just loaded. Scrolling a large roster is the only
+                // way most members' activity is ever learned - `guild.PresenceChanged` announces
+                // changes, not current state, so a member who started a game before this list was
+                // opened is only known from the fetch.
+                this.userActivity.seedFromMembers(incoming);
 
                 if (skip === 0) {
                     this.rows.set(incoming);

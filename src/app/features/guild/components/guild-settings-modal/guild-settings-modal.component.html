@@ -54,10 +54,10 @@
                     </div>
                 </div>
 
-                @for (group of navGroups(); track group.title) {
+                @for (group of navGroups(); track group.titleKey) {
                     <div class="px-3 mb-4">
                         <p class="text-[0.625rem] font-semibold text-white/25 uppercase tracking-widest px-3 mb-1">
-                            {{ group.title | translate }}
+                            {{ group.titleKey | translate }}
                         </p>
                         @for (item of group.items; track item.id) {
                             <button (click)="requestPage(item.id)"
@@ -65,7 +65,7 @@
                                     [ngClass]="navItemClasses(item.id)"
                                     class="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border-0 text-left">
                                 <i [class]="item.icon" class="text-sm shrink-0"></i>
-                                {{ item.label | translate }}
+                                {{ item.labelKey | translate }}
                             </button>
                         }
                     </div>
@@ -74,14 +74,14 @@
 
             <!-- Mobile: flat tab bar -->
             <div class="flex sm:hidden items-center gap-1 px-2">
-                @for (group of navGroups(); track group.title) {
+                @for (group of navGroups(); track group.titleKey) {
                     @for (item of group.items; track item.id) {
                         <button (click)="requestPage(item.id)"
                                 [attr.aria-current]="activePage() === item.id ? 'page' : null"
                                 [ngClass]="navItemClasses(item.id)"
                                 class="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all cursor-pointer border-0 shrink-0">
                             <i [class]="item.icon" class="text-xs"></i>
-                            {{ item.label | translate }}
+                            {{ item.labelKey | translate }}
                         </button>
                     }
                 }

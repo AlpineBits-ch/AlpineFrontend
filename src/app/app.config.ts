@@ -18,6 +18,7 @@ import {tokenInterceptor} from "./interceptors/token-interceptor";
 import {deviceIdInterceptor} from "./interceptors/device-id-interceptor";
 import {timeoutInterceptor} from "./interceptors/timeout.interceptor";
 import {rateLimitInterceptor} from "./interceptors/rate-limit-interceptor";
+import {serverClockInterceptor} from "./interceptors/server-clock-interceptor";
 import {GlobalErrorHandler} from "./core/global-error-handler";
 import {ThemeService} from './services/theme.service';
 import {LanguageService} from './services/language.service';
@@ -67,8 +68,12 @@ export function storageFactory(): OAuthStorage {
 export const appConfig: ApplicationConfig = {
     providers: [
         // rateLimit is outermost so a backoff wait is not charged against the request timeout.
+        // serverClock is innermost because it brackets the round trip with two local readings to
+        // place the server's `Date` in the middle of it - time spent queued behind a rate-limit
+        // backoff is not network latency, and charging it as such would skew the skew.
         provideHttpClient(withInterceptors([
             rateLimitInterceptor, tokenInterceptor, deviceIdInterceptor, timeoutInterceptor,
+            serverClockInterceptor,
         ])),
         provideOAuthClient(),
         {provide: OAuthStorage, useFactory: storageFactory},

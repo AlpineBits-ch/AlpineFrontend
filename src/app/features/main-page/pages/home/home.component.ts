@@ -17,12 +17,15 @@ import {ConversationStore} from "../../../../stores/conversation.store";
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {ToastService} from '../../../../services/toast.service';
 import {refusalMessageKey} from '../../../../core/refusal-message';
+import {ActivityLineComponent} from "../../../../components/activity-line/activity-line.component";
+import {UserActivityService} from "../../../../services/user-activity.service";
+import {Activity} from "../../../../models/activity.model";
 
 type FriendsTab = 'online' | 'all' | 'pending' | 'blocked';
 
 @Component({
     selector: 'app-home',
-    imports: [AppAvatarComponent, Button, FormsModule, NgClass, TranslateModule, UserStatusDotComponent, EmptyStateComponent],
+    imports: [AppAvatarComponent, Button, FormsModule, NgClass, TranslateModule, UserStatusDotComponent, EmptyStateComponent, ActivityLineComponent],
     templateUrl: './home.component.html',
     styleUrl: './home.component.css',
 })
@@ -42,6 +45,7 @@ export class HomeComponent {
     public blocked = this.relationshipStore.blocked;
     public pendingCount = this.relationshipStore.pendingCount;
     private profileService = inject(ProfileService);
+    private userActivity = inject(UserActivityService);
     public onlineFriends = computed(() => this.friends().filter(r => this.isActiveStatus(this.profileService.getOnlineStatus(r.other.userId))));
     private conversationStore = inject(ConversationStore);
     private toast = inject(ToastService);
@@ -54,6 +58,11 @@ export class HomeComponent {
 
     public getOnlineStatus(userId: string): OnlineStatus {
         return this.profileService.getOnlineStatus(userId);
+    }
+
+    /** The friend's game line, or null - which leaves the plain status word in its place. */
+    public activityFor(userId: string): Activity | null {
+        return this.userActivity.primaryFor(userId);
     }
 
     public isActiveStatus(status: OnlineStatus): boolean {

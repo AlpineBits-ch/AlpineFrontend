@@ -15,6 +15,7 @@ function steps(overrides: Partial<SignOutSteps> = {}) {
             calls.push('deviceId');
             return 'device-a';
         },
+        clearActivity: () => { calls.push('clearActivity'); },
         wipeAccount: async id => { calls.push(`wipeAccount:${id}`); },
         dropTokens: () => { calls.push('dropTokens'); },
         goToLogin: () => { calls.push('goToLogin'); },
@@ -30,8 +31,28 @@ it('wipes this device key material before leaving', async () => {
 
     const outcome = await runSignOut(s);
 
-    expect(calls).toEqual(['deviceId', 'wipeAccount:device-a', 'dropTokens', 'goToLogin']);
+    expect(calls).toEqual(['clearActivity', 'deviceId', 'wipeAccount:device-a', 'dropTokens', 'goToLogin']);
     expect(outcome.wiped).toBe(true);
+});
+
+it('clears rich presence before dropping the tokens that write needs', async () => {
+    const {calls, steps: s} = steps();
+
+    await runSignOut(s);
+
+    // Same hazard as the wipe below: clearing activity is an authenticated PUT, and a dropped token
+    // turns it into a 401 that leaves "Playing X" on the account for the 300 s Redis TTL.
+    expect(calls.indexOf('clearActivity')).toBeLessThan(calls.indexOf('dropTokens'));
+});
+
+it('clears rich presence even when the wipe throws', async () => {
+    const {calls, steps: s} = steps({
+        wipeAccount: async () => { throw new Error('keychain locked'); },
+    });
+
+    await runSignOut(s);
+
+    expect(calls).toContain('clearActivity');
 });
 
 it('wipes before dropping the tokens the wipe needs', async () => {

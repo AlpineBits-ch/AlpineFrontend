@@ -4,6 +4,7 @@ import {Dialog} from "primeng/dialog";
 import {Button} from "primeng/button";
 import {ProfileSettingsComponent} from "./pages/profile-settings/profile-settings.component";
 import {PrivacySettingsComponent} from "./pages/privacy-settings/privacy-settings.component";
+import {ActivitySettingsComponent} from "./pages/activity-settings/activity-settings.component";
 import {OtherSettingsComponent} from "./pages/other-settings/other-settings.component";
 import {NotificationSettingsComponent} from "./pages/notification-settings/notification-settings.component";
 import {VoiceVideoSettingsComponent} from "./pages/voice-video-settings/voice-video-settings.component";
@@ -15,16 +16,56 @@ import {AboutSettingsComponent} from "./pages/about-settings/about-settings.comp
 import {LogoutDialogComponent} from "../logout-dialog/logout-dialog.component";
 import {TranslateModule} from '@ngx-translate/core';
 
+/**
+ * One page in the settings nav.
+ *
+ * <p>`labelKey` is a translation key, not a label. It is named that way because it used to be a
+ * label: the `SETTINGS.NAV.*` keys existed and were fully translated into de and fr, while this
+ * array held English string literals that the template rendered directly - so the settings nav was
+ * the one part of the app that stayed English in every language, and each new page quietly made it
+ * worse. The type now makes the mistake unspellable.</p>
+ */
 export interface SettingsNavItem {
     id: string;
-    label: string;
+    labelKey: string;
     icon: string;
 }
 
 export interface SettingsNavGroup {
-    title: string;
+    titleKey: string;
     items: SettingsNavItem[];
 }
+
+/**
+ * The nav table.
+ *
+ * <p>Module-level rather than a field on the component because it is static data that depends on
+ * nothing - which also means a test can read it without standing up a component that wants an
+ * injector, a `Dialog` and half the settings pages. See `settings-modal.component.spec.ts`.</p>
+ */
+export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
+    {
+        titleKey: 'SETTINGS.NAV.MY_ACCOUNT',
+        items: [
+            {id: 'profile', labelKey: 'SETTINGS.NAV.PROFILE', icon: 'pi pi-user'},
+            {id: 'privacy', labelKey: 'SETTINGS.NAV.PRIVACY', icon: 'pi pi-shield'},
+            {id: 'activity', labelKey: 'SETTINGS.NAV.ACTIVITY', icon: 'pi pi-play-circle'},
+            {id: 'security', labelKey: 'SETTINGS.NAV.SECURITY', icon: 'pi pi-lock'},
+            {id: 'devices', labelKey: 'SETTINGS.NAV.DEVICES', icon: 'pi pi-desktop'},
+            {id: 'notifications', labelKey: 'SETTINGS.NAV.NOTIFICATIONS', icon: 'pi pi-bell'},
+        ],
+    },
+    {
+        titleKey: 'SETTINGS.NAV.APP_SETTINGS',
+        items: [
+            {id: 'voice-video', labelKey: 'SETTINGS.NAV.VOICE_VIDEO', icon: 'pi pi-microphone'},
+            {id: 'keybinds', labelKey: 'SETTINGS.NAV.KEYBINDS', icon: 'pi pi-key'},
+            {id: 'appearance', labelKey: 'SETTINGS.NAV.APPEARANCE', icon: 'pi pi-palette'},
+            {id: 'other', labelKey: 'SETTINGS.NAV.OTHER', icon: 'pi pi-cog'},
+            {id: 'about', labelKey: 'SETTINGS.NAV.ABOUT', icon: 'pi pi-info-circle'},
+        ],
+    },
+];
 
 @Component({
     selector: 'app-settings-modal',
@@ -34,6 +75,7 @@ export interface SettingsNavGroup {
         Button,
         ProfileSettingsComponent,
         PrivacySettingsComponent,
+        ActivitySettingsComponent,
         OtherSettingsComponent,
         NotificationSettingsComponent,
         VoiceVideoSettingsComponent,
@@ -53,28 +95,7 @@ export class SettingsModalComponent {
     public activePage = signal('profile');
     public mobileView = signal<'nav' | 'content'>('nav');
     public showLogoutDialog = signal(false);
-    public readonly navGroups: SettingsNavGroup[] = [
-        {
-            title: 'My Account',
-            items: [
-                {id: 'profile', label: 'Profile', icon: 'pi pi-user'},
-                {id: 'privacy', label: 'Privacy', icon: 'pi pi-shield'},
-                {id: 'security', label: 'Security', icon: 'pi pi-lock'},
-                {id: 'devices', label: 'Devices', icon: 'pi pi-desktop'},
-                {id: 'notifications', label: 'Notifications', icon: 'pi pi-bell'},
-            ],
-        },
-        {
-            title: 'App Settings',
-            items: [
-                {id: 'voice-video', label: 'Voice & Video', icon: 'pi pi-microphone'},
-                {id: 'keybinds', label: 'Keybinds', icon: 'pi pi-key'},
-                {id: 'appearance', label: 'Appearance', icon: 'pi pi-palette'},
-                {id: 'other', label: 'Other', icon: 'pi pi-cog'},
-                {id: 'about', label: 'About', icon: 'pi pi-info-circle'},
-            ],
-        },
-    ];
+    public readonly navGroups = SETTINGS_NAV_GROUPS;
 
     constructor() {
         effect(() => {

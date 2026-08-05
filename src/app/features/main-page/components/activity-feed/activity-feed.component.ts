@@ -1,4 +1,4 @@
-import {Component, computed, inject, signal} from '@angular/core';
+import {Component, computed, inject} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
 import {EmptyStateComponent} from '../../../../components/empty-state/empty-state.component';
@@ -8,17 +8,13 @@ import {RelationshipStore} from '../../../../stores/relationship.store';
 import {RelationshipView} from '../../../friendship/components/friendship-modal/dto/relationship.model';
 import {OnlineStatus} from '../../../../dtos/response/profile.dto';
 import {TranslateModule} from '@ngx-translate/core';
-
-export interface ActivityStatus {
-    type: 'playing' | 'listening' | 'watching' | 'streaming';
-    label: string;
-    detail?: string;
-    since?: Date;
-}
+import {ActivityLineComponent} from '../../../../components/activity-line/activity-line.component';
+import {UserActivityService} from '../../../../services/user-activity.service';
+import {Activity, ACTIVITY_TYPE_ICONS} from '../../../../models/activity.model';
 
 @Component({
     selector: 'app-activity-feed',
-    imports: [AppAvatarComponent, TranslateModule, NgClass, EmptyStateComponent],
+    imports: [AppAvatarComponent, TranslateModule, NgClass, EmptyStateComponent, ActivityLineComponent],
     templateUrl: './activity-feed.component.html',
     styleUrl: './activity-feed.component.css',
 })
@@ -26,8 +22,7 @@ export class ActivityFeedComponent {
     protected profileService = inject(ProfileService);
     protected profileDialogSvc = inject(ProfileDialogService);
     private relationshipStore = inject(RelationshipStore);
-    // Keyed by friend's userId -empty by default until activity data arrives
-    protected activityStatuses = signal<Record<string, ActivityStatus>>({});
+    private userActivity = inject(UserActivityService);
     protected friends = this.relationshipStore.friends;
     protected onlineFriends = computed(() =>
         this.friends().filter(r =>
@@ -52,24 +47,17 @@ export class ActivityFeedComponent {
         this.relationshipStore.load();
     }
 
-    protected activityFor(r: RelationshipView): ActivityStatus | undefined {
-        return this.activityStatuses()[r.other.userId];
+    /**
+     * This panel used to hold its own `activityStatuses` signal and its own `ActivityStatus`
+     * shape - both stubs, the signal permanently empty, so the "Active Now" section could never
+     * appear. They are gone: the data is real now and comes from the same store every other
+     * surface reads, in the shape the server actually sends.
+     */
+    protected activityFor(r: RelationshipView): Activity | null {
+        return this.userActivity.primaryFor(r.other.userId);
     }
 
-    protected formatSince(since: Date): string {
-        const mins = Math.floor((Date.now() - since.getTime()) / 60_000);
-        if (mins < 60) return `${mins}m`;
-        const h = Math.floor(mins / 60);
-        const m = mins % 60;
-        return m > 0 ? `${h}h ${m}m` : `${h}h`;
-    }
-
-    protected activityIcon(status: ActivityStatus): string {
-        switch (status.type) {
-            case 'playing': return 'pi-play-circle';
-            case 'listening': return 'pi-volume-up';
-            case 'watching': return 'pi-eye';
-            case 'streaming': return 'pi-video';
-        }
+    protected activityIcon(activity: Activity): string {
+        return ACTIVITY_TYPE_ICONS[activity.type];
     }
 }

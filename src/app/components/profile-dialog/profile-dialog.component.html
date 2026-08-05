@@ -18,6 +18,7 @@
         <app-profile-card
                 (avatarClick)="onAvatarClick()"
                 (avatarErrorChange)="onAvatarError()"
+                [activities]="activities()"
                 [avatarError]="avatarError()"
                 [friendsSince]="friendsSince"
                 [profile]="profile()"/>

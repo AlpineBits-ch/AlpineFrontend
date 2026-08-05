@@ -25,8 +25,13 @@
     connections?: ProfileConnection[];
     /** ISO date. The gate is live but no data source is wired yet, so absent for now. */
     birthday?: string;
-    /** The gate is live but no data source is wired yet, so absent for now. */
-    activity?: ProfileActivity;
+
+    // There was an `activity?: ProfileActivity` here. It described a field the server never sends:
+    // `ProfileProjectionService` sets `Activity = null` unconditionally and no producer was ever
+    // written - the privacy gate for it was deliberately built ahead of a source. Rich presence is
+    // `Activity[]` from `models/activity.model.ts`, reached through `UserActivityService`, and is a
+    // different shape (a list, and epoch-ms rather than an ISO string). Keeping the dead field
+    // around only invited someone to read it and get `undefined` forever.
 }
 
 export interface MinimalProfileSummary {
@@ -47,13 +52,6 @@ export interface ProfileConnection {
     externalId: string;
     displayName?: string;
     verified: boolean;
-}
-
-export interface ProfileActivity {
-    type?: string;
-    name?: string;
-    details?: string;
-    startedAt?: string;
 }
 
 export enum OnlineStatus {

@@ -16,6 +16,16 @@
 export interface SignOutSteps {
     /** This account's device id. Everything local is named after it. */
     deviceId: () => Promise<string>;
+    /**
+     * Stops detecting games and tells the server this account is no longer playing anything.
+     *
+     * <p>Runs before {@link dropTokens} for the same reason {@link wipeAccount} does: it ends in an
+     * authenticated write, and a dropped token turns it into a 401. Presence has a 300 s Redis TTL
+     * behind it, so failing here is not permanent - it is five minutes of showing a game to
+     * everyone in every shared server after signing out, which is long enough to be the bug people
+     * report.</p>
+     */
+    clearActivity: () => void;
     /** Destroys this device's key material for the account. */
     wipeAccount: (deviceId: string) => Promise<unknown>;
     /** Discards the OAuth tokens. */
@@ -36,6 +46,10 @@ export interface SignOutOutcome {
 }
 
 export async function runSignOut(steps: SignOutSteps): Promise<SignOutOutcome> {
+    // First, and outside the try: it is a fire-and-forget local call that cannot reject, and it
+    // must not be skipped because the wipe below threw.
+    steps.clearActivity();
+
     let wiped = false;
     try {
         // Before the tokens go, and that ordering is load-bearing rather than incidental: the wipe

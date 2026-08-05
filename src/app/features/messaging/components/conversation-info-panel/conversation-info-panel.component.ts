@@ -7,10 +7,13 @@ import {UserStatusDotComponent} from '../../../../components/user-status-dot/use
 import {ProfileService} from '../../../../services/profile.service';
 import {ConversationUtilsService} from '../../../../services/conversation-utils.service';
 import {ProfileDialogService} from '../../../../services/profile-dialog.service';
+import {ActivityCardComponent} from '../../../../components/activity-card/activity-card.component';
+import {UserActivityService} from '../../../../services/user-activity.service';
+import {Activity} from '../../../../models/activity.model';
 
 @Component({
     selector: 'app-conversation-info-panel',
-    imports: [AppAvatarComponent, NgClass, UserStatusDotComponent],
+    imports: [AppAvatarComponent, NgClass, UserStatusDotComponent, ActivityCardComponent],
     templateUrl: './conversation-info-panel.component.html',
     styleUrl: './conversation-info-panel.component.css',
 })
@@ -22,8 +25,13 @@ export class ConversationInfoPanelComponent {
     protected isDirect = computed(() => this.others().length === 1);
     protected readonly OnlineStatus = OnlineStatus;
     private profileService = inject(ProfileService);
+    private userActivity = inject(UserActivityService);
 
     protected getOnlineStatus(userId: string): OnlineStatus {
         return this.profileService.getOnlineStatus(userId);
+    }
+
+    protected activitiesFor(userId: string): Activity[] {
+        return this.userActivity.activitiesFor(userId);
     }
 }

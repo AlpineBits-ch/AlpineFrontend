@@ -6,6 +6,12 @@ mod media;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod rich_presence;
 
+/// Rich presence: the Discord-compatible RPC server and the arbiter that merges every source into
+/// the one `presence://changed` event the Angular layer listens for. Desktop-only by platform -
+/// mobile cannot enumerate processes or bind these sockets.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod presence;
+
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod ptt_hook;
 
@@ -361,6 +367,9 @@ pub fn run() {
            use tauri_plugin_deep_link::DeepLinkExt;
            app.deep_link().register("venta")?;
            ptt_hook::init(app.handle());
+           // Installs the arbiter only. The RPC server binds nothing until `presence_rpc_start`
+           // is called - taking `discord-ipc-0` from the real Discord is the user's decision.
+           presence::init(app.handle());
            Ok(())
           })
         .plugin(tauri_plugin_notifications::init());
@@ -458,6 +467,12 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             media::voice::voice_set_spatial_model,
             media::voice::voice_set_position,
             rich_presence::scan_game_process,
+            presence::presence_rpc_start,
+            presence::presence_rpc_stop,
+            presence::presence_rpc_status,
+            presence::presence_current,
+            presence::presence_catalog_state,
+            presence::presence_load_catalog,
             ptt_hook::ptt_supported,
             ptt_hook::ptt_set_binding,
             ptt_hook::ptt_arm,

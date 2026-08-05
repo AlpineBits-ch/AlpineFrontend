@@ -23,6 +23,19 @@
       </span>
         </div>
 
+        <!--
+          Rich presence, the DM counterpart of the friends-list line.
+
+          It goes here rather than on the conversation row in the sidebar: that row's subtitle is
+          the last message, which is the entire reason a message list exists, and displacing it with
+          a game would make the list worse at its job. This panel is where the person is described.
+        -->
+        @for (activity of activitiesFor(partner.userId); track activity.name) {
+            <div class="px-4 py-4 border-b border-white/[0.06]">
+                <app-activity-card [activity]="activity"/>
+            </div>
+        }
+
         <!-- Quick actions -->
         <div class="px-4 py-4 border-b border-white/[0.06]">
             <p class="text-[10px] font-semibold uppercase tracking-widest text-white/25 mb-2 px-1">Actions</p>

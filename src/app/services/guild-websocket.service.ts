@@ -24,6 +24,8 @@ import {ProfileService} from "./profile.service";
 import {OnlineStatus} from "../dtos/response/profile.dto";
 import {ForumConfig, ForumTag} from "../dtos/response/forum.dto";
 import {PrivacySettingsService} from "./privacy-settings.service";
+import {UserActivityService} from "./user-activity.service";
+import {Activity} from "../models/activity.model";
 
 export interface ChannelTypingEvent {
     channelId: string;
@@ -365,6 +367,15 @@ export interface WsPresenceChanged {
     userId: string;
     guildId: string;
     status: OnlineStatus;
+    /**
+     * The subject's rich presence, already projected for this viewer.
+     *
+     * <p>Optional because it is additive - an older server simply omits it. Note that absent and
+     * empty mean different things here: `[]` is how the server says a game ended, while `undefined`
+     * is a server that has nothing to say on the subject, and only the first should clear anything.
+     * {@link UserActivityService.set} draws that line.</p>
+     */
+    activities?: Activity[];
 }
 
 export interface WsBotInstalled {
@@ -737,6 +748,7 @@ export class GuildWebsocketService {
     private privacy = inject(PrivacySettingsService);
     private notificationService = inject(NotificationService);
     private profileService = inject(ProfileService);
+    private userActivityService = inject(UserActivityService);
     private mlsService = inject(MlsService);
     private mlsHealth = inject(MlsHealthService);
     private listenersSetUp = false;
@@ -860,6 +872,9 @@ export class GuildWebsocketService {
         this.realtime.on('guild.PresenceChanged', (d: WsPresenceChanged) => {
             this.presenceChangedObservable.next(d);
             this.profileService.setOnlineStatus(d.userId, d.status);
+            // Kept out of `ProfileService` on purpose: status patches a cached profile and is lost
+            // for anyone uncached, which activity cannot afford. See {@link UserActivityService}.
+            if (d.activities !== undefined) this.userActivityService.set(d.userId, d.activities);
         });
 
         this.realtime.on('guild.ReactionCreated', (d: ReactionEvent) => this.reactionAddedObservable.next(d));

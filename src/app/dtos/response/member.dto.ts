@@ -1,6 +1,7 @@
 ﻿import {RoleDto} from "./guild.dto";
 import {OnlineStatus, ProfileDto} from "./profile.dto";
 import {MemberType} from "../../enums/member-type.enum";
+import {Activity} from "../../models/activity.model";
 
 export interface GuildMemberDto {
     id: string;
@@ -17,6 +18,15 @@ export interface GuildMemberDto {
     // assignments, same shape as GET /guilds/{guildId}/me already returns. Optional until the
     // backend ships this - frontend guards with `member.roleMembers ?? []`.
     roleMembers?: { role: RoleDto }[]
+    /**
+     * Rich presence, projected server-side through `ProjectActivitiesFor` — so what arrives here is
+     * already filtered for the viewer's blocks, the subject's `shareActivity` setting, a `Hidden`
+     * status and the per-application opt-out list. There is nothing left for the client to gate.
+     *
+     * <p>Optional exactly as `roleMembers` above: absent until the backend ships it, and absent
+     * again for any member with nothing to report. Read it as `member.activities ?? []`.</p>
+     */
+    activities?: Activity[]
 }
 
 export interface SelfGuildMemberDto extends GuildMemberDto {

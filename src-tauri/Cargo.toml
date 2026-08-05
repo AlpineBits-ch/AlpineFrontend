@@ -156,7 +156,12 @@ nnnoiseless = "0.3"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
 jpeg-encoder = "0.6"
 base64 = "0.22"
-tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros"] }
+# `net` and `io-util` are for the Discord-compatible RPC server in `presence::ipc`: named pipes on
+# Windows (`tokio::net::windows::named_pipe`) and Unix domain sockets elsewhere, plus the
+# `AsyncReadExt`/`AsyncWriteExt` the frame codec reads and writes through. Deliberately not the
+# `interprocess` crate and deliberately not hand-rolled `CreateNamedPipe` FFI - tokio's API
+# expresses the whole accept/connect/recreate loop, and it is already a dependency.
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "macros", "net", "io-util"] }
 webrtc = "0.14"
 # One encoded voice packet goes to every publication at once, so it is allocated once and the
 # handle cloned rather than the bytes copied per target. This is also what `webrtc::media::Sample`

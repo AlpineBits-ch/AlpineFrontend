@@ -4,17 +4,40 @@ import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {FederationInstancesComponent} from './pages/federation-instances/federation-instances.component';
 import {FederationPolicyComponent} from './pages/federation-policy/federation-policy.component';
+import {TranslateModule} from '@ngx-translate/core';
 
+/**
+ * One page in the admin nav.
+ *
+ * <p>`labelKey` is a translation key, not a label - same contract as {@link SettingsNavItem}, and
+ * renamed for the same reason: this table held English string literals that the template printed
+ * directly, so the admin nav stayed English in every language. The type now makes that unspellable.
+ * </p>
+ */
 export interface AdminNavItem {
     id: string;
-    label: string;
+    labelKey: string;
     icon: string;
 }
 
 export interface AdminNavGroup {
-    title: string;
+    titleKey: string;
     items: AdminNavItem[];
 }
+
+/**
+ * The admin nav table. Module-level so a test can read it without standing up a component that
+ * wants an injector and a `Dialog` - see `admin-modal.component.spec.ts`.
+ */
+export const ADMIN_NAV_GROUPS: readonly AdminNavGroup[] = [
+    {
+        titleKey: 'ADMIN.NAV.FEDERATION',
+        items: [
+            {id: 'federation-instances', labelKey: 'ADMIN.NAV.INSTANCES', icon: 'pi pi-server'},
+            {id: 'federation-policy', labelKey: 'ADMIN.NAV.SETTINGS', icon: 'pi pi-sliders-h'},
+        ],
+    },
+];
 
 @Component({
     selector: 'app-admin-modal',
@@ -24,6 +47,7 @@ export interface AdminNavGroup {
         Button,
         FederationInstancesComponent,
         FederationPolicyComponent,
+        TranslateModule,
     ],
     templateUrl: './admin-modal.component.html',
     styleUrl: './admin-modal.component.css',
@@ -33,15 +57,7 @@ export class AdminModalComponent {
     public activePage = signal('federation-instances');
     public mobileView = signal<'nav' | 'content'>('nav');
 
-    public readonly navGroups: AdminNavGroup[] = [
-        {
-            title: 'Federation',
-            items: [
-                {id: 'federation-instances', label: 'Instances', icon: 'pi pi-server'},
-                {id: 'federation-policy', label: 'Settings', icon: 'pi pi-sliders-h'},
-            ],
-        },
-    ];
+    public readonly navGroups = ADMIN_NAV_GROUPS;
 
     constructor() {
         effect(() => {

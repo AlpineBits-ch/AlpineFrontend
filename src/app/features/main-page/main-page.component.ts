@@ -229,11 +229,10 @@ export class MainPageComponent implements OnDestroy {
             }),
         );
 
+        // Detection now publishes to the server and renders itself through
+        // {@link UserActivityService}, so the effect that used to log `currentGame()` to the
+        // console - the feature's only consumer - is gone along with the signal it read.
         this.richPresenceService.start();
-
-        effect(() => {
-            console.log('current game: ', this.richPresenceService.currentGame())
-        });
 
         // Refetches own member permissions whenever the events panel is opened for a
         // guild -only reads eventsPanelGuildId() and writes a separate signal, so it
@@ -327,6 +326,7 @@ export class MainPageComponent implements OnDestroy {
     private goToLogin(): Promise<unknown> {
         return runSignOut({
             deviceId: () => this.mlsService.getOrCreateDeviceIdentifier(),
+            clearActivity: () => this.richPresenceService.stop(),
             wipeAccount: id => this.teardown.wipeAccount(id),
             dropTokens: () => this.authService.logout(),
             goToLogin: () => void this.router.navigate(['/authentication']),

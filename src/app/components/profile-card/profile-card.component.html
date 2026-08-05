@@ -45,6 +45,18 @@
                 <p class="text-sm text-text-secondary leading-snug mb-3">{{ p.bio }}</p>
             }
 
+            <!--
+              Rich presence, above the "Member Since" facts and separated from them.
+
+              Its own divider because it is a different kind of statement: everything below is
+              biography and does not change while the card is open, and this is live and does. One
+              card per activity - the server caps the list at three.
+            -->
+            @for (activity of activities(); track activity.name) {
+                <div class="border-t border-border-subtle my-3"></div>
+                <app-activity-card [activity]="activity"/>
+            }
+
             <div class="border-t border-border-subtle my-3"></div>
 
             <div class="flex flex-col gap-2.5">

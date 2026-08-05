@@ -5,6 +5,7 @@ import {ProfileService} from '../../../../services/profile.service';
 import {ProfileCardComponent} from '../../../../components/profile-card/profile-card.component';
 import {StatusPickerComponent} from '../status-picker/status-picker.component';
 import {AccountSwitcherComponent} from '../account-switcher/account-switcher.component';
+import {UserActivityService} from '../../../../services/user-activity.service';
 
 @Component({
     selector: 'app-self-profile-popover',
@@ -17,6 +18,7 @@ export class SelfProfilePopoverComponent {
     /** Asked for here, routed by the host - this popover owns no navigation. */
     addAccount = output<void>();
     protected profileService = inject(ProfileService);
+    protected userActivity = inject(UserActivityService);
     protected avatarError = signal(false);
     @ViewChild('popover') private popoverRef!: Popover;
 

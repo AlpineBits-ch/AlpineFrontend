@@ -26,23 +26,20 @@
 
         <!-- Active Now: friends with a live rich-presence activity get a card -->
         @for (friend of activeNowFriends(); track friend.id) {
-            @let status = activityFor(friend)!;
+            @let activity = activityFor(friend)!;
             <div (click)="profileDialogSvc.open(friend.other.userId)"
                  class="flex items-center gap-2.5 px-2.5 py-2 mb-1 rounded-xl bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.05] transition-colors cursor-pointer">
                 <div class="relative shrink-0">
                     <app-avatar [userId]="friend.other.userId" size="normal"/>
                     <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-online border-2 border-sidebar"></span>
                     <span class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-card border-2 border-sidebar flex items-center justify-center">
-                        <i [ngClass]="activityIcon(status)" class="pi text-brand-dim text-[8px]"></i>
+                        <i [ngClass]="activityIcon(activity)" class="pi text-brand-dim text-[8px]"></i>
                     </span>
                 </div>
                 <div class="flex-1 min-w-0">
                     <p class="text-xs font-medium text-white/80 truncate">{{ friend.other.userName }}</p>
-                    <p class="text-[10px] text-white/45 truncate">
-                        {{ status.label }}@if (status.since) {
-                        · {{ formatSince(status.since) }}
-                    }
-                    </p>
+                    <!-- No icon on the line: the badge over the avatar is already carrying it. -->
+                    <app-activity-line [activity]="activity" size="xs" [showIcon]="false"/>
                 </div>
             </div>
         }
