@@ -28,6 +28,11 @@ export function wikiExtensions(placeholder: string): Extensions {
     return [
         StarterKit.configure({
             trailingNode: {notAfter: ['taskList', 'bulletList', 'orderedList']},
+            // StarterKit 3 bundles both. Registering them again below produced a duplicate-name
+            // warning and left it undefined which configuration won - including the protocol
+            // allowlist, which is a sanitisation control and not something to leave to chance.
+            link: false,
+            underline: false,
         }),
         Underline,
         Link.configure({

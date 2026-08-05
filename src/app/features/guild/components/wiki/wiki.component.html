@@ -39,54 +39,41 @@
                                   [wiki]="state.wiki()"/>
         }
 
-        @switch (state.wikiView()) {
-            @case ('home') {
-                <app-wiki-home (newPage)="state.openEditor()"
-                               (openPage)="state.openPage($event)"
-                               [wiki]="state.wiki()"
-                               class="flex-1 min-h-0"/>
-            }
-            @case ('page') {
-                @if (state.pageLoading()) {
-                    <div class="flex-1 flex flex-col items-center justify-center gap-3 text-white/20">
-                        <i class="pi pi-spin pi-spinner text-2xl"></i>
-                        <span class="text-sm">Loading page…</span>
-                    </div>
-                } @else if (state.selectedPage(); as page) {
-                    <app-wiki-article #article
-                                      (headingsChanged)="headings.set($event)"
-                                      (saveStatusChanged)="saveStatus.set($event)"
-                                      (saved)="onEditorSaved($event)"
-                                      (wikiLinkClicked)="openLinkedPage($event)"
-                                      [editing]="false"
-                                      [guildId]="guildId()"
-                                      [page]="page"
-                                      [wiki]="state.wiki()"
-                                      class="flex-1 min-h-0"/>
-                }
-            }
-            @case ('editor') {
-                <app-wiki-article #article
-                                  (cancelled)="state.cancelEditor()"
-                                  (headingsChanged)="headings.set($event)"
-                                      (saveStatusChanged)="saveStatus.set($event)"
-                                  (saved)="onEditorSaved($event)"
-                                  (wikiLinkClicked)="openLinkedPage($event)"
-                                  [editing]="true"
+        <!-- One article element for both reading and editing.
+             Not a @switch with a branch each: those are separate embedded views, so every Edit
+             click tore down the ProseMirror instance and built a new one - which is both the
+             layout jump the redesign set out to remove and the source of the repeated
+             "linkify already initialized" warnings. -->
+        @if (state.wikiView() === 'home') {
+            <app-wiki-home (newPage)="state.openEditor()"
+                           (openPage)="state.openPage($event)"
+                           [wiki]="state.wiki()"
+                           class="flex-1 min-h-0"/>
+        } @else if (state.wikiView() === 'history') {
+            @if (state.selectedPage(); as page) {
+                <app-wiki-history (back)="state.wikiView.set('page')"
+                                  (restored)="state.afterRestored($event)"
                                   [guildId]="guildId()"
-                                  [page]="state.editingPage()"
-                                  [wiki]="state.wiki()"
+                                  [page]="page"
                                   class="flex-1 min-h-0"/>
             }
-            @case ('history') {
-                @if (state.selectedPage(); as page) {
-                    <app-wiki-history (back)="state.wikiView.set('page')"
-                                      (restored)="state.afterRestored($event)"
-                                      [guildId]="guildId()"
-                                      [page]="page"
-                                      class="flex-1 min-h-0"/>
-                }
-            }
+        } @else if (state.wikiView() === 'page' && state.pageLoading()) {
+            <div class="flex-1 flex flex-col items-center justify-center gap-3 text-white/20">
+                <i class="pi pi-spin pi-spinner text-2xl"></i>
+                <span class="text-sm">Loading page…</span>
+            </div>
+        } @else if (state.wikiView() === 'editor' || state.selectedPage()) {
+            <app-wiki-article #article
+                              (cancelled)="state.cancelEditor()"
+                              (headingsChanged)="headings.set($event)"
+                              (saveStatusChanged)="saveStatus.set($event)"
+                              (saved)="onEditorSaved($event)"
+                              (wikiLinkClicked)="openLinkedPage($event)"
+                              [editing]="state.wikiView() === 'editor'"
+                              [guildId]="guildId()"
+                              [page]="articlePage()"
+                              [wiki]="state.wiki()"
+                              class="flex-1 min-h-0"/>
         }
     </div>
 

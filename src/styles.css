@@ -479,6 +479,12 @@ button, a, [role="button"], input, select, textarea, label {
    creates its own DOM subtree that Angular encapsulation can't pierce.         */
 .wiki-wysiwyg .ProseMirror {
   outline: none;
+}
+
+/* Only while editing: the tall click target is what lets you click under the last paragraph and
+   land in the document. In read mode the same rule is just a block of dead space under a short
+   page, and read and edit are now the same element. */
+.wiki-wysiwyg .ProseMirror[contenteditable="true"] {
   min-height: 16rem;
 }
 

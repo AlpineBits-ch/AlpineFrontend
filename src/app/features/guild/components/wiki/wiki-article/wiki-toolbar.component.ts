@@ -1,0 +1,190 @@
+import {Component, input, output, signal} from '@angular/core';
+import {FormsModule} from '@angular/forms';
+import {Editor} from '@tiptap/core';
+import {Tooltip} from 'primeng/tooltip';
+
+interface ToolbarAction {
+    /** Text glyph. PrimeIcons has no bold/italic/underline/strike, and letters read better anyway. */
+    label?: string;
+    icon?: string;
+    title: string;
+    /** Mark or node name for the active check. Omitted for one-shot inserts. */
+    active?: string;
+    attrs?: Record<string, unknown>;
+    className?: string;
+    run: (editor: Editor) => void;
+}
+
+/**
+ * The formatting bar, shown only while editing.
+ *
+ * The redesign moved every control into a bubble menu (needs a selection first) and a slash menu
+ * (needs you to know to type `/`). Both are good once you know they are there, and invisible until
+ * then - the first report back was that the editor had become a plain text box. This bar is the
+ * discoverable surface: it advertises what a page can hold, and the two menus remain the faster
+ * path for anyone who has learned them.
+ *
+ * It is still absent in read mode, which is what "no chrome while reading" was actually about.
+ */
+@Component({
+    selector: 'app-wiki-toolbar',
+    imports: [Tooltip, FormsModule],
+    template: `
+        <div class="relative flex shrink-0 flex-wrap items-center gap-0.5 border-b
+                    border-white/[0.08] bg-sidebar/60 px-4 py-1.5">
+            @for (group of groups; track $index) {
+                @if (!$first) {
+                    <span class="mx-1 h-4 w-px shrink-0 bg-white/[0.10]"></span>
+                }
+                @for (action of group; track action.title) {
+                    <button (click)="run(action)"
+                            [class.bg-hover]="isActive(action)"
+                            [class.text-brand-dim]="isActive(action)"
+                            [class]="action.className"
+                            [disabled]="sourceMode()"
+                            [pTooltip]="action.title"
+                            class="flex h-7 min-w-7 cursor-pointer items-center justify-center
+                                   rounded-md border-0 bg-transparent px-1.5 text-white/50
+                                   transition-colors hover:bg-hover hover:text-white/90
+                                   disabled:cursor-not-allowed disabled:opacity-30
+                                   disabled:hover:bg-transparent"
+                            tooltipPosition="bottom" type="button">
+                        @if (action.icon) {
+                            <i [class]="action.icon" class="pi text-[0.75rem]"></i>
+                        } @else {
+                            {{ action.label }}
+                        }
+                    </button>
+                }
+            }
+
+            <span class="flex-1"></span>
+
+            <!-- Escape hatch for anyone who would rather write the markup than click at it. -->
+            <button (click)="toggleSource.emit()"
+                    [class.bg-hover]="sourceMode()"
+                    [class.text-brand-dim]="sourceMode()"
+                    [pTooltip]="sourceMode() ? 'Back to rich text' : 'Edit the markdown directly'"
+                    class="flex h-7 cursor-pointer items-center gap-1.5 rounded-md border-0
+                           bg-transparent px-2 text-[0.6875rem] font-medium text-white/50
+                           transition-colors hover:bg-hover hover:text-white/90"
+                    tooltipPosition="bottom" type="button">
+                <i class="pi pi-code text-[0.75rem]"></i>
+                Markdown
+            </button>
+
+            <!-- Link entry. An inline row rather than a modal: a dialog moves focus far enough
+                 that the selection the link is meant to wrap stops being obvious, and window.prompt
+                 is not answered at all by the WebView2 runtime this ships on. -->
+            @if (linkOpen()) {
+                <div class="absolute left-4 top-full z-40 mt-1 flex items-center gap-1 rounded-lg
+                            border border-border bg-card px-2 py-1.5 shadow-xl">
+                    <input #linkInput (keydown.enter)="commitLink()" (keydown.escape)="closeLink()"
+                           [(ngModel)]="linkHref"
+                           class="w-64 border-0 bg-transparent text-[0.8125rem] text-white/80
+                                  outline-none placeholder-white/25"
+                           placeholder="https://example.com"/>
+                    <button (click)="commitLink()"
+                            class="cursor-pointer rounded border-0 bg-brand/20 px-2 py-1
+                                   text-[0.6875rem] font-medium text-brand-dim hover:bg-brand/30"
+                            type="button">Apply
+                    </button>
+                    <button (click)="removeLink()"
+                            class="cursor-pointer border-0 bg-transparent px-1 text-[0.6875rem]
+                                   text-white/40 hover:text-white/70"
+                            type="button">Remove
+                    </button>
+                </div>
+            }
+        </div>
+    `,
+})
+export class WikiToolbarComponent {
+    readonly editor = input<Editor | undefined>(undefined);
+    /** Every rich-text action is inert against a raw textarea, so they grey out instead. */
+    readonly sourceMode = input(false);
+
+    readonly toggleSource = output<void>();
+    readonly insertImage = output<void>();
+
+    protected readonly linkOpen = signal(false);
+    protected linkHref = '';
+
+    protected readonly groups: ToolbarAction[][] = [
+        [
+            {label: 'B', title: 'Bold', active: 'bold', className: 'font-bold', run: e => e.chain().focus().toggleBold().run()},
+            {label: 'I', title: 'Italic', active: 'italic', className: 'italic', run: e => e.chain().focus().toggleItalic().run()},
+            {label: 'U', title: 'Underline', active: 'underline', className: 'underline', run: e => e.chain().focus().toggleUnderline().run()},
+            {label: 'S', title: 'Strikethrough', active: 'strike', className: 'line-through', run: e => e.chain().focus().toggleStrike().run()},
+            {label: '<>', title: 'Inline code', active: 'code', className: 'font-mono text-[0.6875rem]', run: e => e.chain().focus().toggleCode().run()},
+        ],
+        [
+            {label: 'H1', title: 'Heading 1', active: 'heading', attrs: {level: 1}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 1}).run()},
+            {label: 'H2', title: 'Heading 2', active: 'heading', attrs: {level: 2}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 2}).run()},
+            {label: 'H3', title: 'Heading 3', active: 'heading', attrs: {level: 3}, className: 'text-[0.6875rem] font-bold', run: e => e.chain().focus().toggleHeading({level: 3}).run()},
+        ],
+        [
+            {icon: 'pi-list', title: 'Bullet list', active: 'bulletList', run: e => e.chain().focus().toggleBulletList().run()},
+            {icon: 'pi-sort-numeric-up-alt', title: 'Numbered list', active: 'orderedList', run: e => e.chain().focus().toggleOrderedList().run()},
+            {icon: 'pi-check-square', title: 'Task list', active: 'taskList', run: e => e.chain().focus().toggleTaskList().run()},
+        ],
+        [
+            {icon: 'pi-comment', title: 'Quote', active: 'blockquote', run: e => e.chain().focus().toggleBlockquote().run()},
+            {icon: 'pi-code', title: 'Code block', active: 'codeBlock', run: e => e.chain().focus().toggleCodeBlock().run()},
+            {icon: 'pi-table', title: 'Table', run: e => e.chain().focus().insertTable({rows: 3, cols: 3, withHeaderRow: true}).run()},
+            {icon: 'pi-minus', title: 'Divider', run: e => e.chain().focus().setHorizontalRule().run()},
+        ],
+        [
+            {icon: 'pi-link', title: 'Link', active: 'link', run: () => undefined},
+            {icon: 'pi-image', title: 'Image', run: () => undefined},
+        ],
+    ];
+
+    protected isActive(action: ToolbarAction): boolean {
+        if (!action.active || this.sourceMode()) return false;
+        return this.editor()?.isActive(action.active, action.attrs) ?? false;
+    }
+
+    protected run(action: ToolbarAction): void {
+        if (action.title === 'Image') {
+            this.insertImage.emit();
+            return;
+        }
+        if (action.title === 'Link') {
+            this.openLink();
+            return;
+        }
+        const editor = this.editor();
+        if (editor) action.run(editor);
+    }
+
+    protected commitLink(): void {
+        const editor = this.editor();
+        const href = this.linkHref.trim();
+        if (!editor || !href) {
+            this.closeLink();
+            return;
+        }
+        // extendMarkRange so clicking inside an existing link retargets the whole link rather
+        // than splitting it at the caret.
+        editor.chain().focus().extendMarkRange('link').setLink({href}).run();
+        this.closeLink();
+    }
+
+    protected removeLink(): void {
+        this.editor()?.chain().focus().extendMarkRange('link').unsetLink().run();
+        this.closeLink();
+    }
+
+    protected closeLink(): void {
+        this.linkOpen.set(false);
+        this.linkHref = '';
+    }
+
+    private openLink(): void {
+        const editor = this.editor();
+        if (!editor) return;
+        this.linkHref = (editor.getAttributes('link')['href'] as string | undefined) ?? '';
+        this.linkOpen.set(true);
+    }
+}

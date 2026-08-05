@@ -30,6 +30,17 @@ describe('wikiAbilities', () => {
     it('does not leak one wiki permission into another', () => {
         expect(wikiAbilities(Permissions.CreateWikiPages).canDelete).toBe(false);
     });
+
+    // The owner's member record does not reliably carry Superadmin, so an owner whose roles
+    // happen not to name the wiki bits was left with a wiki they could read and never edit.
+    it('grants everything to the guild owner regardless of their bits', () => {
+        const abilities = wikiAbilities(0n, true);
+        expect(Object.values(abilities).every(Boolean)).toBe(true);
+    });
+
+    it('treats a non-owner with no bits as before', () => {
+        expect(wikiAbilities(0n, false).canEditAny).toBe(false);
+    });
 });
 
 describe('canEditPage', () => {

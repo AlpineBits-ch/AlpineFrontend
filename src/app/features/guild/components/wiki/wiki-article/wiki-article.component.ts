@@ -25,10 +25,14 @@ import {SuggestState, wikiSuggestPlugin} from './wiki-suggest.plugin';
 import {WikiBubbleMenuComponent} from './wiki-bubble-menu.component';
 import {SlashItem, WikiSlashMenuComponent} from './wiki-slash-menu.component';
 import {WikiLinkMenuComponent} from './wiki-link-menu.component';
+import {WikiToolbarComponent} from './wiki-toolbar.component';
 
 @Component({
     selector: 'app-wiki-article',
-    imports: [FormsModule, WikiBubbleMenuComponent, WikiSlashMenuComponent, WikiLinkMenuComponent],
+    imports: [
+        FormsModule, WikiBubbleMenuComponent, WikiSlashMenuComponent, WikiLinkMenuComponent,
+        WikiToolbarComponent,
+    ],
     templateUrl: './wiki-article.component.html',
     styleUrl: './wiki-article.component.css',
     host: {class: 'flex flex-col flex-1 min-h-0 overflow-hidden'},
@@ -63,6 +67,24 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     protected readonly editSummary = signal('');
 
     /**
+     * Raw markdown editing. The ProseMirror surface stays mounted underneath rather than being
+     * torn down, so toggling back does not lose the editor, its history, or the caret - only the
+     * document is re-parsed from whatever the textarea holds.
+     */
+    protected readonly sourceMode = signal(false);
+    protected readonly sourceText = signal('');
+
+    /**
+     * The live editor, for the menus and the toolbar that attach to it.
+     *
+     * A signal rather than a getter over the field: the field is assigned in `ngAfterViewInit`,
+     * which is after the template bindings for this view have been checked, and a plain getter
+     * therefore reported `undefined` then something else in the same pass (NG0100). Reading a
+     * signal marks the view dirty, so the change is picked up before the check runs.
+     */
+    protected readonly editorInstance = signal<Editor | undefined>(undefined);
+
+    /**
      * Only offered when the body actually changed. The server ignores a summary on a
      * metadata-only update because no revision is created to carry it, so showing the field
      * there would invite the user to write a note that is silently dropped.
@@ -70,6 +92,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     protected readonly summaryApplies = computed(() => {
         if (!this.editing()) return false;
         this.contentVersion();
+        if (this.sourceMode()) return this.sourceText() !== (this.page()?.content ?? '');
         return this.markdown() !== (this.page()?.content ?? '');
     });
 
@@ -91,6 +114,8 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         effect(() => {
             const page = this.page();
             this.title.set(page?.title ?? '');
+            // A different page must never inherit the previous one's raw buffer.
+            this.sourceMode.set(false);
             if (this.editor) this.setContent(page?.content ?? '');
 
             const existing = this.drafts.read(this.guildId(), page?.id ?? null);
@@ -107,7 +132,10 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         });
 
         effect(() => {
-            this.editor?.setEditable(this.editing());
+            const editing = this.editing();
+            this.editor?.setEditable(editing);
+            // Leaving edit mode with the textarea open would render raw markdown as the article.
+            if (!editing) this.commitSourceMode();
         });
 
         // Which links are broken depends on the page list, not on the stored content, so it is
@@ -116,11 +144,6 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             this.wiki();
             this.markBrokenLinks();
         });
-    }
-
-    /** The live editor, for the menu components that attach to it. */
-    get instance(): Editor | undefined {
-        return this.editor;
     }
 
     ngAfterViewInit(): void {
@@ -145,6 +168,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             },
             onSelectionUpdate: () => this.bubbleMenu?.sync(),
         });
+        this.editorInstance.set(this.editor);
         this.setContent(this.page()?.content ?? '');
 
         // Read mode keeps live anchors, so wiki: links must be intercepted before the browser
@@ -188,8 +212,38 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         this.editor?.destroy();
     }
 
+    /** What would be saved right now, from whichever surface is currently authoritative. */
     markdown(): string {
+        if (this.sourceMode()) return this.sourceText();
         return (this.editor as unknown as { getMarkdown(): string } | undefined)?.getMarkdown() ?? '';
+    }
+
+    /** Swaps between the rich surface and the raw markdown behind it, in both directions. */
+    protected toggleSourceMode(): void {
+        if (this.sourceMode()) {
+            this.commitSourceMode();
+            return;
+        }
+        this.sourceText.set(this.markdown());
+        this.sourceMode.set(true);
+    }
+
+    /** Parses the textarea back into the document. A no-op when source mode is not open. */
+    private commitSourceMode(): void {
+        if (!this.sourceMode()) return;
+        this.sourceMode.set(false);
+        this.setContent(this.sourceText());
+    }
+
+    protected onSourceInput(value: string): void {
+        this.sourceText.set(value);
+        this.dirtyChanged.emit(true);
+        this.scheduleDraft();
+        this.contentVersion.update(v => v + 1);
+    }
+
+    protected openFilePicker(): void {
+        this.fileInputEl?.nativeElement.click();
     }
 
     save(): void {
@@ -231,7 +285,10 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         const draft = this.pendingDraft();
         if (!draft) return;
         this.title.set(draft.title);
-        this.setContent(draft.content);
+        // Restoring while the raw buffer is open has to land in the buffer, or the textarea keeps
+        // showing the text the restore was meant to replace.
+        if (this.sourceMode()) this.sourceText.set(draft.content);
+        else this.setContent(draft.content);
         this.pendingDraft.set(null);
     }
 

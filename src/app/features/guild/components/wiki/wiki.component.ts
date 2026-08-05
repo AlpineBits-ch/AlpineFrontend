@@ -55,6 +55,14 @@ export class WikiComponent {
     /** The live article, so the breadcrumb bar's Save can reach into the editor. */
     protected readonly article = viewChild(WikiArticleComponent);
 
+    /**
+     * Which page the single article element is showing. Editing a brand new page yields null,
+     * which the article treats as an empty document rather than as "nothing to render".
+     */
+    protected readonly articlePage = computed(() =>
+        this.state.wikiView() === 'editor' ? this.state.editingPage() : this.state.selectedPage(),
+    );
+
     /** EditOwnWikiPages needs the page's author, so this is per-page rather than per-guild. */
     protected readonly canEditCurrent = computed(() => {
         const page = this.state.selectedPage() ?? this.state.editingPage();

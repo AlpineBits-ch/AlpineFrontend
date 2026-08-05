@@ -1,9 +1,7 @@
-/* The editable surface must not draw a focus ring - in read mode it is not a control, and in
-   edit mode the caret is the affordance. */
-.wiki-article-body ::ng-deep .ProseMirror {
-    outline: none;
-    min-height: 12rem;
-}
+/* The focus ring, the placeholder, task-list checkboxes and everything else that targets
+   ProseMirror's own DOM come from the global `.wiki-wysiwyg` block in styles.css - component
+   styles cannot reach a subtree Angular did not render. Only the rules keyed off attributes this
+   component sets itself live here. */
 
 /* Broken internal links. Keyed off the attribute the component sets rather than a class, so it
    survives a markdown round trip. */

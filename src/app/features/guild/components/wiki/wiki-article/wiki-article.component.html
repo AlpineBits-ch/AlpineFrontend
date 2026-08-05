@@ -19,6 +19,12 @@
         </div>
     }
 
+    <!-- Formatting bar. Edit mode only - reading a page still shows no chrome at all. -->
+    @if (editing()) {
+        <app-wiki-toolbar (insertImage)="openFilePicker()" (toggleSource)="toggleSourceMode()"
+                          [editor]="editorInstance()" [sourceMode]="sourceMode()"/>
+    }
+
     <!-- Body. This padding is the ONLY padding for both modes: read and edit render the same
          element, so there is no second value that could drift out of step. -->
     <div #scrollEl class="flex-1 min-h-0 overflow-y-auto thin-scrollbar">
@@ -34,7 +40,24 @@
                           text-white/90 outline-none placeholder-white/20"
                    placeholder="Untitled"/>
 
-            <div #editorEl class="wiki-content wiki-article-body"></div>
+            <!-- Kept mounted, never destroyed: source mode hides this rather than tearing the
+                 editor down, so toggling back keeps the undo history and the caret. -->
+            <!-- `wiki-wysiwyg` carries every rule that targets ProseMirror's own DOM - task-list
+                 checkboxes, the placeholder, table cell selection, the upload shimmer. Dropping it
+                 when read and edit merged into one element is what put the checkbox on its own
+                 line with the caret stranded underneath. -->
+            <div #editorEl [class.hidden]="sourceMode()"
+                 class="wiki-content wiki-wysiwyg wiki-article-body"></div>
+
+            @if (sourceMode()) {
+                <textarea (ngModelChange)="onSourceInput($event)"
+                          [ngModel]="sourceText()"
+                          class="min-h-[24rem] w-full resize-y border-0 bg-transparent font-mono
+                                 text-[0.8125rem] leading-relaxed text-white/80 outline-none
+                                 placeholder-white/20 thin-scrollbar"
+                          placeholder="# Heading&#10;&#10;Write markdown here…"
+                          spellcheck="false"></textarea>
+            }
 
             <!-- Edit summary. Offered only when the body changed, because the server attaches
                  it to the revision that change creates and there is none otherwise. -->
@@ -58,9 +81,9 @@
        class="hidden" multiple type="file"/>
 
 <!-- Editor chrome, all of it on demand: nothing here is on screen while you are just reading. -->
-<app-wiki-bubble-menu #bubbleMenu [editor]="instance"/>
+<app-wiki-bubble-menu #bubbleMenu [editor]="editorInstance()"/>
 <app-wiki-slash-menu #slashMenu (selected)="applySlashItem($event)"
-                     [editor]="instance" [open]="slashOpen()"
+                     [editor]="editorInstance()" [open]="slashOpen()"
                      [position]="suggestPosition()" [query]="suggestQuery()"/>
 <app-wiki-link-menu #linkMenu (selected)="applyPageLink($event)"
                     [open]="linkMenuOpen()" [pages]="wiki()?.pages ?? []"

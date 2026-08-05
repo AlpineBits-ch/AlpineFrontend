@@ -15,8 +15,14 @@ export interface WikiAbilities {
     canManageRevisions: boolean;
 }
 
-export function wikiAbilities(perms: PermissionValue): WikiAbilities {
-    const superadmin = hasPermission(perms, Permissions.Superadmin);
+/**
+ * `isOwner` is a separate argument rather than something derived from `perms` because the guild
+ * owner's own member record does not reliably carry Superadmin - the same caveat
+ * `memberCanManageGuild` documents. Without it the owner of a guild whose roles happen not to
+ * name the wiki bits gets a wiki they can read and never edit.
+ */
+export function wikiAbilities(perms: PermissionValue, isOwner = false): WikiAbilities {
+    const superadmin = isOwner || hasPermission(perms, Permissions.Superadmin);
     const granted = (permission: PermissionValue) => superadmin || hasPermission(perms, permission);
     return {
         canCreate: granted(Permissions.CreateWikiPages),

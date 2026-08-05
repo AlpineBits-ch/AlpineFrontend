@@ -204,14 +204,23 @@ export class WikiStateService {
      */
     private loadAbilities(guildId: string): void {
         this.abilities.set(wikiAbilities(0n));
-        this.ownUserId.set(this.profileService.ownProfile()?.userId ?? null);
+        const ownUserId = this.profileService.ownProfile()?.userId ?? null;
+        this.ownUserId.set(ownUserId);
+        const isOwner = this.isGuildOwner(guildId, ownUserId);
         this.guildService.getOwnMember(guildId).subscribe({
             next: member => {
-                this.abilities.set(wikiAbilities(effectiveGuildPermissions(member)));
+                this.abilities.set(wikiAbilities(effectiveGuildPermissions(member), isOwner));
                 this.ownUserId.set(member.userId ?? this.ownUserId());
             },
-            error: () => this.abilities.set(wikiAbilities(0n)),
+            // The owner keeps their abilities even when the member fetch fails: ownership is
+            // already known locally, and denying it here would lock them out of their own wiki.
+            error: () => this.abilities.set(wikiAbilities(0n, isOwner)),
         });
+    }
+
+    private isGuildOwner(guildId: string, ownUserId: string | null): boolean {
+        if (!ownUserId) return false;
+        return this.guildService.guilds().find(g => g.id === guildId)?.ownerId === ownUserId;
     }
 
     private loadWiki(guildId: string, navigateTo?: WikiPageDto): void {

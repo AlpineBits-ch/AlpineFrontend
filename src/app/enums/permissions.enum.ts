@@ -88,6 +88,17 @@ export const Permissions = {
     // ── Household: guest access ───────────────────────────────────────────────
     ManageGuests: 1n << 49n,
 
+    // ── Mentions ──────────────────────────────────────────────────────────────
+    MentionEveryone: 1n << 50n,
+
+    // ── Moderation (split out of coarser bits) ───────────────────────────────
+    ManageRoles: 1n << 51n,
+    ManageWebhooks: 1n << 52n,
+
+    // ── Nicknames ─────────────────────────────────────────────────────────────
+    ChangeNickname: 1n << 53n,
+    ManageNicknames: 1n << 54n,
+
     // ── Catch-all ────────────────────────────────────────────────────────────
     Superadmin: 1n << 63n,
 } as const;
@@ -115,12 +126,12 @@ export const PERM_GROUPS: PermGroup[] = [
     {
         label: 'General',
         labelKey: 'PERM_GROUP.GENERAL',
-        perms: ['ViewChannel', 'CreateInvite'],
+        perms: ['ViewChannel', 'CreateInvite', 'ChangeNickname'],
     },
     {
         label: 'Messages',
         labelKey: 'PERM_GROUP.MESSAGES',
-        perms: ['SendMessages', 'EditOwnMessages', 'EditAnyMessage', 'DeleteOwnMessages', 'DeleteAnyMessage', 'PinMessages'],
+        perms: ['SendMessages', 'EditOwnMessages', 'EditAnyMessage', 'DeleteOwnMessages', 'DeleteAnyMessage', 'PinMessages', 'MentionEveryone'],
     },
     {
         label: 'Attachments & Embeds',
@@ -140,7 +151,7 @@ export const PERM_GROUPS: PermGroup[] = [
     {
         label: 'Moderation',
         labelKey: 'PERM_GROUP.MODERATION',
-        perms: ['ManageChannel', 'ManagePermissions', 'ManageGuild', 'KickMembers', 'BanMembers', 'ModerateMembers', 'ViewAuditLog'],
+        perms: ['ManageChannel', 'ManagePermissions', 'ManageRoles', 'ManageWebhooks', 'ManageGuild', 'KickMembers', 'BanMembers', 'ModerateMembers', 'ManageNicknames', 'ViewAuditLog'],
     },
     {
         label: 'Emojis',
