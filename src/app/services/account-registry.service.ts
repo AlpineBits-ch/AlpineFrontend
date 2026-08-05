@@ -1,16 +1,15 @@
 import {Injectable, signal} from '@angular/core';
-import {LazyStore} from '@tauri-apps/plugin-store';
 import {
     activeSlotId as liveSlotId,
     BOOTSTRAP_SLOT_ID,
     setActiveSlotId,
 } from './scoped-oauth-storage';
+import {openSettingsStore} from './settings-store';
 
 // Re-exported from where it is defined, so the many callers that reach for it alongside the slot
 // list keep one import and the two modules keep a one-way dependency.
 export {BOOTSTRAP_SLOT_ID};
 
-const STORE_FILE = 'settings.json';
 const REGISTRY_KEY = 'accounts';
 
 /** One signed-in account on this machine. */
@@ -245,9 +244,13 @@ export class AccountRegistryService {
      * <p><b>Writes nothing.</b> Not the file, and above all not the live-slot mirror - republishing
      * it from here is the bug that made "Add Account" a no-op. A read must be able to happen at any
      * moment, from any caller, without changing who the app thinks is signed in.</p>
+     *
+     * <p>This is the first store read the app performs at all - `DeviceIdentityService.deviceId()`
+     * goes through {@link activeSlotId}, which awaits this - so it is also the first thing that
+     * breaks when there is no IPC host. See {@link openSettingsStore}.</p>
      */
     private async read(): Promise<RegistryFile> {
-        const store = new LazyStore(STORE_FILE);
+        const store = openSettingsStore();
         const raw = await store.get<{slots?: AccountSlot[]}>(REGISTRY_KEY);
         const file: RegistryFile = {
             slots: Array.isArray(raw?.slots) ? raw.slots : [],
@@ -263,7 +266,7 @@ export class AccountRegistryService {
         const current = await this.load();
         const {result, live, ...next} = change(current);
 
-        const store = new LazyStore(STORE_FILE);
+        const store = openSettingsStore();
         await store.set(REGISTRY_KEY, next);
         await store.save();
 

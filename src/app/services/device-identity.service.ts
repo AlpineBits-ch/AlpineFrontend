@@ -4,7 +4,7 @@ import {secureStorage} from 'tauri-plugin-secure-storage-api';
 import {DeviceService} from './device.service';
 import {describeCurrentDevice} from './device-description';
 import {AccountRegistryService, BOOTSTRAP_SLOT_ID} from './account-registry.service';
-import {DeviceIdentityStore, openDeviceIdentityStore} from './device-identity-store';
+import {openSettingsStore, SettingsStore} from './settings-store';
 
 /** Pre-slot single id. Read for migration, and still written for the bootstrap slot. */
 const LEGACY_DEVICE_ID_KEY = 'mls_device_id';
@@ -81,7 +81,7 @@ export class DeviceIdentityService {
      * group state and moving the wrong one would hand it to the wrong account.</p>
      */
     async ownsLegacyState(): Promise<boolean> {
-        const store = openDeviceIdentityStore();
+        const store = openSettingsStore();
         const legacy = await store.get<StoredId>(LEGACY_DEVICE_ID_KEY);
         if (!legacy?.value) return false;
         return (await this.deviceId()) === legacy.value;
@@ -92,7 +92,7 @@ export class DeviceIdentityService {
         const slotId = await this.registry.activeSlotId();
         this.cached.delete(slotId);
 
-        const store = openDeviceIdentityStore();
+        const store = openSettingsStore();
         const map = (await store.get<Record<string, string>>(DEVICE_IDS_KEY)) ?? {};
         delete map[slotId];
         await store.set(DEVICE_IDS_KEY, map);
@@ -154,7 +154,7 @@ export class DeviceIdentityService {
     }
 
     private async resolve(slotId: string): Promise<string> {
-        const store = openDeviceIdentityStore();
+        const store = openSettingsStore();
         const map = (await store.get<Record<string, string>>(DEVICE_IDS_KEY)) ?? {};
 
         const existing = map[slotId];
@@ -181,7 +181,7 @@ export class DeviceIdentityService {
      * this whole change exists to close.</p>
      */
     private async claimLegacyId(
-        store: DeviceIdentityStore,
+        store: SettingsStore,
         map: Record<string, string>,
         slotId: string,
     ): Promise<string | null> {
@@ -199,7 +199,7 @@ export class DeviceIdentityService {
     private async write(
         slotId: string,
         deviceId: string,
-        store = openDeviceIdentityStore(),
+        store = openSettingsStore(),
         map?: Record<string, string>,
     ): Promise<void> {
         const current = map ?? (await store.get<Record<string, string>>(DEVICE_IDS_KEY)) ?? {};

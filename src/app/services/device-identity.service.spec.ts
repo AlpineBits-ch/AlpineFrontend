@@ -392,7 +392,7 @@ describe('outside Tauri', () => {
      * which reads as those sessions being ejected from their groups. An import would have followed
      * the rename silently.</p>
      */
-    const PREFIX = 'alpine_device_identity::';
+    const PREFIX = 'alpine_settings::';
 
     beforeEach(() => {
         vi.mocked(isTauri).mockReturnValue(false);

@@ -7,11 +7,21 @@ import {
     requestPermission,
 } from '@choochmeque/tauri-plugin-notifications-api';
 import {type as osType} from '@tauri-apps/plugin-os';
-import {LazyStore} from '@tauri-apps/plugin-store';
 import {ApiConfigService} from './api-config.service';
 import {DeviceIdentityService} from './device-identity.service';
+import {openSettingsStore} from './settings-store';
 
-const STORE_FILE = 'settings.json';
+/**
+ * Where the push token is kept.
+ *
+ * <p><b>Outside Tauri this key lands in `localStorage`, which is a weaker posture than the Tauri
+ * store file it normally uses.</b> A push token is a capability: whoever holds it can be targeted,
+ * and can have this installation's registration deleted. In a browser it is readable by anything
+ * running on the origin, and there is no keychain to put it in instead. That is accepted here
+ * only because the non-Tauri branch exists solely for the E2E build and never reaches a user - the
+ * packaged desktop app, which is the only thing that ships, keeps using the store file exactly as
+ * before. Nothing in this service should be read as a claim that browser push storage is safe.</p>
+ */
 const PUSH_TOKEN_KEY = 'push_token';
 
 /** Transports the backend accepts. `Fcm` covers Android notifications and the Android call ring. */
@@ -84,18 +94,18 @@ export class UserTokenService {
     }
 
     private async storedToken(): Promise<StoredPushToken | null> {
-        const store = new LazyStore(STORE_FILE);
+        const store = openSettingsStore();
         return (await store.get<StoredPushToken>(PUSH_TOKEN_KEY)) ?? null;
     }
 
     private async rememberToken(value: StoredPushToken): Promise<void> {
-        const store = new LazyStore(STORE_FILE);
+        const store = openSettingsStore();
         await store.set(PUSH_TOKEN_KEY, value);
         await store.save();
     }
 
     private async forgetToken(): Promise<void> {
-        const store = new LazyStore(STORE_FILE);
+        const store = openSettingsStore();
         await store.delete(PUSH_TOKEN_KEY);
         await store.save();
     }

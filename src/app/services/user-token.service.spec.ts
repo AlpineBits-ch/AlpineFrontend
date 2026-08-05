@@ -2,6 +2,14 @@
  * Push tokens now carry the device they belong to, which is what lets the server leave out the
  * device already dealing with an event. Deregistration is what stops a signed-out handset ringing.
  */
+// Stubbed true, and re-stubbed true in `beforeEach`, because everything outside the "outside Tauri"
+// block below is about the desktop path and would otherwise silently start asserting against
+// `localStorage`. `vi.clearAllMocks` clears calls but not implementations, so the flip to false in
+// that block would leak into every test after it without the reset.
+vi.mock('@tauri-apps/api/core', () => ({
+    invoke: vi.fn(),
+    isTauri: vi.fn(() => true),
+}));
 vi.mock('@tauri-apps/plugin-store');
 vi.mock('@tauri-apps/plugin-os', () => ({type: vi.fn(() => 'windows')}));
 vi.mock('@choochmeque/tauri-plugin-notifications-api', () => ({
@@ -13,6 +21,7 @@ vi.mock('@choochmeque/tauri-plugin-notifications-api', () => ({
 import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
+import {isTauri} from '@tauri-apps/api/core';
 import {LazyStore} from '@tauri-apps/plugin-store';
 import {type as osType} from '@tauri-apps/plugin-os';
 import {ApiConfigService} from './api-config.service';
@@ -24,8 +33,29 @@ const PUSH_URL = `${BASE}/api/v1/identity/users/self/push-token`;
 
 const store = {get: vi.fn(), set: vi.fn(), delete: vi.fn(), save: vi.fn()};
 
+/**
+ * This runner's global `localStorage` exists but has no methods on it, so every read and write in
+ * the browser-backend tests would silently do nothing and the persistence they exist to prove would
+ * be unobservable. Same in-memory stand-in, same reason, as in `device-identity.service.spec.ts`.
+ */
+const browserStorage = new Map<string, string>();
+
+beforeAll(() => {
+    Object.defineProperty(globalThis, 'localStorage', {
+        configurable: true,
+        value: {
+            getItem: (k: string) => browserStorage.get(k) ?? null,
+            setItem: (k: string, v: string) => void browserStorage.set(k, String(v)),
+            removeItem: (k: string) => void browserStorage.delete(k),
+            clear: () => browserStorage.clear(),
+        },
+    });
+});
+
 beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(isTauri).mockReturnValue(true);
+    localStorage.clear();
     store.get.mockResolvedValue(null);
     store.set.mockResolvedValue(undefined);
     store.delete.mockResolvedValue(undefined);
@@ -125,4 +155,87 @@ it('swallows a failed registration rather than surfacing it to launch', async ()
 
     await expect(done).resolves.toBeUndefined();
     expect(store.set).not.toHaveBeenCalled();
+});
+
+// ---------------------------------------------------------------------------
+// Outside Tauri
+// ---------------------------------------------------------------------------
+
+/**
+ * The `localStorage` backend.
+ *
+ * <p><b>A weaker posture than the Tauri store file, on purpose and only here.</b> A push token is a
+ * capability - it can be used to target this installation, and to delete its registration - and in
+ * a browser it is readable by anything on the origin, with no keychain to put it in instead. This
+ * branch is reachable only when there is no Tauri host, which in practice means the E2E build; the
+ * packaged app that ships to users still writes the store file. See the note on `PUSH_TOKEN_KEY`.
+ * </p>
+ *
+ * <p>Push registration itself never gets this far in a browser - `registerForPushNotifications` has
+ * no host to answer it - so what these pin is that the *storage* half no longer rejects, and that
+ * the deregistration path can still find and clear a token.</p>
+ */
+describe('outside Tauri', () => {
+    /** Pinned as a literal, so renaming the shared prefix has to be a deliberate edit here too. */
+    const PREFIX = 'alpine_settings::';
+
+    beforeEach(() => {
+        vi.mocked(isTauri).mockReturnValue(false);
+    });
+
+    it('reports no stored token, without ever opening the Tauri store', async () => {
+        const {service, ctrl} = setup();
+
+        await service.deregisterToken();
+
+        ctrl.expectNone(() => true);
+        // The gate is the whole guarantee: no IPC is attempted, so there is nothing to reject.
+        expect(LazyStore).not.toHaveBeenCalled();
+        expect(store.get).not.toHaveBeenCalled();
+    });
+
+    it('deregisters a token persisted in localStorage, and clears it', async () => {
+        localStorage.setItem(
+            `${PREFIX}push_token`,
+            JSON.stringify({token: 'push-token-xyz', kind: 'Fcm'}),
+        );
+        const {service, ctrl} = setup();
+
+        void service.deregisterToken();
+        await tick();
+
+        const req = ctrl.expectOne(r => r.url === PUSH_URL && r.method === 'DELETE');
+        expect(req.request.params.get('token')).toBe('push-token-xyz');
+        req.flush(null, {status: 204, statusText: 'No Content'});
+        await tick();
+
+        // Cleared, not merely blanked: a token left behind would be re-sent on the next sign-out
+        // and would fail against a registration the server has already dropped.
+        expect(localStorage.getItem(`${PREFIX}push_token`)).toBeNull();
+    });
+
+    it('leaves the token in place when the delete request fails', async () => {
+        const stored = JSON.stringify({token: 'push-token-xyz', kind: 'Fcm'});
+        localStorage.setItem(`${PREFIX}push_token`, stored);
+        const {service, ctrl} = setup();
+
+        const done = service.deregisterToken();
+        await tick();
+        ctrl.expectOne(r => r.method === 'DELETE')
+            .flush('nope', {status: 500, statusText: 'Server Error'});
+
+        // Swallowed, so sign-out completes - but the token stays, because forgetting it locally
+        // while the server still holds it is how an installation keeps ringing after sign-out.
+        await expect(done).resolves.toBeUndefined();
+        expect(localStorage.getItem(`${PREFIX}push_token`)).toBe(stored);
+    });
+
+    it('reads a corrupt stored token as absent rather than throwing', async () => {
+        localStorage.setItem(`${PREFIX}push_token`, 'not json');
+        const {service, ctrl} = setup();
+
+        await expect(service.deregisterToken()).resolves.toBeUndefined();
+
+        ctrl.expectNone(() => true);
+    });
 });
