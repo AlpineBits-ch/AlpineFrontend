@@ -3,9 +3,13 @@
     <div (click)="cancel()"
          class="fixed inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm">
 
-        <!-- Panel -->
+        <!-- Panel.
+
+             Width in rem so it tracks the base font size like every other size in the app, capped
+             against the viewport so a small window gets a dialog that fits rather than one clipped
+             by the screen edge. The height is already viewport-relative for the same reason. -->
         <div (click)="$event.stopPropagation()"
-             class="relative flex flex-col w-[51.25rem] max-h-[80vh] bg-sidebar rounded-2xl border border-border shadow-2xl overflow-hidden">
+             class="relative flex flex-col w-[min(56.25rem,92vw)] max-h-[80vh] bg-sidebar rounded-2xl border border-border shadow-2xl overflow-hidden">
 
             <!-- Header -->
             <div class="flex items-center justify-between px-5 py-4 border-b border-border-subtle shrink-0">
