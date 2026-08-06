@@ -1,7 +1,7 @@
 <div class="hidden lg:flex flex-col w-80 shrink-0 h-full bg-sidebar border-r border-white/[0.10]">
 
     <!-- Header -->
-    <div class="flex items-center gap-1.5 px-3 py-3 border-b border-white/[0.10] shrink-0">
+    <div class="app-header flex items-center gap-1.5 px-3 border-b border-white/[0.10] shrink-0">
         <p-button (onClick)="navService.closeEventsPanel()" [pTooltip]="'COMMON.CLOSE' | translate" [text]="true"
                   icon="pi pi-times" severity="secondary" size="small" tooltipPosition="bottom"/>
         <span class="flex-1 min-w-0 truncate text-sm font-semibold text-text-primary">{{ 'EVENTS.TITLE' | translate }}</span>

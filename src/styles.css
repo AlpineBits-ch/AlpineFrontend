@@ -34,6 +34,23 @@ html, body {
   scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
 }
 
+/* The header row, wherever one is drawn: channel titles, the wiki breadcrumb bar,
+   sidebar and side-panel headers. Height comes from --spacing-header alone -headers
+   that set their own vertical padding instead are how the wiki bar ended up taller
+   than the channel bar sitting right beside it. Safe-area padding is folded in here
+   so no header has to repeat the calc to clear a notch. */
+.app-header {
+  padding-top: env(safe-area-inset-top);
+  min-height: calc(env(safe-area-inset-top) + var(--spacing-header));
+}
+
+/* Same row, for a header whose column already pads for the safe area itself
+   (the sidebar wrapper does) -adding it twice would push that column's title
+   below every other header's. */
+.app-header-nested {
+  min-height: var(--spacing-header);
+}
+
 /* iOS keyboard fix: when a text input is focused, iOS scrolls the visual viewport
    (visualViewport.offsetTop > 0) which makes position:fixed elements appear to shift
    upward, pushing the header off-screen. The JS in AppComponent tracks offsetTop and
@@ -356,6 +373,12 @@ button, a, [role="button"], input, select, textarea, label {
 
   /* ── Icon/tile shape - uniform rounded-square, no morphing ──── */
   --radius-icon: 12px;
+
+  /* ── Chrome - the one height every header row is drawn at ─────
+     Channel titles, the wiki breadcrumb bar, sidebar and side-panel
+     headers all read it through `.app-header`, so their bottom rules
+     land on the same line no matter which pane you are looking at. */
+  --spacing-header: 3.125rem;
 }
 
 /* ── Wiki markdown content ───────────────────────────────────────────────────

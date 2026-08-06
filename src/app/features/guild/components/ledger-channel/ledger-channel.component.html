@@ -2,8 +2,7 @@
 
     <!-- Header. Drawn even when the module is off, so a phone still has its way back to the
          channel list - the body below is what disappears, not the shell. -->
-    <header class="flex items-center gap-2 px-3 sm:px-5 border-b border-border-subtle shrink-0 bg-app-bg"
-            style="padding-top: env(safe-area-inset-top); min-height: calc(env(safe-area-inset-top) + 3.5rem)">
+    <header class="app-header flex items-center gap-2 px-3 sm:px-5 border-b border-border-subtle shrink-0 bg-app-bg">
         <p-button (onClick)="navService.mobileNavOpen.set(true)" [text]="true" class="lg:hidden" icon="pi pi-bars"
                   severity="secondary" size="small"/>
 

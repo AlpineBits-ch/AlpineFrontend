@@ -1,7 +1,7 @@
 <div (contextmenu)="onListContextMenu($event)" class="flex flex-col flex-1 min-h-0 select-none">
 
     <!-- Guild name header -->
-    <div class="px-4 py-2 min-h-14 border-b border-white/[0.10] flex items-center justify-between shrink-0">
+    <div class="app-header-nested px-4 border-b border-white/[0.10] flex items-center justify-between shrink-0">
         <span class="text-sm font-semibold text-white/90 truncate">{{ guild().name }}</span>
         <button
                 (click)="toggleGuildMenu($event)"

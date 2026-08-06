@@ -1,7 +1,7 @@
 <div class="flex flex-col flex-1 min-h-0 select-none">
 
     <!-- Header: the wiki's own, now that there is no panel wrapper to carry it -->
-    <div class="flex items-center gap-1.5 px-3 py-3 border-b border-white/[0.10] shrink-0">
+    <div class="app-header flex items-center gap-1.5 px-3 border-b border-white/[0.10] shrink-0">
         <i class="pi pi-book text-brand-dim text-sm shrink-0"></i>
         <span class="text-sm font-semibold text-white/90 truncate flex-1">{{ 'WIKI.HOME' | translate }}</span>
         <p-button (onClick)="search.emit()" [text]="true" icon="pi pi-search" [pTooltip]="'WIKI.NAV.SEARCH' | translate"

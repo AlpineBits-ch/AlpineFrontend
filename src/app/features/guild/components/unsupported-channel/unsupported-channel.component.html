@@ -2,8 +2,7 @@
 
     <!-- Header: same padding, height and safe-area treatment as the channel header, so the
          shell doesn't jump on navigation and the title clears a notch. -->
-    <div class="flex items-center gap-2.5 px-3 sm:px-5 shrink-0 border-b border-white/[0.10]"
-         style="padding-top: env(safe-area-inset-top); min-height: calc(env(safe-area-inset-top) + 3.5rem)">
+    <div class="app-header flex items-center gap-2.5 px-3 sm:px-5 shrink-0 border-b border-white/[0.10]">
         <p-button (onClick)="navService.mobileNavOpen.set(true)" [text]="true" class="lg:hidden"
                   icon="pi pi-bars" severity="secondary" size="small" styleClass="mr-1"/>
         <i [class]="icon()" class="text-white/35 text-[1.0625rem] shrink-0"></i>
