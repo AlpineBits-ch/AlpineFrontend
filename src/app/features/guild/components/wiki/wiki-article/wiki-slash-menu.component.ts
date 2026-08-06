@@ -10,8 +10,16 @@ import {
     untracked,
     viewChildren,
 } from '@angular/core';
+import {NgClass} from '@angular/common';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Editor} from '@tiptap/core';
+// Side-effect imports. `toggleCodeBlock`, `setCallout` and `setToggle` reach `ChainedCommands`
+// through module augmentation, so a compilation whose import graph does not otherwise reach the
+// extensions that declare them - this component's own spec, for one - does not know they exist.
+import '@tiptap/starter-kit';
+import '@tiptap/extension-table';
+import './blocks/wiki-callout';
+import './blocks/wiki-toggle';
 import {AiTransformOp} from '../../../../../services/ai-provider';
 
 /** The section an item is filed under. Order here is the order they render in. */
@@ -70,7 +78,7 @@ const GROUP_ORDER: readonly SlashGroup[] = ['basic', 'lists', 'media', 'advanced
  */
 @Component({
     selector: 'app-wiki-slash-menu',
-    imports: [TranslateModule],
+    imports: [NgClass, TranslateModule],
     template: `
         @if (open()) {
             <div [style.left.px]="position().left" [style.top.px]="position().top"
@@ -83,10 +91,15 @@ const GROUP_ORDER: readonly SlashGroup[] = ['basic', 'lists', 'media', 'advanced
                             {{ group.labelKey | translate }}
                         </p>
                         @for (entry of group.entries; track entry.item.labelKey) {
+                            <!-- The keyboard selection must not be styled as mouse hover: both
+                                 used the hover colour, which sits two percent off the card behind
+                                 it, so arrowing through the menu looked like nothing happened. -->
                             <button #itemEl (click)="choose(entry.item)"
-                                    [class.bg-hover]="entry.index === activeIndex()"
+                                    [ngClass]="entry.index === activeIndex()
+                                        ? 'bg-brand/25 ring-1 ring-inset ring-brand/40'
+                                        : 'hover:bg-hover'"
                                     class="flex w-full cursor-pointer items-center gap-2.5 border-0
-                                           bg-transparent px-3 py-1.5 text-left hover:bg-hover">
+                                           bg-transparent px-3 py-1.5 text-left">
                                 <span class="flex h-7 w-7 shrink-0 items-center justify-center
                                              rounded-md border border-border-subtle bg-hover">
                                     <!-- Colour folded into the one binding: two competing text-*

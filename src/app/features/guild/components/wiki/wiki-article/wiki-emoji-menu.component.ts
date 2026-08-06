@@ -1,4 +1,5 @@
 import {Component, computed, effect, ElementRef, inject, Injector, input, output, signal, untracked, viewChildren} from '@angular/core';
+import {NgClass} from '@angular/common';
 import {TranslateModule} from '@ngx-translate/core';
 import {EmojiDataService, EmojiSuggestion} from '../../../../../services/emoji-data.service';
 
@@ -12,7 +13,7 @@ import {EmojiDataService, EmojiSuggestion} from '../../../../../services/emoji-d
  */
 @Component({
     selector: 'app-wiki-emoji-menu',
-    imports: [TranslateModule],
+    imports: [NgClass, TranslateModule],
     template: `
         @if (open()) {
             <div [style.left.px]="position().left" [style.top.px]="position().top"
@@ -21,9 +22,9 @@ import {EmojiDataService, EmojiSuggestion} from '../../../../../services/emoji-d
                 <div class="thin-scrollbar max-h-72 overflow-y-auto py-1">
                     @for (emoji of matches(); track emoji.id; let i = $index) {
                         <button #itemEl (click)="selected.emit(emoji)"
-                                [class.bg-hover]="i === activeIndex()"
+                                [ngClass]="i === activeIndex() ? 'bg-brand/25 ring-1 ring-inset ring-brand/40' : 'hover:bg-hover'"
                                 class="flex w-full cursor-pointer items-center gap-2.5 border-0
-                                       bg-transparent px-3 py-1.5 text-left hover:bg-hover">
+                                       bg-transparent px-3 py-1.5 text-left">
                             <span class="w-5 shrink-0 text-center text-[1rem] leading-none">
                                 {{ emoji.native }}
                             </span>

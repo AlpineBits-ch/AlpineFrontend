@@ -1,6 +1,7 @@
 import {Component, computed, effect, ElementRef, inject, input, output, signal, untracked, viewChildren} from '@angular/core';
 import {toObservable, toSignal} from '@angular/core/rxjs-interop';
 import {catchError, debounceTime, of, switchMap} from 'rxjs';
+import {NgClass} from '@angular/common';
 import {TranslateModule} from '@ngx-translate/core';
 import {AppAvatarComponent} from '../../../../../components/avatar/avatar.component';
 import {GuildMemberDto} from '../../../../../dtos/response/member.dto';
@@ -44,7 +45,7 @@ export function parseUserHref(href: string | null | undefined): string | null {
  */
 @Component({
     selector: 'app-wiki-mention-menu',
-    imports: [TranslateModule, AppAvatarComponent],
+    imports: [NgClass, TranslateModule, AppAvatarComponent],
     template: `
         @if (open()) {
             <div [style.left.px]="position().left" [style.top.px]="position().top"
@@ -53,9 +54,9 @@ export function parseUserHref(href: string | null | undefined): string | null {
                 <div class="thin-scrollbar max-h-72 overflow-y-auto py-1">
                     @for (member of matches(); track member.userId; let i = $index) {
                         <button #itemEl (click)="selected.emit(member)"
-                                [class.bg-hover]="i === activeIndex()"
+                                [ngClass]="i === activeIndex() ? 'bg-brand/25 ring-1 ring-inset ring-brand/40' : 'hover:bg-hover'"
                                 class="flex w-full cursor-pointer items-center gap-2.5 border-0
-                                       bg-transparent px-3 py-1.5 text-left hover:bg-hover">
+                                       bg-transparent px-3 py-1.5 text-left">
                             <app-avatar [userId]="member.userId" [label]="initial(member)"
                                         styleClass="!w-6 !h-6 !text-[0.625rem]"/>
                             <span class="min-w-0 flex-1 truncate text-[0.8125rem] text-white/75">
