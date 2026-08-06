@@ -24,8 +24,18 @@ const UPSTREAM =
   `https://raw.githubusercontent.com/tauri-apps/tauri/${PINNED_REF}` +
   `/crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi`;
 
-// The one block we deliberately add. Everything else must match upstream.
-const PATCH_MARKER = 'ALPINE PATCH';
+// Our deliberate additions. Each is delimited explicitly rather than inferred
+// from NSIS structure: an earlier version stripped from the marker comment to
+// the next `${EndIf}`, which silently mismatched the moment a patch contained a
+// nested ${If} - it ate the inner EndIf and left the outer one behind, and the
+// checker then reported drift on a correct file.
+const PATCH_BEGIN = '; ALPINE PATCH BEGIN';
+const PATCH_END = '; ALPINE PATCH END';
+// `\n\s*` at the start deliberately swallows the blank line that separates the
+// patch from the code above it, so replacing the match with a single "\n"
+// restores exactly the spacing upstream has. Anchoring on `[ \t]*` instead
+// leaves that blank line behind and the comparison fails by one newline.
+const PATCH_BLOCK = /\n\s*; ALPINE PATCH BEGIN\n[\s\S]*?\n[ \t]*; ALPINE PATCH END\n/g;
 const LOCAL_PATH = 'src-tauri/vendor/nsis/installer.nsi';
 
 const fail = (message) => {
@@ -59,17 +69,27 @@ async function main() {
     );
   }
 
-  if (!local.includes(PATCH_MARKER)) {
+  const begins = local.split(PATCH_BEGIN).length - 1;
+  const ends = local.split(PATCH_END).length - 1;
+
+  if (begins === 0) {
     return fail(
-      `vendored NSIS template no longer contains an "${PATCH_MARKER}" block - ` +
+      `vendored NSIS template no longer contains an "${PATCH_BEGIN}" block - ` +
         `the passive-by-default change was lost, and installs would go back to ` +
         `showing the wizard.`,
     );
   }
 
-  // Strip our patch block, then compare. The block runs from the marker comment
-  // to the ${EndIf} that closes its ${If}/${Else}.
-  const stripped = local.replace(/\n\s*; ALPINE PATCH:[\s\S]*?\$\{EndIf\}\n/, '\n');
+  if (begins !== ends) {
+    return fail(
+      `vendored NSIS template has ${begins} "${PATCH_BEGIN}" markers but ${ends} ` +
+        `"${PATCH_END}" markers. Every patch must be delimited at both ends or ` +
+        `the comparison below silently stops matching.`,
+    );
+  }
+
+  // Strip every delimited patch block, then compare the remainder to upstream.
+  const stripped = local.replace(PATCH_BLOCK, '\n');
 
   if (hash(stripped) !== hash(upstream)) {
     return fail(

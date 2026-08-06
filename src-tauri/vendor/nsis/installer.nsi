@@ -490,7 +490,8 @@ Function .onInit
     StrCpy $UpdateMode 1
   ${EndIf}
 
-  ; ALPINE PATCH: passive is the default, so a double-click gets one progress
+  ; ALPINE PATCH BEGIN
+  ; passive is the default, so a double-click gets one progress
   ; window instead of a five-page wizard. Every page except MUI_PAGE_INSTFILES
   ; carries `MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive`, and SkipIfPassive aborts
   ; the page when $PassiveMode = 1 - so this one default is the whole feature.
@@ -510,6 +511,7 @@ Function .onInit
   ${Else}
     StrCpy $PassiveMode 0
   ${EndIf}
+  ; ALPINE PATCH END
 
   !if "${DISPLAYLANGUAGESELECTOR}" == "true"
     !insertmacro MUI_LANGDLL_DISPLAY
@@ -772,6 +774,29 @@ Function .onInstSuccess
       nsis_tauri_utils::RunAsUser "$INSTDIR\${MAINBINARYNAME}.exe" "$R0"
     ${EndIf}
   ${EndIf}
+
+  ; ALPINE PATCH BEGIN
+  ; launch the app after an interactive install.
+  ;
+  ; The comment above is the whole problem: the only launch path for a
+  ; double-clicked install was the Finish page's "run app" toggle, and making
+  ; passive the default skips that page. The result was an install that
+  ; completed and then sat there doing nothing.
+  ;
+  ; Deliberately narrow, so it cannot double-launch:
+  ;   - Silent is excluded. The updater drives silent installs and passes /R,
+  ;     which the block above already handles.
+  ;   - An explicit /R is excluded for the same reason.
+  ; What is left is exactly the case the Finish page used to cover: a human ran
+  ; the installer and expects the app to come up.
+  ${If} $PassiveMode = 1
+  ${AndIfNot} ${Silent}
+    ${GetOptions} $CMDLINE "/R" $R0
+    ${If} ${Errors}
+      nsis_tauri_utils::RunAsUser "$INSTDIR\${MAINBINARYNAME}.exe" ""
+    ${EndIf}
+  ${EndIf}
+  ; ALPINE PATCH END
 FunctionEnd
 
 Function un.onInit

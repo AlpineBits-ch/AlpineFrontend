@@ -59,6 +59,7 @@
     "emoji-mart": "^5.6.0",
     "highlight.js": "^11.11.1",
     "marked": "^18.0.3",
+    "mermaid": "^11.4.1",
     "openai": "^7.4.0",
     "primeicons": "^7.0.0",
     "primeng": "^21.1.6",
@@ -98,5 +99,5 @@
     "watch": "ng build --watch --configuration development",
     "sentry:sourcemaps": "sentry-cli sourcemaps inject --org alpinebits-klg --project venta-frontend ./dist && sentry-cli sourcemaps upload --org alpinebits-klg --project venta-frontend ./dist"
   },
-  "version": "3.0.179"
+  "version": "3.0.180"
 }

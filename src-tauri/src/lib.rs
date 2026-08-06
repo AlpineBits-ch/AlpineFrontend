@@ -426,13 +426,22 @@ pub fn run() {
                 // Only reached when there was no update, or installing one failed.
                 // A successful Windows install never returns here - the plugin execs
                 // the installer and calls std::process::exit(0).
-                if let Some(splash) = splash {
-                    let _ = splash.close();
-                }
 
+                // The main window is built BEFORE the splash is closed, and the
+                // order is load-bearing. Tauri exits the process when its last
+                // window closes, so closing the splash first leaves zero windows
+                // open and races `main_window::build` against the runtime tearing
+                // the app down. That race is why the app would show the splash,
+                // flicker, and vanish - and why it survived testing on one machine
+                // and died on another. Overlapping the two windows for a moment
+                // costs nothing; the gap between them costs the whole app.
                 if let Err(e) = main_window::build(&handle) {
                     eprintln!("[startup] failed to build main window: {e}");
                     return;
+                }
+
+                if let Some(splash) = splash {
+                    let _ = splash.close();
                 }
 
                 {
