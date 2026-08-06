@@ -5,18 +5,25 @@ import {
     ElementRef,
     inject,
     input,
+    OnDestroy,
     output,
     signal,
     viewChild,
 } from '@angular/core';
 import {FormsModule} from '@angular/forms';
-import {TranslateModule} from '@ngx-translate/core';
+import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Editor} from '@tiptap/core';
 import {AI_PROVIDER_META, stripOuterFence} from '../../../../../services/ai-provider';
 import {AiConnectFormComponent} from '../../../../../shared/ai-connect-form/ai-connect-form.component';
 import {WikiAiService} from '../wiki-ai.service';
 import {WikiAiDocStream} from './wiki-ai-doc-stream';
-import {describeAiError, isMissingProvider, markdownForRange, WikiAiTransformAction} from './wiki-ai-shared';
+import {
+    describeAiError,
+    isMissingProvider,
+    markdownForRange,
+    resolveTransformScope,
+    WikiAiTransformAction,
+} from './wiki-ai-shared';
 
 type InlinePhase = 'closed' | 'prompt' | 'running' | 'review' | 'connect';
 
@@ -170,7 +177,7 @@ const FLUSH_MS = 90;
         }
     `,
 })
-export class WikiAiInlineComponent {
+export class WikiAiInlineComponent implements OnDestroy {
     readonly editor = input<Editor | undefined>(undefined);
     readonly pageTitle = input('');
     readonly pageTitles = input<readonly string[]>([]);
@@ -187,6 +194,7 @@ export class WikiAiInlineComponent {
     readonly applied = output<void>();
 
     protected readonly ai = inject(WikiAiService);
+    private readonly translate = inject(TranslateService);
     protected readonly phase = signal<InlinePhase>('closed');
     protected readonly position = signal({top: 0, left: 0});
     protected readonly error = signal<string | null>(null);
@@ -242,26 +250,38 @@ export class WikiAiInlineComponent {
     }
 
     /**
-     * Runs a bubble-menu action against the current selection. Starts immediately: the user has
-     * already said what they want by picking the item.
+     * Runs a menu action. Starts immediately: the user has already said what they want by picking
+     * the item.
+     *
+     * What it runs against is {@link resolveTransformScope}'s problem, because the two menus that
+     * reach here disagree - the bubble menu only appears over a selection, the slash menu only
+     * ever leaves a caret.
      */
     runTransform(action: WikiAiTransformAction): void {
         const editor = this.editor();
         if (!editor || !editor.isEditable) return;
-        const {from, to} = editor.state.selection;
-        if (from === to) return;
         void this.ai.refresh();
-        const text = markdownForRange(editor, from, to);
-        // `continue` is the one op whose output is an addition rather than a replacement, so it
-        // owns an empty range at the end of the passage. Applied over the selection it would
-        // delete the very paragraph it was asked to extend.
-        if (action.op === 'continue') this.begin(to, to);
-        else this.begin(from, to);
+
+        const scope = resolveTransformScope(editor, action.op);
+        if (!scope) {
+            // An empty page has nothing to improve. Said out loud, next to the caret, with the
+            // prompt field open - the failure the user reported was this case saying nothing.
+            const {from, to} = editor.state.selection;
+            this.begin(from, to);
+            this.draftPrompt = '';
+            this.runningLabel.set(null);
+            this.lastRun = null;
+            this.error.set(this.translate.instant('WIKI.AI.INLINE.NOTHING_TO_TRANSFORM'));
+            this.phase.set('prompt');
+            return;
+        }
+
+        this.begin(scope.from, scope.to);
         this.draftPrompt = '';
         this.runningLabel.set(action.labelKey ?? null);
         this.start(() => this.ai.transform({
             op: action.op,
-            text,
+            text: scope.text,
             instruction: action.instruction,
             title: this.pageTitle(),
             pageTitles: this.pageTitles(),
@@ -300,6 +320,19 @@ export class WikiAiInlineComponent {
     cancel(): void {
         if (this.phase() === 'closed') return;
         this.close();
+    }
+
+    /**
+     * Drops the pending work without touching the document.
+     *
+     * Deliberately not `close()`: leaving the wiki mid-generation destroys the editor, and a
+     * discard would then rewind a surface whose view is already gone. The coalescing timer is the
+     * one that outlives us - it fires up to {@link FLUSH_MS} later, straight into a dead editor.
+     */
+    ngOnDestroy(): void {
+        this.flushTimer = clearTimer(this.flushTimer);
+        this.controller?.abort();
+        this.stream = undefined;
     }
 
     protected submit(): void {

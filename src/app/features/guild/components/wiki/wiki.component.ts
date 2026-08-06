@@ -216,13 +216,14 @@ export class WikiComponent {
      */
     protected onAiStreamRequest(prompt: string): void {
         this.aiOpen.set(false);
-        if (this.state.wikiView() === 'editor') {
-            this.article()?.draftWithAi(prompt);
-            return;
+        if (this.state.wikiView() !== 'editor') {
+            this.state.openEditor(this.state.selectedPage() ?? undefined, undefined,
+                {skipTemplatePicker: true});
         }
-        // Switching views recreates the article, so the call has to wait for it to exist.
-        this.state.openEditor(this.state.selectedPage() ?? undefined, undefined,
-            {skipTemplatePicker: true});
+        // Deferred in both cases, not only after a view switch. The article is reached through a
+        // view query on a `?.`, so a tick where it has not been matched yet drops the prompt with
+        // no trace - the dialog has already closed by then, which is exactly what "I typed it,
+        // pressed the button and it vanished" looks like.
         setTimeout(() => this.article()?.draftWithAi(prompt));
     }
 

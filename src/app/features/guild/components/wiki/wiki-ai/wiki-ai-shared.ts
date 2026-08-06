@@ -62,6 +62,60 @@ export function markdownForRange(editor: Editor, from: number, to: number): stri
     }
 }
 
+/** What a transform reads and what it is allowed to overwrite. */
+export interface WikiAiTransformScope {
+    /** The markdown handed to the model. */
+    text: string;
+    /** The range the result replaces. `from === to` means insert rather than replace. */
+    from: number;
+    to: number;
+}
+
+/**
+ * What a transform acts on when the user has not selected anything.
+ *
+ * The bubble menu can only be reached with a selection, so for a long time every transform
+ * assumed one. The slash menu cannot: by the time a row is chosen the `/summarize` trigger text
+ * has been deleted and the caret is sitting on its own in an otherwise untouched page. Every AI
+ * row in that menu therefore hit a `from === to` guard and returned without a request, a bar or a
+ * message - the menu closed and nothing else happened.
+ *
+ * So an absent selection is read as an intent rather than as a missing argument:
+ *
+ * - the caret is inside a block with text - that block is the passage, which is what every other
+ *   editor means by running a command "here";
+ * - the caret is on an empty line - the page is the passage, which is what the menu already
+ *   promises ("Condense this page to its point").
+ *
+ * The result normally replaces what it read. Two cases add instead: `continue` always, because it
+ * was asked to carry on rather than to rewrite, and `summarize` when nothing was selected, because
+ * "summarize" over a whole page would otherwise delete the page and leave its summary behind.
+ * Returns null when there is genuinely nothing to work on, which the caller must report rather
+ * than swallow.
+ */
+export function resolveTransformScope(editor: Editor, op: AiTransformOp): WikiAiTransformScope | null {
+    const {from, to} = editor.state.selection;
+    const selected = from !== to;
+    const range = selected ? {from, to} : enclosingRange(editor);
+    const text = markdownForRange(editor, range.from, range.to).trim();
+    if (!text) return null;
+
+    if (op !== 'continue' && !(op === 'summarize' && !selected)) return {text, ...range};
+    // Additive ops land where the user asked for them: at the end of a selection they made, or
+    // at the caret they left, never at the end of whatever the scope happened to read.
+    const at = selected ? range.to : to;
+    return {text, from: at, to: at};
+}
+
+/** The caret's own block when it holds text, otherwise the whole document. */
+function enclosingRange(editor: Editor): { from: number; to: number } {
+    const {$from} = editor.state.selection;
+    if ($from.depth > 0 && $from.parent.isTextblock && $from.parent.textContent.trim()) {
+        return {from: $from.start(), to: $from.end()};
+    }
+    return {from: 0, to: editor.state.doc.content.size};
+}
+
 /**
  * Orders the candidate pages for an Ask request, best first, and changes nothing else.
  *

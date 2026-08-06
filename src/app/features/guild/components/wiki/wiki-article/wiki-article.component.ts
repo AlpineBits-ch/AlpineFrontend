@@ -171,6 +171,8 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     private overHandler?: (e: MouseEvent) => void;
     private outHandler?: (e: MouseEvent) => void;
     private suggest: SuggestState | null = null;
+    /** Which page the document currently holds, so a refresh is not mistaken for a swap. */
+    private shownPageId: string | null | undefined;
 
     constructor() {
         // Loading a different page replaces the document; toggling editing must not.
@@ -178,7 +180,16 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             const page = this.page();
             // The bar owns a document range and locks the editor while it streams. A page swap
             // underneath it would strand a locked editor holding half a generation.
-            this.aiInline?.cancel();
+            //
+            // Only a swap, though. This effect also re-runs whenever the wiki's summaries are
+            // refreshed - anyone's edit to any page, a pin, a tag, a remote-update notice - and
+            // cancelling on those discarded a generation mid-stream on a page nobody had left,
+            // which read as the AI bar simply vanishing.
+            const pageId = page?.id ?? null;
+            if (pageId !== this.shownPageId) {
+                this.shownPageId = pageId;
+                this.aiInline?.cancel();
+            }
             this.title.set(page?.title ?? '');
             // A different page must never inherit the previous one's raw buffer.
             this.sourceMode.set(false);
