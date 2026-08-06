@@ -6,6 +6,7 @@ import {ConnectionState, MessagingWebsocketService} from "../../../../services/m
 import {ConnectionStatusComponent} from "../connection-status/connection-status.component";
 import {SettingsModalComponent} from "../../../../features/settings/settings-modal/settings-modal.component";
 import {VoiceChannelService} from "../../../../services/voice-channel.service";
+import {VoiceControlsService} from "../../../../services/voice-controls.service";
 import {TranslateModule} from '@ngx-translate/core';
 import {UserService} from "../../../../services/user.service";
 import {AdminModalComponent} from "../../../../features/admin/admin-modal/admin-modal.component";
@@ -43,6 +44,8 @@ export class QuickSettingsComponent {
     protected userService = inject(UserService);
     protected websocketService = inject(MessagingWebsocketService);
     protected voiceSvc = inject(VoiceChannelService);
+    /** Mute and deafen route through here so they reach whichever call is live - see the service. */
+    protected voiceControls = inject(VoiceControlsService);
     protected catalog = inject(MediaDeviceCatalogService);
     protected audio = inject(AudioSettingsService);
 

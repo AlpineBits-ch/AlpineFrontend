@@ -49,7 +49,17 @@ export class VoiceChannelComponent {
     protected participants = computed(() =>
         this.voiceSvc.channelParticipants().get(this.channel().id) ?? [],
     );
-    protected callParticipants = computed((): CallParticipant[] => this.participants());
+    /**
+     * The roster, with each participant's camera track attached.
+     *
+     * <p>Resolved here rather than left to the tiles: the screen-share layout renders the roster as
+     * a strip beside the streams, and without the track those tiles could only ever show avatars -
+     * so turning on a camera did nothing visible the moment anybody shared a screen.</p>
+     */
+    protected callParticipants = computed((): CallParticipant[] => this.participants().map(p => ({
+        ...p,
+        videoStream: p.isLocal ? this.voiceSvc.localVideoStream() : this.voiceSvc.getVideoStream(p.userId),
+    })));
     protected audio = trackAudioWait(this.callParticipants, this.voiceSvc.participantsWithAudio);
 
     // ── Permission check ───────────────────────────────────────────────────────

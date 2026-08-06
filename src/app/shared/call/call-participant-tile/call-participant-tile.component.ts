@@ -31,4 +31,18 @@ export class CallParticipantTileComponent {
             });
         }
     }
+
+    /**
+     * Fullscreens the tile, video and name overlay together.
+     *
+     * <p>The tile rather than the &lt;video&gt; element: a fullscreened video is bare browser chrome
+     * with no idea whose face it is showing.</p>
+     */
+    protected toggleFullscreen(event: MouseEvent): void {
+        event.stopPropagation();
+        const tile = (event.currentTarget as HTMLElement).closest('.group') as HTMLElement | null;
+        if (!tile) return;
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => void 0);
+        else tile.requestFullscreen().catch(() => void 0);
+    }
 }

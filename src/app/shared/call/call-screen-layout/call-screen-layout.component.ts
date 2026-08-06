@@ -33,13 +33,41 @@ export class CallScreenLayoutComponent implements OnDestroy {
     remoteAudioToggle = output<string>();
 
     protected readonly maximizedId = signal<string | null>(null);
+
+    private readonly remoteShares = computed(() => this.screenShares().filter(s => !s.isLocal));
+    private readonly localShare = computed(() => this.screenShares().find(s => s.isLocal) ?? null);
+
+    /**
+     * The shares that get a full tile.
+     *
+     * <p>Your own is dropped from the grid as soon as anybody else is sharing. It is a low-rate
+     * thumbnail of something already on your own screen, and at full tile size it read as a broken
+     * stream while taking half the room from the streams you opened the channel to watch. It moves
+     * to the self-card instead, which is where a monitor of your own output belongs.</p>
+     */
     protected displayedShares = computed(() => {
         const id = this.maximizedId();
-        return id === null ? this.screenShares() : this.screenShares().filter(s => s.shareId === id);
+        if (id !== null) return this.screenShares().filter(s => s.shareId === id);
+
+        const remote = this.remoteShares();
+        return remote.length > 0 ? remote : this.screenShares();
     });
-    protected gridClass = computed(() =>
-        this.maximizedId() === null && this.screenShares().length > 1 ? 'grid-cols-2' : 'grid-cols-1'
-    );
+
+    /** The local share when it is not in the grid - see {@link displayedShares}. */
+    protected selfCard = computed(() => {
+        const local = this.localShare();
+        if (!local) return null;
+        return this.displayedShares().some(s => s.shareId === local.shareId) ? null : local;
+    });
+
+    /** Columns for the count actually on screen. Two was the only answer before, so three streams
+     *  left a lone tile stranded on its own row at half width. */
+    protected gridClass = computed(() => {
+        const count = this.displayedShares().length;
+        if (count <= 1) return 'grid-cols-1';
+        if (count <= 4) return 'grid-cols-2';
+        return 'grid-cols-3';
+    });
     private readonly _zoom = signal<Record<string, number>>({});
     private readonly _pan = signal<Record<string, { x: number; y: number }>>({});
     private dragging: {
@@ -149,6 +177,27 @@ export class CallScreenLayoutComponent implements OnDestroy {
     protected toggleMaximize(shareId: string, event: MouseEvent): void {
         event.stopPropagation();
         this.maximizedId.update(id => id === shareId ? null : shareId);
+    }
+
+    /**
+     * Fullscreens a share.
+     *
+     * <p>The tile, not the &lt;video&gt;: the name pill, the LIVE badge and the viewer count go
+     * with it. Distinct from {@link toggleMaximize}, which only stops the *other* tiles being
+     * rendered - the pane, its header and the rest of the app stay exactly where they were, which
+     * is not what anybody means by fullscreen.</p>
+     */
+    protected toggleFullscreen(event: MouseEvent): void {
+        event.stopPropagation();
+        const tile = (event.currentTarget as HTMLElement).closest('.share-tile') as HTMLElement | null;
+        if (!tile) return;
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => void 0);
+        else tile.requestFullscreen().catch(() => void 0);
+    }
+
+    /** Promotes the self-card into the grid, so a streamer can check their own output. */
+    protected maximizeSelf(shareId: string): void {
+        this.maximizedId.set(shareId);
     }
 
     protected pipShare(event: MouseEvent): void {

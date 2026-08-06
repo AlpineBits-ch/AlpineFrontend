@@ -77,7 +77,9 @@
                                 ? 'bg-emerald-400/15 text-emerald-400 hover:bg-emerald-400/25'
                                 : 'bg-white/[0.06] text-white/50 hover:bg-white/[0.10] hover:text-white/75'"
                         class="flex items-center gap-1.5 px-2 py-1 rounded-md shrink-0 border-0 cursor-pointer transition-colors">
-                        <i class="pi text-xs" [ngClass]="muted ? 'pi-microphone-slash' : 'pi-microphone'"></i>
+                        <span [class.icon-slashed]="muted" class="relative flex items-center justify-center text-xs">
+                            <i class="pi pi-microphone"></i>
+                        </span>
                         <span class="text-[10px] font-semibold uppercase tracking-wide">
                             {{ (muted ? 'PROX_CHAT.MUTED' : talking ? 'PROX_CHAT.TALKING' : 'PROX_CHAT.READY') | translate }}
                         </span>

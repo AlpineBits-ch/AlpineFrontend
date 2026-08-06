@@ -22,7 +22,9 @@
                         <app-avatar [label]="p.avatarLabel" [userId]="p.userId" size="large"/>
                         @if (p.isMuted) {
                             <div class="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full bg-sidebar border border-white/10 flex items-center justify-center">
-                                <i class="pi pi-microphone-slash text-[9px] text-rose-400"></i>
+                                <span class="icon-slashed relative flex items-center justify-center text-[9px] text-rose-400">
+                                    <i class="pi pi-microphone"></i>
+                                </span>
                             </div>
                         }
                     </div>

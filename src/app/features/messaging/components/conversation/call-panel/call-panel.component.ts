@@ -11,28 +11,18 @@ import {
 import {CallControlsBarComponent} from '../../../../../shared/call/call-controls-bar/call-controls-bar.component';
 import {CallScreenLayoutComponent} from '../../../../../shared/call/call-screen-layout/call-screen-layout.component';
 import {CallContextMenuComponent} from '../../../../../shared/call/call-context-menu/call-context-menu.component';
-import {StreamSrcDirective} from '../../../../../directives/stream-src.directive';
 import {formatAloneNotice} from './alone-countdown';
 import {WatchScope} from '../../../../../services/share-watch.service';
-
-interface FocusedStream {
-    kind: 'camera' | 'share';
-    stream: MediaStream;
-    label: string;
-    mirror: boolean;
-}
 
 const MIN_HEIGHT = 200;
 const MAX_HEIGHT = 900;
 const DEFAULT_HEIGHT = 420;
-const FOCUSED_MIN_HEIGHT = 500;
 
 @Component({
     selector: 'app-call-panel',
     templateUrl: './call-panel.component.html',
     styleUrl: './call-panel.component.css',
     imports: [
-        StreamSrcDirective,
         CallParticipantTileComponent,
         CallControlsBarComponent,
         CallScreenLayoutComponent,
@@ -43,7 +33,6 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     readonly fpsList = [5, 10, 15, 30] as const;
     readonly resolutionList = ['native', '1440p', '1080p', '720p', '480p'] as const;
     protected rustMedia = inject(RustMediaService);
-    protected focusedStream = signal<FocusedStream | null>(null);
     protected showStats = signal(false);
     protected participantMenu = signal<CallParticipantMenuData | null>(null);
     protected panelHeight = signal(DEFAULT_HEIGHT);
@@ -83,29 +72,6 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     // ── Shared-type projections ────────────────────────────────────────────────
     private resizeStartY = 0;
     private resizeStartHeight = 0;
-
-    constructor() {
-        // Auto-unfocus when the focused stream becomes inactive
-        effect(() => {
-            const focused = this.focusedStream();
-            if (!focused) return;
-            const s = this.session();
-            if (!s) {
-                this.focusedStream.set(null);
-                return;
-            }
-            const stillActive = focused.kind === 'camera'
-                ? s.participants.some(p => p.videoStream === focused.stream && p.isCameraOn)
-                : s.screenShares.some(sh => sh.stream === focused.stream);
-            if (!stillActive) this.focusedStream.set(null);
-        });
-
-        effect(() => {
-            if (this.focusedStream()) {
-                this.panelHeight.update(h => Math.max(h, FOCUSED_MIN_HEIGHT));
-            }
-        });
-    }
 
     ngOnInit(): void {
         this.durationInterval = setInterval(() => {
@@ -184,53 +150,15 @@ export class CallPanelComponent implements OnInit, OnDestroy {
         this.showStats.update(v => !v);
     }
 
-    protected unfocus(): void {
-        this.focusedStream.set(null);
-    }
-
     protected toggleMaximize(): void {
         this.panelHeight.update(h => h >= MAX_HEIGHT ? DEFAULT_HEIGHT : MAX_HEIGHT);
     }
 
-    protected toggleFullscreen(el: HTMLElement): void {
-        if (document.fullscreenElement) {
-            document.exitFullscreen().catch(() => void 0);
-        } else {
-            el.requestFullscreen().catch(() => void 0);
-        }
-    }
-
-    protected async requestPiP(videoEl: HTMLVideoElement): Promise<void> {
-        if (!document.pictureInPictureEnabled) return;
-        try {
-            if (document.pictureInPictureElement === videoEl) {
-                await document.exitPictureInPicture();
-            } else {
-                await videoEl.requestPictureInPicture();
-            }
-        } catch { /* denied or unavailable */
-        }
-    }
-
-    protected focusCamera(p: CallParticipant): void {
-        if (!p.videoStream) return;
-        this.focusedStream.set({
-            kind: 'camera',
-            stream: p.videoStream,
-            label: p.isLocal ? 'You' : p.displayName,
-            mirror: p.isLocal
-        });
-    }
-
-    protected focusShare(share: CallScreenShare): void {
-        if (!share.stream) return;
-        this.focusedStream.set({
-            kind: 'share',
-            stream: share.stream,
-            label: `${share.displayName}'s screen`,
-            mirror: false
-        });
-    }
+    // A focused-stream view used to live here, with the only fullscreen button in the app on it -
+    // and nothing ever opened it: no tile had a click handler bound to the focus methods, so the
+    // whole view, and fullscreen with it, was unreachable. Fullscreen and picture-in-picture now
+    // live on the tiles themselves, in call-screen-layout and call-participant-tile, where both
+    // call surfaces get them.
 
     protected onParticipantContextMenu(event: MouseEvent, p: CallParticipant): void {
         if (p.isLocal) return;

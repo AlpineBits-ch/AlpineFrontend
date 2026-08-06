@@ -41,7 +41,7 @@
         <div class="ml-auto flex items-center gap-0.5 text-white/35">
             <p-button (onClick)="startCall()" [text]="true" icon="pi pi-phone" severity="secondary"
                       size="small" styleClass="hidden sm:flex"/>
-            <p-button [text]="true" icon="pi pi-video" severity="secondary" size="small"
+            <p-button (onClick)="startVideoCall()" [text]="true" icon="pi pi-video" severity="secondary" size="small"
                       styleClass="hidden sm:flex"/>
             <div class="hidden sm:flex items-center gap-2 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 mx-1 focus-within:border-white/20 transition-colors">
                 <i class="pi pi-search text-xs text-white/30 shrink-0"></i>

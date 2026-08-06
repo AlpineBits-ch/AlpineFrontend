@@ -16,6 +16,9 @@
     @if (p.isScreenSharing) {
         <span class="text-[9px] font-bold text-red-400 bg-red-500/15 px-1 py-0.5 rounded leading-none shrink-0">LIVE</span>
     } @else if (p.isMuted) {
-        <i class="pi pi-microphone-slash text-[9px] text-white/35 shrink-0"></i>
+        <!-- Drawn slash - PrimeIcons has no slashed microphone, see .icon-slashed. -->
+        <span class="icon-slashed relative flex items-center justify-center text-[9px] text-white/35 shrink-0">
+            <i class="pi pi-microphone"></i>
+        </span>
     }
 </div>

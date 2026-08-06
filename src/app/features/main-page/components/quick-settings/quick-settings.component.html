@@ -79,22 +79,22 @@
                  microphone, so hiding the control outside a call both changed the row's shape on
                  join and left no way to arrive in a channel already muted. -->
             <app-voice-toggle
-                    [active]="voiceSvc.localState().isMuted"
+                    [active]="voiceControls.isMuted()"
                     icon="pi-microphone"
-                    [label]="voiceSvc.localState().isMuted ? 'QUICK_SETTINGS.UNMUTE' : 'QUICK_SETTINGS.MUTE'"
+                    [label]="voiceControls.isMuted() ? 'QUICK_SETTINGS.UNMUTE' : 'QUICK_SETTINGS.MUTE'"
                     deviceLabel="QUICK_SETTINGS.INPUT_DEVICE"
                     [devices]="catalog.mics()" [selected]="audio.settings().micId"
-                    (toggled)="voiceSvc.toggleMute()"
+                    (toggled)="voiceControls.toggleMute()"
                     (deviceChosen)="audio.update({micId: $event})"
                     (openSettings)="openVoiceSettings()"/>
 
             <app-voice-toggle
-                    [active]="voiceSvc.localState().isDeafened"
+                    [active]="voiceControls.isDeafened()"
                     icon="pi-headphones"
-                    [label]="voiceSvc.localState().isDeafened ? 'QUICK_SETTINGS.UNDEAFEN' : 'QUICK_SETTINGS.DEAFEN'"
+                    [label]="voiceControls.isDeafened() ? 'QUICK_SETTINGS.UNDEAFEN' : 'QUICK_SETTINGS.DEAFEN'"
                     deviceLabel="QUICK_SETTINGS.OUTPUT_DEVICE"
                     [devices]="catalog.speakers()" [selected]="audio.settings().speakerId"
-                    (toggled)="voiceSvc.toggleDeafen()"
+                    (toggled)="voiceControls.toggleDeafen()"
                     (deviceChosen)="audio.update({speakerId: $event})"
                     (openSettings)="openVoiceSettings()"/>
 

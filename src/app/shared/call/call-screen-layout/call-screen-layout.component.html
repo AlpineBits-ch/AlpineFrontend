@@ -3,7 +3,7 @@
     <!-- Stream tiles -->
     <div [ngClass]="gridClass()" class="flex-1 min-h-0 grid gap-3">
         @for (share of displayedShares(); track share.shareId) {
-            <div class="relative bg-black/80 rounded-xl overflow-hidden border border-white/[0.12] flex items-center justify-center min-h-0">
+            <div class="share-tile group/tile relative bg-black/80 rounded-xl overflow-hidden border border-white/[0.12] flex items-center justify-center min-h-0">
 
                 <!-- Zoomable, pannable content. The tile clips the overflow, so zooming past 100%
                      used to hide the edges with no way to reach them; this wrapper is the drag
@@ -45,19 +45,29 @@
                             <i class="pi pi-eye text-[10px] text-white/45"></i>{{ viewers }}
                         </div>
                     }
-                    <button
-                            (click)="pipShare($event)"
-                            class="w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0"
-                            title="Picture in picture">
-                        <i class="pi pi-external-link text-sm text-white/70"></i>
-                    </button>
-                    <button
-                            (click)="toggleMaximize(share.shareId, $event)"
-                            [title]="maximizedId() === share.shareId ? 'Restore' : 'Maximize'"
-                            class="w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0">
-                        <i [ngClass]="maximizedId() === share.shareId ? 'pi-window-minimize' : 'pi-window-maximize'"
-                           class="pi text-sm text-white/70"></i>
-                    </button>
+                    <!-- Controls appear on hover; the LIVE badge and the viewer count above do not,
+                         because they are information about the stream rather than things to press. -->
+                    <div class="flex items-center gap-1.5 opacity-0 group-hover/tile:opacity-100 transition-opacity">
+                        <button
+                                (click)="pipShare($event)"
+                                class="w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0"
+                                title="Picture in picture">
+                            <i class="pi pi-external-link text-sm text-white/70"></i>
+                        </button>
+                        <button
+                                (click)="toggleFullscreen($event)"
+                                class="w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0"
+                                title="Fullscreen">
+                            <i class="pi pi-arrows-alt text-sm text-white/70"></i>
+                        </button>
+                        <button
+                                (click)="toggleMaximize(share.shareId, $event)"
+                                [title]="maximizedId() === share.shareId ? 'Show the other streams' : 'Hide the other streams'"
+                                class="w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0">
+                            <i [ngClass]="maximizedId() === share.shareId ? 'pi-window-minimize' : 'pi-window-maximize'"
+                               class="pi text-sm text-white/70"></i>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Audio toggle -local stream -->
@@ -90,8 +100,9 @@
                     <span class="text-sm text-white/80">{{ share.displayName }}</span>
                 </div>
 
-                <!-- Bottom-right: FPS (local only) + zoom controls -->
-                <div class="absolute bottom-3 right-3 flex items-center gap-1.5 z-10">
+                <!-- Bottom-right: FPS (local only) + zoom controls. Hover-only, same reasoning as
+                     the controls above - zoom is a tool, not a readout. -->
+                <div class="absolute bottom-3 right-3 flex items-center gap-1.5 z-10 opacity-0 group-hover/tile:opacity-100 transition-opacity">
                     @if (share.isLocal && share.renderedFps != null) {
                         <div class="flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded px-2 py-1 font-mono text-xs text-white/55 select-none">
                             <span class="text-white/35">↓</span>{{ share.inboundFps ?? 0 }}
@@ -125,6 +136,44 @@
         }
     </div>
 
+    <!-- Your own stream, while somebody else's has the grid.
+
+         Deliberately small. What the sharer sees locally is a low-rate thumbnail of their own
+         screen, not the stream going out - at full tile size that reads as a broken stream, and it
+         was costing half the layout to say something the viewer already knows. Here it is a monitor:
+         big enough to confirm the right window is going out, small enough to ignore. -->
+    @if (selfCard(); as self) {
+        <button (click)="maximizeSelf(self.shareId)"
+                class="shrink-0 self-end flex items-center gap-3 rounded-xl border border-white/[0.12] bg-card
+                       px-3 py-2 text-left cursor-pointer transition-colors hover:bg-hover"
+                title="Show my stream">
+            <div class="relative w-28 aspect-video rounded-lg overflow-hidden bg-black shrink-0">
+                @if (self.stream) {
+                    <video [streamSrc]="self.stream" autoplay class="w-full h-full object-contain" muted
+                           playsinline></video>
+                } @else if (self.previewSrc) {
+                    <img [src]="self.previewSrc" alt="Your screen" class="w-full h-full object-contain"/>
+                } @else {
+                    <div class="w-full h-full flex items-center justify-center">
+                        <i class="pi pi-desktop text-lg text-white/20"></i>
+                    </div>
+                }
+            </div>
+            <div class="min-w-0">
+                <div class="flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0"></span>
+                    <span class="text-xs font-semibold text-white/85">You're live</span>
+                </div>
+                <p class="text-[0.6875rem] text-white/40 mt-0.5">
+                    Others see the full stream
+                    @if (self.renderedFps != null) {
+                        · {{ self.renderedFps }} fps out
+                    }
+                </p>
+            </div>
+        </button>
+    }
+
     <!-- Participants strip -->
     <div class="flex items-center gap-2 overflow-x-auto shrink-0 pb-1"
          style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
@@ -135,10 +184,24 @@
                     [ngClass]="p.isSpeaking ? 'border-online/60 shadow-[0_0_0_2px_rgba(52,211,153,0.25)]' : 'border-white/[0.12]'"
                     class="shrink-0 flex flex-col items-center gap-2 px-3 py-2.5 rounded-xl bg-card border min-w-[84px]">
                 <div class="relative">
-                    <app-avatar [label]="p.avatarLabel" [userId]="p.userId"/>
+                    <!-- A camera, when there is one. Beside a screen share the strip is the only
+                         place a face can appear, and it used to show an avatar there no matter what
+                         - so turning your camera on became invisible the moment anyone shared. -->
+                    @if (p.isCameraOn && p.videoStream) {
+                        <video [streamSrc]="p.videoStream"
+                               [class.-scale-x-100]="p.isLocal"
+                               [muted]="p.isLocal"
+                               autoplay
+                               class="w-8 h-8 rounded-full object-cover border border-brand/30"
+                               playsinline></video>
+                    } @else {
+                        <app-avatar [label]="p.avatarLabel" [userId]="p.userId"/>
+                    }
                     @if (p.isMuted) {
                         <div class="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-sidebar border border-white/10 flex items-center justify-center">
-                            <i class="pi pi-microphone-slash text-[8px] text-rose-400"></i>
+                            <span class="icon-slashed relative flex items-center justify-center text-[8px] text-rose-400">
+                                <i class="pi pi-microphone"></i>
+                            </span>
                         </div>
                     }
                 </div>

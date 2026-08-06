@@ -175,6 +175,8 @@ export class ConversationComponent implements AfterViewInit {
     // ticks while the ringing banner is shown.
     protected ringElapsed = signal('0:00');
     private conversationCalls = inject(ConversationCallService);
+    /** Set by the header's camera button; consumed once the call session appears. */
+    private enableCameraOnJoin = false;
     /** A call running in this conversation that this client is not on - see ConversationCallService. */
     protected ongoingCall = computed(() => this.conversationCalls.ongoingIn(this.conversation().id));
     /**
@@ -332,6 +334,22 @@ export class ConversationComponent implements AfterViewInit {
         this.callStateService.joinOngoing(callId);
     }
 
+    /**
+     * The camera button in the header.
+     *
+     * <p>In a call it is a camera toggle. Outside one it places the call and turns the camera on as
+     * soon as there is a session to turn it on in - the camera cannot be opened before the call
+     * exists, and making the user press two buttons for "video call" is not what the icon promises.</p>
+     */
+    protected startVideoCall(): void {
+        if (this.callSessionService.session()) {
+            void this.callSessionService.toggleCamera();
+            return;
+        }
+        this.enableCameraOnJoin = true;
+        this.startCall();
+    }
+
     protected startCall(): void {
         const ownId = this.profileService.ownProfile()?.userId;
         const members = this.conversation().members.filter(m => m.userId !== ownId);
@@ -366,6 +384,18 @@ export class ConversationComponent implements AfterViewInit {
 
     // Triggers a (re)load whenever the active conversation changes.
     private setupMessageLoading(): void {
+        // The camera can only be opened once there is a call to open it in, and the session appears
+        // a round trip after the button was pressed. One-shot: a later hang-up-and-redial must not
+        // inherit a video call nobody asked for this time.
+        effect(() => {
+            const session = this.callSessionService.session();
+            if (!session || !this.enableCameraOnJoin) return;
+            untracked(() => {
+                this.enableCameraOnJoin = false;
+                if (!session.local.isCameraOn) void this.callSessionService.toggleCamera();
+            });
+        });
+
         effect(() => {
             const id = this.conversation().id;
             untracked(() => {

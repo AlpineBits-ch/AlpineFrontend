@@ -1,63 +1,84 @@
+@let p = participant();
 <div
         (contextmenu)="contextMenu.emit($event); $event.preventDefault(); $event.stopPropagation()"
-        [ngClass]="participant().isSpeaking
-    ? 'border-online/60 shadow-[0_0_0_2px_rgba(52,211,153,0.2),0_4px_24px_rgba(0,0,0,0.5)]'
-    : 'border-white/[0.12]'"
-        [style.aspect-ratio]="participant().isCameraOn ? '1/1' : '4/3'"
-        class="group relative flex flex-col items-center justify-center gap-3 bg-card rounded-2xl p-4 border transition-all shadow-[0_4px_24px_rgba(0,0,0,0.5)] max-w-[200px] w-full mx-auto">
+        [ngClass]="[
+            p.isSpeaking
+                ? 'border-online/60 shadow-[0_0_0_2px_rgba(52,211,153,0.2),0_4px_24px_rgba(0,0,0,0.5)]'
+                : 'border-white/[0.12]',
+            p.isCameraOn ? 'bg-black' : 'bg-card max-w-[200px]'
+        ]"
+        [style.aspect-ratio]="p.isCameraOn ? '16/9' : '4/3'"
+        class="group relative flex flex-col items-center justify-center gap-3 rounded-2xl overflow-hidden border transition-all shadow-[0_4px_24px_rgba(0,0,0,0.5)] w-full mx-auto">
 
     <!-- Speaking glow ring -->
-    @if (participant().isSpeaking) {
-        <div class="absolute inset-0 rounded-2xl pointer-events-none"
+    @if (p.isSpeaking) {
+        <div class="absolute inset-0 rounded-2xl pointer-events-none z-10"
              style="animation: speaking-ring 1.4s ease-in-out infinite"></div>
     }
 
+    <!-- Camera, filling the tile.
+
+         It used to be a 64px circle in the middle of an otherwise empty card - the same treatment
+         an avatar gets - which is a thumbnail of a person, not a video call. It fills the tile and
+         everything else floats on top of it, which is what every other client does and what the
+         face-sized space is for. -->
+    @if (p.isCameraOn) {
+        @if (videoStream(); as stream) {
+            <video [streamSrc]="stream"
+                   [class.-scale-x-100]="p.isLocal"
+                   [muted]="p.isLocal"
+                   autoplay
+                   class="absolute inset-0 w-full h-full object-cover"
+                   playsinline></video>
+        } @else {
+            <!-- Camera on, no stream yet: the track is still being negotiated. -->
+            <div class="absolute inset-0 flex items-center justify-center bg-card">
+                <i class="pi pi-camera text-2xl text-white/20"></i>
+            </div>
+        }
+    } @else {
+        <app-avatar [label]="p.avatarLabel" [userId]="p.userId" size="large"/>
+    }
+
     <!-- LIVE badge -->
-    @if (participant().isScreenSharing) {
-        <div class="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded tracking-wider">
+    @if (p.isScreenSharing) {
+        <div class="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded tracking-wider z-20">
             LIVE
         </div>
     }
 
-    <!-- PiP button (camera on + video stream available) -->
-    @if (participant().isCameraOn && videoStream()) {
-        <button
-                (click)="pipVideo($event)"
-                class="absolute top-3 left-3 w-7 h-7 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0 opacity-0 group-hover:opacity-100 z-10"
-                title="Picture in picture">
-            <i class="pi pi-external-link text-xs text-white/80"></i>
-        </button>
+    <!-- Video actions. Hover-only, so a wall of tiles is faces rather than buttons. -->
+    @if (p.isCameraOn && videoStream()) {
+        <div class="absolute top-3 left-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+            <button (click)="pipVideo($event)"
+                    class="w-7 h-7 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer"
+                    title="Picture in picture">
+                <i class="pi pi-external-link text-xs text-white/80"></i>
+            </button>
+            <button (click)="toggleFullscreen($event)"
+                    class="w-7 h-7 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer"
+                    title="Fullscreen">
+                <i class="pi pi-window-maximize text-xs text-white/80"></i>
+            </button>
+        </div>
     }
 
-    <!-- Camera or avatar -->
-    @if (participant().isCameraOn) {
-        @if (videoStream(); as stream) {
-            @if (participant().isLocal) {
-                <video [streamSrc]="stream" autoplay class="w-16 h-16 rounded-full object-cover border-2 border-brand/30" muted
-                       playsinline></video>
-            } @else {
-                <video [streamSrc]="stream" autoplay class="w-16 h-16 rounded-full object-cover border-2 border-brand/30"
-                       playsinline></video>
-            }
-        } @else {
-            <div class="w-16 h-16 rounded-full bg-gradient-to-br from-brand/20 to-brand-dark/20 border-2 border-brand/30 flex items-center justify-center">
-                <i class="pi pi-camera text-xl text-brand/60"></i>
-            </div>
+    <!-- Name + muted icon. Over the video when there is one, so it reads at any tile size. -->
+    <div [ngClass]="p.isCameraOn
+            ? 'absolute bottom-2 left-2 max-w-[calc(100%-1rem)] bg-black/50 backdrop-blur-sm rounded-lg px-2 py-1'
+            : 'max-w-full'"
+         class="flex items-center justify-center gap-1.5 z-20">
+        @if (p.isMuted) {
+            <!-- Drawn slash - PrimeIcons has no slashed microphone, see .icon-slashed. -->
+            <span class="icon-slashed relative flex items-center justify-center text-xs text-rose-400/80 shrink-0">
+                <i class="pi pi-microphone"></i>
+            </span>
         }
-    } @else {
-        <app-avatar [label]="participant().avatarLabel" [userId]="participant().userId" size="large"/>
-    }
-
-    <!-- Name + muted icon -->
-    <div class="flex items-center justify-center gap-1.5 max-w-full">
-        @if (participant().isMuted) {
-            <i class="pi pi-microphone-slash text-xs text-rose-400/80 shrink-0"></i>
-        }
-        <span class="text-sm font-medium text-white/85 truncate">{{ participant().displayName }}</span>
+        <span class="text-sm font-medium text-white/85 truncate">{{ p.displayName }}</span>
     </div>
 
     <!-- Audio badge: quiet while the subscribe is still landing, amber once it is overdue -->
-    @if (!participant().isLocal) {
-        <app-call-audio-status [state]="audioState()" class="absolute bottom-3 right-3"/>
+    @if (!p.isLocal) {
+        <app-call-audio-status [state]="audioState()" class="absolute bottom-3 right-3 z-20"/>
     }
 </div>

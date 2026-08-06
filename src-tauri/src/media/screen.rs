@@ -157,16 +157,17 @@ pub async fn enumerate_screen_sources() -> Result<Vec<ScreenSource>, String> {
     // for the entire phase. Calling Monitor::all() inside the iterator (as was
     // done previously) creates a new WGC session per iteration; multiple
     // concurrent or rapidly sequential WGC sessions corrupt the COM heap.
-    let monitor_sources: Vec<Option<ScreenSource>> = tokio::task::spawn_blocking(move || {
+    type Phase2 = (Vec<Option<ScreenSource>>, Vec<ScreenSource>);
+    let (monitor_sources, window_sources): Phase2 = tokio::task::spawn_blocking(move || {
         let _guard = wgc_lock().lock().unwrap();
 
         // Single Monitor::all() call -one WGC initialisation for the whole phase.
         let all_monitors = match Monitor::all() {
             Ok(m) => m,
-            Err(_) => return monitor_meta.iter().map(|_| None).collect(),
+            Err(_) => Vec::new(),
         };
 
-        monitor_meta
+        let monitors: Vec<Option<ScreenSource>> = monitor_meta
             .into_iter()
             .map(|(idx, name, w, h)| {
                 let monitor = all_monitors.get(idx)?;
@@ -179,28 +180,59 @@ pub async fn enumerate_screen_sources() -> Result<Vec<ScreenSource>, String> {
                     height: h,
                 })
             })
-            .collect()
+            .collect();
+
+        // Windows get a thumbnail too. They used to get nothing, on the grounds that the picker
+        // renders a live preview once a source is selected -but that preview only exists *after*
+        // the choice, so the Applications tab was a grid of identical placeholder icons and the
+        // choice had to be made from window titles alone.
+        //
+        // Same discipline as the monitors above: one Window::all() for the whole phase, under the
+        // same lock. A second WGC session opened per iteration is what corrupts the COM heap.
+        let all_windows = Window::all().unwrap_or_default();
+        let windows: Vec<ScreenSource> = window_meta
+            .into_iter()
+            .enumerate()
+            .map(|(index, (hwnd_id, title, w, h))| {
+                // Capturing every window of a busy desktop is seconds of work holding the lock the
+                // whole time, and this runs while the user is waiting on a dialog. The ones past
+                // the cap fall back to the icon, which is what all of them did before.
+                let thumbnail = if index < MAX_WINDOW_THUMBNAILS {
+                    all_windows
+                        .iter()
+                        .find(|win| win.id().ok() == Some(hwnd_id))
+                        .map(capture_window_thumbnail)
+                        .unwrap_or_default()
+                } else {
+                    String::new()
+                };
+
+                ScreenSource {
+                    id: format!("window:{hwnd_id}"),
+                    name: title,
+                    is_monitor: false,
+                    thumbnail,
+                    width: w,
+                    height: h,
+                }
+            })
+            .collect();
+
+        (monitors, windows)
         // _guard dropped here
     })
     .await
     .map_err(|e| e.to_string())?;
 
     let mut sources: Vec<ScreenSource> = monitor_sources.into_iter().flatten().collect();
-
-    // Windows: skip live thumbnail -the picker renders a 1fps preview instead.
-    for (hwnd_id, title, w, h) in window_meta {
-        sources.push(ScreenSource {
-            id: format!("window:{hwnd_id}"),
-            name: title,
-            is_monitor: false,
-            thumbnail: String::new(),
-            width: w,
-            height: h,
-        });
-    }
+    sources.extend(window_sources);
 
     Ok(sources)
 }
+
+/// How many windows get a real thumbnail before the rest fall back to an icon. Each capture is a
+/// full window grab held under the WGC lock, and the picker is a dialog somebody is waiting on.
+const MAX_WINDOW_THUMBNAILS: usize = 24;
 
 #[tauri::command]
 pub async fn start_screen_capture(
@@ -370,6 +402,19 @@ fn stop_screen_capture_inner(state: &ScreenCaptureState) {
 
 fn capture_monitor_thumbnail(monitor: &Monitor) -> String {
     match monitor.capture_image() {
+        Ok(img) => {
+            let dyn_img = DynamicImage::ImageRgba8(img);
+            let thumb = dyn_img.thumbnail(320, 200);
+            base64_encode(&encode_jpeg(&thumb, 70))
+        }
+        Err(_) => String::new(),
+    }
+}
+
+/// As above, for a window. A failure is not worth reporting: a window can be minimised, on another
+/// desktop, or protected from capture, and the picker falls back to an icon for all three.
+fn capture_window_thumbnail(window: &Window) -> String {
+    match window.capture_image() {
         Ok(img) => {
             let dyn_img = DynamicImage::ImageRgba8(img);
             let thumb = dyn_img.thumbnail(320, 200);

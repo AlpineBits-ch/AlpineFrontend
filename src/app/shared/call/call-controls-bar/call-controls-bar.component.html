@@ -8,8 +8,13 @@
       : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
             [title]="isMuted() ? 'Unmute' : 'Mute'"
             class="group w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer border-0">
-        <i [ngClass]="isMuted() ? 'pi-microphone-slash' : 'pi-microphone'"
-           class="pi text-base transition-transform duration-150 group-hover:scale-110"></i>
+        <!-- The slash is drawn, not looked up: PrimeIcons has no slashed microphone, and binding a
+             `pi-microphone-slash` that does not exist renders an empty glyph - which is exactly what
+             this button did when muted, a red square with no icon in it. See .icon-slashed. -->
+        <span [class.icon-slashed]="isMuted()"
+              class="relative flex items-center justify-center transition-transform duration-150 group-hover:scale-110">
+            <i class="pi pi-microphone text-base"></i>
+        </span>
     </button>
 
     <!-- Deafen -->
@@ -20,7 +25,12 @@
       : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
             [title]="isDeafened() ? 'Undeafen' : 'Deafen'"
             class="group w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer border-0">
-        <i class="pi pi-volume-off text-base transition-transform duration-150 group-hover:scale-110"></i>
+        <!-- Headphones rather than a speaker, and slashed only when deafened: the icon used to be
+             the "off" speaker in both states, so the button never showed which way it was set. -->
+        <span [class.icon-slashed]="isDeafened()"
+              class="relative flex items-center justify-center transition-transform duration-150 group-hover:scale-110">
+            <i class="pi pi-headphones text-base"></i>
+        </span>
     </button>
 
     <!-- Camera -->
