@@ -98,6 +98,27 @@ impl MediaFoundationEncoder {
                 &CODECAPI_AVEncCommonMeanBitRate,
                 &(spec.kbps.saturating_mul(1000)).into(),
             );
+            // A periodic IDR, matching what the software encoder configures.
+            //
+            // Without this the picture never appears for anyone who was not watching from the first
+            // frame. Left to its own defaults - and especially with low-latency mode on, set just
+            // above - a Media Foundation encoder emits one IDR at the start of the stream and then
+            // P-frames indefinitely. A viewer subscribes some time after a share begins, so they
+            // reliably miss that single IDR, and a decoder with no keyframe produces black. They
+            // cannot ask for one either: the RTCP a viewer sends to request a keyframe is read and
+            // discarded in `publisher::rtc`, so nothing on this side ever calls `request_keyframe`.
+            //
+            // That is the whole of "they see a black screen" - and it is invisible to the person
+            // sharing, whose own preview is drawn from the capture source rather than the encoded
+            // stream. It reproduced only against the hardware encoder because the software path
+            // sets `intra_frame_period` and recovers within two seconds on its own.
+            //
+            // The same two seconds here, for the same reason: it bounds how long a late joiner
+            // waits, and the cost is one large frame per interval on a stream measured in megabits.
+            let _ = api.SetValue(
+                &CODECAPI_AVEncMPVGOPSize,
+                &(spec.fps.max(1).saturating_mul(2)).into(),
+            );
         }
 
         // Output type must be set before input type on an encoder MFT.

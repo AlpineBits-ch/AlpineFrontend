@@ -69,6 +69,28 @@ fn new_software_encoder(spec: EncoderSpec) -> Option<Box<dyn VideoEncoder>> {
 /// GPU hang, a laptop switching GPUs when unplugged - degrades to software instead of ending the
 /// share.
 pub fn new_encoder(spec: EncoderSpec) -> Option<Box<dyn VideoEncoder>> {
+    // An escape hatch for the one question this module cannot answer from the sending side: when a
+    // viewer reports a black picture, is the bitstream wrong or is nothing arriving?
+    //
+    // Both encoders satisfy the same tests here - Annex-B framing, keyframes, a decodable stream -
+    // but only one of them runs on any given machine, chosen by what the GPU offers. A driver whose
+    // output this client's *viewers* cannot decode is therefore invisible to every test and to
+    // every log, and differs from machine to machine. Forcing software turns "black screen" into a
+    // one-line experiment: if the picture appears, the fault is the hardware bitstream, and if it
+    // does not, the fault is somewhere else entirely and the encoder is exonerated.
+    //
+    // Deliberately an environment variable rather than a setting. It is a diagnostic, not a choice
+    // users should be making, and hardware encoding is worth keeping by default - it is the
+    // difference between a share that costs a few percent of a core and one that costs a lot more.
+    if std::env::var_os("VENTA_FORCE_SOFTWARE_ENCODER").is_some() {
+        let software = new_software_encoder(spec)?;
+        eprintln!(
+            "[publisher] encoding with {} (VENTA_FORCE_SOFTWARE_ENCODER is set)",
+            software.name()
+        );
+        return Some(software);
+    }
+
     if let Some(hardware) = new_hardware_encoder(spec) {
         eprintln!("[publisher] encoding with {}", hardware.name());
         return Some(Box::new(ResilientEncoder::new(hardware, spec)));
