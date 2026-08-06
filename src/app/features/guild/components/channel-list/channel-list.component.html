@@ -13,8 +13,19 @@
     <!-- Wiki quick-link + events. Both are modules: absent when switched off, never greyed out.
          Stacked rather than sharing a row - Events carries a label, a count and a live badge, none
          of which fit beside the Wiki link. -->
-    @if (hasWiki() || hasEvents()) {
+    @if (hasHouse() || hasWiki() || hasEvents()) {
         <div class="px-2 pt-2 shrink-0 flex flex-col gap-0.5 mb-1">
+            <!-- The house digest sits first: it is the answer to "does anything need me", and the
+                 boards below are where you go once it says yes. -->
+            @if (hasHouse()) {
+                <button (click)="openHouse()"
+                        [ngClass]="isHouseActive() ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
+                        class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer">
+                    <i [ngClass]="isHouseActive() ? 'text-brand-dim' : 'text-white/35'"
+                       class="pi pi-home text-[13px] shrink-0"></i>
+                    <span class="text-[15px] font-medium">{{ 'HOUSE_HOME.TITLE' | translate }}</span>
+                </button>
+            }
             @if (hasWiki()) {
                 <button (click)="openWiki()"
                         [ngClass]="isWikiActive() ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"

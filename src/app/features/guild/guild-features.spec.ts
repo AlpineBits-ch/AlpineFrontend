@@ -3,6 +3,7 @@ import {
     GuildFeature,
     guildHasFeature,
     guildKindOf,
+    hasHouseholdModule,
     parseGuildFeatures,
     serializeGuildFeatures,
     withGuildFeature,
@@ -86,6 +87,27 @@ describe('guildHasFeature', () => {
 
     it('denies a household module the community preset never included', () => {
         expect(guildHasFeature(guild(), GuildFeature.Lists)).toBe(false);
+    });
+});
+
+describe('hasHouseholdModule', () => {
+    it('is true for any single digest module', () => {
+        // The digest nulls the sections it cannot answer, so one module is enough for the house
+        // view to be worth offering - it just shows a chores-only glance.
+        expect(hasHouseholdModule(guild('Chores'))).toBe(true);
+        expect(hasHouseholdModule(guild('Presence'))).toBe(true);
+    });
+
+    it('is false for settings-only household modules', () => {
+        // Quiet Hours and Guest Access gate behaviour, not content: a house with only those has
+        // nothing for a glance to show, so the entry point stays hidden rather than opening empty.
+        expect(hasHouseholdModule(guild('QuietHours, GuestAccess'))).toBe(false);
+    });
+
+    it('is false for a community guild, including one with no features field', () => {
+        expect(hasHouseholdModule(guild('Wiki, Events'))).toBe(false);
+        expect(hasHouseholdModule(guild())).toBe(false);
+        expect(hasHouseholdModule(null)).toBe(false);
     });
 });
 

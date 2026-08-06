@@ -13,6 +13,7 @@ import {
     InboxMessage,
     InboxReadStateChanged,
     InboxSummary,
+    InboxTask,
     InboxUnreadGroup,
 } from '../dtos/response/inbox.dto';
 import {InboxApiService} from './inbox-api.service';
@@ -26,6 +27,7 @@ import {MlsService} from './mls.service';
 import {MlsSyncService} from './mls-sync.service';
 import {MlsHealthService} from './mls-health.service';
 import {decryptMessages} from '../helpers/message-decrypt';
+import {HouseholdAlertService} from './household-alert.service';
 
 /** How many groups/mentions to ask for per page. Both are clamped server-side. */
 const UNREAD_PAGE_SIZE = 10;
@@ -48,6 +50,16 @@ const MAX_EMPTY_HOPS = 10;
  * count is one cheap request, so the trailing edge of the burst is where to spend it.</p>
  */
 const READ_RESYNC_DEBOUNCE_MS = 2_000;
+
+/** How many tasks to ask for. Server-clamped at 50. */
+const TASKS_PAGE_SIZE = 25;
+
+const EMPTY_SUMMARY: InboxSummary = {
+    unreadChannelCount: 0,
+    mentionCount: 0,
+    taskCount: 0,
+    capped: false,
+};
 
 /** A preview whose body could not be decoded, so the row still says *something*. */
 export interface InboxPreview {
@@ -99,6 +111,7 @@ export class InboxService {
     private mlsService = inject(MlsService);
     private mlsSync = inject(MlsSyncService);
     private mlsHealth = inject(MlsHealthService);
+    private householdAlerts = inject(HouseholdAlertService);
 
     // ── Unread tab ──────────────────────────────────────────────────────────
     private readonly _unread = signal<InboxUnreadEntry[]>([]);
@@ -125,9 +138,16 @@ export class InboxService {
     readonly mentionsHasMore = signal(false);
     readonly mentionsFailed = signal(false);
 
+    // ── Waiting-on-you tab ──────────────────────────────────────────────────
+    private readonly _tasks = signal<InboxTask[]>([]);
+    readonly tasks = this._tasks.asReadonly();
+    readonly tasksLoading = signal(false);
+    readonly tasksFailed = signal(false);
+    /** More were waiting than the page returned. There is no cursor - it is a to-do list. */
+    readonly tasksTruncated = signal(false);
+
     // ── Badge ───────────────────────────────────────────────────────────────
-    private readonly _summary = signal<InboxSummary>(
-        {unreadChannelCount: 0, mentionCount: 0, capped: false});
+    private readonly _summary = signal<InboxSummary>(EMPTY_SUMMARY);
     readonly summary = this._summary.asReadonly();
 
     /**
@@ -141,8 +161,11 @@ export class InboxService {
      * and the sum of two floors is still a floor - it renders as `99+` whatever it adds up to.</p>
      */
     readonly badgeLabel = computed(() => {
-        const {unreadChannelCount, mentionCount, capped} = this._summary();
-        const total = unreadChannelCount + mentionCount;
+        const {unreadChannelCount, mentionCount, taskCount, capped} = this._summary();
+        // Tasks count too: a chore that is due is waiting on this user just as much as a reply is,
+        // and it is the half of the inbox that can never show up as unread - a list channel holds
+        // no messages, so nothing else would ever light the badge for it.
+        const total = unreadChannelCount + mentionCount + taskCount;
         if (total <= 0) return null;
         return capped || total > 99 ? '99+' : String(total);
     });
@@ -183,6 +206,12 @@ export class InboxService {
             debounceTime(READ_RESYNC_DEBOUNCE_MS),
             takeUntilDestroyed(),
         ).subscribe(() => void this.refreshSummary());
+
+        // A household alert is the one event that adds something to the Waiting-on-you tab without
+        // any message arriving - a chore falling due, a decision opening. Nothing else would move
+        // the badge for it until the next reconnect, and the tab it belongs to keeps no messages,
+        // so `inbox.MentionAdded` is never going to fire for it either.
+        this.householdAlerts.alerts$.pipe(takeUntilDestroyed()).subscribe(() => void this.refreshSummary());
     }
 
     // ── Loading ─────────────────────────────────────────────────────────────
@@ -208,6 +237,29 @@ export class InboxService {
         void this.refreshSummary();
         void this.loadMoreUnread();
         void this.loadMoreMentions();
+        void this.loadTasks();
+    }
+
+    /**
+     * The whole Waiting-on-you tab, in one request.
+     *
+     * <p>Replaced rather than appended, because there is no cursor to append against: the server
+     * returns the top of a to-do list and says whether it truncated it. Doing a task removes it
+     * from the next answer, which is what makes re-fetching the right refresh.</p>
+     */
+    async loadTasks(): Promise<void> {
+        if (this.tasksLoading()) return;
+        this.tasksLoading.set(true);
+        this.tasksFailed.set(false);
+        try {
+            const page = await firstValueFrom(this.api.tasks(TASKS_PAGE_SIZE));
+            this._tasks.set(page.tasks);
+            this.tasksTruncated.set(page.truncated);
+        } catch {
+            this.tasksFailed.set(true);
+        } finally {
+            this.tasksLoading.set(false);
+        }
     }
 
     async loadMoreUnread(): Promise<void> {
@@ -311,7 +363,9 @@ export class InboxService {
         this._unread.set([]);
         this.unreadCursor = null;
         this.unreadHasMore.set(false);
-        this._summary.set({unreadChannelCount: 0, mentionCount: 0, capped: false});
+        // The task count survives: `read-all` marks messages read, and a chore that is due is still
+        // due afterwards. Zeroing it here would clear a badge the server puts straight back.
+        this._summary.set({...EMPTY_SUMMARY, taskCount: beforeSummary.taskCount});
         for (const entry of beforeUnread) this.readState.markChannelRead(entry.breadcrumb.channelId);
 
         try {
@@ -346,6 +400,17 @@ export class InboxService {
     /** Jumps to whatever an unread row points at, switching workspace first when it is elsewhere. */
     openUnread(entry: InboxUnreadEntry): void {
         this.openBreadcrumb(entry.breadcrumb);
+    }
+
+    /**
+     * Jumps to the board a task is waiting on.
+     *
+     * <p>Navigated by breadcrumb rather than by `kind`, deliberately: the channel is where every
+     * kind lives, including ones this build has never heard of, so an unrecognised task still opens
+     * somewhere useful instead of doing nothing.</p>
+     */
+    openTask(task: InboxTask): void {
+        this.openBreadcrumb(task.breadcrumb);
     }
 
     /** Jumps to whatever a mention points at - a guild channel, or the DM it arrived in. */
@@ -406,7 +471,9 @@ export class InboxService {
             this._unread.set([]);
             this.unreadCursor = null;
             this.unreadHasMore.set(false);
-            this._summary.set({unreadChannelCount: 0, mentionCount: 0, capped: false});
+            // Tasks are untouched by a read-all on another device, for the same reason they are
+            // untouched by this one: they are not messages.
+            this._summary.update(s => ({...EMPTY_SUMMARY, taskCount: s.taskCount}));
             return;
         }
         if (!event.channelId) return;
@@ -551,6 +618,9 @@ export class InboxService {
         this._summary.update(s => s.capped ? s : {
             unreadChannelCount: Math.max(0, s.unreadChannelCount + channels),
             mentionCount: Math.max(0, s.mentionCount + mentions),
+            // Carried through untouched: nothing on the message side of the inbox completes a
+            // chore or casts a vote.
+            taskCount: s.taskCount,
             capped: false,
         });
     }

@@ -135,8 +135,60 @@ export type InboxMentionWindow = '24h' | '7d' | '30d';
 export interface InboxSummary {
     unreadChannelCount: number;
     mentionCount: number;
+    /** The Waiting-on-you tab, capped the same way - so the header badge needs one request. */
+    taskCount: number;
     /** The real numbers are higher than reported; render as `99+`. */
     capped: boolean;
+}
+
+// ── Waiting on you ──────────────────────────────────────────────────────────
+
+/**
+ * The kinds of task the server knows about today.
+ *
+ * <p>A union of the known ones <i>or</i> a bare string, because more are being added and the whole
+ * row is renderable without recognising the kind: the server writes `title` and `subtitle`, and
+ * `targetId` plus the breadcrumb is a deep link. A `switch` that dropped an unknown kind would
+ * silently stop showing the user work that is waiting on them.</p>
+ */
+export type InboxTaskKind = 'ChoreDue' | 'DecisionVote' | 'ListAssignment' | (string & {});
+
+/**
+ * One thing waiting on the caller, from any guild they are in.
+ *
+ * <p>Separate from Unread because it answers a different question. A household channel holds no
+ * message history, so it can never <i>be</i> unread - which left the modules people most want
+ * reminding about with no inbox presence at all.</p>
+ */
+export interface InboxTask {
+    kind: InboxTaskKind;
+    /** An occurrence, a decision or a list item, per {@link kind}. */
+    targetId: string;
+    breadcrumb: InboxBreadcrumb;
+    /** Server-written, and rendered as given - see {@link InboxTaskKind}. */
+    title: string;
+    subtitle: string;
+    /** Null for a list assignment, which is waiting on nobody's clock. */
+    dueAt: string | null;
+    /**
+     * Server-decided, and <b>not</b> `dueAt < now`.
+     *
+     * <p>A chore respects its grace period - two hours late inside a 24-hour grace is not overdue -
+     * while a decision is overdue the moment it closes. Recomputing this from `dueAt` would call
+     * half the board late.</p>
+     */
+    isOverdue: boolean;
+}
+
+/**
+ * A page of tasks - except there is no paging.
+ *
+ * <p>It is a to-do list, so there is no cursor: {@link truncated} says more were waiting, and the
+ * answer to that is to go and do some, not to scroll.</p>
+ */
+export interface InboxTaskPage {
+    tasks: InboxTask[];
+    truncated: boolean;
 }
 
 // ── Realtime (server → client) ──────────────────────────────────────────────

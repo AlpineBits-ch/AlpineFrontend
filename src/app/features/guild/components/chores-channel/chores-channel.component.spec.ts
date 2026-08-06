@@ -141,7 +141,7 @@ function text(fixture: ComponentFixture<ChoresChannelComponent>): string {
 
 describe('ChoresChannelComponent module gate', () => {
     it('says the house does not run a rota rather than accusing the user, when the module is off', () => {
-        // §10.2: a 403 from a household endpoint usually means the module is off, and the owner is
+        // §13.2: a 403 from a household endpoint usually means the module is off, and the owner is
         // not exempt. Reading `features` first is what lets this say the right sentence.
         const fixture = setup({features: 'VoiceChannels'});
         expect(text(fixture)).toContain('CHORES.MODULE_OFF_TITLE');

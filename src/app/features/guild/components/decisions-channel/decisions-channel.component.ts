@@ -126,7 +126,7 @@ export class DecisionsChannelComponent implements OnDestroy {
     /** Open first, then resolved; server order preserved within each group. */
     protected rows = computed(() => decisionsInDisplayOrder(this.channelState().decisions));
 
-    // ── Module gate (§10.2) ─────────────────────────────────────────────────
+    // ── Module gate (§13.2) ─────────────────────────────────────────────────
 
     private guild = computed(() =>
         this.guildService.guilds().find(g => g.id === this.channel().guildId));

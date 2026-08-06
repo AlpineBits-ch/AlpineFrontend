@@ -1,7 +1,7 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {ConversationDto} from '../../dtos/response/conversation.dto';
 import {ChannelDto, ChannelType, GuildDto} from '../../dtos/response/guild.dto';
-import {GuildFeature, guildHasFeature} from '../guild/guild-features';
+import {GuildFeature, guildHasFeature, hasHouseholdModule} from '../guild/guild-features';
 import {AccountRegistryService, BOOTSTRAP_SLOT_ID} from '../../services/account-registry.service';
 
 export type WorkspaceContext =
@@ -12,10 +12,12 @@ export type MainView =
     | { type: 'home' }
     | { type: 'conversation'; conversation: ConversationDto }
     | { type: 'channel'; channel: ChannelDto }
-    | { type: 'wiki'; guildId: string };
+    | { type: 'wiki'; guildId: string }
+    /** The household digest - one guild-scoped view over six modules, not a channel. */
+    | { type: 'house'; guildId: string };
 
 interface PersistedNav {
-    kind: 'dms-home' | 'dms-conversation' | 'server-channel' | 'server-wiki';
+    kind: 'dms-home' | 'dms-conversation' | 'server-channel' | 'server-wiki' | 'server-house';
     guildId?: string;
     channelId?: string;
     conversationId?: string;
@@ -85,7 +87,8 @@ export class NavigationService {
             const raw = localStorage.getItem(this.navKey());
             if (!raw) return false;
             const state = JSON.parse(raw) as PersistedNav;
-            if (state.kind !== 'server-channel' && state.kind !== 'server-wiki') return false;
+            if (state.kind !== 'server-channel' && state.kind !== 'server-wiki'
+                && state.kind !== 'server-house') return false;
             const guild = guilds.find(g => g.id === state.guildId);
             if (!guild) return false;
             this.workspace.set({type: 'server', guild});
@@ -94,6 +97,8 @@ export class NavigationService {
             // straight into a wiki with no way back to it in the sidebar.
             if (state.kind === 'server-wiki' && guildHasFeature(guild, GuildFeature.Wiki)) {
                 this.mainView.set({type: 'wiki', guildId: guild.id});
+            } else if (state.kind === 'server-house' && hasHouseholdModule(guild)) {
+                this.mainView.set({type: 'house', guildId: guild.id});
             } else {
                 const ch = guild.channels.find(c => c.id === state.channelId)
                     ?? guild.channels.find(c => c.type === ChannelType.Text)
@@ -206,12 +211,37 @@ export class NavigationService {
     }
 
     /**
+     * The household digest. Guild-scoped like the wiki, and for the same reason: it is one view
+     * over six modules rather than the contents of any one channel, so there is no channel to
+     * select and nothing in the channel list that could carry its active state.
+     */
+    openHouse(guildId: string): void {
+        const current = this.mainView();
+        if (current.type !== 'house' || current.guildId !== guildId) {
+            this.mainView.set({type: 'house', guildId});
+            this.saveNav();
+        }
+        this.mobileNavOpen.set(false);
+    }
+
+    /** The digest's counterpart to {@link leaveWiki}, for a house that turns every module off. */
+    leaveHouse(): void {
+        if (this.mainView().type !== 'house') return;
+        this.leaveGuildView();
+    }
+
+    /**
      * Steps off the wiki and back into the guild, used when the Wiki module is switched off
      * while somebody is looking at it - otherwise they are stranded on a view whose entry point
      * has just disappeared from the sidebar.
      */
     leaveWiki(): void {
         if (this.mainView().type !== 'wiki') return;
+        this.leaveGuildView();
+    }
+
+    /** Back to the guild's first channel, or the DM home when there is nowhere in the guild to go. */
+    private leaveGuildView(): void {
         const ws = this.workspace();
         if (ws.type === 'server') {
             const first = ws.guild.channels.find(c => c.type === ChannelType.Text) ?? ws.guild.channels[0];
@@ -265,6 +295,8 @@ export class NavigationService {
                 return `${ws}|chan:${view.channel.id}`;
             case 'wiki':
                 return `${ws}|wiki:${view.guildId}`;
+            case 'house':
+                return `${ws}|house:${view.guildId}`;
         }
     }
 
@@ -316,6 +348,8 @@ export class NavigationService {
         } else {
             if (view.type === 'wiki') {
                 state = {kind: 'server-wiki', guildId: ws.guild.id};
+            } else if (view.type === 'house') {
+                state = {kind: 'server-house', guildId: ws.guild.id};
             } else if (view.type === 'channel') {
                 state = {kind: 'server-channel', guildId: ws.guild.id, channelId: view.channel.id};
             } else {

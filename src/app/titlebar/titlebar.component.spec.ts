@@ -46,9 +46,10 @@ beforeAll(() => {
 /** Everything the titlebar and the inbox panel it renders read off the service. */
 type InboxSurface = Pick<InboxService,
     | 'badgeLabel' | 'open'
-    | 'summary' | 'unread' | 'mentions' | 'channelGlyph'
+    | 'summary' | 'unread' | 'mentions' | 'tasks' | 'channelGlyph'
     | 'unreadLoading' | 'unreadHasMore' | 'unreadFailed'
     | 'mentionsLoading' | 'mentionsHasMore' | 'mentionsFailed'
+    | 'tasksLoading' | 'tasksFailed' | 'tasksTruncated'
     | 'previewsUnavailable'>;
 
 /**
@@ -65,9 +66,15 @@ function inboxStub(): InboxSurface {
     return {
         badgeLabel: computed(() => null),
         open: () => undefined,
-        summary: signal({unreadChannelCount: 0, mentionCount: 0, capped: false}).asReadonly(),
+        summary: signal({
+            unreadChannelCount: 0,
+            mentionCount: 0,
+            taskCount: 0,
+            capped: false,
+        }).asReadonly(),
         unread: signal([]).asReadonly(),
         mentions: signal([]).asReadonly(),
+        tasks: signal([]).asReadonly(),
         channelGlyph: () => '#',
         unreadLoading: signal(false),
         unreadHasMore: signal(false),
@@ -75,6 +82,9 @@ function inboxStub(): InboxSurface {
         mentionsLoading: signal(false),
         mentionsHasMore: signal(false),
         mentionsFailed: signal(false),
+        tasksLoading: signal(false),
+        tasksFailed: signal(false),
+        tasksTruncated: signal(false),
         previewsUnavailable: signal(false),
     };
 }

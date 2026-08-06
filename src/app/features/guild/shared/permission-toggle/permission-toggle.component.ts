@@ -18,7 +18,7 @@ export class PermissionToggleComponent {
     /**
      * The guild's module set. A group whose module is off is hidden outright rather than
      * disabled: "this house doesn't do money" and "you aren't allowed to touch the money"
-     * must not look the same - see §10.2 of the household modules guide.
+     * must not look the same - see §13.2 of the household modules guide.
      *
      * Optional. Omitted means "show everything", which is what any caller with no guild
      * in hand needs and what every caller did before modules existed.

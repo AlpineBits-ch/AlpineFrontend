@@ -71,6 +71,22 @@ export const HOUSEHOLD_MODULES: readonly GuildFeature[] = [
 ];
 
 /**
+ * The modules the home digest can actually describe.
+ *
+ * <p>Not all eight: Quiet Hours and Guest Access are settings rather than content, so a house with
+ * only those has nothing for a glance to show. These six are the sections of
+ * `GET /guilds/{id}/home`, one apiece.</p>
+ */
+const DIGEST_MODULES: readonly GuildFeature[] = [
+    GuildFeature.Lists,
+    GuildFeature.Chores,
+    GuildFeature.Ledger,
+    GuildFeature.Pantry,
+    GuildFeature.Decisions,
+    GuildFeature.Presence,
+];
+
+/**
  * What a guild has when the server doesn't report `features` at all - an older
  * backend, or a payload that predates the field. Every guild that existed before
  * modules landed is a Community with the full community preset, so assuming
@@ -102,6 +118,18 @@ export function guildFeatures(guild: Pick<GuildDto, 'features'> | null | undefin
 
 export function guildHasFeature(guild: Pick<GuildDto, 'features'> | null | undefined, feature: GuildFeature): boolean {
     return guildFeatures(guild).has(feature);
+}
+
+/**
+ * Whether the house view has anything to offer for this guild.
+ *
+ * <p>Any one of the six digest modules is enough: the digest nulls the sections it cannot answer,
+ * so a house that only does chores gets a chores-only glance rather than nothing. The entry point
+ * is hidden - never disabled - when none of them is on, exactly like every other module link.</p>
+ */
+export function hasHouseholdModule(guild: Pick<GuildDto, 'features'> | null | undefined): boolean {
+    const features = guildFeatures(guild);
+    return DIGEST_MODULES.some(feature => features.has(feature));
 }
 
 export function withGuildFeature(features: GuildFeatureSet, feature: string, enabled: boolean): Set<string> {

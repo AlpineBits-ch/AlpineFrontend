@@ -110,7 +110,7 @@ export class PantryChannelComponent implements OnDestroy {
         this.guildService.guilds().find(g => g.id === this.channel().guildId) ?? null);
 
     /**
-     * §10.2: a 403 from any of these routes often means the guild simply doesn't have the
+     * §13.2: a 403 from any of these routes often means the guild simply doesn't have the
      * module, not that the caller lacks a role. When we can see the guild and the flag is
      * off we say so instead of rendering a stock list that can never load - "your house
      * doesn't do this" and "you're not allowed" are different sentences.

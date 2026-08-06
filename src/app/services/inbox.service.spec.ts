@@ -14,11 +14,14 @@ import {ConnectionState, RealtimeConnectionService} from './realtime-connection.
 import {MlsService} from './mls.service';
 import {MlsSyncService} from './mls-sync.service';
 import {MlsHealthService} from './mls-health.service';
+import {HouseholdAlertService} from './household-alert.service';
+import {HouseholdAlert} from '../dtos/response/household-alert.dto';
 import {
     InboxBreadcrumb,
     InboxMention,
     InboxMessage,
     InboxReadStateChanged,
+    InboxTask,
     InboxUnreadGroup,
     InboxUnreadPage,
 } from '../dtos/response/inbox.dto';
@@ -34,6 +37,9 @@ let connectionState = signal(ConnectionState.Disconnected);
 
 /** Stands in for `GuildReadStateService.channelRead$`, so a test can read a channel. */
 let channelRead = new Subject<string>();
+
+/** Stands in for `HouseholdAlertService.alerts$`, so a test can fire a household alert. */
+let householdAlerts = new Subject<HouseholdAlert>();
 
 function breadcrumb(overrides: Partial<InboxBreadcrumb> = {}): InboxBreadcrumb {
     return {
@@ -104,6 +110,7 @@ function setup() {
     hubHandlers.clear();
     connectionState = signal(ConnectionState.Disconnected);
     channelRead = new Subject<string>();
+    householdAlerts = new Subject<HouseholdAlert>();
     // Explicit, so one test that throws before its module is torn down does not turn every later
     // test in the file into "the test module has already been instantiated" and bury the real
     // failure seven reports down.
@@ -137,6 +144,9 @@ function setup() {
             {provide: MlsService, useValue: {getEncryptionFloor: async () => null}},
             {provide: MlsSyncService, useValue: {}},
             {provide: MlsHealthService, useValue: {recordFailure: () => undefined}},
+            // The real one reaches the OS notification bridge in its constructor. All this service
+            // wants from it is the stream that says a household thing started waiting on the user.
+            {provide: HouseholdAlertService, useValue: {alerts$: householdAlerts}},
         ],
     });
     return {
@@ -163,15 +173,34 @@ const settle = () => new Promise(resolve => setTimeout(resolve, 0));
 async function loadSummary(
     service: InboxService,
     ctrl: HttpTestingController,
-    body: {unreadChannelCount?: number; mentionCount?: number; capped?: boolean} = {},
+    body: {
+        unreadChannelCount?: number;
+        mentionCount?: number;
+        taskCount?: number;
+        capped?: boolean;
+    } = {},
 ): Promise<void> {
     const done = service.refreshSummary();
     ctrl.expectOne(`${INBOX}/summary`).flush({
         unreadChannelCount: body.unreadChannelCount ?? 0,
         mentionCount: body.mentionCount ?? 0,
+        taskCount: body.taskCount ?? 0,
         capped: body.capped ?? false,
     });
     await done;
+}
+
+function task(overrides: Partial<InboxTask> = {}): InboxTask {
+    return {
+        kind: 'ChoreDue',
+        targetId: 'choc_1',
+        breadcrumb: breadcrumb({channelName: 'chores'}),
+        title: 'Bins',
+        subtitle: 'Your turn',
+        dueAt: '2026-08-06T18:00:00.000Z',
+        isOverdue: false,
+        ...overrides,
+    };
 }
 
 /** Loads the first page of unread groups and settles it. */
@@ -242,14 +271,81 @@ describe('InboxService', () => {
 
             service.open();
             ctrl.expectOne(`${INBOX}/summary`)
-                .flush({unreadChannelCount: 0, mentionCount: 0, capped: false});
+                .flush({unreadChannelCount: 0, mentionCount: 0, taskCount: 0, capped: false});
             // No cursor: a keyset cursor held across a closed popout describes a list that has
             // since reordered.
             ctrl.expectOne(`${INBOX}/unread?limit=10`).flush(page({groups: [group()]}));
             ctrl.expectOne(`${INBOX}/mentions?limit=25`).flush({mentions: [], nextCursor: null});
+            ctrl.expectOne(`${INBOX}/tasks?limit=25`).flush({tasks: [], truncated: false});
             await settle();
 
             expect(service.unread().length).toBe(1);
+        });
+    });
+
+    describe('waiting on you', () => {
+        it('replaces the list rather than appending - there is no cursor to append against', async () => {
+            const {service, ctrl} = setup();
+
+            const first = service.loadTasks();
+            ctrl.expectOne(`${INBOX}/tasks?limit=25`).flush({tasks: [task()], truncated: true});
+            await first;
+
+            expect(service.tasks().length).toBe(1);
+            expect(service.tasksTruncated()).toBe(true);
+
+            const second = service.loadTasks();
+            ctrl.expectOne(`${INBOX}/tasks?limit=25`)
+                .flush({tasks: [task({targetId: 'deci_9', kind: 'DecisionVote'})], truncated: false});
+            await second;
+
+            // Doing a task removes it from the next answer - which is what makes a refetch the
+            // right refresh, and appending flatly wrong.
+            expect(service.tasks().length).toBe(1);
+            expect(service.tasks()[0].targetId).toBe('deci_9');
+        });
+
+        it('counts tasks in the badge', async () => {
+            const {service, ctrl} = setup();
+            // A list channel holds no messages, so nothing else would ever light the badge for the
+            // modules people most want reminding about.
+            await loadSummary(service, ctrl, {unreadChannelCount: 1, mentionCount: 1, taskCount: 2});
+
+            expect(service.badgeLabel()).toBe('4');
+        });
+
+        it('keeps the task count through a mark-all-read', async () => {
+            const {service, ctrl} = setup();
+            await loadSummary(service, ctrl, {unreadChannelCount: 3, taskCount: 2});
+
+            const done = service.markAllRead();
+            ctrl.expectOne(`${INBOX}/read-all`).flush(null);
+            await done;
+
+            // `read-all` marks messages read. A chore that is due is still due afterwards, and
+            // zeroing it here would clear a badge the server puts straight back.
+            expect(service.summary().taskCount).toBe(2);
+            expect(service.badgeLabel()).toBe('2');
+        });
+
+        it('refetches the badge when a household alert says something started waiting', async () => {
+            const {service, ctrl} = setup();
+            await loadSummary(service, ctrl, {taskCount: 0});
+
+            householdAlerts.next({
+                guildId: 'gild_1',
+                channelId: 'chan_chores',
+                kind: 'chore.due',
+                targetId: 'choc_1',
+                title: 'Your turn',
+                body: 'Bins',
+            });
+
+            ctrl.expectOne(`${INBOX}/summary`)
+                .flush({unreadChannelCount: 0, mentionCount: 0, taskCount: 1, capped: false});
+            await settle();
+
+            expect(service.badgeLabel()).toBe('1');
         });
     });
 
@@ -379,7 +475,7 @@ describe('InboxService', () => {
             TestBed.tick();
 
             ctrl.expectOne(`${INBOX}/summary`)
-                .flush({unreadChannelCount: 2, mentionCount: 1, capped: false});
+                .flush({unreadChannelCount: 2, mentionCount: 1, taskCount: 0, capped: false});
             await settle();
 
             // The whole point: this is a cold start, and `open` was never called.
@@ -391,7 +487,7 @@ describe('InboxService', () => {
             connectionState.set(ConnectionState.Connected);
             TestBed.tick();
             ctrl.expectOne(`${INBOX}/summary`)
-                .flush({unreadChannelCount: 0, mentionCount: 0, capped: false});
+                .flush({unreadChannelCount: 0, mentionCount: 0, taskCount: 0, capped: false});
             await settle();
 
             connectionState.set(ConnectionState.Connecting);
@@ -402,7 +498,7 @@ describe('InboxService', () => {
             connectionState.set(ConnectionState.Connected);
             TestBed.tick();
             ctrl.expectOne(`${INBOX}/summary`)
-                .flush({unreadChannelCount: 0, mentionCount: 4, capped: false});
+                .flush({unreadChannelCount: 0, mentionCount: 4, taskCount: 0, capped: false});
             await settle();
 
             expect(service.badgeLabel()).toBe('4');
@@ -413,7 +509,7 @@ describe('InboxService', () => {
             connectionState.set(ConnectionState.Connected);
             TestBed.tick();
             ctrl.expectOne(`${INBOX}/summary`)
-                .flush({unreadChannelCount: 0, mentionCount: 0, capped: false});
+                .flush({unreadChannelCount: 0, mentionCount: 0, taskCount: 0, capped: false});
             await settle();
 
             connectionState.set(ConnectionState.Connected);
@@ -434,7 +530,7 @@ describe('InboxService', () => {
 
                 await vi.advanceTimersByTimeAsync(2_000);
                 ctrl.expectOne(`${INBOX}/summary`)
-                    .flush({unreadChannelCount: 0, mentionCount: 4, capped: false});
+                    .flush({unreadChannelCount: 0, mentionCount: 4, taskCount: 0, capped: false});
                 await vi.advanceTimersByTimeAsync(0);
 
                 expect(service.badgeLabel()).toBe('4');

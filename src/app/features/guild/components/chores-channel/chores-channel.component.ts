@@ -96,7 +96,7 @@ export class ChoresChannelComponent {
         this.guildService.guilds().find(g => g.id === this.channel().guildId) ?? null);
 
     /**
-     * §10.2: a `403` from any household endpoint usually means the module is off rather than that
+     * §13.2: a `403` from any household endpoint usually means the module is off rather than that
      * the caller lacks a bit, and the owner gets no exemption. Reading `features` first is what
      * lets the empty state say "this house doesn't do chores" instead of accusing the user.
      */
@@ -352,7 +352,7 @@ export class ChoresChannelComponent {
 
         effect(() => {
             const channelId = this.channel().id;
-            // §10.2: with the module off, nothing is fetched at all. Firing the requests anyway
+            // §13.2: with the module off, nothing is fetched at all. Firing the requests anyway
             // would trade three guaranteed 403s for an error state that says the wrong thing about
             // a house that simply doesn't run a rota. Re-runs when `guilds()` lands, which is when
             // the answer to this stops being "not yet"; `loadFor` is TTL-guarded, so the repeats

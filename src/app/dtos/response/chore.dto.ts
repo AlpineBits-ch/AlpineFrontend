@@ -134,27 +134,15 @@ export function carriesOccurrence(payload: ChoreOccurrenceUpdated): boolean {
 }
 
 /**
- * `guild.ChoreReminder` - this occurrence is due and the assignee is being told.
+ * The due-date reminder is <b>not</b> here any more.
  *
- * <p>Sent <b>to the assignee only</b>, at most once per occurrence, and never for a chore that is
- * already more than twelve hours overdue - by then the board says so on its own, and it is what
- * stops a guild coming back from an outage buzzing everyone at once. A reminder that would land
- * inside the guild's quiet hours is held until the window ends and nothing is emitted meanwhile, so
- * there is no pending state to draw.</p>
- *
- * <p>The same event is the payload of the household push (`type: "household"`,
- * `kind: "chore.due"`, `targetId` the occurrence id). A member who has muted the guild still gets
- * this event and gets no push.</p>
+ * <p>`guild.ChoreReminder` is gone, folded into the one envelope every household notification now
+ * arrives in: `guild.HouseholdAlert` with `kind: "chore.due"`, `targetId` the occurrence id, and
+ * `choreId`/`dueAt` moved into `data`. See
+ * {@link import('./household-alert.dto').HouseholdAlert} - and note it is handled by
+ * {@link import('../../services/household-alert.service').HouseholdAlertService} rather than by
+ * the chore service, because a reminder has to reach somebody who is not looking at the board.</p>
  */
-export interface ChoreReminder {
-    guildId: string;
-    channelId: string;
-    occurrenceId: string;
-    choreId: string;
-    /** Denormalized, so a notification body renders without the board being loaded. */
-    title: string;
-    dueAt: string;
-}
 
 // ── Derived state ───────────────────────────────────────────────────────────
 

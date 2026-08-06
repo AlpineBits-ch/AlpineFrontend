@@ -17,41 +17,14 @@ import {ProfileService} from '../../../../services/profile.service';
 import {ProfileDialogService} from '../../../../services/profile-dialog.service';
 import {ToastService} from '../../../../services/toast.service';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
-
-/**
- * How each kind reads on the board.
- *
- * <p>Icon plus a *word*, never a coloured dot on the avatar: the avatar dot is connection presence
- * and means something else entirely. Someone can be online and out, or offline and asleep in the
- * next room, and both have to stay readable.</p>
- */
-interface KindMeta {
-    kind: HomeStatusKind;
-    icon: string;
-    labelKey: string;
-    /** Tailwind text colour. Distinct from the online/idle/dnd ramp on purpose. */
-    tone: string;
-}
-
-const KIND_META: readonly KindMeta[] = [
-    {kind: HomeStatusKind.Home, icon: 'pi pi-home', labelKey: 'HOME_STATUS.KIND.HOME', tone: 'text-emerald-300'},
-    {kind: HomeStatusKind.Out, icon: 'pi pi-sign-out', labelKey: 'HOME_STATUS.KIND.OUT', tone: 'text-sky-300'},
-    {kind: HomeStatusKind.Asleep, icon: 'pi pi-moon', labelKey: 'HOME_STATUS.KIND.ASLEEP', tone: 'text-indigo-300'},
-    {
-        kind: HomeStatusKind.DoNotDisturb,
-        icon: 'pi pi-ban',
-        labelKey: 'HOME_STATUS.KIND.DO_NOT_DISTURB',
-        tone: 'text-rose-300',
-    },
-    {kind: HomeStatusKind.OnMyWay, icon: 'pi pi-send', labelKey: 'HOME_STATUS.KIND.ON_MY_WAY', tone: 'text-amber-300'},
-];
+import {HOME_STATUS_META, HomeStatusMeta, homeStatusMeta} from '../../home-status-meta';
 
 /** Offered durations, in minutes. The server caps anything longer at 7 days. */
 const DURATIONS: readonly number[] = [60, 4 * 60, HOME_STATUS_DEFAULT_MINUTES, 24 * 60, 3 * 24 * 60, 7 * 24 * 60];
 
 interface BoardRow {
     status: HomeStatusDto;
-    meta: KindMeta;
+    meta: HomeStatusMeta;
     displayName: string;
     avatarUrl: string | undefined;
     isSelf: boolean;
@@ -72,7 +45,7 @@ interface BoardRow {
 export class HomeStatusBoardComponent {
     guild = input.required<GuildDto>();
 
-    protected readonly KIND_META = KIND_META;
+    protected readonly KIND_META = HOME_STATUS_META;
     protected readonly NOTE_MAX = HOME_STATUS_NOTE_MAX;
 
     protected editing = signal(false);
@@ -111,7 +84,7 @@ export class HomeStatusBoardComponent {
         return this.store.statuses(this.guild().id)
             .map(status => ({
                 status,
-                meta: KIND_META.find(m => m.kind === status.kind) ?? KIND_META[0],
+                meta: homeStatusMeta(status.kind),
                 displayName: this.profiles.getCachedByUserId(status.userId)?.userName
                     ?? status.userId.slice(0, 8) + '…',
                 avatarUrl: this.profiles.getCachedByUserId(status.userId)?.avatarUrl,

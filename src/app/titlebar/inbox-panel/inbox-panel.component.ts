@@ -7,12 +7,12 @@ import {
     InboxService,
     InboxUnreadEntry,
 } from '../../services/inbox.service';
-import {isDismissable} from '../../dtos/response/inbox.dto';
+import {InboxTask, isDismissable} from '../../dtos/response/inbox.dto';
 import {ProfileService} from '../../services/profile.service';
 import {readableContent, UNDECRYPTABLE_SHORT} from '../../helpers/message-content.helper';
 import {MessageType} from '../../enums/message-type.enum';
 
-type InboxTab = 'unread' | 'mentions';
+type InboxTab = 'unread' | 'mentions' | 'tasks';
 
 /**
  * The body of the titlebar's inbox popover.
@@ -36,6 +36,7 @@ export class InboxPanelComponent {
     protected readonly tabs: readonly { id: InboxTab; labelKey: string }[] = [
         {id: 'unread', labelKey: 'INBOX.TAB_UNREAD'},
         {id: 'mentions', labelKey: 'INBOX.TAB_MENTIONS'},
+        {id: 'tasks', labelKey: 'INBOX.TAB_TASKS'},
     ];
 
     protected tab = signal<InboxTab>('unread');
@@ -56,6 +57,45 @@ export class InboxPanelComponent {
         this.navigated.emit();
     }
 
+    protected openTask(task: InboxTask): void {
+        this.inbox.openTask(task);
+        this.navigated.emit();
+    }
+
+    /** The count on a tab's chip. All three come from the one `/summary` request. */
+    protected tabCount(tab: InboxTab): number {
+        const sum = this.summary();
+        if (tab === 'unread') return sum.unreadChannelCount;
+        if (tab === 'mentions') return sum.mentionCount;
+        return sum.taskCount;
+    }
+
+    /**
+     * The glyph in front of a task.
+     *
+     * <p>An unknown kind gets a neutral tick rather than being guessed at - more kinds are being
+     * added, and the row is perfectly renderable without recognising this one.</p>
+     */
+    protected taskIcon(task: InboxTask): string {
+        switch (task.kind) {
+            case 'ChoreDue':
+                return 'pi pi-sync';
+            case 'DecisionVote':
+                return 'pi pi-flag';
+            case 'ListAssignment':
+                return 'pi pi-check-square';
+            default:
+                return 'pi pi-check-circle';
+        }
+    }
+
+    /** `Echo / #chores`. Literal text, so it never goes through the `translate` pipe. */
+    protected taskContextLine(task: InboxTask): string {
+        const b = task.breadcrumb;
+        if (!b) return '';
+        return `${b.guildName} / ${this.inbox.channelGlyph(b)}${b.channelName}`;
+    }
+
     /** The ✓. Stops the click reaching the row, which would navigate instead of dismissing. */
     protected markRead(event: Event, entry: InboxUnreadEntry): void {
         event.stopPropagation();
@@ -71,9 +111,11 @@ export class InboxPanelComponent {
         void this.inbox.markAllRead();
     }
 
+    /** Load more, or - on the task tab, which has no cursor - retry the one request it makes. */
     protected loadMore(): void {
         if (this.tab() === 'unread') void this.inbox.loadMoreUnread();
-        else void this.inbox.loadMoreMentions();
+        else if (this.tab() === 'mentions') void this.inbox.loadMoreMentions();
+        else void this.inbox.loadTasks();
     }
 
     /** Only Direct and `@here` have a per-user row to delete; the others accept and do nothing. */

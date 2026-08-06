@@ -155,70 +155,18 @@ describe('ChoreService realtime registration', () => {
             'guild.ChoreDeleted',
             'guild.ChoreOccurrenceCreated',
             'guild.ChoreOccurrenceUpdated',
-            'guild.ChoreReminder',
         ]) {
             expect(hubHandlers.get(event)?.length).toBe(1);
         }
     });
-});
 
-describe('ChoreService guild.ChoreReminder', () => {
-    function reminder(overrides: Record<string, unknown> = {}) {
-        return {
-            guildId: 'gild_1',
-            channelId: CHANNEL,
-            occurrenceId: 'occr_1',
-            choreId: 'chor_1',
-            title: 'Take the bins out',
-            dueAt: '2026-08-03T18:00:00.000Z',
-            ...overrides,
-        };
-    }
-
-    it('notifies even when the board was never opened - that is the point of a reminder', () => {
-        // No `loadFor`, so this channel is untracked and every other handler would drop the event.
-        const {service} = setup();
-        expect(service).toBeTruthy();
-
-        fire('guild.ChoreReminder', reminder());
-
-        expect(notifications.length).toBe(1);
-        expect(notifications[0].message).toBe('Take the bins out');
-    });
-
-    it('carries the household push keys, so a click has what a deep-link needs', () => {
+    it('leaves the due reminder alone - it is a household alert, and this service is opened into', () => {
         setup();
-        fire('guild.ChoreReminder', reminder());
-
-        expect(notifications[0].extra).toEqual({
-            type: 'household',
-            kind: 'chore.due',
-            targetId: 'occr_1',
-            guildId: 'gild_1',
-            channelId: CHANNEL,
-        });
-    });
-
-    it('buzzes once per occurrence, so a reconnect redelivery is silent', () => {
-        setup();
-        fire('guild.ChoreReminder', reminder());
-        fire('guild.ChoreReminder', reminder());
-
-        expect(notifications.length).toBe(1);
-    });
-
-    it('still notifies for a different occurrence of the same chore', () => {
-        setup();
-        fire('guild.ChoreReminder', reminder());
-        fire('guild.ChoreReminder', reminder({occurrenceId: 'occr_2'}));
-
-        expect(notifications.length).toBe(2);
-    });
-
-    it('ignores a payload with no occurrence to point at rather than notifying about nothing', () => {
-        setup();
-        fire('guild.ChoreReminder', reminder({occurrenceId: undefined}));
-
+        // `guild.ChoreReminder` is gone from the contract, and its replacement is deliberately not
+        // handled here: this service is constructed by the chores board, so a listener on it would
+        // only reach somebody who had already opened the board they are being reminded about.
+        expect(hubHandlers.get('guild.ChoreReminder')).toBeUndefined();
+        expect(hubHandlers.get('guild.HouseholdAlert')).toBeUndefined();
         expect(notifications.length).toBe(0);
     });
 });

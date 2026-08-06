@@ -19,6 +19,7 @@ import {
 } from '../messaging/components/conversation-info-panel/conversation-info-panel.component';
 import {NavigationService} from './navigation.service';
 import {NotificationService} from '../../services/notification.service';
+import {HouseholdAlertService} from '../../services/household-alert.service';
 import {ConversationStore} from '../../stores/conversation.store';
 import {firstValueFrom, Subscription} from 'rxjs';
 import {VoiceWebsocketService} from '../../services/voice-websocket.service';
@@ -37,6 +38,7 @@ import {ChoresChannelComponent} from '../guild/components/chores-channel/chores-
 import {LedgerChannelComponent} from '../guild/components/ledger-channel/ledger-channel.component';
 import {PantryChannelComponent} from '../guild/components/pantry-channel/pantry-channel.component';
 import {DecisionsChannelComponent} from '../guild/components/decisions-channel/decisions-channel.component';
+import {HouseHomeComponent} from '../guild/components/house-home/house-home.component';
 import {GuildMemberListComponent} from '../guild/components/guild-member-list/guild-member-list.component';
 import {UserTokenService} from '../../services/user-token.service';
 import {GuildWebsocketService} from '../../services/guild-websocket.service';
@@ -58,7 +60,7 @@ import {RichPresenceService} from "../../services/rich-presence.service";
 import {WikiComponent} from '../guild/components/wiki/wiki.component';
 import {OnboardingGateComponent} from '../guild/components/onboarding-gate/onboarding-gate.component';
 import {EventsPanelComponent} from '../guild/components/events-panel/events-panel.component';
-import {GuildFeature, guildHasFeature} from '../guild/guild-features';
+import {GuildFeature, guildHasFeature, hasHouseholdModule} from '../guild/guild-features';
 import {EmailVerificationService} from '../../services/email-verification.service';
 import {AppReadyService} from '../../services/app-ready.service';
 import {GuildService} from '../../services/guild.service';
@@ -93,6 +95,7 @@ import {ReportDialogComponent} from '../../components/report-dialog/report-dialo
         LedgerChannelComponent,
         PantryChannelComponent,
         DecisionsChannelComponent,
+        HouseHomeComponent,
         ServerTaskbarComponent,
         ActivityFeedComponent,
         ConversationInfoPanelComponent,
@@ -171,6 +174,16 @@ export class MainPageComponent implements OnDestroy {
     private guildWebsocketService = inject(GuildWebsocketService);
     private socialWebsocketService = inject(SocialWebsocketService);
     private notificationService = inject(NotificationService);
+    /**
+     * Injected for its constructor, not for anything called on it.
+     *
+     * <p>`guild.HouseholdAlert` is the one household event that must reach somebody who is not
+     * looking at the module it came from - a chore due, an expense they owe a share of, a decision
+     * somebody blocked. A root service only starts listening once something injects it, so leaving
+     * this to the boards would mean the alert only worked for people who had already opened the
+     * board it was telling them about. The shell is what is always there.</p>
+     */
+    private householdAlerts = inject(HouseholdAlertService);
     private conversationStore = inject(ConversationStore);
     private userTokenService = inject(UserTokenService);
     private userService = inject(UserService);
@@ -260,11 +273,13 @@ export class MainPageComponent implements OnDestroy {
         });
 
         this.actionSub.add(this.notificationService.action$.subscribe(event => {
-            const {conversationId} = event.extra;
+            const {conversationId, type} = event.extra;
             if (conversationId) {
                 const conv = this.conversationStore.entities().find(c => c.id === conversationId);
                 if (conv) this.navService.openConversation(conv);
+                return;
             }
+            if (type === 'household') this.openHouseholdTarget(event.extra);
         }));
 
         // The push names a context but carries nothing else: the fetch is device-scoped, and the
@@ -304,6 +319,28 @@ export class MainPageComponent implements OnDestroy {
 
     protected openAccountSettings(): void {
         this.quickSettings.openProfileSettings();
+    }
+
+    /**
+     * Where a clicked household notification lands.
+     *
+     * <p>Routed on the two ids in the payload rather than on `kind`, deliberately. Every kind names
+     * the channel the thing happened in - including `pantry.expiring`, whose `targetId` <i>is</i>
+     * that channel - so opening it is right for all seven and for the ones that have not been
+     * invented yet. A per-kind ladder would have to grow an entry each time or silently drop the
+     * click, which is the failure this one envelope exists to avoid.</p>
+     *
+     * <p>Falling back to the guild when the channel cannot be resolved is deliberate too: a house
+     * whose channel list has not loaded is far better answered by the house than by nothing.</p>
+     */
+    private openHouseholdTarget(extra: Record<string, string>): void {
+        const guild = this.guildService.guilds().find(g => g.id === extra['guildId']);
+        if (!guild) return;
+        this.navService.selectServer(guild);
+
+        const channel = guild.channels.find(c => c.id === extra['channelId']);
+        if (channel) this.navService.openChannel(channel);
+        else if (hasHouseholdModule(guild)) this.navService.openHouse(guild.id);
     }
 
     @HostListener('document:keydown', ['$event'])

@@ -158,7 +158,7 @@ describe('channelViewFor', () => {
         expect(views.size).toBe(HOUSEHOLD_TYPES.length);
     });
 
-    // The single most damaging failure mode in the integration guide (§10.1): a type this
+    // The single most damaging failure mode in the integration guide (§13.1): a type this
     // build has never heard of must not fall through to the message view, or the client
     // renders a composer that posts into a shopping list.
     it('never routes an unknown type to the message view', () => {

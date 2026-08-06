@@ -16,7 +16,7 @@
     <div class="flex gap-0.5 border-b border-border-subtle px-2 pt-1.5" role="tablist">
         @for (t of tabs; track t.id) {
             @let active = tab() === t.id;
-            @let count = t.id === 'unread' ? sum.unreadChannelCount : sum.mentionCount;
+            @let count = tabCount(t.id);
             <button (click)="selectTab(t.id)"
                     [attr.aria-selected]="active"
                     [class]="active
@@ -118,7 +118,7 @@
                     </div>
                 }
             }
-        } @else {
+        } @else if (tab() === 'mentions') {
             @for (entry of inbox.mentions(); track entry.mention.messageId) {
                 <div (click)="openMention(entry)"
                      (keydown.enter)="openMention(entry)"
@@ -180,11 +180,73 @@
                     </div>
                 }
             }
+        } @else {
+            <!-- Waiting on you. A household channel keeps no messages, so nothing here could ever
+                 have shown up as unread - which is the whole reason this tab exists. -->
+            @for (task of inbox.tasks(); track task.kind + ':' + task.targetId) {
+                <div (click)="openTask(task)"
+                     (keydown.enter)="openTask(task)"
+                     class="group flex w-full cursor-pointer items-start gap-2.5 rounded-lg px-2.5 py-2
+                            text-left transition-colors hover:bg-hover"
+                     role="button"
+                     tabindex="0">
+                    <i [class]="taskIcon(task)" class="mt-0.5 shrink-0 text-xs text-text-muted"></i>
+
+                    <span class="flex min-w-0 flex-1 flex-col gap-px">
+                        <span class="flex min-w-0 items-baseline gap-1.5">
+                            <!-- Server-written, and rendered as given: an unrecognised kind still
+                                 says something true and still deep-links. -->
+                            <span class="truncate text-[0.8125rem] font-medium text-text-primary">
+                                {{ task.title }}
+                            </span>
+                            @if (task.isOverdue) {
+                                <!-- The server's answer, not `dueAt < now`: a chore inside its grace
+                                     period is late but not overdue. -->
+                                <span class="shrink-0 rounded bg-offline/20 px-1.5 py-px text-[0.5625rem]
+                                             font-semibold uppercase tracking-wide text-offline">
+                                    {{ 'INBOX.TASK_OVERDUE' | translate }}
+                                </span>
+                            } @else if (task.dueAt) {
+                                <span class="ml-auto shrink-0 text-[0.625rem] text-text-muted">
+                                    {{ task.dueAt | date:'shortTime' }}
+                                </span>
+                            }
+                        </span>
+                        <span class="truncate text-[0.6875rem] text-text-muted">{{ taskContextLine(task) }}</span>
+                        <span class="mt-0.5 line-clamp-1 text-[0.6875rem] leading-snug text-text-secondary">
+                            {{ task.subtitle }}
+                        </span>
+                    </span>
+                </div>
+            } @empty {
+                @if (!inbox.tasksLoading()) {
+                    <div class="flex flex-col items-center px-5 pb-7 pt-7 text-center">
+                        <i class="pi pi-check-circle mb-2.5 text-2xl text-online"></i>
+                        <p class="m-0 text-[0.8125rem] font-semibold text-text-secondary">
+                            {{ 'INBOX.EMPTY_TASKS' | translate }}
+                        </p>
+                        <p class="m-0 mt-0.5 text-[0.6875rem] leading-relaxed text-text-muted">
+                            {{ 'INBOX.EMPTY_TASKS_HINT' | translate }}
+                        </p>
+                    </div>
+                }
+            }
+
+            <!-- No cursor: it is a to-do list, and the answer to "more were waiting" is to go and
+                 do some rather than to page. -->
+            @if (inbox.tasksTruncated()) {
+                <p class="m-0 px-3 py-2 text-center text-[0.6875rem] text-text-muted">
+                    {{ 'INBOX.TASKS_TRUNCATED' | translate }}
+                </p>
+            }
         }
 
-        @let loading = tab() === 'unread' ? inbox.unreadLoading() : inbox.mentionsLoading();
-        @let failed = tab() === 'unread' ? inbox.unreadFailed() : inbox.mentionsFailed();
-        @let hasMore = tab() === 'unread' ? inbox.unreadHasMore() : inbox.mentionsHasMore();
+        @let loading = tab() === 'unread' ? inbox.unreadLoading()
+            : tab() === 'mentions' ? inbox.mentionsLoading() : inbox.tasksLoading();
+        @let failed = tab() === 'unread' ? inbox.unreadFailed()
+            : tab() === 'mentions' ? inbox.mentionsFailed() : inbox.tasksFailed();
+        @let hasMore = tab() === 'unread' ? inbox.unreadHasMore()
+            : tab() === 'mentions' ? inbox.mentionsHasMore() : false;
 
         @if (loading) {
             <p class="m-0 px-3 py-2 text-center text-[0.6875rem] text-text-muted">

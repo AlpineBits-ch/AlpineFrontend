@@ -116,7 +116,7 @@ function setup(opts: {
 
 describe('ListChannelComponent', () => {
     it('renders nothing when the guild has no Lists module', () => {
-        // §10.2: the module being off is not a permission problem, and drawing "you're not allowed"
+        // §13.2: the module being off is not a permission problem, and drawing "you're not allowed"
         // over a household that simply doesn't do shopping lists is the failure it warns about.
         const fixture = setup({features: 'VoiceChannels'});
         expect(fixture.nativeElement.textContent.trim()).toBe('');

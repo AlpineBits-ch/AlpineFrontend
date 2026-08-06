@@ -135,7 +135,7 @@ export class ListChannelComponent {
     /**
      * Whether this guild does lists at all.
      *
-     * <p>`features` is read before anything is drawn, per §10.2: a guild without the module answers
+     * <p>`features` is read before anything is drawn, per §13.2: a guild without the module answers
      * every list route with `403` regardless of roles, so treating that `403` as a permission
      * problem would tell a household "you're not allowed to see the shopping list" when the truth
      * is that their house has no shopping list. Absent guild context (the channel opened from

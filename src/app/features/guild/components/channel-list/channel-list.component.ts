@@ -35,7 +35,7 @@ import {InviteType} from '../../../../dtos/response/invite.dto';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
 import {memberCanManageGuild} from '../../guild-permissions';
-import {GuildFeature, guildFeatures} from '../../guild-features';
+import {GuildFeature, guildFeatures, hasHouseholdModule} from '../../guild-features';
 import {
   GuildWebsocketService,
   WsCategoryCreated,
@@ -121,6 +121,10 @@ export class ChannelListComponent {
         const view = this.navService.mainView();
         return view.type === 'wiki' && view.guildId === this.guild().id;
     });
+    protected isHouseActive = computed(() => {
+        const view = this.navService.mainView();
+        return view.type === 'house' && view.guildId === this.guild().id;
+    });
     // ── Events ────────────────────────────────────────────────────────────────
     private eventStore = inject(ScheduledEventStore);
     private minuteClock = inject(MinuteClockService);
@@ -136,6 +140,8 @@ export class ChannelListComponent {
     // creating them, it doesn't remove the ones already there.
     protected features = computed(() => guildFeatures(this.guild()));
     protected hasWiki = computed(() => this.features().has(GuildFeature.Wiki));
+    /** Any one of the six digest modules; the digest nulls the sections it cannot answer. */
+    protected hasHouse = computed(() => hasHouseholdModule(this.guild()));
     protected hasEvents = computed(() => this.features().has(GuildFeature.Events));
     protected hasOnboarding = computed(() => this.features().has(GuildFeature.Onboarding));
     protected hasModeration = computed(() => this.features().has(GuildFeature.Moderation));
@@ -292,9 +298,11 @@ export class ChannelListComponent {
             const guildId = this.guild().id;
             const view = this.navService.mainView();
             const wikiGone = !this.hasWiki() && view.type === 'wiki' && view.guildId === guildId;
+            const houseGone = !this.hasHouse() && view.type === 'house' && view.guildId === guildId;
             const eventsGone = !this.hasEvents() && this.navService.eventsPanelGuildId() === guildId;
             untracked(() => {
                 if (wikiGone) this.navService.leaveWiki();
+                if (houseGone) this.navService.leaveHouse();
                 if (eventsGone) this.navService.closeEventsPanel();
             });
         });
@@ -440,6 +448,10 @@ export class ChannelListComponent {
 
     protected openWiki(): void {
         this.navService.openWiki(this.guild().id);
+    }
+
+    protected openHouse(): void {
+        this.navService.openHouse(this.guild().id);
     }
 
     protected toggleEvents(): void {

@@ -6,6 +6,7 @@ import {
     InboxMentionsPage,
     InboxMentionWindow,
     InboxSummary,
+    InboxTaskPage,
     InboxUnreadPage,
 } from '../dtos/response/inbox.dto';
 
@@ -59,7 +60,21 @@ export class InboxApiService {
         return this.http.get<InboxMentionsPage>(`${this.base}/mentions`, {params});
     }
 
-    /** The header badge. */
+    /**
+     * Household items waiting on the caller, across every guild they are in.
+     *
+     * <p>No cursor by design - see {@link InboxTaskPage}. Feature-gated and `ViewChannel`-filtered
+     * per row, exactly like unread.</p>
+     *
+     * @param limit clamped server-side to 50.
+     */
+    tasks(limit = 25): Observable<InboxTaskPage> {
+        return this.http.get<InboxTaskPage>(`${this.base}/tasks`, {
+            params: new HttpParams().set('limit', limit),
+        });
+    }
+
+    /** The header badge - all three counts in one request. */
     summary(): Observable<InboxSummary> {
         return this.http.get<InboxSummary>(`${this.base}/summary`);
     }
