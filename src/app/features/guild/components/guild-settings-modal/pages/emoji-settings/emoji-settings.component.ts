@@ -13,7 +13,8 @@ import {GuildService} from '../../../../../../services/guild.service';
 import {GuildEmojiService} from '../../../../../../services/guild-emoji.service';
 import {GuildEmojiStore} from '../../../../../../stores/guild-emoji.store';
 import {ToastService} from '../../../../../../services/toast.service';
-import {hasPermission, parsePermissions, Permissions} from '../../../../../../enums/permissions.enum';
+import {hasPermission, Permissions} from '../../../../../../enums/permissions.enum';
+import {unionMemberPermissions} from '../../../../guild-permissions';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
 /** Server-side naming rule, mirrored so the field can say so before the request. */
@@ -72,11 +73,7 @@ export class EmojiSettingsComponent implements OnInit, OnDestroy {
     canManageEmojis = computed(() => {
         const member = this.ownMember();
         if (!member) return false;
-        const permissionString = member.roleMembers.reduce((curr, m) => {
-            if (!m.role.permissions) return curr;
-            return curr === '' ? m.role.permissions : `${curr},${m.role.permissions}`;
-        }, member.permissions ?? '');
-        const perms = parsePermissions(permissionString);
+        const perms = unionMemberPermissions(member);
         return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.ManageEmojis);
     });
 

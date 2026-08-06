@@ -2,6 +2,8 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideTranslateService} from '@ngx-translate/core';
+import {MessageService} from 'primeng/api';
+import {KeybindsService} from '../../../../../services/keybinds.service';
 import {WikiArticleComponent} from './wiki-article.component';
 import {WikiAiService} from '../wiki-ai.service';
 import {ApiConfigService} from '../../../../../services/api-config.service';
@@ -52,6 +54,12 @@ describe('WikiArticleComponent AI entry points', () => {
                 // Reached through the websocket service and initialises against the Tauri OS
                 // plugin, which is not there under jsdom.
                 {provide: NotificationService, useValue: {createNotification: async () => undefined}},
+                // The article reports a failed markdown conversion through ToastService, which
+                // needs PrimeNG's MessageService. No toast is raised on the AI path.
+                MessageService,
+                // The real service reads its bindings from localStorage on construction, which
+                // this environment does not provide. Nothing on the AI path presses a shortcut.
+                {provide: KeybindsService, useValue: {getBinding: () => null}},
                 {
                     provide: WikiAiService,
                     useValue: {

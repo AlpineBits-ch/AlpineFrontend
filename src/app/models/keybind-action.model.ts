@@ -12,7 +12,30 @@ export type KeybindActionId =
     | 'isle-push-to-mute'
     | 'call-ptt'
     | 'call-toggle-mute'
-    | 'call-push-to-mute';
+    | 'call-push-to-mute'
+    | WikiEditorKeybindId;
+
+/**
+ * Split out because the wiki editor asks for these by name when it builds its keymap, and a list
+ * it can iterate is better than a union it has to restate.
+ */
+export type WikiEditorKeybindId =
+    | 'wiki-toggle-markdown'
+    | 'wiki-bold'
+    | 'wiki-italic'
+    | 'wiki-underline'
+    | 'wiki-strike'
+    | 'wiki-inline-code'
+    | 'wiki-heading-1'
+    | 'wiki-heading-2'
+    | 'wiki-heading-3'
+    | 'wiki-bullet-list'
+    | 'wiki-numbered-list'
+    | 'wiki-task-list'
+    | 'wiki-quote'
+    | 'wiki-code-block'
+    | 'wiki-divider'
+    | 'wiki-link';
 
 /**
  * How a binding is captured and armed:
@@ -22,7 +45,13 @@ export type KeybindActionId =
  *  - 'accelerator': a plain OS-registered keyboard shortcut. Simpler, and
  *    enough for actions that only ever fire while Alpine itself is in use.
  */
-export type KeybindMechanism = 'native' | 'accelerator';
+/**
+ * How a binding is captured and armed:
+ *  - 'in-app': handled by a component while it has focus. Nothing is registered with the OS at
+ *    all, which is what makes it safe to bind plain letters - a wiki shortcut must not swallow
+ *    Ctrl+B for the whole desktop.
+ */
+export type KeybindMechanism = 'native' | 'accelerator' | 'in-app';
 
 export interface KeybindActionDef {
     id: KeybindActionId;
@@ -32,7 +61,21 @@ export interface KeybindActionDef {
     mechanism: KeybindMechanism;
     /** Native hook slot this action owns. Only present when mechanism is 'native'. */
     nativeSlot?: number;
+    /**
+     * What this action is bound to until somebody says otherwise.
+     *
+     * Only the in-app actions have one. A global hotkey with a default would claim a key across
+     * the whole machine for a feature the user may never have opened; an editor shortcut that
+     * only exists while you are typing in that editor is expected to work out of the box.
+     *
+     * Clearing an action that has one restores it rather than leaving it unbound - there is no
+     * such thing as a wiki editor with no way to write bold text.
+     */
+    defaultToken?: string;
 }
+
+/** The category the wiki editor's actions are grouped under on the Keybinds page. */
+export const WIKI_EDITOR_CATEGORY = 'Wiki Editor';
 
 export const KEYBIND_ACTIONS: readonly KeybindActionDef[] = [
     {
@@ -85,7 +128,52 @@ export const KEYBIND_ACTIONS: readonly KeybindActionDef[] = [
         mechanism: 'native',
         nativeSlot: 5,
     },
+    ...wikiEditorActions(),
 ];
+
+/**
+ * The wiki editor's shortcuts.
+ *
+ * Defaults mirror the keys the editor already answered to before they were configurable, so
+ * nobody's muscle memory breaks by upgrading. They are declared here rather than left implicit in
+ * TipTap's own keymaps because a shortcut you cannot see is a shortcut you cannot change - and
+ * "add configurable keybinds for the markdown actions" is the request this list answers.
+ */
+function wikiEditorActions(): KeybindActionDef[] {
+    const rows: [WikiEditorKeybindId, string, string, string][] = [
+        ['wiki-toggle-markdown', 'Toggle Markdown Source', 'Switch between the rich text editor and raw markdown.', 'Control+Shift+KeyM'],
+        ['wiki-bold', 'Bold', 'Wrap the selection in bold.', 'Control+KeyB'],
+        ['wiki-italic', 'Italic', 'Wrap the selection in italics.', 'Control+KeyI'],
+        ['wiki-underline', 'Underline', 'Underline the selection.', 'Control+KeyU'],
+        ['wiki-strike', 'Strikethrough', 'Strike through the selection.', 'Control+Shift+KeyS'],
+        ['wiki-inline-code', 'Inline Code', 'Format the selection as inline code.', 'Control+KeyE'],
+        ['wiki-heading-1', 'Heading 1', 'Turn the current block into a level 1 heading.', 'Control+Alt+Digit1'],
+        ['wiki-heading-2', 'Heading 2', 'Turn the current block into a level 2 heading.', 'Control+Alt+Digit2'],
+        ['wiki-heading-3', 'Heading 3', 'Turn the current block into a level 3 heading.', 'Control+Alt+Digit3'],
+        ['wiki-bullet-list', 'Bullet List', 'Turn the selection into a bullet list.', 'Control+Shift+Digit8'],
+        ['wiki-numbered-list', 'Numbered List', 'Turn the selection into a numbered list.', 'Control+Shift+Digit7'],
+        ['wiki-task-list', 'Checklist', 'Turn the selection into a checklist.', 'Control+Shift+Digit9'],
+        ['wiki-quote', 'Quote', 'Wrap the selection in a block quote.', 'Control+Shift+KeyB'],
+        ['wiki-code-block', 'Code Block', 'Turn the selection into a code block.', 'Control+Alt+KeyC'],
+        ['wiki-divider', 'Divider', 'Insert a horizontal rule.', 'Control+Alt+KeyR'],
+        // Not Ctrl+K, which the wiki already spends on the search palette. An editor shortcut that
+        // quietly ate the search key while you were typing would be a worse trade than one extra
+        // modifier.
+        ['wiki-link', 'Link', 'Turn the selection into a link.', 'Control+Shift+KeyK'],
+    ];
+    return rows.map(([id, label, description, defaultToken]) => ({
+        id,
+        category: WIKI_EDITOR_CATEGORY,
+        label,
+        description,
+        mechanism: 'in-app' as const,
+        defaultToken,
+    }));
+}
+
+/** Every action the wiki editor binds, in the order the shortcuts overlay lists them. */
+export const WIKI_EDITOR_KEYBINDS: readonly KeybindActionDef[] =
+    KEYBIND_ACTIONS.filter(action => action.category === WIKI_EDITOR_CATEGORY);
 
 export function findKeybindAction(id: KeybindActionId): KeybindActionDef {
     const action = KEYBIND_ACTIONS.find(a => a.id === id);

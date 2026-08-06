@@ -83,10 +83,24 @@ export function buildGraph(
     const degree = new Map<string, number>();
     for (const page of pages) {
         const body = contentByPageId.get(page.id);
-        if (!body) continue;
         // A link to a page that no longer exists is not an edge - it has no other end.
-        const targets = extractLinkedPageIds(body).filter(id => id !== page.id && known.has(id));
+        const written = body
+            ? extractLinkedPageIds(body).filter(id => id !== page.id && known.has(id))
+            : [];
+
+        // Being filed under a page is a relationship between the two of them, and the graph is
+        // the view whose whole job is to show relationships. Reading only the `wiki:` links in
+        // the body meant a page with a parent and no written links drew as an unconnected dot,
+        // which is the one thing the map is supposed to make impossible to believe.
+        const parent = page.parentPageId;
+        // Deduped, so a page that is both filed under another and links to it in its body counts
+        // once. `degree` sizes the node and decides what survives the node cap, so counting the
+        // same relationship twice is not cosmetic.
+        const targets = [...new Set(
+            parent && parent !== page.id && known.has(parent) ? [...written, parent] : written,
+        )];
         if (!targets.length) continue;
+
         linksBySource.set(page.id, targets);
         degree.set(page.id, (degree.get(page.id) ?? 0) + targets.length);
         for (const target of targets) degree.set(target, (degree.get(target) ?? 0) + 1);

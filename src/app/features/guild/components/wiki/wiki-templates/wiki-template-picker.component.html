@@ -47,25 +47,42 @@
                                 <span class="block truncate text-[0.8125rem] font-semibold text-white/85">
                                     {{ card.template.nameKey | translate }}
                                 </span>
-                                <span class="mt-0.5 block text-[0.6875rem] leading-snug text-white/40">
+                                <!-- Two lines, always. A one-line description used to make its
+                                     card shorter than its neighbours, and every thumbnail in the
+                                     row started at a different height. -->
+                                <span class="mt-0.5 line-clamp-2 block h-[2.125rem]
+                                             text-[0.6875rem] leading-snug text-white/40">
                                     {{ card.template.descriptionKey | translate }}
                                 </span>
                             </span>
                         </span>
 
                         <!-- Thumbnail. Real strings at thumbnail size rather than grey bars: the
-                             point of a preview is to answer "is this the one" without opening it. -->
-                        <span class="mt-3 flex h-[4.5rem] flex-col gap-1.5 overflow-hidden rounded-lg
-                                     border border-white/[0.05] bg-app-bg/60 px-2.5 py-2">
+                             point of a preview is to answer "is this the one" without opening it.
+
+                             `mt-auto` rather than a fixed margin so it sits against the bottom of
+                             the card, and the height comes from the rows it holds - PREVIEW_ROWS
+                             at `h-3` plus the gaps between them plus the padding. The old magic
+                             4.5rem was smaller than five rows need, so the last ones were squeezed
+                             out of shape instead of simply not being drawn. -->
+                        <span class="mt-auto flex h-[6.5rem] flex-col gap-1.5 overflow-hidden
+                                     rounded-lg border border-white/[0.05] bg-app-bg/60
+                                     px-2.5 pb-2 pt-3">
+                            <!-- Every row is `h-3 shrink-0`. In a fixed-height flex column the
+                                 default is for children to shrink to fit, which is what flattened
+                                 the text out of shape once a template had five rows. Fixed and
+                                 unshrinkable, a row that does not fit is simply clipped by the
+                                 overflow instead. -->
                             @for (row of card.preview; track $index) {
                                 @switch (row.shape) {
                                     @case ('heading') {
-                                        <span class="truncate text-[0.5625rem] font-semibold text-white/50">
+                                        <span class="flex h-3 shrink-0 items-center truncate
+                                                     text-[0.5625rem] font-semibold text-white/50">
                                             {{ row.textKey! | translate }}
                                         </span>
                                     }
                                     @case ('bullet') {
-                                        <span class="flex items-center gap-1.5">
+                                        <span class="flex h-3 shrink-0 items-center gap-1.5">
                                             <span class="h-1 w-1 shrink-0 rounded-full bg-white/25"></span>
                                             <span class="truncate text-[0.5625rem] text-white/30">
                                                 {{ row.textKey! | translate }}
@@ -73,7 +90,7 @@
                                         </span>
                                     }
                                     @case ('task') {
-                                        <span class="flex items-center gap-1.5">
+                                        <span class="flex h-3 shrink-0 items-center gap-1.5">
                                             <span class="h-1.5 w-1.5 shrink-0 rounded-[0.125rem]
                                                          border border-white/25"></span>
                                             <span class="truncate text-[0.5625rem] text-white/30">
@@ -82,20 +99,22 @@
                                         </span>
                                     }
                                     @case ('quote') {
-                                        <span class="truncate border-l-2 border-brand/40 pl-1.5
+                                        <span class="flex h-3 shrink-0 items-center truncate
+                                                     border-l-2 border-brand/40 pl-1.5
                                                      text-[0.5625rem] text-white/30">
                                             {{ row.textKey! | translate }}
                                         </span>
                                     }
                                     @case ('grid') {
-                                        <span class="grid grid-cols-3 gap-1">
+                                        <span class="grid h-3 shrink-0 grid-cols-3 items-center gap-1">
                                             @for (cell of gridCells; track cell) {
                                                 <span class="h-1 rounded-full bg-white/15"></span>
                                             }
                                         </span>
                                     }
                                     @default {
-                                        <span class="truncate text-[0.5625rem] text-white/25">
+                                        <span class="flex h-3 shrink-0 items-center truncate
+                                                     text-[0.5625rem] text-white/25">
                                             @if (row.textKey) {
                                                 {{ row.textKey | translate }}
                                             } @else {

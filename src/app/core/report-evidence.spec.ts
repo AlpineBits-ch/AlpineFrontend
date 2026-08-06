@@ -90,7 +90,12 @@ describe('buildReportEvidence', () => {
         const withFile = msg({
             id: 'x',
             minute: 1,
-            attachments: [{id: 'a1', fileName: 'proof.png', contentType: 'image/png', url: 'https://cdn/x'}],
+            attachments: [{
+                id: 'a1',
+                fileName: 'proof.png',
+                contentType: 'image/png',
+                thumbnailUrl: 'https://cdn/x',
+            }],
         });
 
         const evidence = buildReportEvidence({

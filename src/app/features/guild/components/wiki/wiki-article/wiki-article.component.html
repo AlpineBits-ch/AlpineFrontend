@@ -23,7 +23,7 @@
 
     <!-- Formatting bar. Edit mode only - reading a page still shows no chrome at all. -->
     @if (editing()) {
-        <app-wiki-toolbar (insertImage)="openFilePicker()" (toggleSource)="toggleSourceMode()"
+        <app-wiki-toolbar #toolbar (insertImage)="openFilePicker()" (toggleSource)="toggleSourceMode()"
                           [editor]="editorInstance()" [sourceMode]="sourceMode()"/>
     }
 
@@ -34,7 +34,7 @@
 
             <!-- Title. A separate DTO field rendered as the first line of the body, so the
                  header above can stay a slim breadcrumb bar. -->
-            <input (ngModelChange)="title.set($event)"
+            <input (ngModelChange)="onTitleInput($event)"
                    [class.cursor-default]="!editing()"
                    [ngModel]="title()"
                    [readOnly]="!editing()"
@@ -75,7 +75,11 @@
             }
 
             @if (sourceMode()) {
-                <textarea (ngModelChange)="onSourceInput($event)"
+                <!-- The editor's own keymap is a ProseMirror plugin, and ProseMirror is not what
+                     has focus here - so the shortcuts have to be answered by the textarea too, or
+                     the key that got you into markdown mode cannot get you back out. -->
+                <textarea (keydown)="onSourceKeydown($event)"
+                          (ngModelChange)="onSourceInput($event)"
                           [ngModel]="sourceText()"
                           class="min-h-[24rem] w-full resize-y border-0 bg-transparent font-mono
                                  text-[0.8125rem] leading-relaxed text-white/80 outline-none

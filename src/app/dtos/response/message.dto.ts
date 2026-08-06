@@ -1,11 +1,16 @@
 import {MessageEncryptionState} from "../../enums/message-encryption-state.enum";
 import {MessageType} from '../../enums/message-type.enum';
 
+/**
+ * <p>Deliberately has no `url`: the payload carries `thumbnailUrl` and nothing else, so code
+ * reaching for "the attachment's URL" was getting `undefined` where the type promised a string -
+ * or, worse, falling back to the thumbnail and downloading a downscaled preview. Build the
+ * full-size address from the id with `FileService.attachmentDownloadUrl`.</p>
+ */
 export interface MessageAttachment {
     id: string;
     fileName: string;
     contentType: string;
-    url: string;
     thumbnailUrl?: string;
 }
 

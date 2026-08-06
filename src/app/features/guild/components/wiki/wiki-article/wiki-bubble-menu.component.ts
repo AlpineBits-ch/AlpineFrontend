@@ -60,7 +60,12 @@ const TONES: readonly { instruction: string; labelKey: string }[] = [
     imports: [TranslateModule],
     template: `
         @if (visible()) {
-            <div [style.left.px]="position().left" [style.top.px]="position().top"
+            <!-- mousedown is swallowed for the whole bar. Pressing a button otherwise blurs the
+                 editor and collapses the selection before the click handler runs, which is why
+                 the block buttons - quote and code block in particular - appeared to do nothing
+                 every so often. -->
+            <div (mousedown)="$event.preventDefault()"
+                 [style.left.px]="position().left" [style.top.px]="position().top"
                  class="fixed z-50 -translate-x-1/2 -translate-y-full">
                 <div class="flex items-center gap-0.5 rounded-lg border border-border bg-card
                             px-1 py-1 shadow-xl">
@@ -242,7 +247,8 @@ export class WikiBubbleMenuComponent {
         this.hide();
     }
 
-    private hide(): void {
+    /** Public because the article suppresses the menu for the length of a selection drag. */
+    hide(): void {
         this.visible.set(false);
         this.aiMenuOpen.set(false);
         this.submenu.set(null);

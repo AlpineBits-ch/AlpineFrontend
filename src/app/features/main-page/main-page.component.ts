@@ -12,6 +12,8 @@ import {VoiceChannelComponent} from '../guild/components/voice-channel/voice-cha
 import {ForumChannelComponent} from '../guild/components/forum-channel/forum-channel.component';
 import {ForumPostListComponent} from '../guild/components/forum-channel/forum-post-list.component';
 import {forumParentOf} from '../guild/components/channel/channel-utils';
+import {stringifyPermissions} from '../../enums/permissions.enum';
+import {unionMemberPermissions} from '../guild/guild-permissions';
 import {ServerTaskbarComponent} from '../guild/components/server-taskbar/server-taskbar.component';
 import {ActivityFeedComponent} from './components/activity-feed/activity-feed.component';
 import {
@@ -261,13 +263,10 @@ export class MainPageComponent implements OnDestroy {
             this.eventsMemberPermissions.set('');
             if (!guildId) return;
             this.guildService.getOwnMember(guildId).subscribe({
-                next: m => {
-                    const permissionString = m.roleMembers.reduce((curr, r) => {
-                        if (!r.role.permissions) return curr;
-                        return curr === '' ? r.role.permissions : `${curr},${r.role.permissions}`;
-                    }, m.permissions ?? '');
-                    this.eventsMemberPermissions.set(permissionString);
-                },
+                // Re-serialized from the parsed union rather than joined off the wire: a mask can
+                // arrive as a JSON number, and one numeric source poisons the whole comma-joined
+                // string. The panel takes names, so hand it names.
+                next: m => this.eventsMemberPermissions.set(stringifyPermissions(unionMemberPermissions(m))),
                 error: () => this.eventsMemberPermissions.set(''),
             });
         });

@@ -110,6 +110,13 @@ export const appConfig: ApplicationConfig = {
         provideZoneChangeDetection({eventCoalescing: true}),
         provideRouter(routes),
         providePrimeNG({
+            // PrimeNG 21 changed the default from `body` to `self`, so every overlay - select
+            // panels, date pickers, popovers, menus - now renders inside its own container. Inside
+            // a `p-dialog` that container is a scroll box with `overflow: auto`, and the panel is
+            // clipped at the dialog edge; the event editor's channel picker was the visible case.
+            // Setting it back here fixes the class of bug rather than one dialog: an overlay that
+            // has to escape its ancestor's overflow can only do that from the body.
+            overlayAppendTo: 'body',
             theme: {
                 preset: AlpinePreset,
                 options: {

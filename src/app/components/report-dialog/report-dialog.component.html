@@ -1,6 +1,12 @@
 @if (subject(); as target) {
+    <!-- `visibleChange` is the only signal PrimeNG gives for escape and mask dismissal, and it has
+         to be read back: `visible` here is derived from the subject, so it stays true when the
+         dialog lowers its own flag, the dialog's OnPush view is never re-checked, and the dismissal
+         is dropped. `onHide` does not cover it - that fires only once the leave motion has run,
+         which needs the very re-check that never happens. -->
     <p-dialog
             (onHide)="close()"
+            (visibleChange)="$event === false && close()"
             [breakpoints]="{ '480px': '95vw' }"
             [dismissableMask]="stage() !== 'sending'"
             [draggable]="false"

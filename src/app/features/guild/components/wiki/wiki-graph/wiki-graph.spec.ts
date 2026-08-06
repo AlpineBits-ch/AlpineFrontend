@@ -78,6 +78,28 @@ describe('buildGraph', () => {
         expect(model.edges).toEqual([]);
     });
 
+    it('draws a line for a page filed under another, with nothing written between them', () => {
+        const model = buildGraph([page('a'), page('b', {parentPageId: 'a'})], new Map());
+        expect(model.edges.length).toBe(1);
+        expect(model.neighbours[0]).toEqual([1]);
+        expect(model.neighbours[1]).toEqual([0]);
+    });
+
+    it('counts a parent that is also linked in the body once', () => {
+        const model = buildGraph(
+            [page('a'), page('b', {parentPageId: 'a'})],
+            new Map([['b', 'see [a](wiki:a)']]),
+        );
+        expect(model.edges.length).toBe(1);
+        // Degree sizes the node and decides what survives the cap, so a double count shows.
+        expect(model.nodes.map(n => n.degree)).toEqual([1, 1]);
+    });
+
+    it('ignores a parent that is not a page in this wiki', () => {
+        const model = buildGraph([page('b', {parentPageId: 'gone'})], new Map());
+        expect(model.edges).toEqual([]);
+    });
+
     it('colours by the category order the nav shows, and leaves uncategorised pages at -1', () => {
         const model = buildGraph(
             [page('a', {categoryId: 'second'}), page('b', {categoryId: 'first'}), page('c')],

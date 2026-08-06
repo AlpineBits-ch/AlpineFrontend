@@ -43,8 +43,13 @@ export interface SelfGuildMemberDto extends GuildMemberDto {
      *
      * <p>Optional until the backend ships it. `undefined` means "not computed", not "none":
      * `effectiveGuildPermissions` falls back to the old union when it is absent.</p>
+     *
+     * <p>Arrives as a name list ("ViewChannel, ManageGuild") when .NET can name every bit and as a
+     * bare number when it cannot - a resolved mask routinely carries bits this build has no name
+     * for, so the numeric form is the common one, not the edge case. Always read it through
+     * `parsePermissions`; nothing may treat it as a string.</p>
      */
-    effectivePermissions?: string
+    effectivePermissions?: string | number
 }
 
 

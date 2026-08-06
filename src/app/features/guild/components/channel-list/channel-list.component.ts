@@ -34,7 +34,7 @@ import {CategorySettingsModalComponent} from '../category-settings-modal/categor
 import {InviteType} from '../../../../dtos/response/invite.dto';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
-import {memberCanManageGuild} from '../../guild-permissions';
+import {memberCanManageGuild, unionMemberPermissions} from '../../guild-permissions';
 import {GuildFeature, guildFeatures, hasHouseholdModule} from '../../guild-features';
 import {
   GuildWebsocketService,
@@ -219,15 +219,7 @@ export class ChannelListComponent {
     private destroyRef = inject(DestroyRef);
     // ── Permission checking ───────────────────────────────────────────────────
     private ownMember = signal<SelfGuildMemberDto | null>(null);
-    protected getSelfPermissions = computed(() => {
-        const member = this.ownMember();
-        const basePermissions = member?.permissions ?? '';
-        const permissionString = member?.roleMembers.reduce((curr, m) => {
-            if (!m.role.permissions) return curr;
-            return curr === '' ? m.role.permissions : `${curr},${m.role.permissions}`;
-        }, basePermissions);
-        return parsePermissions(permissionString);
-    });
+    protected getSelfPermissions = computed(() => unionMemberPermissions(this.ownMember()));
     protected canReorder = computed(() => {
         const ownUserId = this.profileService.ownProfile()?.userId;
         if (ownUserId && ownUserId === this.guild().ownerId) return true;

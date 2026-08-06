@@ -1,8 +1,10 @@
-import {Component, input, output, signal} from '@angular/core';
+import {Component, computed, inject, input, output, signal} from '@angular/core';
 import {FormsModule} from '@angular/forms';
 import {Editor} from '@tiptap/core';
 import {Tooltip} from 'primeng/tooltip';
 import {TranslateModule} from '@ngx-translate/core';
+import {KeybindsService} from '../../../../../services/keybinds.service';
+import {formatAccelerator} from '../../../../../services/native-ptt.service';
 
 interface ToolbarAction {
     /** Text glyph. PrimeIcons has no bold/italic/underline/strike, and letters read better anyway. */
@@ -31,7 +33,13 @@ interface ToolbarAction {
     selector: 'app-wiki-toolbar',
     imports: [Tooltip, FormsModule, TranslateModule],
     template: `
-        <div class="relative flex shrink-0 flex-wrap items-center gap-0.5 border-b
+        <!-- mousedown swallowed for the whole bar: pressing a button otherwise blurs the editor
+             and collapses the selection the action was about, before the click handler that would
+             have used it runs. That is why quote and code block sometimes did nothing at all -
+             focusing in the chain puts the caret back, but not the range it had. The link row is
+             excluded below, because its input has to be able to take focus. -->
+        <div (mousedown)="$event.preventDefault()"
+             class="relative flex shrink-0 flex-wrap items-center gap-0.5 border-b
                     border-white/[0.08] bg-sidebar/60 px-4 py-1.5">
             @for (group of groups; track $index) {
                 @if (!$first) {
@@ -61,7 +69,10 @@ interface ToolbarAction {
 
             <span class="flex-1"></span>
 
-            <!-- Escape hatch for anyone who would rather write the markup than click at it. -->
+            <!-- Escape hatch for anyone who would rather write the markup than click at it.
+                 The shortcut is printed on the button rather than left to the tooltip: it is the
+                 one key here worth learning, and a shortcut nobody is told about is a shortcut
+                 nobody uses. -->
             <button (click)="toggleSource.emit()"
                     [class.bg-hover]="sourceMode()"
                     [class.text-brand-dim]="sourceMode()"
@@ -73,13 +84,20 @@ interface ToolbarAction {
                     tooltipPosition="bottom" type="button">
                 <i class="pi pi-code text-[0.75rem]"></i>
                 {{ 'WIKI.TOOLBAR.MARKDOWN' | translate }}
+                @if (markdownShortcut(); as keys) {
+                    <span class="rounded border border-white/[0.12] bg-white/[0.04] px-1
+                                 py-px font-mono text-[0.5625rem] tracking-wide text-white/35">
+                        {{ keys }}
+                    </span>
+                }
             </button>
 
             <!-- Link entry. An inline row rather than a modal: a dialog moves focus far enough
                  that the selection the link is meant to wrap stops being obvious, and window.prompt
                  is not answered at all by the WebView2 runtime this ships on. -->
             @if (linkOpen()) {
-                <div class="absolute left-4 top-full z-40 mt-1 flex items-center gap-1 rounded-lg
+                <div (mousedown)="$event.stopPropagation()"
+                     class="absolute left-4 top-full z-40 mt-1 flex items-center gap-1 rounded-lg
                             border border-border bg-card px-2 py-1.5 shadow-xl">
                     <input #linkInput (keydown.enter)="commitLink()" (keydown.escape)="closeLink()"
                            [(ngModel)]="linkHref"
@@ -111,6 +129,19 @@ export class WikiToolbarComponent {
 
     protected readonly linkOpen = signal(false);
     protected linkHref = '';
+
+    /**
+     * The key currently bound to the markdown toggle, as it is printed on the button.
+     *
+     * Computed off the bindings signal so rebinding it in Settings updates the hint rather than
+     * leaving the button advertising a key that no longer does anything.
+     */
+    protected readonly markdownShortcut = computed(() => {
+        const token = this.keybinds.getBinding('wiki-toggle-markdown');
+        return token ? formatAccelerator(token).replace(/ \+ /g, '+') : '';
+    });
+
+    private readonly keybinds = inject(KeybindsService);
 
     protected readonly groups: ToolbarAction[][] = [
         [
@@ -181,6 +212,11 @@ export class WikiToolbarComponent {
     protected closeLink(): void {
         this.linkOpen.set(false);
         this.linkHref = '';
+    }
+
+    /** Public so the configurable Link shortcut opens the same row the button does. */
+    openLinkRow(): void {
+        this.openLink();
     }
 
     private openLink(): void {

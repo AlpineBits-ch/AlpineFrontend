@@ -22,12 +22,35 @@ import {DEFAULT_WIKI_BLOCK_LABELS, WikiBlockLabels} from './wiki-block-labels';
  * still leave it unlabelled for a screen reader.
  *
  * Upload and the blob-URL swap stay in the article component - this node never learns about files.
+ *
+ * ## Authenticated sources
+ *
+ * An uploaded image is stored as an attachment URL, and attachment routes serve nothing without a
+ * bearer token. The browser's own image loader carries none, so `src` pointing straight at one
+ * renders as a broken image. `sources` is the way out: the view asks it for the bytes and shows an
+ * object URL instead. The node's `src` attribute - the document, the thing that gets saved - is
+ * never touched, so a page still round trips through markdown as the URL it really is.
  */
 
 const MIN_WIDTH = 64;
 
+/**
+ * Fetches image sources the browser cannot fetch for itself.
+ *
+ * <p>Deliberately narrower than "the HTTP client": all this node needs to know is whether a source
+ * is one it must ask about, and how to get its bytes.</p>
+ */
+export interface WikiImageSources {
+    /** Whether `src` is one this resolver must fetch, rather than one the browser can load. */
+    needsAuth(src: string): boolean;
+
+    fetch(src: string): Promise<Blob>;
+}
+
 export interface WikiImageOptions extends ImageOptions {
     labels: WikiBlockLabels;
+    /** Omitted outside the app - tests and tooling render plain URLs and need no resolver. */
+    sources: WikiImageSources | null;
 }
 
 interface WikiImageStorage {
@@ -61,6 +84,11 @@ class WikiImageView implements NodeView {
     private captionTimer?: ReturnType<typeof setTimeout>;
     private lightbox?: HTMLElement;
     private escapeHandler?: (event: KeyboardEvent) => void;
+    /** The node's own `src`, as last painted - not necessarily what the element is showing. */
+    private paintedSrc: string | null = null;
+    private objectUrl: string | null = null;
+    /** Bumped per resolve, so a source replaced mid-flight discards the response still coming. */
+    private srcToken = 0;
 
     constructor(
         node: ProseMirrorNode,
@@ -68,6 +96,7 @@ class WikiImageView implements NodeView {
         private readonly editor: Editor,
         private readonly labels: WikiBlockLabels,
         private readonly registry: Set<WikiImageView>,
+        private readonly sources: WikiImageSources | null,
     ) {
         this.node = node;
         this.editable = editor.isEditable;
@@ -138,6 +167,7 @@ class WikiImageView implements NodeView {
     destroy(): void {
         clearTimeout(this.captionTimer);
         this.closeLightbox();
+        this.releaseObjectUrl();
         this.registry.delete(this);
     }
 
@@ -148,7 +178,7 @@ class WikiImageView implements NodeView {
         const title = typeof attrs['title'] === 'string' ? attrs['title'] : '';
         const width = widthOf(attrs['width']);
 
-        if (this.image.getAttribute('src') !== src) this.image.setAttribute('src', src);
+        this.applySrc(src);
         this.image.alt = alt;
         if (title) this.image.title = title;
         else this.image.removeAttribute('title');
@@ -162,6 +192,43 @@ class WikiImageView implements NodeView {
         if (document.activeElement !== this.captionInput && this.captionInput.value !== alt) {
             this.captionInput.value = alt;
         }
+    }
+
+    /**
+     * Puts `src` on the element, fetching it first when the browser could not.
+     *
+     * <p>Compared against the node's own source rather than the element's, because for a resolved
+     * one those two are never equal - the element is showing an object URL - and comparing them
+     * would re-fetch on every repaint, of which a caption keystroke alone produces several.</p>
+     */
+    private applySrc(src: string): void {
+        if (this.paintedSrc === src) return;
+        this.paintedSrc = src;
+
+        const token = ++this.srcToken;
+        this.releaseObjectUrl();
+
+        if (!src || !this.sources?.needsAuth(src)) {
+            if (this.image.getAttribute('src') !== src) this.image.setAttribute('src', src);
+            return;
+        }
+
+        // Cleared while the bytes are in flight: leaving the previous picture up would caption the
+        // new image with the old one, and an empty string would load the page itself as an image.
+        this.image.removeAttribute('src');
+        this.sources.fetch(src).then(blob => {
+            if (token !== this.srcToken) return;
+            this.objectUrl = URL.createObjectURL(blob);
+            this.image.setAttribute('src', this.objectUrl);
+        }).catch(() => {
+            // Left blank rather than broken. Nothing here can retry it usefully.
+        });
+    }
+
+    private releaseObjectUrl(): void {
+        if (!this.objectUrl) return;
+        URL.revokeObjectURL(this.objectUrl);
+        this.objectUrl = null;
     }
 
     private scheduleCaption(): void {
@@ -254,7 +321,11 @@ class WikiImageView implements NodeView {
 
 const WikiImageExtension = Image.extend<WikiImageOptions, WikiImageStorage>({
     addOptions() {
-        return {...this.parent?.(), labels: DEFAULT_WIKI_BLOCK_LABELS} as WikiImageOptions;
+        return {
+            ...this.parent?.(),
+            labels: DEFAULT_WIKI_BLOCK_LABELS,
+            sources: null,
+        } as WikiImageOptions;
     },
 
     addStorage() {
@@ -277,9 +348,11 @@ const WikiImageExtension = Image.extend<WikiImageOptions, WikiImageStorage>({
 
     addNodeView() {
         const labels = this.options.labels;
+        const sources = this.options.sources;
         const registry = this.storage.views;
         const editor = this.editor;
-        return ({node, getPos}) => new WikiImageView(node, getPos, editor, labels, registry);
+        return ({node, getPos}) =>
+            new WikiImageView(node, getPos, editor, labels, registry, sources);
     },
 
     addProseMirrorPlugins() {
@@ -309,6 +382,6 @@ const WikiImageExtension = Image.extend<WikiImageOptions, WikiImageStorage>({
 });
 
 /** Configured once, at editor construction, because the labels are resolved translations. */
-export function wikiImage(labels: WikiBlockLabels) {
-    return WikiImageExtension.configure({inline: false, allowBase64: false, labels});
+export function wikiImage(labels: WikiBlockLabels, sources: WikiImageSources | null = null) {
+    return WikiImageExtension.configure({inline: false, allowBase64: false, labels, sources});
 }

@@ -23,12 +23,26 @@ export function effectiveGuildPermissions(member: GuildMemberDto | null | undefi
     // and must not be quietly upgraded to the union.
     if (resolved !== undefined && resolved !== null) return parsePermissions(resolved);
 
-    const merged = (member.roleMembers ?? []).reduce((acc, {role}) => {
-        if (!role.permissions) return acc;
-        return acc === '' ? role.permissions : `${acc},${role.permissions}`;
-    }, member.permissions ?? '');
+    return unionMemberPermissions(member);
+}
 
-    return parsePermissions(merged);
+/**
+ * The member's own bits unioned with every role they hold - the pre-`effectivePermissions` answer,
+ * and still the only one available to a caller holding a plain `GuildMemberDto`. Blind to
+ * ownership, exactly as described above.
+ *
+ * <p>Unions the parsed masks rather than concatenating the wire strings first, which is what half a
+ * dozen call sites used to hand-roll. A mask can arrive as a JSON number (see
+ * `SerializedPermissions`), and one numeric source in a comma-joined string turns the whole join
+ * into an unparseable name list - the member's own bits, or every role's, silently dropped.</p>
+ */
+export function unionMemberPermissions(member: GuildMemberDto | null | undefined): PermissionValue {
+    if (!member) return 0n;
+
+    return (member.roleMembers ?? []).reduce(
+        (acc, {role}) => acc | parsePermissions(role.permissions),
+        parsePermissions(member.permissions),
+    );
 }
 
 /**

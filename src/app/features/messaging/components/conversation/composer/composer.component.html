@@ -74,6 +74,15 @@
                 (remove)="attachments.remove($event)"
                 [files]="attachments.files()"/>
 
+        <!-- Enter arrived before the uploads did. Says so, rather than leaving a pressed Enter
+             looking like it did nothing. -->
+        @if (awaitingUploads()) {
+            <div class="flex items-center gap-1.5 px-3 pt-1 text-[0.6875rem] text-white/40">
+                <i class="pi pi-spin pi-spinner text-[0.625rem]"></i>
+                <span>{{ 'COMPOSER.SENDING_AFTER_UPLOAD' | translate }}</span>
+            </div>
+        }
+
         <!-- Text + action row -->
         <div class="flex items-end gap-1 sm:gap-2 px-1.5 sm:px-2 py-1 sm:py-1.5">
 
@@ -103,7 +112,8 @@
                     <app-gif-picker-button (gifSelected)="onGifSelected($event)"/>
                 </div>
                 <app-emoji-picker-button (emojiSelected)="onEmojiSelected($event)"/>
-                <p-button (onClick)="send()" [text]="true" data-testid="message-send" icon="pi pi-send" severity="primary" size="small"/>
+                <p-button (onClick)="send()" [loading]="awaitingUploads()" [text]="true"
+                          data-testid="message-send" icon="pi pi-send" severity="primary" size="small"/>
             </div>
 
         </div>

@@ -1,0 +1,82 @@
+<div class="w-full max-w-xl flex flex-col gap-2 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 py-2.5">
+
+    <!-- Name row -->
+    <div class="flex items-center gap-2 min-w-0">
+        <i class="pi pi-volume-up text-emerald-400 text-xs shrink-0"></i>
+        <span class="text-xs font-medium text-white/80 truncate min-w-0 flex-1">{{ fileName() }}</span>
+        <button (click)="download.emit()"
+                [attr.aria-label]="'MESSAGE.AUDIO_DOWNLOAD' | translate"
+                [disabled]="downloadDisabled()"
+                class="shrink-0 w-7 h-7 rounded-lg bg-white/[0.05] hover:bg-brand/20 border border-white/[0.07] hover:border-brand/30 flex items-center justify-center text-white/40 hover:text-brand-dim transition-all cursor-pointer disabled:opacity-50 disabled:cursor-default"
+                type="button">
+            <i class="pi pi-download text-[0.6875rem]"></i>
+        </button>
+    </div>
+
+    <!-- Transport row -->
+    <div class="flex items-center gap-2">
+        <button (click)="toggle()"
+                [attr.aria-label]="(playing() ? 'MESSAGE.AUDIO_PAUSE' : 'MESSAGE.AUDIO_PLAY') | translate"
+                class="shrink-0 w-8 h-8 rounded-full bg-brand hover:bg-brand-hover flex items-center justify-center text-white transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-default"
+                type="button">
+            @if (loading()) {
+                <i class="pi pi-spin pi-spinner text-[0.6875rem]"></i>
+            } @else if (playing()) {
+                <i class="pi pi-pause text-[0.6875rem]"></i>
+            } @else {
+                <!-- Nudged right: the glyph's own bounding box is wider than its ink. -->
+                <i class="pi pi-play text-[0.6875rem] ml-0.5"></i>
+            }
+        </button>
+
+        <span class="shrink-0 text-[0.625rem] text-white/45 tabular-nums">{{ clock(currentTime()) }}</span>
+
+        <input (input)="onSeek($event)"
+               [attr.aria-label]="'MESSAGE.AUDIO_SEEK' | translate"
+               [disabled]="duration() === 0"
+               [max]="duration()"
+               [style.background]="progressBackground()"
+               [value]="currentTime()"
+               class="media-slider flex-1 min-w-8"
+               min="0" step="0.01" type="range"/>
+
+        <span class="shrink-0 text-[0.625rem] text-white/45 tabular-nums">{{ clock(duration()) }}</span>
+
+        <button (click)="toggleMute()"
+                [attr.aria-label]="'MESSAGE.AUDIO_VOLUME' | translate"
+                class="shrink-0 w-6 h-6 flex items-center justify-center rounded-md border-0 bg-transparent text-white/45 hover:text-white/80 transition-colors cursor-pointer"
+                type="button">
+            <i [class]="'pi text-[0.6875rem] ' + volumeIcon()"></i>
+        </button>
+
+        <input (input)="onVolume($event)"
+               [attr.aria-label]="'MESSAGE.AUDIO_VOLUME' | translate"
+               [style.background]="volumeBackground()"
+               [value]="muted() ? 0 : volume()"
+               class="media-slider w-14 shrink-0"
+               max="1" min="0" step="0.01" type="range"/>
+    </div>
+
+    @if (failed()) {
+        <p class="m-0 text-[0.625rem] text-rose-400">
+            {{ 'MESSAGE.AUDIO_LOAD_FAILED' | translate }}
+            @if (failureDetail()) {
+                <span class="text-white/35">({{ failureDetail() }})</span>
+            }
+        </p>
+    }
+
+    <!--
+      Sourceless until the first play, and never the attachment URL directly: that route answers
+      401 without a bearer, and a media element never passes through the interceptors.
+    -->
+    <audio #audio
+           (ended)="onEnded()"
+           (error)="onMediaError()"
+           (loadedmetadata)="onLoadedMetadata()"
+           (pause)="playing.set(false)"
+           (play)="playing.set(true)"
+           (timeupdate)="onTimeUpdate()"
+           class="hidden"
+           preload="none"></audio>
+</div>

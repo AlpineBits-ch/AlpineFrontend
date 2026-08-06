@@ -26,7 +26,7 @@ import {WikiService} from '../../../../../services/wiki.service';
 import {ToastService} from '../../../../../services/toast.service';
 import {WikiStateService} from '../wiki-state.service';
 import {canEditPage} from '../wiki-permissions';
-import {wikiHref} from '../wiki-links';
+import {wikiUrl} from '../../../../messaging/wiki-link';
 import {narrowNav} from './wiki-nav-filter';
 import {WikiNavPrefsService} from './wiki-nav-prefs.service';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
@@ -423,9 +423,18 @@ export class WikiNavComponent implements OnDestroy {
     }
 
     protected copyPageLink(page: WikiPageSummaryDto): void {
-        // A markdown wiki link, so pasting it into another page produces a working link rather
-        // than a bare id the reader has to resolve themselves.
-        void navigator.clipboard.writeText(`[${page.title}](${wikiHref(page.id)})`).then(
+        // The absolute URL, not the `wiki:<id>` markdown form this used to copy.
+        //
+        // That form resolves only inside the editor: it carries no guild, and no scheme the rest
+        // of the app knows. Pasted into a message it rendered as an anchor pointing at a protocol
+        // nothing handles - a link that looked live and did nothing when clicked - and it could
+        // never become a page card, because a card needs the guild the id belongs to.
+        //
+        // Pasting into another wiki page still produces an internal link: the editor recognises
+        // its own guild's URLs on the way in and converts them back. See `wikiUrlToHref`.
+        const guildId = this.state.guildId();
+        if (!guildId) return;
+        void navigator.clipboard.writeText(wikiUrl(guildId, page.id)).then(
             () => this.toast.success(this.translate.instant('WIKI.NAV.LINK_COPIED')),
             // Refused in insecure contexts and when the permission is denied.
             () => this.toast.error(this.translate.instant('WIKI.NAV.LINK_COPY_FAILED')),

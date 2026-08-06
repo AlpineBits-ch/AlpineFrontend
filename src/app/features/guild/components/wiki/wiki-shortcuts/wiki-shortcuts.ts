@@ -10,6 +10,8 @@
  * claim that has to stay true.
  */
 
+import {WIKI_EDITOR_KEYBINDS, WikiEditorKeybindId} from '../../../../../models/keybind-action.model';
+
 export type WikiShortcutGroup = 'navigation' | 'editing' | 'ai' | 'formatting';
 
 export interface WikiShortcut {
@@ -56,49 +58,73 @@ export const WIKI_SHORTCUTS: readonly WikiShortcut[] = [
     {keys: ['Tab'], labelKey: 'WIKI.SHORTCUTS.AI.ACCEPT', group: 'ai', editingOnly: true},
     {keys: ['Esc'], labelKey: 'WIKI.SHORTCUTS.AI.DISMISS', group: 'ai', editingOnly: true},
 
-    // Formatting. Labels reuse the keys the toolbar and the slash menu already ship, so the
-    // cheat sheet cannot drift out of agreement with the buttons that do the same thing.
-    {keys: ['mod', 'B'], labelKey: 'WIKI.FORMAT.BOLD', group: 'formatting', editingOnly: true},
-    {keys: ['mod', 'I'], labelKey: 'WIKI.FORMAT.ITALIC', group: 'formatting', editingOnly: true},
-    {keys: ['mod', 'U'], labelKey: 'WIKI.FORMAT.UNDERLINE', group: 'formatting', editingOnly: true},
-    {
-        keys: ['mod', 'Shift', 'S'],
-        labelKey: 'WIKI.FORMAT.STRIKETHROUGH',
-        group: 'formatting',
-        editingOnly: true,
-    },
-    {keys: ['mod', 'E'], labelKey: 'WIKI.FORMAT.INLINE_CODE', group: 'formatting', editingOnly: true},
-    {
-        keys: ['mod', 'Alt', '1'],
-        labelKey: 'WIKI.SHORTCUTS.FORMAT.HEADING',
-        group: 'formatting',
-        editingOnly: true,
-    },
-    {
-        keys: ['mod', 'Shift', '8'],
-        labelKey: 'WIKI.BLOCK.BULLET_LIST',
-        group: 'formatting',
-        editingOnly: true,
-    },
-    {
-        keys: ['mod', 'Shift', '7'],
-        labelKey: 'WIKI.BLOCK.NUMBERED_LIST',
-        group: 'formatting',
-        editingOnly: true,
-    },
-    {
-        keys: ['mod', 'Shift', 'B'],
-        labelKey: 'WIKI.BLOCK.QUOTE',
-        group: 'formatting',
-        editingOnly: true,
-    },
-    {
-        keys: ['mod', 'Alt', 'C'],
-        labelKey: 'WIKI.BLOCK.CODE_BLOCK',
-        group: 'formatting',
-        editingOnly: true,
-    },
+    // The formatting group is no longer listed here. Every one of those keys is configurable now,
+    // so a hardcoded row would be a claim about a binding the user may have changed - see
+    // `wikiFormattingShortcuts`.
 ];
+
+/**
+ * The translated name for each configurable editor action.
+ *
+ * Reuses the keys the toolbar and the slash menu already ship, so the cheat sheet cannot drift out
+ * of agreement with the buttons that do the same thing.
+ */
+const EDITOR_ACTION_LABELS: Record<WikiEditorKeybindId, string> = {
+    'wiki-toggle-markdown': 'WIKI.SHORTCUTS.EDIT.TOGGLE_MARKDOWN',
+    'wiki-bold': 'WIKI.FORMAT.BOLD',
+    'wiki-italic': 'WIKI.FORMAT.ITALIC',
+    'wiki-underline': 'WIKI.FORMAT.UNDERLINE',
+    'wiki-strike': 'WIKI.FORMAT.STRIKETHROUGH',
+    'wiki-inline-code': 'WIKI.FORMAT.INLINE_CODE',
+    'wiki-heading-1': 'WIKI.BLOCK.HEADING_1',
+    'wiki-heading-2': 'WIKI.BLOCK.HEADING_2',
+    'wiki-heading-3': 'WIKI.BLOCK.HEADING_3',
+    'wiki-bullet-list': 'WIKI.BLOCK.BULLET_LIST',
+    'wiki-numbered-list': 'WIKI.BLOCK.NUMBERED_LIST',
+    'wiki-task-list': 'WIKI.BLOCK.TASK_LIST',
+    'wiki-quote': 'WIKI.BLOCK.QUOTE',
+    'wiki-code-block': 'WIKI.BLOCK.CODE_BLOCK',
+    'wiki-divider': 'WIKI.BLOCK.DIVIDER',
+    'wiki-link': 'WIKI.FORMAT.LINK',
+};
+
+/**
+ * The formatting rows, read from whatever the actions are actually bound to right now.
+ *
+ * Built rather than declared because these are the user's to change. A row here is still a claim
+ * that has to stay true - it just gets its truth from the same place the editor does.
+ */
+export function wikiFormattingShortcuts(
+    binding: (id: WikiEditorKeybindId) => string | null,
+): WikiShortcut[] {
+    return WIKI_EDITOR_KEYBINDS.flatMap(action => {
+        const id = action.id as WikiEditorKeybindId;
+        const token = binding(id);
+        if (!token) return [];
+        return [{
+            keys: acceleratorChips(token),
+            labelKey: EDITOR_ACTION_LABELS[id],
+            group: 'formatting' as const,
+            editingOnly: id !== 'wiki-toggle-markdown',
+        }];
+    });
+}
+
+/**
+ * "Control+Shift+KeyB" as the chips the overlay renders: `['mod', 'Shift', 'B']`.
+ *
+ * Control becomes `mod` so it still prints as ⌘ on a Mac, and the `Key`/`Digit` prefixes of a
+ * `KeyboardEvent.code` are dropped - they are how the binding is stored, not how it is read.
+ */
+export function acceleratorChips(token: string): string[] {
+    return token.split('+').map(part => {
+        if (part === 'Control' || part === 'Super') return 'mod';
+        if (part === 'Alt' || part === 'Shift') return part;
+        if (part.startsWith('Key')) return part.slice(3);
+        if (part.startsWith('Digit') || part.startsWith('Numpad')) return part.replace(/^\D+/, '');
+        return part;
+    });
+}
 
 /** Same user-agent test the titlebar uses to decide which window controls to draw. */
 export function isMacKeyboard(): boolean {

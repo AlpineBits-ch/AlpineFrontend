@@ -16,8 +16,10 @@ import {DEFAULT_WIKI_BLOCK_LABELS, WikiBlockLabels} from './blocks/wiki-block-la
 import {WikiCallout} from './blocks/wiki-callout';
 import {WikiToggle, WikiToggleBody, WikiToggleSummary} from './blocks/wiki-toggle';
 import {WikiCodeBlock} from './blocks/wiki-code-block';
-import {wikiImage} from './blocks/wiki-image';
+import {wikiImage, WikiImageSources} from './blocks/wiki-image';
 import {WIKI_TABLE_CELL_MIN_WIDTH, WikiTableControls} from './blocks/wiki-table-controls';
+import {WikiTabGuard, WikiTaskFromListItem} from './wiki-keymap';
+import {WikiClipboardMarkdown} from './wiki-clipboard';
 
 export {DEFAULT_WIKI_BLOCK_LABELS, wikiBlockLabels} from './blocks/wiki-block-labels';
 export type {WikiBlockLabels} from './blocks/wiki-block-labels';
@@ -43,6 +45,7 @@ export type {CalloutVariant} from './blocks/wiki-callout';
 export function wikiExtensions(
     placeholder: string,
     labels: WikiBlockLabels = DEFAULT_WIKI_BLOCK_LABELS,
+    images: WikiImageSources | null = null,
 ): Extensions {
     return [
         StarterKit.configure({
@@ -78,14 +81,21 @@ export function wikiExtensions(
         TableHeader,
         TableCell,
         WikiTableControls.configure({labels}),
-        wikiImage(labels),
+        wikiImage(labels, images),
         TaskList,
-        TaskItem.configure({nested: false, HTMLAttributes: {'data-type': 'taskItem'}}),
+        // `nested: true` is what binds Tab inside a checklist. With it off the key was unbound
+        // there, the browser's own handling took over, and focus jumped to the checkbox above -
+        // reported as "Tab moves upward instead of indenting".
+        TaskItem.configure({nested: true, HTMLAttributes: {'data-type': 'taskItem'}}),
         WikiCallout.configure({labels}),
         WikiToggle.configure({labels}),
         WikiToggleSummary,
         WikiToggleBody,
         WikiCodeBlock.configure({labels}),
+        WikiTaskFromListItem,
+        WikiTabGuard,
         Markdown,
+        // After Markdown: it reads that extension's serializer out of editor storage.
+        WikiClipboardMarkdown,
     ];
 }

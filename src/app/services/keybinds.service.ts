@@ -33,8 +33,14 @@ export class KeybindsService {
     private acceleratorHandler: ((e: KeyboardEvent) => void) | null = null;
     private nativeCaptureTeardown: (() => void) | null = null;
 
+    /**
+     * The token this action answers to right now.
+     *
+     * Falls back to the action's own default. Only the in-app actions declare one - see
+     * `defaultToken` - so this is unchanged for every global hotkey.
+     */
     getBinding(id: KeybindActionId): string | null {
-        return this.bindings()[id] ?? null;
+        return this.bindings()[id] ?? findKeybindAction(id).defaultToken ?? null;
     }
 
     /** Human-readable label for the current binding, or a placeholder if unset. */
@@ -56,6 +62,10 @@ export class KeybindsService {
         this.rebind$.next(id);
     }
 
+    /**
+     * Drops the user's override. For an action with a default that is a reset, not an unbind -
+     * `getBinding` starts answering with the default again.
+     */
     clearBinding(id: KeybindActionId): void {
         if (this.capturingAction() === id) this.cancelCapture();
         this.setBinding(id, null);
@@ -271,6 +281,20 @@ function modifierToken(code: string): string {
 
 /** Builds a Tauri global-shortcut accelerator (e.g. "Control+Shift+KeyV") from a keydown. */
 function buildAccelerator(e: KeyboardEvent): string {
+    return acceleratorFromEvent(e);
+}
+
+/**
+ * The accelerator a keydown represents, in the one notation this app stores bindings in.
+ *
+ * Exported because matching has to agree with capture exactly: the in-app actions are dispatched
+ * by comparing this against the stored token, and two functions building the string their own way
+ * is how a shortcut ends up impossible to trigger but perfectly displayable.
+ *
+ * `code` rather than `key`: the physical key, so a binding does not move when the layout changes
+ * and so Shift combinations stay legible ("Shift+Digit8", not "*").
+ */
+export function acceleratorFromEvent(e: KeyboardEvent): string {
     const parts: string[] = [];
     if (e.ctrlKey) parts.push('Control');
     if (e.altKey) parts.push('Alt');

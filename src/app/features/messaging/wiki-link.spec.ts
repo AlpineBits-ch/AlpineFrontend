@@ -43,6 +43,49 @@ describe('wiki-link', () => {
             expect(wikiSnippet('Before\n```ts\nconst x = 1;\n```\nAfter')).toBe('Before After');
         });
 
+        it('drops a callout marker but keeps what the callout says', () => {
+            expect(wikiSnippet('> [!NOTE]\n> Deploy from main only.'))
+                .toBe('Deploy from main only.');
+        });
+
+        it('reads a table as its cells, without the pipes or the rule row', () => {
+            const table = '| Field | Value |\n| --- | --- |\n| Date | today |';
+            expect(wikiSnippet(table)).toBe('Field Value Date today');
+        });
+
+        it('drops checkboxes from a task list', () => {
+            expect(wikiSnippet('- [ ] first thing\n- [x] second thing'))
+                .toBe('first thing second thing');
+        });
+
+        it('drops a setext underline rather than reading it as content', () => {
+            expect(wikiSnippet('A Heading\n=========\n\nThe body.')).toBe('A Heading The body.');
+        });
+
+        /** The shape the Runbook template produces, which is what the report was actually about. */
+        it('reads a templated page as prose', () => {
+            const page = [
+                '> [!NOTE]',
+                '> One line on what this runbook is for.',
+                '',
+                '## Before you start',
+                '',
+                '- [ ] Access you need',
+                '',
+                '| Step | Owner |',
+                '| --- | --- |',
+                '| Deploy | ops |',
+            ].join('\n');
+
+            const snippet = wikiSnippet(page);
+
+            expect(snippet).not.toContain('|');
+            expect(snippet).not.toContain('[!');
+            expect(snippet).not.toContain('[ ]');
+            expect(snippet).not.toContain('---');
+            expect(snippet).toContain('One line on what this runbook is for.');
+        });
+
         it('truncates on a word boundary', () => {
             const snippet = wikiSnippet('alpha bravo charlie delta echo foxtrot', 20);
             expect(snippet.endsWith('…')).toBe(true);

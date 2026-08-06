@@ -10,7 +10,8 @@ import {CreatedTemplateDto, GuildTemplateService} from '../../../../../../servic
 import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {ToastService} from '../../../../../../services/toast.service';
-import {hasPermission, parsePermissions, Permissions} from '../../../../../../enums/permissions.enum';
+import {hasPermission, Permissions} from '../../../../../../enums/permissions.enum';
+import {unionMemberPermissions} from '../../../../guild-permissions';
 
 @Component({
     selector: 'app-templates-settings',
@@ -44,11 +45,7 @@ export class TemplatesSettingsComponent implements OnInit {
         if (ownUserId && ownUserId === this.guild().ownerId) return true;
         const member = this.ownMember();
         if (!member) return false;
-        const permissionString = member.roleMembers.reduce((curr, m) => {
-            if (!m.role.permissions) return curr;
-            return curr === '' ? m.role.permissions : `${curr},${m.role.permissions}`;
-        }, member.permissions ?? '');
-        const perms = parsePermissions(permissionString);
+        const perms = unionMemberPermissions(member);
         return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.ManageGuild);
     });
 

@@ -48,6 +48,17 @@ export class ApiConfigService {
 
 
     /**
+     * Whether this URL is one of ours, and therefore one the bearer token belongs on.
+     *
+     * <p>Both hosts count: the server hands out absolute URLs built from its own configured base,
+     * and the token interceptor rewrites the compiled-in default to whichever instance is
+     * selected - so a URL against either is a URL the interceptor will authenticate.</p>
+     */
+    isOwnUrl(url: string): boolean {
+        return url.startsWith(this.baseUrl()) || url.startsWith(environment.apiUrl);
+    }
+
+    /**
      * Parses `user` or `user@server.com`, updates the base URL, persists it,
      * re-configures OAuth, and returns the bare username.
      */

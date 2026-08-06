@@ -31,7 +31,8 @@ import {MessageAttachment, MessageDto} from '../../../../dtos/response/message.d
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {MessageEncryptionState} from '../../../../enums/message-encryption-state.enum';
 import {MessageType} from '../../../../enums/message-type.enum';
-import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
+import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
+import {unionMemberPermissions} from '../../guild-permissions';
 import {isGroupedWithPrevious} from '../../../messaging/components/conversation/message-utils';
 import {ChannelEncryptionState, classifyAutoModError, forumParentOf, mayPostCleartext} from './channel-utils';
 import {MlsService} from '../../../../services/mls.service';
@@ -191,11 +192,7 @@ export class ChannelComponent implements AfterViewInit {
     protected canPinMessages = computed(() => {
         const member = this.ownMember();
         if (!member) return false;
-        const permissionString = member.roleMembers.reduce((curr, m) => {
-            if (!m.role.permissions) return curr;
-            return curr === '' ? m.role.permissions : `${curr},${m.role.permissions}`;
-        }, member.permissions ?? '');
-        const perms = parsePermissions(permissionString);
+        const perms = unionMemberPermissions(member);
         return hasPermission(perms, Permissions.Superadmin) || hasPermission(perms, Permissions.PinMessages);
     });
 
@@ -207,11 +204,7 @@ export class ChannelComponent implements AfterViewInit {
     private threadPermissions = computed(() => {
         const member = this.ownMember();
         if (!member) return 0n;
-        const merged = member.roleMembers.reduce((curr, m) => {
-            if (!m.role.permissions) return curr;
-            return curr === '' ? m.role.permissions : `${curr},${m.role.permissions}`;
-        }, member.permissions ?? '');
-        return parsePermissions(merged);
+        return unionMemberPermissions(member);
     });
 
     protected canManageAnyThread = computed(() =>

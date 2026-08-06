@@ -21,7 +21,8 @@ import {Menu} from 'primeng/menu';
 import {MenuItem, PrimeTemplate} from 'primeng/api';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
-import {hasPermission, parsePermissions, Permissions} from '../../../../enums/permissions.enum';
+import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
+import {unionMemberPermissions} from '../../guild-permissions';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {ToastService} from '../../../../services/toast.service';
 import {
@@ -338,7 +339,7 @@ export class GuildMemberListComponent implements OnChanges {
 
     private buildMemberMenuItems(member: GuildMemberDto): MenuItem[] {
         const own = this.ownMember();
-        const perms = own ? parsePermissions(own.roleMembers.reduce((c, m) => m.role.permissions ? (c === '' ? m.role.permissions : `${c},${m.role.permissions}`) : c, own.permissions ?? '')) : 0n;
+        const perms = unionMemberPermissions(own);
         const items: MenuItem[] = [];
         // Kick, timeout and ban all live behind the Moderation module. With it off the
         // server refuses them for everyone - the owner included - so offering them here

@@ -19,8 +19,11 @@ import {Plugin} from '@tiptap/pm/state';
 import {WikiDto, WikiPageDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
 import {FileService} from '../../../../../services/file.service';
+import {AuthImageService} from '../../../../../services/auth-image.service';
+import {ToastService} from '../../../../../services/toast.service';
 import {Heading} from '../wiki-toc';
 import {parseWikiHref, wikiHref} from '../wiki-links';
+import {parseWikiUrl, wikiSnippet} from '../../../../messaging/wiki-link';
 import {WikiDraft, WikiDraftsService} from '../wiki-drafts.service';
 import {WikiStateService} from '../wiki-state.service';
 import {WikiContentCacheService} from '../wiki-content-cache.service';
@@ -39,6 +42,8 @@ import {WikiAiService} from '../wiki-ai.service';
 import {WikiAiInlineComponent} from '../wiki-ai/wiki-ai-inline.component';
 import {WikiAiMetadataComponent} from '../wiki-ai/wiki-ai-metadata.component';
 import {wikiGhostTextPlugin} from './wiki-ghost-text.plugin';
+import {wikiEditorKeybinds} from './wiki-editor-keybinds';
+import {acceleratorFromEvent, KeybindsService} from '../../../../../services/keybinds.service';
 
 @Component({
     selector: 'app-wiki-article',
@@ -83,6 +88,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
 
     @ViewChild('editorEl') editorEl?: ElementRef<HTMLDivElement>;
     @ViewChild('fileInputEl') fileInputEl?: ElementRef<HTMLInputElement>;
+    @ViewChild('toolbar') toolbar?: WikiToolbarComponent;
     @ViewChild('bubbleMenu') bubbleMenu?: WikiBubbleMenuComponent;
     @ViewChild('slashMenu') slashMenu?: WikiSlashMenuComponent;
     @ViewChild('linkMenu') linkMenu?: WikiLinkMenuComponent;
@@ -158,21 +164,36 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
 
     private readonly wikiService = inject(WikiService);
     private readonly fileService = inject(FileService);
+    private readonly authImages = inject(AuthImageService);
     private readonly drafts = inject(WikiDraftsService);
     private readonly wikiState = inject(WikiStateService);
     private readonly contentCache = inject(WikiContentCacheService);
     private readonly wikiAi = inject(WikiAiService);
     private readonly translate = inject(TranslateService);
+    private readonly toast = inject(ToastService);
+    private readonly keybinds = inject(KeybindsService);
     private draftTimer?: ReturnType<typeof setTimeout>;
     private previewTimer?: ReturnType<typeof setTimeout>;
     private editor?: Editor;
     private clickHandler?: (e: MouseEvent) => void;
     private keydownHandler?: (e: KeyboardEvent) => void;
+    private pointerDownHandler?: () => void;
+    private pointerUpHandler?: () => void;
+    /** True between pointerdown and pointerup, i.e. while a selection is being dragged out. */
+    private selecting = false;
     private overHandler?: (e: MouseEvent) => void;
     private outHandler?: (e: MouseEvent) => void;
     private suggest: SuggestState | null = null;
     /** Which page the document currently holds, so a refresh is not mistaken for a swap. */
     private shownPageId: string | null | undefined;
+    /**
+     * Whether what is on screen has diverged from the `page` input.
+     *
+     * A plain field rather than a signal on purpose: the page effect reads it to decide whether it
+     * may overwrite the document, and a signal there would re-run that effect on every keystroke
+     * only to have it decide to do nothing.
+     */
+    private dirty = false;
 
     constructor() {
         // Loading a different page replaces the document; toggling editing must not.
@@ -186,20 +207,43 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             // cancelling on those discarded a generation mid-stream on a page nobody had left,
             // which read as the AI bar simply vanishing.
             const pageId = page?.id ?? null;
-            if (pageId !== this.shownPageId) {
+            const swapped = pageId !== this.shownPageId;
+            if (swapped) {
                 this.shownPageId = pageId;
                 this.aiInline?.cancel();
+                // A different page must never inherit the previous one's raw buffer. Only on a
+                // swap: dropping the buffer on a mere refresh threw away everything typed into
+                // the textarea since it was opened, and the refresh fires on anyone's edit to
+                // any page in the wiki.
+                this.sourceMode.set(false);
+                this.dirty = false;
             }
+
+            // Everything below rewrites what is on screen from the server's copy, so it must not
+            // run over an edit in progress. A refresh arrives for reasons that have nothing to do
+            // with this page - and the save round-trip itself hands back a `page` whose content
+            // predates anything typed while the request was in flight.
+            if (this.dirty && !swapped) return;
+
             this.title.set(page?.title ?? '');
-            // A different page must never inherit the previous one's raw buffer.
-            this.sourceMode.set(false);
             // Compared against what the editor already holds rather than fired on every change to
             // the page object's identity. `loadWiki` -> `mergeSummary` hands over a new object on
             // any metadata refresh - a tag added, a pin toggled, anyone's edit to any page - and
             // re-parsing there rebuilt the whole document under someone who was only reading it.
             const nextContent = page?.content ?? '';
-            if (this.editor && nextContent !== this.markdown()) this.setContent(nextContent);
+            if (this.sourceMode()) {
+                if (nextContent !== this.sourceText()) this.sourceText.set(nextContent);
+            } else if (this.editor && nextContent !== this.markdown()) {
+                this.setContent(nextContent);
+            }
+            this.dirty = false;
+        });
 
+        // Its own effect rather than a tail on the one above: that one now returns early over an
+        // edit in progress, and the offer to restore a draft still has to track a remote conflict
+        // arriving while you type.
+        effect(() => {
+            const page = this.page();
             const existing = this.drafts.read(this.guildId(), page?.id ?? null);
             // Suppressed while a remote conflict is showing: two competing "your content is
             // stale" banners stacked on top of each other is worse than either alone.
@@ -241,6 +285,9 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
                 ...wikiExtensions(
                     this.translate.instant('WIKI.ARTICLE.PLACEHOLDER'),
                     wikiBlockLabels(this.translate),
+                    // Same reason the strings are: an uploaded image's URL needs the bearer token,
+                    // and the node view cannot inject the service that holds it.
+                    this.authImages,
                 ),
                 Extension.create({
                     name: 'wikiSuggest',
@@ -250,6 +297,24 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
                         // its Tab selects an item rather than accepting a suggestion.
                         new Plugin({
                             props: {handleKeyDown: (_view, event) => this.onMenuKeyDown(event)},
+                        }),
+                    ],
+                }),
+                // Registered ahead of the block extensions' own keymaps, so a rebound shortcut
+                // wins over the default that used to own the key.
+                wikiEditorKeybinds({
+                    binding: id => this.keybinds.getBinding(id),
+                    editable: () => this.editing(),
+                    host: {
+                        toggleMarkdown: () => this.toggleSourceMode(),
+                        openLink: () => this.toolbar?.openLinkRow(),
+                    },
+                }),
+                Extension.create({
+                    name: 'wikiPasteLink',
+                    addProseMirrorPlugins: () => [
+                        new Plugin({
+                            props: {handlePaste: (_view, event) => this.onPaste(event)},
                         }),
                     ],
                 }),
@@ -267,6 +332,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             editable: this.editing(),
             content: '',
             onUpdate: () => {
+                this.dirty = true;
                 this.dirtyChanged.emit(true);
                 this.contentChanged.emit(this.markdown());
                 this.emitHeadings();
@@ -274,7 +340,13 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
                 this.scheduleDraft();
                 this.contentVersion.update(v => v + 1);
             },
-            onSelectionUpdate: () => this.bubbleMenu?.sync(),
+            // Not while the selection is still being dragged out. The menu used to appear on the
+            // first character crossed and then chase the pointer across the paragraph, which is
+            // both distracting and a thing to accidentally release the button on.
+            onSelectionUpdate: () => {
+                if (this.selecting) this.bubbleMenu?.hide();
+                else this.bubbleMenu?.sync();
+            },
         });
         this.editorInstance.set(this.editor);
         this.setContent(this.page()?.content ?? '');
@@ -313,6 +385,22 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         };
         this.editorEl.nativeElement.addEventListener('keydown', this.keydownHandler, true);
 
+        // The drag that makes a selection. `pointerup` goes on the document rather than the
+        // editor because a highlight very often ends with the pointer outside it, and an `up` we
+        // never hear would leave the menu suppressed until the next click.
+        this.pointerDownHandler = () => {
+            this.selecting = true;
+            this.bubbleMenu?.hide();
+        };
+        this.pointerUpHandler = () => {
+            if (!this.selecting) return;
+            this.selecting = false;
+            // After the browser has settled the selection this release produced.
+            requestAnimationFrame(() => this.bubbleMenu?.sync());
+        };
+        this.editorEl.nativeElement.addEventListener('pointerdown', this.pointerDownHandler);
+        document.addEventListener('pointerup', this.pointerUpHandler);
+
 
         // Delayed, so running the pointer across a paragraph of links does not strobe a popover
         // once per link on the way past.
@@ -338,6 +426,8 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         const el = this.editorEl?.nativeElement;
         if (el && this.clickHandler) el.removeEventListener('click', this.clickHandler);
         if (el && this.keydownHandler) el.removeEventListener('keydown', this.keydownHandler, true);
+        if (el && this.pointerDownHandler) el.removeEventListener('pointerdown', this.pointerDownHandler);
+        if (this.pointerUpHandler) document.removeEventListener('pointerup', this.pointerUpHandler);
         if (el && this.overHandler) el.removeEventListener('mouseover', this.overHandler);
         if (el && this.outHandler) el.removeEventListener('mouseout', this.outHandler);
         this.editor?.destroy();
@@ -346,7 +436,7 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     /** What would be saved right now, from whichever surface is currently authoritative. */
     markdown(): string {
         if (this.sourceMode()) return this.sourceText();
-        return this.editor?.getMarkdown() ?? '';
+        return this.serialize() ?? '';
     }
 
     /**
@@ -406,28 +496,100 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         return this.title();
     }
 
-    /** Swaps between the rich surface and the raw markdown behind it, in both directions. */
+    /**
+     * Swaps between the rich surface and the raw markdown behind it, in both directions.
+     *
+     * Neither direction flips the flag before the conversion it depends on has succeeded. The flag
+     * decides which surface is authoritative, so flipping first and then failing to serialise left
+     * an empty textarea claiming to be the page - and typing one character into it made that the
+     * truth.
+     */
     protected toggleSourceMode(): void {
+        // Every overlay anchored to the rich surface goes first. They are positioned against
+        // document coordinates that stop existing the moment the textarea replaces it - a
+        // selection popup left floating over raw markdown acts on a selection that is no longer
+        // there. Reachable by shortcut now, so this is no longer only the toolbar's path.
+        this.bubbleMenu?.hide();
+        this.closeMenus();
+        this.previewOpen.set(false);
+
         if (this.sourceMode()) {
             this.commitSourceMode();
             return;
         }
-        this.sourceText.set(this.markdown());
+        const markdown = this.serialize();
+        if (markdown === null) {
+            this.toast.error(this.translate.instant('WIKI.ARTICLE.SOURCE_SWITCH_FAILED'));
+            return;
+        }
+        this.sourceText.set(markdown);
         this.sourceMode.set(true);
     }
 
     /** Parses the textarea back into the document. A no-op when source mode is not open. */
     private commitSourceMode(): void {
         if (!this.sourceMode()) return;
+        if (!this.setContent(this.sourceText())) {
+            this.toast.error(this.translate.instant('WIKI.ARTICLE.SOURCE_SWITCH_FAILED'));
+            return;
+        }
         this.sourceMode.set(false);
-        this.setContent(this.sourceText());
+    }
+
+    /** The document as markdown, or null where the serializer could not produce it. */
+    private serialize(): string | null {
+        try {
+            return this.editor?.getMarkdown() ?? '';
+        } catch (error) {
+            console.error('[wiki] markdown serialisation failed', error);
+            return null;
+        }
+    }
+
+    /**
+     * The shortcuts that still have to work while the raw markdown buffer is what you are typing
+     * in.
+     *
+     * Only these two: the toggle, because otherwise the key is a one-way door into a mode you can
+     * then only leave with the mouse, and save, because losing a shortcut that writes to the
+     * server is worse than losing one that formats a word. Everything else on the editor's keymap
+     * acts on a ProseMirror document that this textarea is not.
+     */
+    protected onSourceKeydown(event: KeyboardEvent): void {
+        if (event.key === 'Control' || event.key === 'Alt'
+            || event.key === 'Shift' || event.key === 'Meta') {
+            return;
+        }
+
+        if (acceleratorFromEvent(event) === this.keybinds.getBinding('wiki-toggle-markdown')) {
+            event.preventDefault();
+            this.toggleSourceMode();
+            return;
+        }
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+            event.preventDefault();
+            this.save();
+        }
     }
 
     protected onSourceInput(value: string): void {
         this.sourceText.set(value);
+        this.dirty = true;
         this.dirtyChanged.emit(true);
         this.scheduleDraft();
         this.contentVersion.update(v => v + 1);
+    }
+
+    /**
+     * The title is a field on the same page object the effect above reloads from, so typing into
+     * it has to raise the same flag the body does. Without this a refresh landing mid-word put the
+     * saved title back under the caret.
+     */
+    protected onTitleInput(value: string): void {
+        this.title.set(value);
+        this.dirty = true;
+        this.dirtyChanged.emit(true);
+        this.scheduleDraft();
     }
 
     protected openFilePicker(): void {
@@ -440,12 +602,22 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         // the draft straight back over the one this save is about to clear, leaving a phantom
         // "unsaved changes" banner on a page that was just published.
         clearTimeout(this.draftTimer);
+
+        // Serialised before anything else is committed to. `markdown()` swallows a serializer
+        // failure as an empty string, and saving that would replace the page with nothing - so
+        // the one caller that writes to the server asks the un-swallowed way.
+        const content = this.sourceMode() ? this.sourceText() : this.serialize();
+        if (content === null) {
+            this.toast.error(this.translate.instant('WIKI.ARTICLE.SAVE_SERIALIZE_FAILED'));
+            return;
+        }
+
         this.saving.set(true);
         this.saveStatusChanged.emit('saving');
         const summary = this.editSummary().trim();
         const base = {
             title: this.title().trim(),
-            content: this.markdown(),
+            content,
             ...(this.summaryApplies() && summary ? {summary} : {}),
         };
         const editingId = this.page()?.id;
@@ -455,7 +627,14 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         request.subscribe({
             next: page => {
                 this.saving.set(false);
-                this.dirtyChanged.emit(false);
+                // The parent hands the server's copy straight back as the `page` input, and the
+                // effect that reloads from it is gated on this flag - so it is only safe to lower
+                // where nothing was typed while the request was in flight. Typing through a save
+                // and having the response put the pre-save text back is exactly the data loss
+                // this is here to stop.
+                this.dirty = this.markdown() !== base.content
+                    || this.title().trim() !== base.title;
+                this.dirtyChanged.emit(this.dirty);
                 // The draft has been published, so keeping it would offer to "restore" content
                 // identical to what is now on the server.
                 this.drafts.clear(this.guildId(), editingId ?? null);
@@ -481,6 +660,10 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         // showing the text the restore was meant to replace.
         if (this.sourceMode()) this.sourceText.set(draft.content);
         else this.setContent(draft.content);
+        // A restored draft is by definition not what the server holds, so the page effect must
+        // not be allowed to load over it.
+        this.dirty = true;
+        this.dirtyChanged.emit(true);
         this.pendingDraft.set(null);
     }
 
@@ -624,6 +807,37 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         for (const file of files) this.uploadFile(file);
     }
 
+    /**
+     * A wiki URL pasted into a page becomes an internal link to that page.
+     *
+     * "Copy link" hands out the absolute `venta.gg/wiki/...` form, because that is the only form
+     * that survives a trip through chat. Pasted back into a page it would otherwise sit there as
+     * a bare external URL - so it is converted to the `wiki:` href the editor understands, which
+     * is what makes the hover preview and the broken-link marking work on it.
+     *
+     * Only for this guild. A link into another guild's wiki is not resolvable here and stays the
+     * URL it was.
+     */
+    private onPaste(event: ClipboardEvent): boolean {
+        const text = event.clipboardData?.getData('text/plain')?.trim();
+        if (!text || !this.editor) return false;
+        const target = parseWikiUrl(text);
+        if (!target || target.guildId !== this.guildId()) return false;
+
+        const title = this.wiki()?.pages.find(p => p.id === target.pageId)?.title;
+        this.editor.chain()
+            .focus()
+            .insertContent({
+                type: 'text',
+                text: title ?? text,
+                marks: [{type: 'link', attrs: {href: wikiHref(target.pageId)}}],
+            })
+            // Without this the link mark stays active and the next character typed joins the link.
+            .unsetMark('link')
+            .run();
+        return true;
+    }
+
     private onSuggest(state: SuggestState | null): void {
         this.suggest = state;
         if (!state || !this.editing() || !this.editor) {
@@ -698,7 +912,10 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         const blobUrl = URL.createObjectURL(file);
         this.editor?.chain().focus().setImage({src: blobUrl, alt: file.name}).run();
         this.fileService.uploadFile(file).subscribe({
-            next: attachment => this.replaceImageSrc(blobUrl, attachment.url, attachment.fileName),
+            // Built from the id, not read off the response: `url` is not actually sent, and an
+            // `undefined` here would be written into the saved page as the image's src.
+            next: attachment => this.replaceImageSrc(
+                blobUrl, this.fileService.attachmentDownloadUrl(attachment.id), attachment.fileName),
             // A failed upload drops the placeholder rather than leaving a broken blob: URL that
             // renders as a broken image and saves as one.
             error: () => this.replaceImageSrc(blobUrl, '', ''),
@@ -726,21 +943,33 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         URL.revokeObjectURL(blobUrl);
     }
 
-    /** Content is markdown, except for legacy pages saved as HTML before the markdown switch. */
-    private setContent(content: string): void {
-        if (!this.editor) return;
-        if (!content) {
-            this.editor.commands.setContent('');
-        } else if (content.trimStart().startsWith('<')) {
-            this.editor.commands.setContent(content);
-        } else {
-            this.editor.commands.setContent(content, {contentType: 'markdown'});
+    /**
+     * Content is markdown, except for legacy pages saved as HTML before the markdown switch.
+     *
+     * Returns whether the document now holds it. A parse that throws leaves the previous document
+     * in place rather than an empty one - the caller decides what to do about it, and for a mode
+     * switch that means staying on the surface that still has the text.
+     */
+    private setContent(content: string): boolean {
+        if (!this.editor) return false;
+        try {
+            if (!content) {
+                this.editor.commands.setContent('');
+            } else if (content.trimStart().startsWith('<')) {
+                this.editor.commands.setContent(content);
+            } else {
+                this.editor.commands.setContent(content, {contentType: 'markdown'});
+            }
+        } catch (error) {
+            console.error('[wiki] markdown parse failed', error);
+            return false;
         }
         this.emitHeadings();
         this.markBrokenLinks();
         // setContent does not always emit an update, and the empty-state check reads the document
         // through this counter rather than through a signal the editor does not have.
         this.contentVersion.update(v => v + 1);
+        return true;
     }
 
     private emitHeadings(): void {
@@ -767,7 +996,10 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
         });
         this.previewPage.set(page);
-        this.previewSnippet.set(snippetOf(this.contentCache.content().get(pageId) ?? ''));
+        // The same stripping the chat card uses. It was duplicated here as a cruder copy that
+        // left table pipes and callout markers in, and two functions answering "what does this
+        // page say" is one more than the question needs.
+        this.previewSnippet.set(wikiSnippet(this.contentCache.content().get(pageId) ?? '', 240));
         this.previewOpen.set(true);
     }
 
@@ -786,25 +1018,6 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             anchor.setAttribute('data-wiki-broken', String(!known.has(pageId)));
         });
     }
-}
-
-/**
- * First couple of lines of prose from a markdown body, for the link hover card.
- *
- * Deliberately crude: it strips the handful of markers that would otherwise read as noise in a
- * one-line summary and leaves everything else alone. Rendering the markdown properly to extract a
- * preview would cost more than the preview is worth.
- */
-function snippetOf(markdown: string): string {
-    return markdown
-        .replace(/```[\s\S]*?```/g, ' ')
-        .replace(/!\[[^\]]*]\([^)]*\)/g, ' ')
-        .replace(/\[([^\]]*)]\([^)]*\)/g, '$1')
-        .replace(/^\s{0,3}[#>\-*+]\s+/gm, '')
-        .replace(/[*_`~]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 240);
 }
 
 /** Appends with a blank line between, so two blocks do not weld into one paragraph. */

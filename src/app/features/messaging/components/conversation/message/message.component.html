@@ -210,16 +210,25 @@
                     @if (att.contentType.startsWith('image/')) {
                         <div (click)="openLightbox(att)" class="relative inline-block group/img cursor-zoom-in">
                             <img [alt]="att.fileName"
-                                 [src]="att.thumbnailUrl"
+                                 [appAuthSrc]="att.thumbnailUrl"
                                  class="max-h-60 max-w-sm rounded-xl border border-white/10 object-contain block"
                                  loading="lazy"/>
                             <div class="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover/img:opacity-100 transition-opacity">
                                 <button (click)="download(att); $event.stopPropagation()"
-                                        class="w-7 h-7 rounded-md bg-black/80 border border-white/[0.12] flex items-center justify-center text-white/60 hover:text-white cursor-pointer transition-colors backdrop-blur-sm">
+                                        [disabled]="downloading()"
+                                        class="w-7 h-7 rounded-md bg-black/80 border border-white/[0.12] flex items-center justify-center text-white/60 hover:text-white cursor-pointer transition-colors backdrop-blur-sm disabled:opacity-50 disabled:cursor-default">
                                     <i class="pi pi-download text-[11px]"></i>
                                 </button>
                             </div>
                         </div>
+                    } @else if (att.contentType.startsWith('audio/')) {
+                        <app-audio-attachment
+                                (download)="download(att)"
+                                [attachmentId]="att.id"
+                                [contentType]="att.contentType"
+                                [downloadDisabled]="downloading()"
+                                [fileName]="att.fileName"
+                                class="w-full"/>
                     } @else {
                         <div class="flex items-center gap-3 bg-white/[0.04] border border-white/[0.07] rounded-xl px-3 py-2.5 max-w-xs">
                             <div class="shrink-0 w-9 h-9 rounded-lg bg-white/[0.06] flex items-center justify-center">
@@ -232,7 +241,8 @@
                                 </p>
                             </div>
                             <button (click)="download(att)"
-                                    class="shrink-0 w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-brand/20 border border-white/[0.07] hover:border-brand/30 flex items-center justify-center text-white/40 hover:text-brand-dim transition-all cursor-pointer">
+                                    [disabled]="downloading()"
+                                    class="shrink-0 w-8 h-8 rounded-lg bg-white/[0.05] hover:bg-brand/20 border border-white/[0.07] hover:border-brand/30 flex items-center justify-center text-white/40 hover:text-brand-dim transition-all cursor-pointer disabled:opacity-50 disabled:cursor-default">
                                 <i class="pi pi-download text-xs"></i>
                             </button>
                         </div>
@@ -298,22 +308,18 @@
                 [visible]="lightbox() !== null">
             @if (lightbox()) {
                 <div class="relative flex flex-col items-center gap-2">
-                    @if (lightbox()!.loading) {
-                        <div class="flex flex-col items-center gap-3 text-white/40 py-12 px-8">
-                            <i class="pi pi-spin pi-spinner text-2xl"></i>
-                            <span class="text-sm truncate max-w-[20rem]">{{ lightbox()!.name }}</span>
-                        </div>
-                    } @else if (lightbox()!.url) {
+                    @if (lightbox()!.url) {
                         <img [alt]="lightbox()!.name"
-                             [src]="lightbox()!.url!"
+                             [appAuthSrc]="lightbox()!.url"
                              class="max-w-[90vw] max-h-[85vh] object-contain rounded-xl block"/>
                         <div class="absolute top-2 right-2 flex gap-1.5">
                             <button (click)="downloadFromLightbox()"
-                                    class="w-8 h-8 rounded-lg bg-black/70 border border-white/[0.12] flex items-center justify-center text-white/60 hover:text-white cursor-pointer transition-colors backdrop-blur-sm">
+                                    [disabled]="downloading()"
+                                    class="w-8 h-8 rounded-lg bg-black/70 border border-white/[0.12] flex items-center justify-center text-white/60 hover:text-white cursor-pointer transition-colors backdrop-blur-sm disabled:opacity-50 disabled:cursor-default">
                                 <i class="pi pi-download text-xs"></i>
                             </button>
                             <!-- Opens the origin's own address, and only on an explicit click. -->
-                            <button (click)="openUrl(lightbox()!.originalUrl ?? lightbox()!.url!)"
+                            <button (click)="openUrl(lightbox()!.originalUrl ?? lightbox()!.url)"
                                     class="w-8 h-8 rounded-lg bg-black/70 border border-white/[0.12] flex items-center justify-center text-white/60 hover:text-white cursor-pointer transition-colors backdrop-blur-sm">
                                 <i class="pi pi-external-link text-xs"></i>
                             </button>

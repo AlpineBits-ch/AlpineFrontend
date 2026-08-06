@@ -1,6 +1,13 @@
-import {Component, HostListener, input, output} from '@angular/core';
+import {Component, computed, HostListener, inject, input, output} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
-import {isMacKeyboard, shortcutKeyLabel, shortcutsIn, WIKI_SHORTCUT_GROUPS} from './wiki-shortcuts';
+import {
+    isMacKeyboard,
+    shortcutKeyLabel,
+    shortcutsIn,
+    WIKI_SHORTCUT_GROUPS,
+    wikiFormattingShortcuts,
+} from './wiki-shortcuts';
+import {KeybindsService} from '../../../../../services/keybinds.service';
 
 /**
  * The `?` cheat sheet.
@@ -18,14 +25,27 @@ export class WikiShortcutsOverlayComponent {
 
     readonly closed = output<void>();
 
-    protected readonly groups = WIKI_SHORTCUT_GROUPS.map(group => ({
-        ...group,
-        shortcuts: shortcutsIn(group.id).map(shortcut => ({
-            ...shortcut,
-            // Resolved once at construction: the keyboard does not change under the user.
-            labels: shortcut.keys.map(key => shortcutKeyLabel(key, isMacKeyboard())),
-        })),
-    }));
+    private readonly keybinds = inject(KeybindsService);
+
+    /**
+     * A computed rather than a constant: the formatting rows come from the user's own bindings
+     * now, and a sheet still showing the key you rebound away from is worse than no sheet.
+     */
+    protected readonly groups = computed(() => {
+        const mac = isMacKeyboard();
+        // Read so this recomputes when a binding changes.
+        this.keybinds.bindings();
+        return WIKI_SHORTCUT_GROUPS.map(group => ({
+            ...group,
+            shortcuts: (group.id === 'formatting'
+                ? wikiFormattingShortcuts(id => this.keybinds.getBinding(id))
+                : shortcutsIn(group.id)
+            ).map(shortcut => ({
+                ...shortcut,
+                labels: shortcut.keys.map(key => shortcutKeyLabel(key, mac)),
+            })),
+        }));
+    });
 
     /**
      * `?` closes as well as opens, so the key that summoned the sheet also dismisses it - the

@@ -4,6 +4,11 @@ import {HttpClient} from "@angular/common/http";
 import {environment} from "../../environments/environment";
 import {ApiConfigService} from "./api-config.service";
 
+/**
+ * <p>Deliberately has no `url`. It used to declare one, the server does not send one, and every
+ * reader of it was holding `undefined` while the type promised a string. Use
+ * {@link FileService.attachmentDownloadUrl} with the id.</p>
+ */
 export interface AttachmentDto {
     id: string;
     fileName: string;
@@ -11,7 +16,6 @@ export interface AttachmentDto {
     createdAt: Date;
     updatedAt: Date;
     state: AttachmentStatus;
-    url: string;
     thumbnailUrl?: string;
 }
 
@@ -56,8 +60,20 @@ export class FileService {
         );
     }
 
+    /**
+     * The address of an attachment's full-size bytes.
+     *
+     * <p>Always build it from the id. `AttachmentDto.url` is declared required but the server does
+     * not send it - what the payload does carry is `thumbnailUrl`, so anything reaching for "the
+     * attachment's URL" and finding one is holding a downscaled preview, and anything finding
+     * neither is holding `undefined`.</p>
+     */
+    public attachmentDownloadUrl(id: string): string {
+        return `${this.apiConfig.baseUrl()}/api/v1/messaging/attachments/${id}/download`;
+    }
+
     public downloadAttachmentById(id: string) {
-        return this.httpClient.get(`${this.apiConfig.baseUrl()}/api/v1/messaging/attachments/${id}/download`, {responseType: 'blob'});
+        return this.httpClient.get(this.attachmentDownloadUrl(id), {responseType: 'blob'});
     }
 
     public getAttachmentMetadataById(id: string): Observable<AttachmentDto> {

@@ -56,6 +56,31 @@ describe('effectiveGuildPermissions', () => {
         expect(effectiveGuildPermissions(denied)).toBe(0n);
     });
 
+    // The reported crash: the server sends the resolved mask as a JSON number, not a name list,
+    // and every string method in parsePermissions threw on it -
+    // "TypeError: serialized.replace is not a function" out of a permission-gated computed.
+    it('reads a server-resolved mask that arrives as a number', () => {
+        const numeric = {
+            permissions: '',
+            roleMembers: [],
+            effectivePermissions: Number(Permissions.ManageGuild),
+        } as unknown as GuildMemberDto;
+
+        expect(effectiveGuildPermissions(numeric) & Permissions.ManageGuild)
+            .toBe(Permissions.ManageGuild);
+    });
+
+    it('unions a numeric member mask with the named roles it holds', () => {
+        const mixed = {
+            permissions: Number(Permissions.ViewChannel),
+            roleMembers: [{role: {permissions: 'ManageGuild'}}],
+        } as unknown as GuildMemberDto;
+        const perms = effectiveGuildPermissions(mixed);
+
+        expect(perms & Permissions.ViewChannel).toBe(Permissions.ViewChannel);
+        expect(perms & Permissions.ManageGuild).toBe(Permissions.ManageGuild);
+    });
+
     it('falls back to the union when the server has not shipped the field', () => {
         const legacy = member('ViewChannel', ['ManageGuild']);
 

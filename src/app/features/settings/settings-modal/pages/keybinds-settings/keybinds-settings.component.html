@@ -49,7 +49,10 @@
                              opacity-0 group-hover:opacity-100">
                                 <i class="pi pi-pencil text-[11px]"></i>
                             </button>
-                            <button (click)="remove(action.id, $event)" title="Remove"
+                            <!-- An action with a default cannot be left unbound - clearing it puts
+                                 the default back - so the button says what it actually does. -->
+                            <button (click)="remove(action.id, $event)"
+                                    [title]="action.defaultToken ? 'Reset to default' : 'Remove'"
                                     class="flex items-center justify-center w-7 h-7 rounded-lg border-0 bg-transparent
                              text-white/30 hover:text-rose-400 hover:bg-rose-500/10 cursor-pointer transition-colors
                              opacity-0 group-hover:opacity-100">
@@ -109,7 +112,8 @@
 
     <p class="text-[11px] text-white/25 pt-1">
         Isle Proxchat keys accept a keyboard key, a single modifier, or a mouse button, and keep working while the
-        game is focused. Voice Call keys are keyboard-only.
+        game is focused. Voice Call keys are keyboard-only. Wiki Editor keys only apply while you are writing a
+        page, so they are free to use combinations the rest of the app also answers to.
     </p>
 
 </div>

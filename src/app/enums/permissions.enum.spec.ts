@@ -54,6 +54,40 @@ describe('Permissions moderation bits', () => {
     });
 });
 
+// The wire value is not always a string. .NET writes a [Flags] enum as a bare JSON number
+// whenever the value carries a bit it has no name for, so `permissions`/`effectivePermissions`
+// arrive as numbers on some payloads even though every DTO types them `string`.
+describe('parsePermissions wire types', () => {
+    it('accepts a JSON number mask', () => {
+        expect(parsePermissions(Number(Permissions.ManageGuild) as unknown as string))
+            .toBe(Permissions.ManageGuild);
+    });
+
+    it('accepts a numeric mask carrying several bits', () => {
+        const mask = Permissions.ViewChannel | Permissions.SendMessages | Permissions.ManageGuild;
+        expect(parsePermissions(Number(mask) as unknown as string)).toBe(mask);
+    });
+
+    it('reads numeric zero as no permissions', () => {
+        expect(parsePermissions(0 as unknown as string)).toBe(0n);
+    });
+
+    it('accepts a bigint mask unchanged', () => {
+        expect(parsePermissions(Permissions.Superadmin as unknown as string)).toBe(Permissions.Superadmin);
+    });
+
+    it('grants nothing for a numeric value that is not a whole mask', () => {
+        expect(parsePermissions(Number.NaN as unknown as string)).toBe(0n);
+        expect(parsePermissions(1.5 as unknown as string)).toBe(0n);
+    });
+
+    it('still reads a digit string and a name list', () => {
+        expect(parsePermissions(Permissions.ManageGuild.toString())).toBe(Permissions.ManageGuild);
+        expect(parsePermissions('ViewChannel, SendMessages'))
+            .toBe(Permissions.ViewChannel | Permissions.SendMessages);
+    });
+});
+
 describe('PERM_GROUPS', () => {
     it('places every PermissionKey except None in exactly one group', () => {
         const allKeys = (Object.keys(Permissions) as PermissionKey[]).filter(k => k !== 'None');

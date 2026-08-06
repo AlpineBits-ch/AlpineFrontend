@@ -225,19 +225,44 @@ export function diffPermissions(requested: PermissionValue, grantable: Permissio
 }
 
 /**
- * Parses the text-serialized Permissions string (from C# .NET) into a bigint bitmask.
+ * Every shape the server has been seen to send a permission mask in.
+ *
+ * <p>The DTOs all type these fields `string`, and that is what .NET emits for a `[Flags]` enum it
+ * can name completely. It emits a bare JSON <b>number</b> instead as soon as the value carries a
+ * bit with no name - a permission the deployed server knows and this build does not - so the
+ * declared type is a hope, not a guarantee, and the parser has to survive both.</p>
  */
-export function parsePermissions(serialized: string | null | undefined): PermissionValue {
+export type SerializedPermissions = string | number | bigint | null | undefined;
+
+/**
+ * Parses the text-serialized Permissions string (from C# .NET) into a bigint bitmask.
+ *
+ * <p>Anything it cannot make sense of parses as no permissions rather than throwing: this runs
+ * inside permission-gated computed signals, where an exception takes the whole component down
+ * instead of merely hiding a control.</p>
+ */
+export function parsePermissions(serialized: SerializedPermissions): PermissionValue {
     if (!serialized) {
         return 0n;
     }
 
-    // 1. Handle direct numeric representation (e.g., if .NET falls back to a number string)
+    // 1. Handle a mask that arrived as a number rather than a name list. Note that a JSON number
+    //    cannot carry this enum faithfully past 2^53 - Superadmin sits at bit 63 - so a numeric
+    //    payload with high bits set is already rounded by the time JSON.parse hands it over.
+    //    Nothing the client can recover; the server has to send names or a string for those.
+    if (typeof serialized === 'bigint') {
+        return serialized;
+    }
+    if (typeof serialized === 'number') {
+        return Number.isInteger(serialized) ? BigInt(serialized) : 0n;
+    }
+
+    // 2. Handle direct numeric representation (e.g., if .NET falls back to a number string)
     if (/^\d+n?$/.test(serialized)) {
         return BigInt(serialized.replace('n', ''));
     }
 
-    // 2. Handle comma-separated string flags (e.g., "ViewChannel, SendMessages")
+    // 3. Handle comma-separated string flags (e.g., "ViewChannel, SendMessages")
     const parts = serialized.split(',');
     let result: PermissionValue = 0n;
 

@@ -44,6 +44,8 @@ import {WikiService} from '../../../../../services/wiki.service';
 import {WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {GuildFeature, guildHasFeature} from '../../../../guild/guild-features';
 import {wikiShareLink} from '../../../wiki-link';
+import {ToastService} from '../../../../../services/toast.service';
+import {TranslateService} from '@ngx-translate/core';
 
 const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/';
 
@@ -112,6 +114,8 @@ export class ComposerComponent {
         return paramHints ? `/${cmd.name} ${paramHints} -press Enter to send` : `/${cmd.name} -press Enter to send`;
     });
     protected readonly attachments = inject(ComposerAttachmentsService);
+    /** True while a send is parked waiting on uploads that were still in flight when Enter landed. */
+    protected readonly awaitingUploads = signal(false);
     private readonly emojiData = inject(EmojiDataService);
     private readonly gifService = inject(GifService);
 
@@ -134,6 +138,10 @@ export class ComposerComponent {
     private readonly messageStore = inject(MessageStore);
     private readonly destroyRef = inject(DestroyRef);
     private readonly socialGate = inject(SocialKeyGateService);
+    private readonly toast = inject(ToastService);
+    private readonly translate = inject(TranslateService);
+    /** Set on teardown, so a send parked on an upload does not resume into a dead view. */
+    private destroyed = false;
     private readonly botCommands = signal<BotCommandDto[]>([]);
 
     // ── Wiki pages (per-guild, fetched on the first `[[`) ────────────────────────
@@ -143,6 +151,8 @@ export class ComposerComponent {
     private wikiPagesGuildId: string | null = null;
 
     constructor() {
+        this.destroyRef.onDestroy(() => this.destroyed = true);
+
         effect(() => {
             const gid = this.guildId();
             if (!gid) {
@@ -717,6 +727,28 @@ export class ComposerComponent {
             void this.socialGate.require().then(allowed => {
                 if (allowed) this.send();
             });
+            return;
+        }
+
+        // Attachments are sent by id, and an upload that has not answered yet has no id -
+        // `flushAndClear` would drop it and the message would go out with only the files that
+        // happened to be fast enough. So park the send instead of narrowing it, and run it again
+        // once the last upload lands. The editor is deliberately left untouched meanwhile: the
+        // user keeps whatever they typed, and can keep typing while the parked send waits.
+        if (this.attachments.isUploading()) {
+            if (this.awaitingUploads()) return;
+            this.awaitingUploads.set(true);
+            void this.attachments.settled().then(() => {
+                this.awaitingUploads.set(false);
+                if (!this.destroyed) this.send();
+            });
+            return;
+        }
+
+        // A failed upload settles too, and sending here would silently post without it. Say so
+        // rather than swallow the Enter - the failed chip is on screen with its own ✕.
+        if (this.attachments.hasFailed()) {
+            this.toast.error(this.translate.instant('COMPOSER.UPLOAD_FAILED'));
             return;
         }
 

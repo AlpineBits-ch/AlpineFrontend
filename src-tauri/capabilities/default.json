@@ -37,6 +37,7 @@
     "dialog:allow-open",
     "fs:allow-write-text-file",
     "fs:allow-read-text-file",
+    "fs:allow-write-file",
     "deep-link:default",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",

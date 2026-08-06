@@ -33,6 +33,12 @@ import {isKlipyGifUrl} from '../../../../../services/gif.service';
 import {EmojiDataService, getFlagCode, isRegionalIndicator} from '../../../../../services/emoji-data.service';
 import {MarkdownPipe} from '../../../../../pipes/markdown.pipe';
 import {AttachmentDto, FileService} from '../../../../../services/file.service';
+import {
+    AttachmentDownloadService,
+    DownloadableAttachment,
+} from '../../../../../services/attachment-download.service';
+import {AuthImageDirective} from '../../../../../directives/auth-image.directive';
+import {AudioAttachmentComponent} from './audio-attachment/audio-attachment.component';
 import {MessagingService} from '../../../../../services/messaging.service';
 import {MessageStore} from '../../../../../stores/message.store';
 import {MlsService} from '../../../../../services/mls.service';
@@ -95,6 +101,8 @@ type MessageSegment = {
         Button,
         TranslateModule,
         UserNameStyleDirective,
+        AuthImageDirective,
+        AudioAttachmentComponent,
     ],
     templateUrl: './message.component.html',
     styleUrl: './message.component.css',
@@ -105,14 +113,14 @@ export class MessageComponent {
     public profileService = inject(ProfileService);
     protected navService = inject(NavigationService);
     /**
-     * The full-size overlay. Fed both by attachments (which need a metadata fetch first) and by
-     * embed images (which already know their URL), so it holds a URL rather than an attachment.
+     * The full-size overlay. Fed both by attachments and by embed images, neither of which needs a
+     * request to know its address, so it holds a URL rather than an attachment.
      */
     lightbox = signal<{
-        loading: boolean;
-        url: string | null;
+        url: string;
         name: string;
-        attachment: AttachmentDto | null;
+        /** Set for our own attachments, which save through the picker rather than a browser open. */
+        attachment: DownloadableAttachment | null;
         /** The origin's own address, for "open original". Absent for our own attachments. */
         originalUrl?: string;
     } | null>(null);
@@ -483,7 +491,10 @@ export class MessageComponent {
     public readonly isEdited = computed(() => !!this.message().editedAt);
 
     protected readonly suppressingEmbeds = signal(false);
+    /** A save is waiting on the destination dialog, or on the bytes it will write there. */
+    protected readonly downloading = signal(false);
     private fileService = inject(FileService);
+    private downloads = inject(AttachmentDownloadService);
     private messagingService = inject(MessagingService);
     private messageStore = inject(MessageStore);
     private mlsService = inject(MlsService);
@@ -553,11 +564,19 @@ export class MessageComponent {
         this.confirmDelete();
     }
 
+    /**
+     * Opens an attachment full-size.
+     *
+     * <p>No metadata round-trip: it existed to read `url` off the response, and the server does not
+     * send that field - the full-size address is built from the id instead. Everything else the
+     * overlay needs (name, and the id the download button saves by) the thumbnail already carried,
+     * so the image now starts loading on the click rather than a request later.</p>
+     */
     openLightbox(minimal: MessageAttachment): void {
-        this.lightbox.set({loading: true, url: null, name: minimal.fileName, attachment: null});
-        this.fileService.getAttachmentMetadataById(minimal.id).subscribe({
-            next: att => this.lightbox.update(s => s ? {...s, loading: false, url: att.url, attachment: att} : s),
-            error: () => this.lightbox.set(null),
+        this.lightbox.set({
+            url: this.fileService.attachmentDownloadUrl(minimal.id),
+            name: minimal.fileName,
+            attachment: minimal,
         });
     }
 
@@ -572,7 +591,6 @@ export class MessageComponent {
         const src = media.proxyUrl ?? media.url;
         if (!src) return;
         this.lightbox.set({
-            loading: false,
             url: src,
             name: this.mediaFileName(media.url),
             attachment: null,
@@ -598,17 +616,24 @@ export class MessageComponent {
         }
     }
 
-    download(att: { id: string; fileName: string }): void {
-        this.fileService.downloadAttachmentById(att.id).subscribe(blob => {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = att.fileName;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-        });
+    /**
+     * Saves an attachment to a destination the user picks.
+     *
+     * <p>Latched while a save is in flight: the dialog is modal to the window but not to this
+     * handler, and a second click behind it would open a second dialog over the first.</p>
+     */
+    download(att: DownloadableAttachment): void {
+        if (this.downloading()) return;
+        this.downloading.set(true);
+        this.downloads.save(att)
+            .then(saved => {
+                // Nothing is said about a dismissed dialog - the user knows they cancelled, and
+                // there is no download shelf here to confirm a save that did happen.
+                if (saved) this.toast.success(this.translate.instant('MESSAGE.DOWNLOAD_SAVED'));
+            })
+            .catch(err => this.toast.httpError(
+                this.translate.instant('MESSAGE.DOWNLOAD_FAILED'), err))
+            .finally(() => this.downloading.set(false));
     }
 
     fileIcon(contentType: string): string {
