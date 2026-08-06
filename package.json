@@ -97,7 +97,7 @@
     "start": "ng serve",
     "tauri": "tauri",
     "watch": "ng build --watch --configuration development",
-    "sentry:sourcemaps": "sentry-cli sourcemaps inject --org alpinebits-klg --project venta-frontend ./dist && sentry-cli sourcemaps upload --org alpinebits-klg --project venta-frontend ./dist"
+    "sentry:sourcemaps": "node scripts/sentry-sourcemaps.mjs"
   },
   "version": "3.0.185"
 }

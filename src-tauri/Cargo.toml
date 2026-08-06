@@ -14,7 +14,20 @@ default-run = "Venta"
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
 name = "alpine_lib"
-crate-type = ["staticlib", "cdylib", "rlib"]
+# `rlib` only, which is all `src/main.rs` needs to link `alpine_lib::run()`.
+#
+# The Tauri template ships `["staticlib", "cdylib", "rlib"]` because mobile needs the other two -
+# `staticlib` for iOS, `cdylib` for Android. Mobile is a separate Flutter app now, so nothing here
+# consumes them, and each extra crate type costs a full codegen-and-link pass over the entire
+# dependency graph, producing a .lib and a .dll that are then thrown away.
+#
+# What is measured: the Windows release job spent 7m56s on this one crate, ~6m of it a single
+# silent codegen-and-link window after the last warning was emitted (run 31099750385's parent,
+# 31095631509). Dropping to one crate type is the change that window is expected to answer to.
+#
+# If a Tauri mobile target ever comes back, this is the line to restore - not something to work
+# around. Cargo has no per-target `[lib]` override, so it is all three or none.
+crate-type = ["rlib"]
 
 [[bin]]
 name = "bench-screen"

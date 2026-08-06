@@ -33,7 +33,11 @@
     "linux": {
       "rpm": {
         "epoch": 0,
-        "release": "1"
+        "release": "1",
+        "compression": {
+          "type": "zstd",
+          "level": 3
+        }
       }
     },
     "windows": {

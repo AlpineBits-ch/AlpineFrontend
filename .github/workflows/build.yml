@@ -28,6 +28,63 @@ jobs:
           prerelease: false
           make_latest: true
 
+  # Platform-independent gates, deliberately in their own job rather than inside a build.
+  #
+  # These used to run in release-windows, on the grounds that their output is the same everywhere so
+  # they only need to run once. That part was right; the placement was not - "once" landed on the
+  # slowest job in the workflow, so a ~90s check that has nothing to do with Windows sat directly on
+  # the critical path of the release. Here it runs concurrently with both builds and finishes long
+  # before either, so it costs no wall-clock at all.
+  #
+  # `needs:` is deliberately absent. This does not gate create-release: it never did (the release was
+  # already published by the time the Windows job reached these checks), and making it a gate would
+  # serialise a couple of minutes in front of every build to preserve a property the workflow has
+  # never had. A failure here still fails the run, which is the actual point.
+  #
+  # No submodules: the i18n locales are a frontend asset, and nothing these scripts read lives there.
+  # The vendored WebRTC notices that generate-notices.js does read are committed to this repo, not
+  # pulled in as a submodule.
+  checks:
+    name: Platform-independent checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+
+      # generate-notices.js shells out to `cargo metadata` for the Rust half of the dependency tree.
+      # Resolution only - nothing is compiled here, so no sccache and no system dependencies.
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache bun package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Fails if a dependency was added without regenerating the notices.
+      - name: Check third-party notices are up to date
+        run: |
+          bun run licenses:test
+          bun run licenses
+          if ! git diff --quiet -- src/assets/THIRD-PARTY-NOTICES.md; then
+            git diff -- src/assets/THIRD-PARTY-NOTICES.md
+            echo "::error::THIRD-PARTY-NOTICES.md is stale - run 'bun run licenses' and commit the result."
+            exit 1
+          fi
+
+      # The NSIS template is vendored (src-tauri/vendor/nsis/installer.nsi) so the installer can
+      # default to a passive, wizard-less install. A vendored handlebars template can drift from the
+      # bundler that consumes it on any CLI bump, producing a subtly wrong installer rather than a
+      # build failure - this makes that loud. The check only reads files, so it does not need
+      # Windows despite guarding a Windows-only artifact.
+      - name: Check the vendored NSIS template is in sync
+        run: bun run nsis:check
 
   release-windows:
     needs: create-release
@@ -69,39 +126,30 @@ jobs:
       - name: Install meson and ninja
         run: pip install meson ninja
 
+      # setup-bun caches the bun binary, not the packages. `bun install` on this runner was ~1m43s
+      # against ~5s on ubuntu, which is what makes the package cache worth its slot in the shared
+      # 10 GB budget here even though it barely registers on Linux.
+      - name: Cache bun package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      # ~41 MB, and it takes the production frontend build from roughly a minute cold to ~16s warm -
+      # measured in ci.yml, which has had this for a while. `tauri build` runs `bun run build` as its
+      # beforeBuildCommand, so the release jobs pay that cold cost too; they were just never given
+      # the cache. Keyed on bun.lock rather than the commit sha for the reason spelled out in ci.yml:
+      # a per-commit key writes a fresh entry every run and evicts the caches that matter.
+      - name: Cache Angular build cache
+        uses: actions/cache@v4
+        with:
+          path: .angular/cache
+          key: angular-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: angular-${{ runner.os }}-
+
       - name: Install dependencies
-        run: bun install
-
-      # Fails if a dependency was added without regenerating the notices. The output is
-      # platform-independent by construction, so this check is only run once, here.
-      #
-      # Spelled out rather than `git diff --exit-code ... || (echo ... && exit 1)`. This step runs
-      # under PowerShell, where `&&` chains *commands* and `exit` is a language keyword, so the
-      # shorthand died with "The term 'exit' is not recognized as a name of a cmdlet" - masking
-      # whichever result the diff had actually produced.
-      #
-      # `--name-only` rather than `--exit-code` for the same class of reason: Actions runs this with
-      # `$ErrorActionPreference = 'stop'`, and pwsh 7.4 turns a non-zero native exit code into a
-      # terminating error, which would kill the step before the message below ever printed. This
-      # form always exits 0 and reports through its output instead.
-      - name: Check third-party notices are up to date
-        run: |
-          bun run licenses:test
-          bun run licenses
-          $stale = git diff --name-only -- src/assets/THIRD-PARTY-NOTICES.md
-          if ($stale) {
-            git diff -- src/assets/THIRD-PARTY-NOTICES.md
-            Write-Output "::error::THIRD-PARTY-NOTICES.md is stale - run 'bun run licenses' and commit the result."
-            exit 1
-          }
-
-      # The NSIS template is vendored (src-tauri/vendor/nsis/installer.nsi) so the
-      # installer can default to a passive, wizard-less install. A vendored
-      # handlebars template can drift from the bundler that consumes it on any CLI
-      # bump, producing a subtly wrong installer rather than a build failure - this
-      # makes that loud.
-      - name: Check the vendored NSIS template is in sync
-        run: bun run nsis:check
+        run: bun install --frozen-lockfile
 
       - name: Build Tauri (Windows)
         env:
@@ -109,7 +157,13 @@ jobs:
           SCCACHE_GHA_ENABLED: "true"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          # No SENTRY_AUTH_TOKEN here, deliberately. `bun run build` uploads frontend sourcemaps, and
+          # both release jobs build the identical frontend - so passing the token on both uploaded
+          # the same maps to the same Sentry release twice, the second upload being pure duplicate
+          # work on the job that gates the release. release-linux is the uploader now.
+          #
+          # scripts/sentry-sourcemaps.mjs skips cleanly when the token is absent rather than failing,
+          # so this omission is the whole mechanism - there is no second switch to keep in sync.
         # NSIS only, deliberately - the MSI is not a second flavour of the same
         # thing, it is a different install with a different location and a
         # different privilege model.
@@ -187,8 +241,25 @@ jobs:
             ninja-build \
             pkg-config
 
+      # Same two caches as release-windows, and they share their keys with ci.yml's frontend job -
+      # whichever runs first populates them, the rest restore. See the notes over there for why the
+      # key is bun.lock rather than the commit sha.
+      - name: Cache bun package cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+
+      - name: Cache Angular build cache
+        uses: actions/cache@v4
+        with:
+          path: .angular/cache
+          key: angular-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: angular-${{ runner.os }}-
+
       - name: Install dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Build Tauri (Linux)
         env:
@@ -196,6 +267,9 @@ jobs:
           SCCACHE_GHA_ENABLED: "true"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # The only job that uploads frontend sourcemaps - see the note in release-windows. If this
+          # job is ever dropped or made conditional, the token has to move rather than just vanish,
+          # or releases stop being symbolicated in Sentry without anything failing.
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: bun run tauri build --bundles deb,rpm
 
