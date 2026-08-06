@@ -102,7 +102,21 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-        run: bun run tauri build --bundles nsis,msi
+        # NSIS only, deliberately - the MSI is not a second flavour of the same
+        # thing, it is a different install with a different location and a
+        # different privilege model.
+        #
+        # NSIS is configured `currentUser` (see tauri.conf.json), so it installs
+        # into %LOCALAPPDATA%\Venta with no UAC prompt and the updater can install
+        # it silently with `/S /R`. The MSI installs per-machine into Program
+        # Files and needs elevation for every update; under the updater's `quiet`
+        # install mode the UAC prompt is suppressed and the install fails
+        # silently. The updater also prefers `{os}-{arch}-{installer}` over
+        # `{os}-{arch}`, so as long as an msi artifact exists and the API
+        # advertises it, MSI-installed clients keep being served the broken path.
+        #
+        # Not building it is what makes that unreachable.
+        run: bun run tauri build --bundles nsis
 
       - name: Upload Windows artifacts
         uses: softprops/action-gh-release@v2
@@ -110,8 +124,6 @@ jobs:
           tag_name: v${{ needs.create-release.outputs.version }}
           fail_on_unmatched_files: false
           files: |
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/msi/*.msi.sig
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/nsis/*.exe.sig
 
