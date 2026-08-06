@@ -4,25 +4,7 @@
     "security": {
       "csp": null
     },
-    "windows": [
-      {
-        "label": "echo",
-        "height": 800,
-        "title": "Venta",
-        "width": 1200,
-        "minWidth": 900,
-        "minHeight": 600,
-        "decorations": false,
-        "shadow": true,
-        "dragDropEnabled": false,
-        "visible": false,
-        "resizable": true,
-        "maximizable": true,
-        "minimizable": true,
-        "center": true,
-        "transparent": true
-      }
-    ]
+    "windows": []
   },
   "build": {
     "beforeBuildCommand": "bun run build",

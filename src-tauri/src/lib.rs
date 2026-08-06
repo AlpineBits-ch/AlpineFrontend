@@ -27,6 +27,11 @@ mod data_export;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod update_gate;
 
+/// The main (`echo`) window, built after the update gate rather than declared in
+/// `tauri.conf.json`. See the module docs for why that distinction matters.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod main_window;
+
 #[cfg(target_os = "windows")]
 mod windows_notifications;
 
