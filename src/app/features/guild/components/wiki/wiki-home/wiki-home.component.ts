@@ -35,6 +35,8 @@ export class WikiHomeComponent {
     readonly draftWithAi = output<void>();
     readonly openGraph = output<void>();
     readonly openSearch = output<void>();
+    /** Opens the ask panel. Ungated: asking the wiki a question is reading, not editing. */
+    readonly ask = output<void>();
 
     protected readonly pages = computed(() => this.wiki()?.pages ?? []);
     protected readonly categories = computed(() => this.wiki()?.categories ?? []);

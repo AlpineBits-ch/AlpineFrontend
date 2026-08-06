@@ -75,7 +75,8 @@
              layout jump the redesign set out to remove and the source of the repeated
              "linkify already initialized" warnings. -->
         @if (state.wikiView() === 'home') {
-            <app-wiki-home (draftWithAi)="startAiPage()"
+            <app-wiki-home (ask)="askOpen.set(true)"
+                           (draftWithAi)="startAiPage()"
                            (newPage)="state.openEditor()"
                            (openGraph)="state.openGraph()"
                            (openPage)="state.openPage($event)"

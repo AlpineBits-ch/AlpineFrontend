@@ -11,6 +11,13 @@
                 </p>
             </div>
             <div class="flex items-center gap-2">
+                <!-- Only once there is something to answer from. On the breadcrumb bar this sits
+                     next to a page you are already reading, so it is always worth offering; here
+                     it would be a question put to an empty wiki. -->
+                @if (!isEmpty()) {
+                    <p-button (onClick)="ask.emit()" [label]="'WIKI.AI.ASK.OPEN' | translate"
+                              icon="pi pi-comments" severity="secondary" size="small"/>
+                }
                 <p-button (onClick)="openSearch.emit()" [label]="'WIKI.HOME_PAGE.SEARCH' | translate"
                           icon="pi pi-search" severity="secondary" size="small"/>
                 <p-button (onClick)="newPage.emit()" [label]="'WIKI.HOME_PAGE.NEW_PAGE' | translate"
