@@ -62,3 +62,7 @@ Thumbs.db
 # rather than just adding weight. src-tauri/assets/hrir/NOTICE.md has the Zenodo record to fetch it
 # from and the command to regenerate the sphere.
 D1.zip
+
+# Transcripts from scripts/run-release.mjs. One file per run of the release build; useful to
+# attach to a bug report, never useful to commit.
+/logs

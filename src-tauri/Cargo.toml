@@ -230,6 +230,9 @@ windows = { version = "0.58", features = [
     "Win32_Security",
     "Win32_System_Com",
     "Win32_System_Com_StructuredStorage",
+    # `AttachConsole`, so a release build started from a terminal can still be read - see the note
+    # over `attach_parent_console` in src/main.rs.
+    "Win32_System_Console",
     "Win32_System_Registry",
     "Win32_System_Threading",
     "Win32_System_Variant",

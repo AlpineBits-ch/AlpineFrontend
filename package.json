@@ -96,6 +96,8 @@
     "ng": "ng",
     "start": "ng serve",
     "tauri": "tauri",
+    "tauri:ci": "tauri build --bundles nsis",
+    "tauri:ci:run": "tauri build --no-bundle && node scripts/run-release.mjs",
     "watch": "ng build --watch --configuration development",
     "sentry:sourcemaps": "node scripts/sentry-sourcemaps.mjs"
   },

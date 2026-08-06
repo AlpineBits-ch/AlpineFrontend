@@ -18,9 +18,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
-use webrtc::api::interceptor_registry::register_default_interceptors;
-use webrtc::api::media_engine::MediaEngine;
-use webrtc::api::{APIBuilder, API};
+use webrtc::api::API;
 use webrtc::media::Sample;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
@@ -36,20 +34,17 @@ use super::jitter::Packet;
 use super::mixer::Mixer;
 use super::playout;
 use super::receive::RemoteSource;
-use super::rtc::{opus_capability, route_inbound_audio, PacketSink, PublicationStats};
+use super::rtc::{opus_capability, route_inbound_audio, voice_api, PacketSink, PublicationStats};
 use super::{FRAME, SAMPLE_RATE};
 
-/// Matches `VoicePublication::start` - the codecs and interceptors are what decide whether an
-/// inbound stream can be matched to a transceiver at all.
+/// The production builder, not a copy of it.
+///
+/// Which codecs and interceptors are registered is what decides whether an inbound stream can be
+/// matched to a transceiver at all, so this used to be the most load-bearing duplicated code in the
+/// tree - it read as "matches `VoicePublication::start`" and would have stopped matching it
+/// silently.
 fn api() -> API {
-    let mut media_engine = MediaEngine::default();
-    media_engine.register_default_codecs().unwrap();
-    let mut registry = webrtc::interceptor::registry::Registry::new();
-    registry = register_default_interceptors(registry, &mut media_engine).unwrap();
-    APIBuilder::new()
-        .with_media_engine(media_engine)
-        .with_interceptor_registry(registry)
-        .build()
+    voice_api().expect("the voice API")
 }
 
 async fn pc() -> Arc<RTCPeerConnection> {
@@ -84,6 +79,110 @@ async fn negotiate(from: &RTCPeerConnection, to: &RTCPeerConnection) {
     from.set_remote_description(RTCSessionDescription::answer(remote.sdp).unwrap())
         .await
         .unwrap();
+}
+
+/// Pull a track from an SFU that starts sending *before* the pull's answer is applied.
+///
+/// This is the ordering production actually has and no other test here reproduces. A pull travels
+/// to Cloudflare over HTTP; Cloudflare forwards the track when it processes that request, not when
+/// this side finishes parsing the reply. Joining a channel where someone is already talking loses
+/// that race reliably, because their media is already flowing and is forwarded instantly.
+///
+/// Returns the mids that delivered RTP, and how many tracks opened.
+async fn subscribe_with_the_far_end_already_sending() -> (Vec<String>, u64) {
+    let client = pc().await;
+    let sfu = pc().await;
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<(String, Packet)>(256);
+    let sink: PacketSink = Arc::new(std::sync::Mutex::new(Some(tx)));
+    let stats = Arc::new(PublicationStats::default());
+    route_inbound_audio(&client, &sink, &stats);
+
+    // The publish, as `VoicePublication::start` leaves the connection - including the spare
+    // recvonly m-line, which is the whole point of the exercise.
+    let mic = Arc::new(TrackLocalStaticSample::new(
+        opus_capability(),
+        "audio".to_owned(),
+        "audio".to_owned(),
+    ));
+    client
+        .add_track(Arc::clone(&mic) as Arc<dyn TrackLocal + Send + Sync>)
+        .await
+        .unwrap();
+    client
+        .add_transceiver_from_kind(
+            RTPCodecType::Audio,
+            Some(RTCRtpTransceiverInit {
+                direction: RTCRtpTransceiverDirection::Recvonly,
+                send_encodings: vec![],
+            }),
+        )
+        .await
+        .unwrap();
+    negotiate(&client, &sfu).await;
+    pump(mic);
+
+    // The pull: a recvonly transceiver on this side, a sendonly track on the far side.
+    client
+        .add_transceiver_from_kind(
+            RTPCodecType::Audio,
+            Some(RTCRtpTransceiverInit {
+                direction: RTCRtpTransceiverDirection::Recvonly,
+                send_encodings: vec![],
+            }),
+        )
+        .await
+        .unwrap();
+    let far_end = Arc::new(TrackLocalStaticSample::new(
+        opus_capability(),
+        "remote".to_owned(),
+        "remote".to_owned(),
+    ));
+    sfu.add_transceiver_from_track(
+        Arc::clone(&far_end) as Arc<dyn TrackLocal + Send + Sync>,
+        Some(RTCRtpTransceiverInit {
+            direction: RTCRtpTransceiverDirection::Sendonly,
+            send_encodings: vec![],
+        }),
+    )
+    .await
+    .unwrap();
+
+    let offer = client.create_offer(None).await.unwrap();
+    client.set_local_description(offer).await.unwrap();
+    gather(&client).await;
+    let local = client.local_description().await.unwrap();
+    sfu.set_remote_description(RTCSessionDescription::offer(local.sdp).unwrap())
+        .await
+        .unwrap();
+    let answer = sfu.create_answer(None).await.unwrap();
+    sfu.set_local_description(answer).await.unwrap();
+    gather(&sfu).await;
+    let remote = sfu.local_description().await.unwrap();
+
+    // The far end is sending, and this side has not applied the answer yet. Everything this test
+    // exists for happens in the next half second.
+    pump(far_end);
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    client
+        .set_remote_description(RTCSessionDescription::answer(remote.sdp).unwrap())
+        .await
+        .unwrap();
+
+    let mut seen: Vec<String> = Vec::new();
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(20);
+    while seen.is_empty() {
+        match tokio::time::timeout_at(deadline, rx.recv()).await {
+            Ok(Some((mid, _))) => {
+                if !seen.contains(&mid) {
+                    seen.push(mid);
+                }
+            }
+            _ => break,
+        }
+    }
+    (seen, stats.tracks_opened.load(Ordering::Relaxed))
 }
 
 /// Feed a track continuously, so the receiver has something to read for the whole test.
@@ -379,6 +478,32 @@ async fn a_pulled_track_delivers_rtp() {
 /// handled - `on_track` never fires for them and not one packet is read. Two tracks is the smallest
 /// case that shows it, and two is what a call has as soon as a second person is in it, or as soon as
 /// one person's subscription is replaced.
+/// The regression that made joining a busy channel silent.
+///
+/// `webrtc-rs` has a fallback for RTP whose SSRC was never declared in SDP, guarded on the remote
+/// description having *exactly one* media section. Cloudflare declares no SSRC and starts forwarding
+/// a pulled track before the pull's answer gets back here, so a publish-only session hit that
+/// fallback - and it invents a transceiver rather than matching the one already waiting. The
+/// invented one has no mid, the SSRC binds to it permanently, and that participant is inaudible for
+/// the rest of the call while every counter and state above it reads healthy.
+///
+/// `VoicePublication::start` offers a spare recvonly m-line so the session is never one m-line wide
+/// and the fallback can never fire. Removing it makes this test open a track with no mid.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_track_already_flowing_when_it_is_pulled_still_arrives_on_its_mid() {
+    let (mids, opened) = subscribe_with_the_far_end_already_sending().await;
+    assert_eq!(
+        opened, 1,
+        "the track must open against the transceiver that was waiting for it, not an invented one"
+    );
+    assert_eq!(
+        mids.len(),
+        1,
+        "a track that was already flowing when it was pulled must still deliver RTP on a mid, got \
+         {mids:?}"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn every_pulled_track_delivers_rtp_not_just_the_first() {
     let (mids, opened) = subscribe_and_read(3).await;

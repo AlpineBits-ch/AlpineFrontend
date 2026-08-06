@@ -79,6 +79,102 @@ fn slot_for(target: &VoiceTarget) -> &'static str {
     }
 }
 
+/// How often a running call reports every counter in the pipeline to the log.
+///
+/// Five seconds is short enough to see a call start working (or not) while someone is on the phone
+/// about it, and long enough that a two-hour call does not fill a log file.
+const STATS_LOG_INTERVAL: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Whether [`spawn_stats_logger`] already has a task running.
+static STATS_LOGGER_RUNNING: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Report the whole pipeline to the log, once per [`STATS_LOG_INTERVAL`], while a call is up.
+///
+/// Every counter this prints already existed and was already exposed by [`voice_stats`] - and was
+/// readable only by a developer with the devtools console open, driving a Tauri command by hand. In
+/// a shipped build nobody could reach it, which is how "the call connects and nobody can hear
+/// anyone" stayed unattributable: the connection reports healthy at every layer that logs, and the
+/// layers that know better are silent.
+///
+/// The most recent case was a client capturing from a headset's loopback line instead of its
+/// microphone. It connected, negotiated, sent RTP on schedule and transported pure silence, and
+/// nothing in any log distinguished it from a working call. `rms` below is the number that does:
+/// a live microphone is never exactly zero, so a capture RMS pinned at 0.0000 with frames climbing
+/// means the device is open and mute - the wrong device, a muted input, or a driver problem - and
+/// not a fault anywhere else in the pipeline.
+///
+/// Deltas rather than totals, because the totals only ever say a stage once ran, while the deltas
+/// say whether it is running now. Absolute values are kept for the two gauges (`rms`) where the
+/// level is the point.
+fn spawn_stats_logger() {
+    use std::sync::atomic::Ordering as AtomicOrdering;
+
+    // One reporter for the client, however many calls are running - it reports on all of them.
+    if STATS_LOGGER_RUNNING.swap(true, AtomicOrdering::SeqCst) {
+        return;
+    }
+
+    tokio::spawn(async move {
+        let mut previous: Option<VoiceStats> = None;
+        loop {
+            tokio::time::sleep(STATS_LOG_INTERVAL).await;
+            let now = voice_stats();
+
+            // The engine is gone, so the call ended. Release the flag so the next call starts a
+            // fresh reporter rather than running without one for the rest of the session.
+            if !now.running {
+                STATS_LOGGER_RUNNING.store(false, AtomicOrdering::SeqCst);
+                return;
+            }
+
+            let since = |current: u64, field: fn(&VoiceStats) -> u64| {
+                current.saturating_sub(previous.as_ref().map_or(0, field))
+            };
+
+            eprintln!(
+                "[voice] capture: rms {:.4} frames +{} encoded +{} gate {} muted {} deafened {}",
+                now.capture_rms,
+                since(now.frames_captured, |s| s.frames_captured),
+                since(now.packets_encoded, |s| s.packets_encoded),
+                if now.gate_open { "open" } else { "closed" },
+                now.muted,
+                now.deafened,
+            );
+
+            for publication in &now.publications {
+                // Matched by slot rather than by position: publications come and go, and a
+                // positional comparison would silently attribute one call's deltas to another.
+                let was = previous.as_ref().and_then(|p| {
+                    p.publications
+                        .iter()
+                        .find(|other| other.slot == publication.slot)
+                });
+                let delta = |current: u64, field: fn(&PublicationReport) -> u64| {
+                    current.saturating_sub(was.map_or(0, field))
+                };
+
+                eprintln!(
+                    "[voice] {}: {}/{} sent +{} dropped +{} errors +{} | tracks {} rtp +{} routed +{} unmapped +{} | subscribed {:?}",
+                    publication.slot,
+                    publication.peer_state,
+                    publication.ice_state,
+                    delta(publication.packets_sent, |p| p.packets_sent),
+                    delta(publication.packets_dropped, |p| p.packets_dropped),
+                    delta(publication.write_errors, |p| p.write_errors),
+                    publication.tracks_opened,
+                    delta(publication.rtp_received, |p| p.rtp_received),
+                    delta(publication.rtp_routed, |p| p.rtp_routed),
+                    delta(publication.rtp_unmapped, |p| p.rtp_unmapped),
+                    publication.subscribed,
+                );
+            }
+
+            previous = Some(now);
+        }
+    });
+}
+
 /// How long the gate holds open after the signal drops below the threshold.
 ///
 /// Long enough to ride over the pauses between words, short enough not to hold the channel open
@@ -210,8 +306,16 @@ pub async fn voice_start(
     };
     let slot = slot_for(&target).to_owned();
 
+    // The first thing this command does, so that a join which fails before the devices open is
+    // still visible. Everything below logs on its own; the stretch above `Engine::start` did not,
+    // so a `voice_start` that returned `Err` early was indistinguishable in the log from a join
+    // that never happened - the console simply stopped after the openh264 line and the user was
+    // dropped back out of the channel with no explanation on either side.
+    eprintln!("[voice] joining {target:?} as slot {slot}");
+
     // Primary: this is the session the backend records as the participant's audio.
-    let signalling = Signalling::new(api_base, token, device_id, target, SessionRole::Primary)?;
+    let signalling = Signalling::new(api_base, token, device_id, target, SessionRole::Primary)
+        .inspect_err(|e| eprintln!("[voice] could not start signalling: {e}"))?;
 
     // Start the engine if this is the first call. `started_here` is kept so a connect that fails
     // below can close the devices again rather than leaving the microphone open for a call that
@@ -240,6 +344,7 @@ pub async fn voice_start(
     let inner = match VoicePublication::start(signalling, ice_servers).await {
         Ok(inner) => Arc::new(inner),
         Err(e) => {
+            eprintln!("[voice] could not connect the publication: {e}");
             if started_here {
                 stop_engine_if_idle();
             }
@@ -252,6 +357,9 @@ pub async fn voice_start(
         return Err("the voice engine stopped while this call was connecting".into());
     };
     let publication = active.attach(slot.clone(), inner, on_event);
+
+    // After the publication is attached, so the first report already has a call to describe.
+    spawn_stats_logger();
 
     Ok(VoiceStartResult {
         cf_session_id: publication.cf_session_id.clone(),

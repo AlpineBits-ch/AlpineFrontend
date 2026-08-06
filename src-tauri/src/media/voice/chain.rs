@@ -482,6 +482,56 @@ mod tests {
         );
     }
 
+    /// A tone with a speech-like envelope: two 250 ms bursts a second, not a continuous sine.
+    ///
+    /// Continuous anything is what a noise suppressor is built to remove - it estimates the
+    /// *stationary* part of the spectrum and subtracts it - so a steady tone through the real APM
+    /// would fade out on its own and say nothing about whether speech survives.
+    fn speech_like(samples: usize) -> Vec<f32> {
+        (0..samples)
+            .map(|i| {
+                let t = i as f32 / SAMPLE_RATE as f32;
+                let speaking = (t * 2.0).fract() < 0.5;
+                if speaking {
+                    (t * 440.0 * std::f32::consts::TAU).sin() * 0.5
+                } else {
+                    0.0
+                }
+            })
+            .collect()
+    }
+
+    /// The chain configured the way the client actually ships it.
+    ///
+    /// Every other test in this module runs with echo cancellation, noise suppression and gain
+    /// control all switched *off*, which means they run against `process::Passthrough` whether or
+    /// not the `aec` feature is compiled in. The shipped default is the opposite of that on all
+    /// three counts, so the one configuration users actually run was the one configuration nothing
+    /// covered - and with `aec` on, `process_capture` is the first stage the signal meets.
+    ///
+    /// Gated on the feature because that is precisely the difference under test: a build without it
+    /// gets the passthrough and cannot say anything about the build that does not.
+    #[cfg(feature = "aec")]
+    #[test]
+    fn the_shipped_processing_defaults_still_let_speech_through() {
+        let mut chain = CaptureChain::new(
+            SAMPLE_RATE,
+            ChainConfig {
+                processing: ProcessConfig::default(),
+                ..config()
+            },
+        )
+        .unwrap();
+
+        // Two seconds, so the APM's adaptive stages have converged before the measurement matters.
+        let peak = decoded_peak(&mut chain, &speech_like(SAMPLE_RATE as usize * 2));
+        assert!(
+            peak > 0.05,
+            "with the shipped processing defaults the far end receives a peak of {peak}, which is \
+             silence - the capture chain is being emptied before it reaches the encoder"
+        );
+    }
+
     #[test]
     fn input_arriving_in_ragged_chunks_still_packetises_cleanly() {
         // A device buffer is not a multiple of anything in particular, so the chain must not assume

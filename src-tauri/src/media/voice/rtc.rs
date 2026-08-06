@@ -67,6 +67,28 @@ pub fn opus_capability() -> RTCRtpCodecCapability {
     }
 }
 
+/// The API every voice peer connection is built from.
+///
+/// Public, and used by `super::e2e_tests` rather than copied there. Which codecs and interceptors
+/// are registered is precisely what decides whether an inbound stream can be matched to a
+/// transceiver at all, so a test that builds its own media engine tests its own media engine - and
+/// a copy that drifts from this one passes while the client cannot hear anybody.
+pub fn voice_api() -> Result<webrtc::api::API, String> {
+    let mut media_engine = MediaEngine::default();
+    media_engine
+        .register_default_codecs()
+        .map_err(|e| e.to_string())?;
+
+    let mut registry = Registry::new();
+    registry =
+        register_default_interceptors(registry, &mut media_engine).map_err(|e| e.to_string())?;
+
+    Ok(APIBuilder::new()
+        .with_media_engine(media_engine)
+        .with_interceptor_registry(registry)
+        .build())
+}
+
 /// Where RTP from subscribed tracks goes, keyed by the mid Cloudflare assigned.
 ///
 /// Set once by the session after construction. Behind a mutex only because the handler is installed
@@ -251,19 +273,7 @@ impl VoicePublication {
         signalling: Signalling,
         ice_servers: Vec<IceServerConfig>,
     ) -> Result<Self, String> {
-        let mut media_engine = MediaEngine::default();
-        media_engine
-            .register_default_codecs()
-            .map_err(|e| e.to_string())?;
-
-        let mut registry = Registry::new();
-        registry = register_default_interceptors(registry, &mut media_engine)
-            .map_err(|e| e.to_string())?;
-
-        let api = APIBuilder::new()
-            .with_media_engine(media_engine)
-            .with_interceptor_registry(registry)
-            .build();
+        let api = voice_api()?;
 
         let config = RTCConfiguration {
             ice_servers: ice_servers
@@ -301,6 +311,46 @@ impl VoicePublication {
             let mut buf = vec![0u8; 1500];
             while rtp_sender.read(&mut buf).await.is_ok() {}
         });
+
+        // A spare recvonly m-line, offered now and never used, purely so this session's remote
+        // description is never *exactly* one media section.
+        //
+        // This looks like waste and is load-bearing. `webrtc-rs` has a fallback for RTP whose SSRC
+        // was never declared in SDP - `handle_undeclared_ssrc` - and it is guarded on the remote
+        // description having exactly one media section. Cloudflare declares no SSRC for a pulled
+        // track and starts forwarding it the moment it processes the pull, which is strictly before
+        // the pull's HTTP response gets back here and is applied. In that window a publish-only
+        // session has exactly one m-line, the fallback fires, and instead of matching the stream to
+        // the recvonly transceiver waiting for it, `webrtc-rs` *invents* a transceiver for it. An
+        // invented transceiver has no mid, and the SSRC is bound to it permanently - so
+        // `route_inbound_audio` logs "a remote track opened with no mid" and that participant is
+        // inaudible for the rest of the call, with the connection reporting healthy throughout.
+        //
+        // Observed in a release build, in order: the track opened *before* the "pulled 1 track(s)"
+        // line was printed, and `rtp_received` stayed at zero for the rest of the session. It is a
+        // race, not a certainty - joining an empty channel usually wins it, because the other side's
+        // media starts later - but joining a channel someone is already talking in loses it
+        // reliably, because their media is already flowing at Cloudflare and is forwarded instantly.
+        //
+        // With a second m-line present the fallback can never fire. Early RTP then fails the
+        // `sdes:mid` extension check inside `handle_incoming_rtp_stream` and is rejected *before*
+        // `streams_for_ssrc` binds anything, and that rejection is harmless: `accept` and `open`
+        // share one stream map in `webrtc-srtp`, so the stream stays registered and buffering, and
+        // the receiver started by the answer picks up the same stream with the right transceiver
+        // and the right mid.
+        //
+        // Added after `add_track`, deliberately: the mid reported to Cloudflare below is read from
+        // the *first* transceiver, which has to stay the microphone's.
+        peer_connection
+            .add_transceiver_from_kind(
+                RTPCodecType::Audio,
+                Some(RTCRtpTransceiverInit {
+                    direction: RTCRtpTransceiverDirection::Recvonly,
+                    send_encodings: vec![],
+                }),
+            )
+            .await
+            .map_err(|e| e.to_string())?;
 
         let stats = Arc::new(PublicationStats::default());
 
@@ -577,12 +627,31 @@ impl VoicePublication {
         // Before the answer, not after. See the note on this function.
         register(&mids);
 
+        // The two ends of the window in which "a remote track opened with no mid" happens.
+        //
+        // Cloudflare starts sending a pulled track when it processes the pull, not when this side
+        // finishes applying the answer - and until that answer is applied the remote description is
+        // still the publish's single m-line. `webrtc-rs` treats a stream arriving then as having an
+        // undeclared SSRC, and its handling for that case (`handle_undeclared_ssrc`) *invents* a
+        // transceiver rather than matching one. An invented transceiver has no mid, and the SSRC is
+        // bound to it permanently, so that participant is inaudible for the rest of the session.
+        //
+        // These two lines are what say whether that is what happened: a "no mid" between them is
+        // this race, and one after "answer applied" is something else entirely.
+        eprintln!(
+            "[voice] pulled {} track(s) on mid(s) {:?}; applying the answer",
+            mids.len(),
+            mids
+        );
+
         let answer = RTCSessionDescription::answer(response.session_description.sdp)
             .map_err(|e| e.to_string())?;
         self.peer_connection
             .set_remote_description(answer)
             .await
             .map_err(|e| e.to_string())?;
+
+        eprintln!("[voice] answer applied for mid(s) {mids:?}");
 
         if response.requires_immediate_renegotiation {
             self.renegotiate().await?;
