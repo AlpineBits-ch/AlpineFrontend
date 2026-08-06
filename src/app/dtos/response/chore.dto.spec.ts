@@ -8,7 +8,7 @@ import {
     isChoreDone,
     isChoreOutstanding,
     isChoreSkipped,
-    isOccurrenceSnapshot,
+    carriesOccurrence,
     occurrenceStatus,
     wasDoneByProxy,
 } from './chore.dto';
@@ -151,25 +151,26 @@ describe('choreAssignmentError', () => {
     });
 });
 
-describe('isOccurrenceSnapshot', () => {
-    it('recognises the complete/un-complete/swap shape, which carries a full occurrence', () => {
+describe('carriesOccurrence', () => {
+    it('accepts the one shape the event now has - a full occurrence, from all four verbs', () => {
         const payload: ChoreOccurrenceUpdated = {
             guildId: 'gild_1',
             channelId: 'chan_1',
             occurrence: occurrence({completedAt: '2026-08-03T19:12:00.000Z'}),
         };
-        expect(isOccurrenceSnapshot(payload)).toBe(true);
+        expect(carriesOccurrence(payload)).toBe(true);
     });
 
-    it('recognises the skip shape, which carries only an id and a flag', () => {
-        // The second payload shape sent under `guild.ChoreOccurrenceUpdated`. A handler that
-        // assumed the first would dereference `undefined.id` inside the SignalR callback.
-        const payload: ChoreOccurrenceUpdated = {
+    it('rejects the retired skip marker rather than letting a stale server throw', () => {
+        // What skip used to broadcast: an id and a flag, no occurrence. A handler that assumed
+        // the snapshot would dereference `undefined.id` inside the SignalR callback and take every
+        // later handler for that event down with it.
+        const stale = {
             guildId: 'gild_1',
             channelId: 'chan_1',
             occurrenceId: 'occr_1',
             skipped: true,
-        };
-        expect(isOccurrenceSnapshot(payload)).toBe(false);
+        } as unknown as ChoreOccurrenceUpdated;
+        expect(carriesOccurrence(stale)).toBe(false);
     });
 });

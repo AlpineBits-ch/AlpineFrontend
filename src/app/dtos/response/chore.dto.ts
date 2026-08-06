@@ -107,44 +107,53 @@ export interface ChoreOccurrenceCreated {
 }
 
 /**
- * `guild.ChoreOccurrenceUpdated`, shape 1 of 2: a full snapshot.
+ * `guild.ChoreOccurrenceUpdated` - complete, un-complete, skip and swap all send a full snapshot.
  *
- * <p>Sent by complete/un-complete (`ChoreEndpoint.cs:290`) and by swap (`:355`).</p>
+ * <p>Skip used to be the exception, broadcasting a bare `{occurrenceId, skipped}` marker with no
+ * occurrence on it; the server no longer does that, and `POST /skip` returns the row as well
+ * instead of an empty `200`. The union that carried the second shape is gone with it.</p>
  */
-export interface ChoreOccurrenceSnapshot {
+export interface ChoreOccurrenceUpdated {
     guildId: string;
     channelId: string;
     occurrence: ChoreOccurrence;
 }
 
 /**
- * `guild.ChoreOccurrenceUpdated`, shape 2 of 2: a bare skip marker.
+ * Whether an arriving payload actually carries its occurrence.
  *
- * <p>Sent by skip (`ChoreEndpoint.cs:321`) and carrying <b>no occurrence</b> - just the id and a
- * flag. A handler written against shape 1 alone reads `payload.occurrence.id` off `undefined` and
- * throws inside the SignalR callback, which silently kills the rest of that dispatch. Hence the
- * union and {@link isOccurrenceSnapshot}.</p>
+ * <p>The contract now says it always does. This stays as a guard rather than an assumption because
+ * the cost of the two is wildly asymmetric: a server that has not been rolled forward yet sends the
+ * old skip marker, and dereferencing `payload.occurrence.id` off `undefined` throws <i>inside the
+ * SignalR callback</i>, which silently kills the rest of that dispatch - every later handler for the
+ * same event included. Dropping one stale payload loses a skip that the next board load corrects.</p>
  */
-export interface ChoreOccurrenceSkipMarker {
+export function carriesOccurrence(payload: ChoreOccurrenceUpdated): boolean {
+    const candidate = payload as Partial<ChoreOccurrenceUpdated>;
+    return !!candidate.occurrence && typeof candidate.occurrence === 'object';
+}
+
+/**
+ * `guild.ChoreReminder` - this occurrence is due and the assignee is being told.
+ *
+ * <p>Sent <b>to the assignee only</b>, at most once per occurrence, and never for a chore that is
+ * already more than twelve hours overdue - by then the board says so on its own, and it is what
+ * stops a guild coming back from an outage buzzing everyone at once. A reminder that would land
+ * inside the guild's quiet hours is held until the window ends and nothing is emitted meanwhile, so
+ * there is no pending state to draw.</p>
+ *
+ * <p>The same event is the payload of the household push (`type: "household"`,
+ * `kind: "chore.due"`, `targetId` the occurrence id). A member who has muted the guild still gets
+ * this event and gets no push.</p>
+ */
+export interface ChoreReminder {
     guildId: string;
     channelId: string;
     occurrenceId: string;
-    skipped: boolean;
-}
-
-/** Two different payload shapes ship under this one event name. Discriminate before use. */
-export type ChoreOccurrenceUpdated = ChoreOccurrenceSnapshot | ChoreOccurrenceSkipMarker;
-
-/**
- * Which of the two `guild.ChoreOccurrenceUpdated` shapes arrived.
- *
- * <p>Tests for a present `occurrence` <i>object</i> rather than for an absent `occurrenceId`: a
- * future third call site that adds fields to the snapshot still lands here, whereas one that adds
- * `occurrenceId` alongside a snapshot would have been misrouted by the negative test.</p>
- */
-export function isOccurrenceSnapshot(payload: ChoreOccurrenceUpdated): payload is ChoreOccurrenceSnapshot {
-    const candidate = payload as Partial<ChoreOccurrenceSnapshot>;
-    return !!candidate.occurrence && typeof candidate.occurrence === 'object';
+    choreId: string;
+    /** Denormalized, so a notification body renders without the board being loaded. */
+    title: string;
+    dueAt: string;
 }
 
 // ── Derived state ───────────────────────────────────────────────────────────

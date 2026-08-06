@@ -1,9 +1,10 @@
 import {inject, Injectable} from '@angular/core';
-import {HttpClient} from '@angular/common/http';
+import {HttpClient, HttpParams} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {ApiConfigService} from './api-config.service';
 import {
     Expense,
+    ExpensePage,
     LedgerBalance,
     LedgerConfig,
     Settlement,
@@ -15,6 +16,12 @@ import {
     UpdateExpenseDto,
     UpdateLedgerConfigDto,
 } from '../dtos/request/ledger.dto';
+
+/**
+ * Rows per page. The server's own default, and comfortably more than a screen - a household ledger
+ * is read in months, so the first page is almost always the whole conversation.
+ */
+export const EXPENSE_PAGE_SIZE = 50;
 
 /**
  * The ledger HTTP surface, and nothing else.
@@ -38,9 +45,19 @@ export class LedgerApiService {
 
     // ── Expenses ─────────────────────────────────────────────────────────────
 
-    /** Every expense in the channel. Amounts are minor units; the shares come back expanded. */
-    listExpenses(channelId: string): Observable<Expense[]> {
-        return this.http.get<Expense[]>(`${this.base}/channels/${channelId}/expenses`);
+    /**
+     * One page of the channel's expenses, newest first. Amounts are minor units; shares come back
+     * expanded.
+     *
+     * <p>Paged, not a bare array - reading `response.length` gets `undefined` and rendering an
+     * empty ledger. `limit` caps at 200 server-side; `cursor` is {@link ExpensePage.nextCursor}
+     * from the previous page and nothing else. A cursor the server cannot parse is a `400`, not a
+     * silent rewind to the first page, so a stale one must never be retried as if it were empty.</p>
+     */
+    listExpenses(channelId: string, limit = EXPENSE_PAGE_SIZE, cursor?: string | null): Observable<ExpensePage> {
+        let params = new HttpParams().set('limit', limit);
+        if (cursor) params = params.set('cursor', cursor);
+        return this.http.get<ExpensePage>(`${this.base}/channels/${channelId}/expenses`, {params});
     }
 
     /**

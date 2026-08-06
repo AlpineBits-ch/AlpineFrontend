@@ -12,11 +12,16 @@ import {PantryApiService} from './pantry-api.service';
 import {RealtimeConnectionService} from './realtime-connection.service';
 
 /**
- * The look-ahead used by the house-wide expiring view until the user picks another one.
- * Matches the example in the API guide; it is a query window, not a pantry's own badge
- * threshold, which is why it does not read `expiryWarningDays` from anywhere.
+ * The house-wide expiring view's default window: **none**, meaning every pantry answers with its
+ * own `expiryWarningDays`.
+ *
+ * <p>It used to be a flat 3, which the endpoint applied to everything - so a freezer configured for
+ * 14 days reported nothing until two days before its contents went off, and the one number could
+ * not be right for a fridge and a cellar at the same time. A number here is now an explicit
+ * override of every pantry at once, which is only what the "what goes off this month" question
+ * wants.</p>
  */
-export const DEFAULT_EXPIRING_DAYS = 3;
+export const DEFAULT_EXPIRING_DAYS: number | null = null;
 
 /**
  * What the badge column falls back to for a pantry whose config has not arrived yet. Only
@@ -146,8 +151,11 @@ export class PantryService {
      * The house-wide expiring answer. Refetched when the window changes or the cache was
      * marked stale by an item event; otherwise served from cache, because this view is
      * opened and closed repeatedly while shopping.
+     *
+     * <p>`days` defaults to null, which lets every pantry apply its own `expiryWarningDays`. Pass a
+     * number only to override all of them together.</p>
      */
-    loadExpiring(guildId: string, days = DEFAULT_EXPIRING_DAYS, force = false): void {
+    loadExpiring(guildId: string, days: number | null = DEFAULT_EXPIRING_DAYS, force = false): void {
         if (this.expiringBusy(guildId)) return;
         if (!force && !this.expiringStale.has(guildId) && guildId in this.expiringByGuild()) return;
 

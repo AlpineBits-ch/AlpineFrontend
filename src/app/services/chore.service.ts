@@ -1,5 +1,6 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {HttpErrorResponse} from '@angular/common/http';
+import {TranslateService} from '@ngx-translate/core';
 import {catchError, defer, forkJoin, Observable, tap, throwError} from 'rxjs';
 import {
     Chore,
@@ -9,12 +10,14 @@ import {
     ChoreOccurrence,
     ChoreOccurrenceCreated,
     ChoreOccurrenceUpdated,
+    ChoreReminder,
     ChoreUpdated,
     CHORE_LIMITS,
-    isOccurrenceSnapshot,
+    carriesOccurrence,
 } from '../dtos/response/chore.dto';
 import {CreateChoreDto, UpdateChoreDto} from '../dtos/request/chore.dto';
 import {ChoreApiService} from './chore-api.service';
+import {NotificationService, NotificationSound} from './notification.service';
 import {ProfileService} from './profile.service';
 import {RealtimeConnectionService} from './realtime-connection.service';
 
@@ -90,11 +93,21 @@ export class ChoreService {
     private api = inject(ChoreApiService);
     private profileService = inject(ProfileService);
     private realtime = inject(RealtimeConnectionService);
+    private notifications = inject(NotificationService);
+    private translate = inject(TranslateService);
 
     private channels = signal<Record<string, ChoreChannelState>>({});
 
     /** One pending balance refetch per channel; see {@link BALANCE_COALESCE_MS}. */
     private balanceTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+    /**
+     * Occurrences already reminded about this session, so a reconnect does not re-buzz.
+     *
+     * <p>Unbounded on purpose: it is one short id per chore that actually fell due, and a session
+     * would have to run for months to collect a meaningful number of them.</p>
+     */
+    private remindedOccurrenceIds = new Set<string>();
 
     constructor() {
         // Registered exactly once, here, because `RealtimeConnectionService.on` does not
@@ -111,6 +124,8 @@ export class ChoreService {
             (d: ChoreOccurrenceCreated) => this.onOccurrenceCreated(d));
         this.realtime.on('guild.ChoreOccurrenceUpdated',
             (d: ChoreOccurrenceUpdated) => this.onOccurrenceUpdated(d));
+        this.realtime.on('guild.ChoreReminder',
+            (d: ChoreReminder) => this.onReminder(d));
     }
 
     // ── Reads ───────────────────────────────────────────────────────────────
@@ -307,43 +322,64 @@ export class ChoreService {
     }
 
     /**
-     * `guild.ChoreOccurrenceUpdated` arrives in two different shapes under one name.
+     * `guild.ChoreOccurrenceUpdated` - one shape for all four verbs, a full occurrence every time.
      *
-     * <p>Complete, un-complete and swap send a full occurrence. <b>Skip sends only
-     * `{occurrenceId, skipped}`</b> - no snapshot at all - so the branch below has to patch the
-     * row this client already holds rather than replace it.</p>
+     * <p>Skip used to broadcast a bare `{occurrenceId, skipped}` marker instead, which this had to
+     * reconcile against the row already held. It no longer does; {@link carriesOccurrence} is all
+     * that remains of that, and it only drops a payload from a server that has not rolled forward
+     * rather than letting it throw inside the SignalR callback.</p>
      */
     private onOccurrenceUpdated(payload: ChoreOccurrenceUpdated): void {
         if (!this.isTracked(payload.channelId)) return;
+        if (!carriesOccurrence(payload)) return;
 
-        if (isOccurrenceSnapshot(payload)) {
-            const previous = this.occurrenceById(payload.channelId, payload.occurrence.id);
-            this.replaceOccurrence(payload.occurrence);
-            // Only a change in completion moves minutes. A swap arrives through this same branch
-            // and must not trigger a refetch.
-            if ((previous?.completedAt ?? null) !== (payload.occurrence.completedAt ?? null)) {
-                this.scheduleBalanceRefresh(payload.channelId);
-            }
-            return;
+        const previous = this.occurrenceById(payload.channelId, payload.occurrence.id);
+        this.replaceOccurrence(payload.occurrence);
+
+        // Only a change in completion moves minutes. Skip and swap arrive through this same path
+        // and must not trigger a refetch: a skip credits nobody - that is the whole point of it -
+        // and a swap moves a turn without completing anything.
+        if ((previous?.completedAt ?? null) !== (payload.occurrence.completedAt ?? null)) {
+            this.scheduleBalanceRefresh(payload.channelId);
         }
+    }
 
-        const existing = this.occurrenceById(payload.channelId, payload.occurrenceId);
-        // A skip for a turn outside the loaded window is not worth a fetch: nothing renders it.
-        if (!existing) return;
+    /**
+     * `guild.ChoreReminder` - the turn is due and this user is the one who owes it.
+     *
+     * <p><b>Deliberately not behind the tracked-channel guard</b> that every other handler here
+     * sits behind. A reminder whose point is to reach somebody who is not looking at the chore
+     * board must not be dropped because they are not looking at the chore board.</p>
+     *
+     * <p>Nothing else is needed to make it correct: the server sends it to the assignee alone, at
+     * most once per occurrence, never for a chore already more than twelve hours overdue, and holds
+     * one that would land inside the guild's quiet hours until the window ends. So there is no
+     * filtering, no pending state and no "is this mine" check to do here - and no re-broadcast that
+     * would let a house of five buzz all five phones for one person's bins.</p>
+     *
+     * <p>The dedupe below is for redelivery across a reconnect, which the once-per-occurrence
+     * guarantee does not cover.</p>
+     */
+    private onReminder(payload: ChoreReminder): void {
+        if (!payload?.occurrenceId) return;
+        if (this.remindedOccurrenceIds.has(payload.occurrenceId)) return;
+        this.remindedOccurrenceIds.add(payload.occurrenceId);
 
-        this.replaceOccurrence(payload.skipped
-            // The marker carries no timestamp. This one is only ever read as "is it skipped" and
-            // to order the skipped list; it is replaced by the server's value on the next load,
-            // and it is never compared against a server timestamp.
-            ? {
-                ...existing,
-                skippedAt: existing.skippedAt ?? new Date().toISOString(),
-                completedAt: null,
-                completedByUserId: null,
-            }
-            : {...existing, skippedAt: null});
-
-        // Deliberately no balance refresh - see `skip`.
+        this.notifications.createNotification({
+            // The event denormalizes the title precisely so this renders without the board loaded.
+            title: this.translate.instant('CHORES.REMINDER_TITLE'),
+            message: payload.title || this.translate.instant('CHORES.REMINDER_FALLBACK'),
+            sound: NotificationSound.NewMessage,
+            actionTypeId: 'message',
+            // The same keys the household push carries, so a click has what a deep-link needs.
+            extra: {
+                type: 'household',
+                kind: 'chore.due',
+                targetId: payload.occurrenceId,
+                guildId: payload.guildId,
+                channelId: payload.channelId,
+            },
+        }).catch(() => undefined);
     }
 
     // ── Internals ───────────────────────────────────────────────────────────

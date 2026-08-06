@@ -22,9 +22,9 @@ export const GuildFeature = {
     Wiki: 'Wiki',
     Events: 'Events',
 
-    // Household modules - flag values only today, with no endpoints, channel types
-    // or permissions behind them. Listed so the modules page can show what a
-    // Household preset switched on, but nothing gates on them yet.
+    // Household modules. Each one gates real endpoints, and the first five gate a channel
+    // type apiece - a guild without the module answers `403` to every call behind it and
+    // refuses to create the channel, for everybody including the owner.
     Lists: 'Lists',
     Chores: 'Chores',
     Ledger: 'Ledger',

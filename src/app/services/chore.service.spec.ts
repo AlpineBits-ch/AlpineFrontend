@@ -7,6 +7,8 @@ import {ChoreService} from './chore.service';
 import {ApiConfigService} from './api-config.service';
 import {ProfileService} from './profile.service';
 import {RealtimeConnectionService} from './realtime-connection.service';
+import {NotificationService} from './notification.service';
+import {TranslateService} from '@ngx-translate/core';
 import {Chore, ChoreBalanceEntry, ChoreOccurrence, occurrenceStatus} from '../dtos/response/chore.dto';
 
 const BASE = 'https://api.test.example';
@@ -66,8 +68,12 @@ function occurrence(overrides: Partial<ChoreOccurrence> = {}): ChoreOccurrence {
     };
 }
 
+/** Every OS notification the service raised, newest last. */
+const notifications: {title: string; message: string; extra?: Record<string, string>}[] = [];
+
 function setup() {
     hubHandlers.clear();
+    notifications.length = 0;
     // Explicit, so one test that throws before its module is torn down does not turn every later
     // test in the file into "the test module has already been instantiated".
     TestBed.resetTestingModule();
@@ -86,6 +92,16 @@ function setup() {
                     },
                 },
             },
+            {
+                provide: NotificationService,
+                useValue: {
+                    createNotification: (params: {title: string; message: string; extra?: Record<string, string>}) => {
+                        notifications.push(params);
+                        return Promise.resolve();
+                    },
+                },
+            },
+            {provide: TranslateService, useValue: {instant: (key: string) => key}},
         ],
     });
     const service = TestBed.inject(ChoreService);
@@ -131,17 +147,79 @@ describe('ChoreService realtime registration', () => {
     it('registers each of the five chore events exactly once', () => {
         setup();
         // `RealtimeConnectionService.on` does not deduplicate, so a second registration would
-        // deliver every event twice - and for the skip marker that means two local patches of one
-        // server-side change.
+        // deliver every event twice - and a doubled occurrence event means two balance refetches
+        // for one server-side change.
         for (const event of [
             'guild.ChoreCreated',
             'guild.ChoreUpdated',
             'guild.ChoreDeleted',
             'guild.ChoreOccurrenceCreated',
             'guild.ChoreOccurrenceUpdated',
+            'guild.ChoreReminder',
         ]) {
             expect(hubHandlers.get(event)?.length).toBe(1);
         }
+    });
+});
+
+describe('ChoreService guild.ChoreReminder', () => {
+    function reminder(overrides: Record<string, unknown> = {}) {
+        return {
+            guildId: 'gild_1',
+            channelId: CHANNEL,
+            occurrenceId: 'occr_1',
+            choreId: 'chor_1',
+            title: 'Take the bins out',
+            dueAt: '2026-08-03T18:00:00.000Z',
+            ...overrides,
+        };
+    }
+
+    it('notifies even when the board was never opened - that is the point of a reminder', () => {
+        // No `loadFor`, so this channel is untracked and every other handler would drop the event.
+        const {service} = setup();
+        expect(service).toBeTruthy();
+
+        fire('guild.ChoreReminder', reminder());
+
+        expect(notifications.length).toBe(1);
+        expect(notifications[0].message).toBe('Take the bins out');
+    });
+
+    it('carries the household push keys, so a click has what a deep-link needs', () => {
+        setup();
+        fire('guild.ChoreReminder', reminder());
+
+        expect(notifications[0].extra).toEqual({
+            type: 'household',
+            kind: 'chore.due',
+            targetId: 'occr_1',
+            guildId: 'gild_1',
+            channelId: CHANNEL,
+        });
+    });
+
+    it('buzzes once per occurrence, so a reconnect redelivery is silent', () => {
+        setup();
+        fire('guild.ChoreReminder', reminder());
+        fire('guild.ChoreReminder', reminder());
+
+        expect(notifications.length).toBe(1);
+    });
+
+    it('still notifies for a different occurrence of the same chore', () => {
+        setup();
+        fire('guild.ChoreReminder', reminder());
+        fire('guild.ChoreReminder', reminder({occurrenceId: 'occr_2'}));
+
+        expect(notifications.length).toBe(2);
+    });
+
+    it('ignores a payload with no occurrence to point at rather than notifying about nothing', () => {
+        setup();
+        fire('guild.ChoreReminder', reminder({occurrenceId: undefined}));
+
+        expect(notifications.length).toBe(0);
     });
 });
 
@@ -194,16 +272,13 @@ describe('ChoreService guild.ChoreOccurrenceUpdated', () => {
         expect(row(service).assignedUserId).toBe('user_anna');
     });
 
-    it('patches the row from the bare skip marker, which carries no occurrence at all', () => {
+    it('applies a skip from the snapshot, which now carries the occurrence like the other verbs', () => {
         const {service} = loaded();
 
-        // Second payload shape under the same event name - `{occurrenceId, skipped}` and nothing
-        // else. A handler written against the snapshot shape throws here.
         fire('guild.ChoreOccurrenceUpdated', {
             guildId: 'gild_1',
             channelId: CHANNEL,
-            occurrenceId: 'occr_1',
-            skipped: true,
+            occurrence: occurrence({skippedAt: '2026-08-03T19:12:00.000Z'}),
         });
 
         expect(occurrenceStatus(row(service))).toBe('skipped');
@@ -213,12 +288,31 @@ describe('ChoreService guild.ChoreOccurrenceUpdated', () => {
         expect(row(service).completedByUserId).toBeNull();
     });
 
+    it('ignores the retired skip marker instead of throwing inside the SignalR callback', () => {
+        const {service} = loaded();
+
+        // What a server that has not rolled forward still sends: an id and a flag, no occurrence.
+        // A handler written against the snapshot alone dereferences `undefined.id` here, and the
+        // throw takes every later handler for this event down with it.
+        expect(() => fire('guild.ChoreOccurrenceUpdated', {
+            guildId: 'gild_1',
+            channelId: CHANNEL,
+            occurrenceId: 'occr_1',
+            skipped: true,
+        })).not.toThrow();
+
+        // The row is left as it was rather than half-patched; the next board load corrects it.
+        expect(occurrenceStatus(row(service))).toBe('due');
+    });
+
     it('does not refetch the balance on a skip - a skip credits nobody', () => {
         vi.useFakeTimers();
         const {service, http} = loaded();
 
         fire('guild.ChoreOccurrenceUpdated', {
-            guildId: 'gild_1', channelId: CHANNEL, occurrenceId: 'occr_1', skipped: true,
+            guildId: 'gild_1',
+            channelId: CHANNEL,
+            occurrence: occurrence({skippedAt: '2026-08-03T19:12:00.000Z'}),
         });
         vi.advanceTimersByTime(2000);
 
@@ -256,12 +350,16 @@ describe('ChoreService guild.ChoreOccurrenceUpdated', () => {
         expect(row(service).assignedUserId).toBe('user_ben');
     });
 
-    it('ignores a skip marker for a turn outside the loaded window', () => {
+    it('takes on a turn from outside the loaded window rather than dropping it', () => {
+        // The snapshot is self-contained, so an update for a row this client never loaded is an
+        // upsert and not a miss - which is what the marker shape could never do.
         const {service} = loaded();
         fire('guild.ChoreOccurrenceUpdated', {
-            guildId: 'gild_1', channelId: CHANNEL, occurrenceId: 'occr_unknown', skipped: true,
+            guildId: 'gild_1',
+            channelId: CHANNEL,
+            occurrence: occurrence({id: 'occr_unknown'}),
         });
-        expect(service.stateFor(CHANNEL).occurrences.length).toBe(1);
+        expect(service.stateFor(CHANNEL).occurrences.map(o => o.id)).toEqual(['occr_1', 'occr_unknown']);
     });
 
     it('drops events for a channel that was never opened', () => {

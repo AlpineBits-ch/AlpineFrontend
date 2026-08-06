@@ -75,11 +75,21 @@ describe('PantryApiService', () => {
         req.flush([]);
     });
 
-    it('expiring defaults to a 3 day window', () => {
+    it('sends no days at all by default, so each pantry applies its own expiryWarningDays', () => {
         const {service, ctrl} = setup();
         service.expiring('gild_1').subscribe();
         const req = ctrl.expectOne(r => r.url === `${GUILD}/guilds/gild_1/pantry/expiring`);
-        expect(req.request.params.get('days')).toBe('3');
+        // A flat number here overrides every pantry at once - which is what this used to send,
+        // and what made a 14-day freezer report nothing until two days out.
+        expect(req.request.params.has('days')).toBe(false);
+        req.flush([]);
+    });
+
+    it('treats an explicit null the same as omitting it, not as days=null', () => {
+        const {service, ctrl} = setup();
+        service.expiring('gild_1', null).subscribe();
+        const req = ctrl.expectOne(r => r.url === `${GUILD}/guilds/gild_1/pantry/expiring`);
+        expect(req.request.params.has('days')).toBe(false);
         req.flush([]);
     });
 

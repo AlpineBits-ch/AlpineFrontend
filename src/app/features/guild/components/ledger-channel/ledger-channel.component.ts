@@ -240,11 +240,30 @@ export class LedgerChannelComponent {
     /** `MaxDescriptionLength`, mirrored onto the input so 201 characters is untypable, not a 400. */
     protected readonly descriptionMaxLength = LEDGER_LIMITS.descriptionMaxLength;
 
+    /**
+     * Whether the named payer is still in the guild.
+     *
+     * <p>The server refuses a non-member payer with a `400` - a balance owed to somebody who has
+     * left is one nobody can ever clear. That is not reachable when adding an expense, because the
+     * picker only lists members; it is reachable when <b>editing</b> one whose payer has since moved
+     * out, and the form has to say so rather than let Save answer with a bare 400.</p>
+     *
+     * <p>True while the member list is still loading, so a slow roster does not brand every payer
+     * invalid for the second the dialog takes to fill.</p>
+     */
+    protected payerIsMember = computed(() => {
+        const payer = this.formPayerUserId();
+        if (!payer) return true;
+        if (this.members().length === 0) return true;
+        return this.memberById().has(payer);
+    });
+
     protected formValid = computed(() => {
         const minor = this.formAmountMinor();
         const description = this.formDescription().trim();
         if (!description || description.length > this.descriptionMaxLength) return false;
         if (minor === null || minor <= 0) return false;
+        if (!this.payerIsMember()) return false;
         if (this.formSplitKind() === ExpenseSplitKind.Equal && this.formSplitEveryone()) return true;
         return this.formParticipantIds().length > 0;
     });
@@ -259,7 +278,19 @@ export class LedgerChannelComponent {
         const minor = this.settleAmountMinor();
         const from = this.settleFromUserId();
         const to = this.settleToUserId();
-        return !!from && !!to && from !== to && minor !== null && minor > 0;
+        if (!from || !to || from === to) return false;
+        if (minor === null || minor <= 0) return false;
+        // Same rule as the payer: neither party may be a non-member. A settle-suggestion computed
+        // before somebody moved out can still name them, and it now `400`s rather than recording a
+        // transfer that clears nothing.
+        return this.bothPartiesAreMembers();
+    });
+
+    /** False only once the roster has actually arrived - see {@link payerIsMember}. */
+    private bothPartiesAreMembers = computed(() => {
+        if (this.members().length === 0) return true;
+        const known = this.memberById();
+        return known.has(this.settleFromUserId() ?? '') && known.has(this.settleToUserId() ?? '');
     });
 
     // ── Currency dialog ──────────────────────────────────────────────────────
@@ -304,6 +335,19 @@ export class LedgerChannelComponent {
                 });
             });
         });
+    }
+
+    // ── Paging ───────────────────────────────────────────────────────────────
+
+    /**
+     * Pulls in the page of older expenses behind the ones on screen.
+     *
+     * <p>The service already ignores a call with no cursor or one in flight, so the button does not
+     * have to be disabled to be safe - it is hidden on `nextCursor === null` only because there is
+     * nothing left to offer.</p>
+     */
+    protected loadMore(): void {
+        this.ledger.loadMore(this.channel().id);
     }
 
     // ── Formatting ───────────────────────────────────────────────────────────

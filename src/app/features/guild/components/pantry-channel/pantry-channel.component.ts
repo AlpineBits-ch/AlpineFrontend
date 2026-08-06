@@ -49,7 +49,14 @@ import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {effectiveGuildPermissions} from '../../guild-permissions';
 import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
 
-/** The look-ahead windows offered by the house-wide expiring view. */
+/**
+ * The look-ahead overrides offered by the house-wide expiring view, alongside the default of no
+ * override at all.
+ *
+ * <p>Each of these replaces *every* pantry's own `expiryWarningDays` for one query - the "what goes
+ * off this month" question. The default (`null`) is the everyday one and lets a freezer set to 14
+ * days and a fridge set to 2 both answer correctly in the same list.</p>
+ */
 const EXPIRING_WINDOWS = [3, 7, 14, 30] as const;
 
 /**
@@ -94,7 +101,8 @@ export class PantryChannelComponent implements OnDestroy {
 
     /** Which body is showing. `expiring` is guild-wide; see the class doc. */
     protected view = signal<'stock' | 'expiring'>('stock');
-    protected expiringDays = signal<number>(DEFAULT_EXPIRING_DAYS);
+    /** `null` - the default - is "each pantry's own window", not "no window". */
+    protected expiringDays = signal<number | null>(DEFAULT_EXPIRING_DAYS);
 
     protected icon = computed(() => channelIcon(this.channel().type));
 
@@ -215,7 +223,8 @@ export class PantryChannelComponent implements OnDestroy {
             item,
             // The query window, not any one pantry's badge threshold: this list spans
             // pantries whose `expiryWarningDays` differ, so the only honest yardstick is
-            // what was actually asked for.
+            // what was actually asked for - and when nothing was asked for, the server has
+            // already applied each pantry's own, so a null here means "trust the answer".
             expiry: pantryExpiryState(item, days, now),
             pantryName: this.channelNameFor(item.channelId),
         }));
@@ -287,7 +296,8 @@ export class PantryChannelComponent implements OnDestroy {
         this.pantry.loadExpiring(this.channel().guildId, this.expiringDays());
     }
 
-    protected setExpiringDays(days: number): void {
+    /** `null` restores the per-pantry default; a number overrides every pantry at once. */
+    protected setExpiringDays(days: number | null): void {
         if (this.expiringDays() === days) return;
         this.expiringDays.set(days);
         // A different window is a different question - always refetch.

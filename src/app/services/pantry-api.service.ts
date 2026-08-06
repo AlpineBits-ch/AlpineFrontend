@@ -71,13 +71,18 @@ export class PantryApiService {
      * are filtered per channel by `ViewChannel` server-side, which is what lets a guest
      * with access to one pantry ask the question without enumerating a private one.</p>
      *
-     * @param days the look-ahead window. Independent of any pantry's `expiryWarningDays`,
-     *        which is that pantry's own badge threshold rather than a query parameter.
+     * <p><b>Omit `days` and each pantry answers with its own `expiryWarningDays`</b>, which is
+     * almost always what the house-wide view wants: a freezer set to 14 days and a fridge set to 2
+     * are both right in the same response, and neither is right under one flat number. This used to
+     * ignore the config entirely and ask for a flat three days for everything.</p>
+     *
+     * @param days a single look-ahead window that **overrides every pantry at once**. For the
+     *        "what goes off this month" question and nothing else - passing the old default of 3
+     *        here is not the same as passing nothing.
      */
-    expiring(guildId: string, days = 3): Observable<PantryItem[]> {
-        return this.http.get<PantryItem[]>(`${this.base}/guilds/${guildId}/pantry/expiring`, {
-            params: new HttpParams().set('days', days),
-        });
+    expiring(guildId: string, days?: number | null): Observable<PantryItem[]> {
+        const params = days == null ? new HttpParams() : new HttpParams().set('days', days);
+        return this.http.get<PantryItem[]>(`${this.base}/guilds/${guildId}/pantry/expiring`, {params});
     }
 
     getConfig(channelId: string): Observable<PantryConfig> {

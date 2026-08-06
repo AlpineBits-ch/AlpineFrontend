@@ -217,6 +217,16 @@
                         }
                     </section>
 
+                    <!-- The ledger is paged. A cursor means there are older expenses behind what is
+                         on screen, and without this they are simply unreachable. -->
+                    @if (state().nextCursor) {
+                        <div class="flex justify-center">
+                            <p-button (onClick)="loadMore()" [label]="'LEDGER.LOAD_OLDER' | translate"
+                                      [loading]="state().loadingMore" [text]="true"
+                                      icon="pi pi-history" severity="secondary" size="small"/>
+                        </div>
+                    }
+
                     @if (state().failed) {
                         <p class="text-[0.6875rem] text-offline text-center m-0">{{ 'LEDGER.LOAD_FAILED' | translate }}</p>
                     }
@@ -276,6 +286,11 @@
                       optionValue="value" styleClass="w-full"/>
             @if (!canNamePayer()) {
                 <span class="text-[0.625rem] text-text-muted">{{ 'LEDGER.PAYER_LOCKED' | translate }}</span>
+            }
+            <!-- Reachable only when editing an expense whose payer has since moved out. The server
+                 refuses it with a 400, so the form says why instead of forwarding one. -->
+            @if (!payerIsMember()) {
+                <span class="text-[0.625rem] text-offline">{{ 'LEDGER.PAYER_NOT_A_MEMBER' | translate }}</span>
             }
         </div>
 

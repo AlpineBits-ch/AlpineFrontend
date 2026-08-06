@@ -20,7 +20,7 @@ import {
     UpdateExpenseDto,
     UpdateLedgerConfigDto,
 } from '../dtos/request/ledger.dto';
-import {LedgerApiService} from './ledger-api.service';
+import {EXPENSE_PAGE_SIZE, LedgerApiService} from './ledger-api.service';
 import {RealtimeConnectionService} from './realtime-connection.service';
 
 /** How many settlements to keep for the "recently settled" strip. They have no list endpoint. */
@@ -29,6 +29,8 @@ const RECENT_SETTLEMENT_LIMIT = 10;
 /** What a ledger channel nobody has opened looks like, so `stateFor` never returns undefined. */
 const EMPTY_STATE: LedgerChannelState = {
     expenses: [],
+    nextCursor: null,
+    loadingMore: false,
     balances: [],
     suggestions: [],
     recentSettlements: [],
@@ -40,8 +42,17 @@ const EMPTY_STATE: LedgerChannelState = {
 };
 
 export interface LedgerChannelState {
-    /** Newest first by `occurredAt`. */
+    /** Newest first by `occurredAt`. However many pages have been asked for, not the whole ledger. */
     expenses: Expense[];
+    /**
+     * The cursor for the next page, or `null` when there is nothing behind what is loaded.
+     *
+     * <p>`null` is the only thing that means "the end". A page shorter than the limit does not -
+     * the server may return fewer rows than asked for and still have more.</p>
+     */
+    nextCursor: string | null;
+    /** A `loadMore` is in the air. Distinct from `loading`, which blanks the list. */
+    loadingMore: boolean;
     /** Server-computed, always summing to zero, with members at zero already dropped. */
     balances: LedgerBalance[];
     suggestions: TransferSuggestion[];
@@ -139,11 +150,16 @@ export class LedgerService {
     refresh(channelId: string): void {
         this.patch(channelId, state => ({...state, loading: true, failed: false}));
 
+        // No cursor: a refresh re-reads the *first* page and replaces what was held. Carrying the
+        // stored cursor over would append the page after the one that is about to be discarded and
+        // leave a hole in the middle of the ledger.
         this.api.listExpenses(channelId).subscribe({
-            next: expenses => this.patch(channelId, state => ({
+            next: page => this.patch(channelId, state => ({
                 ...state,
-                expenses: this.sorted(expenses.map(normalizeExpense)),
+                expenses: this.sorted((page.items ?? []).map(normalizeExpense)),
+                nextCursor: page.nextCursor ?? null,
                 loading: false,
+                loadingMore: false,
                 loaded: true,
             })),
             error: err => this.onLoadError(channelId, err),
@@ -157,6 +173,47 @@ export class LedgerService {
         });
 
         this.refreshBalances(channelId);
+    }
+
+    /**
+     * Appends the next page of expenses.
+     *
+     * <p>No-op when there is nothing behind what is loaded (`nextCursor === null`) or a page is
+     * already in the air - the button can be bound straight to this without guarding either.</p>
+     *
+     * <p>A failure leaves the pages already loaded alone and keeps the cursor, so the button simply
+     * comes back and can be pressed again. It deliberately does not set `failed`: that flag blanks
+     * the whole panel, and losing the ledger you were reading because its <i>next</i> page timed
+     * out is a far worse answer than one that says "load more" a second time.</p>
+     */
+    loadMore(channelId: string): void {
+        const state = this.stateFor(channelId);
+        if (!state.nextCursor || state.loadingMore || state.loading) return;
+
+        const cursor = state.nextCursor;
+        this.patch(channelId, current => ({...current, loadingMore: true}));
+
+        this.api.listExpenses(channelId, EXPENSE_PAGE_SIZE, cursor).subscribe({
+            next: page => this.patch(channelId, current => {
+                // A `refresh` that landed while this page was in the air threw away everything this
+                // page sits behind, and moved the cursor back to the top of the ledger. Applying
+                // the page anyway would append rows from further down than the ones now held -
+                // leaving a hole in the middle - and then point the cursor past it, so nothing
+                // would ever fetch what was skipped. Dropping it costs one wasted request.
+                if (current.nextCursor !== cursor) return {...current, loadingMore: false};
+
+                return {
+                    ...current,
+                    // Merged by id rather than concatenated: an expense added while the page was in
+                    // flight arrives over the socket too, and a cursor page can legitimately
+                    // re-send a row the client already holds.
+                    expenses: this.sorted(this.mergeById(current.expenses, (page.items ?? []).map(normalizeExpense))),
+                    nextCursor: page.nextCursor ?? null,
+                    loadingMore: false,
+                };
+            }),
+            error: () => this.patch(channelId, current => ({...current, loadingMore: false})),
+        });
     }
 
     /**
@@ -291,6 +348,20 @@ export class LedgerService {
                 ...state.recentSettlements.filter(s => s.id !== settlement.id),
             ].slice(0, RECENT_SETTLEMENT_LIMIT),
         }));
+    }
+
+    /**
+     * Adds the rows this channel does not already hold, and keeps the ones it does.
+     *
+     * <p>What is held wins the clash deliberately. A page is a snapshot from when the request was
+     * sent, so an expense edited over the socket while it was in flight comes back stale in it -
+     * and this only ever runs for {@link loadMore}, which reaches *backwards* into pages the client
+     * has never seen. Overlap is the rare case; a page silently reverting an edit is not worth
+     * paying for it.</p>
+     */
+    private mergeById(existing: Expense[], incoming: Expense[]): Expense[] {
+        const held = new Set(existing.map(e => e.id));
+        return [...existing, ...incoming.filter(e => !held.has(e.id))];
     }
 
     /**

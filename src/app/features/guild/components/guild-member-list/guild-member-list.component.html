@@ -39,6 +39,13 @@
                     @if (isBot(member)) {
                         <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-brand/20 text-brand-dim">Bot</span>
                     }
+                    <!-- "Lives here" versus "is staying". Flatmates membership is what puts
+                         somebody on the chore rota, so it is worth more than a role chip. -->
+                    @if (isHouseGuest(member)) {
+                        <span class="shrink-0 text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] rounded bg-white/10 text-text-muted">
+                            {{ 'HOUSEHOLD.GUEST' | translate }}
+                        </span>
+                    }
                 </div>
                 @if (activityFor(member); as activity) {
                     <app-activity-line [activity]="activity" size="sm"/>
@@ -92,3 +99,60 @@
         </div>
     }
 </div>
+
+<!-- ── Move out ─────────────────────────────────────────────────────────────
+     Not a kick dialog. The first press asks for nothing beyond confirmation; a 409
+     turns it into the settle-up decision, which is the only thing that can authorise
+     a write-off. -->
+<p-dialog (visibleChange)="$event ? null : cancelMoveOut()" [draggable]="false" [modal]="true"
+          [resizable]="false" [style]="{width: '460px'}" [visible]="!!movingOut()" appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">
+            {{ 'MOVE_OUT.TITLE' | translate: {name: moveOutName()} }}
+        </span>
+    </ng-template>
+
+    <div class="flex flex-col gap-4">
+        @if (moveOutOutstanding().length === 0) {
+            <p class="text-[0.8125rem] text-text-secondary m-0">
+                {{ 'MOVE_OUT.BODY' | translate: {name: moveOutName()} }}
+            </p>
+            <!-- Says what survives, because the thing people expect to be erased is not. -->
+            <p class="text-[0.6875rem] text-text-muted m-0">{{ 'MOVE_OUT.KEEPS_HISTORY' | translate }}</p>
+        } @else {
+            <p class="text-[0.8125rem] text-text-primary m-0">
+                {{ 'MOVE_OUT.NOT_SETTLED' | translate: {name: moveOutName()} }}
+            </p>
+
+            <div class="flex flex-col gap-1.5 rounded-lg border border-border-subtle bg-white/[0.03] p-3">
+                @for (row of moveOutOutstanding(); track row.channelId) {
+                    <div class="flex items-center justify-between gap-3 text-[0.8125rem]">
+                        <span class="text-text-secondary truncate">
+                            {{ (owesTheHouse(row) ? 'MOVE_OUT.OWES' : 'MOVE_OUT.IS_OWED')
+                            | translate: {name: moveOutName()} }}
+                        </span>
+                        <span [class]="owesTheHouse(row) ? 'text-offline' : 'text-online'"
+                              class="font-semibold tabular-nums shrink-0">{{ outstandingLabel(row) }}</span>
+                    </div>
+                }
+            </div>
+
+            <!-- The sentence that has to be read before the write-off button means anything. -->
+            <p class="text-[0.6875rem] text-text-muted m-0">{{ 'MOVE_OUT.WRITE_OFF_EXPLAINER' | translate }}</p>
+        }
+    </div>
+
+    <ng-template pTemplate="footer">
+        <div class="flex justify-end gap-2">
+            <p-button (onClick)="cancelMoveOut()" [label]="'COMMON.CANCEL' | translate"
+                      [text]="true" severity="secondary" size="small"/>
+            @if (moveOutOutstanding().length === 0) {
+                <p-button (onClick)="confirmMoveOut()" [label]="'MOVE_OUT.ACTION' | translate"
+                          [loading]="moveOutBusy()" severity="primary" size="small"/>
+            } @else {
+                <p-button (onClick)="confirmMoveOut(true)" [label]="'MOVE_OUT.WRITE_OFF_AND_MOVE_OUT' | translate"
+                          [loading]="moveOutBusy()" severity="danger" size="small"/>
+            }
+        </div>
+    </ng-template>
+</p-dialog>

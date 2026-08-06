@@ -252,6 +252,18 @@ export interface WsMemberKicked {
     userId: string;
 }
 
+/**
+ * `guild.MemberMovedOut` - a flatmate was moved out of a household.
+ *
+ * <p>Removal, and the only kind a household has: with the Moderation module off there is no kick to
+ * fire `guild.MemberKicked` instead. Same envelope, deliberately kept as its own event so a member
+ * list can say "moved out" rather than "was kicked".</p>
+ */
+export interface WsMemberMovedOut {
+    guildId: string;
+    userId: string;
+}
+
 export interface WsMemberMuted {
     guildId: string;
     userId: string;
@@ -691,6 +703,7 @@ export class GuildWebsocketService {
     // ── Member moderation ──────────────────────────────────────────────────────────
     public memberBannedObservable = new Subject<WsMemberBanned>();
     public memberKickedObservable = new Subject<WsMemberKicked>();
+    public memberMovedOutObservable = new Subject<WsMemberMovedOut>();
     public memberMutedObservable = new Subject<WsMemberMuted>();
     public memberUnmutedObservable = new Subject<WsMemberUnmuted>();
     public memberLeftObservable = new Subject<WsMemberLeft>();
@@ -846,6 +859,7 @@ export class GuildWebsocketService {
         this.realtime.on('guild.WikiCategoryDeleted', (d: WsWikiCategoryDeleted) => this.wikiCategoryDeletedObservable.next(d));
         this.realtime.on('guild.MemberBanned', (d: WsMemberBanned) => this.memberBannedObservable.next(d));
         this.realtime.on('guild.MemberKicked', (d: WsMemberKicked) => this.memberKickedObservable.next(d));
+        this.realtime.on('guild.MemberMovedOut', (d: WsMemberMovedOut) => this.memberMovedOutObservable.next(d));
         this.realtime.on('guild.MemberMuted', (d: WsMemberMuted) => this.memberMutedObservable.next(d));
         this.realtime.on('guild.MemberUnmuted', (d: WsMemberUnmuted) => this.memberUnmutedObservable.next(d));
         this.realtime.on('guild.MemberLeft', (d: WsMemberLeft) => this.memberLeftObservable.next(d));

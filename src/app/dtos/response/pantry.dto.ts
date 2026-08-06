@@ -138,16 +138,23 @@ export type PantryExpiryState = 'none' | 'soon' | 'expired';
  * Expiry, bucketed against the pantry's own warning window. `expiresAt` is a date-time,
  * but people think in days, so an item expiring later today is `soon`, not `expired`,
  * until the instant actually passes.
+ *
+ * <p>`warningDays: null` means <b>the server already applied the window</b> - which is what
+ * `GET /pantry/expiring` does when `days` is omitted, giving every pantry its own
+ * `expiryWarningDays`. Anything still in that answer is by definition inside its own pantry's
+ * window, so the only question left is whether the date has passed. Re-bucketing those rows
+ * against a number picked here would hide exactly the ones a long-window freezer reported.</p>
  */
 export function pantryExpiryState(
     item: PantryItem,
-    warningDays: number,
+    warningDays: number | null,
     now: number = Date.now(),
 ): PantryExpiryState {
     if (item.expiresAt == null) return 'none';
     const at = new Date(item.expiresAt).getTime();
     if (Number.isNaN(at)) return 'none';
     if (at <= now) return 'expired';
+    if (warningDays == null) return 'soon';
     return at - now <= warningDays * 86_400_000 ? 'soon' : 'none';
 }
 

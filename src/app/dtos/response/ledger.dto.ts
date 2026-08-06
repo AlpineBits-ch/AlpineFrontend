@@ -59,6 +59,22 @@ export interface Expense {
 }
 
 /**
+ * One page of expenses, newest first.
+ *
+ * <p>`GET /expenses` used to answer a bare array capped at a hard `Take(200)` with no way to ask
+ * for more, so a ledger past its two-hundredth expense was silently truncated. It is now a cursor
+ * page: `limit` defaults to 50 and caps at 200, and `nextCursor` goes back as `cursor`.</p>
+ *
+ * <p><b>`nextCursor: null` is the end of the ledger</b>, and it is the only thing that means that.
+ * A short page does not - the server is free to return fewer rows than asked for and still have
+ * more behind them.</p>
+ */
+export interface ExpensePage {
+    items: Expense[];
+    nextCursor: string | null;
+}
+
+/**
  * One member's net position. `+` means the house owes them; `-` means they owe the house.
  *
  * <p>Balances always sum to exactly zero, and **members at zero are omitted** - an empty array is

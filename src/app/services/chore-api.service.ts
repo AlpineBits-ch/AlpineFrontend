@@ -90,9 +90,9 @@ export class ChoreApiService {
      * Skips it. <b>Not a completion.</b> Nothing is credited, the work stays owed, and the rota
      * consequently comes back round to the same person.
      *
-     * <p>Note the asymmetry with {@link complete}: skip's broadcast carries only
-     * `{occurrenceId, skipped}` and no snapshot, so if this response body is empty the store has
-     * to patch the row itself.</p>
+     * <p>Returns the updated occurrence. It used to answer an empty `200` and broadcast a bare
+     * `{occurrenceId, skipped}` marker, which is why this is still typed nullable - the store
+     * applies a body when it gets one and otherwise waits for the realtime snapshot.</p>
      */
     skip(occurrenceId: string): Observable<ChoreOccurrence | null> {
         return this.http.post<ChoreOccurrence | null>(

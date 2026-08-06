@@ -84,12 +84,27 @@ function setup() {
     };
 }
 
+/**
+ * The one expense request in the air, matched on path alone.
+ *
+ * <p>The URL carries `?limit=` (and `?cursor=` on a later page), so an exact-string `expectOne`
+ * matches nothing.</p>
+ */
+function expectExpenses(ctrl: HttpTestingController) {
+    return ctrl.expectOne(r => r.url === `${GUILD}/channels/${CHANNEL}/expenses`);
+}
+
 /** Answers the three requests one `loadFor` fires, so a test can start from a loaded channel. */
 function answerLoad(
     ctrl: HttpTestingController,
-    opts: {expenses?: Expense[]; balances?: LedgerBalance[]; suggestions?: TransferSuggestion[]} = {},
+    opts: {
+        expenses?: Expense[];
+        balances?: LedgerBalance[];
+        suggestions?: TransferSuggestion[];
+        nextCursor?: string | null;
+    } = {},
 ): void {
-    ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/expenses`).flush(opts.expenses ?? []);
+    expectExpenses(ctrl).flush({items: opts.expenses ?? [], nextCursor: opts.nextCursor ?? null});
     ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/config`).flush({channelId: CHANNEL, currency: 'CHF'});
     ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/balances`).flush(opts.balances ?? []);
     ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/settle-suggestion`).flush(opts.suggestions ?? []);
@@ -153,7 +168,7 @@ describe('LedgerService', () => {
         it('treats a 403 as "there may be no module here" and never as data', () => {
             const {service, ctrl} = setup();
             service.loadFor(CHANNEL);
-            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/expenses`)
+            expectExpenses(ctrl)
                 .flush('Ledger is not enabled', {status: 403, statusText: 'Forbidden'});
             ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/config`)
                 .flush(null, {status: 403, statusText: 'Forbidden'});
@@ -169,6 +184,118 @@ describe('LedgerService', () => {
             service.loadFor(CHANNEL);
             answerLoad(ctrl, {expenses: [expense({splitKind: 1 as unknown as ExpenseSplitKind})]});
             expect(service.stateFor(CHANNEL).expenses[0].splitKind).toBe(ExpenseSplitKind.Shares);
+        });
+    });
+
+    describe('paging', () => {
+        it('reads the page shape rather than a bare array, and keeps the cursor', () => {
+            const {service, ctrl} = setup();
+            service.loadFor(CHANNEL);
+            answerLoad(ctrl, {expenses: [expense()], nextCursor: 'cursor_1'});
+
+            expect(service.stateFor(CHANNEL).expenses.length).toBe(1);
+            expect(service.stateFor(CHANNEL).nextCursor).toBe('cursor_1');
+        });
+
+        it('asks for the next page with the cursor the server handed back', () => {
+            const {service, ctrl} = setup();
+            service.loadFor(CHANNEL);
+            answerLoad(ctrl, {expenses: [expense({id: 'expe_1'})], nextCursor: 'cursor_1'});
+
+            service.loadMore(CHANNEL);
+            const request = expectExpenses(ctrl);
+            expect(request.request.params.get('cursor')).toBe('cursor_1');
+            expect(request.request.params.get('limit')).toBe('50');
+
+            request.flush({
+                items: [expense({id: 'expe_0', occurredAt: '2026-07-01T00:00:00Z'})],
+                nextCursor: null,
+            });
+
+            // Appended, not replaced - and the end of the ledger is the null cursor.
+            expect(service.stateFor(CHANNEL).expenses.map(e => e.id)).toEqual(['expe_1', 'expe_0']);
+            expect(service.stateFor(CHANNEL).nextCursor).toBeNull();
+        });
+
+        it('does nothing when there is no cursor, so the end of the ledger is not re-requested', () => {
+            const {service, ctrl} = setup();
+            service.loadFor(CHANNEL);
+            answerLoad(ctrl, {expenses: [expense()], nextCursor: null});
+
+            service.loadMore(CHANNEL);
+            ctrl.verify();
+        });
+
+        it('coalesces a second loadMore while the first is still in the air', () => {
+            const {service, ctrl} = setup();
+            service.loadFor(CHANNEL);
+            answerLoad(ctrl, {expenses: [expense()], nextCursor: 'cursor_1'});
+
+            service.loadMore(CHANNEL);
+            service.loadMore(CHANNEL);
+
+            // One request, not two - a double-press must not fetch the same page twice.
+            expectExpenses(ctrl).flush({items: [], nextCursor: null});
+            ctrl.verify();
+        });
+
+        it('keeps the loaded pages and the cursor when a page fails, so it can be retried', () => {
+            const {service, ctrl} = setup();
+            service.loadFor(CHANNEL);
+            answerLoad(ctrl, {expenses: [expense({id: 'expe_1'})], nextCursor: 'cursor_1'});
+
+            service.loadMore(CHANNEL);
+            expectExpenses(ctrl).flush(null, {status: 500, statusText: 'Server Error'});
+
+            expect(service.stateFor(CHANNEL).expenses.map(e => e.id)).toEqual(['expe_1']);
+            expect(service.stateFor(CHANNEL).nextCursor).toBe('cursor_1');
+            expect(service.stateFor(CHANNEL).loadingMore).toBe(false);
+            // The ledger on screen is still readable; only the page behind it is missing.
+            expect(service.stateFor(CHANNEL).failed).toBe(false);
+        });
+
+        it('drops a page whose cursor a refresh invalidated, rather than leaving a hole', () => {
+            const {service, ctrl} = setup();
+            service.loadFor(CHANNEL);
+            answerLoad(ctrl, {expenses: [expense({id: 'expe_9'})], nextCursor: 'cursor_1'});
+
+            service.loadMore(CHANNEL);
+            const stalePage = expectExpenses(ctrl);
+
+            // The whole ledger is re-read underneath it and lands first.
+            service.refresh(CHANNEL);
+            answerLoad(ctrl, {expenses: [expense({id: 'expe_9'})], nextCursor: 'cursor_fresh'});
+
+            stalePage.flush({
+                items: [expense({id: 'expe_1', occurredAt: '2026-06-01T00:00:00Z'})],
+                nextCursor: 'cursor_2',
+            });
+
+            // The page's rows sat behind a page the refresh discarded; taking them would skip
+            // whatever is between, and its cursor would then point past the gap forever.
+            expect(service.stateFor(CHANNEL).expenses.map(e => e.id)).toEqual(['expe_9']);
+            expect(service.stateFor(CHANNEL).nextCursor).toBe('cursor_fresh');
+            expect(service.stateFor(CHANNEL).loadingMore).toBe(false);
+        });
+
+        it('does not let a page revert an expense the socket updated while it was in flight', () => {
+            const {service, ctrl} = setup();
+            service.loadFor(CHANNEL);
+            answerLoad(ctrl, {expenses: [expense({id: 'expe_1'})], nextCursor: 'cursor_1'});
+
+            service.loadMore(CHANNEL);
+            const page = expectExpenses(ctrl);
+
+            hubHandlers.get('guild.ExpenseUpdated')!({
+                guildId: 'gild_1',
+                channelId: CHANNEL,
+                expense: expense({id: 'expe_1', description: 'Coop, corrected'}),
+            });
+            answerBalances(ctrl);
+
+            page.flush({items: [expense({id: 'expe_1', description: 'Coop'})], nextCursor: null});
+
+            expect(service.stateFor(CHANNEL).expenses[0].description).toBe('Coop, corrected');
         });
     });
 
@@ -209,7 +336,7 @@ describe('LedgerService', () => {
         it('keeps the balances when only the settle suggestion fails', () => {
             const {service, ctrl} = setup();
             service.loadFor(CHANNEL);
-            ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/expenses`).flush([]);
+            expectExpenses(ctrl).flush({items: [], nextCursor: null});
             ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/config`).flush({channelId: CHANNEL, currency: 'CHF'});
             ctrl.expectOne(`${GUILD}/channels/${CHANNEL}/ledger/balances`)
                 .flush([{userId: 'user_anna', netMinor: 500}]);

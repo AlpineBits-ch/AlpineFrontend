@@ -43,6 +43,7 @@ import {NavigationService} from '../../../main-page/navigation.service';
 import {channelIcon} from '../../channel-types';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {effectiveGuildPermissions} from '../../guild-permissions';
+import {defaultRotationRoleId} from '../../household-roles';
 import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
 
 /** Which of the two mutually exclusive assignment fields the editor is filling in. */
@@ -418,7 +419,10 @@ export class ChoresChannelComponent {
         this.formEffortMinutes.set(15);
         this.formGraceHours.set(12);
         this.formMode.set('rotation');
-        this.formRotationRoleId.set(null);
+        // Households are seeded with a Flatmates role whose membership *is* the rota, so defaulting
+        // to it is the answer in every ordinary case. Null in a guild that has none - the picker
+        // then asks, rather than guessing at whichever role happens to sort first.
+        this.formRotationRoleId.set(defaultRotationRoleId(this.guild()));
         this.formFixedAssigneeUserId.set(null);
         this.formPaused.set(false);
         this.showValidation.set(false);

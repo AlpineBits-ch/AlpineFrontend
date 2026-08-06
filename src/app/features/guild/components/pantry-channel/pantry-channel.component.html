@@ -56,6 +56,19 @@
                 </div>
 
                 <div class="flex items-center gap-1 ml-auto">
+                    <!-- The default, and the only option that is not an override: each pantry
+                         answers with its own expiryWarningDays, so a freezer and a fridge are
+                         both right in one list. -->
+                    <button (click)="setExpiringDays(null)"
+                            [class]="expiringDays() === null
+                                ? 'bg-brand/15 text-brand-dim border-brand/30'
+                                : 'bg-white/[0.03] text-text-secondary border-border-subtle hover:bg-hover'"
+                            [pTooltip]="'PANTRY.EXPIRING_PER_PANTRY_HINT' | translate"
+                            class="px-2 py-1 rounded-md border text-[0.6875rem] font-medium transition-colors"
+                            tooltipPosition="bottom"
+                            type="button">
+                        {{ 'PANTRY.EXPIRING_PER_PANTRY' | translate }}
+                    </button>
                     @for (days of EXPIRING_WINDOWS; track days) {
                         <button (click)="setExpiringDays(days)"
                                 [class]="expiringDays() === days

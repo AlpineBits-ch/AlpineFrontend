@@ -13,6 +13,7 @@ import {BanDto} from "../dtos/response/ban.dto";
 import {AuditLogEntryDto} from "../dtos/response/audit-log-entry.dto";
 import {ReorderRolesDto} from "../dtos/request/reorder-roles.dto";
 import {CreateThreadDto} from "../dtos/request/create-thread.dto";
+import {MoveOutSummary} from "../dtos/response/move-out.dto";
 
 export interface UpdateGuildDto {
     name?: string;
@@ -189,6 +190,26 @@ export class GuildService {
 
     leaveGuild(guildId: string): Observable<void> {
         return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/me`);
+    }
+
+    /**
+     * Moves a member out of a household. Addressed by **user id**, not member id.
+     *
+     * <p>This is not a kick with a friendlier name, and it is not interchangeable with one: a
+     * household has the Moderation module off, so {@link kickMember} answers `403` there for
+     * everybody including the owner. It needs `ManageGuild` plus the usual role-hierarchy rule, and
+     * the owner cannot be moved out at all - ownership has to be transferred first.</p>
+     *
+     * <p><b>`409` is the normal path, not an error.</b> A member who still owes money is refused
+     * with a {@link MoveOutConflict} listing what is outstanding, and the caller has to come back
+     * with `writeOffBalances: true` once the house has decided to stop counting the debt. Sending
+     * it up front skips a decision that is not the client's to make.</p>
+     */
+    moveOutMember(guildId: string, userId: string, writeOffBalances = false): Observable<MoveOutSummary> {
+        return this.http.post<MoveOutSummary>(
+            `${this.base}/guilds/${guildId}/members/${userId}/move-out`,
+            {writeOffBalances},
+        );
     }
 
     // ── Roles ────────────────────────────────────────────────────────────────

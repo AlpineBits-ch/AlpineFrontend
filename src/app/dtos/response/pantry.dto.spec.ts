@@ -151,6 +151,14 @@ describe('pantryExpiryState', () => {
     it('treats an unparseable date as no expiry rather than as expired', () => {
         expect(pantryExpiryState(item({expiresAt: 'not-a-date'}), 3, now)).toBe('none');
     });
+
+    it('trusts the server when the window is null - the per-pantry answer is already filtered', () => {
+        // What a 14-day freezer returns when `days` is omitted. Re-bucketing it against any number
+        // the client picked would hide the very rows that pantry was configured to report.
+        expect(pantryExpiryState(item({expiresAt: inDays(10)}), null, now)).toBe('soon');
+        expect(pantryExpiryState(item({expiresAt: inDays(-1)}), null, now)).toBe('expired');
+        expect(pantryExpiryState(item({expiresAt: null}), null, now)).toBe('none');
+    });
 });
 
 describe('isValidExpiryWarningDays', () => {
