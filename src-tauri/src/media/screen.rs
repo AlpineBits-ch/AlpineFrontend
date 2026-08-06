@@ -473,9 +473,18 @@ fn stop_screen_capture_inner(state: &ScreenCaptureState) {
 
 // ── Capture helpers ───────────────────────────────────────────────────────────
 
-/// Longest edge of a picker thumbnail. The tiles are around 350 device pixels wide in a two-column
-/// grid, and this is a picture to recognise a window by, not to read it.
-const THUMBNAIL_MAX: u32 = 224;
+/// Longest edge of a picker thumbnail.
+///
+/// Sized against the tile it lands in, not against "small enough to be cheap". The dialog is 900
+/// CSS px across, so a tile in the two-column grid is around 420 - which a 224px image was being
+/// stretched to fill, and stretched again by whatever display scaling is set, so the result was
+/// soft at 100% and mush at 150%. 640 covers the tile outright at 100% and 150% and is only a mild
+/// upscale at 200%.
+///
+/// It costs almost nothing to have raised it: the capture is the same work either way, and the
+/// scale-and-encode that follows is proportional to the *output*, so this is a couple of extra
+/// milliseconds per thumbnail rather than a return to the stall this all started with.
+const THUMBNAIL_MAX: u32 = 640;
 
 /// Titles that are never worth offering as a share source.
 ///
@@ -522,7 +531,10 @@ fn is_shareable_window(title: &str) -> bool {
 fn thumbnail_of(image: Option<RgbaImage>) -> String {
     let Some(img) = image else { return String::new() };
     let thumb = downscale(&img, THUMBNAIL_MAX);
-    base64_encode(&encode_jpeg(&DynamicImage::ImageRgba8(thumb), 55))
+    // Quality 72 rather than 55: these are screenshots of user interfaces, which is the worst case
+    // for JPEG - hard edges and small text ring and block long before a photograph would. The extra
+    // bytes are worth more than they cost on a local IPC hop.
+    base64_encode(&encode_jpeg(&DynamicImage::ImageRgba8(thumb), 72))
 }
 
 /// Downscales by sampling the destination rather than filtering the source.
