@@ -227,18 +227,30 @@ pub async fn capture_source_thumbnails(
     }
 
     tokio::task::spawn_blocking(move || {
-        let _guard = wgc_lock().lock().unwrap();
+        // The fast path first, for everything. It is GDI: no COM, no D3D, no capture session, and
+        // crucially no WGC lock - so it neither waits on a live stream's capture nor makes one wait
+        // on the picker. Only the sources it cannot draw fall through to the capture API below.
+        let mut results: Vec<SourceThumbnail> = Vec::with_capacity(wanted.len());
+        let mut needs_capture_api: Vec<String> = Vec::new();
 
-        // One enumeration for the whole batch, and only of the kinds actually asked for. A second
-        // WGC session opened per iteration is what corrupts the COM heap - see wgc_lock.
-        let wants_monitor = wanted.iter().any(|id| id.starts_with("monitor:"));
-        let wants_window = wanted.iter().any(|id| id.starts_with("window:"));
-        let monitors = if wants_monitor { Monitor::all().unwrap_or_default() } else { Vec::new() };
-        let windows = if wants_window { Window::all().unwrap_or_default() } else { Vec::new() };
+        for id in wanted {
+            match fast_thumbnail(&id) {
+                Some(image) => results.push(SourceThumbnail { id, thumbnail: thumbnail_of(Some(image)) }),
+                None => needs_capture_api.push(id),
+            }
+        }
 
-        wanted
-            .into_iter()
-            .map(|id| {
+        if !needs_capture_api.is_empty() {
+            let _guard = wgc_lock().lock().unwrap();
+
+            // One enumeration for the whole batch, and only of the kinds actually left. A WGC
+            // session opened per iteration is what corrupts the COM heap - see wgc_lock.
+            let wants_monitor = needs_capture_api.iter().any(|id| id.starts_with("monitor:"));
+            let wants_window = needs_capture_api.iter().any(|id| id.starts_with("window:"));
+            let monitors = if wants_monitor { Monitor::all().unwrap_or_default() } else { Vec::new() };
+            let windows = if wants_window { Window::all().unwrap_or_default() } else { Vec::new() };
+
+            for id in needs_capture_api {
                 let thumbnail = if let Some(idx) = id.strip_prefix("monitor:") {
                     idx.parse::<usize>()
                         .ok()
@@ -255,13 +267,44 @@ pub async fn capture_source_thumbnails(
                     String::new()
                 };
 
-                SourceThumbnail { id, thumbnail }
-            })
-            .collect()
-        // _guard dropped here
+                results.push(SourceThumbnail { id, thumbnail });
+            }
+            // _guard dropped here
+        }
+
+        results
     })
     .await
     .map_err(|e| e.to_string())
+}
+
+/// The GDI thumbnail for a source, or `None` to fall back to the capture API.
+///
+/// Windows only. Everywhere else there is no fast path and every source takes the capture route.
+#[cfg(target_os = "windows")]
+fn fast_thumbnail(source_id: &str) -> Option<RgbaImage> {
+    if let Some(hwnd) = source_id.strip_prefix("window:") {
+        return super::screen_thumb::window_thumbnail(hwnd.parse().ok()?, THUMBNAIL_MAX);
+    }
+
+    if let Some(index) = source_id.strip_prefix("monitor:") {
+        // Monitors are read out of the composited desktop by their virtual-screen rectangle, which
+        // is metadata rather than capture - no session, and no full-resolution surface to copy.
+        let index: usize = index.parse().ok()?;
+        let _guard = wgc_lock().lock().unwrap();
+        let monitor = Monitor::all().ok()?.into_iter().nth(index)?;
+        let (x, y) = (monitor.x().ok()?, monitor.y().ok()?);
+        let (w, h) = (monitor.width().ok()? as i32, monitor.height().ok()? as i32);
+        drop(_guard);
+        return super::screen_thumb::screen_region_thumbnail(x, y, w, h, THUMBNAIL_MAX);
+    }
+
+    None
+}
+
+#[cfg(not(target_os = "windows"))]
+fn fast_thumbnail(_source_id: &str) -> Option<RgbaImage> {
+    None
 }
 
 #[tauri::command]
