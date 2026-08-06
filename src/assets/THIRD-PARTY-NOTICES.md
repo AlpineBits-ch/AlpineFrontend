@@ -10914,9 +10914,9 @@ Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ## npm packages
 
-Bundled into the application frontend. 197 packages, 107 distinct notices.
+Bundled into the application frontend. 244 packages, 132 distinct notices.
 
-### @alloc/quick-lru 5.2.0, ansi-regex 5.0.1, ansi-styles 4.3.0, camelcase 5.3.1, find-up 4.1.0, is-fullwidth-code-point 3.0.0, locate-path 5.0.0, p-limit 2.3.0, p-locate 4.1.0, p-try 2.2.0, path-exists 4.0.0, string-width 4.2.3, strip-ansi 6.0.1, wrap-ansi 6.2.0
+### @alloc/quick-lru 5.2.0, ansi-regex 5.0.1, ansi-styles 4.3.0, camelcase 5.3.1, find-up 4.1.0, is-fullwidth-code-point 3.0.0, locate-path 5.0.0, p-limit 2.3.0, p-locate 4.1.0, p-retry 4.6.2, p-try 2.2.0, path-exists 4.0.0, string-width 4.2.3, strip-ansi 6.0.1, wrap-ansi 6.2.0
 
 **Licence:** MIT
 **Source:** sindresorhus/quick-lru
@@ -10935,6 +10935,27 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 The MIT License
 Copyright (c) 2010-2026 Google LLC. https://angular.dev/license
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### @anthropic-ai/sdk 0.115.0
+
+**Licence:** MIT
+**Source:** github:anthropics/anthropic-sdk-typescript
+
+```text
+Copyright 2023 Anthropic, PBC.
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### @babel/runtime 7.29.7
+
+**Licence:** MIT
+**Source:** https://github.com/babel/babel.git
+
+```text
+MIT License
+Copyright (c) 2014-present Sebastian McKenzie and other contributors
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -11477,6 +11498,13 @@ FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
 
+### @google/genai 2.15.0, detect-libc 2.1.2, ecdsa-sig-formatter 1.0.11, gaxios 7.3.0, gcp-metadata 8.1.2, google-auth-library 10.9.1, google-logging-utils 1.1.3, long 5.3.2, openai 7.4.0, rxjs 7.8.2
+
+**Licence:** Apache-2.0
+**Source:** https://github.com/googleapis/js-genai.git
+
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+
 ### @jridgewell/gen-mapping 0.3.13, @jridgewell/remapping 2.3.5, @jridgewell/sourcemap-codec 1.5.5, @jridgewell/trace-mapping 0.3.31
 
 **Licence:** MIT
@@ -11577,6 +11605,41 @@ Copyright (c) 2025 PrimeTek
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### @protobufjs/aspromise 1.1.2, @protobufjs/base64 1.1.2, @protobufjs/codegen 2.0.5, @protobufjs/eventemitter 1.1.1, @protobufjs/fetch 1.1.1, @protobufjs/float 1.0.2, @protobufjs/path 1.1.2, @protobufjs/pool 1.1.0, @protobufjs/utf8 1.1.2
+
+**Licence:** BSD-3-Clause
+**Source:** https://github.com/dcodeIO/protobuf.js.git
+
+<!-- LICENSE -->
+```text
+Copyright (c) 2016, Daniel Wirtz  All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+* Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright
+  notice, this list of conditions and the following disclaimer in the
+  documentation and/or other materials provided with the distribution.
+* Neither the name of its author, nor the names of its contributors
+  may be used to endorse or promote products derived from this software
+  without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
 ### @sentry/angular 10.59.0, @sentry/replay-canvas 10.59.0
 
 **Licence:** MIT
@@ -11636,6 +11699,17 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 MIT License
 Copyright (c) 2022 Functional Software, Inc. dba Sentry
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### @stablelib/base64 1.0.1
+
+**Licence:** MIT
+**Source:** https://github.com/StableLib/stablelib
+
+```text
+This software is licensed under the MIT license:
+Copyright (C) 2016 Dmitry Chestnykh
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -11805,7 +11879,7 @@ Copyright (c) 2025, Tiptap GmbH
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### @types/turndown 5.0.6
+### @types/node 26.1.2, @types/turndown 5.0.6
 
 **Licence:** MIT
 **Source:** https://github.com/DefinitelyTyped/DefinitelyTyped.git
@@ -11813,6 +11887,17 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 MIT License
 Copyright (c) Microsoft Corporation.
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### @types/retry 0.12.0
+
+**Licence:** MIT
+**Source:** https://github.com/DefinitelyTyped/DefinitelyTyped.git
+
+```text
+MIT License
+Copyright (c) Microsoft Corporation. All rights reserved.
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -11848,6 +11933,17 @@ Copyright (c) the agent-base authors — Nathan Rajlich <nathan@tootallnate.net>
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### agent-base 7.1.4, https-proxy-agent 7.0.6
+
+**Licence:** MIT
+**Source:** https://github.com/TooTallNate/proxy-agents.git
+
+```text
+(The MIT License)
+Copyright (c) 2013 Nathan Rajlich <nathan@tootallnate.net>
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### angular-oauth2-oidc 20.0.2
 
 **Licence:** MIT
@@ -11857,6 +11953,49 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 Copyright (c) 2017 Manfred Steyer
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### base64-js 1.5.1
+
+**Licence:** MIT
+**Source:** git://github.com/beatgammit/base64-js.git
+
+```text
+The MIT License (MIT)
+Copyright (c) 2014 Jameson Little
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### bignumber.js 9.3.1
+
+**Licence:** MIT
+**Source:** https://github.com/MikeMcl/bignumber.js.git
+
+```text
+The MIT License (MIT)
+Copyright © `<2025>` `Michael Mclaughlin`
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### buffer-equal-constant-time 1.0.1
+
+**Licence:** BSD-3-Clause
+**Source:** git@github.com:goinstant/buffer-equal-constant-time.git
+
+<!-- LICENSE.txt -->
+```text
+Copyright (c) 2013, GoInstant Inc., a salesforce.com company
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+* Neither the name of salesforce.com, nor GoInstant, nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
 
 ### cliui 6.0.0, y18n 4.0.3
 
@@ -11889,6 +12028,16 @@ Copyright (c) 2015 Dmitry Ivanov
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### data-uri-to-buffer 4.0.1
+
+**Licence:** MIT
+**Source:** git://github.com/TooTallNate/node-data-uri-to-buffer.git
+
+```text
+Copyright (c) the data-uri-to-buffer authors — Nathan Rajlich <nathan@tootallnate.net> (http://n8.io/)
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### debug 4.4.3
 
 **Licence:** MIT
@@ -11911,13 +12060,6 @@ The MIT License (MIT)
 Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
-
-### detect-libc 2.1.2, rxjs 7.8.2
-
-**Licence:** Apache-2.0
-**Source:** git://github.com/lovell/detect-libc.git
-
-Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### dijkstrajs 1.0.3
 
@@ -12576,12 +12718,45 @@ Copyright (c) EventSource GitHub organisation
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### fetch-cookie 2.2.0
+### extend 3.0.2
+
+**Licence:** MIT
+**Source:** https://github.com/justmoon/node-extend.git
+
+```text
+The MIT License (MIT)
+Copyright (c) 2014 Stefan Thomas
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### fast-sha256 1.3.0, fetch-cookie 2.2.0
 
 **Licence:** Unlicense
-**Source:** valeriangalliat/fetch-cookie
+**Source:** https://github.com/dchest/fast-sha256-js
 
 Distributed under the [Unlicense licence](#licence-unlicense), reproduced in full below.
+
+### fetch-blob 3.2.0
+
+**Licence:** MIT
+**Source:** https://github.com/node-fetch/fetch-blob.git
+
+```text
+MIT License
+Copyright (c) 2019 David Frank
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### formdata-polyfill 4.0.10
+
+**Licence:** MIT
+**Source:** git+https://jimmywarting@github.com/jimmywarting/FormData.git
+
+```text
+MIT License
+Copyright (c) 2016 Jimmy Karl Roland Wärting
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### fs-extra 8.1.0
 
@@ -12686,6 +12861,28 @@ Copyright (c) Pooya Parsa <pooya@pi0.io>
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### json-bigint 1.0.0
+
+**Licence:** MIT
+**Source:** git@github.com:sidorares/json-bigint.git
+
+```text
+The MIT License (MIT)
+Copyright (c) 2013 Andrey Sidorov
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### json-schema-to-ts 3.1.1, ts-algebra 2.0.0
+
+**Licence:** MIT
+**Source:** git+https://github.com/ThomasAribart/json-schema-to-ts.git
+
+```text
+MIT License
+Copyright (c) 2020 Thomas Aribart
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### jsonfile 4.0.0, jsonfile 5.0.0
 
 **Licence:** MIT
@@ -12694,6 +12891,16 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 (The MIT License)
 Copyright (c) 2012-2015, JP Richardson <jprichardson@gmail.com>
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### jwa 2.0.1, jws 4.0.1
+
+**Licence:** MIT
+**Source:** git://github.com/brianloveswords/node-jwa.git
+
+```text
+Copyright (c) 2013 Brian J. Brennan
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -12799,6 +13006,17 @@ Copyright 2017 Andrey Sitnik <andrey@sitnik.ru>
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### node-domexception 1.0.0
+
+**Licence:** MIT
+**Source:** git+https://github.com/jimmywarting/node-domexception.git
+
+```text
+MIT License
+Copyright (c) 2021 Jimmy Wärting
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### node-fetch 2.7.0
 
 **Licence:** MIT
@@ -12807,6 +13025,17 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 The MIT License (MIT)
 Copyright (c) 2016 David Frank
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### node-fetch 3.3.2
+
+**Licence:** MIT
+**Source:** https://github.com/node-fetch/node-fetch.git
+
+```text
+The MIT License (MIT)
+Copyright (c) 2016 - 2020 Node Fetch Team
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -12991,6 +13220,54 @@ Copyright (C) 2015-2016 by Marijn Haverbeke <marijnh@gmail.com> and others
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### protobufjs 7.6.5
+
+**Licence:** BSD-3-Clause
+**Source:** protobufjs/protobuf.js
+
+<!-- LICENSE -->
+```text
+This license applies to all parts of protobuf.js except those files
+either explicitly including or referencing a different license or
+located in a directory containing a different LICENSE file.
+
+---
+
+Copyright (c) 2016, Daniel Wirtz  All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+* Redistributions of source code must retain the above copyright
+  notice, this list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright
+  notice, this list of conditions and the following disclaimer in the
+  documentation and/or other materials provided with the distribution.
+* Neither the name of its author, nor the names of its contributors
+  may be used to endorse or promote products derived from this software
+  without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+---
+
+Code generated by the command line utilities is owned by the owner
+of the input file used when generating it. This code is not
+standalone and requires a support library to be linked with it. This
+support library is itself covered by the above license.
+```
+
 ### proxy-from-env 1.1.0
 
 **Licence:** MIT
@@ -13056,6 +13333,18 @@ Copyright (c) 2016, Contributors
 ```
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
+### retry 0.13.1
+
+**Licence:** MIT
+**Source:** git://github.com/tim-kos/node-retry.git
+
+```text
+Copyright (c) 2011:
+Tim Koschützki (tim@debuggable.com)
+Felix Geisendörfer (felix@debuggable.com)
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### rope-sequence 1.3.4
 
 **Licence:** MIT
@@ -13063,6 +13352,17 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ```text
 Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin>
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### safe-buffer 5.2.1
+
+**Licence:** MIT
+**Source:** git://github.com/feross/safe-buffer.git
+
+```text
+The MIT License (MIT)
+Copyright (c) Feross Aboukhadijeh
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -13112,6 +13412,16 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
+
+### standardwebhooks 1.0.0
+
+**Licence:** MIT
+**Source:** https://github.com/standard-webhooks/standard-webhooks
+
+```text
+Copyright (c) the standardwebhooks authors — Standard Webhooks
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### tapable 2.3.2
 
@@ -13216,6 +13526,17 @@ Copyright (c) 2018 Twitter, Inc.
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### undici-types 8.3.0
+
+**Licence:** MIT
+**Source:** git+https://github.com/nodejs/undici.git
+
+```text
+MIT License
+Copyright (c) Matteo Collina and Undici contributors
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### universalify 0.1.2, universalify 0.2.0
 
 **Licence:** MIT
@@ -13224,6 +13545,18 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 (The MIT License)
 Copyright (c) 2017, Ryan Zimmerman <opensrc@ryanzim.com>
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### web-streams-polyfill 3.3.3
+
+**Licence:** MIT
+**Source:** git+https://github.com/MattiasBuelens/web-streams-polyfill.git
+
+```text
+The MIT License (MIT)
+Copyright (c) 2024 Mattias Buelens
+Copyright (c) 2016 Diwank Singh Tomer
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -13258,6 +13591,18 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 The MIT License (MIT)
 Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com>
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### ws 8.21.2
+
+**Licence:** MIT
+**Source:** git+https://github.com/websockets/ws.git
+
+```text
+Copyright (c) 2011 Einar Otto Stangvik <einaros@gmail.com>
+Copyright (c) 2013 Arnout Kazemier and contributors
+Copyright (c) 2016 Luigi Pinca and contributors
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
