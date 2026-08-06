@@ -183,6 +183,35 @@ fn spawn_stats_logger() {
                     delta(publication.rtp_unmapped, |p| p.rtp_unmapped),
                     publication.subscribed,
                 );
+
+                // Which mid carries whom. `rtp_routed` only says a packet matched *some* mid, so a
+                // table that maps the wrong participant - or omits one - is invisible in the
+                // counters above while making exactly one person inaudible.
+                if !publication.mid_routes.is_empty() {
+                    let routes: Vec<String> = publication
+                        .mid_routes
+                        .iter()
+                        .map(|(mid, id)| format!("{mid}->{id}"))
+                        .collect();
+                    eprintln!("[voice] {} routes: {}", publication.slot, routes.join(" "));
+                }
+            }
+
+            // Per participant, after decode and gain, which is the only place "everyone is audible"
+            // can be told apart from "one of them is not".
+            //
+            // `rtp_received` and `rtp_routed` are totals across every track at once, so one talker
+            // hides another entirely: 300 packets a second from one participant and nothing from a
+            // second reads as a healthy connection. `level` is what that participant contributes to
+            // the mix - zero while their buffer fills means their audio is arriving and being
+            // dropped afterwards, by gain, mute, or a decode that is failing silently.
+            if !now.sources.is_empty() {
+                let sources: Vec<String> = now
+                    .sources
+                    .iter()
+                    .map(|s| format!("{}={:.4}({}buf)", s.id, s.level, s.buffered_packets))
+                    .collect();
+                eprintln!("[voice] sources: {}", sources.join(" "));
             }
 
             previous = Some(now);

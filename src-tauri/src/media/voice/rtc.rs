@@ -462,6 +462,31 @@ impl VoicePublication {
             return Err(format!("Cloudflare rejected the voice track: {error}"));
         }
 
+        // Where this connection is actually trying to send, and how the far end intends to answer.
+        //
+        // Only the local candidates were ever logged, which makes a failed ICE handshake
+        // unattributable: "checking" then "failed" says the pairs did not work, but not whether the
+        // remote address was ever reachable from this machine. That address is the one thing needed
+        // to tell "UDP is blocked" apart from "this particular destination is routed somewhere
+        // else" - a split-tunnel VPN passes a STUN server perfectly while black-holing the media
+        // server, and the two are indistinguishable without knowing which IP the media was aimed at.
+        //
+        // `ice-lite` is worth stating too: it is the property the empty ICE-server list depends on.
+        // A lite agent never sends checks of its own, it only answers ours from the address we sent
+        // to, which is why host candidates suffice and why no unsolicited inbound has to be allowed.
+        let remote_sdp = &response.session_description.sdp;
+        eprintln!(
+            "[voice] remote is {}",
+            if remote_sdp.contains("a=ice-lite") {
+                "an ice-lite agent (it only answers our checks)"
+            } else {
+                "a full ICE agent (it will send checks of its own)"
+            }
+        );
+        for line in remote_sdp.lines().filter(|l| l.starts_with("a=candidate:")) {
+            eprintln!("[voice]   remote {}", line.trim_start_matches("a="));
+        }
+
         let answer = RTCSessionDescription::answer(response.session_description.sdp)
             .map_err(|e| e.to_string())?;
         peer_connection
