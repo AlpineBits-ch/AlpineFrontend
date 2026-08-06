@@ -21,6 +21,12 @@ mod desktop_notifications;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod data_export;
 
+/// The pre-launch update gate: checks for and installs an update before the main
+/// window is built, so a client that panics during startup can still be fixed.
+/// See docs/superpowers/plans/2026-08-06-pre-launch-update-gate.md.
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
+mod update_gate;
+
 #[cfg(target_os = "windows")]
 mod windows_notifications;
 
