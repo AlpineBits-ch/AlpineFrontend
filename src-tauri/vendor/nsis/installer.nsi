@@ -490,6 +490,27 @@ Function .onInit
     StrCpy $UpdateMode 1
   ${EndIf}
 
+  ; ALPINE PATCH: passive is the default, so a double-click gets one progress
+  ; window instead of a five-page wizard. Every page except MUI_PAGE_INSTFILES
+  ; carries `MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive`, and SkipIfPassive aborts
+  ; the page when $PassiveMode = 1 - so this one default is the whole feature.
+  ;
+  ; It must sit *after* the `/P` block above, not before: `${GetOptions}` writes
+  ; its result into $PassiveMode and clears it when the switch is absent, so
+  ; setting the default earlier would be overwritten by the very next line.
+  ;
+  ; `/WIZARD` restores the old pages for anyone who needs to choose an install
+  ; directory interactively. Silent installs (`/S`, which is what the updater
+  ; sends as `/S /R`) are unaffected: NSIS suppresses pages itself in silent
+  ; mode, and the install section keys shortcut creation and auto-close off
+  ; `$PassiveMode = 1 ${OrIf} ${Silent}`, which both paths satisfy.
+  ${GetOptions} $CMDLINE "/WIZARD" $R9
+  ${If} ${Errors}
+    StrCpy $PassiveMode 1
+  ${Else}
+    StrCpy $PassiveMode 0
+  ${EndIf}
+
   !if "${DISPLAYLANGUAGESELECTOR}" == "true"
     !insertmacro MUI_LANGDLL_DISPLAY
   !endif
