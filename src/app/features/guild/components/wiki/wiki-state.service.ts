@@ -185,12 +185,16 @@ export class WikiStateService {
         this.pendingRemoteUpdate.set(null);
         this.wikiView.set('editor');
 
-        // Only for a genuinely new page, and only when there is nothing else already competing
-        // for the same blank document: an unsaved draft offers to restore content that picking a
-        // template would immediately overwrite, and stacking the two asks the user to resolve a
-        // conflict nobody explained to them. The draft wins - it is the user's own work.
-        const hasDraft = !!this.drafts.read(this.guildId(), null);
-        this.templatePickerOpen.set(!page && !options?.skipTemplatePicker && !hasDraft);
+        // Every new page, every time - the only exception being the AI entry points, where the
+        // dialog is the point and the picker would open behind it.
+        //
+        // This used to also bow out whenever an unsaved "new page" draft existed, to avoid
+        // stacking the restore bar on top of the picker. That made the picker's appearance
+        // unpredictable in a way nothing on screen explained: abandon one new page without
+        // saving, and every subsequent new page silently skipped the picker until that draft
+        // aged out. Choosing a template now clears that draft instead, which is an explicit act
+        // by the user and undoable like any other edit.
+        this.templatePickerOpen.set(!page && !options?.skipTemplatePicker);
     }
 
     openHistory(): void {

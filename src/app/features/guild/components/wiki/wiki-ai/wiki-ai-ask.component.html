@@ -83,17 +83,17 @@
                                 </p>
                             }
 
-                            <p class="whitespace-pre-wrap pl-5 text-[0.8125rem] leading-relaxed
-                                      text-white/70">@for (segment of turn.segments; track $index) {
-                                @if (segment.pageId) {<button
-                                        (click)="openPage(segment.pageId!)"
-                                        class="cursor-pointer border-0 bg-transparent p-0
-                                               text-[0.8125rem] text-brand-dim hover:underline"
-                                        type="button">{{ segment.text }}</button>} @else {{{ segment.text }}}
-                            }@if (running() && last) {
-                                <span class="ml-0.5 inline-block h-3 w-1.5 animate-pulse
+                            <!-- Rendered markdown, not raw text: answers come back with headings,
+                                 lists and emphasis. `wiki-content` is the same class page bodies
+                                 use, so an answer is typeset like the pages it is quoting. -->
+                            <div (click)="onAnswerClick($event)"
+                                 [innerHTML]="renderAnswer(turn.answer)"
+                                 class="wiki-content pl-5 text-[0.8125rem] leading-relaxed
+                                        text-white/70"></div>
+                            @if (running() && last) {
+                                <span class="ml-5 inline-block h-3 w-1.5 animate-pulse
                                              bg-brand-dim align-middle"></span>
-                            }</p>
+                            }
 
                             @if (turn.answer && !running()) {
                                 <p class="mt-2 pl-5 text-[0.6875rem] text-white/25">

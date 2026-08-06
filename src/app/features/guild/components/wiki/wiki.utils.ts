@@ -42,6 +42,34 @@ function tagTaskItems(html: string): string {
     return div.innerHTML;
 }
 
+/**
+ * DOMPurify's default protocol allowlist, plus `wiki:`.
+ *
+ * An AI answer cites its sources as ordinary wiki links, and the default regexp drops any href
+ * whose scheme it does not recognise - which is every citation. The alternative was to not render
+ * the answer as markdown at all, which is what left `##` and `**` showing literally on screen.
+ * Widening the allowlist by exactly one internal scheme is the smaller concession: a `wiki:` href
+ * navigates inside the app and can never reach the network.
+ */
+const WIKI_ANSWER_URI_REGEXP =
+    /^(?:(?:(?:f|ht)tps?|mailto|wiki):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i;
+
+/**
+ * Renders an AI answer, keeping its citations clickable.
+ *
+ * Same sanitiser as everything else in the wiki, so an answer is held to the same schema as page
+ * content; only the URI allowlist differs, and only by `wiki:`.
+ */
+export function renderWikiAnswer(content: string, sanitizer: DomSanitizer): SafeHtml {
+    if (!content) return '';
+    const raw = marked.parse(content) as string;
+    const clean = DOMPurify.sanitize(raw, {
+        ...WIKI_PURIFY_CONFIG,
+        ALLOWED_URI_REGEXP: WIKI_ANSWER_URI_REGEXP,
+    });
+    return sanitizer.bypassSecurityTrustHtml(clean);
+}
+
 export function renderWikiMarkdown(content: string, sanitizer: DomSanitizer): SafeHtml {
     if (!content) return '';
     const raw = content.trimStart().startsWith('<') ? content : (marked.parse(content) as string);

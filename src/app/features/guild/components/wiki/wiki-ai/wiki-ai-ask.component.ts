@@ -4,7 +4,10 @@ import {TranslateModule} from '@ngx-translate/core';
 import {AiAskSource} from '../../../../../services/ai-provider';
 import {AiConnectFormComponent} from '../../../../../shared/ai-connect-form/ai-connect-form.component';
 import {WikiAiService} from '../wiki-ai.service';
+import {DomSanitizer, SafeHtml} from '@angular/platform-browser';
 import {AnswerSegment, buildAskQuestion, splitAnswer} from './wiki-ai-answer';
+import {renderWikiAnswer} from '../wiki.utils';
+import {parseWikiHref} from '../wiki-links';
 import {describeAiError, isMissingProvider, rankAskSources} from './wiki-ai-shared';
 
 interface AskTurn {
@@ -52,6 +55,31 @@ export class WikiAiAskComponent {
     readonly pageSelected = output<string>();
 
     protected readonly ai = inject(WikiAiService);
+    private readonly sanitizer = inject(DomSanitizer);
+
+    /**
+     * The answer as rendered markdown rather than as raw text.
+     *
+     * Answers come back as markdown - headings, lists, bold, code - and were being printed
+     * verbatim, so `##` and `**` showed up on screen. Citations survive because the renderer
+     * allows the `wiki:` scheme; clicks on them are delegated in `onAnswerClick`.
+     */
+    protected renderAnswer(markdown: string): SafeHtml {
+        return renderWikiAnswer(markdown, this.sanitizer);
+    }
+
+    /**
+     * Citations are ordinary anchors inside rendered HTML, so there is nothing to bind a click to
+     * per link. One delegated handler on the container turns a `wiki:` href into navigation and
+     * leaves every other link alone.
+     */
+    protected onAnswerClick(event: MouseEvent): void {
+        const anchor = (event.target as HTMLElement).closest('a');
+        const pageId = anchor && parseWikiHref(anchor.getAttribute('href'));
+        if (!pageId) return;
+        event.preventDefault();
+        this.openPage(pageId);
+    }
     protected readonly turns = signal<AskTurn[]>([]);
     protected readonly running = signal(false);
     protected readonly connecting = signal(false);

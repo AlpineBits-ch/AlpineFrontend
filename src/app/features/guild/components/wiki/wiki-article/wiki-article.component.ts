@@ -15,6 +15,7 @@ import {FormsModule} from '@angular/forms';
 import {Button} from 'primeng/button';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Editor, Extension} from '@tiptap/core';
+import {Plugin} from '@tiptap/pm/state';
 import {WikiDto, WikiPageDto, WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../../services/wiki.service';
 import {FileService} from '../../../../../services/file.service';
@@ -167,7 +168,6 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     private editor?: Editor;
     private clickHandler?: (e: MouseEvent) => void;
     private keydownHandler?: (e: KeyboardEvent) => void;
-    private menuKeydownHandler?: (e: KeyboardEvent) => void;
     private overHandler?: (e: MouseEvent) => void;
     private outHandler?: (e: MouseEvent) => void;
     private suggest: SuggestState | null = null;
@@ -233,7 +233,14 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
                 ),
                 Extension.create({
                     name: 'wikiSuggest',
-                    addProseMirrorPlugins: () => [wikiSuggestPlugin(s => this.onSuggest(s))],
+                    addProseMirrorPlugins: () => [
+                        wikiSuggestPlugin(s => this.onSuggest(s)),
+                        // Registered ahead of the ghost-text plugin so that while a menu is open
+                        // its Tab selects an item rather than accepting a suggestion.
+                        new Plugin({
+                            props: {handleKeyDown: (_view, event) => this.onMenuKeyDown(event)},
+                        }),
+                    ],
                 }),
                 Extension.create({
                     name: 'wikiGhostText',
@@ -295,33 +302,6 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         };
         this.editorEl.nativeElement.addEventListener('keydown', this.keydownHandler, true);
 
-        /*
-         * Menu navigation listens on the *document*, in the capture phase.
-         *
-         * It used to hang off the editor container, which in principle captures before
-         * ProseMirror's own handler on the contenteditable underneath - and in practice did not
-         * drive the menus at all. A document-level capture listener is the one position that fires
-         * before every other handler in the app no matter where focus actually sits or how
-         * ProseMirror mounts its DOM, which is what these menus need: they must own the arrow keys
-         * without taking focus, or typing to filter the list would stop working.
-         *
-         * It costs nothing while shut - the first line returns immediately unless a menu is open.
-         */
-        this.menuKeydownHandler = (event: KeyboardEvent) => {
-            if (!this.anyMenuOpen()) return;
-            if (event.key === 'Escape') {
-                swallow(event);
-                this.closeMenus();
-                return;
-            }
-            // Each menu returns false while it is shut, so the chain stops at the open one.
-            const consumed = this.slashMenu?.handleKey(event.key)
-                || this.linkMenu?.handleKey(event.key)
-                || this.emojiMenu?.handleKey(event.key)
-                || this.mentionMenu?.handleKey(event.key);
-            if (consumed) swallow(event);
-        };
-        document.addEventListener('keydown', this.menuKeydownHandler, true);
 
         // Delayed, so running the pointer across a paragraph of links does not strobe a popover
         // once per link on the way past.
@@ -347,9 +327,6 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         const el = this.editorEl?.nativeElement;
         if (el && this.clickHandler) el.removeEventListener('click', this.clickHandler);
         if (el && this.keydownHandler) el.removeEventListener('keydown', this.keydownHandler, true);
-        if (this.menuKeydownHandler) {
-            document.removeEventListener('keydown', this.menuKeydownHandler, true);
-        }
         if (el && this.overHandler) el.removeEventListener('mouseover', this.overHandler);
         if (el && this.outHandler) el.removeEventListener('mouseout', this.outHandler);
         this.editor?.destroy();
@@ -403,6 +380,10 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     applyTemplate(choice: WikiTemplateChoice): void {
         if (choice.suggestedTitle && !this.title().trim()) this.title.set(choice.suggestedTitle);
         if (choice.markdown) this.replaceMarkdown(choice.markdown);
+        // Picking a template settles what this page starts from, so a leftover draft from some
+        // earlier abandoned new page must stop offering to restore itself on top of it.
+        this.drafts.clear(this.guildId(), this.page()?.id ?? null);
+        this.pendingDraft.set(null);
     }
 
     /** The draft request needs the current body, whichever surface holds it. */
@@ -666,6 +647,29 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         editor.chain().focus().deleteRange({from: start, to: $from.pos}).run();
     }
 
+    /**
+     * Arrow keys, Enter, Tab and Escape while one of the four trigger menus is open.
+     *
+     * Registered as a ProseMirror `handleKeyDown` prop rather than as a DOM listener. Two DOM
+     * approaches were tried first - capture on the editor container, then capture on the document -
+     * and neither actually drove the menus. This is the mechanism ProseMirror itself provides:
+     * it is called for every keydown the editor receives, ahead of its own keymaps, and returning
+     * true is what makes it call `preventDefault` and stop. No listener ordering to reason about,
+     * and focus stays in the editor, which it must - the menus are filtered by continuing to type.
+     */
+    private onMenuKeyDown(event: KeyboardEvent): boolean {
+        if (!this.anyMenuOpen()) return false;
+        if (event.key === 'Escape') {
+            this.closeMenus();
+            return true;
+        }
+        // Each menu returns false while it is shut, so the chain stops at the open one.
+        return !!(this.slashMenu?.handleKey(event.key)
+            || this.linkMenu?.handleKey(event.key)
+            || this.emojiMenu?.handleKey(event.key)
+            || this.mentionMenu?.handleKey(event.key));
+    }
+
     private closeMenus(): void {
         this.slashOpen.set(false);
         this.linkMenuOpen.set(false);
@@ -771,23 +775,6 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             anchor.setAttribute('data-wiki-broken', String(!known.has(pageId)));
         });
     }
-}
-
-/**
- * Takes a key away from the editor entirely.
- *
- * `preventDefault` alone is not enough to stop ProseMirror: its own `keydown` handler does not
- * check `defaultPrevented`, so an arrow key still moved the caret out of the `/query` run that had
- * opened the menu - the trigger then stopped matching and the menu closed. Which is why the menus
- * could only ever be driven with the mouse.
- *
- * `stopPropagation` during the capture phase on the editor's *container* keeps the event from ever
- * reaching the contenteditable underneath, so the menus can own these keys without taking focus -
- * which they must not do, or typing to filter the list would stop working.
- */
-function swallow(event: KeyboardEvent): void {
-    event.preventDefault();
-    event.stopPropagation();
 }
 
 /**
