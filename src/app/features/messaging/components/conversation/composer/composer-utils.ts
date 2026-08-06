@@ -85,6 +85,7 @@ export type TriggerDetection =
     | { type: 'command'; query: string; range: Range; atStart: boolean }
     | { type: 'emoji'; query: string; range: Range }
     | { type: 'channel'; query: string; range: Range }
+    | { type: 'wiki'; query: string; range: Range }
     | null;
 
 /** Inspect the current selection to detect an active @ mention, / command, or : emoji trigger. */
@@ -97,6 +98,19 @@ export function detectTrigger(editor: HTMLElement): TriggerDetection {
     if (node.nodeType !== Node.TEXT_NODE) return null;
 
     const textBefore = (node.textContent ?? '').slice(0, range.startOffset);
+
+    // `[[` for a wiki page, which is what `[[` already means inside the wiki editor itself. Tested
+    // before the single-character triggers because a page title may contain any of them - `[[a:b`
+    // is a page query, not an emoji shortcode - and the two-character opener cannot be reached by
+    // accident the way a bare colon can.
+    const wikiMatch = textBefore.match(/\[\[([^\[\]\n]{0,64})$/);
+    if (wikiMatch) {
+        const openPos = textBefore.lastIndexOf('[[');
+        const r = document.createRange();
+        r.setStart(node as Text, openPos);
+        r.setEnd(node as Text, range.startOffset);
+        return {type: 'wiki', query: wikiMatch[1], range: r};
+    }
 
     const mentionMatch = textBefore.match(/(?:^|[\s\u00a0])@(\w*)$/);
     if (mentionMatch) {

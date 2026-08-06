@@ -1,1 +1,1 @@
-export type WikiView = 'home' | 'page' | 'editor' | 'history';
+export type WikiView = 'home' | 'page' | 'editor' | 'history' | 'graph';

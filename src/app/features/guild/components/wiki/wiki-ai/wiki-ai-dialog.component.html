@@ -16,7 +16,7 @@
     <!-- Connect. Reached without ever leaving the wiki, and it is the state an unconfigured user
          lands in the first time they press the button - not a dead end telling them to go and
          find a settings page. -->
-    @if (connecting() || !activeProvider()) {
+    @if (connecting() || !ai.available()) {
         <div class="flex flex-col gap-4 pt-1">
             <p class="text-sm text-white/60">{{ 'WIKI.AI.CONNECT_INTRO' | translate }}</p>
             <app-ai-connect-form (connected)="onConnected()" [showBilling]="false"/>
@@ -43,7 +43,7 @@
                  in settings. -->
             <p class="-mt-1 flex items-center gap-1.5 text-[0.6875rem] text-white/35">
                 <i class="pi pi-lock text-[0.625rem]"></i>
-                {{ 'WIKI.AI.USING' | translate: {provider: meta[activeProvider()!].label} }}
+                {{ 'WIKI.AI.USING' | translate: {provider: providerLabel()} }}
                 <button (click)="connecting.set(true)"
                         class="cursor-pointer border-0 bg-transparent p-0 text-[0.6875rem]
                                text-brand-dim hover:underline"
@@ -54,12 +54,14 @@
             @if (error(); as message) {
                 <p class="rounded-lg border border-offline/30 bg-offline/[0.08] px-3 py-2
                           text-[0.8125rem] text-white/70">
-                    {{ errorIsKey() ? (message | translate) : message }}
+                    {{ message }}
                 </p>
             }
 
             <!-- Preview. Deliberately the raw markdown: this is what will land in the editor, and
-                 a rendered preview would hide a model that fenced or prefaced its answer. -->
+                 a rendered preview would hide a model that fenced or prefaced its answer. The
+                 preview is the fallback path now - the primary one writes into the page itself,
+                 where the result is already rendered by the thing that will hold it. -->
             @if (draft() || running()) {
                 <div class="flex flex-col gap-2">
                     <label class="text-xs font-medium text-white/45">
@@ -76,7 +78,7 @@
     }
 
     <ng-template pTemplate="footer">
-        @if (!connecting() && activeProvider()) {
+        @if (!connecting() && ai.available()) {
             <div class="flex w-full items-center justify-end gap-2">
                 @if (running()) {
                     <p-button (onClick)="stop()" [label]="'WIKI.AI.STOP' | translate"
@@ -92,10 +94,19 @@
                                   [label]="'WIKI.AI.REPLACE' | translate"
                                   severity="danger" size="small"/>
                     }
+                    <!-- Preview stays available, one step back from primary: it is the honest
+                         answer for "show me first", and the only answer while the page is not
+                         editable. -->
                     <p-button (onClick)="generate()"
                               [disabled]="!prompt.trim()"
-                              [label]="(draft() ? 'WIKI.AI.REGENERATE' : 'WIKI.AI.GENERATE') | translate"
-                              icon="pi pi-sparkles" severity="primary" size="small"/>
+                              [label]="(draft() ? 'WIKI.AI.REGENERATE' : 'WIKI.AI.PREVIEW_HERE') | translate"
+                              icon="pi pi-eye" severity="secondary" size="small"/>
+                    @if (canStreamInPlace()) {
+                        <p-button (onClick)="writeIntoPage()"
+                                  [disabled]="!prompt.trim()"
+                                  [label]="'WIKI.AI.WRITE_INTO_PAGE' | translate"
+                                  icon="pi pi-sparkles" severity="primary" size="small"/>
+                    }
                 }
             </div>
         }

@@ -23,7 +23,16 @@ import {WikiService} from '../../../../services/wiki.service';
 import {WikiContextRailComponent} from './wiki-rail/wiki-context-rail.component';
 import {WikiSearchPaletteComponent} from './wiki-search/wiki-search-palette.component';
 import {WikiAiDialogComponent} from './wiki-ai/wiki-ai-dialog.component';
-import {buildToc, Heading, TocEntry} from './wiki-toc';
+import {WikiShareDialogComponent} from './wiki-share/wiki-share-dialog.component';
+import {WikiTemplatePickerComponent} from './wiki-templates/wiki-template-picker.component';
+import {WikiTemplateChoice} from './wiki-templates/wiki-template.model';
+import {WikiShortcutsOverlayComponent} from './wiki-shortcuts/wiki-shortcuts-overlay.component';
+import {WikiShortcutKeysDirective} from './wiki-shortcuts/wiki-shortcut-keys.directive';
+import {WikiGraphComponent} from './wiki-graph/wiki-graph.component';
+import {WikiAiAskComponent} from './wiki-ai/wiki-ai-ask.component';
+import {WikiContentCacheService} from './wiki-content-cache.service';
+import {AiAskSource} from '../../../../services/ai-provider';
+import {applyHeadingIds, buildToc, Heading, TocEntry} from './wiki-toc';
 import {canEditPage} from './wiki-permissions';
 
 const NAV_WIDTH_KEY = 'wiki-nav-width';
@@ -36,7 +45,9 @@ const NAV_WIDTH_MAX = 420;
     imports: [
         WikiNavComponent, WikiHomeComponent, WikiArticleComponent, WikiBreadcrumbsComponent,
         WikiContextRailComponent, WikiSearchPaletteComponent, WikiHistoryComponent,
-        WikiAiDialogComponent, Button, Dialog, PrimeTemplate, TranslateModule,
+        WikiAiDialogComponent, WikiShareDialogComponent, WikiTemplatePickerComponent,
+        WikiShortcutsOverlayComponent, WikiShortcutKeysDirective, WikiGraphComponent,
+        WikiAiAskComponent, Button, Dialog, PrimeTemplate, TranslateModule,
     ],
     templateUrl: './wiki.component.html',
     styleUrl: './wiki.component.css',
@@ -48,10 +59,38 @@ export class WikiComponent {
     protected readonly state = inject(WikiStateService);
     protected readonly navWidth = signal(readStoredWidth());
     protected readonly navCollapsed = signal(false);
+    /**
+     * Drawer state for windows narrower than the breakpoint each column needs.
+     *
+     * Separate from `navCollapsed`, which is a deliberate desktop choice to reclaim the column.
+     * Folding the two together would mean a collapsed desktop column stayed collapsed when the
+     * window narrowed, leaving the drawer shut with no control left to open it.
+     */
+    protected readonly navDrawerOpen = signal(false);
+    protected readonly railDrawerOpen = signal(false);
     /** Fed by the article as its document changes; consumed by the context rail's TOC. */
     protected readonly headings = signal<Heading[]>([]);
+    /** The live body while editing, so the rail's word count moves as you type. */
+    protected readonly liveContent = signal<string | null>(null);
     protected readonly searchOpen = signal(false);
     protected readonly aiOpen = signal(false);
+    protected readonly shareOpen = signal(false);
+    protected readonly shortcutsOpen = signal(false);
+    protected readonly askOpen = signal(false);
+    protected readonly cache = inject(WikiContentCacheService);
+    /** Tags the AI suggested and the user accepted, on their way to the rail's tag editor. */
+    protected readonly aiSuggestedTags = signal<string[]>([]);
+
+    /**
+     * Every page whose body we actually hold, for the ask panel to rank. Bodies only: a title-only
+     * page contributes nothing but a citation the model could hang a wrong claim on.
+     */
+    protected readonly askSources = computed<AiAskSource[]>(() => {
+        const bodies = this.cache.content();
+        return (this.state.wiki()?.pages ?? [])
+            .map(page => ({id: page.id, title: page.title, content: bodies.get(page.id) ?? ''}))
+            .filter(source => source.content.trim());
+    });
     protected readonly saveStatus = signal<SaveStatus>('idle');
     protected readonly showDeleteDialog = signal(false);
     protected readonly deleting = signal(false);
@@ -88,6 +127,15 @@ export class WikiComponent {
             const id = this.guildId();
             if (id) this.state.initialize(id);
         });
+
+        // Tapping a page in the drawer must not leave the drawer sitting over the page it just
+        // opened. Reads both signals so it fires on a view change as well as a page change.
+        effect(() => {
+            this.state.selectedPage();
+            this.state.wikiView();
+            this.navDrawerOpen.set(false);
+            this.railDrawerOpen.set(false);
+        });
     }
 
     /**
@@ -99,11 +147,39 @@ export class WikiComponent {
         if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
             event.preventDefault();
             this.searchOpen.set(true);
+            return;
+        }
+        if ((event.metaKey || event.ctrlKey) && event.key === '/') {
+            event.preventDefault();
+            this.askOpen.set(true);
+            return;
+        }
+        // An overlay you cannot dismiss with Escape reads as a stuck one. Only consumed when a
+        // drawer is actually open, so Escape keeps its meaning everywhere else in the wiki.
+        if (event.key === 'Escape' && (this.navDrawerOpen() || this.railDrawerOpen())) {
+            event.preventDefault();
+            this.navDrawerOpen.set(false);
+            this.railDrawerOpen.set(false);
         }
     }
 
     protected onEditorSaved(page: WikiPageDto): void {
         this.state.afterSaved(page);
+    }
+
+    /**
+     * Stamps stable ids onto the rendered headings, which is what makes a link to a section
+     * possible at all - ProseMirror renders headings with no id of its own.
+     *
+     * Deferred a tick because the editor reports its headings before the DOM holding them has been
+     * laid out, and re-run on every update because ProseMirror rebuilds those nodes.
+     */
+    protected onHeadingsChanged(headings: Heading[]): void {
+        this.headings.set(headings);
+        setTimeout(() => applyHeadingIds(
+            document.querySelector('.wiki-article-body'),
+            buildToc(this.headings()),
+        ));
     }
 
     /**
@@ -114,15 +190,40 @@ export class WikiComponent {
      */
     protected openAiDialog(): void {
         if (this.state.wikiView() !== 'editor') {
-            this.state.openEditor(this.state.selectedPage() ?? undefined);
+            // Same reason as `startAiPage`: no picker behind the dialog.
+            this.state.openEditor(this.state.selectedPage() ?? undefined, undefined,
+                {skipTemplatePicker: true});
         }
         this.aiOpen.set(true);
     }
 
     /** From the empty-wiki state: a brand new page with the dialog already open. */
     protected startAiPage(): void {
-        this.state.openEditor();
+        // Skipped: the picker would open behind the AI dialog, and someone who asked for a draft
+        // has already chosen how this page gets its first draft.
+        this.state.openEditor(undefined, undefined, {skipTemplatePicker: true});
         this.aiOpen.set(true);
+    }
+
+    protected applyTemplate(choice: WikiTemplateChoice): void {
+        this.state.templatePickerOpen.set(false);
+        this.article()?.applyTemplate(choice);
+    }
+
+    /**
+     * The dialog's primary action is now "write into the page": it emits the prompt and closes,
+     * and the article streams it in behind its own keep/discard strip.
+     */
+    protected onAiStreamRequest(prompt: string): void {
+        this.aiOpen.set(false);
+        if (this.state.wikiView() === 'editor') {
+            this.article()?.draftWithAi(prompt);
+            return;
+        }
+        // Switching views recreates the article, so the call has to wait for it to exist.
+        this.state.openEditor(this.state.selectedPage() ?? undefined, undefined,
+            {skipTemplatePicker: true});
+        setTimeout(() => this.article()?.draftWithAi(prompt));
     }
 
     protected onAiInsert(markdown: string): void {

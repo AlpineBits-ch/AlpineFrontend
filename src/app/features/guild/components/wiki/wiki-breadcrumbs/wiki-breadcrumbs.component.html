@@ -1,5 +1,14 @@
 <header class="app-header flex shrink-0 items-center gap-2 border-b border-white/[0.08] px-4">
 
+    <!-- Below `lg` the page tree is a drawer, and this is the only handle on it. The wrapper
+         carries the breakpoint rather than `styleClass`, which would hide the inner button but
+         leave the host element taking a slot in this row's `gap`. -->
+    <div class="shrink-0 lg:hidden">
+        <p-button (onClick)="openNav.emit()" [text]="true" icon="pi pi-bars"
+                  [pTooltip]="'WIKI.SHOW_PAGES' | translate" severity="secondary" size="small"
+                  tooltipPosition="bottom"/>
+    </div>
+
     <!-- Trail -->
     <nav class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
         @for (segment of trail(); track segment.id) {
@@ -27,9 +36,21 @@
 
     <!-- Actions -->
     <div class="flex shrink-0 items-center gap-1">
+        <!-- Same reasoning as the nav handle: below `xl` the rail is a drawer, not absent. -->
+        <div class="shrink-0 xl:hidden">
+            <p-button (onClick)="openRail.emit()" [text]="true" icon="pi pi-info-circle"
+                      [pTooltip]="'WIKI.RAIL.SHOW' | translate" severity="secondary" size="small"
+                      tooltipPosition="bottom"/>
+        </div>
+
         <!-- Gated on edit permission only, never on having connected a provider: a member who has
              not connected one yet is exactly who this button is for, and it opens the dialog in a
              connect state rather than doing nothing. -->
+        <!-- Ungated: asking the wiki a question is reading, not editing. ⌘/ does the same, but a
+             shortcut nobody can see is not a feature. -->
+        <p-button (onClick)="ask.emit()" [text]="true" icon="pi pi-comments"
+                  [pTooltip]="'WIKI.AI.ASK.OPEN' | translate" severity="secondary" size="small"
+                  tooltipPosition="bottom"/>
         @if (canEdit()) {
             <p-button (onClick)="draftWithAi.emit()" [text]="true" icon="pi pi-sparkles"
                       [pTooltip]="'WIKI.AI.BUTTON' | translate" severity="secondary" size="small"
@@ -40,6 +61,12 @@
             <p-button (onClick)="save.emit()" icon="pi pi-check" [label]="'WIKI.SAVE' | translate" severity="primary"
                       size="small"/>
         } @else {
+            <!-- Read mode only: a page that has never been saved has nothing to link to. -->
+            @if (pageId()) {
+                <p-button (onClick)="share.emit()" [text]="true" icon="pi pi-send"
+                          [pTooltip]="'WIKI.SHARE.BUTTON' | translate" severity="secondary"
+                          size="small" tooltipPosition="bottom"/>
+            }
             <p-button (onClick)="history.emit()" [text]="true" icon="pi pi-clock" [pTooltip]="'WIKI.HISTORY' | translate"
                       severity="secondary" size="small" tooltipPosition="bottom"/>
             @if (canEdit()) {

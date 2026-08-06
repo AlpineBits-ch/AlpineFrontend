@@ -13,38 +13,117 @@
                        class="flex-1 border-0 bg-transparent text-[0.9375rem] text-white/85
                               outline-none placeholder-white/25"
                        [placeholder]="'WIKI.SEARCH.PLACEHOLDER' | translate"/>
+                <button (click)="filtersOpen.set(!filtersOpen())"
+                        [class.text-brand-dim]="filtersOpen() || activeFilterCount() > 0"
+                        [class.text-white/30]="!filtersOpen() && activeFilterCount() === 0"
+                        class="flex shrink-0 cursor-pointer items-center gap-1 rounded border-0
+                               bg-transparent px-1.5 py-1 hover:bg-hover"
+                        [attr.aria-label]="'WIKI.SEARCH.FILTERS' | translate">
+                    <i class="pi pi-filter text-[0.75rem]"></i>
+                    @if (activeFilterCount() > 0) {
+                        <span class="text-[0.625rem]">{{ activeFilterCount() }}</span>
+                    }
+                </button>
                 <kbd class="rounded border border-border px-1.5 py-0.5 text-[0.625rem] text-white/30">
                     esc
                 </kbd>
             </div>
 
+            <!-- Filters. Hidden until asked for: three dropdowns above every search would make
+                 the common case look like a form. -->
+            @if (filtersOpen()) {
+                <div class="flex items-center gap-2 border-b border-white/[0.08] bg-white/[0.02] px-4 py-2">
+                    <p-select (ngModelChange)="tagFilter.set($event)" [ngModel]="tagFilter()"
+                              [options]="tagOptions()" [showClear]="true" optionLabel="label"
+                              optionValue="value" size="small" styleClass="flex-1 min-w-0"
+                              [placeholder]="'WIKI.TAGS' | translate"/>
+                    <p-select (ngModelChange)="categoryFilter.set($event)" [ngModel]="categoryFilter()"
+                              [options]="categoryOptions()" [showClear]="true" optionLabel="label"
+                              optionValue="value" size="small" styleClass="flex-1 min-w-0"
+                              [placeholder]="'WIKI.CATEGORY' | translate"/>
+                    <p-select (ngModelChange)="authorFilter.set($event)" [ngModel]="authorFilter()"
+                              [options]="authorOptions()" [showClear]="true" optionLabel="label"
+                              optionValue="value" size="small" styleClass="flex-1 min-w-0"
+                              [placeholder]="'WIKI.SEARCH.AUTHOR' | translate"/>
+                    @if (activeFilterCount() > 0) {
+                        <button (click)="clearFilters()"
+                                class="shrink-0 cursor-pointer rounded border-0 bg-transparent px-1.5
+                                       py-1 text-[0.75rem] text-white/40 hover:bg-hover hover:text-white/70">
+                            {{ 'WIKI.SEARCH.CLEAR_FILTERS' | translate }}
+                        </button>
+                    }
+                </div>
+            }
+
             <!-- Results -->
             <div class="max-h-[50vh] overflow-y-auto thin-scrollbar">
-                @for (result of results(); track result.page.id; let i = $index) {
-                    <button (click)="choose(result.page)"
+                @if (!query().trim() && activeFilterCount() === 0 && rows().length > 0) {
+                    <div class="flex items-center justify-between px-4 pt-3 pb-1">
+                        <span class="text-[0.625rem] font-semibold uppercase tracking-widest text-white/25">
+                            {{ 'WIKI.SEARCH.RECENT' | translate }}
+                        </span>
+                        <button (click)="recents.clear()"
+                                class="cursor-pointer border-0 bg-transparent text-[0.6875rem]
+                                       text-white/25 hover:text-white/60">
+                            {{ 'WIKI.SEARCH.CLEAR_RECENT' | translate }}
+                        </button>
+                    </div>
+                }
+
+                @for (row of rows(); track $index; let i = $index) {
+                    <button (click)="activate(row)"
                             [class.bg-hover]="i === activeIndex()"
                             class="flex w-full cursor-pointer flex-col items-start gap-0.5 border-0
                                    bg-transparent px-4 py-2.5 text-left hover:bg-hover">
-                        <span class="flex w-full items-center gap-2">
-                            <i class="pi pi-file shrink-0 text-[0.6875rem] text-white/30"></i>
-                            <span class="flex-1 truncate text-[0.875rem] text-white/80">
-                                {{ result.page.title }}
+                        <!-- `@if` rather than `@switch`, so the union narrows for the template
+                             type checker on every branch. -->
+                        @if (row.kind === 'page') {
+                            <span class="flex w-full items-center gap-2">
+                                <i class="pi pi-file shrink-0 text-[0.6875rem] text-white/30"></i>
+                                <span class="flex-1 truncate text-[0.875rem] text-white/80">
+                                    {{ row.page.title }}
+                                </span>
+                                @if (row.hit.matchedIn === 'tag') {
+                                    <span class="shrink-0 rounded bg-white/[0.06] px-1.5 py-0.5
+                                                 text-[0.625rem] text-white/40">
+                                        {{ 'WIKI.SEARCH.MATCHED_TAG' | translate }}
+                                    </span>
+                                }
                             </span>
-                            @if (result.page.categoryId) {
-                                <span class="shrink-0 text-[0.6875rem] text-white/30">
-                                    {{ categoryNames().get(result.page.categoryId) }}
+                            <!-- Path, not just the category: two pages called "Overview" are
+                                 otherwise the same row twice. -->
+                            @if (row.path.length > 1) {
+                                <span class="w-full truncate pl-5 text-[0.6875rem] text-white/30">
+                                    {{ row.path.slice(0, -1).join(' › ') }}
                                 </span>
                             }
-                        </span>
-                        @if (result.hit.snippet) {
-                            <span class="w-full truncate pl-5 text-[0.75rem] text-white/40">
-                                {{ result.hit.snippet }}
+                            @if (row.hit.snippet) {
+                                <span class="w-full truncate pl-5 text-[0.75rem] text-white/40">
+                                    {{ row.hit.snippet }}
+                                </span>
+                            }
+                        } @else if (row.kind === 'create') {
+                            <span class="flex w-full items-center gap-2">
+                                <i class="pi pi-plus shrink-0 text-[0.6875rem] text-brand-dim"></i>
+                                <span class="flex-1 truncate text-[0.875rem] text-white/80">
+                                    {{ 'WIKI.SEARCH.CREATE_PAGE' | translate: {title: row.title} }}
+                                </span>
+                                @if (creating()) {
+                                    <i class="pi pi-spin pi-spinner shrink-0 text-[0.6875rem] text-white/40"></i>
+                                }
+                            </span>
+                        } @else {
+                            <span class="flex w-full items-center gap-2">
+                                <i class="pi pi-clock shrink-0 text-[0.6875rem] text-white/25"></i>
+                                <span class="flex-1 truncate text-[0.875rem] text-white/65">
+                                    {{ row.query }}
+                                </span>
                             </span>
                         }
                     </button>
                 } @empty {
                     <p class="px-4 py-6 text-center text-[0.8125rem] text-white/30">
-                        @if (query().trim()) {
+                        @if (query().trim() || activeFilterCount() > 0) {
                             {{ 'WIKI.SEARCH.NO_MATCH' | translate: {query: query()} }}
                         } @else {
                             {{ 'WIKI.SEARCH.START_TYPING' | translate }}

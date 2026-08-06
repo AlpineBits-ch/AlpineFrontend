@@ -20,3 +20,62 @@
 .wiki-resize-handle:hover {
     background: var(--color-brand-dim);
 }
+
+/* ── The two side columns ──────────────────────────────────────────────────
+   Each is ONE element at every width: below its breakpoint it stops being a
+   column and becomes an overlay drawer. The alternative - a second copy of the
+   component rendered for narrow windows - would mean two live `app-wiki-nav`
+   instances, each with its own dialogs, drag state and context menu, and the
+   two would disagree the moment either was used.
+
+   Until now both columns were simply `hidden` below their breakpoint, which is
+   how a narrow window ended up with no wiki navigation at all. */
+
+@media (max-width: 1023.98px) {
+    .wiki-nav-col {
+        position: fixed;
+        inset-block: 0;
+        left: 0;
+        z-index: 50;
+        /* The drag-resized width is a desktop affordance. A drawer gets a fixed one,
+           and !important because the resize binding writes an inline width. */
+        width: 17rem !important;
+        transform: translateX(-100%);
+        transition: transform 0.2s ease;
+    }
+
+    .wiki-nav-col.is-open {
+        transform: none;
+    }
+}
+
+@media (min-width: 1024px) {
+    /* Collapsing is a desktop affordance. Below `lg` the drawer state governs, and
+       honouring collapse there would hide the drawer with no way left to open it. */
+    .wiki-nav-col.is-collapsed {
+        display: none;
+    }
+}
+
+@media (max-width: 1279.98px) {
+    .wiki-rail-col {
+        position: fixed;
+        inset-block: 0;
+        right: 0;
+        z-index: 50;
+        width: 20rem;
+        transform: translateX(100%);
+        transition: transform 0.2s ease;
+    }
+
+    .wiki-rail-col.is-open {
+        transform: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wiki-nav-col,
+    .wiki-rail-col {
+        transition: none;
+    }
+}

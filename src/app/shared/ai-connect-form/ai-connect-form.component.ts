@@ -149,6 +149,12 @@ export class AiConnectFormComponent {
         try {
             if (key) await this.credentials.setKey(this.provider(), key);
             this.credentials.selectProvider(this.provider(), this.model.trim());
+            // `selectProvider` writes localStorage, which nothing reactive is watching, so a save
+            // that only switches between two already-configured providers would leave
+            // `WikiAiService.activeProvider` computed against the previous choice. Refreshing
+            // replaces the `configured` set and invalidates it. Saving a *key* does not need this -
+            // `setKey` already updates that signal - but the model-only path is the common one.
+            await this.credentials.refresh();
             this.apiKey = '';
             this.connected.emit();
         } catch {

@@ -1,9 +1,10 @@
-import {inject, Injectable, signal} from '@angular/core';
+import {computed, inject, Injectable, Signal, signal} from '@angular/core';
 import {WikiDto, WikiPageDto, WikiPageSummaryDto} from '../../../../dtos/response/wiki.dto';
 import {WikiService} from '../../../../services/wiki.service';
 import {WikiView} from './wiki.types';
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {WikiContentCacheService} from './wiki-content-cache.service';
+import {WikiDraftsService} from './wiki-drafts.service';
 import {wikiAbilities, WikiAbilities} from './wiki-permissions';
 import {effectiveGuildPermissions} from '../../guild-permissions';
 import {GuildService} from '../../../../services/guild.service';
@@ -16,20 +17,47 @@ export class WikiStateService {
     readonly selectedPage = signal<WikiPageDto | null>(null);
     readonly editingPage = signal<WikiPageDto | null>(null);
     readonly editorDefaults = signal<{ categoryId?: string; parentPageId?: string } | null>(null);
+    /** Raised by `openEditor` for a new page; the wiki shell renders the picker. */
+    readonly templatePickerOpen = signal(false);
     readonly guildId = signal<string>('');
     readonly pageLoading = signal(false);
     readonly pendingRemoteUpdate = signal<WikiPageDto | null>(null);
+    private readonly wikiService = inject(WikiService);
+    private readonly ws = inject(GuildWebsocketService);
+    private readonly contentCache = inject(WikiContentCacheService);
+    private readonly drafts = inject(WikiDraftsService);
+    private readonly guildService = inject(GuildService);
+    private readonly profileService = inject(ProfileService);
+
+    /** What the member fetch reported. Zero until it answers, so permissions fail closed. */
+    private readonly memberPermissions = signal<bigint>(0n);
+    /** The id the member fetch reported, as a fallback before the profile has loaded. */
+    private readonly memberUserId = signal<string | null>(null);
+
+    readonly ownUserId = computed(() =>
+        this.profileService.ownProfile()?.userId ?? this.memberUserId());
+
+    /**
+     * Derived, not snapshotted.
+     *
+     * This used to be read once, synchronously, at the moment the wiki mounted - and both of its
+     * inputs arrive asynchronously. Opening a wiki before the profile or the guild list had landed
+     * therefore decided you were not the owner, and since abilities were only reloaded when the
+     * *guild id* changed, nothing ever revisited it: the owner of a guild would intermittently see
+     * no Edit and no New Page at all. As a computed it simply corrects itself when the data lands.
+     */
+    private readonly isOwner = computed(() => {
+        const ownUserId = this.ownUserId();
+        if (!ownUserId) return false;
+        return this.guildService.guilds().find(g => g.id === this.guildId())?.ownerId === ownUserId;
+    });
+
     /**
      * What this member may do here. Starts at nothing and stays there until the fetch answers,
      * so a control is never briefly offered to somebody who turns out not to hold the permission.
      */
-    readonly abilities = signal<WikiAbilities>(wikiAbilities(0n));
-    readonly ownUserId = signal<string | null>(null);
-    private readonly wikiService = inject(WikiService);
-    private readonly ws = inject(GuildWebsocketService);
-    private readonly contentCache = inject(WikiContentCacheService);
-    private readonly guildService = inject(GuildService);
-    private readonly profileService = inject(ProfileService);
+    readonly abilities: Signal<WikiAbilities> = computed(() =>
+        wikiAbilities(this.memberPermissions(), this.isOwner()));
     private suppressNextPageRefresh = false;
 
     constructor() {
@@ -45,11 +73,18 @@ export class WikiStateService {
             // pointing at links that are no longer there.
             this.contentCache.invalidate(e.pageId);
 
+            // Consumed once, for both branches below. It used to guard only the reading branch,
+            // so a metadata write made from the rail while editing your own page came back as a
+            // `pendingRemoteUpdate` - the wiki telling you somebody else had edited underneath
+            // you, about your own pin.
+            const affectsOpenPage = this.selectedPage()?.id === e.pageId
+                || this.editingPage()?.id === e.pageId;
+            if (affectsOpenPage && this.suppressNextPageRefresh) {
+                this.suppressNextPageRefresh = false;
+                return;
+            }
+
             if (this.wikiView() === 'page' && this.selectedPage()?.id === e.pageId) {
-                if (this.suppressNextPageRefresh) {
-                    this.suppressNextPageRefresh = false;
-                    return;
-                }
                 this.pageLoading.set(true);
                 this.wikiService.getPage(this.guildId(), e.pageId).subscribe({
                     next: page => {
@@ -140,15 +175,36 @@ export class WikiStateService {
         });
     }
 
-    openEditor(page?: WikiPageDto, defaults?: { categoryId?: string; parentPageId?: string }): void {
+    openEditor(
+        page?: WikiPageDto,
+        defaults?: { categoryId?: string; parentPageId?: string },
+        options?: { skipTemplatePicker?: boolean },
+    ): void {
         this.editingPage.set(page ?? null);
         this.editorDefaults.set(page ? null : (defaults ?? null));
         this.pendingRemoteUpdate.set(null);
         this.wikiView.set('editor');
+
+        // Only for a genuinely new page, and only when there is nothing else already competing
+        // for the same blank document: an unsaved draft offers to restore content that picking a
+        // template would immediately overwrite, and stacking the two asks the user to resolve a
+        // conflict nobody explained to them. The draft wins - it is the user's own work.
+        const hasDraft = !!this.drafts.read(this.guildId(), null);
+        this.templatePickerOpen.set(!page && !options?.skipTemplatePicker && !hasDraft);
     }
 
     openHistory(): void {
         this.wikiView.set('history');
+    }
+
+    /**
+     * The link graph. Clears the selected page: the graph is a view of the whole wiki, and leaving
+     * a page selected would keep the context rail describing something no longer on screen.
+     */
+    openGraph(): void {
+        this.selectedPage.set(null);
+        this.pageLoading.set(false);
+        this.wikiView.set('graph');
     }
 
     cancelEditor(): void {
@@ -190,6 +246,17 @@ export class WikiStateService {
         this.suppressNextPageRefresh = true;
     }
 
+    /**
+     * Disarms the flag when the write it was armed for never happened.
+     *
+     * A failed update produces no websocket event, so the suppression would sit there and swallow
+     * the next legitimate remote refresh instead - the one case where the user genuinely needs to
+     * be told the page moved under them.
+     */
+    clearPageRefreshSuppression(): void {
+        this.suppressNextPageRefresh = false;
+    }
+
     clearPendingRemoteUpdate(): void {
         this.pendingRemoteUpdate.set(null);
     }
@@ -208,25 +275,19 @@ export class WikiStateService {
      * and for the whole session if that request fails. Same guard the events panel uses.
      */
     private loadAbilities(guildId: string): void {
-        this.abilities.set(wikiAbilities(0n));
-        const ownUserId = this.profileService.ownProfile()?.userId ?? null;
-        this.ownUserId.set(ownUserId);
-        const isOwner = this.isGuildOwner(guildId, ownUserId);
+        this.memberPermissions.set(0n);
+        this.memberUserId.set(null);
         this.guildService.getOwnMember(guildId).subscribe({
             next: member => {
-                this.abilities.set(wikiAbilities(effectiveGuildPermissions(member), isOwner));
-                this.ownUserId.set(member.userId ?? this.ownUserId());
+                this.memberPermissions.set(effectiveGuildPermissions(member));
+                this.memberUserId.set(member.userId ?? null);
             },
-            // The owner keeps their abilities even when the member fetch fails: ownership is
-            // already known locally, and denying it here would lock them out of their own wiki.
-            error: () => this.abilities.set(wikiAbilities(0n, isOwner)),
+            // Ownership is decided separately and reactively, so an owner keeps their abilities
+            // even when this fetch fails - denying them would lock them out of their own wiki.
+            error: () => this.memberPermissions.set(0n),
         });
     }
 
-    private isGuildOwner(guildId: string, ownUserId: string | null): boolean {
-        if (!ownUserId) return false;
-        return this.guildService.guilds().find(g => g.id === guildId)?.ownerId === ownUserId;
-    }
 
     private loadWiki(guildId: string, navigateTo?: WikiPageDto): void {
         this.wikiService.getWiki(guildId).subscribe(wiki => {

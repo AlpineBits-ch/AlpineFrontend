@@ -22,18 +22,30 @@ import {Heading} from '../wiki-toc';
 import {parseWikiHref, wikiHref} from '../wiki-links';
 import {WikiDraft, WikiDraftsService} from '../wiki-drafts.service';
 import {WikiStateService} from '../wiki-state.service';
-import {wikiExtensions} from './wiki-extensions';
+import {WikiContentCacheService} from '../wiki-content-cache.service';
+import {WikiLinkPreviewComponent} from './wiki-link-preview.component';
+import {wikiBlockLabels, wikiExtensions} from './wiki-extensions';
 import {SuggestState, wikiSuggestPlugin} from './wiki-suggest.plugin';
 import {WikiBubbleMenuComponent} from './wiki-bubble-menu.component';
 import {SlashItem, WikiSlashMenuComponent} from './wiki-slash-menu.component';
 import {WikiLinkMenuComponent} from './wiki-link-menu.component';
 import {WikiToolbarComponent} from './wiki-toolbar.component';
+import {WikiEmojiMenuComponent} from './wiki-emoji-menu.component';
+import {parseUserHref, userHref, WikiMentionMember, WikiMentionMenuComponent} from './wiki-mention-menu.component';
+import {EmojiSuggestion} from '../../../../../services/emoji-data.service';
+import {WikiTemplateChoice} from '../wiki-templates/wiki-template.model';
+import {WikiAiService} from '../wiki-ai.service';
+import {WikiAiInlineComponent} from '../wiki-ai/wiki-ai-inline.component';
+import {WikiAiMetadataComponent} from '../wiki-ai/wiki-ai-metadata.component';
+import {wikiGhostTextPlugin} from './wiki-ghost-text.plugin';
 
 @Component({
     selector: 'app-wiki-article',
     imports: [
         FormsModule, Button, TranslateModule, WikiBubbleMenuComponent, WikiSlashMenuComponent,
-        WikiLinkMenuComponent, WikiToolbarComponent,
+        WikiLinkMenuComponent, WikiToolbarComponent, WikiLinkPreviewComponent,
+        WikiEmojiMenuComponent, WikiMentionMenuComponent, WikiAiInlineComponent,
+        WikiAiMetadataComponent,
     ],
     templateUrl: './wiki-article.component.html',
     styleUrl: './wiki-article.component.css',
@@ -46,31 +58,54 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     readonly editing = input(false);
     /** Whether to offer the two "fill this page" actions on an empty page. */
     readonly canEdit = input(false);
+    /** Other page titles in this wiki, as context for every AI request the article makes. */
+    readonly pageTitles = input<readonly string[]>([]);
 
     readonly saved = output<WikiPageDto>();
     readonly cancelled = output<void>();
     readonly headingsChanged = output<Heading[]>();
+    /**
+     * The live body, for anything outside the article that has to track it as it is typed.
+     *
+     * An output rather than a public method the shell polls: `getMarkdown()` serialises the whole
+     * document, and a method call in a template binding would run it on every change-detection
+     * pass across the app rather than once per edit.
+     */
+    readonly contentChanged = output<string>();
     readonly wikiLinkClicked = output<string>();
     readonly dirtyChanged = output<boolean>();
     readonly saveStatusChanged = output<'idle' | 'draft' | 'saving' | 'saved'>();
     readonly requestEdit = output<void>();
     readonly requestAi = output<void>();
+    /** Tags the AI suggested and the user accepted. The rail's tag editor owns them. */
+    readonly tagsSuggested = output<string[]>();
 
     @ViewChild('editorEl') editorEl?: ElementRef<HTMLDivElement>;
     @ViewChild('fileInputEl') fileInputEl?: ElementRef<HTMLInputElement>;
     @ViewChild('bubbleMenu') bubbleMenu?: WikiBubbleMenuComponent;
     @ViewChild('slashMenu') slashMenu?: WikiSlashMenuComponent;
     @ViewChild('linkMenu') linkMenu?: WikiLinkMenuComponent;
+    @ViewChild('emojiMenu') emojiMenu?: WikiEmojiMenuComponent;
+    @ViewChild('mentionMenu') mentionMenu?: WikiMentionMenuComponent;
+    @ViewChild('aiInline') aiInline?: WikiAiInlineComponent;
 
     protected readonly title = signal('');
     protected readonly saving = signal(false);
     protected readonly slashOpen = signal(false);
     protected readonly linkMenuOpen = signal(false);
+    protected readonly emojiMenuOpen = signal(false);
+    protected readonly mentionMenuOpen = signal(false);
     protected readonly suggestQuery = signal('');
     protected readonly suggestPosition = signal({top: 0, left: 0});
 
     protected readonly pendingDraft = signal<WikiDraft | null>(null);
     protected readonly editSummary = signal('');
+
+    /** Hover preview of the `wiki:` link under the pointer. */
+    protected readonly previewOpen = signal(false);
+    protected readonly previewPage = signal<WikiPageSummaryDto | null>(null);
+    protected readonly previewSnippet = signal('');
+    protected readonly previewPosition = signal({top: 0, left: 0});
 
     /**
      * Raw markdown editing. The ProseMirror surface stays mounted underneath rather than being
@@ -111,6 +146,12 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         return !this.editing() && this.canEdit() && !this.markdown().trim();
     });
 
+    /** Read through contentVersion so it re-serialises on edits, not on every change detection. */
+    protected readonly aiMetadataContent = computed(() => {
+        this.contentVersion();
+        return this.markdown();
+    });
+
     /** Bumped on every edit so the computeds above re-read the non-reactive editor document. */
     private readonly contentVersion = signal(0);
 
@@ -118,21 +159,35 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     private readonly fileService = inject(FileService);
     private readonly drafts = inject(WikiDraftsService);
     private readonly wikiState = inject(WikiStateService);
+    private readonly contentCache = inject(WikiContentCacheService);
+    private readonly wikiAi = inject(WikiAiService);
     private readonly translate = inject(TranslateService);
     private draftTimer?: ReturnType<typeof setTimeout>;
+    private previewTimer?: ReturnType<typeof setTimeout>;
     private editor?: Editor;
     private clickHandler?: (e: MouseEvent) => void;
     private keydownHandler?: (e: KeyboardEvent) => void;
+    private menuKeydownHandler?: (e: KeyboardEvent) => void;
+    private overHandler?: (e: MouseEvent) => void;
+    private outHandler?: (e: MouseEvent) => void;
     private suggest: SuggestState | null = null;
 
     constructor() {
         // Loading a different page replaces the document; toggling editing must not.
         effect(() => {
             const page = this.page();
+            // The bar owns a document range and locks the editor while it streams. A page swap
+            // underneath it would strand a locked editor holding half a generation.
+            this.aiInline?.cancel();
             this.title.set(page?.title ?? '');
             // A different page must never inherit the previous one's raw buffer.
             this.sourceMode.set(false);
-            if (this.editor) this.setContent(page?.content ?? '');
+            // Compared against what the editor already holds rather than fired on every change to
+            // the page object's identity. `loadWiki` -> `mergeSummary` hands over a new object on
+            // any metadata refresh - a tag added, a pin toggled, anyone's edit to any page - and
+            // re-parsing there rebuilt the whole document under someone who was only reading it.
+            const nextContent = page?.content ?? '';
+            if (this.editor && nextContent !== this.markdown()) this.setContent(nextContent);
 
             const existing = this.drafts.read(this.guildId(), page?.id ?? null);
             // Suppressed while a remote conflict is showing: two competing "your content is
@@ -149,6 +204,8 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
 
         effect(() => {
             const editing = this.editing();
+            // Same reason: leaving edit mode mid-generation must not leave the bar holding it.
+            if (!editing) this.aiInline?.cancel();
             this.editor?.setEditable(editing);
             // Leaving edit mode with the textarea open would render raw markdown as the article.
             if (!editing) this.commitSourceMode();
@@ -167,16 +224,33 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         this.editor = new Editor({
             element: this.editorEl.nativeElement,
             extensions: [
-                ...wikiExtensions(this.translate.instant('WIKI.ARTICLE.PLACEHOLDER')),
+                // The block node views render their own DOM outside Angular, where neither the
+                // translate pipe nor an injected service is reachable, so their strings are
+                // resolved once here and handed down.
+                ...wikiExtensions(
+                    this.translate.instant('WIKI.ARTICLE.PLACEHOLDER'),
+                    wikiBlockLabels(this.translate),
+                ),
                 Extension.create({
                     name: 'wikiSuggest',
                     addProseMirrorPlugins: () => [wikiSuggestPlugin(s => this.onSuggest(s))],
+                }),
+                Extension.create({
+                    name: 'wikiGhostText',
+                    addProseMirrorPlugins: () => [wikiGhostTextPlugin({
+                        // `available()` as well as the preference: with no key connected, every
+                        // pause in typing would fire a request that can only throw.
+                        enabled: () => this.wikiAi.ghostTextEnabled() && this.wikiAi.available(),
+                        title: () => this.title(),
+                        complete: (req, signal) => this.wikiAi.complete(req, signal),
+                    })],
                 }),
             ],
             editable: this.editing(),
             content: '',
             onUpdate: () => {
                 this.dirtyChanged.emit(true);
+                this.contentChanged.emit(this.markdown());
                 this.emitHeadings();
                 this.markBrokenLinks();
                 this.scheduleDraft();
@@ -192,6 +266,12 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         this.clickHandler = (event: MouseEvent) => {
             const anchor = (event.target as HTMLElement).closest('a');
             if (!anchor) return;
+            // A mention href is ours too, and the webview knows no `user:` protocol. Swallowing
+            // the click is the floor here; opening a profile is a later refinement.
+            if (parseUserHref(anchor.getAttribute('href'))) {
+                event.preventDefault();
+                return;
+            }
             const pageId = parseWikiHref(anchor.getAttribute('href'));
             if (!pageId) return;
             event.preventDefault();
@@ -207,24 +287,71 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
                 this.save();
                 return;
             }
-            if (event.key === 'Escape') {
-                if (this.slashOpen() || this.linkMenuOpen()) {
-                    event.preventDefault();
-                    this.closeMenus();
-                }
+            if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'j') {
+                event.preventDefault();
+                this.aiInline?.askAtCaret();
                 return;
             }
-            const consumed = this.slashMenu?.handleKey(event.key) || this.linkMenu?.handleKey(event.key);
-            if (consumed) event.preventDefault();
         };
         this.editorEl.nativeElement.addEventListener('keydown', this.keydownHandler, true);
+
+        /*
+         * Menu navigation listens on the *document*, in the capture phase.
+         *
+         * It used to hang off the editor container, which in principle captures before
+         * ProseMirror's own handler on the contenteditable underneath - and in practice did not
+         * drive the menus at all. A document-level capture listener is the one position that fires
+         * before every other handler in the app no matter where focus actually sits or how
+         * ProseMirror mounts its DOM, which is what these menus need: they must own the arrow keys
+         * without taking focus, or typing to filter the list would stop working.
+         *
+         * It costs nothing while shut - the first line returns immediately unless a menu is open.
+         */
+        this.menuKeydownHandler = (event: KeyboardEvent) => {
+            if (!this.anyMenuOpen()) return;
+            if (event.key === 'Escape') {
+                swallow(event);
+                this.closeMenus();
+                return;
+            }
+            // Each menu returns false while it is shut, so the chain stops at the open one.
+            const consumed = this.slashMenu?.handleKey(event.key)
+                || this.linkMenu?.handleKey(event.key)
+                || this.emojiMenu?.handleKey(event.key)
+                || this.mentionMenu?.handleKey(event.key);
+            if (consumed) swallow(event);
+        };
+        document.addEventListener('keydown', this.menuKeydownHandler, true);
+
+        // Delayed, so running the pointer across a paragraph of links does not strobe a popover
+        // once per link on the way past.
+        this.overHandler = (event: MouseEvent) => {
+            const anchor = (event.target as HTMLElement).closest('a');
+            const pageId = anchor && parseWikiHref(anchor.getAttribute('href'));
+            if (!anchor || !pageId) return;
+            clearTimeout(this.previewTimer);
+            this.previewTimer = setTimeout(() => this.showPreview(anchor, pageId), 350);
+        };
+        this.outHandler = (event: MouseEvent) => {
+            if (!(event.target as HTMLElement).closest('a')) return;
+            clearTimeout(this.previewTimer);
+            this.previewOpen.set(false);
+        };
+        this.editorEl.nativeElement.addEventListener('mouseover', this.overHandler);
+        this.editorEl.nativeElement.addEventListener('mouseout', this.outHandler);
     }
 
     ngOnDestroy(): void {
         clearTimeout(this.draftTimer);
+        clearTimeout(this.previewTimer);
         const el = this.editorEl?.nativeElement;
         if (el && this.clickHandler) el.removeEventListener('click', this.clickHandler);
         if (el && this.keydownHandler) el.removeEventListener('keydown', this.keydownHandler, true);
+        if (this.menuKeydownHandler) {
+            document.removeEventListener('keydown', this.menuKeydownHandler, true);
+        }
+        if (el && this.overHandler) el.removeEventListener('mouseover', this.overHandler);
+        if (el && this.outHandler) el.removeEventListener('mouseout', this.outHandler);
         this.editor?.destroy();
     }
 
@@ -256,6 +383,26 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         }
         this.editor?.chain().focus().selectAll()
             .insertContent(markdown, {contentType: 'markdown'}).run();
+    }
+
+    /**
+     * Streams a whole-page draft from the dialog's prompt into this document. An empty page hands
+     * over its whole body; a written one takes an insertion at the caret.
+     */
+    draftWithAi(prompt: string): void {
+        this.aiInline?.draftIntoPage(prompt);
+    }
+
+    /**
+     * Seeds a brand new page from a template.
+     *
+     * The title is only suggested, never imposed: someone who typed one before reaching for a
+     * template meant it. The body goes through the same replace path as everything else, so it is
+     * one undo away and autosaves as a draft like anything typed by hand.
+     */
+    applyTemplate(choice: WikiTemplateChoice): void {
+        if (choice.suggestedTitle && !this.title().trim()) this.title.set(choice.suggestedTitle);
+        if (choice.markdown) this.replaceMarkdown(choice.markdown);
     }
 
     /** The draft request needs the current body, whichever surface holds it. */
@@ -399,7 +546,60 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         const editor = this.editor;
         if (!editor) return;
         this.deleteTriggerRun();
-        item.run(editor);
+        // Closed before dispatch, not after: the page-link item re-opens the `[[` menu, and
+        // closing afterwards would shut the one it had just opened.
+        this.closeMenus();
+
+        if (item.run) {
+            item.run(editor);
+            return;
+        }
+        switch (item.hostAction) {
+            case 'image':
+                this.openFilePicker();
+                return;
+            case 'page-link':
+                // Typed in rather than opened directly, so the existing `[[` trigger does the work.
+                editor.chain().focus().insertContent('[[').run();
+                return;
+        }
+        // A transform acts on what is already written, so it runs in place. The two generate rows
+        // have nothing to act on yet and need the user's prompt first, so they open the dialog -
+        // which now hands the prompt straight back to the same inline bar.
+        if (item.aiOp) {
+            this.aiInline?.runTransform({op: item.aiOp, labelKey: item.labelKey});
+            return;
+        }
+        if (item.aiGenerate) this.requestAi.emit();
+    }
+
+    protected applyEmoji(emoji: EmojiSuggestion): void {
+        const editor = this.editor;
+        if (!editor) return;
+        this.deleteTriggerRun();
+        editor.chain().focus().insertContent(emoji.native).run();
+        this.closeMenus();
+    }
+
+    /**
+     * Same trick as `applyPageLink`: an ordinary Link mark with a `user:` href, which the markdown
+     * serializer round-trips as `[@Name](user:<userId>)` for free.
+     */
+    protected applyMention(member: WikiMentionMember): void {
+        const editor = this.editor;
+        if (!editor) return;
+        this.deleteTriggerRun();
+        editor.chain()
+            .focus()
+            .insertContent({
+                type: 'text',
+                text: `@${member.name}`,
+                marks: [{type: 'link', attrs: {href: userHref(member.userId)}}],
+            })
+            // Without this the link mark stays active and the next character typed joins the link.
+            .unsetMark('link')
+            .insertContent(' ')
+            .run();
         this.closeMenus();
     }
 
@@ -442,15 +642,18 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         this.suggestPosition.set({top: coords.bottom + 6, left: coords.left});
         this.suggestQuery.set(state.query);
 
-        if (state.trigger === '/') {
-            if (!this.slashOpen()) this.slashMenu?.reset();
-            this.slashOpen.set(true);
-            this.linkMenuOpen.set(false);
-        } else {
-            if (!this.linkMenuOpen()) this.linkMenu?.reset();
-            this.linkMenuOpen.set(true);
-            this.slashOpen.set(false);
-        }
+        // Reset only on the way in. Resetting on every keystroke would throw the highlight back
+        // to the first row as the query narrowed.
+        const trigger = state.trigger;
+        if (trigger === '/' && !this.slashOpen()) this.slashMenu?.reset();
+        if (trigger === '[[' && !this.linkMenuOpen()) this.linkMenu?.reset();
+        if (trigger === ':' && !this.emojiMenuOpen()) this.emojiMenu?.reset();
+        if (trigger === '@' && !this.mentionMenuOpen()) this.mentionMenu?.reset();
+
+        this.slashOpen.set(trigger === '/');
+        this.linkMenuOpen.set(trigger === '[[');
+        this.emojiMenuOpen.set(trigger === ':');
+        this.mentionMenuOpen.set(trigger === '@');
     }
 
     /** Deletes the `/query` or `[[query` run that opened the menu. */
@@ -466,6 +669,13 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
     private closeMenus(): void {
         this.slashOpen.set(false);
         this.linkMenuOpen.set(false);
+        this.emojiMenuOpen.set(false);
+        this.mentionMenuOpen.set(false);
+    }
+
+    private anyMenuOpen(): boolean {
+        return this.slashOpen() || this.linkMenuOpen()
+            || this.emojiMenuOpen() || this.mentionMenuOpen();
     }
 
     private uploadFile(file: File): void {
@@ -529,6 +739,23 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
         this.headingsChanged.emit(headings);
     }
 
+    /** Fills and positions the hover card for one `wiki:` link. */
+    private showPreview(anchor: Element, pageId: string): void {
+        const page = this.wiki()?.pages.find(p => p.id === pageId);
+        // A broken link has nothing to preview, and the anchor already renders as broken.
+        if (!page) return;
+
+        const rect = anchor.getBoundingClientRect();
+        const width = 288;
+        this.previewPosition.set({
+            top: rect.bottom + 8,
+            left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
+        });
+        this.previewPage.set(page);
+        this.previewSnippet.set(snippetOf(this.contentCache.content().get(pageId) ?? ''));
+        this.previewOpen.set(true);
+    }
+
     /**
      * Flags links whose target no longer exists. Done as a DOM attribute pass rather than a
      * schema rule because the set of valid ids changes as pages are created and deleted, while
@@ -544,6 +771,42 @@ export class WikiArticleComponent implements AfterViewInit, OnDestroy {
             anchor.setAttribute('data-wiki-broken', String(!known.has(pageId)));
         });
     }
+}
+
+/**
+ * Takes a key away from the editor entirely.
+ *
+ * `preventDefault` alone is not enough to stop ProseMirror: its own `keydown` handler does not
+ * check `defaultPrevented`, so an arrow key still moved the caret out of the `/query` run that had
+ * opened the menu - the trigger then stopped matching and the menu closed. Which is why the menus
+ * could only ever be driven with the mouse.
+ *
+ * `stopPropagation` during the capture phase on the editor's *container* keeps the event from ever
+ * reaching the contenteditable underneath, so the menus can own these keys without taking focus -
+ * which they must not do, or typing to filter the list would stop working.
+ */
+function swallow(event: KeyboardEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+}
+
+/**
+ * First couple of lines of prose from a markdown body, for the link hover card.
+ *
+ * Deliberately crude: it strips the handful of markers that would otherwise read as noise in a
+ * one-line summary and leaves everything else alone. Rendering the markdown properly to extract a
+ * preview would cost more than the preview is worth.
+ */
+function snippetOf(markdown: string): string {
+    return markdown
+        .replace(/```[\s\S]*?```/g, ' ')
+        .replace(/!\[[^\]]*]\([^)]*\)/g, ' ')
+        .replace(/\[([^\]]*)]\([^)]*\)/g, '$1')
+        .replace(/^\s{0,3}[#>\-*+]\s+/gm, '')
+        .replace(/[*_`~]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .slice(0, 240);
 }
 
 /** Appends with a blank line between, so two blocks do not weld into one paragraph. */

@@ -42,7 +42,9 @@ import {ProfileDialogService} from '../../../../../services/profile-dialog.servi
 import {ReportDialogService} from '../../../../../services/report-dialog.service';
 import {openUrl} from '@tauri-apps/plugin-opener';
 import {InviteCardComponent} from './invite-card/invite-card.component';
+import {WikiCardComponent} from './wiki-card/wiki-card.component';
 import {EmbedCardComponent} from './embed-card/embed-card.component';
+import {parseWikiUrl, wikiUrlPattern} from '../../../wiki-link';
 import {MessageHoverToolbarComponent} from './hover-toolbar/message-hover-toolbar.component';
 import {MessageReactionBarComponent} from './reaction-bar/message-reaction-bar.component';
 import {TwemojiComponent} from '../../../../../components/twemoji/twemoji.component';
@@ -60,6 +62,20 @@ import {
     UNDECRYPTABLE_SHORT,
 } from '../../../../../helpers/message-content.helper';
 
+/**
+ * One run of a message body, after the text has been pulled apart.
+ *
+ * <p>`refId` is whatever the segment's renderer needs to resolve `value`: a user, role or channel
+ * id for the mention kinds, and the guild a wiki page lives in for `wiki` - a page id alone names
+ * nothing, because the wiki endpoints are all guild-scoped.</p>
+ */
+type MessageSegment = {
+    type: 'text' | 'mention' | 'role' | 'everyone' | 'here' | 'channel' | 'gif' | 'emoji' | 'flag'
+        | 'invite' | 'wiki';
+    value: string;
+    refId?: string;
+};
+
 @Component({
     selector: 'app-message',
     imports: [
@@ -69,6 +85,7 @@ import {
         NgClass,
         MarkdownPipe,
         InviteCardComponent,
+        WikiCardComponent,
         EmbedCardComponent,
         MessageHoverToolbarComponent,
         MessageReactionBarComponent,
@@ -154,7 +171,7 @@ export class MessageComponent {
     public contentSegments = computed(() => {
         const text = this.displayContent();
         const msg = this.message();
-        let segments: { type: 'text' | 'mention' | 'role' | 'everyone' | 'here' | 'channel' | 'gif' | 'emoji' | 'flag' | 'invite'; value: string; refId?: string }[] = [];
+        let segments: MessageSegment[] = [];
 
         // If the entire message is a GIF URL, render it as a single GIF segment
         if (isKlipyGifUrl(text)) {
@@ -165,6 +182,12 @@ export class MessageComponent {
         const singleInvite = /^https:\/\/venta\.gg\/invite\/([A-Za-z0-9_-]+)$/.exec(text.trim());
         if (singleInvite) {
             return [{type: 'invite' as const, value: singleInvite[1]}];
+        }
+
+        // Same rule for a shared wiki page: the card says everything the URL did, and better.
+        const singleWiki = parseWikiUrl(text);
+        if (singleWiki) {
+            return [{type: 'wiki' as const, value: singleWiki.pageId, refId: singleWiki.guildId}];
         }
 
         // Reads the profile cache reactively -this computed reruns once a mentioned
@@ -242,7 +265,7 @@ export class MessageComponent {
         }
 
         // 2. Process text segments to separate single emojis
-        const emojiSegments: { type: 'text' | 'mention' | 'role' | 'everyone' | 'here' | 'channel' | 'gif' | 'emoji' | 'flag' | 'invite'; value: string; refId?: string }[] = [];
+        const emojiSegments: MessageSegment[] = [];
 
         const emojiRegex = /^(?=\p{Emoji})(?!\p{Number}).$/u;
 
@@ -286,11 +309,11 @@ export class MessageComponent {
         }
 
         // 3. Split text segments by invite URLs
-        const finalSegments: typeof emojiSegments = [];
+        const invited: MessageSegment[] = [];
         const inviteRe = MessageComponent.INVITE_URL_RE;
         for (const segment of emojiSegments) {
             if (segment.type !== 'text') {
-                finalSegments.push(segment);
+                invited.push(segment);
                 continue;
             }
             inviteRe.lastIndex = 0;
@@ -298,9 +321,33 @@ export class MessageComponent {
             let m: RegExpExecArray | null;
             while ((m = inviteRe.exec(segment.value)) !== null) {
                 if (m.index > lastIdx) {
+                    invited.push({type: 'text', value: segment.value.slice(lastIdx, m.index)});
+                }
+                invited.push({type: 'invite', value: m[1]});
+                lastIdx = m.index + m[0].length;
+            }
+            if (lastIdx < segment.value.length) {
+                invited.push({type: 'text', value: segment.value.slice(lastIdx)});
+            }
+        }
+
+        // 4. And again by wiki page links. A separate pass rather than one combined pattern: the
+        // two URL shapes cannot overlap, and keeping them apart means neither one's capture groups
+        // have to be counted around the other's.
+        const finalSegments: MessageSegment[] = [];
+        for (const segment of invited) {
+            if (segment.type !== 'text') {
+                finalSegments.push(segment);
+                continue;
+            }
+            const wikiRe = wikiUrlPattern();
+            let lastIdx = 0;
+            let m: RegExpExecArray | null;
+            while ((m = wikiRe.exec(segment.value)) !== null) {
+                if (m.index > lastIdx) {
                     finalSegments.push({type: 'text', value: segment.value.slice(lastIdx, m.index)});
                 }
-                finalSegments.push({type: 'invite', value: m[1]});
+                finalSegments.push({type: 'wiki', value: m[2], refId: m[1]});
                 lastIdx = m.index + m[0].length;
             }
             if (lastIdx < segment.value.length) {

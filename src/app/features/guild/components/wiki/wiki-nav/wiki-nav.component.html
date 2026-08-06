@@ -12,28 +12,75 @@
         }
     </div>
 
+    <!-- Filter. Narrows this tree in place; ⌘K is the one that takes you somewhere else. -->
+    <div class="px-2 pt-2 shrink-0">
+        <div class="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-2 py-1">
+            <i class="pi pi-filter text-[0.625rem] text-white/25 shrink-0"></i>
+            <input (keydown.arrowdown)="focusFirstItem($event)"
+                   (keydown.escape)="filterText.set('')"
+                   (ngModelChange)="filterText.set($event)"
+                   [ngModel]="filterText()"
+                   [placeholder]="'WIKI.NAV.FILTER_PLACEHOLDER' | translate"
+                   class="flex-1 min-w-0 border-0 bg-transparent text-[0.8125rem] text-white/80
+                          outline-none placeholder-white/25"/>
+            @if (filterText()) {
+                <button (click)="filterText.set('')"
+                        [attr.aria-label]="'WIKI.NAV.FILTER_CLEAR' | translate"
+                        class="shrink-0 cursor-pointer rounded border-0 bg-transparent p-0.5 text-white/30
+                               hover:text-white/70">
+                    <i class="pi pi-times text-[0.625rem]"></i>
+                </button>
+            }
+        </div>
+    </div>
+
     <!-- Tree -->
-    <div class="flex-1 min-h-0 overflow-y-auto px-2 py-2 thin-scrollbar">
+    <div (keydown)="onTreeKeydown($event)" class="flex-1 min-h-0 overflow-y-auto px-2 py-2 thin-scrollbar">
 
         <!-- Home -->
         <button (click)="goHome()"
                 [ngClass]="state.wikiView() === 'home' ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-                class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer mb-1">
+                class="w-full flex items-center gap-2.5 px-2 py-[7px] rounded-lg text-left transition-all border-0 cursor-pointer mb-1"
+                data-nav-item>
             <i class="pi pi-home text-[13px] shrink-0"></i>
             <span class="text-[15px] font-medium">{{ 'WIKI.NAV.HOME' | translate }}</span>
         </button>
+
+        <!-- Favourites: this member's own, stored locally. Pinned below is the shared one. -->
+        @if (favouritePages().length > 0) {
+            <div class="mt-3 mb-1">
+                <p class="text-[10px] font-semibold text-white/30 uppercase tracking-widest px-2 mb-1">{{ 'WIKI.NAV.FAVOURITES' | translate }}</p>
+                @for (page of favouritePages(); track page.id) {
+                    <ng-container
+                            *ngTemplateOutlet="flatRow; context: {$implicit: page, icon: 'pi-star-fill'}"></ng-container>
+                }
+            </div>
+        }
+
+        <!-- Recently viewed -->
+        @if (recentPages().length > 0) {
+            <div class="mt-3 mb-1">
+                <div class="flex items-center justify-between px-2 mb-1 group/recent">
+                    <p class="text-[10px] font-semibold text-white/30 uppercase tracking-widest">{{ 'WIKI.NAV.RECENT' | translate }}</p>
+                    <button (click)="prefs.clearRecents()"
+                            [attr.aria-label]="'WIKI.NAV.RECENT_CLEAR' | translate"
+                            class="opacity-0 group-hover/recent:opacity-100 border-0 bg-transparent cursor-pointer
+                                   text-white/25 hover:text-white/60 transition-all">
+                        <i class="pi pi-times text-[9px]"></i>
+                    </button>
+                </div>
+                @for (page of recentPages(); track page.id) {
+                    <ng-container *ngTemplateOutlet="flatRow; context: {$implicit: page, icon: 'pi-clock'}"></ng-container>
+                }
+            </div>
+        }
 
         <!-- Pinned pages -->
         @if (pinnedPages().length > 0) {
             <div class="mt-3 mb-1">
                 <p class="text-[10px] font-semibold text-white/30 uppercase tracking-widest px-2 mb-1">{{ 'WIKI.PINNED' | translate }}</p>
                 @for (page of pinnedPages(); track page.id) {
-                    <button (click)="goPage(page)" (contextmenu)="onPageContextMenu($event, page)"
-                            [ngClass]="isPageActive(page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-                            class="w-full flex items-center gap-2.5 px-2 py-[6px] rounded-lg text-left transition-all border-0 cursor-pointer">
-                        <i class="pi pi-bookmark text-[12px] shrink-0 text-brand-dim/70"></i>
-                        <span class="text-[14px] truncate">{{ page.title }}</span>
-                    </button>
+                    <ng-container *ngTemplateOutlet="flatRow; context: {$implicit: page, icon: 'pi-bookmark'}"></ng-container>
                 }
             </div>
         }
@@ -50,44 +97,43 @@
                      (dragstart)="onCategoryDragStart($event, node.category)"
                      class="flex items-center justify-between px-2 py-1 group/cat cursor-grab"
                      [attr.draggable]="state.abilities().canManageStructure ? true : null">
-                    @if (node.depth > 0) {
-                        <i class="pi pi-folder text-[10px] text-white/25 shrink-0 mr-1"></i>
-                    }
-                    <span class="text-[11px] font-semibold text-white/40 uppercase tracking-widest truncate flex-1">{{ node.category.name }}</span>
-                    @if (state.abilities().canManageStructure) {
-                        <button (click)="deleteCategory(node.category)"
-                                class="opacity-0 group-hover/cat:opacity-100 w-4 h-4 flex items-center justify-center text-white/30 hover:text-rose-400 transition-all border-0 bg-transparent cursor-pointer rounded shrink-0">
-                            <i class="pi pi-trash text-[9px]"></i>
+                    @if (renamingId() === node.category.id) {
+                        <input (blur)="commitRename()"
+                               (keydown.enter)="commitRename()"
+                               (keydown.escape)="cancelRename()"
+                               (ngModelChange)="renameValue.set($event)"
+                               [ngModel]="renameValue()"
+                               class="flex-1 min-w-0 border-0 bg-white/[0.06] rounded px-1 py-0.5 text-[11px]
+                                      font-semibold uppercase tracking-widest text-white/80 outline-none"
+                               data-rename-input/>
+                    } @else {
+                        <button (click)="prefs.toggleCollapsed(node.category.id)"
+                                (keydown)="onCategoryKeydown($event, node.category)"
+                                [attr.aria-expanded]="!isCollapsed(node.category.id)"
+                                class="flex items-center gap-1 flex-1 min-w-0 border-0 bg-transparent p-0 text-left
+                                       cursor-pointer"
+                                data-nav-item>
+                            <i [ngClass]="isCollapsed(node.category.id) ? 'pi-chevron-right' : 'pi-chevron-down'"
+                               class="pi text-[8px] text-white/25 shrink-0"></i>
+                            @if (node.depth > 0) {
+                                <i class="pi pi-folder text-[10px] text-white/25 shrink-0"></i>
+                            }
+                            <span class="text-[11px] font-semibold text-white/40 uppercase tracking-widest truncate">{{ node.category.name }}</span>
                         </button>
+                        @if (state.abilities().canManageStructure) {
+                            <button (click)="deleteCategory(node.category)"
+                                    [attr.aria-label]="'WIKI.NAV.DELETE_CATEGORY' | translate"
+                                    class="opacity-0 group-hover/cat:opacity-100 w-4 h-4 flex items-center justify-center text-white/30 hover:text-rose-400 transition-all border-0 bg-transparent cursor-pointer rounded shrink-0">
+                                <i class="pi pi-trash text-[9px]"></i>
+                            </button>
+                        }
                     }
                 </div>
                 @let catPages = pageTreeForCategory(node.category.id);
                 @for (pn of catPages; track pn.page.id) {
-                    @if (dropTargetId() === pn.page.id && dropPos() === 'before' && nestTargetId() !== pn.page.id) {
-                        <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
-                    }
-                    <button (click)="goPage(pn.page)" (contextmenu)="onPageContextMenu($event, pn.page)"
-                            (dragend)="onDragEnd($event)"
-                            (dragover)="onItemDragOver($event, pn.page.id)"
-                            (dragstart)="onPageDragStart($event, pn.page)"
-                            [ngClass]="nestTargetId() === pn.page.id
-              ? 'nest-blink text-white/90 scale-[1.01]'
-              : isPageActive(pn.page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-                            [style.paddingLeft]="(8 + pn.depth * 14) + 'px'"
-                            class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg text-left transition-all duration-200 border-0 cursor-grab"
-                            [attr.draggable]="state.abilities().canManageStructure ? true : null">
-                        <i [ngClass]="pn.depth > 0 ? 'pi-file-minus text-white/30' : 'pi-file'"
-                           class="pi text-[12px] shrink-0"></i>
-                        <span class="text-[14px] truncate flex-1">{{ pn.page.title }}</span>
-                        <i [class.opacity-0]="nestTargetId() !== pn.page.id"
-                           [class.opacity-100]="nestTargetId() === pn.page.id"
-                           class="pi pi-sitemap text-[10px] text-brand-dim shrink-0 transition-opacity duration-300"></i>
-                    </button>
-                    @if (dropTargetId() === pn.page.id && dropPos() === 'after' && nestTargetId() !== pn.page.id) {
-                        <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
-                    }
+                    <ng-container *ngTemplateOutlet="pageRow; context: {$implicit: pn}"></ng-container>
                 }
-                @if (catPages.length === 0) {
+                @if (catPages.length === 0 && !isCollapsed(node.category.id)) {
                     <p class="text-[12px] text-white/20 px-2 py-1 italic">{{ 'WIKI.NAV.NO_PAGES_IN_CATEGORY' | translate }}</p>
                 }
             </div>
@@ -103,41 +149,23 @@
                     <p class="text-[10px] font-semibold text-white/30 uppercase tracking-widest px-2 mb-1">{{ 'WIKI.NAV.PAGES' | translate }}</p>
                 }
                 @for (node of uncategorizedPageTree(); track node.page.id) {
-                    @if (dropTargetId() === node.page.id && dropPos() === 'before' && nestTargetId() !== node.page.id) {
-                        <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
-                    }
-                    <button (click)="goPage(node.page)" (contextmenu)="onPageContextMenu($event, node.page)"
-                            (dragend)="onDragEnd($event)"
-                            (dragover)="onItemDragOver($event, node.page.id)"
-                            (dragstart)="onPageDragStart($event, node.page)"
-                            [ngClass]="nestTargetId() === node.page.id
-              ? 'nest-blink text-white/90 scale-[1.01]'
-              : isPageActive(node.page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
-                            [style.paddingLeft]="(8 + node.depth * 14) + 'px'"
-                            class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg text-left transition-all duration-200 border-0 cursor-grab"
-                            [attr.draggable]="state.abilities().canManageStructure ? true : null">
-                        <i [ngClass]="node.depth > 0 ? 'pi-file-minus text-white/30' : 'pi-file'"
-                           class="pi text-[12px] shrink-0"></i>
-                        <span class="text-[14px] truncate flex-1">{{ node.page.title }}</span>
-                        <i [class.opacity-0]="nestTargetId() !== node.page.id"
-                           [class.opacity-100]="nestTargetId() === node.page.id"
-                           class="pi pi-sitemap text-[10px] text-brand-dim shrink-0 transition-opacity duration-300"></i>
-                    </button>
-                    @if (dropTargetId() === node.page.id && dropPos() === 'after' && nestTargetId() !== node.page.id) {
-                        <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
-                    }
+                    <ng-container *ngTemplateOutlet="pageRow; context: {$implicit: node}"></ng-container>
                 }
             </div>
         }
 
-        @if (!(state.wiki()?.pages?.length) && state.wiki() !== null) {
+        @if (filterEmpty()) {
+            <p class="text-[12px] text-white/20 text-center mt-4 px-2">
+                {{ 'WIKI.NAV.FILTER_EMPTY' | translate: {filter: filterText()} }}
+            </p>
+        } @else if (!(state.wiki()?.pages?.length) && state.wiki() !== null) {
             <p class="text-[12px] text-white/20 text-center mt-4 px-2">{{ 'WIKI.NAV.EMPTY' | translate }}</p>
         }
 
         <!-- Add category -->
         @if (state.abilities().canManageStructure) {
             <div class="mt-4 pt-3 border-t border-white/[0.05]">
-                <button (click)="showCategoryDialog.set(true)"
+                <button (click)="openCategoryDialog()"
                         class="w-full flex items-center gap-2 px-2 py-[6px] rounded-lg text-white/30 hover:text-white/55 hover:bg-white/[0.04] transition-all border border-dashed border-white/[0.08] cursor-pointer bg-transparent text-left">
                     <i class="pi pi-folder-plus text-[12px] shrink-0"></i>
                     <span class="text-[13px]">{{ 'WIKI.NAV.ADD_CATEGORY' | translate }}</span>
@@ -148,30 +176,84 @@
     </div>
 </div>
 
-<!-- Category context menu -->
+<!-- A page row inside the tree: drop indicators, inline rename, drag handles. One template for
+     both the categorized and the loose lists, because the two markups had already drifted apart
+     once and only one of them got the fix. -->
+<ng-template #pageRow let-node>
+    @if (dropTargetId() === node.page.id && dropPos() === 'before' && nestTargetId() !== node.page.id) {
+        <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+    }
+    @if (renamingId() === node.page.id) {
+        <div [style.paddingLeft]="(8 + node.depth * 14) + 'px'"
+             class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg bg-white/[0.04]">
+            <i class="pi pi-file text-[12px] shrink-0 text-white/40"></i>
+            <input (blur)="commitRename()"
+                   (keydown.enter)="commitRename()"
+                   (keydown.escape)="cancelRename()"
+                   (ngModelChange)="renameValue.set($event)"
+                   [ngModel]="renameValue()"
+                   class="flex-1 min-w-0 border-0 bg-transparent text-[14px] text-white/90 outline-none"
+                   data-rename-input/>
+        </div>
+    } @else {
+        <button (click)="goPage(node.page)" (contextmenu)="onPageContextMenu($event, node.page)"
+                (dragend)="onDragEnd($event)"
+                (dragover)="onItemDragOver($event, node.page.id)"
+                (dragstart)="onPageDragStart($event, node.page)"
+                (keydown)="onPageKeydown($event, node.page)"
+                [ngClass]="nestTargetId() === node.page.id
+              ? 'nest-blink text-white/90 scale-[1.01]'
+              : isPageActive(node.page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
+                [style.paddingLeft]="(8 + node.depth * 14) + 'px'"
+                class="w-full flex items-center gap-2 pr-2 py-[6px] rounded-lg text-left transition-all duration-200 border-0 cursor-grab"
+                [attr.draggable]="state.abilities().canManageStructure ? true : null"
+                data-nav-item>
+            <i [ngClass]="node.depth > 0 ? 'pi-file-minus text-white/30' : 'pi-file'"
+               class="pi text-[12px] shrink-0"></i>
+            <span class="text-[14px] truncate flex-1">{{ node.page.title }}</span>
+            @if (prefs.isFavourite(node.page.id)) {
+                <i class="pi pi-star-fill text-[9px] text-brand-dim/60 shrink-0"></i>
+            }
+            <i [class.opacity-0]="nestTargetId() !== node.page.id"
+               [class.opacity-100]="nestTargetId() === node.page.id"
+               class="pi pi-sitemap text-[10px] text-brand-dim shrink-0 transition-opacity duration-300"></i>
+        </button>
+    }
+    @if (dropTargetId() === node.page.id && dropPos() === 'after' && nestTargetId() !== node.page.id) {
+        <div class="mx-1 h-0.5 rounded-full bg-brand my-0.5"></div>
+    }
+</ng-template>
+
+<!-- Favourites, recents and pinned: shortcuts to a page that is also somewhere in the tree, so
+     they carry no drag, no nesting and no depth. -->
+<ng-template #flatRow let-page let-icon="icon">
+    <button (click)="goPage(page)" (contextmenu)="onPageContextMenu($event, page)"
+            (keydown)="onPageKeydown($event, page)"
+            [ngClass]="isPageActive(page) ? 'bg-white/[0.08] text-white/95' : 'text-white/55 hover:bg-white/[0.06] hover:text-white/90'"
+            class="w-full flex items-center gap-2.5 px-2 py-[6px] rounded-lg text-left transition-all border-0 cursor-pointer"
+            data-nav-item>
+        <i [ngClass]="icon" class="pi text-[12px] shrink-0 text-brand-dim/70"></i>
+        <span class="text-[14px] truncate">{{ page.title }}</span>
+    </button>
+</ng-template>
+
+<!-- Page and category context menu -->
 <p-context-menu #catCtxMenu [model]="ctxMenuItems" appendTo="body"/>
 
-<!-- Delete category confirm -->
-<p-dialog
-        (visibleChange)="$event ? null : categoryToDelete.set(null)"
-        [closable]="true"
-        [dismissableMask]="true" [draggable]="false" [modal]="true" [resizable]="false"
-        [style]="{width: '360px'}" [visible]="!!categoryToDelete()"
-        appendTo="body">
-    <ng-template pTemplate="header">
-        <span class="text-sm font-semibold text-white/85">{{ 'WIKI.NAV.DELETE_CATEGORY' | translate }}</span>
+<!-- Undo. Keyed so it lands here and not in the app-wide outlet, which has no action slot. -->
+<p-toast [key]="undoToastKey" position="bottom-center">
+    <ng-template let-message pTemplate="message">
+        <div class="flex w-full items-center gap-3">
+            <i class="pi pi-trash text-[0.75rem] text-white/40"></i>
+            <span class="flex-1 text-[0.8125rem] text-white/80">{{ message.summary }}</span>
+            <button (click)="undoPending()"
+                    class="shrink-0 cursor-pointer rounded border-0 bg-white/[0.08] px-2 py-1
+                           text-[0.75rem] font-medium text-white/85 hover:bg-hover">
+                {{ 'WIKI.NAV.UNDO' | translate }}
+            </button>
+        </div>
     </ng-template>
-    <p class="text-sm text-white/65 py-2">
-        {{ 'WIKI.NAV.DELETE_CATEGORY_CONFIRM' | translate: {name: categoryToDelete()?.name} }}
-    </p>
-    <div class="flex gap-2 justify-end mt-4 pt-4 border-t border-white/[0.06]">
-        <p-button (onClick)="categoryToDelete.set(null)" [outlined]="true" [label]="'COMMON.CANCEL' | translate" severity="secondary"
-                  size="small"/>
-        <p-button (onClick)="confirmDeleteCategory()" [loading]="deletingCategory()" [label]="'WIKI.DELETE' | translate"
-                  severity="danger"
-                  size="small"/>
-    </div>
-</p-dialog>
+</p-toast>
 
 <!-- Create Category Dialog -->
 <p-dialog

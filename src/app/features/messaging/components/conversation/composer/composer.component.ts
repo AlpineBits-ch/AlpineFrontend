@@ -40,6 +40,10 @@ import {BotCommandService} from '../../../../../services/bot-command.service';
 import {GuildWebsocketService} from '../../../../../services/guild-websocket.service';
 import {BotCommandDialogService} from '../../../../../features/bot-command/bot-command-dialog.service';
 import {readableContent, UNDECRYPTABLE_SHORT} from '../../../../../helpers/message-content.helper';
+import {WikiService} from '../../../../../services/wiki.service';
+import {WikiPageSummaryDto} from '../../../../../dtos/response/wiki.dto';
+import {GuildFeature, guildHasFeature} from '../../../../guild/guild-features';
+import {wikiShareLink} from '../../../wiki-link';
 
 const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/';
 
@@ -84,7 +88,7 @@ export class ComposerComponent {
     fileInputRef = viewChild.required<ElementRef<HTMLInputElement>>('fileInput');
     gifPickerRef = viewChild(GifPickerButtonComponent);
     isEmpty = signal(true);
-    overlayType = signal<'mention' | 'command' | 'emoji' | 'channel' | null>(null);
+    overlayType = signal<'mention' | 'command' | 'emoji' | 'channel' | 'wiki' | null>(null);
     query = signal('');
 
     // ── View ─────────────────────────────────────────────────────────────────
@@ -98,6 +102,7 @@ export class ComposerComponent {
         if (this.overlayType() === 'command') return this.filteredCommands();
         if (this.overlayType() === 'emoji') return this.filteredEmojis();
         if (this.overlayType() === 'channel') return this.filteredChannels();
+        if (this.overlayType() === 'wiki') return this.filteredWikiPages();
         return [];
     });
     placeholder = computed(() => {
@@ -130,6 +135,12 @@ export class ComposerComponent {
     private readonly destroyRef = inject(DestroyRef);
     private readonly socialGate = inject(SocialKeyGateService);
     private readonly botCommands = signal<BotCommandDto[]>([]);
+
+    // ── Wiki pages (per-guild, fetched on the first `[[`) ────────────────────────
+    private readonly wikiService = inject(WikiService);
+    private readonly wikiPages = signal<WikiPageSummaryDto[]>([]);
+    /** The guild {@link wikiPages} was filled for, so a guild switch cannot serve the old list. */
+    private wikiPagesGuildId: string | null = null;
 
     constructor() {
         effect(() => {
@@ -224,6 +235,24 @@ export class ComposerComponent {
             .slice(0, 8);
     });
 
+    /**
+     * Wiki pages for `[[`.
+     *
+     * <p>Matched on title and tags. Pinned pages sort first on an empty query, so the bare `[[`
+     * offers the pages the guild has decided matter rather than whatever the listing returned
+     * first.</p>
+     */
+    filteredWikiPages = computed<WikiPageSummaryDto[]>(() => {
+        if (this.overlayType() !== 'wiki') return [];
+        const q = this.query().toLowerCase().trim();
+        const matches = this.wikiPages().filter(p => !q
+            || p.title.toLowerCase().includes(q)
+            || (p.tags ?? []).some(t => t.toLowerCase().includes(q)));
+        return [...matches]
+            .sort((a, b) => Number(b.isPinned) - Number(a.isPinned) || a.title.localeCompare(b.title))
+            .slice(0, 8);
+    });
+
     // ── Typing throttle ───────────────────────────────────────────────────────
     private typingThrottle: ReturnType<typeof setTimeout> | null = null;
 
@@ -298,6 +327,7 @@ export class ComposerComponent {
 
             if (result.type === 'command') this.commandAtStart.set(result.atStart);
             if (result.type === 'emoji') this.filteredEmojis.set(this.emojiData.search(result.query));
+            if (result.type === 'wiki') this.ensureWikiPages();
         } else {
             this.closeOverlay();
             this.applyMarkdownHighlighting(editor);
@@ -449,6 +479,45 @@ export class ComposerComponent {
         this.editorRef().nativeElement.focus();
     }
 
+    /**
+     * Replaces `[[query` with a chip that reads as the page and sends as a link to it.
+     *
+     * <p>The chip's `data-display` is what {@link getMessage} puts on the wire - the shareable URL,
+     * bracketed so the server does not also unfurl it - while its text stays the page title. That is
+     * the same split a member mention already uses, so nothing new had to learn about chips.</p>
+     */
+    onWikiPageSelected(page: WikiPageSummaryDto): void {
+        if (!this.triggerRange) return;
+        const guildId = this.guildId();
+        if (!guildId) return;
+
+        this.triggerRange.deleteContents();
+
+        const chip = document.createElement('span');
+        chip.contentEditable = 'false';
+        chip.className = 'mention-chip mention-chip-wiki';
+        chip.dataset['wikiPageId'] = page.id;
+        chip.dataset['display'] = wikiShareLink(guildId, page.id);
+        chip.textContent = page.title;
+
+        this.triggerRange.insertNode(chip);
+        const space = document.createTextNode(' ');
+        chip.after(space);
+
+        const sel = window.getSelection();
+        if (sel) {
+            const r = document.createRange();
+            r.setStartAfter(space);
+            r.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(r);
+        }
+
+        this.closeOverlay();
+        this.isEmpty.set(false);
+        this.editorRef().nativeElement.focus();
+    }
+
     onCommandSelected(item: ComposerCommandItem): void {
         if (item.kind === 'bot') {
             this.onBotCommandSelected(item.def);
@@ -548,6 +617,33 @@ export class ComposerComponent {
         ).subscribe({
             next: () => this.messageStore.removeMessage(tempId),
             error: () => this.messageStore.failMessage(tempId),
+        });
+    }
+
+    /**
+     * Loads this guild's page listing, once, the first time somebody types `[[` in it.
+     *
+     * <p>Not an effect on `guildId`: most messages contain no wiki link, and fetching a page tree
+     * for every channel anybody clicks through would be a request per switch for a menu that never
+     * opens. A guild with the Wiki module off is left empty, so the menu simply never appears.</p>
+     */
+    private ensureWikiPages(): void {
+        const guildId = this.guildId();
+        if (!guildId || this.wikiPagesGuildId === guildId) return;
+
+        this.wikiPagesGuildId = guildId;
+        this.wikiPages.set([]);
+
+        const guild = this.guildService.guilds().find(g => g.id === guildId);
+        if (!guild || !guildHasFeature(guild, GuildFeature.Wiki)) return;
+
+        this.wikiService.getWiki(guildId).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+            next: wiki => {
+                // A second guild switch while this was in flight would otherwise land one guild's
+                // pages under another guild's name.
+                if (this.wikiPagesGuildId === guildId) this.wikiPages.set(wiki.pages);
+            },
+            error: () => this.wikiPages.set([]),
         });
     }
 
@@ -719,6 +815,9 @@ export class ComposerComponent {
         } else if (this.overlayType() === 'channel') {
             const ch = this.filteredChannels()[idx];
             if (ch) this.onChannelSelected(ch);
+        } else if (this.overlayType() === 'wiki') {
+            const page = this.filteredWikiPages()[idx];
+            if (page) this.onWikiPageSelected(page);
         }
     }
 

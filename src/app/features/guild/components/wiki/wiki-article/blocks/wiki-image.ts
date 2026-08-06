@@ -1,0 +1,314 @@
+import {Editor} from '@tiptap/core';
+import Image, {ImageOptions} from '@tiptap/extension-image';
+import {Plugin, PluginKey} from '@tiptap/pm/state';
+import {NodeView, ViewMutationRecord} from '@tiptap/pm/view';
+import {Node as ProseMirrorNode} from '@tiptap/pm/model';
+import {DEFAULT_WIKI_BLOCK_LABELS, WikiBlockLabels} from './wiki-block-labels';
+
+/**
+ * Images with a caption, a drag handle and a lightbox.
+ *
+ * ## Width round trip
+ *
+ * A sized image serialises as literal HTML - `<img src="…" alt="…" width="640">` - and an unsized
+ * one keeps the plain `![alt](src)` form. The alternative was smuggling the width into the title
+ * attribute (`![alt](src "=640")`), which round trips just as well but leaks a meaningless tooltip
+ * into every other markdown renderer, and permanently occupies the one field a caption-like title
+ * would use. Raw HTML is passed through untouched by GFM and is read back by the image node's own
+ * `img[src]` parse rule, so nothing custom is needed on the way in.
+ *
+ * The caption *is* the alt text. One field, described once, doing both jobs: it is the accessible
+ * name and it is the line printed under the picture, so there is no way to caption an image and
+ * still leave it unlabelled for a screen reader.
+ *
+ * Upload and the blob-URL swap stay in the article component - this node never learns about files.
+ */
+
+const MIN_WIDTH = 64;
+
+export interface WikiImageOptions extends ImageOptions {
+    labels: WikiBlockLabels;
+}
+
+interface WikiImageStorage {
+    views: Set<WikiImageView>;
+}
+
+function escapeAttribute(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+function widthOf(value: unknown): number | null {
+    const parsed = typeof value === 'number' ? value : Number.parseInt(String(value ?? ''), 10);
+    return Number.isFinite(parsed) && parsed >= MIN_WIDTH ? Math.round(parsed) : null;
+}
+
+class WikiImageView implements NodeView {
+    readonly dom: HTMLElement;
+
+    private readonly frame: HTMLElement;
+    private readonly image: HTMLImageElement;
+    private readonly handle: HTMLElement;
+    private readonly captionInput: HTMLInputElement;
+    private readonly caption: HTMLElement;
+
+    private node: ProseMirrorNode;
+    private editable: boolean;
+    private captionTimer?: ReturnType<typeof setTimeout>;
+    private lightbox?: HTMLElement;
+    private escapeHandler?: (event: KeyboardEvent) => void;
+
+    constructor(
+        node: ProseMirrorNode,
+        private readonly getPos: () => number | undefined,
+        private readonly editor: Editor,
+        private readonly labels: WikiBlockLabels,
+        private readonly registry: Set<WikiImageView>,
+    ) {
+        this.node = node;
+        this.editable = editor.isEditable;
+
+        this.dom = document.createElement('figure');
+        this.dom.className = 'wiki-image';
+        this.dom.contentEditable = 'false';
+
+        this.frame = document.createElement('div');
+        this.frame.className = 'wiki-image-frame';
+
+        this.image = document.createElement('img');
+        this.image.addEventListener('click', () => {
+            if (!this.editor.isEditable) this.openLightbox();
+        });
+
+        this.handle = document.createElement('span');
+        this.handle.className = 'wiki-image-handle';
+        this.handle.addEventListener('pointerdown', event => this.beginResize(event));
+
+        this.frame.append(this.image, this.handle);
+
+        this.captionInput = document.createElement('input');
+        this.captionInput.className = 'wiki-image-caption-input';
+        this.captionInput.placeholder = labels.imageCaption;
+        this.captionInput.addEventListener('input', () => this.scheduleCaption());
+        // Enter in the caption should not split the figure out from under itself.
+        this.captionInput.addEventListener('keydown', event => {
+            if (event.key === 'Enter') event.preventDefault();
+        });
+
+        this.caption = document.createElement('figcaption');
+        this.caption.className = 'wiki-image-caption';
+
+        this.dom.append(this.frame, this.captionInput, this.caption);
+
+        this.paint();
+        this.registry.add(this);
+    }
+
+    update(node: ProseMirrorNode): boolean {
+        if (node.type.name !== this.node.type.name) return false;
+        this.node = node;
+        this.paint();
+        return true;
+    }
+
+    syncEditable(): void {
+        if (this.editor.isEditable === this.editable) return;
+        this.editable = this.editor.isEditable;
+        if (this.editable) this.closeLightbox();
+        this.paint();
+    }
+
+    stopEvent(event: Event): boolean {
+        const target = event.target as globalThis.Node | null;
+        if (!target) return false;
+        return this.captionInput.contains(target)
+            || this.handle.contains(target)
+            || !!this.lightbox?.contains(target);
+    }
+
+    ignoreMutation(_mutation: ViewMutationRecord): boolean {
+        // A leaf node: everything under here is ours, and none of it is document content.
+        return true;
+    }
+
+    destroy(): void {
+        clearTimeout(this.captionTimer);
+        this.closeLightbox();
+        this.registry.delete(this);
+    }
+
+    private paint(): void {
+        const attrs = this.node.attrs;
+        const src = typeof attrs['src'] === 'string' ? attrs['src'] : '';
+        const alt = typeof attrs['alt'] === 'string' ? attrs['alt'] : '';
+        const title = typeof attrs['title'] === 'string' ? attrs['title'] : '';
+        const width = widthOf(attrs['width']);
+
+        if (this.image.getAttribute('src') !== src) this.image.setAttribute('src', src);
+        this.image.alt = alt;
+        if (title) this.image.title = title;
+        else this.image.removeAttribute('title');
+        this.image.style.width = width ? `${width}px` : '';
+
+        this.dom.setAttribute('data-mode', this.editable ? 'edit' : 'read');
+        this.caption.textContent = alt;
+        this.dom.setAttribute('data-captioned', String(Boolean(alt)));
+        // Never while the field has focus: rewriting the value mid-word would move the caret to
+        // the end on every keystroke.
+        if (document.activeElement !== this.captionInput && this.captionInput.value !== alt) {
+            this.captionInput.value = alt;
+        }
+    }
+
+    private scheduleCaption(): void {
+        clearTimeout(this.captionTimer);
+        // Debounced so a typed caption is one undo step per pause, not one per character.
+        this.captionTimer = setTimeout(() => {
+            const pos = this.getPos();
+            if (pos === undefined) return;
+            this.editor.view.dispatch(
+                this.editor.state.tr.setNodeAttribute(pos, 'alt', this.captionInput.value),
+            );
+        }, 400);
+    }
+
+    private beginResize(event: PointerEvent): void {
+        if (!this.editor.isEditable) return;
+        event.preventDefault();
+        event.stopPropagation();
+
+        const startX = event.clientX;
+        const startWidth = this.image.getBoundingClientRect().width;
+        const maxWidth = this.dom.getBoundingClientRect().width || startWidth;
+        this.handle.setPointerCapture(event.pointerId);
+        this.dom.setAttribute('data-resizing', 'true');
+
+        let width = startWidth;
+        const move = (moveEvent: PointerEvent) => {
+            width = Math.min(Math.max(startWidth + (moveEvent.clientX - startX), MIN_WIDTH), maxWidth);
+            this.image.style.width = `${Math.round(width)}px`;
+        };
+        const finish = () => {
+            this.handle.removeEventListener('pointermove', move);
+            this.handle.removeEventListener('pointerup', finish);
+            this.handle.removeEventListener('pointercancel', finish);
+            this.dom.removeAttribute('data-resizing');
+            const pos = this.getPos();
+            if (pos === undefined) return;
+            // Committed once, at the end: a transaction per mouse move would bury the undo stack.
+            this.editor.view.dispatch(
+                this.editor.state.tr.setNodeAttribute(pos, 'width', Math.round(width)),
+            );
+        };
+        this.handle.addEventListener('pointermove', move);
+        this.handle.addEventListener('pointerup', finish);
+        this.handle.addEventListener('pointercancel', finish);
+    }
+
+    /**
+     * Mounted inside the node view rather than on `document.body`, so the component stylesheet -
+     * which can only reach into the editor subtree - still applies to it.
+     */
+    private openLightbox(): void {
+        if (this.lightbox) return;
+        const overlay = document.createElement('div');
+        overlay.className = 'wiki-image-lightbox';
+        overlay.setAttribute('role', 'dialog');
+
+        const large = document.createElement('img');
+        large.src = this.image.currentSrc || this.image.src;
+        large.alt = this.image.alt;
+
+        const close = document.createElement('button');
+        close.type = 'button';
+        close.className = 'wiki-image-lightbox-close';
+        close.title = this.labels.imageClose;
+        close.setAttribute('aria-label', this.labels.imageClose);
+        const icon = document.createElement('i');
+        icon.className = 'pi pi-times';
+        close.appendChild(icon);
+
+        overlay.append(large, close);
+        overlay.addEventListener('click', () => this.closeLightbox());
+
+        this.escapeHandler = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') this.closeLightbox();
+        };
+        document.addEventListener('keydown', this.escapeHandler);
+
+        this.lightbox = overlay;
+        this.dom.appendChild(overlay);
+    }
+
+    private closeLightbox(): void {
+        if (this.escapeHandler) document.removeEventListener('keydown', this.escapeHandler);
+        this.escapeHandler = undefined;
+        this.lightbox?.remove();
+        this.lightbox = undefined;
+    }
+}
+
+const WikiImageExtension = Image.extend<WikiImageOptions, WikiImageStorage>({
+    addOptions() {
+        return {...this.parent?.(), labels: DEFAULT_WIKI_BLOCK_LABELS} as WikiImageOptions;
+    },
+
+    addStorage() {
+        return {views: new Set<WikiImageView>()};
+    },
+
+    addAttributes() {
+        return {
+            ...this.parent?.(),
+            width: {
+                default: null,
+                parseHTML: element => widthOf(element.getAttribute('width')),
+                renderHTML: attributes => {
+                    const width = widthOf(attributes['width']);
+                    return width ? {width: String(width)} : {};
+                },
+            },
+        };
+    },
+
+    addNodeView() {
+        const labels = this.options.labels;
+        const registry = this.storage.views;
+        const editor = this.editor;
+        return ({node, getPos}) => new WikiImageView(node, getPos, editor, labels, registry);
+    },
+
+    addProseMirrorPlugins() {
+        const registry = this.storage.views;
+        return [
+            ...(this.parent?.() ?? []),
+            new Plugin({
+                key: new PluginKey('wikiImageEditable'),
+                // The one hook that fires when `setEditable` flips read and edit apart.
+                view: () => ({update: () => registry.forEach(view => view.syncEditable())}),
+            }),
+        ];
+    },
+
+    renderMarkdown: node => {
+        const src = typeof node.attrs?.['src'] === 'string' ? node.attrs['src'] : '';
+        const alt = typeof node.attrs?.['alt'] === 'string' ? node.attrs['alt'] : '';
+        const title = typeof node.attrs?.['title'] === 'string' ? node.attrs['title'] : '';
+        const width = widthOf(node.attrs?.['width']);
+
+        if (width) {
+            const titleAttribute = title ? ` title="${escapeAttribute(title)}"` : '';
+            return `<img src="${escapeAttribute(src)}" alt="${escapeAttribute(alt)}"${titleAttribute} width="${width}">`;
+        }
+        return title ? `![${alt}](${src} "${title}")` : `![${alt}](${src})`;
+    },
+});
+
+/** Configured once, at editor construction, because the labels are resolved translations. */
+export function wikiImage(labels: WikiBlockLabels) {
+    return WikiImageExtension.configure({inline: false, allowBase64: false, labels});
+}

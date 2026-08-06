@@ -27,12 +27,17 @@ export class WikiBreadcrumbsComponent {
     readonly canDelete = input(false);
 
     readonly openSegment = output<WikiPageSummaryDto>();
+    /** Drawer requests for widths where the nav and rail columns are not on screen. */
+    readonly openNav = output<void>();
+    readonly openRail = output<void>();
     readonly draftWithAi = output<void>();
     readonly edit = output<void>();
     readonly save = output<void>();
     readonly cancel = output<void>();
     readonly history = output<void>();
     readonly deletePage = output<void>();
+    readonly share = output<void>();
+    readonly ask = output<void>();
 
     protected readonly trail = computed(() => buildTrail(this.wiki(), this.pageId()));
 

@@ -134,3 +134,19 @@
     line-height: 1.5;
     vertical-align: baseline;
 }
+
+/* A wiki page reads as a document rather than as a person, so it gets the neutral surface the
+   mention chips deliberately do not use - and a glyph, because the chip shows a page title with
+   no sigil in front of it the way @name and #name carry their own. */
+:host ::ng-deep .mention-chip-wiki {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--color-text-secondary);
+    gap: 4px;
+}
+
+:host ::ng-deep .mention-chip-wiki::before {
+    content: '\e9ba'; /* pi-book */
+    font-family: primeicons, sans-serif;
+    font-size: 0.75em;
+    opacity: 0.55;
+}

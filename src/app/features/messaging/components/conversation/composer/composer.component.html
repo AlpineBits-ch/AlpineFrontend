@@ -15,10 +15,12 @@
             (commandSelected)="onCommandSelected($event)"
             (emojiSelected)="onEmojiShortcodeSelected($event)"
             (mentionSelected)="onMentionSelected($event)"
+            (wikiPageSelected)="onWikiPageSelected($event)"
             [filteredChannels]="filteredChannels()"
             [filteredCommands]="filteredCommands()"
             [filteredEmojis]="filteredEmojis()"
             [filteredMentions]="filteredMentions()"
+            [filteredWikiPages]="filteredWikiPages()"
             [overlayType]="overlayType()"
             [query]="query()"
             [selectedIndex]="selectedIndex()"/>

@@ -87,14 +87,25 @@
             <!-- Edit summary. Offered only when the body changed, because the server attaches
                  it to the revision that change creates and there is none otherwise. -->
             @if (summaryApplies()) {
-                <div class="mt-6 flex items-center gap-2 border-t border-white/[0.06] pt-4">
-                    <i class="pi pi-pencil text-[0.75rem] text-white/25"></i>
-                    <input (keydown.enter)="save()"
-                           (ngModelChange)="editSummary.set($event)"
-                           [ngModel]="editSummary()"
-                           class="flex-1 border-0 bg-transparent text-[0.8125rem] text-white/70
-                                  outline-none placeholder-white/25"
-                           [placeholder]="'WIKI.ARTICLE.SUMMARY_PLACEHOLDER' | translate"/>
+                <div class="mt-6 border-t border-white/[0.06] pt-4">
+                    <div class="flex items-center gap-2">
+                        <i class="pi pi-pencil text-[0.75rem] text-white/25"></i>
+                        <input (keydown.enter)="save()"
+                               (ngModelChange)="editSummary.set($event)"
+                               [ngModel]="editSummary()"
+                               class="flex-1 border-0 bg-transparent text-[0.8125rem] text-white/70
+                                      outline-none placeholder-white/25"
+                               [placeholder]="'WIKI.ARTICLE.SUMMARY_PLACEHOLDER' | translate"/>
+                    </div>
+                    <!-- `descriptionSelected` is left unbound on purpose: there is no page
+                         description field in the DTO to put it in. -->
+                    <div class="mt-2 pl-5">
+                        <app-wiki-ai-metadata (summarySelected)="editSummary.set($event)"
+                                              (tagsSelected)="tagsSuggested.emit($event)"
+                                              [content]="aiMetadataContent()"
+                                              [existingTags]="page()?.tags ?? []"
+                                              [pageTitle]="title()"/>
+                    </div>
                 </div>
             }
         </div>
@@ -106,10 +117,26 @@
        class="hidden" multiple type="file"/>
 
 <!-- Editor chrome, all of it on demand: nothing here is on screen while you are just reading. -->
-<app-wiki-bubble-menu #bubbleMenu [editor]="editorInstance()"/>
+<app-wiki-bubble-menu #bubbleMenu (aiAction)="aiInline.runTransform($event)"
+                     [editor]="editorInstance()"/>
+<app-wiki-ai-inline #aiInline
+                    [editable]="editing()"
+                    [editor]="editorInstance()"
+                    [pageTitle]="title()"
+                    [pageTitles]="pageTitles()"/>
 <app-wiki-slash-menu #slashMenu (selected)="applySlashItem($event)"
                      [editor]="editorInstance()" [open]="slashOpen()"
                      [position]="suggestPosition()" [query]="suggestQuery()"/>
 <app-wiki-link-menu #linkMenu (selected)="applyPageLink($event)"
                     [open]="linkMenuOpen()" [pages]="wiki()?.pages ?? []"
                     [position]="suggestPosition()" [query]="suggestQuery()"/>
+<app-wiki-emoji-menu #emojiMenu (selected)="applyEmoji($event)"
+                     [open]="emojiMenuOpen()"
+                     [position]="suggestPosition()" [query]="suggestQuery()"/>
+<app-wiki-mention-menu #mentionMenu (selected)="applyMention($event)"
+                       [guildId]="guildId()" [open]="mentionMenuOpen()"
+                       [position]="suggestPosition()" [query]="suggestQuery()"/>
+
+<!-- Read mode too: knowing where a link goes is not an editing concern. -->
+<app-wiki-link-preview [open]="previewOpen()" [page]="previewPage()"
+                       [position]="previewPosition()" [snippet]="previewSnippet()"/>
