@@ -95,6 +95,14 @@ jobs:
             exit 1
           }
 
+      # The NSIS template is vendored (src-tauri/vendor/nsis/installer.nsi) so the
+      # installer can default to a passive, wizard-less install. A vendored
+      # handlebars template can drift from the bundler that consumes it on any CLI
+      # bump, producing a subtly wrong installer rather than a build failure - this
+      # makes that loud.
+      - name: Check the vendored NSIS template is in sync
+        run: bun run nsis:check
+
       - name: Build Tauri (Windows)
         env:
           RUSTC_WRAPPER: sccache
