@@ -58,7 +58,35 @@ pub struct JitterBuffer {
     jitter_ms: f32,
     last_arrival_ms: Option<u64>,
     last_seq_unwrapped: Option<u64>,
+    /// Consecutive concealed slots with nothing at all buffered.
+    ///
+    /// See [`JitterBuffer::pop`]: this is what stops the cursor running away from a sender that has
+    /// stopped transmitting.
+    starved_slots: u32,
 }
+
+/// How long playout may conceal with an empty buffer before it gives up its position in the stream.
+///
+/// The bug this exists for: the cursor advances one slot per concealed frame, forever, while a
+/// sender that is silent consumes **no** sequence numbers at all - `chain::process_frame` drops
+/// Opus DTX packets rather than transmitting them. So every second of silence puts the cursor 50
+/// sequence numbers ahead of the talker. When they speak again every packet satisfies `seq <
+/// cursor`, `push` discards it, and because the cursor only moves forward the gap never closes:
+/// that participant is inaudible for the rest of the call, having been perfectly audible for the
+/// first sentence.
+///
+/// It is invisible from every counter above it - the packets arrive, match their mid and are routed
+/// to the right participant - which is why this presented as "I could hear them at first, quietly,
+/// and then it stopped".
+///
+/// Only desktop-to-desktop pairs hit it. A client that transmits continuously, comfort noise and
+/// all, keeps its sequence numbers in step with the cursor and stays audible, which is exactly why
+/// the same receiver could hear a phone throughout and a second desktop only until its first pause.
+///
+/// 400 ms is comfortably longer than any gap a live sender leaves between packets (the encoder
+/// emits one every 20 ms while there is sound) and short enough that resuming costs one re-priming
+/// of the start delay rather than a noticeable clip.
+const STARVED_SLOTS_BEFORE_RESYNC_MS: u32 = 400;
 
 impl JitterBuffer {
     pub fn new(config: JitterConfig) -> Self {
@@ -73,6 +101,7 @@ impl JitterBuffer {
             jitter_ms: 0.0,
             last_arrival_ms: None,
             last_seq_unwrapped: None,
+            starved_slots: 0,
         }
     }
 
@@ -170,6 +199,7 @@ impl JitterBuffer {
 
         if let Some(packet) = self.packets.remove(&cursor) {
             self.cursor = Some(cursor + 1);
+            self.starved_slots = 0;
             return Pop::Decode(packet);
         }
 
@@ -178,6 +208,25 @@ impl JitterBuffer {
         if let Some(next) = self.packets.get(&(cursor + 1)) {
             self.cursor = Some(cursor + 1);
             return Pop::DecodeFec(next.clone());
+        }
+
+        // Nothing to play and nothing waiting. Keep advancing for a while - a packet that is merely
+        // late still belongs at its own slot - but do not do it indefinitely. Past the threshold,
+        // give the position up entirely: `cursor = None` puts playout back into its pre-roll state,
+        // so the next packet to arrive defines a fresh slot instead of being discarded for sitting
+        // behind a cursor that walked off on its own. See the constant's note for what that fixes.
+        if self.packets.is_empty() {
+            self.starved_slots += 1;
+            if self.starved_slots * self.config.packet_ms >= STARVED_SLOTS_BEFORE_RESYNC_MS {
+                self.cursor = None;
+                self.starved_slots = 0;
+                return Pop::Conceal;
+            }
+        } else {
+            // The buffer is not empty, so this slot is a genuine gap in an active stream rather
+            // than a talker who has stopped. Concealment is the right answer and the cursor should
+            // stay where it is.
+            self.starved_slots = 0;
         }
 
         self.cursor = Some(cursor + 1);
@@ -218,6 +267,55 @@ mod tests {
             buf.push(packet(from.wrapping_add(i as u16)), *arrival);
             *arrival += config().packet_ms as u64;
         }
+    }
+
+    /// A talker who pauses is still audible when they resume.
+    ///
+    /// The regression that made two desktop clients unable to hear each other after the first
+    /// sentence. Playout advances the cursor once per concealed slot, but a silent sender consumes
+    /// **no** sequence numbers - `chain::process_frame` drops Opus DTX rather than transmitting it -
+    /// so a pause walks the cursor past everything the talker will send next. Every packet then
+    /// fails `seq < cursor` in `push` and is dropped, permanently, because the cursor only moves
+    /// forward.
+    ///
+    /// Nothing above this could see it: the packets arrived, matched their mid, and were routed to
+    /// the right participant. It presented as "I heard them at first, quietly, and then it stopped",
+    /// and only against another client that also suppresses silence - a peer transmitting
+    /// continuously keeps its sequence numbers in step with the cursor and stays audible.
+    #[test]
+    fn a_talker_who_pauses_is_audible_again_when_they_resume() {
+        let mut buf = JitterBuffer::new(config());
+        let mut arrival = 0u64;
+
+        // A first sentence, heard normally.
+        primed(&mut buf, 100, &mut arrival);
+        assert!(matches!(buf.pop(), Pop::Decode(_)), "the first packet must play");
+
+        // Five seconds of silence. The sender transmits nothing at all, so its sequence numbers
+        // stand still while playout keeps asking for the next slot 50 times a second.
+        for _ in 0..(5_000 / config().packet_ms) {
+            buf.pop();
+        }
+
+        // They speak again, resuming from where their sequence numbers left off.
+        let resume = 100 + (config().start_delay_ms / config().packet_ms) as u16;
+        for i in 0..(config().start_delay_ms / config().packet_ms) {
+            buf.push(packet(resume.wrapping_add(i as u16)), arrival);
+            arrival += config().packet_ms as u64;
+        }
+
+        assert!(
+            !buf.is_empty(),
+            "the resumed packets were discarded on arrival - the cursor ran away during the pause"
+        );
+
+        // And they are actually played, rather than merely buffered.
+        let played = (0..10).filter(|_| matches!(buf.pop(), Pop::Decode(_))).count();
+        assert!(
+            played > 0,
+            "the resumed audio never reached the decoder, so this talker is silent for the rest of \
+             the call"
+        );
     }
 
     fn payload_of(pop: Pop) -> Option<u8> {
