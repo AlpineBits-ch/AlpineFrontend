@@ -73,12 +73,14 @@ function setup(opts: {
     chores?: Chore[];
     occurrences?: ChoreOccurrence[];
     balance?: ChoreBalanceEntry[];
+    /** Overridable so a test can build a house that was never seeded with Flatmates. */
+    roles?: { id: string; name: string }[];
 } = {}) {
     const guild = {
         id: 'g1',
         ownerId: 'someone-else',
         features: opts.features ?? 'Chores',
-        roles: [{id: 'role_flatmates', name: 'Flatmates'}],
+        roles: opts.roles ?? [{id: 'role_flatmates', name: 'Flatmates'}],
         channels: [],
     } as unknown as GuildDto;
 
@@ -285,20 +287,38 @@ describe('ChoresChannelComponent permissions', () => {
     });
 });
 
+/** The editor's internals, which the template drives and a test has to reach directly. */
+interface EditorHandle {
+    openCreate: () => void;
+    save: () => void;
+    assignmentError: () => string | null;
+    showEditor: () => boolean;
+}
+
 describe('ChoresChannelComponent chore editor', () => {
-    it('will not save a chore with neither a rotation role nor a fixed assignee', () => {
+    it('opens a new chore already on the Flatmates rota', () => {
         const fixture = setup();
-        const component = fixture.componentInstance as unknown as {
-            openCreate: () => void;
-            save: () => void;
-            assignmentError: () => string | null;
-            showEditor: () => boolean;
-        };
+        const component = fixture.componentInstance as unknown as EditorHandle;
 
         component.openCreate();
         fixture.detectChanges();
-        // Nothing picked yet: the server would answer 400, and a raw 400 next to two empty
-        // pickers tells the user nothing about which one to fill in.
+
+        // The seeded Flatmates role *is* the rotation pool, so a house that has one starts a new
+        // chore with the pool already chosen - which is the whole reason the role is seeded, and
+        // why "nothing is picked" is not a state an ordinary household can open the editor in.
+        expect(component.assignmentError()).toBeNull();
+    });
+
+    it('will not save a chore with neither a rotation role nor a fixed assignee', () => {
+        // A house with no Flatmates role - renamed, or a guild that only switched the module on.
+        // There is nothing to default to, so the picker asks rather than guessing at whichever
+        // role happens to sort first, and this is the draft the server answers 400 for.
+        const fixture = setup({roles: []});
+        const component = fixture.componentInstance as unknown as EditorHandle;
+
+        component.openCreate();
+        fixture.detectChanges();
+        // A raw 400 next to two empty pickers tells the user nothing about which one to fill in.
         expect(component.assignmentError()).toBe('missing');
 
         component.save();
