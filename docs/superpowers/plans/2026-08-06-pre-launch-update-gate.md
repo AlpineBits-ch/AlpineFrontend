@@ -760,6 +760,63 @@ git commit -m "refactor(updater): drop the launch-time check now the gate covers
 
 ---
 
+## Verification results (2026-08-06)
+
+All six tasks executed. Verified against a real release build and the live
+`api.venta.gg` endpoint, not just compiled.
+
+| Check | Result |
+|---|---|
+| Gate skips in debug | `[update-gate] skipped: debug build` |
+| Gate runs in release, up-to-date path | `[update-gate] already up to date` (endpoint 204 for 3.0.178) |
+| Fail-open when server unreachable | check fails, app still starts; `[openh264] ready` proves the whole post-gate chain ran |
+| `ALPINE_SKIP_UPDATE_GATE` hatch | skips as designed |
+| Silent first install (`/S`) | exit 0, no wizard, `%LOCALAPPDATA%\Venta`, no UAC |
+| Real update: download, verify, install, relaunch | binary replaced (sha `1ED76B00…` → `F3E5D16C…`), relaunched from `%LOCALAPPDATA%`, no installer UI |
+| **Bricking fix** | controlled pair, below |
+| window-state still binds `echo` | geometry persisted across restarts |
+| Rust tests | 466 passed |
+| Angular tests | 2322 passed |
+
+**The bricking test was run as a control pair**, because the single test in Task 6
+Step 5 cannot distinguish "the gate ran first" from "the panic never fired":
+
+- **A** — panic in `presence::init`, version 3.0.178 (no update): `already up to
+  date`, then the panic fires and the app dies. Proves the panic is reachable.
+- **B** — same panic, version 3.0.177 (update available): `installing 3.0.178`,
+  process exits before `presence::init`, **no panic**, app relaunches clean.
+
+Under the old ordering B would have died before the Angular check could run.
+
+### Deviations from the plan as written
+
+1. **`log = "0.4"` was not added.** No logger is installed in this crate, so
+   `log::*` would compile and be silently discarded - the worst outcome for code
+   whose only job is explaining why an update did not happen. Used
+   `eprintln!("[update-gate] …")`, matching the 83 existing call sites.
+2. **`windows_notifications::setup` stayed ahead of the gate.** It sets the
+   process AppUserModelID, which Windows reads at first window creation, and every
+   fallible call inside is already handled - it has no panic path to protect
+   against.
+3. **`main_window` is not desktop-gated.** Removing the window from the config
+   removed it on every platform, so mobile needs its own (gate-less) build path.
+4. **`.drag_drop_handler(false)` does not exist**; the builder method is
+   `.disable_drag_drop_handler()` with no argument.
+5. **`progress_percent` was extracted and unit-tested** rather than left inline,
+   covering absent content-length, a zero total (`inf as u8` saturates to 255
+   rather than panicking), and a server understating the length.
+6. **`splash` had to be added to the window-state denylist.** `on_window_ready`
+   fires for every window, so the plugin was persisting the splash's geometry and
+   would restore it next launch, overriding `.center()` - and once a bad position
+   was recorded, the splash would reopen off-screen with no way to drag it back.
+
+### Gotcha
+
+Running the installer as `./Venta_x64-setup.exe /S` **from Git Bash does not
+install silently**. MSYS path conversion rewrites the leading `/S` into a path, so
+NSIS never sees the flag and shows the full wizard. Use PowerShell
+(`Start-Process -ArgumentList '/S'`) or `MSYS_NO_PATHCONV=1`.
+
 ## Self-Review
 
 **Spec coverage.** Requirement (b) — "the update must run before the actual app is launched" — is delivered by Tasks 3 and 5, and verified end-to-end by Task 6 Step 5. The "ugly installer during updates" half of requirement (a) is delivered by Task 5 Step 2 (`quiet`). The first-install half of requirement (a) is **not** in this plan; it is Plan B (wizard-less NSIS template + CI signing hook) and is deliberately scoped out — it shares no code with this one and ships independently.
