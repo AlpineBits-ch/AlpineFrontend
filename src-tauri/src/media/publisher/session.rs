@@ -37,6 +37,14 @@ const STATS_EVERY_FRAMES: u64 = 150;
 /// regardless of what the screen is doing.
 const KEYFRAME_INTERVAL: Duration = Duration::from_secs(2);
 
+/// Consecutive failed writes tolerated before the publication is considered dead.
+///
+/// More than a handful, because the failure this exists for arrives in bursts: a socket whose send
+/// queue is full stays full for as long as it takes to drain, so one oversized frame can fail
+/// several writes in a row and then recover completely. Few enough that a connection which has
+/// genuinely gone away is torn down within a second rather than encoding into a void.
+const WRITE_FAILURES_BEFORE_GIVING_UP: u32 = 30;
+
 /// A downscaled frame for the sharer's own tile.
 ///
 /// The publisher never puts a MediaStream in the webview - that is the point of it - so the local
@@ -146,10 +154,34 @@ pub async fn start(
     // Writer task: the peer connection is async, the capture loop is a blocking OS thread, so
     // encoded frames cross over here rather than blocking capture on the network.
     tokio::spawn(async move {
+        let mut consecutive_failures = 0u32;
         while let Some((data, duration)) = frame_rx.recv().await {
-            if let Err(e) = publication.write_frame(data, duration).await {
-                eprintln!("[publisher] write failed, ending publication: {e}");
-                break;
+            match publication.write_frame(data, duration).await {
+                Ok(()) => consecutive_failures = 0,
+                Err(e) => {
+                    consecutive_failures += 1;
+                    // A failed write used to end the share outright, and the most common failure
+                    // here is not fatal at all: Windows answers WSAENOBUFS (os error 10055) when a
+                    // UDP socket's send queue is momentarily full, which is exactly what a keyframe
+                    // does - one intra frame is hundreds of packets handed to the socket at once.
+                    // So the first large frame of a share could kill the publication, and the
+                    // viewer would sit on a placeholder forever while this side went on capturing
+                    // and encoding perfectly happily. Nothing above reported it, because the share
+                    // was still "running" everywhere except on the wire.
+                    //
+                    // Dropping the frame is the right answer: video is not worth retrying, the next
+                    // frame is already on its way, and a keyframe that fails will be reissued by
+                    // the wall-clock interval or by a viewer's PLI. Only a run of failures means
+                    // the connection itself is gone.
+                    if consecutive_failures >= WRITE_FAILURES_BEFORE_GIVING_UP {
+                        eprintln!(
+                            "[publisher] {consecutive_failures} consecutive write failures, \
+                             ending publication: {e}"
+                        );
+                        break;
+                    }
+                    eprintln!("[publisher] dropped a frame: {e}");
+                }
             }
         }
         publication.stop().await;
