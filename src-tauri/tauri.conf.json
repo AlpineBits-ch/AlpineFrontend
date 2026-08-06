@@ -55,7 +55,7 @@
     },
     "updater": {
       "windows": {
-        "installMode": "passive"
+        "installMode": "quiet"
       },
       "endpoints": [
         "https://api.venta.gg/api/v1/update/check/{{current_version}}"

@@ -27,9 +27,10 @@ mod data_export;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod update_gate;
 
-/// The main (`echo`) window, built after the update gate rather than declared in
+/// The main (`echo`) window, built in code rather than declared in
 /// `tauri.conf.json`. See the module docs for why that distinction matters.
-#[cfg(not(any(target_os = "android", target_os = "ios")))]
+/// Not desktop-gated: removing the window from the config removed it on every
+/// platform, so mobile has to build it too - just without the update gate.
 mod main_window;
 
 #[cfg(target_os = "windows")]
@@ -343,12 +344,14 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_deep_link::init())
         .setup(|_app| {
+            // Stays ahead of the update gate, unlike everything else that used to
+            // live here. This sets the process AppUserModelID, which Windows reads
+            // when a window is first created - running it after the gate would mean
+            // running it after `echo` exists, and the taskbar identity would already
+            // be wrong. It is also the one initialiser with no panic path: every
+            // fallible call inside is handled and reported.
             #[cfg(target_os = "windows")]
             windows_notifications::setup("Alpine");
-            // Fetch Cisco's OpenH264 binary in the background. Unattended by design; screen
-            // sharing falls back to the webview's encoder if it never arrives.
-            #[cfg(desktop)]
-            media::publisher::spawn_provisioning(_app.handle());
             Ok(())
         })
         .plugin(tauri_plugin_os::init())
@@ -367,27 +370,105 @@ pub fn run() {
     let builder = builder
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_single_instance::Builder::new().build())
-        .plugin(tauri_plugin_window_state::Builder::new().build())
+        // `splash` is denylisted: it is transient and always centered, but
+        // on_window_ready fires for it like any other window, so without this the
+        // plugin persists its geometry and restores it on the next launch -
+        // overriding .center() and, once a bad position is recorded, reopening the
+        // splash off-screen with no way for the user to move it back.
+        .plugin(
+            tauri_plugin_window_state::Builder::new()
+                .with_denylist(&["splash"])
+                .build(),
+        )
         .plugin(tauri_plugin_autostart::Builder::new().build())
          .plugin(tauri_plugin_single_instance::init(|_app, argv, _cwd| {
                           println!("a new app instance was opened with {argv:?} and the deep link event was already triggered");
                           // when defining deep link schemes at runtime, you must also check `argv` here
                         }))
-         .setup(|app| {
-           #[cfg(desktop)]
-           use tauri_plugin_deep_link::DeepLinkExt;
-           app.deep_link().register("venta")?;
-           ptt_hook::init(app.handle());
-           // Installs the arbiter only. The RPC server binds nothing until `presence_rpc_start`
-           // is called - taking `discord-ipc-0` from the real Discord is the user's decision.
-           presence::init(app.handle());
-           Ok(())
-          })
+        // The update gate, and everything that must not precede it.
+        //
+        // Ordering here is load-bearing, not stylistic. Every initialiser below the
+        // gate used to run before any window existed, so a panic in any of them made
+        // the client permanently unupdatable - we could never ship the fix. Nothing
+        // that is not required to *perform* an update may be moved back above
+        // `update_gate::run`. See
+        // docs/superpowers/plans/2026-08-06-pre-launch-update-gate.md.
+        .setup(|app| {
+            let handle = app.handle().clone();
+
+            tauri::async_runtime::spawn(async move {
+                let splash = tauri::WebviewWindowBuilder::new(
+                    &handle,
+                    "splash",
+                    tauri::WebviewUrl::App("assets/splash.html".into()),
+                )
+                .title("Venta")
+                .inner_size(320.0, 260.0)
+                .decorations(false)
+                .transparent(true)
+                .shadow(false)
+                .resizable(false)
+                .center()
+                .always_on_top(true)
+                .build();
+
+                let splash = match splash {
+                    Ok(w) => Some(w),
+                    Err(e) => {
+                        // No splash is survivable; no update is not. Press on.
+                        eprintln!("[update-gate] splash window failed to build: {e}");
+                        None
+                    }
+                };
+
+                update_gate::run(&handle).await;
+
+                // Only reached when there was no update, or installing one failed.
+                // A successful Windows install never returns here - the plugin execs
+                // the installer and calls std::process::exit(0).
+                if let Some(splash) = splash {
+                    let _ = splash.close();
+                }
+
+                if let Err(e) = main_window::build(&handle) {
+                    eprintln!("[startup] failed to build main window: {e}");
+                    return;
+                }
+
+                {
+                    use tauri_plugin_deep_link::DeepLinkExt;
+                    // Was `?` inside setup, which aborted startup on failure. A deep
+                    // link that cannot register is not worth refusing to launch over.
+                    if let Err(e) = handle.deep_link().register("venta") {
+                        eprintln!("[startup] deep link registration failed: {e}");
+                    }
+                }
+                ptt_hook::init(&handle);
+                // Installs the arbiter only. The RPC server binds nothing until
+                // `presence_rpc_start` is called - taking `discord-ipc-0` from the
+                // real Discord is the user's decision.
+                presence::init(&handle);
+                // Fetch Cisco's OpenH264 binary in the background. Unattended by
+                // design; screen sharing falls back to the webview's encoder if it
+                // never arrives.
+                media::publisher::spawn_provisioning(&handle);
+            });
+
+            Ok(())
+        })
         .plugin(tauri_plugin_notifications::init());
 
     // Mobile-only plugins
     #[cfg(mobile)]
-    let builder = builder.plugin(tauri_plugin_notifications::init());
+    let builder = builder
+        .plugin(tauri_plugin_notifications::init())
+        // Mobile has no updater and no splash: it builds the main window straight
+        // away. It still needs this, because `echo` is no longer declared in
+        // tauri.conf.json and would otherwise never be created on any platform.
+        .setup(|app| {
+            main_window::build(app.handle())?;
+            Ok(())
+        });
 
     build_and_run(builder);
 }
