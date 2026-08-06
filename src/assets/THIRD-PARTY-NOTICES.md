@@ -10914,7 +10914,7 @@ Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ## npm packages
 
-Bundled into the application frontend. 244 packages, 132 distinct notices.
+Bundled into the application frontend. 353 packages, 182 distinct notices.
 
 ### @alloc/quick-lru 5.2.0, ansi-regex 5.0.1, ansi-styles 4.3.0, camelcase 5.3.1, find-up 4.1.0, is-fullwidth-code-point 3.0.0, locate-path 5.0.0, p-limit 2.3.0, p-locate 4.1.0, p-retry 4.6.2, p-try 2.2.0, path-exists 4.0.0, string-width 4.2.3, strip-ansi 6.0.1, wrap-ansi 6.2.0
 
@@ -10938,6 +10938,17 @@ Copyright (c) 2010-2026 Google LLC. https://angular.dev/license
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### @antfu/install-pkg 1.1.0
+
+**Licence:** MIT
+**Source:** git+https://github.com/antfu/install-pkg.git
+
+```text
+MIT License
+Copyright (c) 2021 Anthony Fu <https://github.com/antfu>
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### @anthropic-ai/sdk 0.115.0
 
 **Licence:** MIT
@@ -10958,6 +10969,24 @@ MIT License
 Copyright (c) 2014-present Sebastian McKenzie and other contributors
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### @braintree/sanitize-url 7.1.2
+
+**Licence:** MIT
+**Source:** git+https://github.com/braintree/sanitize-url.git
+
+```text
+MIT License
+Copyright (c) 2017 Braintree
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### @chevrotain/types 11.1.2, @google/genai 2.15.0, detect-libc 2.1.2, ecdsa-sig-formatter 1.0.11, gaxios 7.3.0, gcp-metadata 8.1.2, google-auth-library 10.9.1, google-logging-utils 1.1.3, long 5.3.2, openai 7.4.0, rxjs 7.8.2
+
+**Licence:** Apache-2.0
+**Source:** git://github.com/Chevrotain/chevrotain.git
+
+Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
 
 ### @choochmeque/tauri-plugin-notifications-api 0.4.6
 
@@ -11498,12 +11527,27 @@ FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
 OTHER DEALINGS IN THE FONT SOFTWARE.
 ```
 
-### @google/genai 2.15.0, detect-libc 2.1.2, ecdsa-sig-formatter 1.0.11, gaxios 7.3.0, gcp-metadata 8.1.2, google-auth-library 10.9.1, google-logging-utils 1.1.3, long 5.3.2, openai 7.4.0, rxjs 7.8.2
+### @iconify/types 2.0.0
 
-**Licence:** Apache-2.0
-**Source:** https://github.com/googleapis/js-genai.git
+**Licence:** MIT
+**Source:** https://github.com/iconify/iconify.git
 
-Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
+```text
+MIT License
+Copyright (c) 2021 - 2022 Vjacheslav Trushkin / Iconify OÜ
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### @iconify/utils 3.1.4
+
+**Licence:** MIT
+**Source:** https://github.com/iconify/iconify.git
+
+```text
+MIT License
+Copyright (c) 2021-PRESENT Vjacheslav Trushkin
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### @jridgewell/gen-mapping 0.3.13, @jridgewell/remapping 2.3.5, @jridgewell/sourcemap-codec 1.5.5, @jridgewell/trace-mapping 0.3.31
 
@@ -11522,6 +11566,17 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ```text
 Copyright 2019 Justin Ridgewell <jridgewell@google.com>
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### @mermaid-js/parser 1.2.0
+
+**Licence:** MIT
+**Source:** https://github.com/mermaid-js/mermaid.git
+
+```text
+The MIT License (MIT)
+Copyright (c) 2023 Yokozuna59
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -11879,7 +11934,7 @@ Copyright (c) 2025, Tiptap GmbH
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### @types/node 26.1.2, @types/turndown 5.0.6
+### @types/d3 7.4.3, @types/d3-array 3.2.2, @types/d3-axis 3.0.6, @types/d3-brush 3.0.6, @types/d3-chord 3.0.6, @types/d3-color 3.1.3, @types/d3-contour 3.0.6, @types/d3-delaunay 6.0.4, @types/d3-dispatch 3.0.7, @types/d3-drag 3.0.7, @types/d3-dsv 3.0.7, @types/d3-ease 3.0.2, @types/d3-fetch 3.0.7, @types/d3-force 3.0.10, @types/d3-format 3.0.4, @types/d3-geo 3.1.1, @types/d3-hierarchy 3.1.7, @types/d3-interpolate 3.0.4, @types/d3-path 3.1.1, @types/d3-polygon 3.0.2, @types/d3-quadtree 3.0.6, @types/d3-random 3.0.4, @types/d3-scale 4.0.9, @types/d3-scale-chromatic 3.1.0, @types/d3-selection 3.0.11, @types/d3-shape 3.1.8, @types/d3-time 3.0.4, @types/d3-time-format 4.0.3, @types/d3-timer 3.0.2, @types/d3-transition 3.0.9, @types/d3-zoom 3.0.8, @types/geojson 7946.0.16, @types/node 26.1.2, @types/turndown 5.0.6
 
 **Licence:** MIT
 **Source:** https://github.com/DefinitelyTyped/DefinitelyTyped.git
@@ -11898,6 +11953,18 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 MIT License
 Copyright (c) Microsoft Corporation. All rights reserved.
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### @upsetjs/venn.js 2.0.0
+
+**Licence:** MIT
+**Source:** https://github.com/upsetjs/venn.js.git
+
+```text
+MIT License
+Copyright (c) 2013 Ben Frederickson
+Copyright (c) 2021 Samuel Gratzl
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -12028,6 +12095,419 @@ Copyright (c) 2015 Dmitry Ivanov
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### commander 7.2.0, commander 8.3.0
+
+**Licence:** MIT
+**Source:** https://github.com/tj/commander.js.git
+
+```text
+(The MIT License)
+Copyright (c) 2011 TJ Holowaychuk <tj@vision-media.ca>
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### cose-base 1.0.3, cose-base 2.2.0
+
+**Licence:** MIT
+**Source:** git+https://github.com/iVis-at-Bilkent/cose-base.git
+
+```text
+MIT License
+Copyright (c) 2019 - present, iVis@Bilkent.
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### cytoscape 3.34.0
+
+**Licence:** MIT
+**Source:** https://github.com/cytoscape/cytoscape.js.git
+
+```text
+Copyright (c) 2016-2026, The Cytoscape Consortium.
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+```text
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const year = (new Date()).getFullYear();
+const license = `Copyright (c) 2016-${year}, The Cytoscape Consortium.
+fs.writeFileSync(path.join(__dirname, 'LICENSE'), license);
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### cytoscape-cose-bilkent 4.1.0
+
+**Licence:** MIT
+**Source:** https://github.com/cytoscape/cytoscape.js-cose-bilkent.git
+
+```text
+Copyright (c) 2016-2018, The Cytoscape Consortium.
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### cytoscape-fcose 2.2.0
+
+**Licence:** MIT
+**Source:** https://github.com/iVis-at-Bilkent/cytoscape.js-fcose.git
+
+```text
+Copyright (c) 2018 - present, iVis-at-Bilkent.
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### d3 7.9.0, d3-array 3.2.4
+
+**Licence:** ISC
+**Source:** https://github.com/d3/d3.git
+
+```text
+Copyright 2010-2023 Mike Bostock
+```
+Distributed under the [ISC licence](#licence-isc), reproduced in full below.
+
+### d3-array 2.12.1
+
+**Licence:** BSD-3-Clause
+**Source:** https://github.com/d3/d3-array.git
+
+<!-- LICENSE -->
+```text
+Copyright 2010-2020 Mike Bostock
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the author nor the names of contributors may be used to
+  endorse or promote products derived from this software without specific prior
+  written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+### d3-axis 3.0.0, d3-brush 3.0.0, d3-chord 3.0.1, d3-dispatch 3.0.1, d3-drag 3.0.0, d3-force 3.0.0, d3-hierarchy 3.1.2, d3-interpolate 3.0.1, d3-polygon 3.0.1, d3-quadtree 3.0.1, d3-random 3.0.1, d3-scale 4.0.2, d3-selection 3.0.0, d3-time-format 4.1.0, d3-timer 3.0.1, d3-transition 3.0.1, d3-zoom 3.0.0
+
+**Licence:** ISC
+**Source:** https://github.com/d3/d3-axis.git
+
+```text
+Copyright 2010-2021 Mike Bostock
+```
+Distributed under the [ISC licence](#licence-isc), reproduced in full below.
+
+### d3-color 3.1.0, d3-shape 3.2.0, d3-time 3.1.0
+
+**Licence:** ISC
+**Source:** https://github.com/d3/d3-color.git
+
+```text
+Copyright 2010-2022 Mike Bostock
+```
+Distributed under the [ISC licence](#licence-isc), reproduced in full below.
+
+### d3-contour 4.0.2
+
+**Licence:** ISC
+**Source:** https://github.com/d3/d3-contour.git
+
+```text
+Copyright 2012-2023 Mike Bostock
+```
+Distributed under the [ISC licence](#licence-isc), reproduced in full below.
+
+### d3-delaunay 6.0.4
+
+**Licence:** ISC
+**Source:** https://github.com/d3/d3-delaunay.git
+
+```text
+Copyright 2018-2021 Observable, Inc.
+Copyright 2021 Mapbox
+```
+Distributed under the [ISC licence](#licence-isc), reproduced in full below.
+
+### d3-dsv 3.0.1
+
+**Licence:** ISC
+**Source:** https://github.com/d3/d3-dsv.git
+
+```text
+Copyright 2013-2021 Mike Bostock
+```
+Distributed under the [ISC licence](#licence-isc), reproduced in full below.
+
+### d3-ease 3.0.1
+
+**Licence:** BSD-3-Clause
+**Source:** https://github.com/d3/d3-ease.git
+
+<!-- LICENSE -->
+```text
+Copyright 2010-2021 Mike Bostock
+Copyright 2001 Robert Penner
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the author nor the names of contributors may be used to
+  endorse or promote products derived from this software without specific prior
+  written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+### d3-fetch 3.0.1
+
+**Licence:** ISC
+**Source:** https://github.com/d3/d3-fetch.git
+
+```text
+Copyright 2016-2021 Mike Bostock
+```
+Distributed under the [ISC licence](#licence-isc), reproduced in full below.
+
+### d3-format 3.1.2
+
+**Licence:** ISC
+**Source:** https://github.com/d3/d3-format.git
+
+```text
+Copyright 2010-2026 Mike Bostock
+```
+Distributed under the [ISC licence](#licence-isc), reproduced in full below.
+
+### d3-geo 3.1.1
+
+**Licence:** ISC
+**Source:** https://github.com/d3/d3-geo.git
+
+<!-- LICENSE -->
+```text
+Copyright 2010-2024 Mike Bostock
+
+Permission to use, copy, modify, and/or distribute this software for any purpose
+with or without fee is hereby granted, provided that the above copyright notice
+and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
+FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS
+OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER
+TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
+THIS SOFTWARE.
+
+This license applies to GeographicLib, versions 1.12 and later.
+
+Copyright 2008-2012 Charles Karney
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of
+the Software, and to permit persons to whom the Software is furnished to do so,
+subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER
+IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+```
+
+### d3-path 1.0.9
+
+**Licence:** BSD-3-Clause
+**Source:** https://github.com/d3/d3-path.git
+
+<!-- LICENSE -->
+```text
+Copyright 2015-2016 Mike Bostock
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the author nor the names of contributors may be used to
+  endorse or promote products derived from this software without specific prior
+  written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+### d3-path 3.1.0
+
+**Licence:** ISC
+**Source:** https://github.com/d3/d3-path.git
+
+```text
+Copyright 2015-2022 Mike Bostock
+```
+Distributed under the [ISC licence](#licence-isc), reproduced in full below.
+
+### d3-sankey 0.12.3
+
+**Licence:** BSD-3-Clause
+**Source:** https://github.com/d3/d3-sankey.git
+
+<!-- LICENSE -->
+```text
+Copyright 2015, Mike Bostock
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the author nor the names of contributors may be used to
+  endorse or promote products derived from this software without specific prior
+  written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+### d3-scale-chromatic 3.1.0
+
+**Licence:** ISC
+**Source:** https://github.com/d3/d3-scale-chromatic.git
+
+```text
+Copyright 2010-2024 Mike Bostock
+Apache-Style Software License for ColorBrewer software and ColorBrewer Color Schemes
+Copyright 2002 Cynthia Brewer, Mark Harrower, and The Pennsylvania State University
+Licensed under the Apache License, Version 2.0 (the "License"); you may not use
+this file except in compliance with the License. You may obtain a copy of the
+License at
+http://www.apache.org/licenses/LICENSE-2.0
+Unless required by applicable law or agreed to in writing, software distributed
+under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+CONDITIONS OF ANY KIND, either express or implied. See the License for the
+specific language governing permissions and limitations under the License.
+```
+Distributed under the [ISC licence](#licence-isc), reproduced in full below.
+
+### d3-shape 1.3.7
+
+**Licence:** BSD-3-Clause
+**Source:** https://github.com/d3/d3-shape.git
+
+<!-- LICENSE -->
+```text
+Copyright 2010-2015 Mike Bostock
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* Neither the name of the author nor the names of contributors may be used to
+  endorse or promote products derived from this software without specific prior
+  written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
+### dagre-d3-es 7.0.14
+
+**Licence:** MIT
+**Source:** git+https://github.com/tbo47/dagre-es.git
+
+```text
+Original dagre-d3 copyright: Copyright (c) 2013 Chris Pettitt
+Original dagre copyright: Copyright (c) 2012-2014 Chris Pettitt
+Original graphlib copyright: Copyright (c) 2012-2014 Chris Pettitt
+Copyright (c) 2022-2024 Thibaut Lassalle, David Newell, Alois Klink, Sidharth Vinod and dagre-es contributors
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### data-uri-to-buffer 4.0.1
 
 **Licence:** MIT
@@ -12035,6 +12515,17 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ```text
 Copyright (c) the data-uri-to-buffer authors — Nathan Rajlich <nathan@tootallnate.net> (http://n8.io/)
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### dayjs 1.11.21
+
+**Licence:** MIT
+**Source:** https://github.com/iamkun/dayjs.git
+
+```text
+MIT License
+Copyright (c) 2018-present, iamkun
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -12060,6 +12551,17 @@ The MIT License (MIT)
 Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### delaunator 5.1.0
+
+**Licence:** ISC
+**Source:** https://github.com/mapbox/delaunator.git
+
+```text
+ISC License
+Copyright (c) 2026, Mapbox
+```
+Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### dijkstrajs 1.0.3
 
@@ -12696,6 +13198,17 @@ Copyright JS Foundation and other contributors
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### es-toolkit 1.50.0
+
+**Licence:** MIT
+**Source:** https://github.com/toss/es-toolkit.git
+
+```text
+MIT License
+Copyright (c) 2024 Viva Republica, Inc.
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### event-target-shim 5.0.1
 
 **Licence:** MIT
@@ -12729,7 +13242,7 @@ Copyright (c) 2014 Stefan Thomas
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### fast-sha256 1.3.0, fetch-cookie 2.2.0
+### fast-sha256 1.3.0, fetch-cookie 2.2.0, robust-predicates 3.0.3
 
 **Licence:** Unlicense
 **Source:** https://github.com/dchest/fast-sha256-js
@@ -12791,6 +13304,17 @@ Copyright (c) 2011-2022 Isaac Z. Schlueter, Ben Noordhuis, and Contributors
 ```
 Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
+### hachure-fill 0.5.2
+
+**Licence:** MIT
+**Source:** git+https://github.com/pshihn/hachure-fill.git
+
+```text
+MIT License
+Copyright (c) 2023 Preet Shihn
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### highlight.js 11.11.1
 
 **Licence:** BSD-3-Clause
@@ -12838,6 +13362,109 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Copyright (c) the https-proxy-agent authors — Nathan Rajlich <nathan@tootallnate.net> (http://n8.io/)
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### iconv-lite 0.6.3
+
+**Licence:** MIT
+**Source:** git://github.com/ashtuchkin/iconv-lite.git
+
+```text
+Copyright (c) 2011 Alexander Shtuchkin
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### import-meta-resolve 4.2.0
+
+**Licence:** MIT
+**Source:** wooorm/import-meta-resolve
+
+<!-- license -->
+```text
+(The MIT License)
+
+Copyright (c) Titus Wormer <mailto:tituswormer@gmail.com>
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+'Software'), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED 'AS IS', WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+---
+
+This is a derivative work based on:
+<https://github.com/nodejs/node>.
+Which is licensed:
+
+"""
+Copyright Node.js contributors. All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+IN THE SOFTWARE.
+"""
+
+This license applies to parts of Node.js originating from the
+https://github.com/joyent/node repository:
+
+"""
+Copyright Joyent, Inc. and other Node contributors. All rights reserved.
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to
+deal in the Software without restriction, including without limitation the
+rights to use, copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+IN THE SOFTWARE.
+"""
+```
+
+### internmap 1.0.1, internmap 2.0.3
+
+**Licence:** ISC
+**Source:** https://github.com/mbostock/internmap.git
+
+```text
+Copyright 2021 Mike Bostock
+```
+Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 
 ### isexe 2.0.0, which 2.0.2
 
@@ -12904,6 +13531,38 @@ Copyright (c) 2013 Brian J. Brennan
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### katex 0.16.47
+
+**Licence:** MIT
+**Source:** https://github.com/KaTeX/KaTeX.git
+
+```text
+The MIT License (MIT)
+Copyright (c) 2013-2020 Khan Academy and other contributors
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### khroma 2.1.0
+
+**Source:** github:fabiospampinato/khroma
+
+```text
+The MIT License (MIT)
+Copyright (c) 2019-present Fabio Spampinato, Andrew Maney
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### layout-base 1.0.2, layout-base 2.0.1
+
+**Licence:** MIT
+**Source:** git+https://github.com/iVis-at-Bilkent/layout-base.git
+
+```text
+MIT License
+Copyright (c) 2019 iVis@Bilkent
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### lightningcss 1.32.0
 
 **Licence:** MPL-2.0
@@ -12921,6 +13580,62 @@ Copyright (c) 2024 Nick Frasser
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### lodash-es 4.18.1
+
+**Licence:** MIT
+**Source:** lodash/lodash
+
+<!-- LICENSE -->
+```text
+Copyright OpenJS Foundation and other contributors <https://openjsf.org/>
+
+Based on Underscore.js, copyright Jeremy Ashkenas,
+DocumentCloud and Investigative Reporters & Editors <http://underscorejs.org/>
+
+This software consists of voluntary contributions made by many
+individuals. For exact contribution history, see the revision history
+available at https://github.com/lodash/lodash
+
+The following license applies to all parts of this software except as
+documented below:
+
+====
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+====
+
+Copyright and related rights for sample code are waived via CC0. Sample
+code is defined as all source code displayed within the prose of the
+documentation.
+
+CC0: http://creativecommons.org/publicdomain/zero/1.0/
+
+====
+
+Files located in the node_modules and vendor directories are externally
+maintained libraries used by this software which have their own
+licenses; we recommend you read them, as their terms may differ from the
+terms above.
+```
+
 ### magic-string 0.30.21
 
 **Licence:** MIT
@@ -12931,7 +13646,7 @@ Copyright 2018 Rich Harris
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### marked 17.0.6, marked 18.0.3
+### marked 16.4.2, marked 17.0.6, marked 18.0.3
 
 **Licence:** MIT
 **Source:** git://github.com/markedjs/marked.git
@@ -12983,6 +13698,17 @@ Redistribution and use in source and binary forms, with or without modification,
 
 This software is provided by the copyright holders and contributors “as is” and any express or implied warranties, including, but not limited to, the implied warranties of merchantability and fitness for a particular purpose are disclaimed. In no event shall the copyright owner or contributors be liable for any direct, indirect, incidental, special, exemplary, or consequential damages (including, but not limited to, procurement of substitute goods or services; loss of use, data, or profits; or business interruption) however caused and on any theory of liability, whether in contract, strict liability, or tort (including negligence or otherwise) arising in any way out of the use of this software, even if advised of the possibility of such damage.
 ```
+
+### mermaid 11.16.1
+
+**Licence:** MIT
+**Source:** https://github.com/mermaid-js/mermaid
+
+```text
+The MIT License (MIT)
+Copyright (c) 2014 - 2022 Knut Sveidqvist
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
 ### ms 2.1.3
 
@@ -13049,6 +13775,28 @@ Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin> and others
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### package-manager-detector 1.8.0
+
+**Licence:** MIT
+**Source:** git+https://github.com/antfu-collective/package-manager-detector.git
+
+```text
+MIT License
+Copyright (c) 2020-PRESENT Anthony Fu <https://github.com/antfu>
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### path-data-parser 0.1.0, points-on-curve 0.2.0
+
+**Licence:** MIT
+**Source:** git+https://github.com/pshihn/path-data-parser.git
+
+```text
+MIT License
+Copyright (c) 2020 Preet Shihn
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### picocolors 1.1.1
 
 **Licence:** ISC
@@ -13068,6 +13816,17 @@ Distributed under the [ISC licence](#licence-isc), reproduced in full below.
 ```text
 pngjs2 original work Copyright (c) 2015 Luke Page & Original Contributors
 pngjs derived work Copyright (c) 2012 Kuba Niegowski
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### points-on-path 0.2.1
+
+**Licence:** MIT
+**Source:** git+https://github.com/pshihn/points-on-path.git
+
+```text
+MIT License
+Copyright (c) 2020 Preet
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -13355,6 +14114,52 @@ Copyright (C) 2016 by Marijn Haverbeke <marijn@haverbeke.berlin>
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### roughjs 4.6.6
+
+**Licence:** MIT
+**Source:** git+https://github.com/pshihn/rough.git
+
+```text
+MIT License
+Copyright (c) 2019 Preet Shihn
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### rw 1.3.3
+
+**Licence:** BSD-3-Clause
+**Source:** http://github.com/mbostock/rw.git
+
+<!-- LICENSE -->
+```text
+Copyright (c) 2014-2016, Michael Bostock
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+* The name Michael Bostock may not be used to endorse or promote products
+  derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL MICHAEL BOSTOCK BE LIABLE FOR ANY DIRECT,
+INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
+OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
 ### safe-buffer 5.2.1
 
 **Licence:** MIT
@@ -13363,6 +14168,17 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 The MIT License (MIT)
 Copyright (c) Feross Aboukhadijeh
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### safer-buffer 2.1.2
+
+**Licence:** MIT
+**Source:** git+https://github.com/ChALkeR/safer-buffer.git
+
+```text
+MIT License
+Copyright (c) 2018 Nikita Skovoroda <chalkerx@gmail.com>
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -13423,6 +14239,17 @@ Copyright (c) the standardwebhooks authors — Standard Webhooks
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### stylis 4.4.0
+
+**Licence:** MIT
+**Source:** https://github.com/thysultan/stylis.js
+
+```text
+MIT License
+Copyright (c) 2016-present Sultan Tarimo
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### tapable 2.3.2
 
 **Licence:** MIT
@@ -13450,6 +14277,17 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 MIT License
 Copyright (c) 2025 ThatzOkay
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### tinyexec 1.1.2
+
+**Licence:** MIT
+**Source:** git+https://github.com/tinylibs/tinyexec.git
+
+```text
+MIT License
+Copyright (c) 2024 Tinylibs
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -13481,6 +14319,17 @@ THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND 
 
 ```text
 Copyright (c) the tr46 authors — Sebastian Mayr <npm@smayr.name>
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### ts-dedent 2.3.0
+
+**Licence:** MIT
+**Source:** https://github.com/tamino-martinius/node-ts-dedent.git
+
+```text
+MIT License
+Copyright (c) 2018 Tamino Martinius
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
@@ -13545,6 +14394,17 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 (The MIT License)
 Copyright (c) 2017, Ryan Zimmerman <opensrc@ryanzim.com>
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### uuid 14.0.1
+
+**Licence:** MIT
+**Source:** https://github.com/uuidjs/uuid.git
+
+```text
+The MIT License (MIT)
+Copyright (c) 2010-2020 Robert Kieffer and other contributors
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
