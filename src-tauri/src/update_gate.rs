@@ -33,6 +33,19 @@ pub fn decide(is_debug: bool, skip_env: Option<&str>) -> GateDecision {
     GateDecision::Run
 }
 
+/// Download progress as a whole percentage, or `None` when it cannot be known.
+///
+/// A separate function because it is the only real logic on the download path,
+/// and the surrounding `download_and_install` call cannot be exercised without a
+/// live endpoint and a process that exits mid-function. `content_length` is
+/// `Option` from the plugin and is genuinely absent for chunked responses, and a
+/// server reporting zero must not produce a division by zero or a NaN cast.
+fn progress_percent(downloaded: usize, total: Option<u64>) -> Option<u8> {
+    total
+        .filter(|t| *t > 0)
+        .map(|t| ((downloaded as f64 / t as f64) * 100.0).clamp(0.0, 100.0) as u8)
+}
+
 /// Pushes one progress tick into the splash page.
 ///
 /// Deliberately infallible: the splash is cosmetic, and a failure to draw a
@@ -101,10 +114,7 @@ pub async fn run(app: &AppHandle) {
                     total = content_length;
                 }
                 downloaded += chunk;
-                let percent = total
-                    .filter(|t| *t > 0)
-                    .map(|t| ((downloaded as f64 / t as f64) * 100.0).clamp(0.0, 100.0) as u8);
-                report(app, "downloading", percent.or(Some(0)));
+                report(app, "downloading", progress_percent(downloaded, total).or(Some(0)));
             },
             || {
                 report(app, "installing", None);
@@ -145,5 +155,33 @@ mod tests {
         // An accidentally-exported empty variable should not silently disable
         // the gate in production.
         assert_eq!(decide(false, Some("")), GateDecision::Run);
+    }
+
+    #[test]
+    fn progress_is_a_whole_percentage_of_the_total() {
+        assert_eq!(progress_percent(0, Some(200)), Some(0));
+        assert_eq!(progress_percent(50, Some(200)), Some(25));
+        assert_eq!(progress_percent(200, Some(200)), Some(100));
+    }
+
+    #[test]
+    fn progress_is_unknown_without_a_content_length() {
+        // Chunked responses report no length; the splash hides the bar rather
+        // than inventing a number.
+        assert_eq!(progress_percent(1234, None), None);
+    }
+
+    #[test]
+    fn zero_total_does_not_divide_by_zero() {
+        // 1234 / 0 is inf in f64, and `inf as u8` saturates to 255 rather than
+        // panicking - a silent 255% instead of a crash. Filtered out up front.
+        assert_eq!(progress_percent(1234, Some(0)), None);
+    }
+
+    #[test]
+    fn progress_clamps_when_the_server_understates_the_length() {
+        // A total smaller than what actually arrives would otherwise exceed 100
+        // and render as an overflowing bar.
+        assert_eq!(progress_percent(500, Some(200)), Some(100));
     }
 }

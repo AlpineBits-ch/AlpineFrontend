@@ -121,7 +121,9 @@ export class AppComponent implements OnInit, OnDestroy {
             console.log('Profile:', profile);
         });
 
-        void this.updateService.checkForUpdates();
+        // No check on launch: update_gate.rs already ran one before this window
+        // existed. Only the periodic check remains, for a release that ships
+        // while the app is open.
         this.updateInterval = setInterval(() => {
             void this.updateService.checkForUpdates();
         }, 10 * 60 * 1000);
