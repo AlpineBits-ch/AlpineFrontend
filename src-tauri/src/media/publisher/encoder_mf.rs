@@ -98,27 +98,6 @@ impl MediaFoundationEncoder {
                 &CODECAPI_AVEncCommonMeanBitRate,
                 &(spec.kbps.saturating_mul(1000)).into(),
             );
-            // A periodic IDR, matching what the software encoder configures.
-            //
-            // Without this the picture never appears for anyone who was not watching from the first
-            // frame. Left to its own defaults - and especially with low-latency mode on, set just
-            // above - a Media Foundation encoder emits one IDR at the start of the stream and then
-            // P-frames indefinitely. A viewer subscribes some time after a share begins, so they
-            // reliably miss that single IDR, and a decoder with no keyframe produces black. They
-            // cannot ask for one either: the RTCP a viewer sends to request a keyframe is read and
-            // discarded in `publisher::rtc`, so nothing on this side ever calls `request_keyframe`.
-            //
-            // That is the whole of "they see a black screen" - and it is invisible to the person
-            // sharing, whose own preview is drawn from the capture source rather than the encoded
-            // stream. It reproduced only against the hardware encoder because the software path
-            // sets `intra_frame_period` and recovers within two seconds on its own.
-            //
-            // The same two seconds here, for the same reason: it bounds how long a late joiner
-            // waits, and the cost is one large frame per interval on a stream measured in megabits.
-            let _ = api.SetValue(
-                &CODECAPI_AVEncMPVGOPSize,
-                &(spec.fps.max(1).saturating_mul(2)).into(),
-            );
         }
 
         // Output type must be set before input type on an encoder MFT.
@@ -142,6 +121,36 @@ impl MediaFoundationEncoder {
         transform
             .SetOutputType(0, &output, 0)
             .map_err(|e| format!("SetOutputType failed: {e}"))?;
+
+        // A periodic IDR, matching what the software encoder configures - and set *here*, after the
+        // output type, because that is the only point at which an encoder MFT will accept it.
+        //
+        // Without an IDR the picture never appears for anyone who was not watching from the first
+        // frame. Left to its defaults, and especially with low-latency mode on, a Media Foundation
+        // encoder emits one IDR at the start of the stream and then P-frames indefinitely. A viewer
+        // subscribes some time after a share begins, so they reliably miss that single IDR, and a
+        // decoder with no keyframe shows black. They cannot ask for one either: the RTCP a viewer
+        // sends to request a keyframe is read and discarded in `publisher::rtc`, so nothing on this
+        // side ever calls `request_keyframe`.
+        //
+        // It is invisible to the person sharing, whose own preview is drawn from the capture source
+        // rather than the encoded stream, and it reproduced only against the hardware encoder - the
+        // software path sets `intra_frame_period` and recovers within two seconds on its own.
+        //
+        // The outcome is logged rather than discarded. An earlier attempt set this in the block
+        // above, before `SetOutputType`, where an MFT rejects it: with the error swallowed by
+        // `let _ =`, that read exactly like a working fix and cost a whole build-and-test round to
+        // disprove. If a driver refuses it here, that has to be visible.
+        if let Some(api) = &codec_api {
+            let gop = spec.fps.max(1).saturating_mul(2);
+            match api.SetValue(&CODECAPI_AVEncMPVGOPSize, &gop.into()) {
+                Ok(()) => eprintln!("[publisher] keyframe interval set to {gop} frames"),
+                Err(e) => eprintln!(
+                    "[publisher] this encoder refused a {gop}-frame keyframe interval ({e}); \
+                     viewers who join mid-share may see nothing until it emits an IDR of its own"
+                ),
+            }
+        }
 
         let input = MFCreateMediaType().map_err(|e| e.to_string())?;
         input

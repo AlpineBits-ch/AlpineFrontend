@@ -4,8 +4,12 @@
 //! [`super::encoder`]; this module owns the peer connection, the signalling handshake and the RTP
 //! packetisation, and knows nothing about capture.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
+
+use webrtc::rtcp::payload_feedbacks::full_intra_request::FullIntraRequest;
+use webrtc::rtcp::payload_feedbacks::picture_loss_indication::PictureLossIndication;
 
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::{MediaEngine, MIME_TYPE_H264};
@@ -43,11 +47,25 @@ pub struct Publication {
     peer_connection: Arc<RTCPeerConnection>,
     track: Arc<TrackLocalStaticSample>,
     signalling: Signalling,
+    /// Set when a viewer asks for a keyframe over RTCP, cleared when the encoder produces one.
+    ///
+    /// A flag rather than a channel because the request is idempotent: ten viewers asking at once,
+    /// or one viewer asking ten times while a frame is in flight, all want the same single IDR.
+    keyframe_wanted: Arc<AtomicBool>,
     pub cf_session_id: String,
     pub track_name: String,
 }
 
 impl Publication {
+    /// A handle to the viewers' keyframe requests, for the capture thread to consume.
+    ///
+    /// Handed out as the shared flag rather than read through `&self`, because the publication
+    /// itself is moved into the writer task while the encoder lives on the capture thread - the two
+    /// halves that need this never hold the same object.
+    pub fn keyframe_requests(&self) -> Arc<AtomicBool> {
+        Arc::clone(&self.keyframe_wanted)
+    }
+
     /// Open a Cloudflare session and publish an H.264 track named `screen-<share_id>`.
     ///
     /// Deliberately mirrors the webview's publish path so subscribers cannot tell the difference:
@@ -111,11 +129,35 @@ impl Publication {
             .await
             .map_err(|e| e.to_string())?;
 
-        // RTCP has to be drained or the sender's buffers fill and stall the track. We do not act on
-        // the reports yet; reading and discarding is enough to keep the pipe moving.
+        // RTCP has to be drained or the sender's buffers fill and stall the track - but *what* is in
+        // it matters, and until now none of it was read.
+        //
+        // A WebRTC receiver cannot decode anything until it has a keyframe, and the way it asks for
+        // one is an RTCP Picture Loss Indication. Discarding those means a viewer who joins after a
+        // share began waits for whatever periodic IDR the encoder happens to emit - and a viewer who
+        // loses a packet stays frozen or smeared until then, rather than recovering on request.
+        //
+        // `read_rtcp` rather than `read`: the same drain, already parsed.
+        let keyframe_wanted = Arc::new(AtomicBool::new(false));
+        let rtcp_keyframe_wanted = Arc::clone(&keyframe_wanted);
         tokio::spawn(async move {
-            let mut buf = vec![0u8; 1500];
-            while rtp_sender.read(&mut buf).await.is_ok() {}
+            while let Ok((packets, _)) = rtp_sender.read_rtcp().await {
+                for packet in packets {
+                    // Both mean "send me a keyframe". PLI is what browsers send; FIR is the older
+                    // request and some SFUs still relay it, so honour either.
+                    let wants_keyframe = packet
+                        .as_any()
+                        .downcast_ref::<PictureLossIndication>()
+                        .is_some()
+                        || packet
+                            .as_any()
+                            .downcast_ref::<FullIntraRequest>()
+                            .is_some();
+                    if wants_keyframe {
+                        rtcp_keyframe_wanted.store(true, Ordering::Relaxed);
+                    }
+                }
+            }
         });
 
         let offer = peer_connection
@@ -185,6 +227,7 @@ impl Publication {
             peer_connection,
             track,
             signalling,
+            keyframe_wanted,
             cf_session_id,
             track_name: resolved_track_name,
         };

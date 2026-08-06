@@ -25,6 +25,18 @@ const PREVIEW_WIDTH: u32 = 480;
 /// Interval between preview frames. Fast enough to read as live, slow enough to stay free.
 const PREVIEW_INTERVAL: Duration = Duration::from_millis(200);
 
+/// How often the encode loop reports what it has produced. 150 frames is roughly five seconds at
+/// the usual capture rate - often enough to watch a share start, rare enough not to fill a log.
+const STATS_EVERY_FRAMES: u64 = 150;
+
+/// The longest a viewer may wait for a decodable picture.
+///
+/// In wall-clock time on purpose. Both encoders take their keyframe interval as a frame count,
+/// which is the wrong unit for a screen share: a static desktop produces only a few frames a
+/// second, so a 60-frame interval that was meant to be two seconds becomes twenty. This bounds it
+/// regardless of what the screen is doing.
+const KEYFRAME_INTERVAL: Duration = Duration::from_secs(2);
+
 /// A downscaled frame for the sharer's own tile.
 ///
 /// The publisher never puts a MediaStream in the webview - that is the point of it - so the local
@@ -124,6 +136,8 @@ pub async fn start(
     let publication = Publication::start(signalling, &share_id, ice_servers).await?;
     let cf_session_id = publication.cf_session_id.clone();
     let track_name = publication.track_name.clone();
+    // Taken before the publication is moved into the writer task below.
+    let keyframe_requests = publication.keyframe_requests();
 
     let fps_arc = Arc::new(AtomicU32::new(fps.clamp(1, 60)));
     let (stop_tx, stop_rx) = std::sync::mpsc::sync_channel::<()>(1);
@@ -153,6 +167,10 @@ pub async fn start(
             let mut timestamp_us: u64 = 0;
             let mut jpeg_buf = Vec::with_capacity(64 * 1024);
             let mut next_preview = std::time::Instant::now();
+            let (mut encoded_frames, mut keyframes, mut dropped_frames) = (0u64, 0u64, 0u64);
+            // In the past, so the very first frame of a share is a keyframe rather than waiting out
+            // an interval before the first viewer can decode anything.
+            let mut last_keyframe = std::time::Instant::now() - KEYFRAME_INTERVAL;
 
             run_capture_loop(source, capture_fps, stop_rx, move |rgba: RgbaImage, _w, _h| {
                 let current_fps = fps_arc.load(Ordering::Relaxed).max(1) as u64;
@@ -166,6 +184,33 @@ pub async fn start(
                     next_preview = now + PREVIEW_INTERVAL;
                     emit_preview(&frame, &mut jpeg_buf, &on_preview);
                 }
+                // A viewer who cannot decode has asked for a keyframe over RTCP. Honoured here
+                // because the encoder belongs to this thread and cannot be reached from the network
+                // task that received the request.
+                //
+                // This is what lets someone who joins mid-share, or who loses a burst of packets,
+                // recover immediately instead of waiting out the periodic IDR - and it is the
+                // difference between a share that takes seconds to appear and one that appears at
+                // once. `take_` because the request is cleared as it is served: a second viewer
+                // asking while this frame encodes will set it again and get the next one.
+                // Keyframes on a wall clock, not a frame count.
+                //
+                // Both encoders express their keyframe interval in *frames*, and a screen share's
+                // frame rate is whatever the screen is doing: a still desktop produces a handful of
+                // frames a second, so an interval of `fps * 2` frames - two seconds at the rate the
+                // encoder was configured for - can be twenty seconds of real time. What a viewer
+                // waits is the wall clock, and until the first keyframe arrives they have nothing
+                // to decode and show a placeholder. Measured at roughly 45 seconds to first
+                // picture on a mostly-static screen.
+                //
+                // So the interval configured on the encoder is the ceiling, and this is the floor.
+                let since_keyframe = now.duration_since(last_keyframe);
+                if keyframe_requests.swap(false, Ordering::Relaxed)
+                    || since_keyframe >= KEYFRAME_INTERVAL
+                {
+                    encoder.request_keyframe();
+                }
+
                 let outcome = encoder.encode(&frame, timestamp_us);
                 timestamp_us += frame_interval_us;
 
@@ -181,11 +226,36 @@ pub async fn start(
                     }
                 };
 
+                // Whether this share is producing anything, and whether it contains the keyframes a
+                // viewer needs in order to start decoding.
+                //
+                // Nothing here reported either, which left the two failures a viewer can suffer -
+                // "no picture ever arrives" and "a picture arrives that I cannot decode" -
+                // indistinguishable from the sharing side. They have completely different causes:
+                // one is this pipeline, the other is the subscribe path, and the sharer's own
+                // preview is drawn from the capture source and looks perfect in both cases.
+                encoded_frames += 1;
+                if chunk.is_keyframe {
+                    keyframes += 1;
+                    last_keyframe = now;
+                }
+                if encoded_frames % STATS_EVERY_FRAMES == 0 {
+                    eprintln!(
+                        "[publisher] {encoded_frames} frames encoded, {keyframes} keyframes, \
+                         {dropped_frames} dropped at the writer"
+                    );
+                }
+
                 // try_send, not send: dropping the newest frame when the writer is behind keeps
                 // latency bounded, which matters far more than completeness for a live screen.
                 // Full is routine backpressure; closed means the writer task already ended and the
                 // loop will exit on its next stop check.
-                let _ = frame_tx.try_send((chunk.data, Duration::from_micros(frame_interval_us)));
+                if frame_tx
+                    .try_send((chunk.data, Duration::from_micros(frame_interval_us)))
+                    .is_err()
+                {
+                    dropped_frames += 1;
+                }
             });
         })
         .map_err(|e| e.to_string())?;
