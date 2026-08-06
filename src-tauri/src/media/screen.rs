@@ -29,7 +29,8 @@ pub struct ScreenSource {
     pub id: String,
     pub name: String,
     pub is_monitor: bool,
-    /// base64-encoded JPEG thumbnail (~320×200)
+    /// Always empty from enumeration - see `capture_source_thumbnails`. Kept on the struct so the
+    /// wire shape is one type either way.
     pub thumbnail: String,
     pub width: u32,
     pub height: u32,
@@ -135,10 +136,23 @@ pub async fn enumerate_screen_sources() -> Result<Vec<ScreenSource>, String> {
                 .unwrap_or_default()
                 .into_iter()
                 .filter_map(|w| {
+                    // Minimised windows are dropped outright. There is nothing to capture (the
+                    // grab comes back blank or stale) and nothing to watch if one were shared, so
+                    // offering it costs a capture to produce a tile nobody can use.
+                    if w.is_minimized().unwrap_or(false) {
+                        return None;
+                    }
+
                     let title = w.title().ok().filter(|t| !t.is_empty())?;
+                    if !is_shareable_window(&title) {
+                        return None;
+                    }
+
                     let width = w.width().unwrap_or(0);
                     let height = w.height().unwrap_or(0);
-                    if width < 50 || height < 50 {
+                    // Raised from 50: nothing that small is a window somebody means to stream, and
+                    // the list is easier to read without a dozen invisible helper windows in it.
+                    if width < 160 || height < 120 {
                         return None;
                     }
                     Some((w.id().ok()?, title, width, height))
@@ -151,88 +165,104 @@ pub async fn enumerate_screen_sources() -> Result<Vec<ScreenSource>, String> {
         .await
         .map_err(|e| e.to_string())??;
 
-    // Phase 2: capture monitor thumbnails sequentially on one blocking thread.
+    // Phase 2 used to capture a thumbnail for every source. There is no phase 2 now.
     //
-    // Monitor::all() is called ONCE before the loop and the WGC lock is held
-    // for the entire phase. Calling Monitor::all() inside the iterator (as was
-    // done previously) creates a new WGC session per iteration; multiple
-    // concurrent or rapidly sequential WGC sessions corrupt the COM heap.
-    type Phase2 = (Vec<Option<ScreenSource>>, Vec<ScreenSource>);
-    let (monitor_sources, window_sources): Phase2 = tokio::task::spawn_blocking(move || {
+    // Every capture is a fresh WGC session over a full-resolution surface - on a 4K desktop with a
+    // dozen windows open that is tens of seconds of work, all of it holding this lock, all of it
+    // before the dialog can show anything. And almost all of it is wasted: the picker shows two
+    // tiles per row and the user picks from the first handful.
+    //
+    // So enumeration is metadata only, which is Win32 calls and returns immediately, and the tiles
+    // ask for their own image as they scroll into view - see capture_source_thumbnails.
+    let mut sources: Vec<ScreenSource> = monitor_meta
+        .into_iter()
+        .map(|(idx, name, w, h)| ScreenSource {
+            id: format!("monitor:{idx}"),
+            name,
+            is_monitor: true,
+            thumbnail: String::new(),
+            width: w,
+            height: h,
+        })
+        .collect();
+
+    sources.extend(window_meta.into_iter().map(|(hwnd_id, title, w, h)| ScreenSource {
+        id: format!("window:{hwnd_id}"),
+        name: title,
+        is_monitor: false,
+        thumbnail: String::new(),
+        width: w,
+        height: h,
+    }));
+
+    Ok(sources)
+}
+
+/// Widest a batch may be. A caller asking for everything at once would put us straight back to the
+/// stall this exists to avoid; four is about a screenful of a two-column grid, so the work arrives
+/// in visible chunks instead of one spike.
+const MAX_THUMBNAIL_BATCH: usize = 4;
+
+/// One source's thumbnail, keyed by the id it was requested under.
+#[derive(Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct SourceThumbnail {
+    pub id: String,
+    /// base64-encoded JPEG, or empty when the source could not be captured (minimised, on another
+    /// desktop, capture-protected). The picker falls back to an icon for all three.
+    pub thumbnail: String,
+}
+
+/// Captures thumbnails for the named sources, and nothing else.
+///
+/// <p>The lazy half of the picker: tiles request their own image when they scroll into view, so a
+/// desktop with forty windows open costs the same as one with four.</p>
+#[tauri::command]
+pub async fn capture_source_thumbnails(
+    source_ids: Vec<String>,
+) -> Result<Vec<SourceThumbnail>, String> {
+    let wanted: Vec<String> = source_ids.into_iter().take(MAX_THUMBNAIL_BATCH).collect();
+    if wanted.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    tokio::task::spawn_blocking(move || {
         let _guard = wgc_lock().lock().unwrap();
 
-        // Single Monitor::all() call -one WGC initialisation for the whole phase.
-        let all_monitors = match Monitor::all() {
-            Ok(m) => m,
-            Err(_) => Vec::new(),
-        };
+        // One enumeration for the whole batch, and only of the kinds actually asked for. A second
+        // WGC session opened per iteration is what corrupts the COM heap - see wgc_lock.
+        let wants_monitor = wanted.iter().any(|id| id.starts_with("monitor:"));
+        let wants_window = wanted.iter().any(|id| id.starts_with("window:"));
+        let monitors = if wants_monitor { Monitor::all().unwrap_or_default() } else { Vec::new() };
+        let windows = if wants_window { Window::all().unwrap_or_default() } else { Vec::new() };
 
-        let monitors: Vec<Option<ScreenSource>> = monitor_meta
+        wanted
             .into_iter()
-            .map(|(idx, name, w, h)| {
-                let monitor = all_monitors.get(idx)?;
-                Some(ScreenSource {
-                    id: format!("monitor:{idx}"),
-                    name,
-                    is_monitor: true,
-                    thumbnail: capture_monitor_thumbnail(monitor),
-                    width: w,
-                    height: h,
-                })
-            })
-            .collect();
-
-        // Windows get a thumbnail too. They used to get nothing, on the grounds that the picker
-        // renders a live preview once a source is selected -but that preview only exists *after*
-        // the choice, so the Applications tab was a grid of identical placeholder icons and the
-        // choice had to be made from window titles alone.
-        //
-        // Same discipline as the monitors above: one Window::all() for the whole phase, under the
-        // same lock. A second WGC session opened per iteration is what corrupts the COM heap.
-        let all_windows = Window::all().unwrap_or_default();
-        let windows: Vec<ScreenSource> = window_meta
-            .into_iter()
-            .enumerate()
-            .map(|(index, (hwnd_id, title, w, h))| {
-                // Capturing every window of a busy desktop is seconds of work holding the lock the
-                // whole time, and this runs while the user is waiting on a dialog. The ones past
-                // the cap fall back to the icon, which is what all of them did before.
-                let thumbnail = if index < MAX_WINDOW_THUMBNAILS {
-                    all_windows
-                        .iter()
-                        .find(|win| win.id().ok() == Some(hwnd_id))
-                        .map(capture_window_thumbnail)
+            .map(|id| {
+                let thumbnail = if let Some(idx) = id.strip_prefix("monitor:") {
+                    idx.parse::<usize>()
+                        .ok()
+                        .and_then(|i| monitors.get(i))
+                        .map(|m| thumbnail_of(m.capture_image().ok()))
+                        .unwrap_or_default()
+                } else if let Some(hwnd) = id.strip_prefix("window:") {
+                    hwnd.parse::<u32>()
+                        .ok()
+                        .and_then(|target| windows.iter().find(|w| w.id().ok() == Some(target)))
+                        .map(|w| thumbnail_of(w.capture_image().ok()))
                         .unwrap_or_default()
                 } else {
                     String::new()
                 };
 
-                ScreenSource {
-                    id: format!("window:{hwnd_id}"),
-                    name: title,
-                    is_monitor: false,
-                    thumbnail,
-                    width: w,
-                    height: h,
-                }
+                SourceThumbnail { id, thumbnail }
             })
-            .collect();
-
-        (monitors, windows)
+            .collect()
         // _guard dropped here
     })
     .await
-    .map_err(|e| e.to_string())?;
-
-    let mut sources: Vec<ScreenSource> = monitor_sources.into_iter().flatten().collect();
-    sources.extend(window_sources);
-
-    Ok(sources)
+    .map_err(|e| e.to_string())
 }
-
-/// How many windows get a real thumbnail before the rest fall back to an icon. Each capture is a
-/// full window grab held under the WGC lock, and the picker is a dialog somebody is waiting on.
-const MAX_WINDOW_THUMBNAILS: usize = 24;
 
 #[tauri::command]
 pub async fn start_screen_capture(
@@ -400,28 +430,120 @@ fn stop_screen_capture_inner(state: &ScreenCaptureState) {
 
 // ── Capture helpers ───────────────────────────────────────────────────────────
 
-fn capture_monitor_thumbnail(monitor: &Monitor) -> String {
-    match monitor.capture_image() {
-        Ok(img) => {
-            let dyn_img = DynamicImage::ImageRgba8(img);
-            let thumb = dyn_img.thumbnail(320, 200);
-            base64_encode(&encode_jpeg(&thumb, 70))
-        }
-        Err(_) => String::new(),
+/// Longest edge of a picker thumbnail. The tiles are around 350 device pixels wide in a two-column
+/// grid, and this is a picture to recognise a window by, not to read it.
+const THUMBNAIL_MAX: u32 = 224;
+
+/// Titles that are never worth offering as a share source.
+///
+/// <p>Game and app overlays (`RSI Launcher Overlay`, the Steam, Discord and GeForce ones) are real,
+/// titled, correctly-sized windows that happen to be transparent chrome drawn over something else -
+/// sharing one streams a rectangle of nothing. The rest are system furniture that exists on every
+/// Windows desktop.</p>
+///
+/// <p>Matched case-insensitively, as a whole word for `overlay` so a document called "Overlays.docx"
+/// survives.</p>
+const JUNK_TITLE_EXACT: &[&str] = &[
+    "program manager",
+    "windows input experience",
+    "windows shell experience host",
+    "microsoft text input application",
+    "default ime",
+    "msctfime ui",
+    "gdi+ window",
+    "settings ui",
+    "task switching",
+    "search",
+    "start",
+];
+
+/// Whether a window is worth listing as a share source.
+fn is_shareable_window(title: &str) -> bool {
+    let lowered = title.trim().to_ascii_lowercase();
+    if lowered.is_empty() || JUNK_TITLE_EXACT.contains(&lowered.as_str()) {
+        return false;
     }
+
+    // Whole-word "overlay" anywhere in the title. Every overlay this has been seen to catch is
+    // something that cannot be usefully streamed, and a real window whose name contains the word is
+    // still shareable by sharing the screen it is on.
+    !lowered
+        .split(|c: char| !c.is_alphanumeric())
+        .any(|word| word == "overlay")
 }
 
-/// As above, for a window. A failure is not worth reporting: a window can be minimised, on another
-/// desktop, or protected from capture, and the picker falls back to an icon for all three.
-fn capture_window_thumbnail(window: &Window) -> String {
-    match window.capture_image() {
-        Ok(img) => {
-            let dyn_img = DynamicImage::ImageRgba8(img);
-            let thumb = dyn_img.thumbnail(320, 200);
-            base64_encode(&encode_jpeg(&thumb, 70))
-        }
-        Err(_) => String::new(),
+/// Shrinks and encodes a captured frame, or gives back an empty string when there was none.
+///
+/// <p>A failed capture is not worth reporting: a window can be on another desktop or protected from
+/// capture, and the picker falls back to an icon for both.</p>
+fn thumbnail_of(image: Option<RgbaImage>) -> String {
+    let Some(img) = image else { return String::new() };
+    let thumb = downscale(&img, THUMBNAIL_MAX);
+    base64_encode(&encode_jpeg(&DynamicImage::ImageRgba8(thumb), 55))
+}
+
+/// Downscales by sampling the destination rather than filtering the source.
+///
+/// <p>The cost of a thumbnail is not the capture alone - `image`'s own `thumbnail`/`resize` touch
+/// every pixel of the input, which for a 4K window is eight million of them, per window, on a
+/// dialog somebody is waiting on. This reads four samples per *output* pixel instead: a couple of
+/// hundred thousand reads whatever the source resolution, so a 4K monitor costs the same as a small
+/// window.</p>
+///
+/// <p>Four samples rather than one because pure nearest-neighbour aliases text into noise at this
+/// reduction; two-by-two is enough to settle it and is still a fixed, tiny cost.</p>
+fn downscale(src: &RgbaImage, max_edge: u32) -> RgbaImage {
+    let (sw, sh) = src.dimensions();
+    if sw == 0 || sh == 0 {
+        return RgbaImage::new(1, 1);
     }
+
+    let longest = sw.max(sh);
+    if longest <= max_edge {
+        return src.clone();
+    }
+
+    let scale = max_edge as f64 / longest as f64;
+    let dw = ((sw as f64 * scale).round() as u32).max(1);
+    let dh = ((sh as f64 * scale).round() as u32).max(1);
+
+    let mut out = RgbaImage::new(dw, dh);
+    for y in 0..dh {
+        // The source rows this output row covers, sampled at a quarter and three quarters through.
+        let y0 = ((y as u64 * 4 + 1) * sh as u64 / (dh as u64 * 4)).min(sh as u64 - 1) as u32;
+        let y1 = ((y as u64 * 4 + 3) * sh as u64 / (dh as u64 * 4)).min(sh as u64 - 1) as u32;
+        for x in 0..dw {
+            let x0 = ((x as u64 * 4 + 1) * sw as u64 / (dw as u64 * 4)).min(sw as u64 - 1) as u32;
+            let x1 = ((x as u64 * 4 + 3) * sw as u64 / (dw as u64 * 4)).min(sw as u64 - 1) as u32;
+
+            let samples = [
+                src.get_pixel(x0, y0),
+                src.get_pixel(x1, y0),
+                src.get_pixel(x0, y1),
+                src.get_pixel(x1, y1),
+            ];
+
+            let mut channels = [0u16; 4];
+            for pixel in samples {
+                for (slot, value) in channels.iter_mut().zip(pixel.0.iter()) {
+                    *slot += *value as u16;
+                }
+            }
+
+            out.put_pixel(
+                x,
+                y,
+                image::Rgba([
+                    (channels[0] / 4) as u8,
+                    (channels[1] / 4) as u8,
+                    (channels[2] / 4) as u8,
+                    (channels[3] / 4) as u8,
+                ]),
+            );
+        }
+    }
+
+    out
 }
 
 fn encode_jpeg(img: &DynamicImage, quality: u8) -> Vec<u8> {
@@ -449,4 +571,119 @@ pub fn encode_jpeg_into(img: &DynamicImage, quality: u8, buf: &mut Vec<u8>) {
 pub fn base64_encode(data: &[u8]) -> String {
     use base64::Engine;
     base64::engine::general_purpose::STANDARD.encode(data)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::Rgba;
+
+    fn solid(w: u32, h: u32, px: [u8; 4]) -> RgbaImage {
+        RgbaImage::from_pixel(w, h, Rgba(px))
+    }
+
+    // ── Source filtering ─────────────────────────────────────────────────────
+
+    #[test]
+    fn ordinary_windows_are_shareable() {
+        for title in ["Alpine", "document.txt - Notepad", "Star Citizen", "Overlays.docx"] {
+            assert!(is_shareable_window(title), "{title} should be listed");
+        }
+    }
+
+    #[test]
+    fn overlays_are_not_shareable() {
+        // These are real, correctly-sized, titled windows - transparent chrome drawn over
+        // something else. Sharing one streams a rectangle of nothing.
+        for title in [
+            "RSI Launcher Overlay",
+            "Steam Overlay",
+            "NVIDIA GeForce Overlay",
+            "Discord Overlay",
+            "overlay",
+        ] {
+            assert!(!is_shareable_window(title), "{title} should be filtered out");
+        }
+    }
+
+    #[test]
+    fn a_document_named_after_an_overlay_survives() {
+        // The word has to stand alone: matching it as a substring would take "Overlays.docx" and
+        // anything else that merely mentions it.
+        assert!(is_shareable_window("Overlays.docx"));
+        assert!(is_shareable_window("My overlaying concerns"));
+    }
+
+    #[test]
+    fn system_furniture_is_not_shareable() {
+        for title in ["Program Manager", "Windows Input Experience", "Default IME"] {
+            assert!(!is_shareable_window(title));
+        }
+    }
+
+    #[test]
+    fn filtering_ignores_case_and_padding() {
+        assert!(!is_shareable_window("  PROGRAM MANAGER  "));
+        assert!(!is_shareable_window("RSI Launcher OVERLAY"));
+    }
+
+    #[test]
+    fn an_empty_title_is_not_shareable() {
+        assert!(!is_shareable_window(""));
+        assert!(!is_shareable_window("   "));
+    }
+
+    // ── Downscaling ──────────────────────────────────────────────────────────
+
+    #[test]
+    fn downscale_fits_the_longest_edge() {
+        let out = downscale(&solid(3840, 2160, [1, 2, 3, 255]), 224);
+        assert_eq!(out.width(), 224);
+        assert_eq!(out.height(), 126);
+    }
+
+    #[test]
+    fn downscale_keeps_a_portrait_window_portrait() {
+        let out = downscale(&solid(600, 1800, [1, 2, 3, 255]), 224);
+        assert_eq!(out.height(), 224);
+        assert!(out.width() < out.height());
+    }
+
+    #[test]
+    fn downscale_leaves_a_small_source_alone() {
+        // Nothing to gain, and upscaling would only make the payload bigger.
+        let out = downscale(&solid(200, 120, [4, 5, 6, 255]), 224);
+        assert_eq!(out.dimensions(), (200, 120));
+    }
+
+    #[test]
+    fn downscale_preserves_colour() {
+        let out = downscale(&solid(1920, 1080, [10, 20, 30, 255]), 224);
+        assert_eq!(out.get_pixel(0, 0), &Rgba([10, 20, 30, 255]));
+        assert_eq!(out.get_pixel(out.width() - 1, out.height() - 1), &Rgba([10, 20, 30, 255]));
+    }
+
+    #[test]
+    fn downscale_never_yields_a_zero_dimension() {
+        // An extreme aspect ratio rounds one edge towards nothing; a zero-sized image cannot be
+        // encoded and would take the whole picker down with it.
+        let out = downscale(&solid(4000, 4, [0, 0, 0, 255]), 224);
+        assert!(out.width() >= 1 && out.height() >= 1);
+    }
+
+    #[test]
+    fn downscale_handles_an_empty_frame() {
+        let out = downscale(&RgbaImage::new(0, 0), 224);
+        assert!(out.width() >= 1 && out.height() >= 1);
+    }
+
+    #[test]
+    fn thumbnail_of_nothing_is_empty() {
+        assert!(thumbnail_of(None).is_empty());
+    }
+
+    #[test]
+    fn thumbnail_of_a_frame_is_encoded() {
+        assert!(!thumbnail_of(Some(solid(1920, 1080, [9, 9, 9, 255]))).is_empty());
+    }
 }

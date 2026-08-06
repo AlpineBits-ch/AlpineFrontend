@@ -547,6 +547,7 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             media::audio::start_loopback_capture,
             media::audio::stop_loopback_capture,
             media::screen::enumerate_screen_sources,
+            media::screen::capture_source_thumbnails,
             media::screen::start_screen_capture,
             media::screen::stop_screen_capture,
             media::screen::set_screen_capture_fps,

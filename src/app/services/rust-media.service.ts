@@ -7,9 +7,16 @@ export interface ScreenSource {
     id: string;
     name: string;
     isMonitor: boolean;
-    thumbnail: string; // base64 JPEG
+    /** Always empty from enumeration - fetched per tile, see `captureSourceThumbnails`. */
+    thumbnail: string;
     width: number;
     height: number;
+}
+
+export interface SourceThumbnail {
+    id: string;
+    /** base64 JPEG, or empty when the source could not be captured. */
+    thumbnail: string;
 }
 
 export interface IceServerConfig {
@@ -121,12 +128,34 @@ export class RustMediaService {
 
     // ── Screen sources ────────────────────────────────────────────────────────
 
+    /**
+     * Every shareable screen and window, without thumbnails.
+     *
+     * <p>Metadata only, and fast: capturing a preview of each is a full-resolution grab per source
+     * and used to hold the dialog for tens of seconds on a busy desktop. Images are fetched per
+     * tile - see {@link captureSourceThumbnails}.</p>
+     */
     async getScreenSources(): Promise<ScreenSource[]> {
         if (!isTauri()) return [];
         try {
             return await invoke<ScreenSource[]>('enumerate_screen_sources');
         } catch (e) {
             console.warn('[RustMedia] enumerate_screen_sources failed', e);
+            return [];
+        }
+    }
+
+    /**
+     * Thumbnails for the named sources. Batches are capped Rust-side; an id that could not be
+     * captured comes back with an empty string rather than being dropped, so a caller can tell
+     * "failed" from "not asked for yet".
+     */
+    async captureSourceThumbnails(sourceIds: string[]): Promise<SourceThumbnail[]> {
+        if (!isTauri() || sourceIds.length === 0) return [];
+        try {
+            return await invoke<SourceThumbnail[]>('capture_source_thumbnails', {sourceIds});
+        } catch (e) {
+            console.warn('[RustMedia] capture_source_thumbnails failed', e);
             return [];
         }
     }

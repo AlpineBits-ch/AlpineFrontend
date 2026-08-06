@@ -5,7 +5,7 @@
 
         <!-- Panel -->
         <div (click)="$event.stopPropagation()"
-             class="relative flex flex-col w-[720px] max-h-[80vh] bg-sidebar rounded-2xl border border-border shadow-2xl overflow-hidden">
+             class="relative flex flex-col w-[51.25rem] max-h-[80vh] bg-sidebar rounded-2xl border border-border shadow-2xl overflow-hidden">
 
             <!-- Header -->
             <div class="flex items-center justify-between px-5 py-4 border-b border-border-subtle shrink-0">
@@ -49,7 +49,9 @@
                     @if (picker.loading()) {
                         <div class="flex flex-col items-center justify-center gap-3 py-12 text-text-muted">
                             <i class="pi pi-spin pi-spinner text-2xl"></i>
-                            <span class="text-xs">Capturing previews…</span>
+                            <!-- No longer "capturing previews": this step is metadata only, and
+                                 each tile fetches its own image once it is on screen. -->
+                            <span class="text-xs">Finding screens and windows…</span>
                         </div>
                     } @else {
                         @let list = activeTab() === 'monitors' ? monitors : windows;
@@ -61,9 +63,13 @@
                                     found</span>
                             </div>
                         } @else {
-                            <div class="grid grid-cols-3 gap-3">
+                            <!-- Two per row, every tile the same size. A grid that took each
+                                 source's own aspect ratio made every tile a different height, so
+                                 the rows never lined up and nothing could be compared at a glance. -->
+                            <div class="grid grid-cols-2 gap-3">
                                 @for (source of list; track source.id) {
-                                    <button (click)="select(source)"
+                                    <button (appInView)="picker.requestThumbnail(source.id)"
+                                            (click)="select(source)"
                                             [class.border-border-subtle]="selectedSource()?.id !== source.id"
                                             [class.border-brand]="selectedSource()?.id === source.id"
                                             [class.ring-1]="selectedSource()?.id === source.id"
@@ -71,18 +77,29 @@
                                             class="relative flex flex-col rounded-xl border-2 overflow-hidden
                          transition-all cursor-pointer group text-left">
 
-                                        <!-- Thumbnail. Uses the source's own aspect ratio with
-                                             object-contain, so an ultrawide or portrait source is
-                                             represented honestly rather than centre-cropped. -->
-                                        <div class="relative w-full bg-card"
-                                             [style.aspect-ratio]="aspect(source)">
-                                            @if (thumbSrc(source)) {
-                                                <img [src]="thumbSrc(source)"
+                                        <!-- A fixed 16:9 box for every source, whatever shape it
+                                             really is, and the image fills it. Letterboxing to the
+                                             source's own ratio left every preview a different size
+                                             inside its tile, which reads as a broken grid even when
+                                             the tiles themselves line up. An ultrawide loses a
+                                             sliver of its edges here; the tab is for recognising a
+                                             window, and the quality step states the real geometry. -->
+                                        <div class="relative w-full bg-black/40" style="aspect-ratio: 16/9">
+                                            @if (thumbSrc(source); as src) {
+                                                <img [src]="src"
                                                      alt=""
-                                                     class="w-full h-full object-contain"/>
+                                                     class="w-full h-full object-cover"/>
+                                            } @else if (isThumbnailPending(source)) {
+                                                <!-- Asked for and not back yet. A spinner rather
+                                                     than the icon below, which would otherwise
+                                                     flash on every tile that scrolls into view. -->
+                                                <div class="flex items-center justify-center w-full h-full text-text-muted">
+                                                    <i class="pi pi-spin pi-spinner text-lg opacity-40"></i>
+                                                </div>
                                             } @else {
                                                 <div class="flex items-center justify-center w-full h-full text-text-muted">
-                                                    <i class="pi pi-desktop text-2xl"></i>
+                                                    <i [ngClass]="source.isMonitor ? 'pi-desktop' : 'pi-window-maximize'"
+                                                       class="pi text-2xl"></i>
                                                 </div>
                                             }
                                             <!-- Selection tick -->

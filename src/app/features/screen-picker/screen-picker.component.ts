@@ -20,13 +20,15 @@ import {
 } from '../../models/stream-preset';
 import {solveGeometry} from '../../models/capture-geometry';
 import {TranslateModule} from '@ngx-translate/core';
+import {NgClass} from '@angular/common';
+import {InViewDirective} from '../../directives/in-view.directive';
 
 /** Size of the picker's live preview. Deliberately small - it is a preview, not the stream. */
 const PREVIEW_GEOMETRY = {width: 640, height: 360};
 
 @Component({
     selector: 'app-screen-picker',
-    imports: [TranslateModule, FormsModule, ToggleSwitch],
+    imports: [TranslateModule, FormsModule, ToggleSwitch, NgClass, InViewDirective],
     templateUrl: './screen-picker.component.html',
     styleUrl: './screen-picker.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -98,10 +100,10 @@ export class ScreenPickerComponent implements OnDestroy {
         return this.picker.sources().filter(s => !s.isMonitor);
     }
 
-    /** The source's own aspect ratio, so the thumbnail shows what will actually be shared. */
-    aspect(source: ScreenSource): string {
-        return source.width > 0 && source.height > 0 ? `${source.width}/${source.height}` : '16/9';
-    }
+    // The per-source aspect ratio that used to size each tile is gone: it made every tile a
+    // different height, so the rows never lined up. The tiles are a uniform 16:9 frame now and the
+    // image is letterboxed into it, which keeps the source's real shape visible without the grid
+    // paying for it.
 
     /** The size the stream will actually be published at, shown on the quality step. */
     outputLabel(): string {
@@ -156,8 +158,22 @@ export class ScreenPickerComponent implements OnDestroy {
         void this.rustMedia.stopScreenCapture();
     }
 
+    /**
+     * The tile's image, once it has one.
+     *
+     * <p>Enumeration no longer carries thumbnails - capturing every window up front is what made
+     * opening this dialog cost tens of seconds - so this reads the per-source cache the tiles fill
+     * as they scroll into view. `source.thumbnail` is still honoured for any caller that supplies
+     * one directly.</p>
+     */
     thumbSrc(source: ScreenSource): string {
-        return source.thumbnail ? `data:image/jpeg;base64,${source.thumbnail}` : '';
+        const captured = this.picker.thumbnails()[source.id] || source.thumbnail;
+        return captured ? `data:image/jpeg;base64,${captured}` : '';
+    }
+
+    /** Requested, nothing back yet - as opposed to captured-and-failed, which stays as an icon. */
+    isThumbnailPending(source: ScreenSource): boolean {
+        return !(source.id in this.picker.thumbnails());
     }
 
     private reset(): void {
