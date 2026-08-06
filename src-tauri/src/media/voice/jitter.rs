@@ -88,6 +88,20 @@ pub struct JitterBuffer {
 /// of the start delay rather than a noticeable clip.
 const STARVED_SLOTS_BEFORE_RESYNC_MS: u32 = 400;
 
+/// The longest silence between two arrivals still treated as one continuous stream.
+///
+/// Beyond this the stream stopped and restarted, and the pair of packets either side says nothing
+/// about the network. See [`JitterBuffer::update_jitter`].
+///
+/// Deliberately a *time* threshold rather than a sequence-number one. Silence suppression does not
+/// skip sequence numbers - it stops emitting entirely - so the packet that ends a four second pause
+/// is the very next number in the stream, and no sequence-based test can tell it apart from a
+/// packet that arrived on schedule. Only the clock shows the gap.
+///
+/// 200 ms is an order of magnitude above the jitter a working connection produces and an order of
+/// magnitude below the pause between two sentences.
+const CONTINUOUS_ARRIVAL_GAP_MS: i64 = 200;
+
 impl JitterBuffer {
     pub fn new(config: JitterConfig) -> Self {
         Self {
@@ -148,8 +162,26 @@ impl JitterBuffer {
     fn update_jitter(&mut self, seq: u64, arrival_ms: u64) {
         if let (Some(last_arrival), Some(last_seq)) = (self.last_arrival_ms, self.last_seq_unwrapped)
         {
-            let expected = (seq as i64 - last_seq as i64) * self.config.packet_ms as i64;
+            // A talker who stopped is not a jittery network.
+            //
+            // RFC 3550's estimate assumes packets keep flowing: it compares how far apart two
+            // packets were *sent* with how far apart they *arrived*. `chain::process_frame` sends
+            // nothing at all while its speaker is silent, so the packet after a pause is `seq + 1` -
+            // expected 20 ms later - and turns up whole seconds afterwards. The estimator reads
+            // that as several seconds of jitter and pins the target delay to its ceiling, which
+            // then demands a full half second of buffered audio before playout will restart. The
+            // buffer fills, the level stays at zero, and the participant is inaudible with packets
+            // visibly queueing up behind them.
+            //
+            // A gap this large is a discontinuity, not a measurement. Re-anchor and take no sample.
             let actual = arrival_ms as i64 - last_arrival as i64;
+            if actual > CONTINUOUS_ARRIVAL_GAP_MS {
+                self.last_arrival_ms = Some(arrival_ms);
+                self.last_seq_unwrapped = Some(seq);
+                return;
+            }
+
+            let expected = (seq as i64 - last_seq as i64) * self.config.packet_ms as i64;
             let deviation = (actual - expected).abs() as f32;
             self.jitter_ms += (deviation - self.jitter_ms) / 16.0;
 
@@ -220,6 +252,18 @@ impl JitterBuffer {
             if self.starved_slots * self.config.packet_ms >= STARVED_SLOTS_BEFORE_RESYNC_MS {
                 self.cursor = None;
                 self.starved_slots = 0;
+                // Re-priming reads `target_delay_ms`, so it has to describe the *next* stretch of
+                // audio rather than the silence that just ended. Left alone it would still hold
+                // whatever the pause inflated it to, and playout would then wait for that much
+                // audio to pile up before making a sound - which is the difference between a talker
+                // who resumes cleanly and one who resumes half a second late, or not at all.
+                self.jitter_ms = 0.0;
+                self.target_delay_ms = self
+                    .config
+                    .start_delay_ms
+                    .clamp(self.config.min_delay_ms, self.config.max_delay_ms);
+                self.last_arrival_ms = None;
+                self.last_seq_unwrapped = None;
                 return Pop::Conceal;
             }
         } else {
@@ -267,6 +311,43 @@ mod tests {
             buf.push(packet(from.wrapping_add(i as u16)), *arrival);
             *arrival += config().packet_ms as u64;
         }
+    }
+
+    /// A pause in speech is not evidence about the network.
+    ///
+    /// RFC 3550's jitter estimate compares send spacing against arrival spacing, which only means
+    /// anything while packets keep flowing. Silence suppression breaks that assumption completely:
+    /// the packet after a pause is the very next sequence number, "expected" 20 ms later, and turns
+    /// up seconds afterwards. Fed to the estimator that reads as seconds of jitter and pins the
+    /// target delay to its ceiling - so playout then refuses to start until half a second of audio
+    /// has piled up, and a talker who pauses often is heard in bursts or not at all.
+    ///
+    /// This is the second half of the same fault as
+    /// [`a_talker_who_pauses_is_audible_again_when_they_resume`]: that one covers the packets being
+    /// discarded, this one covers them arriving and still not being played.
+    #[test]
+    fn a_pause_does_not_inflate_the_target_delay() {
+        let mut buf = JitterBuffer::new(config());
+        let mut arrival = 0u64;
+
+        primed(&mut buf, 0, &mut arrival);
+        for _ in 0..(config().start_delay_ms / config().packet_ms) {
+            buf.pop();
+        }
+        let settled = buf.target_delay_ms();
+
+        // Four seconds of silence, then the next packet in sequence.
+        arrival += 4_000;
+        let resume = (config().start_delay_ms / config().packet_ms) as u16;
+        buf.push(packet(resume), arrival);
+
+        assert_eq!(
+            buf.target_delay_ms(),
+            settled,
+            "a four second pause was measured as network jitter and inflated the target delay to \
+             {}ms - playout will now wait for that much audio before making a sound",
+            buf.target_delay_ms()
+        );
     }
 
     /// A talker who pauses is still audible when they resume.
