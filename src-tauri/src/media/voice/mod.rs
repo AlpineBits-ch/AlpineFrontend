@@ -118,7 +118,22 @@ fn spawn_stats_logger() {
     tokio::spawn(async move {
         let mut previous: Option<VoiceStats> = None;
         loop {
-            tokio::time::sleep(STATS_LOG_INTERVAL).await;
+            // Sampled across the interval rather than slept through, so the level reported below is
+            // the loudest thing heard since the last line instead of whatever one 10 ms frame
+            // happened to hold when the timer fired.
+            //
+            // `capture_rms` is a gauge: one `AtomicU32` the capture thread overwrites every frame,
+            // sized for a UI meter that is read continuously. Read once every five seconds it says
+            // almost nothing - it printed 0.1022 for an interval that encoded 12 packets of silence
+            // and 0.0000 for one that encoded 188 packets of speech, which is worse than useless in
+            // a line whose whole purpose is telling "the microphone is dead" apart from "nobody is
+            // talking".
+            let mut peak_rms = 0.0f32;
+            let samples = 50;
+            for _ in 0..samples {
+                tokio::time::sleep(STATS_LOG_INTERVAL / samples).await;
+                peak_rms = peak_rms.max(voice_stats().capture_rms);
+            }
             let now = voice_stats();
 
             // The engine is gone, so the call ended. Release the flag so the next call starts a
@@ -133,8 +148,8 @@ fn spawn_stats_logger() {
             };
 
             eprintln!(
-                "[voice] capture: rms {:.4} frames +{} encoded +{} gate {} muted {} deafened {}",
-                now.capture_rms,
+                "[voice] capture: peak rms {:.4} frames +{} encoded +{} gate {} muted {} deafened {}",
+                peak_rms,
                 since(now.frames_captured, |s| s.frames_captured),
                 since(now.packets_encoded, |s| s.packets_encoded),
                 if now.gate_open { "open" } else { "closed" },
