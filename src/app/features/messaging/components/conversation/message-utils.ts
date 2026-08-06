@@ -21,8 +21,18 @@ export function fileIcon(contentType: string): string {
 
 const GROUPING_WINDOW_MS = 20_000;
 
-function isSystemMessageType(type: MessageType): boolean {
-    return type === MessageType.GuildMemberJoin || type === MessageType.GuildMemberLeave;
+/**
+ * Whether a message renders as centred system copy rather than an authored message.
+ *
+ * <p>Also what stops the next real message being grouped under it: grouping keys on the author,
+ * and a call entry is authored by whoever placed the call - so without this, the caller's next
+ * message would silently fold into the call notice and lose its avatar and timestamp.</p>
+ */
+export function isSystemMessageType(type: MessageType): boolean {
+    return type === MessageType.GuildMemberJoin
+        || type === MessageType.GuildMemberLeave
+        || type === MessageType.CallEnded
+        || type === MessageType.CallMissed;
 }
 
 export function isGroupedWithPrevious(current: MessageDto, previous: MessageDto | undefined): boolean {

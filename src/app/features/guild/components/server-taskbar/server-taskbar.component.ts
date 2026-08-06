@@ -27,6 +27,7 @@ import {GuildSettingsModalComponent} from '../guild-settings-modal/guild-setting
 import {InviteType} from '../../../../dtos/response/invite.dto';
 import {ToastService} from '../../../../services/toast.service';
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
+import {GuildVoiceActivityService} from '../../../../services/guild-voice-activity.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {memberCanManageGuild} from '../../guild-permissions';
@@ -52,9 +53,11 @@ export class ServerTaskbarComponent implements OnInit {
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private readStateService = inject(GuildReadStateService);
+    private voiceActivity = inject(GuildVoiceActivityService);
     protected serverIcons = computed<ServerData[]>(() => {
         const workspace = this.navService.workspace();
         const readStates = this.readStateService.channelStates();
+        const voice = this.voiceActivity.presence();
         return this.guilds().map(g => {
             const totalMentions = g.channels.reduce(
                 (sum, c) => sum + (readStates[c.id]?.mentionCount ?? 0), 0
@@ -70,6 +73,8 @@ export class ServerTaskbarComponent implements OnInit {
                     return (s?.isUnread ?? false) && (s?.mentionCount ?? 0) === 0;
                 }),
                 badge: totalMentions > 0 ? totalMentions : undefined,
+                voiceCount: voice[g.id]?.participantCount,
+                hasStream: voice[g.id]?.hasStream ?? false,
             };
         });
     });

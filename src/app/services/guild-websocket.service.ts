@@ -1,5 +1,6 @@
 import {inject, Injectable} from '@angular/core';
 import {RealtimeConnectionService} from "./realtime-connection.service";
+import {ShareViewersDto} from "../dtos/response/share-viewers.dto";
 import {
     MessagePinnedEvent,
     MessageUnpinnedEvent,
@@ -670,6 +671,8 @@ export class GuildWebsocketService {
     // ── Voice observables ───────────────────────────────────────────────────────
     public userJoinedVoiceObservable = new Subject<WsUserJoinedVoice>();
     public userLeftVoiceObservable = new Subject<WsUserLeftVoice>();
+    /** The audience of one screen share changed. Sent to everyone in the channel. */
+    public shareViewersChangedObservable = new Subject<ShareViewersDto>();
     public guildParticipantJoinedObservable = new Subject<WsGuildParticipantJoined>();
     public guildTrackPublishedObservable = new Subject<WsGuildTrackPublished>();
     public guildTrackClosedObservable = new Subject<WsGuildTrackClosed>();
@@ -843,6 +846,7 @@ export class GuildWebsocketService {
         this.realtime.on('guild.voice.CameraChanged', (d: WsVoiceCameraChanged) => this.voiceCameraChangedObservable.next(d));
         this.realtime.on('guild.voice.ScreenShareStarted', (d: WsVoiceScreenShareStarted) => this.voiceScreenShareStartedObservable.next(d));
         this.realtime.on('guild.voice.ScreenShareStopped', (d: WsVoiceScreenShareStopped) => this.voiceScreenShareStoppedObservable.next(d));
+        this.realtime.on('guild.voice.ShareViewersChanged', (d: ShareViewersDto) => this.shareViewersChangedObservable.next(d));
         this.realtime.on('guild.voice.MovedToChannel', (d: WsMovedToChannel) => this.movedToChannelObservable.next(d));
         this.realtime.on('guild.voice.KickedByOtherDevice', (d: WsKickedByOtherDevice) => this.kickedByOtherDeviceObservable.next(d));
         this.realtime.on('guild.ChannelCreated', (d: WsChannelCreated) => this.channelCreatedObservable.next(d));

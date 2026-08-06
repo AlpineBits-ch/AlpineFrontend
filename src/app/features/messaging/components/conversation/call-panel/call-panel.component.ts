@@ -13,6 +13,7 @@ import {CallScreenLayoutComponent} from '../../../../../shared/call/call-screen-
 import {CallContextMenuComponent} from '../../../../../shared/call/call-context-menu/call-context-menu.component';
 import {StreamSrcDirective} from '../../../../../directives/stream-src.directive';
 import {formatAloneNotice} from './alone-countdown';
+import {WatchScope} from '../../../../../services/share-watch.service';
 
 interface FocusedStream {
     kind: 'camera' | 'share';
@@ -64,6 +65,11 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     );
     private callSession = inject(CallSessionService);
     protected session = this.callSession.session;
+    /** Where these shares live, so watching them can be announced - see ShareWatchService. */
+    protected watchScope = computed((): WatchScope | null => {
+        const callId = this.session()?.callId;
+        return callId ? {kind: 'call', callId} : null;
+    });
     protected screenPreset = this.callSession.screenPreset;
     /** Set only while the local user is the last one in the call. */
     protected aloneNotice = computed(() => formatAloneNotice(this.callSession.aloneDeadline()));

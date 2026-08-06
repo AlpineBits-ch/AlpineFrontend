@@ -1,10 +1,11 @@
-import {Component, computed, input, output, signal} from '@angular/core';
+import {Component, computed, effect, inject, input, OnDestroy, output, signal} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {CallParticipant, CallScreenLayoutContextMenuEvent, CallScreenShare} from '../call.types';
 import {AppAvatarComponent} from '../../../components/avatar/avatar.component';
 import {StreamSrcDirective} from '../../../directives/stream-src.directive';
 import {trackAudioWait} from '../audio-wait';
 import {CallAudioStatusComponent} from '../call-audio-status/call-audio-status.component';
+import {ShareWatchService, WatchScope} from '../../../services/share-watch.service';
 
 @Component({
     selector: 'app-call-screen-layout',
@@ -14,12 +15,18 @@ import {CallAudioStatusComponent} from '../call-audio-status/call-audio-status.c
         class: 'flex flex-col min-h-0'
     }
 })
-export class CallScreenLayoutComponent {
+export class CallScreenLayoutComponent implements OnDestroy {
     screenShares = input.required<CallScreenShare[]>();
     participants = input.required<CallParticipant[]>();
     participantsWithAudio = input.required<Set<string>>();
+    /**
+     * Where these shares live, so watching them can be announced. Null disables the whole
+     * viewer-count feature for this instance rather than guessing a scope.
+     */
+    watchScope = input<WatchScope | null>(null);
 
     protected readonly audio = trackAudioWait(this.participants, this.participantsWithAudio);
+    private readonly shareWatch = inject(ShareWatchService);
 
     participantContextMenu = output<CallScreenLayoutContextMenuEvent>();
     localAudioToggle = output<void>();
@@ -42,6 +49,38 @@ export class CallScreenLayoutComponent {
         originX: number;
         originY: number;
     } | null = null;
+
+    constructor() {
+        // Driven by what is actually rendered, not by what is subscribed. Maximising one share
+        // stops the others being displayed, and their streamers should stop counting this client -
+        // which is the honest answer and one a subscribe-based signal could not give.
+        effect(() => {
+            const scope = this.watchScope();
+            if (!scope) return;
+            const watched = this.displayedShares()
+                .filter(share => !share.isLocal)
+                .map(share => share.shareId);
+            this.shareWatch.setWatching(scope, watched);
+        });
+
+        // The change events are deltas, so a client that arrives after people started watching sees
+        // an audience of nobody until the next one comes or goes.
+        effect(() => {
+            const scope = this.watchScope();
+            if (scope) this.shareWatch.refresh(scope);
+        });
+    }
+
+    ngOnDestroy(): void {
+        const scope = this.watchScope();
+        if (scope) this.shareWatch.clear(scope);
+    }
+
+    /** How many people are watching this share, this client included. Zero renders nothing. */
+    protected viewerCount(shareId: string): number {
+        const scope = this.watchScope();
+        return scope ? this.shareWatch.viewerCount(scope, shareId) : 0;
+    }
 
     protected getZoom(shareId: string): number {
         return this._zoom()[shareId] ?? 1;

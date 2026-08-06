@@ -1,6 +1,7 @@
 import {inject, Injectable} from '@angular/core';
 import {Subject} from 'rxjs';
 import {CallDto} from '../dtos/response/call.dto';
+import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
 import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
 
 // Re-exported for existing importers.
@@ -202,6 +203,8 @@ export class VoiceWebsocketService {
     public callAcceptedObservable = new Subject<WsCallAccepted>();
     /** Payload is the whole `Call` entity, not a `{callId}` - see {@link declineEndsOutgoingCall}. */
     public callDeclinedObservable = new Subject<CallDto>();
+    /** The audience of one screen share in this call changed. Sent to every participant. */
+    public shareViewersChangedObservable = new Subject<ShareViewersDto>();
     public callDeviceDismissedObservable = new Subject<WsCallDeviceDismissed>();
     public callDeviceTakeoverObservable = new Subject<WsCallDeviceTakeover>();
     public callParticipantLeftObservable = new Subject<WsCallParticipantLeft>();
@@ -264,6 +267,7 @@ export class VoiceWebsocketService {
         // ── Per-device call events ──────────────────────────────────────────────
         this.realtime.on('call.CallAccepted', (d: WsCallAccepted) => this.callAcceptedObservable.next(d));
         this.realtime.on('call.CallDeclined', (d: CallDto) => this.callDeclinedObservable.next(d));
+        this.realtime.on('call.ShareViewersChanged', (d: ShareViewersDto) => this.shareViewersChangedObservable.next(d));
         this.realtime.on('call.CallDeviceDismissed', (d: WsCallDeviceDismissed) => this.callDeviceDismissedObservable.next(d));
         this.realtime.on('call.CallDeviceTakeover', (d: WsCallDeviceTakeover) => this.callDeviceTakeoverObservable.next(d));
         this.realtime.on('call.CallParticipantLeft', (d: WsCallParticipantLeft) => this.callParticipantLeftObservable.next(d));

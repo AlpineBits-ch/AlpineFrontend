@@ -18,4 +18,19 @@
       {{ serverData().badge }}
     </span>
     }
+    <!-- Voice occupancy. Bottom of the icon so it never fights the mention badge above it, and in
+         the online green rather than red: people being in voice is not something to be alerted
+         about, it is somewhere to go. -->
+    @if (serverData().voiceCount; as voiceCount) {
+        <span [attr.data-testid]="'guild-voice-pip'"
+              [attr.title]="voiceCount + ' in voice'"
+              class="absolute -bottom-0.5 -right-0.5 h-[16px] min-w-[16px] px-1 rounded-full
+                     bg-sidebar border border-app-bg flex items-center gap-0.5
+                     text-[9px] font-bold leading-none pointer-events-none"
+              [ngClass]="serverData().hasStream ? 'text-red-400' : 'text-online'">
+            <i [ngClass]="serverData().hasStream ? 'pi-desktop' : 'pi-volume-up'"
+               class="pi text-[7px]"></i>
+            {{ voiceCount }}
+        </span>
+    }
 </div>

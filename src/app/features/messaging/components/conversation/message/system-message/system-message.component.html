@@ -1,9 +1,16 @@
-@let text = (variantKey() | translate);
+@let text = (variantKey() | translate: translateParams());
 @let parts = text.split(userToken);
 <div class="flex justify-center px-4 py-1">
     <span class="text-xs text-white/40 text-center">
-        {{ parts[0] }}<span (click)="openProfile()"
-              [appUserNameStyle]="userProfile()"
-              class="mention-chip cursor-pointer">{{ userDisplayName() }}</span>{{ parts[1] }}
+        <!-- Copy without the token still renders, as plain text. A translation is allowed to drop
+             %USER% - the alternative is a name chip stranded at the end of a sentence that never
+             asked for one. -->
+        @if (parts.length > 1) {
+            {{ parts[0] }}<span (click)="openProfile()"
+                  [appUserNameStyle]="userProfile()"
+                  class="mention-chip cursor-pointer">{{ userDisplayName() }}</span>{{ parts[1] }}
+        } @else {
+            {{ text }}
+        }
     </span>
 </div>

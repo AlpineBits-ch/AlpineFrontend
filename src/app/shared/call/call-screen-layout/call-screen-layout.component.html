@@ -32,9 +32,19 @@
                     </div>
                 </div>
 
-                <!-- Top-left controls: LIVE + PiP + Maximize -->
+                <!-- Top-left controls: LIVE + viewers + PiP + Maximize -->
                 <div class="absolute top-3 left-3 flex items-center gap-1.5 z-10">
                     <div class="bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded tracking-wider">LIVE</div>
+                    <!-- Hidden at zero rather than shown as "0 watching": a stream nobody has opened
+                         yet and a stream whose audience we have not heard about look the same from
+                         here, and the second is the more likely of the two. -->
+                    @if (viewerCount(share.shareId); as viewers) {
+                        <div class="flex items-center gap-1 bg-black/50 backdrop-blur-sm rounded px-2 py-0.5
+                                    text-xs text-white/70 select-none"
+                             [attr.title]="viewers + ' watching'">
+                            <i class="pi pi-eye text-[10px] text-white/45"></i>{{ viewers }}
+                        </div>
+                    }
                     <button
                             (click)="pipShare($event)"
                             class="w-8 h-8 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer border-0"

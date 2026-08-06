@@ -9,6 +9,10 @@ export interface ServerData {
     badge?: number;
     isActive?: boolean;
     hasUnread?: boolean;
+    /** People in voice anywhere in this guild, in channels this user may see. Absent when none. */
+    voiceCount?: number;
+    /** Somebody in one of those channels is sharing a screen. */
+    hasStream?: boolean;
 }
 
 // Flat fallback colors for guilds without a custom icon, so the rail doesn't read as one

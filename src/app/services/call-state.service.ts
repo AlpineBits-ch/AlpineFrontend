@@ -193,6 +193,23 @@ export class CallStateService implements OnDestroy {
         });
     }
 
+    /**
+     * Joins a call that is already running in a conversation, from the banner rather than from a
+     * ring.
+     *
+     * <p>Goes through accept, same as answering: the server resolves the caller's own participant
+     * row, so somebody who declined earlier or hung up and came back is reconnected by it. A member
+     * who was never invited to this call has no row to resolve, and the server will not conjure one
+     * - the error path below is what they see.</p>
+     */
+    joinOngoing(callId: string): void {
+        this.dismissIncomingIfMatches(callId);
+        this.voiceService.acceptCall(callId).subscribe({
+            next: (callDto) => this.callSession.join(callDto, callDto.conversationId),
+            error: (err) => this.toast.httpError('Could not join call - it may have ended', err),
+        });
+    }
+
     reject(): void {
         const incoming = this.incomingCall();
         if (!incoming) return;

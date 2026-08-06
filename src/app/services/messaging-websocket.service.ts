@@ -5,6 +5,7 @@ import {MessageDto} from "../dtos/response/message.dto";
 import {MessageEncryptionState} from '../enums/message-encryption-state.enum';
 import {MessageType} from '../enums/message-type.enum';
 import {AttachmentDto} from "./file.service";
+import {CallStateChangedEvent} from '../dtos/response/ongoing-call.dto';
 import {OnlineStatus} from '../dtos/response/profile.dto';
 import {ProfileService} from "./profile.service";
 import {MlsService} from './mls.service';
@@ -268,6 +269,14 @@ export class MessagingWebsocketService {
     public userOnlineObservable = new Subject<string>()
     public userOfflineObservable = new Subject<string>()
     public conversationCreatedObservable = new Subject<string>()
+    /**
+     * A call in one of our conversations started or ended.
+     *
+     * <p>Addressed to every member of the conversation, not just the call's roster - that is the
+     * whole point of it. `call.IncomingCall` reaches invitees, and nothing at all reached someone
+     * who declined, left, or was never invited, so a call happening next to them was invisible.</p>
+     */
+    public conversationCallStateObservable = new Subject<CallStateChangedEvent>()
     public welcomeObservable = new Subject<string>()
     /** A commit advanced a group we are in. Carries no commit bytes by design - see MlsSyncService. */
     public mlsCommitObservable = new Subject<MlsContextEvent>()
@@ -370,6 +379,10 @@ export class MessagingWebsocketService {
 
         this.realtime.on('conversation.MessageCreated', (data: MessageCreatedPayload) => {
             this._rawMessageCreated$.next(data);
+        });
+
+        this.realtime.on('conversation.CallStateChanged', (data: CallStateChangedEvent) => {
+            this.conversationCallStateObservable.next(data);
         });
 
         this.realtime.on('conversation.ConversationCreated', (conversationId: string) => {

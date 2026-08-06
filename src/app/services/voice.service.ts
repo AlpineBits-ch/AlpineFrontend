@@ -3,6 +3,8 @@ import {Observable} from 'rxjs';
 import {HttpClient} from '@angular/common/http';
 import {environment} from '../../environments/environment';
 import {CallDto} from '../dtos/response/call.dto';
+import {OngoingCallDto} from '../dtos/response/ongoing-call.dto';
+import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
 import {CreateCallDto} from '../dtos/request/create-call.dto';
 import {ApiConfigService} from "./api-config.service";
 
@@ -106,6 +108,45 @@ export class VoiceService {
      */
     getPendingCall(): Observable<CallDto | null> {
         return this.client.get<CallDto | null>(`${this.base}/call/pending`);
+    }
+
+    /**
+     * The call going on in this conversation right now, or `null` (the server answers 204).
+     *
+     * Distinct from {@link getPendingCall}, which answers only for someone this call is *ringing*.
+     * This answers for any member of the conversation - including one who declined, one who left,
+     * and one who was never invited - and is what the "join the call" banner reads.
+     */
+    getConversationCall(conversationId: string): Observable<OngoingCallDto | null> {
+        return this.client.get<OngoingCallDto | null>(
+            `${this.base}/conversations/${conversationId}/call`
+        );
+    }
+
+    // ── Screen share viewers ─────────────────────────────────────────────────
+
+    /**
+     * Announces this client as watching `shareId`, or refreshes that claim.
+     *
+     * The claim expires server-side after 90s, so this has to be re-sent on a timer for as long as
+     * the stream is on screen - a subscribe on the SFU is not a watch signal, since nothing obliges
+     * a client to tear one down.
+     */
+    watchShare(callId: string, shareId: string): Observable<ShareViewersDto> {
+        return this.client.post<ShareViewersDto>(
+            `${this.base}/call/${callId}/shares/${shareId}/watch`, {}
+        );
+    }
+
+    unwatchShare(callId: string, shareId: string): Observable<ShareViewersDto> {
+        return this.client.delete<ShareViewersDto>(
+            `${this.base}/call/${callId}/shares/${shareId}/watch`
+        );
+    }
+
+    /** Everyone watching each live share in this call - the catch-up read for joining mid-stream. */
+    getShareViewers(callId: string): Observable<Record<string, string[]>> {
+        return this.client.get<Record<string, string[]>>(`${this.base}/call/${callId}/shares/viewers`);
     }
 
     // ── Cloudflare Calls proxy endpoints ─────────────────────────────────────

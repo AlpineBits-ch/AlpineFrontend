@@ -158,3 +158,47 @@
     background: rgba(244, 63, 94, 0.2);
     border-color: rgba(244, 63, 94, 0.55);
 }
+
+/* ── Ongoing call ─────────────────────────────────────────────────────────────
+   Same banner shape as the ringing one, in the online green rather than the brand
+   colour: this is not a call reaching for you, it is one already happening that you
+   may walk into. */
+
+.ongoing-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    background: linear-gradient(90deg, color-mix(in srgb, var(--color-online) 12%, transparent) 0%, color-mix(in srgb, var(--color-online) 3%, transparent) 100%);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-online) 20%, transparent);
+}
+
+.ongoing-icon {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--color-online) 15%, transparent);
+    color: var(--color-online);
+}
+
+.ongoing-join {
+    flex-shrink: 0;
+    padding: 5px 14px;
+    border-radius: 6px;
+    border: 1px solid color-mix(in srgb, var(--color-online) 40%, transparent);
+    background: color-mix(in srgb, var(--color-online) 14%, transparent);
+    color: var(--color-online);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+}
+
+.ongoing-join:hover {
+    background: color-mix(in srgb, var(--color-online) 24%, transparent);
+    border-color: color-mix(in srgb, var(--color-online) 60%, transparent);
+}

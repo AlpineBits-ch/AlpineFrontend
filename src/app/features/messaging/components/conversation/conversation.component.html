@@ -87,6 +87,22 @@
             </div>
             <button (click)="cancelCall()" class="ringing-cancel">Cancel</button>
         </div>
+    } @else if (ongoingCall(); as ongoing) {
+        <!-- A call is running in here and this client is not on it. The only signal that reaches
+             someone who declined, hung up, or was never invited - `call.IncomingCall` goes to
+             invitees and is never replayed. -->
+        <div class="ongoing-banner shrink-0">
+            <div class="ongoing-icon">
+                <i class="pi pi-phone text-sm"></i>
+            </div>
+            <div class="ringing-info">
+                <div class="ringing-status">{{ 'CALL.ONGOING' | translate }}</div>
+                <p class="ringing-name">{{ ongoingParticipantNames() }}</p>
+            </div>
+            <button (click)="joinOngoingCall(ongoing.callId)" class="ongoing-join">
+                {{ 'CALL.JOIN' | translate }}
+            </button>
+        </div>
     }
 
     <div class="flex-1 flex min-h-0">
@@ -257,10 +273,16 @@
                             </div>
                         }
                         <div [attr.data-message-id]="row.message.id" class="message-row">
-                            <app-message (jumpTo)="jumpToMessage($event)"
-                                         (reply)="onReply($event)"
-                                         [isGrouped]="row.isGrouped"
-                                         [message]="row.message"></app-message>
+                            <!-- Call notices are the first system messages a conversation can hold;
+                                 guild channels have rendered join/leave this way for a while. -->
+                            @if (isSystemMessage(row.message.type)) {
+                                <app-system-message [message]="row.message"/>
+                            } @else {
+                                <app-message (jumpTo)="jumpToMessage($event)"
+                                             (reply)="onReply($event)"
+                                             [isGrouped]="row.isGrouped"
+                                             [message]="row.message"></app-message>
+                            }
                         </div>
                     }
                 </div>

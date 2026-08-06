@@ -20,6 +20,7 @@ import {CallControlsBarComponent} from '../../../../shared/call/call-controls-ba
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {CallScreenLayoutComponent} from '../../../../shared/call/call-screen-layout/call-screen-layout.component';
 import {CallParticipant, CallParticipantMenuData, CallScreenShare} from '../../../../shared/call/call.types';
+import {WatchScope} from '../../../../services/share-watch.service';
 import {trackAudioWait} from '../../../../shared/call/audio-wait';
 import {TranslateModule} from '@ngx-translate/core';
 
@@ -83,6 +84,10 @@ export class VoiceChannelComponent {
     protected isJoined = computed(() =>
         this.voiceSvc.joinedChannelId() === this.channel().id,
     );
+    /** Null until joined: watching is a claim only a participant of the channel may make. */
+    protected watchScope = computed((): WatchScope | null => this.isJoined()
+        ? {kind: 'channel', guildId: this.channel().guildId, channelId: this.channel().id}
+        : null);
 
     // ── Computed helpers ───────────────────────────────────────────────────────
     protected participantGridClass = computed(() => {

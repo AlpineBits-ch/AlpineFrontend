@@ -3,6 +3,8 @@ import {HttpClient} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {environment} from '../../environments/environment';
 import {ApiConfigService} from "./api-config.service";
+import {GuildVoiceActivityDto} from '../dtos/response/guild-voice-activity.dto';
+import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
 
 export interface VoiceParticipantDto {
     userId: string;
@@ -113,6 +115,46 @@ export class GuildVoiceService {
         return this.client.patch<void>(
             `${this.base(guildId, channelId)}/participants/${userId}/deafen`,
             {isDeafened},
+        );
+    }
+
+    /**
+     * Voice occupancy across every guild this user is in, for the server rail.
+     *
+     * <p>One request for the whole rail. The alternative - the voice state of every channel of
+     * every guild - is what this endpoint exists to avoid.</p>
+     */
+    getVoiceActivity(): Observable<GuildVoiceActivityDto[]> {
+        return this.client.get<GuildVoiceActivityDto[]>(
+            `${this.apiConfig.baseUrl()}/api/v1/guild/guilds/voice-activity`
+        );
+    }
+
+    // ── Screen share viewers ─────────────────────────────────────────────────
+
+    /**
+     * Announces this client as watching `shareId`, or refreshes that claim.
+     *
+     * The claim expires server-side after 90s, so it has to be re-sent while the stream is on
+     * screen: pulling the track from the SFU is not a watch signal, since nothing obliges a client
+     * to tear one down when it stops looking.
+     */
+    watchShare(guildId: string, channelId: string, shareId: string): Observable<ShareViewersDto> {
+        return this.client.post<ShareViewersDto>(
+            `${this.base(guildId, channelId)}/shares/${shareId}/watch`, {}
+        );
+    }
+
+    unwatchShare(guildId: string, channelId: string, shareId: string): Observable<ShareViewersDto> {
+        return this.client.delete<ShareViewersDto>(
+            `${this.base(guildId, channelId)}/shares/${shareId}/watch`
+        );
+    }
+
+    /** Everyone watching each live share in this channel - the catch-up read for joining mid-stream. */
+    getShareViewers(guildId: string, channelId: string): Observable<Record<string, string[]>> {
+        return this.client.get<Record<string, string[]>>(
+            `${this.base(guildId, channelId)}/shares/viewers`
         );
     }
 

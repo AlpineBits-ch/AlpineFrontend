@@ -53,7 +53,9 @@ import {AppAvatarComponent} from '../../../../components/avatar/avatar.component
 import {ConversationSearchService} from './conversation-search.service';
 import {ConversationScrollService} from './conversation-scroll.service';
 import {ProfileDialogService} from '../../../../services/profile-dialog.service';
-import {fileIcon, isGroupedWithPrevious} from './message-utils';
+import {fileIcon, isGroupedWithPrevious, isSystemMessageType} from './message-utils';
+import {SystemMessageComponent} from './message/system-message/system-message.component';
+import {ConversationCallService} from '../../../../services/conversation-call.service';
 import {readableContent, UNDECRYPTABLE_SHORT} from '../../../../helpers/message-content.helper';
 import {toBase64} from "../../../../helpers/base64.helper";
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
@@ -70,6 +72,7 @@ import {PinnedMessagesPanelComponent} from '../pinned-messages-panel/pinned-mess
         UserStatusDotComponent, TypingDotsComponent, HighlightPipe,
         TranslateModule, AppAvatarComponent, PinnedMessagesPanelComponent,
         MlsUnreadableBannerComponent, MlsJoinRequestReviewComponent,
+        SystemMessageComponent,
     ],
     templateUrl: './conversation.component.html',
     styleUrl: './conversation.component.css',
@@ -85,6 +88,7 @@ export class ConversationComponent implements AfterViewInit {
     protected readonly ConversationEncryption = ConversationEncryption;
     protected replyingTo = signal<MessageDto | null>(null);
     protected showPinnedPanel = signal(false);
+    protected readonly isSystemMessage = isSystemMessageType;
     protected chatTitle = computed(() => this.convUtils.getChatTitle(this.conversation()));
     protected chatAvatarLabel = computed(() => this.convUtils.getChatAvatarLabel(this.conversation()));
     protected partnerStatus = computed(() => this.convUtils.getPartnerStatus(this.conversation()));
@@ -170,6 +174,25 @@ export class ConversationComponent implements AfterViewInit {
     // Concrete evidence the call is still ringing and hasn't been answered -
     // ticks while the ringing banner is shown.
     protected ringElapsed = signal('0:00');
+    private conversationCalls = inject(ConversationCallService);
+    /** A call running in this conversation that this client is not on - see ConversationCallService. */
+    protected ongoingCall = computed(() => this.conversationCalls.ongoingIn(this.conversation().id));
+    /**
+     * Who is on that call, named from the conversation roster.
+     *
+     * <p>The ongoing-call payload carries user ids and nothing else on purpose, so the names come
+     * from members this client already has. An id with no member row is skipped rather than shown
+     * raw - a hex string in a banner reads as a bug.</p>
+     */
+    protected ongoingParticipantNames = computed(() => {
+        const call = this.ongoingCall();
+        if (!call) return '';
+        const members = this.conversation().members;
+        const names = call.connectedUserIds
+            .map(id => members.find(m => m.userId === id)?.cachedUserName)
+            .filter((name): name is string => !!name);
+        return names.length > 0 ? names.join(', ') : this.chatTitle();
+    });
     private messagingWs = inject(MessagingWebsocketService);
     private toast = inject(ToastService);
     private translate = inject(TranslateService);
@@ -305,6 +328,10 @@ export class ConversationComponent implements AfterViewInit {
         this.callStateService.cancelOutgoing();
     }
 
+    protected joinOngoingCall(callId: string): void {
+        this.callStateService.joinOngoing(callId);
+    }
+
     protected startCall(): void {
         const ownId = this.profileService.ownProfile()?.userId;
         const members = this.conversation().members.filter(m => m.userId !== ownId);
@@ -341,7 +368,12 @@ export class ConversationComponent implements AfterViewInit {
     private setupMessageLoading(): void {
         effect(() => {
             const id = this.conversation().id;
-            untracked(() => this.messageStore.loadForConversation(id));
+            untracked(() => {
+                this.messageStore.loadForConversation(id);
+                // A call already running in here was announced before this conversation was
+                // opened, and SignalR replays nothing - so it has to be asked for.
+                this.conversationCalls.refresh(id);
+            });
         });
     }
 
