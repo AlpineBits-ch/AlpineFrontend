@@ -22,6 +22,27 @@ use serde_json::{json, Map, Value};
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 
+/// Prefix on the error of a subscribe for media nobody is publishing any more.
+///
+/// <p>The server answers `409 {"error":"staleSubscription","action":"refetchSnapshot"}` when the
+/// roster says the track is gone. It is not a transport fault and it is not late - retrying the
+/// identical body is guaranteed to fail again, which is exactly the loop that put voice on the
+/// status page in VNT-GE21R3P7. The caller must refetch the snapshot and reconcile instead.</p>
+///
+/// <p>Everything across the Tauri boundary is `Result<_, String>`, so this travels as a prefix. It
+/// is a constant on both sides rather than a substring of prose precisely so that rewording the
+/// message cannot quietly turn the stale path back into a retry loop.</p>
+pub const STALE_SUBSCRIPTION: &str = "staleSubscription";
+
+/// Whether a failed response is the server telling us our view of the room is out of date.
+///
+/// <p>Both halves are required. The status alone would catch an unrelated 409 - the room-contention
+/// retry answers 503, but nothing stops another endpoint using 409 for something else - and the
+/// body alone would match a 200 that merely mentions the word.</p>
+fn is_stale_subscription(status: reqwest::StatusCode, body: &str) -> bool {
+    status == reqwest::StatusCode::CONFLICT && body.contains(STALE_SUBSCRIPTION)
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionDescription {
@@ -510,8 +531,14 @@ impl Signalling {
         let status = response.status();
         let text = response.text().await.map_err(|e| e.to_string())?;
         if !status.is_success() {
-            // Include the body: Cloudflare surfaces per-track errors this way, and a bare status
-            // code is not enough to tell a bad SDP from an expired token.
+            if is_stale_subscription(status, &text) {
+                // Marked rather than described, because the caller has to *act* on this one and
+                // acting on a substring of a human-readable message is how that stops working
+                // silently. See STALE_SUBSCRIPTION.
+                return Err(format!("{STALE_SUBSCRIPTION}: {url} returned {status}: {text}"));
+            }
+            // Include the body: the SFU surfaces per-track errors this way, and a bare status code
+            // is not enough to tell a bad SDP from an expired token.
             return Err(format!("{url} returned HTTP {status}: {text}"));
         }
 
@@ -778,6 +805,33 @@ mod tests {
                 .unwrap();
         assert!(!parsed.requires_immediate_renegotiation);
         assert!(parsed.tracks.is_empty());
+    }
+
+    /// The whole point of the marker: a caller has to tell "refetch and reconcile" from "retry".
+    #[test]
+    fn a_stale_subscription_conflict_is_recognised() {
+        assert!(is_stale_subscription(
+            reqwest::StatusCode::CONFLICT,
+            r#"{"error":"staleSubscription","action":"refetchSnapshot"}"#
+        ));
+    }
+
+    /// Both halves, so an unrelated conflict is not mistaken for a stale roster and silently turned
+    /// into a snapshot refetch, and a success that happens to mention the word is not either.
+    #[test]
+    fn other_failures_are_not_mistaken_for_a_stale_subscription() {
+        assert!(!is_stale_subscription(
+            reqwest::StatusCode::CONFLICT,
+            r#"{"error":"somethingElse"}"#
+        ));
+        assert!(!is_stale_subscription(
+            reqwest::StatusCode::BAD_GATEWAY,
+            r#"{"error":"staleSubscription"}"#
+        ));
+        assert!(!is_stale_subscription(
+            reqwest::StatusCode::SERVICE_UNAVAILABLE,
+            "room contended"
+        ));
     }
 
     #[test]

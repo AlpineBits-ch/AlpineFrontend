@@ -11,6 +11,7 @@ import {OAuthService} from 'angular-oauth2-oidc';
 import {bitrateFor, DEFAULT_STREAM_PRESET, StreamPreset} from '../models/stream-preset';
 import {solveGeometry} from '../models/capture-geometry';
 import {publishOptions, useRustPublisher} from './screen-publish';
+import {isStaleSubscription} from '../models/voice-room';
 import {VoiceEngineService, VoiceSession} from './voice-engine.service';
 import {ScreenPickerChoice} from './screen-picker.service';
 import {
@@ -30,16 +31,32 @@ export interface VoiceSpeakingChange {
 /**
  * Backoff between attempts to pull a remote audio track, in milliseconds.
  *
- * Sized against the window this exists to cover. The backend announces a publisher as soon as
- * Cloudflare accepts their `tracks/new`, which is one SDP answer before they have applied it,
- * finished ICE and DTLS, and sent a packet; until then Cloudflare answers a pull with
- * `not_found_track_error`. The backend already absorbs 1.5s of that, so the first retry is short -
- * a healthy handshake is done well inside it - and the rest stretch out to cover a cold connect on
- * a slow link without retrying into a failure that is never going to clear.
+ * Sized against the window this exists to cover. The backend announces a publisher as soon as the
+ * SFU accepts their `tracks/new`, which is one SDP answer before they have applied it, finished ICE
+ * and DTLS, and sent a packet; until then a pull answers `not_found_track_error`. The backend
+ * absorbs about six seconds of that itself, so anything reaching us has already been given a fair
+ * chance, and these attempts only need to cover a cold connect on a slow link.
+ *
+ * Exponential and starting at a second, per the guidance from incident VNT-GE21R3P7: the log there
+ * showed the same subscribe reattempted every 5-6 seconds with no backoff at all, which turned one
+ * publisher's stale share into a burst of failures. The *stale* case does not retry at all - see
+ * `isStaleSubscription` - so what remains here is genuine transport failure, where spacing attempts
+ * out costs a little latency in a rare case and removes a stampede in a bad one.
  *
  * Exported so the schedule is asserted rather than described.
  */
-export const SUBSCRIBE_RETRY_DELAYS_MS = [500, 1500, 3000] as const;
+export const SUBSCRIBE_RETRY_DELAYS_MS = [1000, 2000, 4000] as const;
+
+/**
+ * Emitted when the server says our view of the room is out of date.
+ *
+ * A subject rather than a direct call into the room service, because the two subscribe paths that
+ * can raise it (this one, and the Rust engine's) both live below anything that owns a snapshot.
+ */
+export interface StaleSubscription {
+    /** Whose track we asked for, when it is known. */
+    userId?: string;
+}
 
 /**
  * A publish that was rebuilt at a new resolution. The share id changed, so viewers have to be told
@@ -80,6 +97,9 @@ export class VoiceRTCService {
     readonly localScreenHasAudio = signal<boolean>(false);
     readonly localScreenAudioMuted = signal<boolean>(false);
     readonly screenEnded$ = new Subject<void>();
+    private readonly staleSubscriptionSignal = new Subject<StaleSubscription>();
+    /** "Your roster is out of date" - the room service refetches the snapshot and reconciles. */
+    readonly staleSubscription$ = this.staleSubscriptionSignal.asObservable();
     private guildVoiceSvc = inject(GuildVoiceService);
     private audioSettings = inject(AudioSettingsService);
     private rustMedia = inject(RustMediaService);
@@ -499,6 +519,14 @@ export class VoiceRTCService {
                 }
                 return;
             } catch (e) {
+                if (isStaleSubscription(e)) {
+                    // Not late - gone. The identical body fails again for as long as we keep
+                    // trying, which is the loop behind VNT-GE21R3P7. Nothing is recorded as
+                    // subscribed above, so the refetch below is free to try again properly.
+                    console.warn('[voice] subscribe refused as stale, refetching', {id});
+                    this.staleSubscriptionSignal.next({userId: target.userId});
+                    return;
+                }
                 if (attempt < SUBSCRIBE_RETRY_DELAYS_MS.length) {
                     // Expected, not exceptional. The backend announces a publisher the moment
                     // Cloudflare accepts their tracks/new, which is one SDP answer *before* they
@@ -572,6 +600,14 @@ export class VoiceRTCService {
                 this.subscribedVideoTracks.set(trackName, {mediaSessionId, userId});
                 if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
             } catch (e) {
+                if (isStaleSubscription(e)) {
+                    // The share stopped between the announcement and this request. Nothing is
+                    // recorded in subscribedVideoTracks - that happens only on success - so the
+                    // reconcile that follows the refetch can subscribe cleanly if it comes back.
+                    console.warn('[voice] video subscribe refused as stale, refetching', {trackName});
+                    this.staleSubscriptionSignal.next({userId});
+                    return;
+                }
                 console.error('[voice] video subscribe failed', {userId, trackName, kind}, e);
                 throw e;
             }

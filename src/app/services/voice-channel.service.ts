@@ -182,6 +182,10 @@ export class VoiceChannelService {
 
         this.guildWsSvc.voiceSnapshotObservable.subscribe(s => void this.applySnapshot(s));
         this.guildWsSvc.voiceResyncObservable.subscribe(e => void this.onResync(e));
+
+        // A subscribe the server refused as stale means the roster we acted on is out of date. The
+        // refetch is guarded against bursts, so several refusals in a row cost one read.
+        this.rtc.staleSubscription$.subscribe(() => void this.refetchSnapshot());
     }
 
     // ── Recovery ───────────────────────────────────────────────────────────────

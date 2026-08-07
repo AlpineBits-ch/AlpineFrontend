@@ -47,6 +47,28 @@ root for the same reason.
 
 ---
 
+## Stale subscriptions (incident VNT-GE21R3P7)
+
+A publisher that stopped a share without closing its tracks left it on the roster, so watchers did
+the right thing — read the snapshot, subscribed to `shares[]` — and got a 502 six seconds later.
+Retried every 5–6 seconds, that put voice on the status page.
+
+The server now removes the share on `ScreenShareStopped` and answers
+`409 {"error":"staleSubscription","action":"refetchSnapshot"}` immediately. On this client:
+
+- **`isStaleSubscription` (`models/voice-room.ts`) is the only place that decides.** It matches both
+  shapes: an `HttpErrorResponse` from the webview's own calls, and the marker string the Rust engine
+  returns for subscribes it made on our behalf. Rust tags it via `signalling::STALE_SUBSCRIPTION`
+  rather than by message text, so rewording an error cannot quietly turn the stale path back into a
+  retry loop.
+- **409 never retries.** The track is gone, not late, so the identical body can only fail again.
+  Both paths refetch the snapshot and reconcile; the refetch is guarded, so a burst of refusals
+  costs one read.
+- **Guards are released on failure, always.** Nothing is recorded as subscribed until the round trip
+  succeeds. A guard left consumed by a failure is the single most common way a transient error
+  becomes permanent silence.
+- **`SUBSCRIBE_RETRY_DELAYS_MS` is exponential from 1s**, for genuine transport failures only.
+
 ## Isle is the one place still speaking Cloudflare
 
 Isle proximity voice drives `CloudflareService` directly, has no room model, and was deliberately

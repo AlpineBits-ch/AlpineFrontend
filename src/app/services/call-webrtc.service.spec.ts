@@ -101,6 +101,10 @@ function setup() {
 
     const engineSubscribe = vi.fn(async () => undefined);
     const engineVolume = vi.fn(async () => undefined);
+    const getCallSnapshot = vi.fn(() => of({
+        roomId: 'call-1', kind: 'call', guildId: null,
+        instanceId: 'inst-1', version: 1, participants: [],
+    }));
     // Never resolves on its own - the test decides when the publication exists, which is the whole
     // window this covers.
     let resolveStart: (s: VoiceSession) => void = () => undefined;
@@ -132,10 +136,7 @@ function setup() {
                 useValue: {
                     cfCreateSession: vi.fn(() => of({mediaSessionId: 'cf-web', backend: 'cloudflare'})),
                     getCall: vi.fn(() => of({status: 'Connected', participants: [{userId: 'me'}]})),
-                    getCallSnapshot: vi.fn(() => of({
-                        roomId: 'call-1', kind: 'call', guildId: null,
-                        instanceId: 'inst-1', version: 1, participants: [],
-                    })),
+                    getCallSnapshot,
                 },
             },
             {provide: VoiceWebsocketService, useValue: {...ws, connectionState: () => 2, invokeVoiceHeartbeat: vi.fn(), invokeMuteChange: vi.fn(), invokeScreenShareStarted: vi.fn(), invokeScreenShareStopped: vi.fn()}},
@@ -165,7 +166,7 @@ function setup() {
     });
 
     const service = TestBed.inject(CallWebRtcService);
-    return {service, ws, engineSubscribe, engineVolume, resolveStart: (s: VoiceSession) => resolveStart(s)};
+    return {service, ws, engineSubscribe, engineVolume, getCallSnapshot, resolveStart: (s: VoiceSession) => resolveStart(s)};
 }
 
 const tick = (ms = 0) => new Promise<void>(r => setTimeout(r, ms));
@@ -223,6 +224,64 @@ describe('subscribing before the publication exists', () => {
         await subscribeAudio(service, 'them');
 
         expect(engineSubscribe).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * Incident VNT-GE21R3P7: a publisher stopped a share without closing its tracks, the roster kept
+ * listing it, and a watcher who did exactly the right thing - read the snapshot, subscribed to what
+ * was in `shares[]` - got `not_found_track_error` six seconds later. Retrying the identical body
+ * four times a minute put voice on the status page.
+ *
+ * The server now answers `409 staleSubscription` immediately. The client's job is to treat that as
+ * "my view of the room is out of date" rather than as something to retry.
+ */
+describe('a subscribe the server refuses as stale', () => {
+    const stale = {status: 409, error: {error: 'staleSubscription', action: 'refetchSnapshot'}};
+
+    it('refetches the snapshot instead of retrying', async () => {
+        const {service, engineSubscribe, getCallSnapshot, resolveStart} = setup();
+        resolveStart({slot: 'slot-1', mediaSessionId: 'cf-rust', trackName: 'audio'} as VoiceSession);
+        // connect() reads the snapshot itself once the transport is up; let that land before
+        // clearing, or it is indistinguishable from the refetch under test.
+        await tick();
+        engineSubscribe.mockRejectedValueOnce(stale);
+        getCallSnapshot.mockClear();
+
+        await subscribeAudio(service, 'them');
+
+        expect(getCallSnapshot).toHaveBeenCalled();
+        // The track is gone rather than late, so the identical body can only fail again.
+        expect(engineSubscribe).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * The guard is consumed on the way in, so leaving it set after a refusal means this participant
+     * is never subscribed to again - not when they republish, not on the next snapshot. That is the
+     * single most common way a transient failure becomes permanent silence.
+     */
+    it('releases the dedupe guard, so a republish can be subscribed to', async () => {
+        const {service, engineSubscribe, resolveStart} = setup();
+        resolveStart({slot: 'slot-1', mediaSessionId: 'cf-rust', trackName: 'audio'} as VoiceSession);
+        engineSubscribe.mockRejectedValueOnce(stale);
+
+        await subscribeAudio(service, 'them');
+        await subscribeAudio(service, 'them');
+
+        expect(engineSubscribe).toHaveBeenCalledTimes(2);
+    });
+
+    /** A 502 is a real transport failure, and must not be quietly converted into a refetch. */
+    it('does not refetch on a transport failure', async () => {
+        const {service, engineSubscribe, getCallSnapshot, resolveStart} = setup();
+        resolveStart({slot: 'slot-1', mediaSessionId: 'cf-rust', trackName: 'audio'} as VoiceSession);
+        await tick();
+        engineSubscribe.mockRejectedValueOnce({status: 502, error: {error: 'sfuRejected'}});
+        getCallSnapshot.mockClear();
+
+        await subscribeAudio(service, 'them');
+
+        expect(getCallSnapshot).not.toHaveBeenCalled();
     });
 });
 

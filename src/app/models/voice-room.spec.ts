@@ -6,7 +6,12 @@
  * refetch - the gap and the instance change - and the two cases where the frontend guide's printed
  * rule would silently discard real events.
  */
-import {describeTrack, VoiceRoomSnapshot, VoiceRoomTracker} from './voice-room';
+import {
+    describeTrack,
+    isStaleSubscription,
+    VoiceRoomSnapshot,
+    VoiceRoomTracker,
+} from './voice-room';
 
 function snapshot(instanceId: string, version: number): VoiceRoomSnapshot {
     return {roomId: 'chan-1', kind: 'channel', guildId: 'g', instanceId, version, participants: []};
@@ -126,6 +131,52 @@ describe('VoiceRoomTracker relay events', () => {
         expect(tracker.instanceId).toBeNull();
         expect(tracker.version).toBe(0);
         expect(tracker.receive({instanceId: 'inst-9', version: 1})).toBe('refetch');
+    });
+});
+
+/**
+ * The one failure that must not be retried. Getting this wrong in either direction is expensive:
+ * missing it reproduces incident VNT-GE21R3P7's retry loop, and over-matching turns an unrelated
+ * failure into a silent snapshot refetch that hides a real problem.
+ */
+describe('isStaleSubscription', () => {
+    it('recognises the 409 the server answers', () => {
+        expect(isStaleSubscription({
+            status: 409,
+            error: {error: 'staleSubscription', action: 'refetchSnapshot'},
+        })).toBe(true);
+    });
+
+    /** Some hosts hand the body back as text rather than parsed JSON. */
+    it('recognises it when the body arrives as a string', () => {
+        expect(isStaleSubscription({
+            status: 409,
+            error: '{"error":"staleSubscription"}',
+        })).toBe(true);
+    });
+
+    /** The Rust engine subscribes on our behalf and can only return a string. */
+    it('recognises the marker the Rust engine returns', () => {
+        expect(isStaleSubscription(
+            'staleSubscription: https://api/voice/tracks returned 409 Conflict: {...}')).toBe(true);
+    });
+
+    it('does not match a 409 that means something else', () => {
+        expect(isStaleSubscription({status: 409, error: {error: 'somethingElse'}})).toBe(false);
+    });
+
+    /**
+     * A 502 is a real transport failure and gets backed-off retries. Treating it as stale would
+     * replace a recoverable subscribe with a refetch that changes nothing.
+     */
+    it('does not match a 502', () => {
+        expect(isStaleSubscription({status: 502, error: {error: 'staleSubscription'}})).toBe(false);
+    });
+
+    it('does not match arbitrary failures', () => {
+        expect(isStaleSubscription(new Error('network down'))).toBe(false);
+        expect(isStaleSubscription(null)).toBe(false);
+        expect(isStaleSubscription(undefined)).toBe(false);
     });
 });
 

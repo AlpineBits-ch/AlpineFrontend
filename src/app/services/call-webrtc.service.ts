@@ -19,6 +19,7 @@ import {ScreenPickerService} from './screen-picker.service';
 import type {CallDto} from '../dtos/response/call.dto';
 import {
     describeTrack,
+    isStaleSubscription,
     VoiceEventDecision,
     VoiceEventEnvelope,
     VoiceRoomSnapshot,
@@ -386,6 +387,11 @@ export class CallWebRtcService {
                 await this.voiceEngine.setUserVolume(trackName, 0);
             }
         } catch (e) {
+            if (isStaleSubscription(e)) {
+                console.warn('[WebRTC] screen-audio subscribe refused as stale, refetching', {trackName});
+                void this.refetchSnapshot();
+                return;
+            }
             console.error('[WebRTC] screen-audio subscribe failed', {userId, trackName}, e);
         }
     }
@@ -682,11 +688,17 @@ export class CallWebRtcService {
                 const volume = this.userVolumes.get(userId);
                 if (volume !== undefined) await this.voiceEngine.setUserVolume(userId, volume);
             } catch (e) {
-                console.error('[WebRTC] audio subscribe failed', {userId, trackName}, e);
                 // Roll the guard back, exactly as the video path does below: every retry route -
                 // live ParticipantJoined, the syncParticipants backfill, the reconnect resync - is
                 // gated behind it, so leaving it consumed makes one failure permanent.
                 this.subscribedAudioUserIds.delete(userId);
+                if (isStaleSubscription(e)) {
+                    // Gone, not late. Refetch and reconcile; retrying the same body cannot succeed.
+                    console.warn('[WebRTC] audio subscribe refused as stale, refetching', {userId});
+                    void this.refetchSnapshot();
+                    return;
+                }
+                console.error('[WebRTC] audio subscribe failed', {userId, trackName}, e);
             }
             return;
         }
@@ -734,6 +746,14 @@ export class CallWebRtcService {
             this.subscribedVideoTracks.set(trackName, {mediaSessionId: remoteMediaSessionId, userId});
             this.processPendingTracks();
         } catch (e) {
+            if (isStaleSubscription(e)) {
+                // The share stopped between the announcement and this request. Nothing was recorded
+                // in subscribedVideoTracks - that happens only on success - so a reconcile after the
+                // refetch can subscribe cleanly if it comes back.
+                console.warn('[WebRTC] subscribe refused as stale, refetching', {trackName});
+                void this.refetchSnapshot();
+                return;
+            }
             console.error('[WebRTC] subscribeToTrack failed', {userId, trackName, kind}, e);
         }
     }

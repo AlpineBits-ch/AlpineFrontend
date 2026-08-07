@@ -4,6 +4,7 @@ import {ConversationStore} from '../stores/conversation.store';
 import {VoiceService} from './voice.service';
 import {AudioSettingsService} from './audio-settings.service';
 import {RustMediaService} from './rust-media.service';
+import {VoiceWebsocketService} from './voice-websocket.service';
 import {ScreenPickerService} from './screen-picker.service';
 import type {CallDto} from '../dtos/response/call.dto';
 import type {ActiveCallSession, CallParticipantUi, ScreenShareUi,} from './call-session.types';
@@ -60,6 +61,7 @@ export class CallSessionService {
     private audioSettings = inject(AudioSettingsService);
     private rustMedia = inject(RustMediaService);
     private screenPicker = inject(ScreenPickerService);
+    private voiceWs = inject(VoiceWebsocketService);
 
     // ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -185,9 +187,17 @@ export class CallSessionService {
             const localShare = s.screenShares.find(sh => sh.isLocal);
             localShare?.stream?.getTracks().forEach(t => t.stop());
             if (this.rustPublishing) {
-                // The publisher owns its own session and closes its own tracks.
+                // Both halves, per the contract: `tracks/close` releases the media on the SFU - the
+                // publisher does that itself as it tears down - and this tells the room. Sending
+                // only the close left `isStreaming` true and the viewer count scoped to a share
+                // nobody was watching; sending only this leaves the track alive on the SFU, which
+                // is egress we pay for. This path announced neither.
+                const stoppedShareId = localShare?.shareId;
                 await this.rustMedia.stopScreenPublish();
                 this.rustPublishing = false;
+                if (stoppedShareId && s.callId) {
+                    this.voiceWs.invokeScreenShareStopped(s.callId, stoppedShareId);
+                }
             } else {
                 void this.rustMedia.stopScreenCapture();
             }
@@ -288,6 +298,10 @@ export class CallSessionService {
                 ),
             );
             console.log(`[call] Rust publisher live on ${published.encoder}`, published);
+            // The backend raises TrackPublished from `tracks/new` on its own, so peers could always
+            // find the track - but nothing set `isStreaming` or opened the viewer-count scope,
+            // because only the webview publish path ever announced.
+            this.voiceWs.invokeScreenShareStarted(callId, shareId);
             this.rustAudioTrackName = published.audioTrackName;
             this.localScreenHasAudio.set(published.audioTrackName !== null);
             this.localScreenAudioMuted.set(false);

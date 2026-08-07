@@ -84,6 +84,7 @@ function setup(options: {inChannel?: boolean} = {}) {
         setPttOpen: vi.fn(),
         speakingChanges$: new Subject(),
         screenEnded$: new Subject(),
+        staleSubscription$: new Subject(),
         rtcState: () => 'connected',
         participantsWithAudio: () => new Set(),
         localVideoStream: () => null,
@@ -602,6 +603,42 @@ describe('version recovery', () => {
 
         expect(guildVoice.getSnapshot).toHaveBeenCalled();
         expect(service.joinedChannelId()).toBe('chan-1');
+    });
+});
+
+/**
+ * Incident VNT-GE21R3P7. A stale roster is the server's problem to stop producing; acting on it
+ * without retrying is ours. The refusal is not an error to back off from - the track is gone, not
+ * late - so the only useful response is to read the room again.
+ */
+describe('a subscribe the server refuses as stale', () => {
+    it('refetches the snapshot', async () => {
+        const {ws, rtc, guildVoice} = setup();
+
+        ws['voiceSnapshotObservable'].next(emptySnapshot('chan-1'));
+        await tick();
+        guildVoice.getSnapshot.mockClear();
+
+        rtc.staleSubscription$.next({userId: 'them'});
+        await tick();
+
+        expect(guildVoice.getSnapshot).toHaveBeenCalledWith('guild-1', 'chan-1');
+    });
+
+    /** Several refusals in a row are one stale roster, and cost one read. */
+    it('does not read the room once per refusal', async () => {
+        const {ws, rtc, guildVoice} = setup();
+
+        ws['voiceSnapshotObservable'].next(emptySnapshot('chan-1'));
+        await tick();
+        guildVoice.getSnapshot.mockClear();
+
+        rtc.staleSubscription$.next({userId: 'a'});
+        rtc.staleSubscription$.next({userId: 'b'});
+        rtc.staleSubscription$.next({userId: 'c'});
+        await tick();
+
+        expect(guildVoice.getSnapshot).toHaveBeenCalledTimes(1);
     });
 });
 

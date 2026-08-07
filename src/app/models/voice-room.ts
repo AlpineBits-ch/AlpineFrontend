@@ -90,6 +90,41 @@ export interface VoiceHeartbeatState {
     audioTrackName: string | null;
 }
 
+// ── Stale subscriptions ──────────────────────────────────────────────────────
+
+/**
+ * The server's word for "you subscribed to media nobody is publishing any more".
+ *
+ * Answered as `409 {"error":"staleSubscription","action":"refetchSnapshot"}` on `POST .../tracks`.
+ * The Rust engine surfaces the same condition as an error string carrying this token, because
+ * everything across the Tauri boundary is a plain string.
+ */
+export const STALE_SUBSCRIPTION = 'staleSubscription';
+
+/**
+ * Whether a failed subscribe means our view of the room is out of date.
+ *
+ * <p>Handles both shapes: an Angular `HttpErrorResponse` from the webview's own calls, and the
+ * error string the Rust voice engine returns for subscribes it made on our behalf.</p>
+ *
+ * <p>This is the one failure that must **not** be retried. The track is gone rather than late, so
+ * the identical body fails again for as long as the client keeps trying - which is exactly the loop
+ * behind incident VNT-GE21R3P7, where one publisher who stopped a share without closing its tracks
+ * produced four 502s a minute and put voice on the status page. The answer is to refetch the
+ * snapshot and reconcile against it.</p>
+ */
+export function isStaleSubscription(error: unknown): boolean {
+    if (typeof error === 'string') return error.includes(STALE_SUBSCRIPTION);
+
+    const status = (error as {status?: number} | null)?.status;
+    if (status !== 409) return false;
+
+    // The body is where the reason lives; a 409 from somewhere else must not be swallowed as this.
+    const body = (error as {error?: unknown} | null)?.error;
+    if (typeof body === 'string') return body.includes(STALE_SUBSCRIPTION);
+    return (body as {error?: string} | null)?.error === STALE_SUBSCRIPTION;
+}
+
 // ── Track naming ─────────────────────────────────────────────────────────────
 
 export type VoiceTrackKind = 'audio' | 'video' | 'screen' | 'screenAudio';
