@@ -10,12 +10,13 @@
 
 use std::collections::VecDeque;
 use std::mem::ManuallyDrop;
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use image::RgbaImage;
 use windows::core::Interface;
 use windows::Win32::Media::MediaFoundation::*;
+use windows::Win32::System::Com::CoIncrementMTAUsage;
 
 use super::encoder::{EncodeOutcome, EncodedChunk, EncoderSpec, VideoEncoder};
 use super::nv12;
@@ -26,14 +27,115 @@ use super::nv12;
 /// as a stall, so a wedged encoder is detected in a few frames rather than hanging capture.
 const FRAME_DEADLINE: Duration = Duration::from_millis(100);
 
+/// How long teardown waits for the transform to report that it has drained.
+///
+/// Longer than [`FRAME_DEADLINE`] because a drain has to flush frames the encoder is still holding,
+/// and it is paid once when a share stops or changes resolution rather than once per frame.
+const DRAIN_DEADLINE: Duration = Duration::from_millis(500);
+
 /// Media Foundation must be initialised once per process before any MF call.
 static MF_STARTED: OnceLock<bool> = OnceLock::new();
 
 fn ensure_mf_started() -> bool {
+    #[cfg(test)]
+    crash_reporter::install();
     *MF_STARTED.get_or_init(|| unsafe {
+        // Keep the process MTA alive before any MF call, for the same reason `media::loopback_win`
+        // does it - see the note there. A hardware MFT hands its work to MF's real-time work queue
+        // and calls back on threads it owns; those callbacks and our releases have to meet in an
+        // apartment that outlives both. cpal initialises COM as STA on whatever thread it touches,
+        // and a CoUninitialize anywhere can otherwise drop the last MTA reference for the process.
+        //
+        // Never decremented: the cookie is deliberately discarded.
+        let _ = CoIncrementMTAUsage();
         // NOSOCKET: we only ever run transforms locally, never the network source.
         MFStartup(MF_VERSION, MFSTARTUP_NOSOCKET).is_ok()
     })
+}
+
+/// Names the module an access violation came from, which is the one fact that separates "our bug"
+/// from "the driver fell over" - and the exit code alone gives neither.
+#[cfg(test)]
+mod crash_reporter {
+    use std::sync::OnceLock;
+    use windows::core::PCWSTR;
+    use windows::Win32::System::Diagnostics::Debug::{
+        AddVectoredExceptionHandler, RtlCaptureStackBackTrace, EXCEPTION_POINTERS,
+    };
+    use windows::Win32::System::Threading::GetCurrentThreadId;
+    use windows::Win32::System::LibraryLoader::{
+        GetModuleFileNameW, GetModuleHandleExW, GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
+        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+    };
+
+    const EXCEPTION_CONTINUE_SEARCH: i32 = 0;
+    const ACCESS_VIOLATION: i32 = 0xC000_0005u32 as i32;
+
+    static INSTALLED: OnceLock<()> = OnceLock::new();
+
+    /// Installed from `ensure_mf_started`, so it is in place before any Media Foundation call.
+    pub fn install() {
+        INSTALLED.get_or_init(|| unsafe {
+            AddVectoredExceptionHandler(1, Some(on_exception));
+        });
+    }
+
+    unsafe extern "system" fn on_exception(info: *mut EXCEPTION_POINTERS) -> i32 {
+        let Some(info) = info.as_ref() else {
+            return EXCEPTION_CONTINUE_SEARCH;
+        };
+        let Some(record) = info.ExceptionRecord.as_ref() else {
+            return EXCEPTION_CONTINUE_SEARCH;
+        };
+        if record.ExceptionCode.0 != ACCESS_VIOLATION {
+            return EXCEPTION_CONTINUE_SEARCH;
+        }
+
+        let address = record.ExceptionAddress as usize;
+        eprintln!(
+            "[crash] access violation at {address:#x} in {} on OS thread {}",
+            module_for(address),
+            GetCurrentThreadId(),
+        );
+
+        // The module names down the stack are what separate "the driver faulted on its own worker
+        // thread" from "we called into it wrong from ours" - and no exit code carries that.
+        let mut frames = [std::ptr::null_mut::<core::ffi::c_void>(); 24];
+        let captured = RtlCaptureStackBackTrace(0, &mut frames, None) as usize;
+        for (depth, frame) in frames[..captured].iter().enumerate() {
+            let addr = *frame as usize;
+            eprintln!("[crash]   #{depth:<2} {addr:#018x}  {}", module_for(addr));
+        }
+        if record.NumberParameters >= 2 {
+            let operation = match record.ExceptionInformation[0] {
+                0 => "read",
+                1 => "write",
+                8 => "execute",
+                _ => "access",
+            };
+            eprintln!("[crash] {operation} of {:#x}", record.ExceptionInformation[1]);
+        }
+        // Reported, not handled: the process must still die the way it would have.
+        EXCEPTION_CONTINUE_SEARCH
+    }
+
+    fn module_for(address: usize) -> String {
+        unsafe {
+            let mut module = Default::default();
+            if GetModuleHandleExW(
+                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                PCWSTR(address as *const u16),
+                &mut module,
+            )
+            .is_err()
+            {
+                return "<no module - freed code?>".to_owned();
+            }
+            let mut buffer = [0u16; 260];
+            let len = GetModuleFileNameW(module, &mut buffer) as usize;
+            String::from_utf16_lossy(&buffer[..len])
+        }
+    }
 }
 
 /// Pack two 32-bit values into the UINT64 layout MF uses for size and ratio attributes.
@@ -68,7 +170,12 @@ pub struct MediaFoundationEncoder {
 unsafe impl Send for MediaFoundationEncoder {}
 
 impl MediaFoundationEncoder {
-    pub fn new(spec: EncoderSpec) -> Option<Self> {
+    /// Module-private on purpose: everything outside goes through [`PooledEncoder`].
+    ///
+    /// A `MediaFoundationEncoder` must not be dropped, which is the crash this module is built
+    /// around, so the type that owns one has to be the type that knows not to destroy it. Keeping
+    /// this private is what stops a later caller reintroducing the fault by constructing one.
+    fn new(spec: EncoderSpec) -> Option<Self> {
         if spec.width % 2 != 0 || spec.height % 2 != 0 || spec.width == 0 || spec.height == 0 {
             return None;
         }
@@ -76,18 +183,195 @@ impl MediaFoundationEncoder {
             return None;
         }
 
-        for (activate, transform) in unsafe { enumerate_hardware_encoders() } {
-            match unsafe { Self::configure(activate.clone(), transform, spec) } {
-                Ok(encoder) => return Some(encoder),
+        for activate in unsafe { enumerate_hardware_encoders() } {
+            // Activated here, one at a time, so that returning below never leaves an encoder
+            // created-but-abandoned. See `enumerate_hardware_encoders`.
+            let transform = match unsafe { activate.ActivateObject::<IMFTransform>() } {
+                Ok(transform) => transform,
                 Err(e) => {
-                    eprintln!("[publisher] a hardware encoder failed to configure: {e}");
-                    // Released here rather than left to the drop below. An encoder we are not going
-                    // to use must go back to the driver now, or the next publish finds it busy.
-                    unsafe { let _ = activate.ShutdownObject(); }
+                    eprintln!("[publisher] a hardware encoder would not activate: {e}");
+                    continue;
+                }
+            };
+
+            // Which MFT this actually is. `MFT_ENUM_FLAG_HARDWARE` covers every vendor on the
+            // machine and the loop falls through to the next when one will not configure, so
+            // without this the log cannot tell "NVENC" from "NVENC refused, this is QuickSync" -
+            // and NVIDIA's encoder allows only two sessions per system, so that fallback is a
+            // normal occurrence rather than an edge case.
+            let name = unsafe { friendly_name(&activate) };
+
+            match unsafe { Self::configure(activate.clone(), transform, spec) } {
+                Ok(encoder) => {
+                    eprintln!("[publisher] hardware encoder: {name}");
+                    return Some(encoder);
+                }
+                Err(e) => {
+                    eprintln!("[publisher] {name} failed to configure: {e}");
+                    // An encoder we are not going to use must go back to the driver now. Releasing
+                    // the interface does not do it; only the shutdown does.
+                    unsafe {
+                        let _ = activate.ShutdownObject();
+                    }
                 }
             }
         }
         None
+    }
+
+    /// Set the codec parameters and both media types for `spec`.
+    ///
+    /// Split out of `configure` because it is also what a geometry change re-runs. The encoder is
+    /// never rebuilt for a new resolution: destroying a used NVIDIA MFT faults inside the driver's
+    /// own work queue, so the one that survives is the one we keep.
+    unsafe fn apply_spec(
+        transform: &IMFTransform,
+        codec_api: Option<&ICodecAPI>,
+        spec: EncoderSpec,
+    ) -> Result<(), String> {
+        if let Some(api) = &codec_api {
+                // Low latency matters more than compression efficiency for a live screen share: it
+                // caps how many frames the encoder may hold before emitting one.
+                let _ = api.SetValue(&CODECAPI_AVLowLatencyMode, &true.into());
+                let _ = api.SetValue(
+                    &CODECAPI_AVEncCommonRateControlMode,
+                    &(eAVEncCommonRateControlMode_CBR.0 as u32).into(),
+                );
+                let _ = api.SetValue(
+                    &CODECAPI_AVEncCommonMeanBitRate,
+                    &(spec.kbps.saturating_mul(1000)).into(),
+                );
+            }
+
+            // Output type must be set before input type on an encoder MFT.
+            let output = MFCreateMediaType().map_err(|e| e.to_string())?;
+            output
+                .SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)
+                .and_then(|_| output.SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_H264))
+                .and_then(|_| output.SetUINT32(&MF_MT_AVG_BITRATE, spec.kbps.saturating_mul(1000)))
+                .and_then(|_| output.SetUINT64(&MF_MT_FRAME_SIZE, pack(spec.width, spec.height)))
+                .and_then(|_| output.SetUINT64(&MF_MT_FRAME_RATE, pack(spec.fps.max(1), 1)))
+                .and_then(|_| output.SetUINT64(&MF_MT_PIXEL_ASPECT_RATIO, pack(1, 1)))
+                .and_then(|_| {
+                    output.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)
+                })
+                // Constrained Baseline: no B-frames, no CABAC, decodable by every browser. Higher
+                // profiles would compress better but B-frames add reordering latency we do not want.
+                .and_then(|_| {
+                    output.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_ConstrainedBase.0 as u32)
+                })
+                .map_err(|e| e.to_string())?;
+            transform
+                .SetOutputType(0, &output, 0)
+                .map_err(|e| format!("SetOutputType failed: {e}"))?;
+
+            // A periodic IDR, matching what the software encoder configures - and set *here*, after the
+            // output type, because that is the only point at which an encoder MFT will accept it.
+            //
+            // Without an IDR the picture never appears for anyone who was not watching from the first
+            // frame. Left to its defaults, and especially with low-latency mode on, a Media Foundation
+            // encoder emits one IDR at the start of the stream and then P-frames indefinitely. A viewer
+            // subscribes some time after a share begins, so they reliably miss that single IDR, and a
+            // decoder with no keyframe shows black. They cannot ask for one either: the RTCP a viewer
+            // sends to request a keyframe is read and discarded in `publisher::rtc`, so nothing on this
+            // side ever calls `request_keyframe`.
+            //
+            // It is invisible to the person sharing, whose own preview is drawn from the capture source
+            // rather than the encoded stream, and it reproduced only against the hardware encoder - the
+            // software path sets `intra_frame_period` and recovers within two seconds on its own.
+            //
+            // The outcome is logged rather than discarded. An earlier attempt set this in the block
+            // above, before `SetOutputType`, where an MFT rejects it: with the error swallowed by
+            // `let _ =`, that read exactly like a working fix and cost a whole build-and-test round to
+            // disprove. If a driver refuses it here, that has to be visible.
+            if let Some(api) = &codec_api {
+                let gop = spec.fps.max(1).saturating_mul(2);
+                match api.SetValue(&CODECAPI_AVEncMPVGOPSize, &gop.into()) {
+                    Ok(()) => eprintln!("[publisher] keyframe interval set to {gop} frames"),
+                    Err(e) => eprintln!(
+                        "[publisher] this encoder refused a {gop}-frame keyframe interval ({e}); \
+                         viewers who join mid-share may see nothing until it emits an IDR of its own"
+                    ),
+                }
+            }
+
+            let input = MFCreateMediaType().map_err(|e| e.to_string())?;
+            input
+                .SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)
+                .and_then(|_| input.SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_NV12))
+                .and_then(|_| input.SetUINT64(&MF_MT_FRAME_SIZE, pack(spec.width, spec.height)))
+                .and_then(|_| input.SetUINT64(&MF_MT_FRAME_RATE, pack(spec.fps.max(1), 1)))
+                .and_then(|_| input.SetUINT64(&MF_MT_PIXEL_ASPECT_RATIO, pack(1, 1)))
+                .and_then(|_| {
+                    input.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)
+                })
+                // Signal BT.709 explicitly to match the conversion in `nv12`; unsignalled, a decoder
+                // may assume BT.601 and render the stream with shifted colour.
+                .and_then(|_| {
+                    input.SetUINT32(&MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT709.0 as u32)
+                })
+                .map_err(|e| e.to_string())?;
+            transform
+                .SetInputType(0, &input, 0)
+                .map_err(|e| format!("SetInputType failed: {e}"))?;
+
+        Ok(())
+    }
+
+    /// Point an existing encoder at a new resolution, bitrate or frame rate.
+    ///
+    /// This exists instead of building a second encoder. Tearing a used NVIDIA MFT down faults on
+    /// the driver's own RTWorkQ thread - `RTWorkQ -> nvEncMFTH264x -> ntdll`, a write into a
+    /// critical section that has already been freed - and no ordering of DRAIN, FLUSH,
+    /// END_STREAMING or ShutdownObject avoids it, because the object is released either way. The
+    /// same crash is Mozilla bug 1754511, which they never fixed and worked around by not encoding
+    /// in that process at all.
+    ///
+    /// A retype has to happen with the transform out of streaming mode, and the input type has to
+    /// be cleared before the output type will move: an encoder MFT derives what input it accepts
+    /// from the output it has been asked to produce.
+    pub fn reconfigure(&mut self, spec: EncoderSpec) -> Result<(), String> {
+        if spec == self.spec {
+            return Ok(());
+        }
+        if spec.width % 2 != 0 || spec.height % 2 != 0 || spec.width == 0 || spec.height == 0 {
+            return Err(format!("{}x{} is not encodable", spec.width, spec.height));
+        }
+
+        unsafe {
+            let _ = self.transform.ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
+            let _ = self
+                .transform
+                .ProcessMessage(MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0);
+            let _ = self
+                .transform
+                .ProcessMessage(MFT_MESSAGE_NOTIFY_END_STREAMING, 0);
+
+            // Whatever the transform had posted describes frames at the old geometry.
+            if let Some(events) = self.events.clone() {
+                while events.GetEvent(MF_EVENT_FLAG_NO_WAIT).is_ok() {}
+            }
+
+            self.transform
+                .SetInputType(0, None, 0)
+                .map_err(|e| format!("could not clear the input type: {e}"))?;
+            Self::apply_spec(&self.transform, self.codec_api.as_ref(), spec)?;
+
+            self.transform
+                .ProcessMessage(MFT_MESSAGE_NOTIFY_BEGIN_STREAMING, 0)
+                .and_then(|_| {
+                    self.transform
+                        .ProcessMessage(MFT_MESSAGE_NOTIFY_START_OF_STREAM, 0)
+                })
+                .map_err(|e| format!("failed to restart streaming: {e}"))?;
+        }
+
+        // Frames still queued describe the old geometry and would be paired with the wrong
+        // timestamps, so they go with the configuration that produced them.
+        self.pending.clear();
+        self.inflight.clear();
+        self.spec = spec;
+        Ok(())
     }
 
     unsafe fn configure(
@@ -105,91 +389,7 @@ impl MediaFoundationEncoder {
         }
 
         let codec_api: Option<ICodecAPI> = transform.cast().ok();
-        if let Some(api) = &codec_api {
-            // Low latency matters more than compression efficiency for a live screen share: it
-            // caps how many frames the encoder may hold before emitting one.
-            let _ = api.SetValue(&CODECAPI_AVLowLatencyMode, &true.into());
-            let _ = api.SetValue(
-                &CODECAPI_AVEncCommonRateControlMode,
-                &(eAVEncCommonRateControlMode_CBR.0 as u32).into(),
-            );
-            let _ = api.SetValue(
-                &CODECAPI_AVEncCommonMeanBitRate,
-                &(spec.kbps.saturating_mul(1000)).into(),
-            );
-        }
-
-        // Output type must be set before input type on an encoder MFT.
-        let output = MFCreateMediaType().map_err(|e| e.to_string())?;
-        output
-            .SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)
-            .and_then(|_| output.SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_H264))
-            .and_then(|_| output.SetUINT32(&MF_MT_AVG_BITRATE, spec.kbps.saturating_mul(1000)))
-            .and_then(|_| output.SetUINT64(&MF_MT_FRAME_SIZE, pack(spec.width, spec.height)))
-            .and_then(|_| output.SetUINT64(&MF_MT_FRAME_RATE, pack(spec.fps.max(1), 1)))
-            .and_then(|_| output.SetUINT64(&MF_MT_PIXEL_ASPECT_RATIO, pack(1, 1)))
-            .and_then(|_| {
-                output.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)
-            })
-            // Constrained Baseline: no B-frames, no CABAC, decodable by every browser. Higher
-            // profiles would compress better but B-frames add reordering latency we do not want.
-            .and_then(|_| {
-                output.SetUINT32(&MF_MT_MPEG2_PROFILE, eAVEncH264VProfile_ConstrainedBase.0 as u32)
-            })
-            .map_err(|e| e.to_string())?;
-        transform
-            .SetOutputType(0, &output, 0)
-            .map_err(|e| format!("SetOutputType failed: {e}"))?;
-
-        // A periodic IDR, matching what the software encoder configures - and set *here*, after the
-        // output type, because that is the only point at which an encoder MFT will accept it.
-        //
-        // Without an IDR the picture never appears for anyone who was not watching from the first
-        // frame. Left to its defaults, and especially with low-latency mode on, a Media Foundation
-        // encoder emits one IDR at the start of the stream and then P-frames indefinitely. A viewer
-        // subscribes some time after a share begins, so they reliably miss that single IDR, and a
-        // decoder with no keyframe shows black. They cannot ask for one either: the RTCP a viewer
-        // sends to request a keyframe is read and discarded in `publisher::rtc`, so nothing on this
-        // side ever calls `request_keyframe`.
-        //
-        // It is invisible to the person sharing, whose own preview is drawn from the capture source
-        // rather than the encoded stream, and it reproduced only against the hardware encoder - the
-        // software path sets `intra_frame_period` and recovers within two seconds on its own.
-        //
-        // The outcome is logged rather than discarded. An earlier attempt set this in the block
-        // above, before `SetOutputType`, where an MFT rejects it: with the error swallowed by
-        // `let _ =`, that read exactly like a working fix and cost a whole build-and-test round to
-        // disprove. If a driver refuses it here, that has to be visible.
-        if let Some(api) = &codec_api {
-            let gop = spec.fps.max(1).saturating_mul(2);
-            match api.SetValue(&CODECAPI_AVEncMPVGOPSize, &gop.into()) {
-                Ok(()) => eprintln!("[publisher] keyframe interval set to {gop} frames"),
-                Err(e) => eprintln!(
-                    "[publisher] this encoder refused a {gop}-frame keyframe interval ({e}); \
-                     viewers who join mid-share may see nothing until it emits an IDR of its own"
-                ),
-            }
-        }
-
-        let input = MFCreateMediaType().map_err(|e| e.to_string())?;
-        input
-            .SetGUID(&MF_MT_MAJOR_TYPE, &MFMediaType_Video)
-            .and_then(|_| input.SetGUID(&MF_MT_SUBTYPE, &MFVideoFormat_NV12))
-            .and_then(|_| input.SetUINT64(&MF_MT_FRAME_SIZE, pack(spec.width, spec.height)))
-            .and_then(|_| input.SetUINT64(&MF_MT_FRAME_RATE, pack(spec.fps.max(1), 1)))
-            .and_then(|_| input.SetUINT64(&MF_MT_PIXEL_ASPECT_RATIO, pack(1, 1)))
-            .and_then(|_| {
-                input.SetUINT32(&MF_MT_INTERLACE_MODE, MFVideoInterlace_Progressive.0 as u32)
-            })
-            // Signal BT.709 explicitly to match the conversion in `nv12`; unsignalled, a decoder
-            // may assume BT.601 and render the stream with shifted colour.
-            .and_then(|_| {
-                input.SetUINT32(&MF_MT_YUV_MATRIX, MFVideoTransferMatrix_BT709.0 as u32)
-            })
-            .map_err(|e| e.to_string())?;
-        transform
-            .SetInputType(0, &input, 0)
-            .map_err(|e| format!("SetInputType failed: {e}"))?;
+        Self::apply_spec(&transform, codec_api.as_ref(), spec)?;
 
         let events: Option<IMFMediaEventGenerator> = if is_async {
             Some(transform.cast().map_err(|e| e.to_string())?)
@@ -398,26 +598,97 @@ impl VideoEncoder for MediaFoundationEncoder {
 impl Drop for MediaFoundationEncoder {
     fn drop(&mut self) {
         unsafe {
+            // Drain and *wait for the transform to say it has finished* before shutting it down.
+            //
+            // A hardware MFT is asynchronous in a stronger sense than "output arrives later": the
+            // driver runs its own work items on MF's real-time work queue, on threads we never see.
+            // Tearing the object down while those are in flight is what faulted - captured stack,
+            // on a thread that was not ours:
+            //
+            //     RTWorkQ.DLL -> nvEncMFTH264x.dll -> ntdll heap, write of 0x24
+            //
+            // The driver's worker was still completing into an object we had already shut down.
+            // Firing FLUSH and immediately calling ShutdownObject does not help, because none of
+            // those messages is a barrier - it only narrows the window, which is why the fault
+            // moved from round 12 to round 42 rather than going away.
+            //
+            // METransformDrainComplete is the barrier. It is the MFT telling us its queues are
+            // empty and its work items are done, and it is the only point at which shutting the
+            // object down is safe.
             let _ = self
                 .transform
                 .ProcessMessage(MFT_MESSAGE_NOTIFY_END_OF_STREAM, 0);
+            let _ = self.transform.ProcessMessage(MFT_MESSAGE_COMMAND_DRAIN, 0);
+
+            if let Some(events) = self.events.clone() {
+                let deadline = Instant::now() + DRAIN_DEADLINE;
+                let mut drained = false;
+                while Instant::now() < deadline {
+                    let Ok(event) = events.GetEvent(MF_EVENT_FLAG_NO_WAIT) else {
+                        std::thread::sleep(Duration::from_micros(200));
+                        continue;
+                    };
+                    match event.GetType().unwrap_or(0) {
+                        // Collected rather than ignored: each one holds a sample, and releasing
+                        // them through the transform is tidier than leaving them for the shutdown.
+                        x if x == METransformHaveOutput.0 as u32 => {
+                            let _ = self.collect_output();
+                        }
+                        x if x == METransformDrainComplete.0 as u32 => {
+                            drained = true;
+                            break;
+                        }
+                        _ => {}
+                    }
+                }
+                if !drained {
+                    // A transform that will not drain is already wedged. Flush is the blunter
+                    // instrument and at least tells it to abandon what it is holding.
+                    eprintln!("[publisher] the encoder did not drain; flushing instead");
+                    let _ = self.transform.ProcessMessage(MFT_MESSAGE_COMMAND_FLUSH, 0);
+                }
+            }
+
             let _ = self
                 .transform
                 .ProcessMessage(MFT_MESSAGE_NOTIFY_END_STREAMING, 0);
-            // After the stream messages, so the transform is idle before its backing object goes.
-            // This is what returns the encode session to the driver; releasing the interface alone
-            // does not, and the next publish would find the encoder still in use.
+
+            // Last, so the transform is idle and its queues are empty before the backing object
+            // goes. This is what returns the encode session to the driver; releasing the interface
+            // alone does not, and the next publish would find the encoder still in use.
             let _ = self.activate.ShutdownObject();
         }
     }
 }
 
-/// Every hardware H.264 encoder MF knows about, best first, each with the activate it came from.
+/// The display name of an encoder MFT, for the log.
+unsafe fn friendly_name(activate: &IMFActivate) -> String {
+    let mut text = windows::core::PWSTR::null();
+    let mut len = 0u32;
+    if activate
+        .GetAllocatedString(&MFT_FRIENDLY_NAME_Attribute, &mut text, &mut len)
+        .is_err()
+    {
+        return "<unnamed encoder>".to_owned();
+    }
+    let name = String::from_utf16_lossy(std::slice::from_raw_parts(text.0, len as usize));
+    windows::Win32::System::Com::CoTaskMemFree(Some(text.0 as *const _));
+    name
+}
+
+/// Every hardware H.264 encoder MF knows about, best first, as activation objects only.
 ///
-/// The activate is handed back rather than dropped here because it is the only handle that can
-/// shut the created object down, and every one of these has to be shut down whether or not it ends
-/// up being the encoder we keep.
-unsafe fn enumerate_hardware_encoders() -> Vec<(IMFActivate, IMFTransform)> {
+/// Deliberately *not* activated here. Activating an MFT takes an encode session from the driver,
+/// and this used to hand back live transforms for every encoder on the machine - three of them
+/// here - so that configuring the first one and returning left the other two activated and
+/// abandoned. They were released but never `ShutdownObject`ed, which is not the same thing: only
+/// the shutdown gives the session back. Each construction leaked two, and construction is what
+/// changing the share resolution does, so the sessions accumulated until the driver fell over
+/// inside its own heap.
+///
+/// The caller activates them one at a time and shuts down any it does not keep, so an encoder is
+/// only ever created if it is about to be tried.
+unsafe fn enumerate_hardware_encoders() -> Vec<IMFActivate> {
     let output = MFT_REGISTER_TYPE_INFO {
         guidMajorType: MFMediaType_Video,
         guidSubtype: MFVideoFormat_H264,
@@ -440,16 +711,98 @@ unsafe fn enumerate_hardware_encoders() -> Vec<(IMFActivate, IMFTransform)> {
         return Vec::new();
     }
 
-    let mut transforms = Vec::new();
+    let mut found = Vec::new();
     for i in 0..count as usize {
         if let Some(activate) = (*activates.add(i)).take() {
-            if let Ok(transform) = activate.ActivateObject::<IMFTransform>() {
-                transforms.push((activate, transform));
-            }
+            found.push(activate);
         }
     }
     windows::Win32::System::Com::CoTaskMemFree(Some(activates as *const _));
-    transforms
+    found
+}
+
+
+/// The one hardware encoder this process ever builds, parked here between shares.
+///
+/// It is never dropped. Destroying a used NVIDIA MFT faults inside the driver's own work queue -
+/// `RTWorkQ -> nvEncMFTH264x -> ntdll`, a write into a critical section that has already been
+/// freed - and no ordering of DRAIN, FLUSH, END_STREAMING or ShutdownObject prevents it, because
+/// the object is released either way. Measured: rebuilding per resolution faulted within 3 to 42
+/// rounds, while retyping one encoder in place survived 100 with no fault at all.
+///
+/// The same crash is Mozilla bug 1754511, which was never fixed upstream and which Firefox worked
+/// around by not encoding in that process at all.
+///
+/// Keeping it also sidesteps NVIDIA's session limit, which this machine reports at twelve: past it
+/// `SetOutputType` fails with 0xC00D6D76 and enumeration quietly falls through to another vendor's
+/// encoder, so an implementation that leaked sessions would silently stop using the GPU it chose.
+static PARKED: OnceLock<Mutex<Option<MediaFoundationEncoder>>> = OnceLock::new();
+
+fn parked() -> &'static Mutex<Option<MediaFoundationEncoder>> {
+    PARKED.get_or_init(|| Mutex::new(None))
+}
+
+/// A hardware encoder on loan from [`PARKED`], returned rather than destroyed when the share ends.
+///
+/// This is what the rest of the publisher sees, so nothing outside this module has to know that the
+/// encoder outlives the session using it.
+pub struct PooledEncoder(Option<MediaFoundationEncoder>);
+
+impl PooledEncoder {
+    /// The parked encoder retyped for `spec`, or a fresh one if none is parked.
+    pub fn acquire(spec: EncoderSpec) -> Option<Self> {
+        if let Ok(mut slot) = parked().lock() {
+            if let Some(mut encoder) = slot.take() {
+                match encoder.reconfigure(spec) {
+                    Ok(()) => return Some(Self(Some(encoder))),
+                    Err(e) => {
+                        // Park it again rather than dropping it: a transform that refused a retype
+                        // is in an unknown state, but destroying it is the one outcome known to
+                        // crash. A fresh encoder below costs a session; that is the cheaper risk.
+                        eprintln!("[publisher] the parked encoder refused a retype ({e}); building a new one");
+                        *slot = Some(encoder);
+                    }
+                }
+            }
+        }
+        MediaFoundationEncoder::new(spec).map(|e| Self(Some(e)))
+    }
+}
+
+impl VideoEncoder for PooledEncoder {
+    fn encode(&mut self, frame: &RgbaImage, timestamp_us: u64) -> EncodeOutcome {
+        match self.0.as_mut() {
+            Some(encoder) => encoder.encode(frame, timestamp_us),
+            None => EncodeOutcome::Failed,
+        }
+    }
+
+    fn request_keyframe(&mut self) {
+        if let Some(encoder) = self.0.as_mut() {
+            encoder.request_keyframe();
+        }
+    }
+
+    fn name(&self) -> &'static str {
+        "media-foundation"
+    }
+}
+
+impl Drop for PooledEncoder {
+    fn drop(&mut self) {
+        let Some(encoder) = self.0.take() else { return };
+        match parked().lock() {
+            // Parked, not destroyed. This is the whole point of the type.
+            Ok(mut slot) if slot.is_none() => *slot = Some(encoder),
+            // A second encoder exists because a retype was refused once. Only one can be parked,
+            // and letting this one drop would run exactly the teardown that crashes - so it is
+            // leaked deliberately. Bounded by how often a retype fails, which is ~never.
+            _ => {
+                eprintln!("[publisher] a spare hardware encoder is being retained rather than destroyed");
+                std::mem::forget(encoder);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -475,16 +828,16 @@ mod tests {
     #[test]
     fn rejects_odd_geometry() {
         // H.264 4:2:0 cannot represent an odd edge; accepting it would corrupt chroma.
-        assert!(MediaFoundationEncoder::new(spec(1921, 1080)).is_none());
-        assert!(MediaFoundationEncoder::new(spec(1920, 1081)).is_none());
-        assert!(MediaFoundationEncoder::new(spec(0, 0)).is_none());
+        assert!(PooledEncoder::acquire(spec(1921, 1080)).is_none());
+        assert!(PooledEncoder::acquire(spec(1920, 1081)).is_none());
+        assert!(PooledEncoder::acquire(spec(0, 0)).is_none());
     }
 
     /// Hardware encoding is machine-dependent: CI containers and VMs have no encoder, and that is
     /// a legitimate configuration rather than a failure. Where one exists, it must actually work.
     #[test]
     fn produces_annex_b_when_hardware_is_present() {
-        let Some(mut encoder) = MediaFoundationEncoder::new(spec(640, 360)) else {
+        let Some(mut encoder) = PooledEncoder::acquire(spec(640, 360)) else {
             eprintln!("no hardware H.264 encoder on this machine; skipping");
             return;
         };
@@ -511,7 +864,7 @@ mod tests {
 
     #[test]
     fn rejects_a_frame_that_does_not_match_its_geometry() {
-        let Some(mut encoder) = MediaFoundationEncoder::new(spec(640, 360)) else {
+        let Some(mut encoder) = PooledEncoder::acquire(spec(640, 360)) else {
             return;
         };
         // Geometry is fixed for the session; a mismatch is a broken contract, not a skip.
@@ -540,13 +893,150 @@ mod probe {
         assert!(ensure_mf_started(), "Media Foundation failed to start");
         let count = unsafe { enumerate_hardware_encoders() }.len();
         eprintln!("[probe] hardware H.264 encoder MFTs found: {count}");
-        let built = MediaFoundationEncoder::new(EncoderSpec {
+        let built = PooledEncoder::acquire(EncoderSpec {
             width: 640,
             height: 360,
             fps: 30,
             kbps: 4000,
         });
         eprintln!("[probe] encoder constructed: {}", built.is_some());
+    }
+
+
+    /// One encoder, the same total number of frames, never torn down until the end.
+    ///
+    /// The control for every teardown hypothesis. If this faults too, teardown is innocent and the
+    /// fault is about encoding volume rather than about create/destroy.
+    #[test]
+    #[ignore = "diagnostic probe"]
+    fn report_one_encoder_many_frames() {
+        let (w, h) = (1280u32, 720u32);
+        let Some(mut encoder) = MediaFoundationEncoder::new(EncoderSpec {
+            width: w,
+            height: h,
+            fps: 30,
+            kbps: 4000,
+        }) else {
+            eprintln!("[probe] no encoder");
+            return;
+        };
+        let frames: Vec<RgbaImage> = (0..4).map(|i| frame(w, h, i * 7)).collect();
+        for i in 0..6000u64 {
+            let _ = encoder.encode(&frames[i as usize % 4], i * 33_333);
+            if i % 1000 == 0 {
+                eprintln!("[probe] {i} frames through one encoder");
+            }
+        }
+        eprintln!("[probe] survived 6000 frames on one encoder");
+    }
+
+    /// Many encoders, each used, none ever dropped.
+    ///
+    /// The other control: if this faults, the fault is in construction or in having many live at
+    /// once, and no amount of care at teardown can reach it.
+    #[test]
+    #[ignore = "diagnostic probe"]
+    fn report_many_encoders_never_dropped() {
+        let mut kept = Vec::new();
+        for round in 0..100 {
+            let (w, h) = if round % 2 == 0 { (1280u32, 720u32) } else { (1920, 1080) };
+            let Some(mut encoder) = MediaFoundationEncoder::new(EncoderSpec {
+                width: w,
+                height: h,
+                fps: 30,
+                kbps: 4000,
+            }) else {
+                eprintln!("[probe] round {round}: no encoder would configure");
+                break;
+            };
+            let frames: Vec<RgbaImage> = (0..2).map(|i| frame(w, h, i * 7)).collect();
+            for i in 0..60u64 {
+                let _ = encoder.encode(&frames[i as usize % 2], i * 33_333);
+            }
+            eprintln!("[probe] round {round}: {w}x{h} encoded, keeping it alive");
+            kept.push(encoder);
+        }
+        eprintln!("[probe] survived {} live encoders", kept.len());
+        std::mem::forget(kept);
+    }
+
+    /// One encoder, retyped between resolutions instead of rebuilt.
+    ///
+    /// The control this is measured against is `report_repeated_construction`, which does the same
+    /// work by building a new encoder each round and faults inside the driver within a few dozen
+    /// rounds. If a retype is accepted and this survives, a resolution change never has to destroy
+    /// an encoder at all.
+    #[test]
+    #[ignore = "diagnostic probe"]
+    fn report_retype_instead_of_rebuild() {
+        let Some(mut encoder) = MediaFoundationEncoder::new(EncoderSpec {
+            width: 1280,
+            height: 720,
+            fps: 30,
+            kbps: 4000,
+        }) else {
+            eprintln!("[probe] no encoder");
+            return;
+        };
+
+        for round in 0..100 {
+            let (w, h) = if round % 2 == 0 { (1920u32, 1080u32) } else { (1280, 720) };
+            if let Err(e) = encoder.reconfigure(EncoderSpec {
+                width: w,
+                height: h,
+                fps: 30,
+                kbps: 4000,
+            }) {
+                eprintln!("[probe] round {round}: retype to {w}x{h} REFUSED: {e}");
+                return;
+            }
+
+            let frames: Vec<RgbaImage> = (0..2).map(|i| frame(w, h, i * 7)).collect();
+            let mut out = 0usize;
+            for i in 0..60u64 {
+                if let EncodeOutcome::Chunk(_) = encoder.encode(&frames[i as usize % 2], i * 33_333) {
+                    out += 1;
+                }
+            }
+            eprintln!("[probe] round {round}: retyped to {w}x{h}, {out}/60 chunks");
+        }
+        eprintln!("[probe] survived 100 retypes on one encoder");
+    }
+
+    /// Repeated construct-encode-drop, which is what changing the share resolution does.
+    ///
+    /// The encoding is the point. An earlier version of this probe constructed and dropped 40
+    /// encoders without feeding them a single frame and never once faulted - a transform with
+    /// nothing in flight has nothing to race with when it is torn down.
+    #[test]
+    #[ignore = "diagnostic probe"]
+    fn report_repeated_construction() {
+        eprintln!("[probe] test runs on OS thread {}", unsafe {
+            windows::Win32::System::Threading::GetCurrentThreadId()
+        });
+        for round in 0..100 {
+            let (w, h) = if round % 2 == 0 { (1280u32, 720u32) } else { (1920, 1080) };
+            let Some(mut encoder) = MediaFoundationEncoder::new(EncoderSpec {
+                width: w,
+                height: h,
+                fps: 30,
+                kbps: 4000,
+            }) else {
+                eprintln!("[probe] round {round}: no encoder");
+                continue;
+            };
+
+            let frames: Vec<RgbaImage> = (0..4).map(|i| frame(w, h, i * 7)).collect();
+            let mut out = 0usize;
+            for i in 0..60u64 {
+                if let EncodeOutcome::Chunk(_) = encoder.encode(&frames[i as usize % 4], i * 33_333) {
+                    out += 1;
+                }
+            }
+            eprintln!("[probe] round {round}: {w}x{h}, {out}/60 chunks, dropping with output in flight");
+            drop(encoder);
+        }
+        eprintln!("[probe] survived 100 rounds");
     }
 
     /// What one frame costs at each resolution this client offers.
@@ -563,7 +1053,9 @@ mod probe {
     #[test]
     fn report_the_cost_of_a_frame_at_each_resolution() {
         for (w, h) in [(1280u32, 720u32), (1920, 1080), (2560, 1440), (3840, 2160)] {
-            let Some(mut encoder) = MediaFoundationEncoder::new(EncoderSpec {
+            // Through the pool, so the sweep retypes one encoder instead of building and
+            // destroying four - which is the fault this module is built around.
+            let Some(mut encoder) = PooledEncoder::acquire(EncoderSpec {
                 width: w,
                 height: h,
                 fps: 30,

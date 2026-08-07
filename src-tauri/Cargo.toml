@@ -235,6 +235,12 @@ windows = { version = "0.58", features = [
     # `AttachConsole`, so a release build started from a terminal can still be read - see the note
     # over `attach_parent_console` in src/main.rs.
     "Win32_System_Console",
+    # AddVectoredExceptionHandler + GetModuleFileNameW, so an access violation names the module it
+    # faulted in instead of only its exit code - see `crash_reporter` in media/publisher/encoder_mf.
+    "Win32_System_Diagnostics_Debug",
+    # AddVectoredExceptionHandler and EXCEPTION_POINTERS are gated behind this, not behind Debug.
+    "Win32_System_Kernel",
+    "Win32_System_LibraryLoader",
     "Win32_System_Registry",
     # PrintWindow lives here, oddly - see media/screen_thumb.rs.
     "Win32_Storage_Xps",

@@ -23,7 +23,7 @@ pub enum EncodeOutcome {
 }
 
 /// Geometry and rate an encoder is built for. Fixed for the life of a session.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct EncoderSpec {
     pub width: u32,
     pub height: u32,
@@ -49,7 +49,10 @@ pub trait VideoEncoder: Send {
 fn new_hardware_encoder(spec: EncoderSpec) -> Option<Box<dyn VideoEncoder>> {
     #[cfg(target_os = "windows")]
     {
-        return super::encoder_mf::MediaFoundationEncoder::new(spec)
+        // Pooled, not constructed. The hardware encoder is parked between shares and retyped for
+        // new geometry rather than rebuilt, because destroying a used one crashes inside the
+        // driver - see `encoder_mf::PARKED`.
+        return super::encoder_mf::PooledEncoder::acquire(spec)
             .map(|e| Box::new(e) as Box<dyn VideoEncoder>);
     }
     #[cfg(not(target_os = "windows"))]
