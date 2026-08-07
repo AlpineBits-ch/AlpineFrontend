@@ -1344,7 +1344,6 @@ mod tests {
             level,
             level_db: crate::media::voice::gate::dbfs(level),
             threshold_db: -50.0,
-            ..ChainStatus::default()
         }
     }
 

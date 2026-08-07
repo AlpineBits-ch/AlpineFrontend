@@ -241,6 +241,10 @@ windows = { version = "0.58", features = [
     # AddVectoredExceptionHandler and EXCEPTION_POINTERS are gated behind this, not behind Debug.
     "Win32_System_Kernel",
     "Win32_System_LibraryLoader",
+    # CreatePipe, for taking over stderr - see src/logging.rs.
+    "Win32_System_Pipes",
+    # GetLocalTime, so log lines carry a timestamp without pulling in a date crate.
+    "Win32_System_SystemInformation",
     "Win32_System_Registry",
     # PrintWindow lives here, oddly - see media/screen_thumb.rs.
     "Win32_Storage_Xps",

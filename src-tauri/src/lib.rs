@@ -1,3 +1,9 @@
+/// Names the faulting module when the process dies on an access violation. See the module.
+#[cfg(windows)]
+mod crash_reporter;
+/// Tees stderr into a rotating log file. See the module.
+mod logging;
+
 mod crypto;
 
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
@@ -341,6 +347,14 @@ async fn send_windows_toast(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Before anything else has a chance to print. `attach_parent_console` has already run in
+    // `main`, so the console handle this borrows is the real one.
+    if let Some(path) = logging::start() {
+        eprintln!("[venta] logging to {}", path.display());
+    }
+    #[cfg(windows)]
+    crash_reporter::install();
+
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_deep_link::init())
         .setup(|_app| {

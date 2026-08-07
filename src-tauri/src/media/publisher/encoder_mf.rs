@@ -37,8 +37,9 @@ const DRAIN_DEADLINE: Duration = Duration::from_millis(500);
 static MF_STARTED: OnceLock<bool> = OnceLock::new();
 
 fn ensure_mf_started() -> bool {
-    #[cfg(test)]
-    crash_reporter::install();
+    // Also installed from `run()`, but idempotent and cheap - and the tests never go through
+    // `run()`, so this is what covers them.
+    crate::crash_reporter::install();
     *MF_STARTED.get_or_init(|| unsafe {
         // Keep the process MTA alive before any MF call, for the same reason `media::loopback_win`
         // does it - see the note there. A hardware MFT hands its work to MF's real-time work queue
@@ -51,91 +52,6 @@ fn ensure_mf_started() -> bool {
         // NOSOCKET: we only ever run transforms locally, never the network source.
         MFStartup(MF_VERSION, MFSTARTUP_NOSOCKET).is_ok()
     })
-}
-
-/// Names the module an access violation came from, which is the one fact that separates "our bug"
-/// from "the driver fell over" - and the exit code alone gives neither.
-#[cfg(test)]
-mod crash_reporter {
-    use std::sync::OnceLock;
-    use windows::core::PCWSTR;
-    use windows::Win32::System::Diagnostics::Debug::{
-        AddVectoredExceptionHandler, RtlCaptureStackBackTrace, EXCEPTION_POINTERS,
-    };
-    use windows::Win32::System::Threading::GetCurrentThreadId;
-    use windows::Win32::System::LibraryLoader::{
-        GetModuleFileNameW, GetModuleHandleExW, GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS,
-        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-    };
-
-    const EXCEPTION_CONTINUE_SEARCH: i32 = 0;
-    const ACCESS_VIOLATION: i32 = 0xC000_0005u32 as i32;
-
-    static INSTALLED: OnceLock<()> = OnceLock::new();
-
-    /// Installed from `ensure_mf_started`, so it is in place before any Media Foundation call.
-    pub fn install() {
-        INSTALLED.get_or_init(|| unsafe {
-            AddVectoredExceptionHandler(1, Some(on_exception));
-        });
-    }
-
-    unsafe extern "system" fn on_exception(info: *mut EXCEPTION_POINTERS) -> i32 {
-        let Some(info) = info.as_ref() else {
-            return EXCEPTION_CONTINUE_SEARCH;
-        };
-        let Some(record) = info.ExceptionRecord.as_ref() else {
-            return EXCEPTION_CONTINUE_SEARCH;
-        };
-        if record.ExceptionCode.0 != ACCESS_VIOLATION {
-            return EXCEPTION_CONTINUE_SEARCH;
-        }
-
-        let address = record.ExceptionAddress as usize;
-        eprintln!(
-            "[crash] access violation at {address:#x} in {} on OS thread {}",
-            module_for(address),
-            GetCurrentThreadId(),
-        );
-
-        // The module names down the stack are what separate "the driver faulted on its own worker
-        // thread" from "we called into it wrong from ours" - and no exit code carries that.
-        let mut frames = [std::ptr::null_mut::<core::ffi::c_void>(); 24];
-        let captured = RtlCaptureStackBackTrace(0, &mut frames, None) as usize;
-        for (depth, frame) in frames[..captured].iter().enumerate() {
-            let addr = *frame as usize;
-            eprintln!("[crash]   #{depth:<2} {addr:#018x}  {}", module_for(addr));
-        }
-        if record.NumberParameters >= 2 {
-            let operation = match record.ExceptionInformation[0] {
-                0 => "read",
-                1 => "write",
-                8 => "execute",
-                _ => "access",
-            };
-            eprintln!("[crash] {operation} of {:#x}", record.ExceptionInformation[1]);
-        }
-        // Reported, not handled: the process must still die the way it would have.
-        EXCEPTION_CONTINUE_SEARCH
-    }
-
-    fn module_for(address: usize) -> String {
-        unsafe {
-            let mut module = Default::default();
-            if GetModuleHandleExW(
-                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                PCWSTR(address as *const u16),
-                &mut module,
-            )
-            .is_err()
-            {
-                return "<no module - freed code?>".to_owned();
-            }
-            let mut buffer = [0u16; 260];
-            let len = GetModuleFileNameW(module, &mut buffer) as usize;
-            String::from_utf16_lossy(&buffer[..len])
-        }
-    }
 }
 
 /// Pack two 32-bit values into the UINT64 layout MF uses for size and ratio attributes.
@@ -197,8 +113,8 @@ impl MediaFoundationEncoder {
             // Which MFT this actually is. `MFT_ENUM_FLAG_HARDWARE` covers every vendor on the
             // machine and the loop falls through to the next when one will not configure, so
             // without this the log cannot tell "NVENC" from "NVENC refused, this is QuickSync" -
-            // and NVIDIA's encoder allows only two sessions per system, so that fallback is a
-            // normal occurrence rather than an edge case.
+            // and NVIDIA's encoder runs out of sessions (twelve, measured on this machine) and
+            // starts refusing, so that fallback is a normal occurrence rather than an edge case.
             let name = unsafe { friendly_name(&activate) };
 
             match unsafe { Self::configure(activate.clone(), transform, spec) } {
