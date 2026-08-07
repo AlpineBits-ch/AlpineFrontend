@@ -272,6 +272,10 @@ export class RustMediaService {
             guildId: options.guildId ?? null,
             channelId: options.channelId ?? null,
             callId: options.callId ?? null,
+            // Defaulted rather than passed straight through: the picker is the only thing that sets
+            // it, and a caller that builds options by hand would otherwise fail the whole publish on
+            // a missing key rather than simply sharing without audio.
+            shareAudio: options.shareAudio ?? false,
         });
     }
 
