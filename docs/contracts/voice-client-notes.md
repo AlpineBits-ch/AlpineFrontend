@@ -19,6 +19,7 @@ and what is still outstanding on our side.
 | HTTP surfaces | `guild-voice.service.ts`, `voice.service.ts` |
 | SignalR surfaces | `guild-websocket.service.ts`, `voice-websocket.service.ts` |
 | Rust publisher signalling | `src-tauri/src/media/publisher/signalling.rs` |
+| Screen-share audio capture and encode | `src-tauri/src/media/publisher/audio.rs` |
 
 ---
 
@@ -69,14 +70,32 @@ reason; nothing else does.
 
 ---
 
+## Screen-share audio
+
+Published from Rust since `7317490`. `media/audio.rs` exposes a `LoopbackSink` so captured system
+audio reaches Rust as PCM instead of only the webview as base64; `publisher/audio.rs` frames it at
+20 ms and Opus-encodes it; `publisher/rtc.rs` publishes it as a second track in the **same**
+`tracks/new` as the video.
+
+Things worth knowing before changing it:
+
+- **Capture starts before the publication.** A machine with no usable loopback device publishes a
+  video-only share rather than announcing a track that will never carry anything — viewers read
+  `shares[].trackNames`, and a silent announced track is worse than none. `PublishResult` reports
+  what was published, not what was asked for; drive the UI from that.
+- **`VoiceEncoder::for_shared_media`**, not the voice configuration. `Application::Audio` because
+  VoIP mode sounds hollow on anything that is not a voice; DTX off because it decides "silence" from
+  a speech model and clips quiet passages; FEC off because those bits are better spent on the band.
+- **Mute stops packets, not the device.** Restarting a WASAPI client is audible as a gap on unmute.
+  Audio captured while muted is dropped rather than buffered — replaying it seconds late is worse.
+- **DM screen share is still the webview path**, which has always published its own audio via
+  `getDisplayMedia`. Only the guild path uses the Rust publisher today.
+
 ## Outstanding on the client
 
-- **Screen-share audio is not published.** `screen-audio-{shareId}` is handled on receive for guild
-  channels, but the Rust screen publisher is video-only, so nothing produces the track. The DM
-  receive path skips it explicitly rather than mis-subscribing it as video.
-- **`call-webrtc.service.ts:subscribeToTrack` drops silently when `voiceSession` is null.** The
-  post-connect snapshot refetch narrows the window, but a live announcement arriving inside it is
-  still lost until the next snapshot. The guild path solved this with `awaitSession()`; port it.
+- **DM receive skips `screenAudio`.** `call-webrtc.service.ts` explicitly ignores that kind rather
+  than mis-subscribing it as video, because the call UI has no per-stream audio control and the
+  mixer source would have nothing driving it. Guild receive handles it.
 - **Isle is not on the room contract** and will stay a third implementation until someone decides
   otherwise.
 
