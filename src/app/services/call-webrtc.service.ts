@@ -17,6 +17,12 @@ import {AudioSettingsService} from './audio-settings.service';
 import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
 import type {CallDto} from '../dtos/response/call.dto';
+import {
+    describeTrack,
+    VoiceEventEnvelope,
+    VoiceRoomSnapshot,
+    VoiceRoomTracker,
+} from '../models/voice-room';
 import {DEFAULT_STREAM_PRESET, StreamPreset} from '../models/stream-preset';
 import {
     applyScreenEncoding,
@@ -118,6 +124,20 @@ export class CallWebRtcService {
     // safe to call more than once for the same user (the live ParticipantJoined
     // event and a reconcile-on-reconnect backfill can race for the same user).
     private readonly subscribedAudioUserIds = new Set<string>();
+    // Remote video/screen track name → the session it is pulled from, and whose it is.
+    //
+    // The audio path has had a dedupe guard all along; video never did, because the only route to it
+    // was the live TrackPublished event. The snapshot backfill covers the same tracks, so without
+    // this a viewer present when a share starts subscribes twice and leaks a transceiver per
+    // snapshot. A *different* session id for the same name is a republish and a real resubscribe.
+    private readonly subscribedVideoTracks = new Map<string, { cfSessionId: string; userId: string }>();
+    /**
+     * `instanceId` and `version` for this call, and the decision procedure for every event about
+     * it. See {@link VoiceRoomTracker}.
+     */
+    private readonly tracker = new VoiceRoomTracker();
+    private refetchInFlight = false;
+    private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
     private prevConnState: ConnectionState | null = null;
     // Per-user volume overrides (0–1.0), persisted for the call duration
     private readonly userVolumes = new Map<string, number>();
@@ -324,6 +344,15 @@ export class CallWebRtcService {
         void this.voiceEngine.setMute(isMuted);
         this.setPttOpen(this.callSession.pttGateOpen());
 
+        // Read the room again now that there is something to subscribe *on*. The snapshot pushed at
+        // join arrives before the peer connection and the Rust session exist, so its screen shares
+        // would otherwise be dropped on the floor - the same ordering trap the guild path has.
+        void this.refetchSnapshot();
+
+        // Liveness *and* repair: this is what lets the server correct its record of what we are
+        // publishing and re-announce it to peers. The call path has never sent one.
+        this.heartbeatTimer = setInterval(() => this.sendHeartbeat(), 30_000);
+
         this.startStatsPolling();
     }
 
@@ -339,6 +368,14 @@ export class CallWebRtcService {
 
     private disconnect(): void {
         this.stopStatsPolling();
+        if (this.heartbeatTimer !== null) {
+            clearInterval(this.heartbeatTimer);
+            this.heartbeatTimer = null;
+        }
+        // The next call starts from nothing. Two rooms have unrelated counters, and carrying one
+        // across would make the first event of the new call read as a gap or as stale depending on
+        // which way the numbers happened to fall.
+        this.tracker.reset();
         // Only this call. Isle proximity voice may be running on the same microphone and must
         // survive hanging up.
         if (this.voiceSession) void this.voiceEngine.stop(this.voiceSession);
@@ -361,6 +398,7 @@ export class CallWebRtcService {
         this.midMap.clear();
         this.userVolumes.clear();
         this.subscribedAudioUserIds.clear();
+        this.subscribedVideoTracks.clear();
         this.pendingTracks.length = 0;
         this.negotiationChain = Promise.resolve();
         this.wsSubs = [];
@@ -566,6 +604,9 @@ export class CallWebRtcService {
             return;
         }
         if (!this.pc) return;
+        // Same dedupe reasoning as the audio guard above, keyed on (track, publishing session) so a
+        // republish on a new session still resubscribes. Claimed only on success, below.
+        if (this.subscribedVideoTracks.get(trackName)?.cfSessionId === remoteCfSessionId) return;
         // Everything below is a network round trip (or more than one, via CF
         // renegotiation) that can throw or transiently fail -most likely on a cold
         // app start (fresh CF session, cold DNS/TLS). If we don't roll back the
@@ -600,6 +641,10 @@ export class CallWebRtcService {
             }
             console.log('[WebRTC] midMap set', mid, '→', {userId, kind});
             this.midMap.set(mid, {userId, kind, shareId});
+            // Recorded only once it worked, for the same reason the audio guard is rolled back on
+            // failure: claiming it early would make every later retry skip the one thing that could
+            // have recovered the track.
+            this.subscribedVideoTracks.set(trackName, {cfSessionId: remoteCfSessionId, userId});
             this.processPendingTracks();
         } catch (e) {
             console.error('[WebRTC] subscribeToTrack failed', {userId, trackName, kind}, e);
@@ -706,15 +751,17 @@ export class CallWebRtcService {
     // ── Authoritative state reconciliation ────────────────────────────────────
 
     /**
-     * Fetches the current call state and reconciles: subscribes to any
-     * participant's audio track we never heard about (subscribeToTrack's
-     * dedupe guard makes this safe against a live event having already
-     * handled it), removes participants who are no longer in the call, and
-     * hangs up locally if the call ended -or we were removed- while we
-     * weren't listening. Called once at connect() (covers joining a call
-     * already in progress) and on every SignalR reconnect (covers events
-     * dropped during the gap, since SignalR doesn't queue undelivered
-     * messages for a lapsed connection).
+     * Checks the ring lifecycle and reconciles media against the room snapshot.
+     *
+     * <p>Two reads, because they answer different questions and only one of them has media in it.
+     * `getCall` carries the ring state - was the call completed or rejected, are we still an invited
+     * participant - and no media handles at all. `getCallSnapshot` carries who is pullable, on which
+     * session, and which screen-share tracks are live. The old code did the whole job from the call
+     * DTO, which is why it could restore audio and never a screen share.</p>
+     *
+     * <p>Called once at connect() (covers joining a call already in progress) and on every SignalR
+     * reconnect (covers events dropped during the gap, since SignalR does not queue undelivered
+     * messages for a lapsed connection).</p>
      */
     private async syncParticipants(): Promise<void> {
         const callId = this.callId;
@@ -749,20 +796,131 @@ export class CallWebRtcService {
             return;
         }
 
-        const freshIds = new Set(fresh.participants.map(p => p.userId));
+        await this.refetchSnapshot();
+    }
+
+    // ── Recovery ──────────────────────────────────────────────────────────────
+
+    /**
+     * Decide what an arriving event means, and act on it.
+     *
+     * <p>Events for a different call are ignored outright rather than gated - this client is only
+     * ever in one call, so anything else is stale routing.</p>
+     */
+    private gate(event: VoiceEventEnvelope, apply: () => void): void {
+        switch (this.tracker.receive(event)) {
+            case 'apply':
+                apply();
+                return;
+            case 'ignore':
+                return;
+            case 'refetch':
+                void this.refetchSnapshot();
+                return;
+        }
+    }
+
+    /**
+     * Read the room's authoritative state again.
+     *
+     * <p>Best-effort: a failed read is covered by the next heartbeat, which asserts a version the
+     * server disagrees with and gets a snapshot pushed back.</p>
+     */
+    private async refetchSnapshot(): Promise<void> {
+        const callId = this.callId;
+        if (!callId || this.refetchInFlight) return;
+
+        this.refetchInFlight = true;
+        try {
+            const snapshot = await firstValueFrom(this.voiceService.getCallSnapshot(callId));
+            if (this.callId !== callId) return;
+            this.applySnapshot(snapshot);
+        } catch (err) {
+            console.error('[WebRTC] snapshot refetch failed', err);
+        } finally {
+            this.refetchInFlight = false;
+        }
+    }
+
+    /**
+     * Take the snapshot and reconcile media against it.
+     *
+     * <p>This replaces the bespoke caller-side replay the call path grew: the snapshot carries the
+     * media handles the old response shape withheld, so one read restores every subscription -
+     * including screen shares, which nothing could restore before, because the track name is a UUID
+     * chosen by the publisher and appeared in no state a joiner could read.</p>
+     */
+    private applySnapshot(snapshot: VoiceRoomSnapshot): void {
+        if (snapshot.roomId !== this.callId) return;
+        this.tracker.applySnapshot(snapshot);
+
+        const s = this.callSession.session();
+        if (!s) return;
+        const ownId = s.participants.find(p => p.isLocal)?.userId;
+
+        const present = new Set(snapshot.participants.map(p => p.userId));
         for (const p of s.participants) {
-            if (!p.isLocal && !freshIds.has(p.userId)) {
+            if (!p.isLocal && !present.has(p.userId)) {
                 this.callSession.onParticipantLeft(p.userId);
                 this.subscribedAudioUserIds.delete(p.userId);
+                for (const [name, held] of this.subscribedVideoTracks) {
+                    if (held.userId === p.userId) this.subscribedVideoTracks.delete(name);
+                }
                 void this.dropSource(p.userId);
             }
         }
 
-        for (const p of fresh.participants) {
-            if (p.userId === ownId || !p.cfSessionId || !p.audioTrackName) continue;
+        for (const p of snapshot.participants) {
+            if (p.userId === ownId) continue;
             this.callSession.onParticipantJoined(p.userId);
-            void this.subscribeToTrack(p.userId, p.cfSessionId, p.audioTrackName, 'audio');
+            // A session id alone is not an invitation to subscribe: `Joined` means a session exists
+            // and a microphone track does not, so the pull fails and burns the retry budget.
+            if (p.publishState !== 'Publishing' || !p.cfSessionId || !p.audioTrackName) continue;
+
+            const cfSessionId = p.cfSessionId;
+            void this.subscribeToTrack(p.userId, cfSessionId, p.audioTrackName, 'audio');
+
+            for (const share of p.shares) {
+                for (const trackName of share.trackNames) {
+                    const {kind} = describeTrack(trackName);
+                    // Screen audio has no home on this path yet - the call UI has no per-stream
+                    // audio control and the mixer source would have nothing to drive it. Skipped
+                    // explicitly rather than falling into the video branch, which would ask
+                    // Cloudflare for an audio track on a video transceiver.
+                    if (kind === 'screenAudio') continue;
+                    void this.subscribeToTrack(
+                        p.userId, cfSessionId, trackName, 'screen', share.shareId);
+                }
+            }
         }
+    }
+
+    /**
+     * "You are behind" - or, on `roomGone`, "this call is over".
+     *
+     * <p>Deliberately not version-gated: a resync is an instruction rather than state, and
+     * `roomGone` carries a blank instance and version zero, which the tracker would classify as a
+     * stale duplicate.</p>
+     */
+    private onResync(reason: string): void {
+        if (reason === 'roomGone') {
+            this.callSession.end(true);
+            return;
+        }
+        void this.refetchSnapshot();
+    }
+
+    /** What this client asserts about itself on every beat. Honest, including when not publishing. */
+    private sendHeartbeat(): void {
+        if (!this.callId) return;
+        this.voiceWs.invokeVoiceHeartbeat(this.callId, {
+            knownInstanceId: this.tracker.instanceId,
+            knownVersion: this.tracker.version,
+            // The Rust publication, not `this.cfSessionId`. The webview session is secondary and
+            // receive-only; asserting it would hand peers a session with no audio track on it.
+            cfSessionId: this.voiceSession?.cfSessionId ?? null,
+            audioTrackName: this.voiceSession?.trackName ?? null,
+        });
     }
 
     // ── SignalR event listeners ───────────────────────────────────────────────
@@ -770,7 +928,7 @@ export class CallWebRtcService {
     private setupWsListeners(): void {
         this.wsSubs = [
             // Someone joined → add to UI and subscribe to their audio track
-            this.voiceWs.participantJoinedObservable.subscribe(e => {
+            this.voiceWs.participantJoinedObservable.subscribe(e => this.gate(e, () => {
                 console.log('[WebRTC] ParticipantJoined received in WS listener', e);
                 this.callSession.onParticipantJoined(e.userId);
                 // Same guard the track-published listener below has carried all along, and for the
@@ -780,10 +938,10 @@ export class CallWebRtcService {
                 const localId = this.callSession.session()?.participants.find(p => p.isLocal)?.userId;
                 if (e.userId === localId) return;
                 void this.subscribeToTrack(e.userId, e.cfSessionId, e.audioTrackName, 'audio');
-            }),
+            })),
 
             // New video / screen track published → subscribe to it
-            this.voiceWs.trackPublishedObservable.subscribe(e => {
+            this.voiceWs.trackPublishedObservable.subscribe(e => this.gate(e, () => {
                 const localId = this.callSession.session()?.participants.find(p => p.isLocal)?.userId;
                 if (e.userId === localId) return; // Skip own tracks
                 if (e.kind === 'video') {
@@ -791,28 +949,49 @@ export class CallWebRtcService {
                 } else if (e.kind === 'screen') {
                     void this.subscribeToTrack(e.userId, e.cfSessionId, e.trackName, 'screen', e.shareId);
                 }
+            })),
+
+            // Authoritative state, pushed on join, on publish, and whenever the server decides we
+            // are out of date. Applied wholesale - it is not a delta.
+            this.voiceWs.voiceSnapshotObservable.subscribe(s => this.applySnapshot(s)),
+            this.voiceWs.voiceResyncObservable.subscribe(e => {
+                if (e.callId === this.callId) this.onResync(e.reason);
             }),
 
-            // Remote mute/speaking/camera state changes
-            this.voiceWs.muteChangedObservable.subscribe(e =>
-                this.callSession.onMuteChanged(e.userId, e.isMuted)),
+            // A track stopped. Nothing consumed this before, so a republished camera or share was
+            // skipped by the dedupe guard below and never came back.
+            this.voiceWs.trackClosedObservable.subscribe(e => this.gate(e, () => {
+                this.subscribedVideoTracks.delete(e.trackName);
+                const {kind, shareId} = describeTrack(e.trackName);
+                if (kind === 'video') this.callSession.onCameraChanged(e.userId, false);
+                else if (kind === 'screen' && shareId) this.callSession.onScreenShareStopped(shareId);
+            })),
 
+            // Remote mute/speaking/camera state changes
+            this.voiceWs.muteChangedObservable.subscribe(e => this.gate(e, () =>
+                this.callSession.onMuteChanged(e.userId, e.isMuted))),
+
+            // Deliberately not gated. Speaking is pure relay - it is written at speaking rate, the
+            // server does not bump the version for it, and it is worthless a second later. Putting
+            // the recovery path behind an event that fires ten times a second means a room we cannot
+            // resynchronise refetches ten times a second; every other event below detects the same
+            // gap at a sane rate.
             this.voiceWs.speakingChangedObservable.subscribe(e =>
                 this.callSession.onSpeakingChanged(e.userId, e.isSpeaking)),
 
-            this.voiceWs.cameraChangedObservable.subscribe(e => {
+            this.voiceWs.cameraChangedObservable.subscribe(e => this.gate(e, () => {
                 // Turn-off: update UI immediately (track.onended handles stream cleanup)
                 if (!e.isCameraOn) this.callSession.onCameraChanged(e.userId, false);
                 // Turn-on: handled by trackPublishedObservable → subscribeToTrack → ontrack → onCameraChanged
-            }),
+            })),
 
             // Screen share start: surface in UI immediately (stream arrives via ontrack)
-            this.voiceWs.screenShareStartedObservable.subscribe(e => {
+            this.voiceWs.screenShareStartedObservable.subscribe(e => this.gate(e, () => {
                 this.callSession.onScreenShareStarted(e.shareId, e.userId, undefined);
-            }),
+            })),
 
-            this.voiceWs.screenShareStoppedObservable.subscribe(e =>
-                this.callSession.onScreenShareStopped(e.shareId)),
+            this.voiceWs.screenShareStoppedObservable.subscribe(e => this.gate(e, () =>
+                this.callSession.onScreenShareStopped(e.shareId))),
 
             // Someone left → drop them from the UI and unwind everything we hold for them. The
             // only departure event the contract carries, so this is the sole teardown path for a

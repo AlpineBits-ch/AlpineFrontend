@@ -138,6 +138,16 @@ export class VoiceRTCService {
     // superseded and stop rather than subscribing on behalf of someone who already left.
     private readonly subscribeTokens = new Map<string, number>();
 
+    // Remote video/screen track name → the Cloudflare session it is being pulled from.
+    //
+    // Video has no equivalent of the audio path's mixer-source identity, so nothing used to stop a
+    // second subscribe for the same track: every call added another recvonly transceiver and asked
+    // Cloudflare for a track already being pulled. That was harmless while the only route here was
+    // the live TrackPublished event, which fires once. It stops being harmless now that the
+    // snapshot backfill covers the same tracks - a viewer who is present when a share starts would
+    // subscribe twice and leak an m-line per snapshot.
+    private readonly subscribedVideoTracks = new Map<string, { cfSessionId: string; userId: string }>();
+
     /**
      * Quality of the running screen share, or null when not sharing. Set by the picker and changed
      * by the in-call quality controls.
@@ -222,6 +232,25 @@ export class VoiceRTCService {
     }
 
     /**
+     * What this client is actually publishing, for the heartbeat's state assertion.
+     *
+     * <p>Deliberately the *Rust* session and not `this.cfSessionId`. The webview's session is
+     * secondary and receive-only; the microphone lives on the Rust publication, and that is the
+     * session peers are told to pull from. Asserting the webview's would have the server hand peers
+     * a session with no audio track on it.</p>
+     *
+     * <p>Null while not publishing, which is the honest thing to send - the server corrects its
+     * record from it and tells peers to drop us.</p>
+     */
+    get publishedMedia(): { cfSessionId: string; audioTrackName: string } | null {
+        if (!this.voiceSession) return null;
+        return {
+            cfSessionId: this.voiceSession.cfSessionId,
+            audioTrackName: this.voiceSession.trackName,
+        };
+    }
+
+    /**
      * Names of all local tracks published on *this* connection's session, for the close-tracks call.
      *
      * The microphone is not among them: it lives on the Rust session, which closes its own track,
@@ -240,6 +269,7 @@ export class VoiceRTCService {
     teardown(): void {
         this.localSenders.clear();
         this.subscribedAudioSessions.clear();
+        this.subscribedVideoTracks.clear();
         // Bumped, not cleared: a cleared map reads as token 0 to a retry that is still sleeping,
         // which is the value it would match if it was the first attempt for that source.
         this.subscribeTokens.forEach((token, id) => this.subscribeTokens.set(id, token + 1));
@@ -292,6 +322,21 @@ export class VoiceRTCService {
     }
 
     /** Cleans up all per-participant resources when a remote user leaves. */
+    /**
+     * Everyone we currently hold a subscription for, so a snapshot can tell who has left.
+     *
+     * Screen-share audio is excluded: those sources are keyed by track name rather than by user, and
+     * they are torn down with their share.
+     */
+    subscribedUserIds(): string[] {
+        const ids = new Set<string>();
+        for (const [id] of this.subscribedAudioSessions) {
+            if (!id.startsWith('screen-')) ids.add(id);
+        }
+        for (const [, held] of this.subscribedVideoTracks) ids.add(held.userId);
+        return [...ids];
+    }
+
     cleanupParticipant(userId: string): void {
         // Drops their source from the mixer, their entry from the mid map, and their volume.
         void this.dropSource(userId);
@@ -301,6 +346,11 @@ export class VoiceRTCService {
         // Invalidate any retry still sleeping for them. Without this, someone who leaves during
         // the backoff is resubscribed seconds later and stays in the mix until the next teardown.
         this.subscribeTokens.set(userId, (this.subscribeTokens.get(userId) ?? 0) + 1);
+        // Same reasoning for their video: a rejoin comes back on a new session, and a stale claim
+        // here would make the resubscribe look like a duplicate and skip it.
+        for (const [name, held] of this.subscribedVideoTracks) {
+            if (held.userId === userId) this.subscribedVideoTracks.delete(name);
+        }
 
         this.videoStreamsSignal.update(m => {
             const n = new Map(m);
@@ -464,6 +514,15 @@ export class VoiceRTCService {
         }
     }
 
+    /**
+     * Pull a remote camera or screen track onto this connection.
+     *
+     * <p>Idempotent per (track name, publishing session): calling it again for a track already
+     * being pulled from the same session returns without touching the peer connection, so the live
+     * announcement and the snapshot backfill can both cover a track without subscribing twice. A
+     * *different* session id for the same name means the publisher restarted and is a real
+     * resubscribe.</p>
+     */
     subscribeVideo(
         guildId: string,
         channelId: string,
@@ -472,8 +531,13 @@ export class VoiceRTCService {
         trackName: string,
         kind: 'video' | 'screen',
     ): Promise<void> {
+        if (this.subscribedVideoTracks.get(trackName)?.cfSessionId === cfSessionId) return Promise.resolve();
+
         return this.enqueueNegotiation(async () => {
             if (!this.pc || !this.cfSessionId) return;
+            // Re-checked inside the queue: two callers can pass the guard above before either has
+            // run, and the queue is what serialises them.
+            if (this.subscribedVideoTracks.get(trackName)?.cfSessionId === cfSessionId) return;
 
             const transceiver = this.pc.addTransceiver('video', {direction: 'recvonly'});
             preferVideoCodecs(transceiver, 'receiver');
@@ -481,18 +545,28 @@ export class VoiceRTCService {
             const offer = await this.pc.createOffer();
             await this.pc.setLocalDescription(offer);
 
-            const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
-                cfSessionId: this.cfSessionId,
-                sessionDescription: this.pc.localDescription!,
-                tracks: [{location: 'remote', trackName, sessionId: cfSessionId}],
-            }));
+            try {
+                const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
+                    cfSessionId: this.cfSessionId,
+                    sessionDescription: this.pc.localDescription!,
+                    tracks: [{location: 'remote', trackName, sessionId: cfSessionId}],
+                }));
 
-            if (resp.tracks[0]?.mid) {
-                this.midMeta.set(resp.tracks[0].mid, {userId, kind});
+                if (resp.tracks[0]?.mid) {
+                    this.midMeta.set(resp.tracks[0].mid, {userId, kind});
+                }
+
+                await this.pc.setRemoteDescription(resp.sessionDescription);
+                // Recorded only once it worked. Claiming the track before the round trip would make
+                // every later attempt - the next snapshot, a republish - skip the one thing that
+                // could have recovered it, which is how a transient 502 becomes a permanently black
+                // tile.
+                this.subscribedVideoTracks.set(trackName, {cfSessionId, userId});
+                if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
+            } catch (e) {
+                console.error('[voice] video subscribe failed', {userId, trackName, kind}, e);
+                throw e;
             }
-
-            await this.pc.setRemoteDescription(resp.sessionDescription);
-            if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
         });
     }
 
@@ -870,6 +944,8 @@ export class VoiceRTCService {
 
     /** Updates stream/audio state when a remote participant's track is closed by the server. */
     handleRemoteTrackClosed(trackName: string, userId: string): void {
+        // Released here so a republish of the same name resubscribes instead of being skipped.
+        this.subscribedVideoTracks.delete(trackName);
         if (trackName === 'video') {
             this.videoStreamsSignal.update(m => {
                 const n = new Map(m);

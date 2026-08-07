@@ -7,6 +7,7 @@ import {OngoingCallDto} from '../dtos/response/ongoing-call.dto';
 import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
 import {CreateCallDto} from '../dtos/request/create-call.dto';
 import {ApiConfigService} from "./api-config.service";
+import {VoiceRoomSnapshot} from '../models/voice-room';
 
 // ── Cloudflare Calls proxy DTOs ───────────────────────────────────────────────
 
@@ -95,6 +96,18 @@ export class VoiceService {
      *  `call.*` SignalR event may have been missed (e.g. a reconnect gap). */
     getCall(callId: string): Observable<CallDto> {
         return this.client.get<CallDto>(`${this.base}/call/${callId}`);
+    }
+
+    /**
+     * The call's media state: who is pullable, on which session, and which screen-share tracks are
+     * live right now.
+     *
+     * <p>Distinct from {@link getCall}, which carries the ring lifecycle (status, invitees,
+     * decline) and no media handles at all. Identical in shape to the guild-channel snapshot,
+     * because the server produces both from the same code.</p>
+     */
+    getCallSnapshot(callId: string): Observable<VoiceRoomSnapshot> {
+        return this.client.get<VoiceRoomSnapshot>(`${this.base}/call/${callId}/snapshot`);
     }
 
     /**

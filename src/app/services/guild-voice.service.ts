@@ -5,6 +5,7 @@ import {environment} from '../../environments/environment';
 import {ApiConfigService} from "./api-config.service";
 import {GuildVoiceActivityDto} from '../dtos/response/guild-voice-activity.dto';
 import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
+import {VoiceRoomSnapshot} from '../models/voice-room';
 
 export interface VoiceParticipantDto {
     userId: string;
@@ -74,6 +75,20 @@ export class GuildVoiceService {
 
     getState(guildId: string, channelId: string): Observable<VoiceStateDto> {
         return this.client.get<VoiceStateDto>(this.base(guildId, channelId));
+    }
+
+    /**
+     * The authoritative state of the room: who is pullable, on which session, and which
+     * screen-share tracks are live right now.
+     *
+     * <p>This is the recovery read, and the only one that carries `shares[].trackNames`. The
+     * response {@link getState} returns deliberately withheld the media handles, which is what made
+     * HTTP catch-up structurally incapable of restoring a subscription - a viewer joining a channel
+     * where a share was already running knew someone was streaming and could not find out what to
+     * pull.</p>
+     */
+    getSnapshot(guildId: string, channelId: string): Observable<VoiceRoomSnapshot> {
+        return this.client.get<VoiceRoomSnapshot>(`${this.base(guildId, channelId)}/snapshot`);
     }
 
     /**

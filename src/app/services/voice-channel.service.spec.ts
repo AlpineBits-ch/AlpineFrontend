@@ -15,6 +15,30 @@ import {VoiceEngineService} from './voice-engine.service';
 import {ToastService} from './toast.service';
 import {ChannelDto, ChannelType} from '../dtos/response/guild.dto';
 import {installMemoryStorage} from '../testing/memory-storage';
+import {VoiceParticipantSnapshot, VoiceRoomSnapshot} from '../models/voice-room';
+
+/** A room at v1 with nobody in it - what most of these tests want the recovery path to return. */
+function emptySnapshot(roomId: string): VoiceRoomSnapshot {
+    return {
+        roomId, kind: 'channel', guildId: 'guild-1',
+        instanceId: 'inst-1', version: 1, participants: [],
+    };
+}
+
+function publisher(userId: string, over: Partial<VoiceParticipantSnapshot> = {}): VoiceParticipantSnapshot {
+    return {
+        userId,
+        cfSessionId: `cf-${userId}`,
+        audioTrackName: 'audio',
+        publishState: 'Publishing',
+        isSelfMuted: false, isSelfDeafened: false,
+        isServerMuted: false, isServerDeafened: false,
+        isStreaming: false,
+        shares: [],
+        joinedAt: '2026-08-07T12:00:00Z',
+        ...over,
+    };
+}
 
 function setup(options: {inChannel?: boolean} = {}) {
     const ws: Record<string, Subject<unknown>> = {};
@@ -24,6 +48,7 @@ function setup(options: {inChannel?: boolean} = {}) {
         'voiceDeafenChangedObservable', 'voiceCameraChangedObservable',
         'voiceScreenShareStartedObservable', 'voiceScreenShareStoppedObservable',
         'movedToChannelObservable', 'kickedByOtherDeviceObservable',
+        'voiceSnapshotObservable', 'voiceResyncObservable',
     ]) ws[name] = new Subject();
 
     // Outbound calls, as opposed to the subjects above. The service announces its own mute and
@@ -38,12 +63,18 @@ function setup(options: {inChannel?: boolean} = {}) {
         join: vi.fn(() => of({participants: []})),
         leave: vi.fn(() => of(undefined)),
         getState: vi.fn(() => of({participants: []})),
+        getSnapshot: vi.fn(() => of(emptySnapshot('chan-1'))),
     };
     // Every member the service reads at construction: the subjects it subscribes to and the
     // pass-through signals it aliases as its own fields.
     const rtc = {
         closeAllTracks: vi.fn(async () => undefined),
         subscribeAudio: vi.fn(async () => undefined),
+        subscribeVideo: vi.fn(async () => undefined),
+        subscribedUserIds: vi.fn(() => [] as string[]),
+        cleanupParticipant: vi.fn(),
+        handleRemoteTrackClosed: vi.fn(),
+        publishedMedia: null as { cfSessionId: string; audioTrackName: string } | null,
         teardown: vi.fn(),
         connect: vi.fn(async () => true),
         setDeafened: vi.fn(),
@@ -315,6 +346,244 @@ describe('sticky mute and deafen', () => {
 
         expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}'))
             .toEqual({isMuted: true, isDeafened: true});
+    });
+});
+
+/**
+ * The bug this whole exercise is for.
+ *
+ * A viewer who joins a channel where a share is already running never saw it. Present when the share
+ * started they get `TrackPublished` and subscribe; arriving afterwards there is no event, and the
+ * track name needed to pull it - `screen-{shareId}`, a UUID the publisher generated - existed
+ * nowhere the joiner could reach. `shares[].trackNames` in the snapshot is that missing piece.
+ */
+describe('screen share backfill from the snapshot', () => {
+    it('subscribes to a share that was already running when we arrived', async () => {
+        const {ws, rtc} = setup();
+
+        ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them', {
+                isStreaming: true,
+                shares: [{shareId: 'abc', trackNames: ['screen-abc']}],
+            })],
+        });
+        await tick();
+
+        expect(rtc.subscribeVideo).toHaveBeenCalledWith(
+            'guild-1', 'chan-1', 'them', 'cf-them', 'screen-abc', 'screen');
+    });
+
+    /** A share can carry audio, and the two halves are one share tied by the same id. */
+    it('subscribes to both halves of a share with audio', async () => {
+        const {ws, rtc} = setup();
+
+        ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them', {
+                isStreaming: true,
+                shares: [{shareId: 'abc', trackNames: ['screen-abc', 'screen-audio-abc']}],
+            })],
+        });
+        await tick();
+
+        expect(rtc.subscribeVideo).toHaveBeenCalledWith(
+            'guild-1', 'chan-1', 'them', 'cf-them', 'screen-abc', 'screen');
+        expect(rtc.subscribeAudio).toHaveBeenCalledWith([
+            {userId: 'them', cfSessionId: 'cf-them', trackName: 'screen-audio-abc', kind: 'screenAudio'},
+        ]);
+    });
+
+    /**
+     * The shape the server actually sends: `Joined` means a session exists and a microphone track
+     * does not, and the handles are withheld to match.
+     */
+    it('does not subscribe to a participant who has only opened a session', async () => {
+        const {ws, rtc} = setup();
+
+        ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them', {
+                publishState: 'Joined', cfSessionId: null, audioTrackName: null,
+            })],
+        });
+        await tick();
+
+        expect(rtc.subscribeAudio).not.toHaveBeenCalled();
+    });
+
+    /**
+     * The same participant with the handles present, which is what a server that stopped withholding
+     * them would send. `publishState` is the field that carries the meaning; the nulls above are how
+     * today's server enforces it, and a client that keyed only on them would subscribe to a track
+     * that does not exist yet and burn its retry budget on someone about to be announced properly.
+     *
+     * <p>Written this way deliberately: with the fixture above alone, removing the `publishState`
+     * check entirely leaves every test in this file passing.</p>
+     */
+    it('does not subscribe on a session id alone, even if the handles are present', async () => {
+        const {ws, rtc} = setup();
+
+        ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them', {publishState: 'Joined'})],
+        });
+        await tick();
+
+        expect(rtc.subscribeAudio).not.toHaveBeenCalled();
+    });
+
+    /** Our own session cannot pull its own local track - Cloudflare refuses, on every retry. */
+    it('does not subscribe to ourselves', async () => {
+        const {ws, rtc} = setup();
+
+        ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('me', {
+                isStreaming: true, shares: [{shareId: 'mine', trackNames: ['screen-mine']}],
+            })],
+        });
+        await tick();
+
+        expect(rtc.subscribeAudio).not.toHaveBeenCalled();
+        expect(rtc.subscribeVideo).not.toHaveBeenCalled();
+    });
+
+    it('drops anyone the snapshot says is no longer here', async () => {
+        const {ws, rtc} = setup();
+        rtc.subscribedUserIds.mockReturnValue(['gone', 'them']);
+
+        ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them')],
+        });
+        await tick();
+
+        expect(rtc.cleanupParticipant).toHaveBeenCalledWith('gone');
+        expect(rtc.cleanupParticipant).not.toHaveBeenCalledWith('them');
+    });
+
+    it('ignores a snapshot for a channel we are not in', async () => {
+        const {ws, rtc} = setup();
+
+        ws['voiceSnapshotObservable'].next({
+            ...emptySnapshot('other-chan'),
+            participants: [publisher('them')],
+        });
+        await tick();
+
+        expect(rtc.subscribeAudio).not.toHaveBeenCalled();
+    });
+});
+
+describe('version recovery', () => {
+    /** One dropped event used to be permanent. It is now one refetch. */
+    it('refetches the snapshot when an event arrives with a gap in the version', async () => {
+        const {ws, guildVoice} = setup();
+
+        ws['voiceSnapshotObservable'].next(emptySnapshot('chan-1'));
+        await tick();
+        guildVoice.getSnapshot.mockClear();
+
+        ws['voiceMuteChangedObservable'].next({
+            channelId: 'chan-1', userId: 'them', isMuted: true, serverForced: false,
+            instanceId: 'inst-1', version: 4,
+        });
+        await tick();
+
+        expect(guildVoice.getSnapshot).toHaveBeenCalledWith('guild-1', 'chan-1');
+    });
+
+    it('applies an event that is exactly the next one without refetching', async () => {
+        const {ws, guildVoice} = setup();
+
+        ws['voiceSnapshotObservable'].next(emptySnapshot('chan-1'));
+        await tick();
+        guildVoice.getSnapshot.mockClear();
+
+        ws['guildParticipantJoinedObservable'].next({
+            channelId: 'chan-1', userId: 'them', cfSessionId: 'cf-them', audioTrackName: 'audio',
+            instanceId: 'inst-1', version: 2,
+        });
+        await tick();
+
+        expect(guildVoice.getSnapshot).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A rebuilt room climbs from zero and reaches numbers already seen behind a different roster, so
+     * the version alone reads as perfectly in sequence.
+     */
+    it('refetches when the room was rebuilt under us', async () => {
+        const {ws, guildVoice} = setup();
+
+        ws['voiceSnapshotObservable'].next(emptySnapshot('chan-1'));
+        await tick();
+        guildVoice.getSnapshot.mockClear();
+
+        ws['voiceMuteChangedObservable'].next({
+            channelId: 'chan-1', userId: 'them', isMuted: true, serverForced: false,
+            instanceId: 'inst-2', version: 2,
+        });
+        await tick();
+
+        expect(guildVoice.getSnapshot).toHaveBeenCalled();
+    });
+
+    /**
+     * Not "silently rejoin": re-admitting ourselves on our own say-so is exactly what the server
+     * refuses to do, because it would readmit anyone kicked, banned or denied Connect.
+     */
+    it('leaves the channel locally when the room is gone', async () => {
+        const {service, ws, rtc, toast} = setup();
+
+        ws['voiceResyncObservable'].next({channelId: 'chan-1', reason: 'roomGone'});
+        await tick();
+
+        expect(rtc.teardown).toHaveBeenCalled();
+        expect(service.joinedChannelId()).toBeNull();
+        expect(toast.info).toHaveBeenCalledWith('Voice channel is no longer available');
+    });
+
+    it('refetches rather than leaving on every other resync reason', async () => {
+        const {service, ws, guildVoice} = setup();
+
+        ws['voiceResyncObservable'].next({channelId: 'chan-1', reason: 'participantLeft', userId: 'them'});
+        await tick();
+
+        expect(guildVoice.getSnapshot).toHaveBeenCalled();
+        expect(service.joinedChannelId()).toBe('chan-1');
+    });
+});
+
+describe('heartbeat', () => {
+    /**
+     * The old heartbeat took no arguments, so the server could learn this client was alive but never
+     * that it was wrong. Asserting the version is what makes the repair channel work at all.
+     */
+    it('asserts the tracked version and the session we actually publish on', async () => {
+        const {ws, rtc, wsCalls, service} = setup();
+        rtc.publishedMedia = {cfSessionId: 'cf-rust', audioTrackName: 'audio'};
+
+        ws['voiceSnapshotObservable'].next({...emptySnapshot('chan-1'), version: 7});
+        await tick();
+        (service as unknown as { sendHeartbeat(id: string): void }).sendHeartbeat('chan-1');
+
+        expect(wsCalls['invokeVoiceHeartbeat']).toHaveBeenCalledWith('chan-1', {
+            knownInstanceId: 'inst-1', knownVersion: 7,
+            cfSessionId: 'cf-rust', audioTrackName: 'audio',
+        });
+    });
+
+    /** Honest nulls: the server corrects its record from them and tells peers to drop us. */
+    it('reports null handles when not publishing', () => {
+        const {wsCalls, service} = setup();
+
+        (service as unknown as { sendHeartbeat(id: string): void }).sendHeartbeat('chan-1');
+
+        expect(wsCalls['invokeVoiceHeartbeat']).toHaveBeenCalledWith('chan-1', {
+            knownInstanceId: null, knownVersion: 0, cfSessionId: null, audioTrackName: null,
+        });
     });
 });
 

@@ -22,6 +22,13 @@ import {VoiceRTCService} from './voice-rtc.service';
 import {StreamPreset} from '../models/stream-preset';
 import {VoiceEngineService} from './voice-engine.service';
 import {ToastService} from './toast.service';
+import {
+    describeTrack,
+    VoiceEventEnvelope,
+    VoiceParticipantSnapshot,
+    VoiceRoomSnapshot,
+    VoiceRoomTracker,
+} from '../models/voice-room';
 
 export interface VoiceChannelParticipant {
     userId: string;
@@ -118,6 +125,14 @@ export class VoiceChannelService {
     private pendingJoinId: string | null = null;
     private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
 
+    /**
+     * `instanceId` and `version` for the channel we are in, and the decision procedure for every
+     * event that arrives about it. See {@link VoiceRoomTracker}.
+     */
+    private readonly tracker = new VoiceRoomTracker();
+    /** Guards against a burst of gaps firing a refetch per event. */
+    private refetchInFlight = false;
+
     constructor() {
         // Remote participants' speaking state, from the Rust mixer.
         //
@@ -163,6 +178,188 @@ export class VoiceChannelService {
         });
         this.guildWsSvc.movedToChannelObservable.subscribe(e => void this.onMovedToChannel(e));
         this.guildWsSvc.kickedByOtherDeviceObservable.subscribe(e => void this.onKickedByOtherDevice(e));
+
+        this.guildWsSvc.voiceSnapshotObservable.subscribe(s => void this.applySnapshot(s));
+        this.guildWsSvc.voiceResyncObservable.subscribe(e => void this.onResync(e));
+    }
+
+    // ── Recovery ───────────────────────────────────────────────────────────────
+
+    /**
+     * Decide what an arriving event means, and act on it.
+     *
+     * <p>Events about other channels drive the sidebar roster and carry a version for a room we are
+     * not tracking, so they bypass the gate entirely - comparing them against the version we hold
+     * for the channel we are *in* would refetch on every one of them.</p>
+     */
+    private gate(channelId: string, event: VoiceEventEnvelope, apply: () => void): void {
+        if (channelId !== this.joinedChannelId()) {
+            apply();
+            return;
+        }
+        switch (this.tracker.receive(event)) {
+            case 'apply':
+                apply();
+                return;
+            case 'ignore':
+                return;
+            case 'refetch':
+                void this.refetchSnapshot();
+                return;
+        }
+    }
+
+    /**
+     * Read the authoritative state again, because what we hold cannot be repaired from an event.
+     *
+     * <p>Best-effort and deliberately not retried here: a failed read is covered by the next
+     * heartbeat, which asserts a version the server will disagree with and pushes a snapshot
+     * back.</p>
+     */
+    private async refetchSnapshot(): Promise<void> {
+        const channelId = this.joinedChannelId();
+        const guildId = this.joinedGuildId();
+        if (!channelId || !guildId || this.refetchInFlight) return;
+
+        this.refetchInFlight = true;
+        try {
+            const snapshot = await firstValueFrom(this.guildVoiceSvc.getSnapshot(guildId, channelId));
+            // The channel can be left while the request is in flight; applying it then would
+            // populate a roster for a room we are no longer in.
+            if (this.joinedChannelId() !== channelId) return;
+            await this.applySnapshot(snapshot);
+        } catch (err) {
+            console.error('[voice] snapshot refetch failed', err);
+        } finally {
+            this.refetchInFlight = false;
+        }
+    }
+
+    /**
+     * Take a snapshot wholesale and reconcile media against it.
+     *
+     * <p>Two halves, and the second is the one this whole mechanism exists for. The roster is
+     * replaced rather than merged - the reason to be holding a snapshot is that the local copy is
+     * known to be wrong. Then every publisher and every live screen-share track in it is
+     * subscribed to, which is what a viewer joining a channel where a share is already running has
+     * never been able to do: `isStreaming` said someone was sharing, and the track name needed to
+     * pull it - `screen-{shareId}`, a UUID chosen by the publisher - existed nowhere the joiner
+     * could reach. `shares[].trackNames` is that missing piece.</p>
+     */
+    private async applySnapshot(snapshot: VoiceRoomSnapshot): Promise<void> {
+        const channelId = this.joinedChannelId();
+        const guildId = this.joinedGuildId();
+        if (!channelId || snapshot.roomId !== channelId) return;
+
+        this.tracker.applySnapshot(snapshot);
+
+        const ownId = this.profileService.ownProfile()?.userId ?? '';
+        const list = snapshot.participants.map(p => this.snapshotToParticipant(p, ownId));
+
+        // Our own row is rebuilt from local state rather than from the snapshot: mute, camera and
+        // screen share are things this client decided, and the server's copy of them lags by a
+        // round trip.
+        const {isMuted, isCameraOn, isScreenSharing} = this.localState();
+        const withLocal = list.map(p => p.isLocal ? {...p, isMuted, isCameraOn, isScreenSharing} : p);
+
+        this.channelParticipantsSignal.update(map => {
+            const n = new Map(map);
+            n.set(channelId, withLocal);
+            return n;
+        });
+
+        // Anyone who left while we were out of sync. `Resync{participantLeft}` covers the live case;
+        // this covers everything missed.
+        const present = new Set(snapshot.participants.map(p => p.userId));
+        for (const known of this.rtc.subscribedUserIds()) {
+            if (!present.has(known)) this.rtc.cleanupParticipant(known);
+        }
+
+        if (!guildId) return;
+        await this.subscribeFromSnapshot(snapshot, guildId, channelId, ownId);
+    }
+
+    /**
+     * Subscribe to everything in the snapshot that is pullable.
+     *
+     * <p>Idempotent by construction: both subscribe paths key on (source, publishing session), so
+     * re-running this on every snapshot costs nothing for tracks already held and repairs the ones
+     * that were missed.</p>
+     */
+    private async subscribeFromSnapshot(
+        snapshot: VoiceRoomSnapshot,
+        guildId: string,
+        channelId: string,
+        ownId: string,
+    ): Promise<void> {
+        for (const p of snapshot.participants) {
+            // Our own announcement names the session *we* publish on, and Cloudflare will not let a
+            // session pull its own local track: the subscribe fails identically every time and the
+            // participant never recovers.
+            if (p.userId === ownId) continue;
+            // A session id alone is not an invitation to subscribe. `Joined` means a session exists
+            // and a track does not, so the pull would fail and burn the retry budget.
+            if (p.publishState !== 'Publishing' || !p.cfSessionId || !p.audioTrackName) continue;
+
+            const cfSessionId = p.cfSessionId;
+            void this.rtc.subscribeAudio([{
+                userId: p.userId, cfSessionId, trackName: p.audioTrackName,
+            }]);
+
+            for (const share of p.shares) {
+                for (const trackName of share.trackNames) {
+                    const {kind} = describeTrack(trackName);
+                    if (kind === 'screenAudio') {
+                        void this.rtc.subscribeAudio([{
+                            userId: p.userId, cfSessionId, trackName, kind: 'screenAudio',
+                        }]);
+                    } else {
+                        void this.rtc.subscribeVideo(
+                            guildId, channelId, p.userId, cfSessionId, trackName, 'screen');
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * "You are behind" - or, on `roomGone`, "you are not in a room at all any more".
+     *
+     * <p>Deliberately not version-gated. A resync is an instruction rather than state, and
+     * `roomGone` carries a blank instance and version zero precisely because there is no incarnation
+     * left to compare against; running it through the tracker would classify the one event that
+     * matters most as a stale duplicate.</p>
+     */
+    private async onResync(e: { channelId: string; reason: string }): Promise<void> {
+        if (e.channelId !== this.joinedChannelId()) return;
+
+        if (e.reason === 'roomGone') {
+            // Not "silently rejoin": the room is gone or we are not in it, and re-admitting
+            // ourselves on our own say-so is exactly what the server refuses to do. Rejoining goes
+            // through the authorised path, which means the user asking for it.
+            const guildId = this.joinedGuildId();
+            if (guildId) await this.doLeave(guildId, e.channelId, true);
+            this.joinedChannelId.set(null);
+            this.joinedGuildId.set(null);
+            this.joinedChannelName.set(null);
+            this.joinedGuildName.set(null);
+            this.localState.update(s => ({...s, isCameraOn: false, isScreenSharing: false}));
+            this.toast.info('Voice channel is no longer available');
+            return;
+        }
+
+        await this.refetchSnapshot();
+    }
+
+    /** What this client asserts about itself on every beat. Honest, including when not publishing. */
+    private sendHeartbeat(channelId: string): void {
+        const published = this.rtc.publishedMedia;
+        this.guildWsSvc.invokeVoiceHeartbeat(channelId, {
+            knownInstanceId: this.tracker.instanceId,
+            knownVersion: this.tracker.version,
+            cfSessionId: published?.cfSessionId ?? null,
+            audioTrackName: published?.audioTrackName ?? null,
+        });
     }
 
     // ── Voice state loading for sidebar ───────────────────────────────────────
@@ -257,6 +454,15 @@ export class VoiceChannelService {
                 // this a push-to-talk user joins silent and has no way to tell why.
                 this.syncMic();
 
+                // Read the room again now that there is something to subscribe *on*.
+                //
+                // The server pushes a snapshot the moment `join` returns, which is before this
+                // point: audio survives that because subscribeAudio waits for the Rust session, but
+                // video needs `pc` and the receive-side Cloudflare session, and neither exists until
+                // connect resolves. Without this, the snapshot's screen shares are dropped on the
+                // floor and joining a channel mid-share shows nothing - the exact bug this is for.
+                void this.refetchSnapshot();
+
                 // Tell the room what it cannot infer. Everyone else builds their roster from the
                 // join event, which carries no mute state, so a user who arrived already muted
                 // would render as live to every other participant - their mic off, and the UI
@@ -268,7 +474,11 @@ export class VoiceChannelService {
                     this.rtc.setDeafened(true);
                 }
 
-                this.heartbeatTimer = setInterval(() => this.guildWsSvc.invokeVoiceHeartbeat(), 30_000);
+                // Liveness *and* repair. Stop sending it and the sweep evicts this client after
+                // 90s; send it without the state below and the server can learn we are alive but
+                // never that we are wrong, which is the whole reason a missed event used to be
+                // permanent.
+                this.heartbeatTimer = setInterval(() => this.sendHeartbeat(channel.id), 30_000);
             } catch (err) {
                 console.error('VoiceChannelService: join failed', err);
             }
@@ -456,6 +666,10 @@ export class VoiceChannelService {
             clearInterval(this.heartbeatTimer);
             this.heartbeatTimer = null;
         }
+        // The next channel starts from nothing rather than from this one's version - two rooms have
+        // unrelated counters, and carrying one across would make the first event in the new channel
+        // read as a gap or as stale depending on which way the numbers happened to fall.
+        this.tracker.reset();
         this.soundSettings.playVoiceLeave();
         await this.rtc.closeAllTracks(guildId, channelId);
         this.rtc.teardown();
@@ -495,6 +709,10 @@ export class VoiceChannelService {
     // ── SignalR event handlers ─────────────────────────────────────────────────
 
     private onUserJoinedVoice(e: WsUserJoinedVoice): void {
+        this.gate(e.channelId, e, () => this.applyUserJoinedVoice(e));
+    }
+
+    private applyUserJoinedVoice(e: WsUserJoinedVoice): void {
         const ownId = this.profileService.ownProfile()?.userId ?? '';
         if (e.userId === ownId) return;
 
@@ -523,6 +741,10 @@ export class VoiceChannelService {
     }
 
     private onUserLeftVoice(e: WsUserLeftVoice): void {
+        this.gate(e.channelId, e, () => this.applyUserLeftVoice(e));
+    }
+
+    private applyUserLeftVoice(e: WsUserLeftVoice): void {
         const ownId = this.profileService.ownProfile()?.userId ?? '';
         if (e.userId === ownId) return;
 
@@ -539,19 +761,21 @@ export class VoiceChannelService {
 
     private onParticipantJoined(e: WsGuildParticipantJoined): void {
         if (e.channelId !== this.joinedChannelId()) return;
-        this.patchParticipant(e.channelId, e.userId, p => ({...p, cfSessionId: e.cfSessionId}));
+        this.gate(e.channelId, e, () => {
+            this.patchParticipant(e.channelId, e.userId, p => ({...p, cfSessionId: e.cfSessionId}));
 
-        // Our own announcement is still worth patching in above - it is what carries our session id
-        // into the participant row - but it must never be subscribed to. Since the Rust rewrite this
-        // event names the session *we* publish on, and Cloudflare will not let a session pull its own
-        // local track: the subscribe fails identically on all four attempts and the participant never
-        // recovers, because nothing announces them a second time. The leave handler has always
-        // guarded on this; the join handler was the one that did not.
-        if (e.userId === (this.profileService.ownProfile()?.userId ?? '')) return;
+            // Our own announcement is still worth patching in above - it is what carries our session
+            // id into the participant row - but it must never be subscribed to. Since the Rust
+            // rewrite this event names the session *we* publish on, and Cloudflare will not let a
+            // session pull its own local track: the subscribe fails identically on all four attempts
+            // and the participant never recovers, because nothing announces them a second time. The
+            // leave handler has always guarded on this; the join handler was the one that did not.
+            if (e.userId === (this.profileService.ownProfile()?.userId ?? '')) return;
 
-        void this.rtc.subscribeAudio([{
-            userId: e.userId, cfSessionId: e.cfSessionId, trackName: e.audioTrackName,
-        }]);
+            void this.rtc.subscribeAudio([{
+                userId: e.userId, cfSessionId: e.cfSessionId, trackName: e.audioTrackName,
+            }]);
+        });
     }
 
     private onTrackPublished(e: WsGuildTrackPublished): void {
@@ -559,40 +783,50 @@ export class VoiceChannelService {
         const guildId = this.joinedGuildId();
         if (!guildId) return;
 
-        if (e.kind === 'screenAudio') {
-            void this.rtc.subscribeAudio([{
-                userId: e.userId, cfSessionId: e.cfSessionId, trackName: e.trackName, kind: 'screenAudio',
-            }]);
-        } else {
-            void this.rtc.subscribeVideo(guildId, e.channelId, e.userId, e.cfSessionId, e.trackName,
-                e.kind === 'screen' ? 'screen' : 'video');
-        }
+        this.gate(e.channelId, e, () => {
+            if (e.kind === 'screenAudio') {
+                void this.rtc.subscribeAudio([{
+                    userId: e.userId, cfSessionId: e.cfSessionId, trackName: e.trackName, kind: 'screenAudio',
+                }]);
+            } else {
+                void this.rtc.subscribeVideo(guildId, e.channelId, e.userId, e.cfSessionId, e.trackName,
+                    e.kind === 'screen' ? 'screen' : 'video');
+            }
+        });
     }
 
     private onTrackClosed(e: WsGuildTrackClosed): void {
         if (e.channelId !== this.joinedChannelId()) return;
-        this.rtc.handleRemoteTrackClosed(e.trackName, e.userId);
-        if (e.trackName === 'video') {
-            this.patchParticipant(e.channelId, e.userId, p => ({...p, isCameraOn: false}));
-        } else if (e.trackName.startsWith('screen-') && !e.trackName.startsWith('screen-audio-')) {
-            this.patchParticipant(e.channelId, e.userId, p => ({...p, isScreenSharing: false}));
-        }
+        this.gate(e.channelId, e, () => {
+            this.rtc.handleRemoteTrackClosed(e.trackName, e.userId);
+            const {kind} = describeTrack(e.trackName);
+            if (kind === 'video') {
+                this.patchParticipant(e.channelId, e.userId, p => ({...p, isCameraOn: false}));
+            } else if (kind === 'screen') {
+                this.patchParticipant(e.channelId, e.userId, p => ({...p, isScreenSharing: false}));
+            }
+        });
     }
 
     private onMuteChanged(e: WsVoiceMuteChanged): void {
-        this.patchParticipant(e.channelId, e.userId, p => ({...p, isMuted: e.isMuted}));
+        this.gate(e.channelId, e, () =>
+            this.patchParticipant(e.channelId, e.userId, p => ({...p, isMuted: e.isMuted})));
     }
 
     private onDeafenChanged(e: WsVoiceDeafenChanged): void {
-        if (e.isDeafened) this.patchParticipant(e.channelId, e.userId, p => ({...p, isMuted: true}));
+        this.gate(e.channelId, e, () => {
+            if (e.isDeafened) this.patchParticipant(e.channelId, e.userId, p => ({...p, isMuted: true}));
+        });
     }
 
     private onCameraChanged(e: WsVoiceCameraChanged): void {
-        this.patchParticipant(e.channelId, e.userId, p => ({...p, isCameraOn: e.isCameraOn}));
+        this.gate(e.channelId, e, () =>
+            this.patchParticipant(e.channelId, e.userId, p => ({...p, isCameraOn: e.isCameraOn})));
     }
 
     private onScreenShareStarted(e: WsVoiceScreenShareStarted): void {
-        this.patchParticipant(e.channelId, e.userId, p => ({...p, isScreenSharing: true}));
+        this.gate(e.channelId, e, () =>
+            this.patchParticipant(e.channelId, e.userId, p => ({...p, isScreenSharing: true})));
     }
 
     private async onMovedToChannel(e: WsMovedToChannel): Promise<void> {
@@ -649,6 +883,31 @@ export class VoiceChannelService {
             n.set(channelId, next);
             return n;
         });
+    }
+
+    /**
+     * The snapshot's participant shape, which carries strictly more than {@link VoiceParticipantDto}
+     * - the media handles, the publish state, and the live shares.
+     *
+     * <p>`isCameraOn` is still seeded false, and that is not an oversight: camera state is relayed
+     * rather than stored server-side, so it is genuinely absent from the snapshot. It arrives on the
+     * next `CameraChanged`, or when the camera track is subscribed to.</p>
+     */
+    private snapshotToParticipant(p: VoiceParticipantSnapshot, ownId: string): VoiceChannelParticipant {
+        const profile = this.profileService.getCachedByUserId(p.userId);
+        return {
+            userId: p.userId,
+            displayName: profile?.userName ?? p.userId,
+            avatarLabel: (profile?.userName?.[0] ?? '?').toUpperCase(),
+            avatarUrl: profile?.avatarUrl,
+            isMuted: p.isSelfMuted || p.isServerMuted,
+            isSpeaking: false,
+            isCameraOn: false,
+            isScreenSharing: p.isStreaming,
+            isServerDeafened: p.isServerDeafened,
+            isLocal: p.userId === ownId,
+            cfSessionId: p.cfSessionId,
+        };
     }
 
     private dtoToParticipant(dto: VoiceParticipantDto, ownId: string): VoiceChannelParticipant {

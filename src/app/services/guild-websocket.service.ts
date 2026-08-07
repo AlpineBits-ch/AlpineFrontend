@@ -27,6 +27,12 @@ import {ForumConfig, ForumTag} from "../dtos/response/forum.dto";
 import {PrivacySettingsService} from "./privacy-settings.service";
 import {UserActivityService} from "./user-activity.service";
 import {Activity} from "../models/activity.model";
+import {
+    VoiceEventEnvelope,
+    VoiceHeartbeatState,
+    VoiceResyncEvent,
+    VoiceRoomSnapshot,
+} from '../models/voice-room';
 
 export interface ChannelTypingEvent {
     channelId: string;
@@ -34,27 +40,32 @@ export interface ChannelTypingEvent {
 }
 
 // ── Guild voice events (server → client) ─────────────────────────────────────
+//
+// Every one of these extends VoiceEventEnvelope: the server's announcer stamps `instanceId` and
+// `version` onto each payload, so a client holding v7 that receives v9 knows it missed one. See
+// VoiceRoomTracker for what to do about it. The fields are optional on the interfaces because the
+// guild presence fan-out below has not migrated to the announcer yet.
 
-export interface WsUserJoinedVoice {
+export interface WsUserJoinedVoice extends VoiceEventEnvelope {
     userId: string;
     channelId: string;
     guildId: string;
 }
 
-export interface WsUserLeftVoice {
+export interface WsUserLeftVoice extends VoiceEventEnvelope {
     userId: string;
     channelId: string;
     guildId: string;
 }
 
-export interface WsGuildParticipantJoined {
+export interface WsGuildParticipantJoined extends VoiceEventEnvelope {
     userId: string;
     cfSessionId: string;
     audioTrackName: string;
     channelId: string;
 }
 
-export interface WsGuildTrackPublished {
+export interface WsGuildTrackPublished extends VoiceEventEnvelope {
     userId: string;
     cfSessionId: string;
     trackName: string;
@@ -63,41 +74,46 @@ export interface WsGuildTrackPublished {
     channelId: string;
 }
 
-export interface WsGuildTrackClosed {
+export interface WsGuildTrackClosed extends VoiceEventEnvelope {
     userId: string;
     trackName: string;
     channelId: string;
 }
 
-export interface WsVoiceMuteChanged {
+export interface WsVoiceMuteChanged extends VoiceEventEnvelope {
     userId: string;
     isMuted: boolean;
     channelId: string;
     serverForced: boolean;
 }
 
-export interface WsVoiceDeafenChanged {
+export interface WsVoiceDeafenChanged extends VoiceEventEnvelope {
     userId: string;
     isDeafened: boolean;
     channelId: string;
     serverForced: boolean;
 }
 
-export interface WsVoiceCameraChanged {
+export interface WsVoiceCameraChanged extends VoiceEventEnvelope {
     userId: string;
     isCameraOn: boolean;
     channelId: string;
 }
 
-export interface WsVoiceScreenShareStarted {
+export interface WsVoiceScreenShareStarted extends VoiceEventEnvelope {
     userId: string;
     shareId: string;
     trackName: string;
     channelId: string;
 }
 
-export interface WsVoiceScreenShareStopped {
+export interface WsVoiceScreenShareStopped extends VoiceEventEnvelope {
     shareId: string;
+    channelId: string;
+}
+
+/** {@link VoiceResyncEvent} for a guild channel. */
+export interface WsGuildVoiceResync extends VoiceResyncEvent {
     channelId: string;
 }
 
@@ -683,6 +699,10 @@ export class GuildWebsocketService {
     public voiceScreenShareStoppedObservable = new Subject<WsVoiceScreenShareStopped>();
     public movedToChannelObservable = new Subject<WsMovedToChannel>();
     public kickedByOtherDeviceObservable = new Subject<WsKickedByOtherDevice>();
+    /** Authoritative room state. Replace everything held for this channel; never merge. */
+    public voiceSnapshotObservable = new Subject<VoiceRoomSnapshot>();
+    /** "You are behind, refetch." Carries a reason, never a delta. */
+    public voiceResyncObservable = new Subject<WsGuildVoiceResync>();
     // ── Channel/category lifecycle ──────────────────────────────────────────────
     public channelCreatedObservable = new Subject<WsChannelCreated>();
     public channelDeletedObservable = new Subject<WsChannelDeleted>();
@@ -818,8 +838,18 @@ export class GuildWebsocketService {
         void this.realtime.invoke('guild.voice.ScreenShareStopped', {channelId, shareId});
     }
 
-    invokeVoiceHeartbeat(): void {
-        void this.realtime.invoke('guild.voice.Heartbeat');
+    /**
+     * The state-asserting heartbeat: liveness *and* the repair channel.
+     *
+     * <p>Restating what this client believes is what lets the server correct it. The old
+     * `guild.voice.Heartbeat` took no arguments, so the server could learn a client was alive but
+     * never that it was <em>wrong</em>, and a missed event stayed missed for the whole session.</p>
+     *
+     * <p>Report honestly. Passing a session id while not publishing makes peers attempt a subscribe
+     * that cannot succeed; passing null while publishing has the server tell them to drop us.</p>
+     */
+    invokeVoiceHeartbeat(channelId: string, state: VoiceHeartbeatState): void {
+        void this.realtime.invoke('voice.Heartbeat', 'channel', channelId, state);
     }
 
     private setupListeners(): void {
@@ -849,6 +879,13 @@ export class GuildWebsocketService {
         this.realtime.on('guild.voice.ShareViewersChanged', (d: ShareViewersDto) => this.shareViewersChangedObservable.next(d));
         this.realtime.on('guild.voice.MovedToChannel', (d: WsMovedToChannel) => this.movedToChannelObservable.next(d));
         this.realtime.on('guild.voice.KickedByOtherDevice', (d: WsKickedByOtherDevice) => this.kickedByOtherDeviceObservable.next(d));
+
+        // ── Recovery ────────────────────────────────────────────────────────────
+        // Pushed on join, on publish, and whenever the server decides we are out of date. The
+        // snapshot is authoritative and sufficient on its own - it is not a delta and must not be
+        // merged with what is already held.
+        this.realtime.on('guild.voice.Snapshot', (d: VoiceRoomSnapshot) => this.voiceSnapshotObservable.next(d));
+        this.realtime.on('guild.voice.Resync', (d: WsGuildVoiceResync) => this.voiceResyncObservable.next(d));
         this.realtime.on('guild.ChannelCreated', (d: WsChannelCreated) => this.channelCreatedObservable.next(d));
         this.realtime.on('guild.ChannelDeleted', (d: WsChannelDeleted) => this.channelDeletedObservable.next(d));
         this.realtime.on('guild.ChannelMlsStateChanged', (d: WsChannelMlsStateChanged) => this.channelMlsStateChangedObservable.next(d));

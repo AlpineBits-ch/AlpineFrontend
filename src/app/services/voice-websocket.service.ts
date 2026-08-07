@@ -3,6 +3,12 @@ import {Subject} from 'rxjs';
 import {CallDto} from '../dtos/response/call.dto';
 import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
 import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
+import {
+    VoiceEventEnvelope,
+    VoiceHeartbeatState,
+    VoiceResyncEvent,
+    VoiceRoomSnapshot,
+} from '../models/voice-room';
 
 // Re-exported for existing importers.
 export {ConnectionState};
@@ -32,53 +38,62 @@ export interface ConversationRemoved {
 }
 
 // ── WebRTC call signaling events (server → client) ────────────────────────────
+//
+// A call is a voice room whose id happens to be a call id, so these are the same events the guild
+// path receives under a different prefix, carrying the same `instanceId`/`version` envelope. See
+// VoiceRoomTracker.
 
 /** Someone joined the call. cfSessionId is their CF Calls session -needed to subscribe to their tracks. */
-export interface WsParticipantJoined {
+export interface WsParticipantJoined extends VoiceEventEnvelope {
     userId: string;
     cfSessionId: string;
     audioTrackName: string;
 }
 
 /** A remote participant published a new video / screen-share track. */
-export interface WsTrackPublished {
+export interface WsTrackPublished extends VoiceEventEnvelope {
     userId: string;
     cfSessionId: string;
     trackName: string;
-    kind: 'audio' | 'video' | 'screen';
+    kind: 'audio' | 'video' | 'screen' | 'screenAudio';
     shareId?: string;
 }
 
-export interface WsTrackClosed {
+export interface WsTrackClosed extends VoiceEventEnvelope {
     userId: string;
     trackName: string;
     shareId?: string;
 }
 
-export interface WsSpeakingChanged {
+export interface WsSpeakingChanged extends VoiceEventEnvelope {
     userId: string;
     isSpeaking: boolean;
 }
 
-export interface WsMuteChanged {
+export interface WsMuteChanged extends VoiceEventEnvelope {
     userId: string;
     isMuted: boolean;
 }
 
-export interface WsCameraChanged {
+export interface WsCameraChanged extends VoiceEventEnvelope {
     userId: string;
     isCameraOn: boolean;
 }
 
-export interface WsScreenShareStarted {
+export interface WsScreenShareStarted extends VoiceEventEnvelope {
     shareId: string;
     userId: string;
     cfSessionId: string;
     trackName: string;
 }
 
-export interface WsScreenShareStopped {
+export interface WsScreenShareStopped extends VoiceEventEnvelope {
     shareId: string;
+}
+
+/** {@link VoiceResyncEvent} for a call. */
+export interface WsCallVoiceResync extends VoiceResyncEvent {
+    callId: string;
 }
 
 export interface WsCallEnded {
@@ -209,6 +224,10 @@ export class VoiceWebsocketService {
     public callDeviceTakeoverObservable = new Subject<WsCallDeviceTakeover>();
     public callParticipantLeftObservable = new Subject<WsCallParticipantLeft>();
     public callAloneObservable = new Subject<WsCallAlone>();
+    /** Authoritative room state. Replace everything held for this call; never merge. */
+    public voiceSnapshotObservable = new Subject<VoiceRoomSnapshot>();
+    /** "You are behind, refetch." Carries a reason, never a delta. */
+    public voiceResyncObservable = new Subject<WsCallVoiceResync>();
     private realtime = inject(RealtimeConnectionService);
     private listenersSetUp = false;
 
@@ -247,6 +266,17 @@ export class VoiceWebsocketService {
         void this.realtime.invoke('call.ScreenShareStopped', {callId, shareId});
     }
 
+    /**
+     * The state-asserting heartbeat. Same hub method and same meaning as the guild one - a call is
+     * a voice room whose id happens to be a call id.
+     *
+     * <p>Not just a keepalive: this is the repair channel, and it is also what keeps the
+     * participant entry alive. Stop sending it and the sweep evicts this client after 90s.</p>
+     */
+    invokeVoiceHeartbeat(callId: string, state: VoiceHeartbeatState): void {
+        void this.realtime.invoke('voice.Heartbeat', 'call', callId, state);
+    }
+
     private setupListeners(): void {
         // ── Call lifecycle ──────────────────────────────────────────────────────
         this.realtime.on('call.IncomingCall', (data: CallDto) => {
@@ -272,5 +302,12 @@ export class VoiceWebsocketService {
         this.realtime.on('call.CallDeviceTakeover', (d: WsCallDeviceTakeover) => this.callDeviceTakeoverObservable.next(d));
         this.realtime.on('call.CallParticipantLeft', (d: WsCallParticipantLeft) => this.callParticipantLeftObservable.next(d));
         this.realtime.on('call.CallAlone', (d: WsCallAlone) => this.callAloneObservable.next(d));
+
+        // ── Recovery ────────────────────────────────────────────────────────────
+        // Pushed on join, on publish, and whenever the server decides we are out of date. This is
+        // what replaces the bespoke caller-side replay: the snapshot carries the media handles the
+        // old call DTO withheld, so one read restores every subscription.
+        this.realtime.on('call.Snapshot', (d: VoiceRoomSnapshot) => this.voiceSnapshotObservable.next(d));
+        this.realtime.on('call.Resync', (d: WsCallVoiceResync) => this.voiceResyncObservable.next(d));
     }
 }
