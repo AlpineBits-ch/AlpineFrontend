@@ -22,9 +22,10 @@ import {isTauri} from '@tauri-apps/api/core';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {OAuthService} from 'angular-oauth2-oidc';
-import {of} from 'rxjs';
+import {of, throwError} from 'rxjs';
 import {GuildVoiceService} from './guild-voice.service';
 import {SUBSCRIBE_RETRY_DELAYS_MS, VoiceRTCService} from './voice-rtc.service';
+import {STALE_SUBSCRIPTION} from '../models/voice-room';
 import {VoiceEngineService} from './voice-engine.service';
 import {RustMediaService} from './rust-media.service';
 import {ScreenPickerService} from './screen-picker.service';
@@ -331,6 +332,23 @@ describe('the receive session', () => {
         expect(createSession).toHaveBeenCalledWith('g1', 'c1', false);
     });
 
+    it('stops re-pulling a share the SFU has already refused as stale', async () => {
+        // The other half of the console the field report came with: `screen-<id>` and
+        // `screen-audio-<id>` looping side by side, so both paths need the guard.
+        const guildVoice = TestBed.inject(GuildVoiceService);
+        let calls = 0;
+        vi.spyOn(guildVoice, 'negotiateTracks').mockImplementation(() => {
+            calls++;
+            return throwError(() => ({status: 409, error: {error: STALE_SUBSCRIPTION}}));
+        });
+
+        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen');
+        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen');
+        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen');
+
+        expect(calls).toBe(1);
+    });
+
     it('is opened once however many tracks are announced together', async () => {
         // A share with audio, or a snapshot backfill covering several publishers, announces more
         // than one track at the same moment.
@@ -357,4 +375,80 @@ it('does not let one slow participant hold up the others announced with them', a
 
     await drainRetries();
     await done;
+});
+
+/**
+ * `staleSubscription` says that track on that session has stopped, so the identical request can
+ * never succeed. The answer is to refetch the snapshot and pull whatever replaced it - but the
+ * refetch re-announces whatever the server still lists, and while the server's record and
+ * Cloudflare's disagree that is the dead track again.
+ *
+ * Nothing on that path sleeps, so it spins as fast as the network allows. The field report is a
+ * viewer's console filling with `subscribe refused as stale` alternating with 409s, for both halves
+ * of a screen share at once, for as long as they stayed in the channel.
+ */
+describe('a publication refused as stale', () => {
+    /** What the backend answers once Cloudflare no longer has the track. */
+    const stale = () => ({status: 409, error: {error: STALE_SUBSCRIPTION}});
+
+    let refetches: number;
+
+    beforeEach(() => {
+        refetches = 0;
+        service.staleSubscription$.subscribe(() => refetches++);
+    });
+
+    it('asks for a refetch, because only a snapshot can find the replacement', async () => {
+        engine.subscribe.mockRejectedValue(stale());
+
+        await service.subscribeAudio([target()]);
+
+        expect(refetches).toBe(1);
+    });
+
+    it('is not retried when the refetch announces the same publication again', async () => {
+        engine.subscribe.mockRejectedValue(stale());
+
+        // Three rounds of exactly what the reconcile after a refetch does.
+        await service.subscribeAudio([target()]);
+        await service.subscribeAudio([target()]);
+        await service.subscribeAudio([target()]);
+
+        // One attempt, not three. Without this the request and the refetch it triggers feed each
+        // other for the rest of the call.
+        expect(engine.subscribe).toHaveBeenCalledTimes(1);
+        expect(refetches).toBe(1);
+    });
+
+    it('is retried once the publisher comes back on a new session', async () => {
+        engine.subscribe.mockRejectedValueOnce(stale()).mockResolvedValue(undefined);
+
+        await service.subscribeAudio([target('user_a', 'sess_dead')]);
+        await service.subscribeAudio([target('user_a', 'sess_new')]);
+
+        // Keyed on the session, so a republish is unaffected - which is the whole point of
+        // refetching in the first place.
+        expect(engine.subscribe).toHaveBeenCalledTimes(2);
+        expect(service.participantsWithAudio()).toContain('user_a');
+    });
+
+    it('is forgotten when the participant leaves', async () => {
+        engine.subscribe.mockRejectedValueOnce(stale()).mockResolvedValue(undefined);
+
+        await service.subscribeAudio([target('user_a', 'sess_1')]);
+        service.cleanupParticipant('user_a');
+        await service.subscribeAudio([target('user_a', 'sess_1')]);
+
+        expect(engine.subscribe).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not block a different participant on the same session id', async () => {
+        engine.subscribe.mockImplementation(async (_s: unknown, id: string) => {
+            if (id === 'user_a') throw stale();
+        });
+
+        await service.subscribeAudio([target('user_a'), target('user_b')]);
+
+        expect(service.participantsWithAudio()).toContain('user_b');
+    });
 });

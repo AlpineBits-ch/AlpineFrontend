@@ -36,8 +36,16 @@ pub struct PreviewFrame {
     pub height: u32,
 }
 
+/// How long [`PublishHandle::stop`] waits for the capture thread to actually be gone.
+///
+/// Long enough for one frame of work at any resolution this client offers, and short enough that a
+/// wedged driver call costs a pause rather than a share that can never be restarted.
+const CAPTURE_EXIT_TIMEOUT: Duration = Duration::from_secs(2);
+
 pub struct PublishHandle {
     stop_tx: Mutex<Option<std::sync::mpsc::SyncSender<()>>>,
+    /// Disconnects when the capture thread returns, so `stop` can wait for it.
+    capture_gone: Mutex<std::sync::mpsc::Receiver<()>>,
     /// Read every frame by the capture loop, so a framerate change lands within one frame.
     fps: Arc<AtomicU32>,
     /// Fixed output geometry, and the target the encoder was built for.
@@ -66,6 +74,18 @@ impl PublishHandle {
         )
     }
 
+    /// Stop capturing, and do not return until the capture thread has actually gone.
+    ///
+    /// <p>The wait is the point. Asking the thread to stop and returning immediately leaves it
+    /// running for the rest of the frame it is in the middle of - up to 300 ms at 4K in an
+    /// unoptimised build - and the one caller that cannot tolerate that is the one that stops a
+    /// publish in order to start another. A resolution change does exactly that, and every part of
+    /// the pipeline is then live twice over: two capture sessions duplicating the same monitor,
+    /// two Media Foundation encoders configuring against the same hardware, and the outgoing one's
+    /// `Drop` sending `END_STREAMING` while the incoming one negotiates its media types.</p>
+    ///
+    /// <p>Bounded rather than an outright join, so a driver call that never returns costs a pause
+    /// instead of a screen share that can never be started again.</p>
     pub fn stop(&self) {
         // Explicit, and not left to the writer task noticing its channel closed: the loopback device
         // is a system-wide capture, and leaving it open after a share ends is both a battery cost
@@ -77,6 +97,19 @@ impl PublishHandle {
         // Disconnected and unwinds the whole pipeline.
         if let Ok(mut guard) = self.stop_tx.lock() {
             guard.take();
+        }
+        // The thread holds the other end and drops it on the way out, so this returns
+        // `Disconnected` the moment it is gone - and `Timeout` only if it never was.
+        if let Ok(gone) = self.capture_gone.lock() {
+            if gone.recv_timeout(CAPTURE_EXIT_TIMEOUT) == Err(std::sync::mpsc::RecvTimeoutError::Timeout) {
+                // Worth saying out loud. Anything started after this shares the capture source and
+                // the encoder with a thread that is still using both, which is the state a
+                // resolution change used to enter on purpose.
+                eprintln!(
+                    "[publisher] the capture thread did not exit within {CAPTURE_EXIT_TIMEOUT:?}; \
+                     whatever starts next will overlap with it"
+                );
+            }
         }
     }
 
@@ -256,9 +289,16 @@ pub async fn start(
         frame_tx,
     );
 
+    let (capture_gone_tx, capture_gone) = std::sync::mpsc::sync_channel::<()>(0);
+
     std::thread::Builder::new()
         .name("sc-publish".into())
         .spawn(move || {
+            // Held for the life of the thread and never sent on. Dropping it as the thread unwinds
+            // is what tells `stop` the capture is really finished - including the early return
+            // below, and including a panic.
+            let _capture_gone = capture_gone_tx;
+
             let Some(source) = find_capture_source(&source_id) else {
                 eprintln!("[publisher] capture source {source_id} not found");
                 return;
@@ -272,6 +312,7 @@ pub async fn start(
 
     Ok(PublishHandle {
         stop_tx: Mutex::new(Some(stop_tx)),
+        capture_gone: Mutex::new(capture_gone),
         fps: handle_fps,
         width: AtomicU32::new(width),
         height: AtomicU32::new(height),
@@ -281,4 +322,86 @@ pub async fn start(
         encoder_name,
         screen_audio: audio_capture,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::AtomicBool;
+    use std::time::Instant;
+
+    /// A handle wired to a thread that behaves like the capture loop: it notices the stop, finishes
+    /// the frame it is in the middle of, and only then returns.
+    fn handle_with_a_busy_capture_thread(frame_cost: Duration) -> (PublishHandle, Arc<AtomicBool>) {
+        let (stop_tx, stop_rx) = std::sync::mpsc::sync_channel::<()>(1);
+        let (capture_gone_tx, capture_gone) = std::sync::mpsc::sync_channel::<()>(0);
+        let finished = Arc::new(AtomicBool::new(false));
+        let thread_finished = Arc::clone(&finished);
+
+        std::thread::spawn(move || {
+            let _capture_gone = capture_gone_tx;
+            // Blocks until the sender is dropped, exactly as `run_capture_loop` does.
+            let _ = stop_rx.recv();
+            // The frame already in flight when the stop arrived.
+            std::thread::sleep(frame_cost);
+            thread_finished.store(true, Ordering::Relaxed);
+        });
+
+        let handle = PublishHandle {
+            stop_tx: Mutex::new(Some(stop_tx)),
+            capture_gone: Mutex::new(capture_gone),
+            fps: Arc::new(AtomicU32::new(30)),
+            width: AtomicU32::new(1920),
+            height: AtomicU32::new(1080),
+            media_session_id: "sess".into(),
+            track_name: "screen-1".into(),
+            audio_track_name: None,
+            encoder_name: "test",
+            screen_audio: None,
+        };
+        (handle, finished)
+    }
+
+    #[test]
+    fn stopping_waits_for_the_capture_thread_to_finish() {
+        // The whole point of the wait. A resolution change stops one publish in order to start
+        // another, and the encoder and capture source it is about to open are the same ones this
+        // thread is still holding.
+        let (handle, finished) = handle_with_a_busy_capture_thread(Duration::from_millis(150));
+
+        handle.stop();
+
+        assert!(
+            finished.load(Ordering::Relaxed),
+            "stop returned while the capture thread was still running a frame"
+        );
+    }
+
+    #[test]
+    fn stopping_gives_up_rather_than_hanging_on_a_wedged_capture_thread() {
+        // A driver call that never returns must cost a pause, not a screen share that can never be
+        // started again.
+        let (handle, _finished) = handle_with_a_busy_capture_thread(CAPTURE_EXIT_TIMEOUT * 4);
+
+        let started = Instant::now();
+        handle.stop();
+        let waited = started.elapsed();
+
+        assert!(waited >= CAPTURE_EXIT_TIMEOUT, "gave up too early after {waited:?}");
+        assert!(
+            waited < CAPTURE_EXIT_TIMEOUT * 2,
+            "waited {waited:?}, which is past the bound"
+        );
+    }
+
+    #[test]
+    fn stopping_a_publish_whose_capture_never_started_returns_at_once() {
+        // `find_capture_source` can fail, and the thread then returns before capturing anything.
+        let (handle, _finished) = handle_with_a_busy_capture_thread(Duration::ZERO);
+
+        let started = Instant::now();
+        handle.stop();
+
+        assert!(started.elapsed() < CAPTURE_EXIT_TIMEOUT, "waited out the whole timeout");
+    }
 }

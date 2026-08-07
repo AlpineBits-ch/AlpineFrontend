@@ -187,6 +187,22 @@ export class VoiceRTCService {
     // subscribe twice and leak an m-line per snapshot.
     private readonly subscribedVideoTracks = new Map<string, { mediaSessionId: string; userId: string }>();
 
+    // Subscription key → the publication that was refused as stale, and who it belonged to.
+    //
+    // `staleSubscription` means that exact track on that exact session has stopped, so the identical
+    // request cannot start working: the remedy is to refetch the snapshot and pull whatever replaced
+    // it. But the refetch re-announces every track the server still lists, and while the server's
+    // record and Cloudflare's disagree that includes the dead one - which we then subscribe to
+    // again, are refused again, and refetch again. Nothing sleeps anywhere on that path, so it runs
+    // as fast as the network allows: a screenful of `subscribe refused as stale` alternating with
+    // 409s, one HTTP request per turn, for as long as the viewer stays in the channel.
+    //
+    // Recording the refusal is what breaks it. The refetch still happens - it is the only thing that
+    // can discover a replacement - but a re-announcement of the same (track, session) pair is now
+    // dropped before it reaches the wire. A republish always brings a new session id, so anything
+    // genuinely new is unaffected.
+    private readonly stalePublications = new Map<string, { mediaSessionId: string; userId: string }>();
+
     /**
      * Quality of the running screen share, or null when not sharing. Set by the picker and changed
      * by the in-call quality controls.
@@ -376,6 +392,7 @@ export class VoiceRTCService {
         this.localSenders.clear();
         this.subscribedAudioSessions.clear();
         this.subscribedVideoTracks.clear();
+        this.stalePublications.clear();
         // Dropped rather than awaited: the publication below is about to be stopped, which removes
         // every source on it, and anything still queued is for a channel that no longer exists.
         this.audioOps.clear();
@@ -463,6 +480,11 @@ export class VoiceRTCService {
         // here would make the resubscribe look like a duplicate and skip it.
         for (const [name, held] of this.subscribedVideoTracks) {
             if (held.userId === userId) this.subscribedVideoTracks.delete(name);
+        }
+        // And the record of what of theirs was refused. Keyed by session id, so it would not block
+        // a rejoin on its own - but it would otherwise sit in the map for the rest of the call.
+        for (const [key, held] of this.stalePublications) {
+            if (held.userId === userId) this.stalePublications.delete(key);
         }
 
         this.videoStreamsSignal.update(m => {
@@ -592,6 +614,9 @@ export class VoiceRTCService {
         // if they rejoined. Acting on that difference is the only recovery path there is.
         const previous = this.subscribedAudioSessions.get(id);
         if (previous === target.mediaSessionId) return;
+        // Already refused as stale. The refetch that followed has re-announced it unchanged, so
+        // asking again would only earn the same 409 and another refetch.
+        if (this.stalePublications.get(id)?.mediaSessionId === target.mediaSessionId) return;
         if (previous !== undefined) {
             // The old subscription points at a session that is no longer publishing. Drop it,
             // or the mixer keeps a dead source and Rust keeps a recvonly transceiver per
@@ -622,6 +647,7 @@ export class VoiceRTCService {
                 // Only after it succeeds. Recording a failed subscribe would make the retry above
                 // skip the very announcement that could have carried a working session id.
                 this.subscribedAudioSessions.set(id, target.mediaSessionId);
+                this.stalePublications.delete(id);
                 if (target.kind === 'screenAudio') {
                     this.remoteScreenAudioIds.set(target.userId, id);
                     // A stream that starts while its author is already muted must stay muted.
@@ -640,8 +666,14 @@ export class VoiceRTCService {
                 if (isStaleSubscription(e)) {
                     // Not late - gone. The identical body fails again for as long as we keep
                     // trying, which is the loop behind VNT-GE21R3P7. Nothing is recorded as
-                    // subscribed above, so the refetch below is free to try again properly.
+                    // subscribed above, so the refetch below is free to try again properly - and
+                    // the pair is recorded as dead so that a refetch which re-announces it
+                    // unchanged stops here instead of coming straight back round.
                     console.warn('[voice] subscribe refused as stale, refetching', {id});
+                    this.stalePublications.set(id, {
+                        mediaSessionId: target.mediaSessionId,
+                        userId: target.userId,
+                    });
                     this.staleSubscriptionSignal.next({userId: target.userId});
                     return;
                 }
@@ -686,6 +718,7 @@ export class VoiceRTCService {
         kind: 'video' | 'screen',
     ): Promise<void> {
         if (this.subscribedVideoTracks.get(trackName)?.mediaSessionId === mediaSessionId) return Promise.resolve();
+        if (this.stalePublications.get(trackName)?.mediaSessionId === mediaSessionId) return Promise.resolve();
 
         return this.enqueueNegotiation(async () => {
             // Inside the queue, so the session is opened once however many tracks are announced at
@@ -695,6 +728,7 @@ export class VoiceRTCService {
             // Re-checked inside the queue: two callers can pass the guard above before either has
             // run, and the queue is what serialises them.
             if (this.subscribedVideoTracks.get(trackName)?.mediaSessionId === mediaSessionId) return;
+            if (this.stalePublications.get(trackName)?.mediaSessionId === mediaSessionId) return;
 
             const transceiver = this.pc.addTransceiver('video', {direction: 'recvonly'});
             preferVideoCodecs(transceiver, 'receiver');
@@ -719,13 +753,16 @@ export class VoiceRTCService {
                 // could have recovered it, which is how a transient 502 becomes a permanently black
                 // tile.
                 this.subscribedVideoTracks.set(trackName, {mediaSessionId, userId});
+                this.stalePublications.delete(trackName);
                 if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
             } catch (e) {
                 if (isStaleSubscription(e)) {
                     // The share stopped between the announcement and this request. Nothing is
                     // recorded in subscribedVideoTracks - that happens only on success - so the
                     // reconcile that follows the refetch can subscribe cleanly if it comes back.
+                    // The dead pair is recorded so the refetch cannot hand the same one back.
                     console.warn('[voice] video subscribe refused as stale, refetching', {trackName});
+                    this.stalePublications.set(trackName, {mediaSessionId, userId});
                     this.staleSubscriptionSignal.next({userId});
                     return;
                 }

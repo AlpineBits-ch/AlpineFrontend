@@ -532,6 +532,46 @@ mod tests {
         );
     }
 
+    /// A steady tone at a given level, for driving the gate through the whole chain.
+    fn tone_at_dbfs(samples: usize, db: f32) -> Vec<f32> {
+        let amplitude = 10f32.powf(db / 20.0) * std::f32::consts::SQRT_2;
+        (0..samples)
+            .map(|i| {
+                let t = i as f32 / SAMPLE_RATE as f32;
+                (t * 200.0 * std::f32::consts::TAU).sin() * amplitude
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_shipped_sensitivity_default_transmits_quiet_speech() {
+        // -40 dBFS is unremarkable speech - the quiet half of an ordinary sentence, and most of
+        // what a softly spoken talker produces. The gate used to open only above -34 dBFS at this
+        // setting, so all of this was replaced with silence before it reached the encoder while
+        // the input meter next to the slider showed a healthy signal the whole time.
+        let mut cfg = config();
+        cfg.gate.sensitivity = 0.6; // what `audio-settings.service.ts` ships
+        let mut chain = CaptureChain::new(SAMPLE_RATE, cfg).unwrap();
+
+        let (packets, status) = collect(&mut chain, &tone_at_dbfs(SAMPLE_RATE as usize / 2, -40.0));
+        assert!(status.speaking, "a -40 dBFS talker is speaking");
+        assert!(
+            packets.len() >= 24,
+            "half a second of quiet speech should be about 25 packets, got {}",
+            packets.len()
+        );
+    }
+
+    #[test]
+    fn the_shipped_sensitivity_default_still_gates_room_tone() {
+        let mut cfg = config();
+        cfg.gate.sensitivity = 0.6;
+        let mut chain = CaptureChain::new(SAMPLE_RATE, cfg).unwrap();
+
+        let (_, status) = collect(&mut chain, &tone_at_dbfs(SAMPLE_RATE as usize / 2, -65.0));
+        assert!(!status.speaking, "room tone must not open the gate or light up the tile");
+    }
+
     #[test]
     fn input_arriving_in_ragged_chunks_still_packetises_cleanly() {
         // A device buffer is not a multiple of anything in particular, so the chain must not assume

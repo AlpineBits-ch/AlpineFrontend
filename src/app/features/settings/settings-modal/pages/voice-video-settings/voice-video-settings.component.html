@@ -111,8 +111,9 @@
                     <p class="text-sm text-white/75">Input Sensitivity</p>
                     <span class="text-xs text-white/40 tabular-nums">{{ inputSensitivity }}%</span>
                 </div>
-                <p class="text-xs text-white/35 -mt-1">Higher = picks up quieter sounds. Lower it if your mic keeps
-                    transmitting background noise between words.</p>
+                <p class="text-xs text-white/35 -mt-1">Higher = picks up quieter sounds; 100% transmits everything.
+                    Lower it if your mic keeps sending background noise between words, raise it if words get cut
+                    off.</p>
                 <p-slider [(ngModel)]="inputSensitivity" [max]="100" [min]="0" [step]="5" styleClass="w-full mt-1"/>
             </div>
         }

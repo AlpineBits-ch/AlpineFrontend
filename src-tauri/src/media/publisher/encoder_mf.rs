@@ -42,6 +42,16 @@ fn pack(high: u32, low: u32) -> u64 {
 }
 
 pub struct MediaFoundationEncoder {
+    /// The activation object the transform came from.
+    ///
+    /// Kept only so that `ShutdownObject` can be called on it. Media Foundation requires that of
+    /// every object obtained through `ActivateObject`, and releasing the transform is not a
+    /// substitute: for a hardware MFT it is the shutdown that hands the encode session back to the
+    /// driver. Enumerating activates every H.264 encoder the machine has - three on the machine
+    /// this was written against - so a publish that never shut down the ones it rejected left two
+    /// sessions held for the life of the process, and a later publish met an encoder that was
+    /// already in use.
+    activate: IMFActivate,
     transform: IMFTransform,
     /// Present only for asynchronous transforms, which in practice means all hardware ones.
     events: Option<IMFMediaEventGenerator>,
@@ -66,16 +76,25 @@ impl MediaFoundationEncoder {
             return None;
         }
 
-        for transform in unsafe { enumerate_hardware_encoders() } {
-            match unsafe { Self::configure(transform, spec) } {
+        for (activate, transform) in unsafe { enumerate_hardware_encoders() } {
+            match unsafe { Self::configure(activate.clone(), transform, spec) } {
                 Ok(encoder) => return Some(encoder),
-                Err(e) => eprintln!("[publisher] a hardware encoder failed to configure: {e}"),
+                Err(e) => {
+                    eprintln!("[publisher] a hardware encoder failed to configure: {e}");
+                    // Released here rather than left to the drop below. An encoder we are not going
+                    // to use must go back to the driver now, or the next publish finds it busy.
+                    unsafe { let _ = activate.ShutdownObject(); }
+                }
             }
         }
         None
     }
 
-    unsafe fn configure(transform: IMFTransform, spec: EncoderSpec) -> Result<Self, String> {
+    unsafe fn configure(
+        activate: IMFActivate,
+        transform: IMFTransform,
+        spec: EncoderSpec,
+    ) -> Result<Self, String> {
         let attributes = transform.GetAttributes().map_err(|e| e.to_string())?;
         let is_async = attributes.GetUINT32(&MF_TRANSFORM_ASYNC).unwrap_or(0) == 1;
         if is_async {
@@ -184,6 +203,7 @@ impl MediaFoundationEncoder {
             .map_err(|e| format!("failed to start streaming: {e}"))?;
 
         Ok(Self {
+            activate,
             transform,
             events,
             codec_api,
@@ -384,12 +404,20 @@ impl Drop for MediaFoundationEncoder {
             let _ = self
                 .transform
                 .ProcessMessage(MFT_MESSAGE_NOTIFY_END_STREAMING, 0);
+            // After the stream messages, so the transform is idle before its backing object goes.
+            // This is what returns the encode session to the driver; releasing the interface alone
+            // does not, and the next publish would find the encoder still in use.
+            let _ = self.activate.ShutdownObject();
         }
     }
 }
 
-/// Every hardware H.264 encoder MF knows about, best first.
-unsafe fn enumerate_hardware_encoders() -> Vec<IMFTransform> {
+/// Every hardware H.264 encoder MF knows about, best first, each with the activate it came from.
+///
+/// The activate is handed back rather than dropped here because it is the only handle that can
+/// shut the created object down, and every one of these has to be shut down whether or not it ends
+/// up being the encoder we keep.
+unsafe fn enumerate_hardware_encoders() -> Vec<(IMFActivate, IMFTransform)> {
     let output = MFT_REGISTER_TYPE_INFO {
         guidMajorType: MFMediaType_Video,
         guidSubtype: MFVideoFormat_H264,
@@ -416,7 +444,7 @@ unsafe fn enumerate_hardware_encoders() -> Vec<IMFTransform> {
     for i in 0..count as usize {
         if let Some(activate) = (*activates.add(i)).take() {
             if let Ok(transform) = activate.ActivateObject::<IMFTransform>() {
-                transforms.push(transform);
+                transforms.push((activate, transform));
             }
         }
     }
@@ -498,6 +526,13 @@ mod tests {
 mod probe {
     use super::*;
 
+    fn frame(width: u32, height: u32, shift: u32) -> RgbaImage {
+        RgbaImage::from_fn(width, height, |x, y| {
+            let v = (((x + shift) / 8 + y / 8) % 2) as u8;
+            image::Rgba([v * 255, (x % 256) as u8, (y % 256) as u8, 255])
+        })
+    }
+
     /// Reports what this machine offers. Not an assertion - a diagnostic, so a failing hardware
     /// test can be told apart from a machine that simply has no encoder.
     #[test]
@@ -513,4 +548,46 @@ mod probe {
         });
         eprintln!("[probe] encoder constructed: {}", built.is_some());
     }
+
+    /// What one frame costs at each resolution this client offers.
+    ///
+    /// The number that matters is the per-frame cost against the frame interval it has to fit
+    /// inside - 33 ms at 30 fps, 16 ms at 60. A share whose encode alone exceeds that cannot reach
+    /// its configured rate however healthy everything else is, and the capture thread does a
+    /// full-frame resize and a periodic JPEG preview on top of what is measured here.
+    ///
+    /// Worth running in both profiles. Measured on one machine: 3.6 ms per 1080p frame built with
+    /// `--release` against 73.8 ms for the same frame built with `cargo build`, a factor of 20 -
+    /// which is the difference between a share comfortably holding 30 fps and one managing 13.
+    /// `nv12::convert` is a scalar per-pixel loop and dominates that gap.
+    #[test]
+    fn report_the_cost_of_a_frame_at_each_resolution() {
+        for (w, h) in [(1280u32, 720u32), (1920, 1080), (2560, 1440), (3840, 2160)] {
+            let Some(mut encoder) = MediaFoundationEncoder::new(EncoderSpec {
+                width: w,
+                height: h,
+                fps: 30,
+                kbps: 8000,
+            }) else {
+                eprintln!("[probe] {w}x{h}: no encoder would configure");
+                continue;
+            };
+
+            let frames: Vec<RgbaImage> = (0..4).map(|i| frame(w, h, i * 7)).collect();
+            let mut out = 0usize;
+            let started = Instant::now();
+            for i in 0..60u64 {
+                if let EncodeOutcome::Chunk(_) = encoder.encode(&frames[i as usize % 4], i * 33_333)
+                {
+                    out += 1;
+                }
+            }
+            let per_frame = started.elapsed().as_secs_f64() * 1000.0 / 60.0;
+            eprintln!(
+                "[probe] {w}x{h}: {per_frame:.1} ms/frame (ceiling {:.0} fps), {out}/60 chunks out",
+                1000.0 / per_frame,
+            );
+        }
+    }
+
 }

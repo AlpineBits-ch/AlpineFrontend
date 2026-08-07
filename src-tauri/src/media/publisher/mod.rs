@@ -99,7 +99,9 @@ pub async fn start_screen_publish(
     // Whether to capture and publish the system's audio alongside the picture.
     share_audio: bool,
 ) -> Result<PublishResult, String> {
-    stop_screen_publish();
+    // Awaited, not fired off. This is the resolution-change path: the encoder built below and the
+    // capture session opened for it must not overlap with the ones being torn down here.
+    let _ = tauri::async_runtime::spawn_blocking(stop_active_publish).await;
 
     let target = match (guild_id, channel_id, call_id) {
         (Some(guild_id), Some(channel_id), _) => VoiceTarget::GuildChannel {
@@ -166,13 +168,25 @@ pub fn set_screen_audio_muted(muted: bool) {
     }
 }
 
-#[tauri::command]
-pub fn stop_screen_publish() {
-    if let Ok(mut guard) = active().lock() {
-        if let Some(handle) = guard.take() {
-            handle.stop();
-        }
+/// Stop the running publish and wait for its capture thread to exit.
+///
+/// Blocking, because [`PublishHandle::stop`] is - see the note there on why the wait is
+/// load-bearing. Every caller runs it somewhere a pause is affordable.
+fn stop_active_publish() {
+    // Taken out from under the lock before the wait begins. Holding it across the wait would make
+    // a capture thread that is slow to exit block every other command that touches the publish -
+    // the framerate and share-audio controls among them.
+    let handle = active().lock().ok().and_then(|mut guard| guard.take());
+    if let Some(handle) = handle {
+        handle.stop();
     }
+}
+
+#[tauri::command]
+pub async fn stop_screen_publish() {
+    // Off the runtime: this waits for an OS thread that is mid-frame, and an async command that
+    // blocks its worker stalls every other command sharing it.
+    let _ = tauri::async_runtime::spawn_blocking(stop_active_publish).await;
 }
 
 /// Reported to the frontend so a failure to provision the codec is diagnosable rather than
