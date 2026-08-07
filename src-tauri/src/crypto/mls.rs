@@ -18,8 +18,13 @@
 //!   `EncryptedMasterKey`). Alpine already owns every one of those in `crypto::crypto`, registered
 //!   as its own Tauri commands. They sit in a different module there, so importing mobile's copy
 //!   would *compile* and ship two divergent implementations of the same wrapping in one binary.
-//! * Device certificates, admission proofs and protection levels (§G/§H). No Alpine caller reaches
-//!   them, and an unreachable signing surface is worse than an absent one.
+//! * Admission proofs and protection levels (§G, §G.3). No Alpine caller reaches them, and an
+//!   unreachable signing surface is worse than an absent one.
+//! * Device-certificate **issuance** (§H.2), for the same reason. Device-certificate
+//!   *verification* is a different matter and now lives in `crypto::device_cert`: it is what the
+//!   payments key directory is checked against, so it has a caller, and it signs nothing. Note that
+//!   it does not depend on this module beyond `format_fingerprint` - a payments screen must not
+//!   fail closed because the MLS engine happens to be locked.
 
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -1304,7 +1309,12 @@ pub fn remove_members(
 
 /// Renders a fingerprint as five-character groups, which is what makes it readable aloud without
 /// losing your place. Uppercase hex over the SHA-256 of the key, truncated to 80 bits.
-fn format_fingerprint(bytes: &[u8]) -> String {
+///
+/// `pub(crate)` for `crypto::device_cert`, which prints the same fingerprint over the same key -
+/// the device key a payment handle is sealed to *is* the device's MLS signature key, so a user
+/// comparing what the payments screen shows against what the join-request review shows is comparing
+/// one string against itself. A second implementation would be a second string.
+pub(crate) fn format_fingerprint(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
     digest
         .iter()

@@ -8,13 +8,14 @@ import {
     ChoreDeleted,
     ChoreOccurrence,
     ChoreOccurrenceCreated,
+    ChoreOccurrenceNudged,
     ChoreOccurrenceUpdated,
     ChoreUpdated,
     CHORE_LIMITS,
     carriesOccurrence,
 } from '../dtos/response/chore.dto';
 import {CreateChoreDto, UpdateChoreDto} from '../dtos/request/chore.dto';
-import {ChoreApiService} from './chore-api.service';
+import {ChoreApiService, ChoreNudgeResult} from './chore-api.service';
 import {ProfileService} from './profile.service';
 import {RealtimeConnectionService} from './realtime-connection.service';
 
@@ -111,6 +112,8 @@ export class ChoreService {
             (d: ChoreOccurrenceCreated) => this.onOccurrenceCreated(d));
         this.realtime.on('guild.ChoreOccurrenceUpdated',
             (d: ChoreOccurrenceUpdated) => this.onOccurrenceUpdated(d));
+        this.realtime.on('guild.ChoreOccurrenceNudged',
+            (d: ChoreOccurrenceNudged) => this.onOccurrenceNudged(d));
         // The due-date reminder is not registered here. It arrives as `guild.HouseholdAlert` now,
         // and is handled by `HouseholdAlertService`, which the shell constructs at launch - this
         // service only exists once somebody has opened a chores board, which is precisely the
@@ -165,6 +168,25 @@ export class ChoreService {
                 forbidden: err instanceof HttpErrorResponse && err.status === 403,
             }),
         });
+    }
+
+    /**
+     * Marks every loaded board out of date, so the next open re-reads it.
+     *
+     * <p>For the one thing that moves occurrences without emitting an occurrence event: declaring an
+     * absence hands unfinished chores over in bulk, and the server reports only <i>how many</i> plus
+     * a `chore.reassigned` alert to each new assignee. Nobody else is told which rows moved.</p>
+     *
+     * <p>Guild-wide because it has to be. This service is keyed by channel and holds no guild ids,
+     * and a house may have a rota per room - so the honest granularity is "the boards you have open
+     * may be wrong", which is what this says. It deliberately does not refetch: the reassignment
+     * usually concerns a board nobody is looking at, and spending a request per rota on that is
+     * worse than re-reading the one that is actually opened next.</p>
+     */
+    invalidateAll(): void {
+        this.channels.update(all => Object.fromEntries(
+            Object.entries(all).map(([channelId, state]) => [channelId, {...state, loadedAt: 0}]),
+        ));
     }
 
     // ── Chore definitions ───────────────────────────────────────────────────
@@ -303,7 +325,40 @@ export class ChoreService {
         );
     }
 
+    /**
+     * Asks the assignee to get on with an overdue chore.
+     *
+     * <p>Deliberately not optimistic. `nudgedAt` is what greys the button, so stamping it before the
+     * server agrees would hide the control on a nudge that was in fact refused - and both refusals
+     * worth acting on are `409`s the caller has to read. The field is applied from the response.</p>
+     *
+     * <p><b>Nothing here records who sent it</b>, because nothing is told: the payload carries no
+     * sender, by design. See {@link ChoreApiService.nudge}.</p>
+     */
+    nudge(occurrence: ChoreOccurrence): Observable<ChoreNudgeResult> {
+        return this.api.nudge(occurrence.id).pipe(tap(result => {
+            const current = this.occurrenceById(occurrence.channelId, occurrence.id);
+            if (current) this.replaceOccurrence({...current, nudgedAt: result.nudgedAt});
+        }));
+    }
+
     // ── Realtime ────────────────────────────────────────────────────────────
+
+    /**
+     * `guild.ChoreOccurrenceNudged` - a stamp, not an occurrence.
+     *
+     * <p>The one household event that carries a fragment rather than the whole row, and that is not
+     * an oversight: a whole row would have to name a sender to be complete, and there deliberately
+     * is not one. So this patches the single field onto whatever is held rather than replacing it,
+     * and drops the event entirely for a row this board has never seen - there is nothing to patch,
+     * and inventing a stub occurrence out of two fields would put a blank chore on the board.</p>
+     */
+    private onOccurrenceNudged(payload: ChoreOccurrenceNudged): void {
+        if (!this.isTracked(payload.channelId)) return;
+        const current = this.occurrenceById(payload.channelId, payload.occurrenceId);
+        if (!current) return;
+        this.replaceOccurrence({...current, nudgedAt: payload.nudgedAt});
+    }
 
     private onOccurrenceCreated(payload: ChoreOccurrenceCreated): void {
         if (!this.isTracked(payload.channelId)) return;

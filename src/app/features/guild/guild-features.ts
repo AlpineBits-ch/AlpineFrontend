@@ -33,6 +33,8 @@ export const GuildFeature = {
     Presence: 'Presence',
     QuietHours: 'QuietHours',
     GuestAccess: 'GuestAccess',
+    Meals: 'Meals',
+    Maintenance: 'Maintenance',
 } as const;
 
 export type GuildFeature = typeof GuildFeature[keyof typeof GuildFeature];
@@ -68,14 +70,17 @@ export const HOUSEHOLD_MODULES: readonly GuildFeature[] = [
     GuildFeature.Presence,
     GuildFeature.QuietHours,
     GuildFeature.GuestAccess,
+    GuildFeature.Meals,
+    GuildFeature.Maintenance,
 ];
 
 /**
  * The modules the home digest can actually describe.
  *
- * <p>Not all eight: Quiet Hours and Guest Access are settings rather than content, so a house with
- * only those has nothing for a glance to show. These six are the sections of
- * `GET /guilds/{id}/home`, one apiece.</p>
+ * <p>Not all ten: Quiet Hours and Guest Access are settings rather than content, so a house with
+ * only those has nothing for a glance to show. These eight have a section of
+ * `GET /guilds/{id}/home` apiece - Ledger has two of them, since bills are a section beside
+ * expenses, and Presence covers both the home-status board and the away board.</p>
  */
 const DIGEST_MODULES: readonly GuildFeature[] = [
     GuildFeature.Lists,
@@ -84,6 +89,8 @@ const DIGEST_MODULES: readonly GuildFeature[] = [
     GuildFeature.Pantry,
     GuildFeature.Decisions,
     GuildFeature.Presence,
+    GuildFeature.Meals,
+    GuildFeature.Maintenance,
 ];
 
 /**
@@ -226,4 +233,6 @@ export const GUILD_FEATURE_LABEL_KEY: Readonly<Record<string, string>> = {
     [GuildFeature.Presence]: 'GUILD_MODULE.PRESENCE',
     [GuildFeature.QuietHours]: 'GUILD_MODULE.QUIET_HOURS',
     [GuildFeature.GuestAccess]: 'GUILD_MODULE.GUEST_ACCESS',
+    [GuildFeature.Meals]: 'GUILD_MODULE.MEALS',
+    [GuildFeature.Maintenance]: 'GUILD_MODULE.MAINTENANCE',
 };

@@ -1,7 +1,8 @@
-import {inject, Injectable} from '@angular/core';
+import {inject, Injectable, Injector} from '@angular/core';
 import {firstValueFrom} from 'rxjs';
 import {MlsService} from './mls.service';
 import {DeviceService} from './device.service';
+import {PaymentHandleService} from '../features/payments';
 
 /** What a teardown managed to do, so the caller can report the parts that matter to it. */
 export interface TeardownOutcome {
@@ -34,6 +35,21 @@ export interface TeardownOutcome {
 export class SessionTeardownService {
     private readonly mls = inject(MlsService);
     private readonly devices = inject(DeviceService);
+    private readonly injector = inject(Injector);
+
+    /**
+     * Resolved on demand, not as a field.
+     *
+     * <p>Same reason `DeviceIdentityService` reaches for `DeviceService` this way. Injecting it
+     * eagerly drags `PaymentHandleApiService`, `ApiConfigService` and `OAuthService` into every
+     * injector that builds a teardown - and this service's own spec is a pure Tauri harness with
+     * none of them, so ten tests of MLS state handling started failing on
+     * `No provider found for OAuthService`. Forgetting decrypted handles is a one-line courtesy at
+     * the end of a wipe; it has no business dictating what a teardown needs in scope.</p>
+     */
+    private get paymentHandles(): PaymentHandleService {
+        return this.injector.get(PaymentHandleService);
+    }
 
     /**
      * Drops this device's group state, keeping its identity.
@@ -47,6 +63,13 @@ export class SessionTeardownService {
         await firstValueFrom(this.mls.clearStorage());
         await this.mls.clearGroupRegistry();
         await this.mls.clearMessageCache();
+
+        // Decrypted payment handles are in-memory only and never reach disk, so this is not a wipe
+        // of anything persistent - it is making sure the next account signed in on this machine
+        // cannot read the last one's flatmates' bank details out of a live service. Included in the
+        // engine-state path as well as the account path because both end a session's right to them.
+        this.paymentHandles.forgetAll();
+
         return {keyPackagesReset: await this.resetKeyPackages(deviceId)};
     }
 

@@ -15,6 +15,7 @@ import {
 const HOUSEHOLD_TYPES = [
     ChannelType.List, ChannelType.Chores, ChannelType.Ledger,
     ChannelType.Pantry, ChannelType.Decisions,
+    ChannelType.Meals, ChannelType.Maintenance,
 ] as const;
 
 describe('CHANNEL_META', () => {

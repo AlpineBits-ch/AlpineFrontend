@@ -77,6 +77,21 @@
         }
     </section>
 
+    <!-- Payments -->
+    <!--
+      Asked once because it cannot be detected: canOpenURL is deprecated on iOS 27, its scheme
+      budget drops to 25, and it never answered the question for https links anyway. The answer
+      only reorders the settle-up sheet - nothing is ever hidden on the strength of it.
+    -->
+    <section class="flex flex-col gap-4">
+        <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+            Payments</h2>
+
+        <div class="bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+            <app-wallet-preference-setting/>
+        </div>
+    </section>
+
     <!-- Version -->
     <section class="flex flex-col gap-4">
         <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">

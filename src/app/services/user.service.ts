@@ -21,6 +21,60 @@ export class UserService {
         );
     }
 
+    /**
+     * Records or replaces the account's own phone number.
+     *
+     * <p><b>The signal is patched from the server's echo, not from the value sent.</b> The server
+     * normalises - it strips the separators a contact card carries - so what it stores can differ
+     * from what was typed, and showing the typed form back would put a number on screen that is not
+     * the one a housemate will be given. The same rule the sharing toggle follows, for the same
+     * reason.</p>
+     *
+     * <p>Errors are left to the caller. A `400` here is a format the client should have caught
+     * first (see `checkE164`), so it means the two rules have drifted, and swallowing it would hide
+     * exactly the case worth knowing about.</p>
+     */
+    setPhoneNumber(phoneNumber: string): Observable<string> {
+        return this.httpClient.put<{ phoneNumber: string }>(
+            `${this.apiConfig.baseUrl()}/api/v1/identity/users/self/phone`,
+            {phoneNumber}
+        ).pipe(
+            map(response => response.phoneNumber),
+            tap(stored => this.patchSelf({phoneNumber: stored})),
+        );
+    }
+
+    /**
+     * Removes the account's own phone number.
+     *
+     * <p>Idempotent server-side: it answers the same way whether there was a number or not, which is
+     * the state the caller asked for either way.</p>
+     *
+     * <p><b>This does not clear any household's sharing opt-in</b>, and it does not need to. Guild
+     * only ever hands out a number Identity gave it, so an opt-in with nothing behind it produces
+     * exactly the same response as no opt-in at all - a housemate sees nothing, and cannot tell
+     * which of the two it was. That indistinguishability is a guarantee of the read path rather than
+     * something this call has to tidy up.</p>
+     */
+    removePhoneNumber(): Observable<void> {
+        return this.httpClient.delete<void>(
+            `${this.apiConfig.baseUrl()}/api/v1/identity/users/self/phone`
+        ).pipe(
+            tap(() => this.patchSelf({phoneNumber: null})),
+        );
+    }
+
+    /**
+     * Applies a field change to the cached self, or does nothing when there is no cached self.
+     *
+     * <p>Deliberately not a refetch. `GET /users/self` is a large payload carrying the master-key
+     * envelope and the device list, and re-pulling all of it because one string changed would also
+     * race any in-flight edit on another field.</p>
+     */
+    private patchSelf(patch: Partial<UserDto>): void {
+        this.self.update(current => current ? {...current, ...patch} : current);
+    }
+
     verifyPassword(password: string): Observable<boolean> {
         return this.httpClient.post<unknown>(
             `${this.apiConfig.baseUrl()}/api/v1/identity/authentication/verify`,

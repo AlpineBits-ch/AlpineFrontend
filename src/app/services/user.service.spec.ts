@@ -66,6 +66,93 @@ describe('UserService.deleteAccount', () => {
     });
 });
 
+/**
+ * The account's own phone number.
+ *
+ * <p>Two things are being pinned. The route goes through <b>identity</b>, not guild - the sharing
+ * opt-in next to it does go to guild, and writing this one to the wrong service is a 404 that looks
+ * like "the feature is broken". And the cached self is patched from the <b>server's echo</b>: the
+ * server normalises, so the string it stores can differ from the string that was sent, and it is the
+ * stored one a housemate will be shown.</p>
+ */
+describe('UserService phone number', () => {
+    afterEach(() => TestBed.inject(HttpTestingController).verify());
+
+    it('PUTs to the identity service and returns the normalised number the server stored', () => {
+        const {service, ctrl} = setup();
+        let returned: string | undefined;
+        service.setPhoneNumber('+41791234567').subscribe(value => returned = value);
+
+        const req = ctrl.expectOne('https://api.test.example/api/v1/identity/users/self/phone');
+        expect(req.request.method).toBe('PUT');
+        expect(req.request.body).toEqual({phoneNumber: '+41791234567'});
+        req.flush({phoneNumber: '+41791234567'});
+
+        expect(returned).toBe('+41791234567');
+    });
+
+    it('caches what the server echoed rather than what was sent', () => {
+        const {service, ctrl} = setup();
+        service.self.set(makeUser({phoneNumber: null}));
+
+        // The separators are the case: the server strips them, so the stored form differs from the
+        // typed form and only one of the two is the number a flatmate will be handed.
+        service.setPhoneNumber('+41 79 123 45 67').subscribe();
+        ctrl.expectOne(req => req.method === 'PUT').flush({phoneNumber: '+41791234567'});
+
+        expect(service.self()?.phoneNumber).toBe('+41791234567');
+    });
+
+    it('leaves the cache alone when nothing has loaded self yet', () => {
+        const {service, ctrl} = setup();
+        service.setPhoneNumber('+41791234567').subscribe();
+        ctrl.expectOne(req => req.method === 'PUT').flush({phoneNumber: '+41791234567'});
+
+        // Inventing a UserDto from one field would put a half-built account in the signal every
+        // other reader treats as the whole thing.
+        expect(service.self()).toBeNull();
+    });
+
+    it('surfaces a rejected format instead of swallowing it', () => {
+        const {service, ctrl} = setup();
+        service.self.set(makeUser({phoneNumber: '+41791234567'}));
+
+        let status: number | undefined;
+        service.setPhoneNumber('+0041791234567')
+            .subscribe({error: err => status = err.status});
+
+        ctrl.expectOne(req => req.method === 'PUT')
+            .flush('A phone number must be in international format', {status: 400, statusText: 'Bad Request'});
+
+        expect(status).toBe(400);
+        // A refused write must not look like it landed.
+        expect(service.self()?.phoneNumber).toBe('+41791234567');
+    });
+
+    it('DELETEs the same path and clears the cached number', () => {
+        const {service, ctrl} = setup();
+        service.self.set(makeUser({phoneNumber: '+41791234567'}));
+
+        service.removePhoneNumber().subscribe();
+        const req = ctrl.expectOne('https://api.test.example/api/v1/identity/users/self/phone');
+        expect(req.request.method).toBe('DELETE');
+        req.flush(null, {status: 204, statusText: 'No Content'});
+
+        expect(service.self()?.phoneNumber).toBeNull();
+    });
+
+    it('leaves every other field of self intact', () => {
+        const {service, ctrl} = setup();
+        service.self.set(makeUser({phoneNumber: null, steamId: 'steam-1'}));
+
+        service.setPhoneNumber('+41791234567').subscribe();
+        ctrl.expectOne(req => req.method === 'PUT').flush({phoneNumber: '+41791234567'});
+
+        expect(service.self()?.steamId).toBe('steam-1');
+        expect(service.self()?.email).toBe('me@example.com');
+    });
+});
+
 describe('UserService.cancelDeletion', () => {
     afterEach(() => TestBed.inject(HttpTestingController).verify());
 

@@ -2,8 +2,15 @@ import {inject, Injectable} from '@angular/core';
 import {HttpClient, HttpParams} from '@angular/common/http';
 import {Observable} from 'rxjs';
 import {ApiConfigService} from './api-config.service';
-import {PantryConfig, PantryItem} from '../dtos/response/pantry.dto';
-import {CreatePantryItemDto, UpdatePantryConfigDto, UpdatePantryItemDto} from '../dtos/request/pantry.dto';
+import {PantryBarcode, PantryConfig, PantryItem, ScanPantryItemResult} from '../dtos/response/pantry.dto';
+import {
+    ConsumePantryItemDto,
+    CreatePantryItemDto,
+    RestockPantryItemDto,
+    ScanPantryItemDto,
+    UpdatePantryConfigDto,
+    UpdatePantryItemDto,
+} from '../dtos/request/pantry.dto';
 
 /**
  * The pantry HTTP surface, and nothing else. State, caching and realtime reconciliation
@@ -97,5 +104,50 @@ export class PantryApiService {
      */
     putConfig(channelId: string, dto: UpdatePantryConfigDto): Observable<PantryConfig> {
         return this.http.put<PantryConfig>(`${this.base}/channels/${channelId}/pantry/config`, dto);
+    }
+
+    // ── Capture ──────────────────────────────────────────────────────────────
+    //
+    // Three calls, all `ManagePantry`, all designed to cost one tap. Keeping a decimal quantity
+    // correct by hand is itself a chore, and it is the one houses stop doing first.
+
+    /**
+     * Scans a code into this pantry: tops the row up if it exists, creates it if not.
+     *
+     * <p><b>The guild learns its own products and there is no third-party lookup.</b> The first
+     * scan of an unknown code needs a `name`; every scan after that autofills from what the house
+     * itself recorded. `learned: true` in the answer is the one moment worth confirming with the
+     * user - be silent on every other one.</p>
+     */
+    scan(channelId: string, dto: ScanPantryItemDto): Observable<ScanPantryItemResult> {
+        return this.http.post<ScanPantryItemResult>(`${this.base}/channels/${channelId}/pantry-items/scan`, dto);
+    }
+
+    /**
+     * "Used it up." Runs the same low-stock and restock loop an edit does, so the same alerts fire.
+     *
+     * <p>`all: true` rather than an amount for the common case: "that was the last of it" cannot be
+     * expressed as a number without first knowing the exact stock, which is the arithmetic the tap
+     * exists to remove.</p>
+     */
+    consume(itemId: string, dto: ConsumePantryItemDto = {}): Observable<PantryItem> {
+        return this.http.post<PantryItem>(`${this.base}/pantry-items/${itemId}/consume`, dto);
+    }
+
+    /** "Put some back." Also ticks off the shopping-list line the pantry created for it. */
+    restock(itemId: string, dto: RestockPantryItemDto = {}): Observable<PantryItem> {
+        return this.http.post<PantryItem>(`${this.base}/pantry-items/${itemId}/restock`, dto);
+    }
+
+    /**
+     * The codes this guild has learned, for completing a manually typed one.
+     *
+     * <p>Guild-scoped, not per pantry: a product learned in the cellar is the same product in the
+     * fridge, and making somebody re-teach it per location is how the learning stops being worth
+     * it.</p>
+     */
+    barcodes(guildId: string, query?: string | null): Observable<PantryBarcode[]> {
+        const params = query ? new HttpParams().set('q', query) : new HttpParams();
+        return this.http.get<PantryBarcode[]>(`${this.base}/guilds/${guildId}/pantry/barcodes`, {params});
     }
 }

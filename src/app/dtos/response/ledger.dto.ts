@@ -28,6 +28,69 @@ const SPLIT_KIND_BY_ORDINAL: readonly ExpenseSplitKind[] = [
     ExpenseSplitKind.Equal, ExpenseSplitKind.Shares, ExpenseSplitKind.Exact,
 ];
 
+/**
+ * What an expense was for.
+ *
+ * <p>Coarse on purpose: the question it answers is "what does this flat cost per month, roughly",
+ * and a taxonomy fine enough to argue about is one nobody fills in.</p>
+ *
+ * <p><b>`Uncategorized` is not `Other`.</b> It is the zero value, so every expense written before
+ * categories existed sits in it, and it is reported as its own bucket in the rollup. Folding the
+ * two together would hide the size of the gap, and "we do not know what a third of this was" is the
+ * useful part of the answer.</p>
+ */
+export enum ExpenseCategory {
+    Uncategorized = 'Uncategorized',
+    Groceries = 'Groceries',
+    Rent = 'Rent',
+    Utilities = 'Utilities',
+    Internet = 'Internet',
+    Household = 'Household',
+    Transport = 'Transport',
+    EatingOut = 'EatingOut',
+    Entertainment = 'Entertainment',
+    Health = 'Health',
+    Pets = 'Pets',
+    Repairs = 'Repairs',
+    Other = 'Other',
+}
+
+/** Declaration order of the server's enum, for the case the payload carries an int. */
+const CATEGORY_BY_ORDINAL: readonly ExpenseCategory[] = [
+    ExpenseCategory.Uncategorized, ExpenseCategory.Groceries, ExpenseCategory.Rent,
+    ExpenseCategory.Utilities, ExpenseCategory.Internet, ExpenseCategory.Household,
+    ExpenseCategory.Transport, ExpenseCategory.EatingOut, ExpenseCategory.Entertainment,
+    ExpenseCategory.Health, ExpenseCategory.Pets, ExpenseCategory.Repairs, ExpenseCategory.Other,
+];
+
+/**
+ * Every category, in the order the picker offers them - declaration order, which puts the ones a
+ * house actually spends on near the top and leaves the escape hatches at the bottom.
+ */
+export const EXPENSE_CATEGORIES: readonly ExpenseCategory[] = CATEGORY_BY_ORDINAL;
+
+/** `EatingOut` -> `LEDGER.CATEGORY.EATING_OUT`. One rule, so a new category needs one string. */
+export function expenseCategoryLabelKey(category: ExpenseCategory): string {
+    const snake = category.replace(/([a-z0-9])([A-Z])/g, '$1_$2').toUpperCase();
+    return `LEDGER.CATEGORY.${snake}`;
+}
+
+/**
+ * The category name whichever way it arrived, defaulting to `Uncategorized`.
+ *
+ * <p>A name this build does not carry is a newer server, and `Uncategorized` is the reading that
+ * keeps the row visible and the totals honest - it lands in the bucket that already means "we do
+ * not know", rather than being silently filed under `Other` as though somebody had chosen it.</p>
+ */
+export function normalizeExpenseCategory(
+    value: ExpenseCategory | number | string | null | undefined,
+): ExpenseCategory {
+    if (typeof value === 'number') return CATEGORY_BY_ORDINAL[value] ?? ExpenseCategory.Uncategorized;
+    return (CATEGORY_BY_ORDINAL as readonly string[]).includes(value as string)
+        ? value as ExpenseCategory
+        : ExpenseCategory.Uncategorized;
+}
+
 export interface ExpenseShare {
     userId: string;
     /** A weight under `Shares`, that person's own `amountMinor` under `Exact`, ignored under `Equal`. */
@@ -56,6 +119,11 @@ export interface Expense {
      * all - 1000 across three is 334/333/333, decided server-side and never re-derived here.
      */
     shares: ExpenseShare[];
+    /**
+     * What it was for. Additive: absent from a server that predates categories, and from an
+     * expense nobody has categorised - both of which read as {@link ExpenseCategory.Uncategorized}.
+     */
+    category?: ExpenseCategory;
 }
 
 /**
@@ -172,6 +240,7 @@ export function normalizeExpense(raw: Expense): Expense {
     return {
         ...raw,
         splitKind: normalizeSplitKind(raw.splitKind),
+        category: normalizeExpenseCategory(raw.category),
         amountMinor: Math.trunc(raw.amountMinor ?? 0),
         shares: (raw.shares ?? []).map(share => ({
             ...share,

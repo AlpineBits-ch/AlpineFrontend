@@ -48,6 +48,7 @@ import {channelIcon} from '../../channel-types';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {effectiveGuildPermissions} from '../../guild-permissions';
 import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
+import {PantryScanComponent} from './pantry-scan.component';
 
 /**
  * The look-ahead overrides offered by the house-wide expiring view, alongside the default of no
@@ -73,7 +74,7 @@ const EXPIRING_WINDOWS = [3, 7, 14, 30] as const;
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
         DatePipe, FormsModule, TranslateModule, Button, Dialog, InputText, Select, DatePicker,
-        ToggleSwitch, Tooltip, PrimeTemplate,
+        ToggleSwitch, Tooltip, PrimeTemplate, PantryScanComponent,
     ],
     templateUrl: './pantry-channel.component.html',
 })
@@ -100,7 +101,7 @@ export class PantryChannelComponent implements OnDestroy {
     private ownMember = signal<SelfGuildMemberDto | null>(null);
 
     /** Which body is showing. `expiring` is guild-wide; see the class doc. */
-    protected view = signal<'stock' | 'expiring'>('stock');
+    protected view = signal<'stock' | 'expiring' | 'scan'>('stock');
     /** `null` - the default - is "each pantry's own window", not "no window". */
     protected expiringDays = signal<number | null>(DEFAULT_EXPIRING_DAYS);
 
@@ -406,6 +407,46 @@ export class PantryChannelComponent implements OnDestroy {
         this.pantry.updateItem(this.channel().id, item.id, {quantity}).subscribe({
             error: err => this.toast.httpError(this.translate.instant('PANTRY.SAVE_ERROR'), err),
         });
+    }
+
+    // ── Capture ──────────────────────────────────────────────────────────────
+    //
+    // Three taps that replace a form. The point is not that these do something an edit could not -
+    // it is that an edit costs a dialog and some arithmetic, and that is why nobody kept the pantry
+    // up to date.
+
+    /**
+     * "Used one." Runs the server's low-stock loop, so the same alerts and the same shopping-list
+     * append happen as if somebody had edited the quantity down by hand.
+     */
+    protected consumeOne(item: PantryItem): void {
+        this.pantry.consume(this.channel().guildId, this.channel().id, item.id).subscribe({
+            error: err => this.toast.httpError(this.translate.instant('PANTRY.CONSUME_FAILED'), err),
+        });
+    }
+
+    /**
+     * "That was the last of it."
+     *
+     * <p>Sent as `all` rather than as an amount, which is the one thing a client cannot express
+     * without first knowing the exact stock - and looking that up is the arithmetic the tap is here
+     * to remove.</p>
+     */
+    protected consumeAll(item: PantryItem): void {
+        this.pantry.consume(this.channel().guildId, this.channel().id, item.id, {all: true}).subscribe({
+            error: err => this.toast.httpError(this.translate.instant('PANTRY.CONSUME_FAILED'), err),
+        });
+    }
+
+    /** "Put one back." Also ticks off the shopping-list line the pantry created for it. */
+    protected restockOne(item: PantryItem): void {
+        this.pantry.restock(this.channel().guildId, this.channel().id, item.id).subscribe({
+            error: err => this.toast.httpError(this.translate.instant('PANTRY.RESTOCK_FAILED'), err),
+        });
+    }
+
+    protected showScan(): void {
+        this.view.set('scan');
     }
 
     // ── Config editor ────────────────────────────────────────────────────────

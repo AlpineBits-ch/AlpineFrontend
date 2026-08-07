@@ -88,6 +88,12 @@
                         @case ('decisions') {
                             <app-decisions-channel (back)="navService.showHome()" [channel]="view.channel"/>
                         }
+                        @case ('meals') {
+                            <app-meals-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
+                        @case ('maintenance') {
+                            <app-maintenance-channel (back)="navService.showHome()" [channel]="view.channel"/>
+                        }
                         @default {
                             <app-unsupported-channel [channel]="view.channel"/>
                         }

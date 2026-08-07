@@ -151,7 +151,15 @@ export interface InboxSummary {
  * `targetId` plus the breadcrumb is a deep link. A `switch` that dropped an unknown kind would
  * silently stop showing the user work that is waiting on them.</p>
  */
-export type InboxTaskKind = 'ChoreDue' | 'DecisionVote' | 'ListAssignment' | (string & {});
+export type InboxTaskKind =
+    | 'ChoreDue' | 'DecisionVote' | 'ListAssignment'
+    /** A bill is coming due. `targetId` is the bill occurrence. */
+    | 'BillDue'
+    /** You are down to cook today. `targetId` is the meal plan entry. */
+    | 'CookingToday'
+    /** A service is overdue or a warranty is lapsing. `targetId` is the asset. */
+    | 'MaintenanceDue'
+    | (string & {});
 
 /**
  * One thing waiting on the caller, from any guild they are in.
@@ -162,7 +170,7 @@ export type InboxTaskKind = 'ChoreDue' | 'DecisionVote' | 'ListAssignment' | (st
  */
 export interface InboxTask {
     kind: InboxTaskKind;
-    /** An occurrence, a decision or a list item, per {@link kind}. */
+    /** An occurrence, decision, list item, bill, meal plan entry or asset, per {@link kind}. */
     targetId: string;
     breadcrumb: InboxBreadcrumb;
     /** Server-written, and rendered as given - see {@link InboxTaskKind}. */

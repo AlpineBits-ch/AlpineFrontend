@@ -1,13 +1,22 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {Observable, tap} from 'rxjs';
 import {
+    PantryBarcode,
     PantryConfig,
     PantryItem,
     PantryItemCreated,
     PantryItemDeleted,
     PantryItemUpdated,
+    ScanPantryItemResult,
 } from '../dtos/response/pantry.dto';
-import {CreatePantryItemDto, UpdatePantryConfigDto, UpdatePantryItemDto} from '../dtos/request/pantry.dto';
+import {
+    ConsumePantryItemDto,
+    CreatePantryItemDto,
+    RestockPantryItemDto,
+    ScanPantryItemDto,
+    UpdatePantryConfigDto,
+    UpdatePantryItemDto,
+} from '../dtos/request/pantry.dto';
 import {PantryApiService} from './pantry-api.service';
 import {RealtimeConnectionService} from './realtime-connection.service';
 
@@ -199,6 +208,65 @@ export class PantryService {
     /** Applied locally after a write, and by the config editor's own optimistic patch. */
     putConfig(config: PantryConfig): void {
         this.configByChannel.update(m => ({...m, [config.channelId]: config}));
+    }
+
+    // ── Capture ──────────────────────────────────────────────────────────────
+    //
+    // Three one-tap writes. They exist because keeping a decimal quantity correct by hand is itself
+    // a chore, and it is the first one a house stops doing.
+
+    /**
+     * Scans a code into this pantry: tops up the row if it is there, creates it if not.
+     *
+     * <p>The result says more than the item does. `created` separates a new row from a top-up, and
+     * <b>`learned` is the one moment worth interrupting anybody about</b> - it means the house had
+     * never seen this code and has just recorded what it is called. Be silent on every other scan.</p>
+     */
+    scan(guildId: string, channelId: string, dto: ScanPantryItemDto): Observable<ScanPantryItemResult> {
+        return this.api.scan(channelId, dto).pipe(tap(result => {
+            this.upsert(channelId, result.item);
+            // A scan can carry an expiry, and the house-wide expiring view is keyed on the guild
+            // rather than the channel - so it has to be invalidated exactly as an edit does it.
+            // Hence the `guildId` parameter: the write only knows which pantry it touched, where
+            // the realtime events carry the guild outright.
+            this.expiringStale.add(guildId);
+        }));
+    }
+
+    /** One-tap "used it up". Runs the server's low-stock loop, so the same alerts fire. */
+    consume(
+        guildId: string,
+        channelId: string,
+        itemId: string,
+        dto: ConsumePantryItemDto = {},
+    ): Observable<PantryItem> {
+        return this.api.consume(itemId, dto).pipe(tap(item => {
+            this.upsert(channelId, item);
+            this.expiringStale.add(guildId);
+        }));
+    }
+
+    /** One-tap "put some back". Also ticks off the shopping-list line the pantry created. */
+    restock(
+        guildId: string,
+        channelId: string,
+        itemId: string,
+        dto: RestockPantryItemDto = {},
+    ): Observable<PantryItem> {
+        return this.api.restock(itemId, dto).pipe(tap(item => {
+            this.upsert(channelId, item);
+            this.expiringStale.add(guildId);
+        }));
+    }
+
+    /**
+     * The codes this guild has learned.
+     *
+     * <p>Uncached and passed straight through: it backs a search-as-you-type field, every answer is
+     * query-specific, and the set grows the moment anybody scans something new.</p>
+     */
+    barcodes(guildId: string, query?: string | null): Observable<PantryBarcode[]> {
+        return this.api.barcodes(guildId, query);
     }
 
     // ── Realtime ─────────────────────────────────────────────────────────────

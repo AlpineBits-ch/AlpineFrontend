@@ -14,6 +14,8 @@ export interface CreatePantryItemDto {
     lowThreshold?: number | null;
     /** ISO-8601. */
     expiresAt?: string | null;
+    /** The product code, when the row is being created from a scan. */
+    barcode?: string | null;
 }
 
 /**
@@ -45,6 +47,48 @@ export interface UpdatePantryItemDto {
     expiresAt?: string;
     /** Removes the expiry date. Overrides `expiresAt` if both are sent. */
     clearExpiresAt?: boolean;
+    barcode?: string;
+    /** Unlearns this row's code. Same flag rule as the two above. */
+    clearBarcode?: boolean;
+}
+
+// ── Capture ─────────────────────────────────────────────────────────────────
+//
+// The three one-tap ways to change stock. The pantry's problem was never missing features, it was
+// that keeping a decimal quantity correct by hand is itself a chore. Everything here exists to make
+// the common change cost one tap and no typing, which is why every field but the code is optional.
+
+/**
+ * A scan.
+ *
+ * <p>After the first scan of a product everything but {@link barcode} is usually absent, and that is
+ * the entire point of the guild learning its own codes. Send {@link name} only when the response to
+ * the previous attempt said the code was unknown, or to correct a label - which re-teaches it.</p>
+ */
+export interface ScanPantryItemDto {
+    barcode: string;
+    /** How much this scan adds. Absent falls back to what the house learned, then to 1. */
+    quantity?: number;
+    /** Required only the first time a code is seen in this guild. */
+    name?: string;
+    unit?: string;
+    expiresAt?: string;
+}
+
+/** "Used it up." The tap the module was missing. */
+export interface ConsumePantryItemDto {
+    /** Defaults to 1, and never takes the quantity below zero. */
+    amount?: number;
+    /**
+     * Sets the quantity to zero outright, for the far commoner "that was the last of it" - which a
+     * client cannot express as an amount without first knowing the exact stock.
+     */
+    all?: boolean;
+}
+
+/** "Put some back." Defaults to 1, and ticks off the shopping-list line the pantry created. */
+export interface RestockPantryItemDto {
+    amount?: number;
 }
 
 /**

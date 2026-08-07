@@ -116,6 +116,17 @@
                                                 <span class="text-[0.6875rem] text-text-muted shrink-0">
                                                     {{ 'CHORES.BALANCE_DONE_COUNT' | translate:{count: entry.completedCount, minutes: entry.completedMinutes} }}
                                                 </span>
+                                                <!-- The balance is weighted by this, so being away
+                                                     no longer reads as being behind. Saying the
+                                                     number is what turns a figure people argue with
+                                                     into a sentence they accept. -->
+                                                @if (presentDaysOf(entry); as presentDays) {
+                                                    @if (presentDays < balanceWindowDays) {
+                                                        <span class="text-[0.6875rem] text-text-muted shrink-0">
+                                                            {{ 'CHORES.BALANCE_PRESENT_DAYS' | translate:{days: presentDays, window: balanceWindowDays} }}
+                                                        </span>
+                                                    }
+                                                }
                                             </div>
 
                                             <!-- Bars compare members to each other. The number is always a
@@ -145,6 +156,14 @@
                                     </li>
                                 }
                             </ul>
+
+                            <!-- Only when somebody actually was away. Otherwise it is a paragraph
+                                 explaining a weighting that made no difference to anything. -->
+                            @if (anyPartialPresence()) {
+                                <p class="text-[0.625rem] text-text-muted m-0 px-4 py-2 border-t border-border-subtle">
+                                    {{ 'CHORES.BALANCE_PRESENCE_HINT' | translate }}
+                                </p>
+                            }
                         }
                     </section>
                 }
@@ -233,6 +252,21 @@
                                                          handing the next one back, not by re-opening this row. -->
                                                 }
                                                 @default {
+                                                    <!-- The nudge. The one thing about it that
+                                                         matters is that nobody is named: the app
+                                                         does the asking so that no flatmate has to
+                                                         be the person who nags. Greyed off
+                                                         `nudgedAt` rather than offering an action
+                                                         that would come back a 409. -->
+                                                    @if (canNudgeOccurrence(occurrence)) {
+                                                        <p-button (onClick)="onNudge(occurrence)" [text]="true"
+                                                                  icon="pi pi-bell" severity="secondary" size="small"
+                                                                  [pTooltip]="'CHORES.NUDGE_TOOLTIP' | translate"/>
+                                                    } @else if (nudgeOnCooldown(occurrence)) {
+                                                        <p-button [disabled]="true" [text]="true"
+                                                                  icon="pi pi-bell" severity="secondary" size="small"
+                                                                  [pTooltip]="'CHORES.NUDGE_ALREADY' | translate"/>
+                                                    }
                                                     <p-button (onClick)="onSwap(occurrence)" [text]="true"
                                                               icon="pi pi-user-edit" severity="secondary" size="small"
                                                               [pTooltip]="'CHORES.SWAP_TOOLTIP' | translate"/>

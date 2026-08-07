@@ -10,10 +10,13 @@ import {UserService} from '../../../../../services/user.service';
 import {OnboardingService} from '../../../../../services/onboarding.service';
 import {SocialKeyGateService} from '../../../../../services/social-key-gate.service';
 import {UserInterest} from '../../../../../dtos/response/UserDto';
+import {WalletPreferenceSettingComponent} from '../../../../payments';
 
 @Component({
     selector: 'app-other-settings',
-    imports: [ToggleSwitch, Select, FormsModule, TranslateModule],
+    imports: [
+        ToggleSwitch, Select, FormsModule, TranslateModule, WalletPreferenceSettingComponent,
+    ],
     templateUrl: './other-settings.component.html',
     styleUrl: './other-settings.component.css',
 })

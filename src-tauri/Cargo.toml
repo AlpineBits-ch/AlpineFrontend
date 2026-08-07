@@ -45,20 +45,24 @@ tauri-build = { version = "2", features = [] }
 # beside it: no message path logs plaintext any more.
 tauri = { version = "2", features = [ "devtools"] }
 tauri-plugin-opener = "2"
-# Key-package fingerprints in crypto::mls, so it has to be available on mobile too - this
-# previously sat in the desktop-only target block next to the openh264 blob loader.
+# Key-package fingerprints in crypto::mls, and the certificate and revocation fingerprints in
+# crypto::device_cert. Has to be available on mobile too - this previously sat in the desktop-only
+# target block next to the openh264 blob loader.
 sha2 = "0.10"
 # Not used by any Alpine code path today, and kept deliberately.
 #
 # `the_shared_engine_dependencies_are_pinned_together` compares this manifest against venta-mobile's
-# crate by crate, and mobile needs both for the §G/§H device-certificate and admission-proof code
-# that Alpine has no caller for and does not port. The comparison reads an absent crate as `None`,
-# so dropping these fails the pin rather than passing it - and the pin is what stops the two engines
-# drifting into mutually unreadable wire formats.
+# crate by crate, and mobile needs both for the §G admission-proof code, which Alpine has no caller
+# for and does not port. The comparison reads an absent crate as `None`, so dropping these fails the
+# pin rather than passing it - and the pin is what stops the two engines drifting into mutually
+# unreadable wire formats.
 #
-# An earlier version of this comment attributed them to device certificates in `crypto::mls`, which
-# was never true here: that section is exactly the part Alpine skips. If §H is ever ported, this
-# comment is what should change first.
+# Two earlier versions of this comment attributed them to device certificates. Neither was right,
+# and the reason has now changed: `crypto::device_cert` *does* port §H.2 verification, and it needs
+# neither crate. A device certificate is Ed25519 over a length-framed payload - `openmls` and `sha2`
+# and nothing else. It is the §G admission proof, still unported, that is HMAC-SHA256 under an
+# HKDF-derived subkey of the account master key. If §G is ever ported, these acquire a caller and
+# this comment goes.
 hkdf = "0.12"
 hmac = "0.12"
 serde = { version = "1", features = ["derive"] }

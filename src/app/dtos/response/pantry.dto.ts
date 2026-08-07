@@ -56,7 +56,43 @@ export interface PantryItem {
      * latest payload rather than latched on first sight.</p>
      */
     restockedAt?: string | null;
+    /**
+     * The product code this row was last scanned under, if any.
+     *
+     * <p>Learned per guild and by the guild alone - **there is no third-party lookup and there must
+     * not be one.** The first scan of an unknown code asks for a name, every scan after that
+     * autofills from what the house itself recorded.</p>
+     */
+    barcode?: string | null;
     addedByUserId: string;
+}
+
+/**
+ * What a scan did, which cannot be inferred from the item alone.
+ *
+ * <p><b>{@link learned} is the only moment worth interrupting anyone.</b> It means the house had
+ * never seen this code and has just recorded what it is called. Every scan after that is silent -
+ * the module's whole problem is that maintaining a pantry by hand is itself a chore, and a
+ * confirmation dialog per tin is how houses abandon it inside a fortnight.</p>
+ */
+export interface ScanPantryItemResult {
+    item: PantryItem;
+    /** A new row, rather than a top-up of the jar that was already there. Different confirmations. */
+    created: boolean;
+    /** The code was unknown and its name has now been learned. See the type doc. */
+    learned: boolean;
+}
+
+/** One code the house has learned, for offline completion of a manually typed code. */
+export interface PantryBarcode {
+    barcode: string;
+    name: string;
+    unit?: string | null;
+    /** What one scan of this code adds when the scan names no quantity. */
+    defaultQuantity: number;
+    lowThreshold?: number | null;
+    timesSeen: number;
+    lastUsedAt: string;
 }
 
 /** Per-pantry wiring. One config row per Pantry channel; created lazily by the server. */

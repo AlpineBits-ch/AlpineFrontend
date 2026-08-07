@@ -127,6 +127,8 @@ describe('LedgerService', () => {
             expect([...hubHandlers.keys()].sort()).toEqual([
                 'guild.ExpenseCreated',
                 'guild.ExpenseDeleted',
+                'guild.ExpenseReceiptAdded',
+                'guild.ExpenseReceiptDeleted',
                 'guild.ExpenseUpdated',
                 'guild.SettlementRecorded',
             ]);

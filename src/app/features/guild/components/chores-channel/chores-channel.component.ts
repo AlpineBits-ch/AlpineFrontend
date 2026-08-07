@@ -30,13 +30,16 @@ import {
     ChoreOccurrence,
     CHORE_LIMITS,
     balanceStanding,
+    canNudge,
     choreAssignmentError,
+    nextNudgeAt,
     occurrenceStatus,
     wasDoneByProxy,
 } from '../../../../dtos/response/chore.dto';
 import {CreateChoreDto, UpdateChoreDto} from '../../../../dtos/request/chore.dto';
 import {ChoreService} from '../../../../services/chore.service';
 import {GuildService} from '../../../../services/guild.service';
+import {MinuteClockService} from '../../../../services/minute-clock.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {ToastService} from '../../../../services/toast.service';
 import {NavigationService} from '../../../main-page/navigation.service';
@@ -82,6 +85,7 @@ export class ChoresChannelComponent {
     private choreService = inject(ChoreService);
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
+    private minuteClock = inject(MinuteClockService);
     private toastService = inject(ToastService);
     private translate = inject(TranslateService);
 
@@ -106,11 +110,23 @@ export class ChoresChannelComponent {
 
     private permissions = computed(() => effectiveGuildPermissions(this.ownMember()));
 
+    protected ownUserId = computed(() => this.profileService.ownProfile()?.userId ?? null);
+
     private isOwner = computed(() => {
-        const ownUserId = this.profileService.ownProfile()?.userId;
+        const ownUserId = this.ownUserId();
         const ownerId = this.guild()?.ownerId;
         return !!ownUserId && !!ownerId && ownUserId === ownerId;
     });
+
+    /**
+     * Server-corrected now, ticking every half minute.
+     *
+     * <p>The nudge button's whole existence is a comparison against the clock - overdue past the
+     * grace period, and outside the twelve-hour cooldown - so a frozen `Date.now()` captured at
+     * render would leave the control absent for as long as the board stayed open past the moment it
+     * should have appeared. Read through the server clock because both bounds are server-issued.</p>
+     */
+    private nowTick = computed(() => this.minuteClock.now());
 
     /**
      * Owner first, because `SelfGuildMemberDto.permissions` does not reliably carry Superadmin for
@@ -217,6 +233,26 @@ export class ChoresChannelComponent {
 
     protected balanceWidth = (entry: ChoreBalanceEntry): number =>
         Math.round(Math.abs(entry.balanceMinutes) / this.balanceScale() * 100);
+
+    /**
+     * How many days of the balance window this member was actually here.
+     *
+     * <p>The balance is weighted by it, so a fortnight in Lisbon no longer reads as being behind -
+     * and surfacing the number is what lets the board <i>explain</i> itself rather than only assert.
+     * "40 minutes light over the 16 days you were here" is a sentence people accept; the bare number
+     * is the thing they argue with.</p>
+     *
+     * <p>Null on a server that predates absences, in which case the board says less rather than
+     * inventing a window.</p>
+     */
+    protected presentDaysOf = (entry: ChoreBalanceEntry): number | null => entry.presentDays ?? null;
+
+    /** The window the balance spans, so "16 of 30 days" has a denominator to name. */
+    protected readonly balanceWindowDays = CHORE_LIMITS.balanceDefaultDays;
+
+    /** Somebody was away for part of it, so the weighting is worth explaining at all. */
+    protected anyPartialPresence = computed(() => this.balance().some(entry =>
+        entry.presentDays != null && entry.presentDays < this.balanceWindowDays));
 
     // ── Names ───────────────────────────────────────────────────────────────
 
@@ -330,6 +366,10 @@ export class ChoresChannelComponent {
     protected pausing = signal<string | null>(null);
 
     constructor() {
+        // The nudge button appears and greys itself purely by the passage of time, so the board
+        // needs a clock that ticks rather than one sampled at render.
+        this.minuteClock.retain();
+
         // Membership is keyed on the guild alone. Kept out of the load effect below because that
         // one also depends on `guilds()` - folding them together would re-issue two member
         // requests every time anything anywhere refreshed the guild list.
@@ -386,6 +426,70 @@ export class ChoresChannelComponent {
         this.choreService.skip(occurrence).subscribe({
             error: err => this.toastService.httpError(this.translate.instant('CHORES.SKIP_ERROR'), err),
         });
+    }
+
+    /**
+     * Whether the nudge button belongs on this row at all.
+     *
+     * <p>Every clause mirrors a way the endpoint refuses, so the control is absent rather than
+     * offered and then explained: not your own row, not done or skipped, and genuinely past the
+     * chore's grace period. A nudge about something not yet overdue is not a reminder, it is a
+     * person leaning over your shoulder - and that is what gets the whole feature muted.</p>
+     */
+    protected canNudgeOccurrence(occurrence: ChoreOccurrence): boolean {
+        const chore = this.state().chores.find(c => c.id === occurrence.choreId);
+        if (!chore) return false;
+        return canNudge(occurrence, chore.graceHours, this.ownUserId(), this.nowTick());
+    }
+
+    /** Somebody has nudged inside the cooldown, so the button is greyed rather than removed. */
+    protected nudgeOnCooldown(occurrence: ChoreOccurrence): boolean {
+        const next = nextNudgeAt(occurrence);
+        return !!next && next.getTime() > this.nowTick();
+    }
+
+    /**
+     * Nudges the assignee.
+     *
+     * <p><b>Nothing in this flow names the sender</b>, here or in what the assignee receives. The
+     * app does the asking so that nobody in the house has to be the person who nags; attributing it
+     * hands the social cost straight back, and the feature is worth nothing after that.</p>
+     *
+     * <p>The two `409`s get their own sentences. One means somebody already asked and the chore has
+     * not moved; the other means the house is asleep, and it is <b>rejected rather than deferred</b>
+     * - a nudge arriving seven hours late about a bin that may well have been taken out is not the
+     * message anybody sent.</p>
+     */
+    protected onNudge(occurrence: ChoreOccurrence): void {
+        this.choreService.nudge(occurrence).subscribe({
+            next: () => this.toastService.success(this.translate.instant('CHORES.NUDGE_SENT')),
+            error: err => {
+                if (err instanceof HttpErrorResponse && err.status === 409) {
+                    const body = err.error as {quietUntil?: string; nextNudgeAt?: string} | null;
+                    if (body?.quietUntil) {
+                        this.toastService.warn(this.translate.instant('CHORES.NUDGE_QUIET_TITLE'), {
+                            detail: this.translate.instant('CHORES.NUDGE_QUIET_BODY', {
+                                time: this.timeLabel(body.quietUntil),
+                            }),
+                            life: 8000,
+                        });
+                        return;
+                    }
+                    this.toastService.warn(this.translate.instant('CHORES.NUDGE_COOLDOWN_TITLE'), {
+                        detail: this.translate.instant('CHORES.NUDGE_COOLDOWN_BODY'),
+                        life: 8000,
+                    });
+                    return;
+                }
+                this.toastService.httpError(this.translate.instant('CHORES.NUDGE_ERROR'), err);
+            },
+        });
+    }
+
+    private timeLabel(iso: string): string {
+        const date = new Date(iso);
+        if (Number.isNaN(date.getTime())) return '';
+        return new Intl.DateTimeFormat(undefined, {hour: 'numeric', minute: '2-digit'}).format(date);
     }
 
     /**

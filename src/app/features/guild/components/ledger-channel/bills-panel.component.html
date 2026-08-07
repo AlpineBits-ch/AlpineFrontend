@@ -1,0 +1,354 @@
+<div class="flex flex-col gap-4">
+
+    <!-- ── Upcoming: what is owed, not what was spent ──────────────────────── -->
+    <section class="rounded-2xl border border-border bg-sidebar overflow-hidden">
+        <div class="px-4 py-2.5 border-b border-border-subtle flex items-center gap-2">
+            <span class="text-xs font-semibold text-text-secondary">{{ 'BILLS.UPCOMING' | translate }}</span>
+            <!-- The distinction the whole panel exists to make. -->
+            <span class="text-[0.625rem] text-text-muted">{{ 'BILLS.UPCOMING_HINT' | translate }}</span>
+
+            <div class="ml-auto flex items-center gap-1">
+                @if (canManage()) {
+                    <p-button (onClick)="showSchedules.set(!showSchedules())"
+                              [label]="'BILLS.SCHEDULES' | translate" [text]="true"
+                              icon="pi pi-sync" severity="secondary" size="small"/>
+                }
+            </div>
+        </div>
+
+        @if (overdueCount() > 0 || needsAmountCount() > 0) {
+            <div class="px-4 py-2 border-b border-border-subtle flex flex-wrap items-center gap-3">
+                @if (overdueCount() > 0) {
+                    <span class="text-[0.6875rem] text-rose-300">
+                        {{ 'BILLS.OVERDUE_COUNT' | translate: {count: overdueCount()} }}
+                    </span>
+                }
+                <!-- Counted apart from overdue on purpose: one needs money moved, the other needs
+                     somebody to open the post. -->
+                @if (needsAmountCount() > 0) {
+                    <span class="text-[0.6875rem] text-amber-300">
+                        {{ 'BILLS.NEEDS_AMOUNT_COUNT' | translate: {count: needsAmountCount()} }}
+                    </span>
+                }
+            </div>
+        }
+
+        @if (upcoming().length === 0) {
+            <div class="flex flex-col items-center justify-center py-10 gap-3 text-center px-6">
+                <i class="pi pi-calendar text-3xl text-white/10"></i>
+                <p class="text-sm text-text-muted m-0">{{ 'BILLS.NONE_DUE' | translate }}</p>
+                @if (canManage()) {
+                    <p-button (onClick)="openAdd()" [label]="'BILLS.ADD_SCHEDULE' | translate" [text]="true"
+                              severity="secondary" size="small"/>
+                }
+            </div>
+        } @else {
+            @for (row of upcoming(); track row.bill.id) {
+                <div class="flex items-start gap-3 px-4 py-3 border-b border-border-subtle last:border-b-0 group">
+                    <div class="min-w-0 flex-1">
+                        <p class="text-[0.8125rem] text-text-primary font-medium m-0 truncate">
+                            {{ row.bill.description }}
+                        </p>
+                        <p class="text-[0.6875rem] text-text-muted m-0 mt-0.5">
+                            {{ 'BILLS.DUE_ON' | translate: {date: row.dueLabel} }}
+                            <span class="mx-1">·</span>
+                            <span [class]="stateClass(row.state)"
+                                  class="rounded-md border px-1.5 py-0.5 text-[0.5625rem] uppercase tracking-wide">
+                                {{ stateLabelKey(row.state) | translate }}
+                            </span>
+                        </p>
+                    </div>
+
+                    <div class="text-right shrink-0">
+                        <!-- A varying bill says so in words. A `0.00` here would be a claim the
+                             house owes nothing this month. -->
+                        @if (row.amount) {
+                            <p class="text-[0.8125rem] font-semibold text-text-primary m-0 tabular-nums">{{ row.amount }}</p>
+                        } @else {
+                            <p class="text-[0.6875rem] text-amber-300 m-0">{{ 'BILLS.AMOUNT_UNKNOWN' | translate }}</p>
+                        }
+                    </div>
+
+                    <div class="flex items-center shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                        @if (canPost(row.bill)) {
+                            <p-button (onClick)="openPost(row.bill)" [label]="'BILLS.POST' | translate"
+                                      [text]="true" severity="secondary" size="small"/>
+                        }
+                        @if (canManage()) {
+                            <p-button (onClick)="openSkip(row.bill)" [pTooltip]="'BILLS.SKIP' | translate"
+                                      [text]="true" icon="pi pi-ban" severity="secondary" size="small"
+                                      tooltipPosition="left"/>
+                        }
+                    </div>
+                </div>
+            }
+        }
+    </section>
+
+    <!-- ── Schedules: the standing arrangements ────────────────────────────── -->
+    @if (showSchedules() && canManage()) {
+        <section class="rounded-2xl border border-border bg-sidebar overflow-hidden">
+            <div class="px-4 py-2.5 border-b border-border-subtle flex items-center gap-2">
+                <div class="min-w-0">
+                    <p class="text-xs font-semibold text-text-secondary m-0">{{ 'BILLS.SCHEDULES' | translate }}</p>
+                    <p class="text-[0.625rem] text-text-muted m-0 mt-0.5">{{ 'BILLS.SCHEDULES_HINT' | translate }}</p>
+                </div>
+                <p-button (onClick)="openAdd()" [label]="'BILLS.ADD_SCHEDULE' | translate" class="ml-auto"
+                          icon="pi pi-plus" severity="primary" size="small"/>
+            </div>
+
+            @if (scheduleRows().length === 0) {
+                <p class="text-[0.6875rem] text-text-muted px-4 py-6 text-center m-0">
+                    {{ 'BILLS.NO_SCHEDULES' | translate }}
+                </p>
+            } @else {
+                @for (row of scheduleRows(); track row.schedule.id) {
+                    <div class="flex items-start gap-3 px-4 py-3 border-b border-border-subtle last:border-b-0 group">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-[0.8125rem] text-text-primary font-medium m-0 truncate">
+                                {{ row.schedule.description }}
+                                @if (row.schedule.isPaused) {
+                                    <span class="ml-1.5 text-[0.5625rem] uppercase tracking-wide text-text-muted">
+                                        {{ 'BILLS.PAUSED' | translate }}
+                                    </span>
+                                }
+                            </p>
+                            <p class="text-[0.6875rem] text-text-muted m-0 mt-0.5">
+                                {{ row.cadenceKey | translate: row.cadenceParams }}
+                                <span class="mx-1">·</span>{{ 'BILLS.PAID_BY' | translate: {name: row.payerName} }}
+                                <span class="mx-1">·</span>{{ row.categoryKey | translate }}
+                                @if (row.schedule.autoPost) {
+                                    <span class="mx-1">·</span>{{ 'BILLS.AUTO_POST_ON' | translate }}
+                                }
+                            </p>
+                        </div>
+
+                        <div class="text-right shrink-0">
+                            @if (row.amount) {
+                                <p class="text-[0.8125rem] font-semibold text-text-primary m-0 tabular-nums">{{ row.amount }}</p>
+                            } @else {
+                                <p class="text-[0.625rem] text-text-muted m-0">{{ 'BILLS.AMOUNT_VARIES' | translate }}</p>
+                            }
+                        </div>
+
+                        @if (confirmDeleteId() === row.schedule.id) {
+                            <div class="flex items-center shrink-0">
+                                <p-button (onClick)="deleteSchedule(row.schedule)"
+                                          [label]="'BILLS.CONFIRM_DELETE' | translate" [text]="true"
+                                          severity="danger" size="small"/>
+                                <p-button (onClick)="confirmDeleteId.set(null)" [label]="'COMMON.CANCEL' | translate"
+                                          [text]="true" severity="secondary" size="small"/>
+                            </div>
+                        } @else {
+                            <div class="flex items-center shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                                <p-button (onClick)="openEdit(row.schedule)" [pTooltip]="'COMMON.EDIT' | translate"
+                                          [text]="true" icon="pi pi-pencil" severity="secondary" size="small"
+                                          tooltipPosition="left"/>
+                                <p-button (onClick)="deleteSchedule(row.schedule)" [pTooltip]="'COMMON.DELETE' | translate"
+                                          [text]="true" icon="pi pi-trash" severity="danger" size="small"
+                                          tooltipPosition="left"/>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+        </section>
+    }
+
+    @if (state().failed) {
+        <p class="text-[0.6875rem] text-offline text-center m-0">{{ 'BILLS.LOAD_FAILED' | translate }}</p>
+    }
+</div>
+
+<!-- ── Schedule editor ─────────────────────────────────────────────────────── -->
+<p-dialog (visibleChange)="showEditor.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
+          [style]="{width: '520px'}" [visible]="showEditor()" appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">
+            {{ (editingId() ? 'BILLS.EDIT_SCHEDULE' : 'BILLS.ADD_SCHEDULE') | translate }}
+        </span>
+    </ng-template>
+
+    <div class="flex flex-col gap-4">
+        <div class="flex flex-col gap-1.5">
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'BILLS.DESCRIPTION' | translate }}</label>
+            <input (ngModelChange)="formDescription.set($event)" [maxlength]="descriptionMaxLength"
+                   [ngModel]="formDescription()" [placeholder]="'BILLS.DESCRIPTION_PLACEHOLDER' | translate"
+                   pInputText type="text"/>
+        </div>
+
+        <!-- The amount, and the switch that says there is not one. -->
+        <div class="flex flex-col gap-2">
+            <label class="flex items-start gap-2 cursor-pointer">
+                <input (ngModelChange)="setHasFixedAmount($event)" [ngModel]="formHasFixedAmount()"
+                       class="mt-0.5 accent-brand" type="checkbox"/>
+                <span class="min-w-0">
+                    <span class="text-[0.8125rem] text-text-primary block">{{ 'BILLS.FIXED_AMOUNT' | translate }}</span>
+                    <span class="text-[0.625rem] text-text-muted block">{{ 'BILLS.FIXED_AMOUNT_HINT' | translate }}</span>
+                </span>
+            </label>
+
+            @if (formHasFixedAmount()) {
+                <div class="flex flex-col gap-1.5">
+                    <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">
+                        {{ 'LEDGER.AMOUNT' | translate: {currency: currency()} }}
+                    </label>
+                    <input (ngModelChange)="formAmount.set($event)" [ngModel]="formAmount()"
+                           [placeholder]="'LEDGER.AMOUNT_PLACEHOLDER' | translate" inputmode="decimal"
+                           pInputText type="text"/>
+                    @if (formAmountInvalid()) {
+                        <span class="text-[0.625rem] text-offline">{{ 'LEDGER.AMOUNT_INVALID' | translate }}</span>
+                    } @else if (formAmountMinor() !== null) {
+                        <span class="text-[0.625rem] text-text-muted">{{ money(formAmountMinor()!) }}</span>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="flex gap-3">
+            <div class="flex flex-col gap-1.5 flex-1 min-w-0">
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'BILLS.PAID_BY_LABEL' | translate }}</label>
+                <p-select (ngModelChange)="formPayerUserId.set($event)" [filter]="true" [ngModel]="formPayerUserId()"
+                          [options]="memberOptions()" optionLabel="label" optionValue="value" styleClass="w-full"/>
+            </div>
+            <div class="flex flex-col gap-1.5 flex-1 min-w-0">
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.CATEGORY' | translate }}</label>
+                <p-select (ngModelChange)="formCategory.set($event)" [ngModel]="formCategory()"
+                          [options]="categoryOptions()" optionLabel="label" optionValue="value" styleClass="w-full"/>
+            </div>
+        </div>
+
+        <div class="flex gap-3">
+            <div class="flex flex-col gap-1.5 w-24">
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'BILLS.EVERY' | translate }}</label>
+                <input (ngModelChange)="formInterval.set(+$event)" [ngModel]="formInterval()" min="1"
+                       pInputText type="number"/>
+            </div>
+            <div class="flex flex-col gap-1.5 flex-1 min-w-0">
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'BILLS.UNIT' | translate }}</label>
+                <p-select (ngModelChange)="formUnit.set($event)" [ngModel]="formUnit()" [options]="unitOptions()"
+                          optionLabel="label" optionValue="value" styleClass="w-full"/>
+            </div>
+            <div class="flex flex-col gap-1.5 w-40">
+                <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'BILLS.FIRST_DUE' | translate }}</label>
+                <input (ngModelChange)="formAnchorAt.set($event)" [ngModel]="formAnchorAt()" pInputText type="date"/>
+            </div>
+        </div>
+
+        <div class="flex flex-col gap-1.5">
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'BILLS.LEAD_DAYS' | translate }}</label>
+            <input (ngModelChange)="formLeadDays.set(+$event)" [ngModel]="formLeadDays()" max="30" min="0"
+                   pInputText type="number"/>
+            <span class="text-[0.625rem] text-text-muted">{{ 'BILLS.LEAD_DAYS_HINT' | translate }}</span>
+        </div>
+
+        <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-2">
+                <p-toggleswitch (ngModelChange)="formAutoPost.set($event)" [disabled]="!formHasFixedAmount()"
+                                [ngModel]="formAutoPost()"/>
+                <span class="text-[0.8125rem] text-text-primary">{{ 'BILLS.AUTO_POST' | translate }}</span>
+            </div>
+            <!-- Refused server-side, so it is refused here with a sentence rather than a 400. -->
+            @if (!formHasFixedAmount()) {
+                <span class="text-[0.625rem] text-text-muted">{{ 'BILLS.AUTO_POST_NEEDS_AMOUNT' | translate }}</span>
+            } @else if (formAutoPost()) {
+                <span class="text-[0.625rem] text-connecting">{{ 'BILLS.AUTO_POST_WARNING' | translate }}</span>
+            }
+
+            @if (editingId()) {
+                <div class="flex items-center gap-2 mt-1">
+                    <p-toggleswitch (ngModelChange)="formPaused.set($event)" [ngModel]="formPaused()"/>
+                    <span class="text-[0.8125rem] text-text-primary">{{ 'BILLS.PAUSE' | translate }}</span>
+                </div>
+            }
+        </div>
+
+        <!-- Editing moves the pending periods rather than regenerating them, so a figure somebody
+             typed off a paper letter survives. Worth saying: people expect to lose it. -->
+        @if (editingId()) {
+            <p class="text-[0.625rem] text-text-muted m-0 rounded-lg bg-card border border-border-subtle px-3 py-2">
+                {{ 'BILLS.EDIT_MOVES_PENDING' | translate }}
+            </p>
+        }
+    </div>
+
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="showEditor.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
+                  severity="secondary"/>
+        <p-button (onClick)="submitSchedule()" [disabled]="!formValid()" [label]="'COMMON.SAVE' | translate"
+                  [loading]="saving()" severity="primary"/>
+    </ng-template>
+</p-dialog>
+
+<!-- ── Post a bill ─────────────────────────────────────────────────────────── -->
+<p-dialog (visibleChange)="showPostDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
+          [style]="{width: '440px'}" [visible]="showPostDialog()" appendTo="body">
+    <ng-template pTemplate="header">
+        <div class="flex flex-col gap-0.5">
+            <span class="text-sm font-semibold text-text-primary">{{ 'BILLS.POST_TITLE' | translate }}</span>
+            <span class="text-[0.6875rem] text-text-muted">{{ postingBill()?.description }}</span>
+        </div>
+    </ng-template>
+
+    <div class="flex flex-col gap-4">
+        <!-- The moment an obligation becomes history. -->
+        <p class="text-[0.6875rem] text-text-muted m-0 rounded-lg bg-card border border-border-subtle px-3 py-2">
+            {{ 'BILLS.POST_EXPLAINER' | translate }}
+        </p>
+
+        <div class="flex flex-col gap-1.5">
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">
+                {{ 'LEDGER.AMOUNT' | translate: {currency: currency()} }}
+            </label>
+            <input (keydown.enter)="submitPost()" (ngModelChange)="postAmount.set($event)" [ngModel]="postAmount()"
+                   inputmode="decimal" pInputText type="text"/>
+            @if (postAmountMinor() !== null) {
+                <span class="text-[0.625rem] text-text-muted">{{ money(postAmountMinor()!) }}</span>
+            }
+            <!-- A varying bill has nothing to fall back on, so an empty box is not a legal post. -->
+            @if (postingBill()?.needsAmount) {
+                <span class="text-[0.625rem] text-amber-300">{{ 'BILLS.AMOUNT_REQUIRED' | translate }}</span>
+            } @else {
+                <span class="text-[0.625rem] text-text-muted">{{ 'BILLS.AMOUNT_OVERRIDE_HINT' | translate }}</span>
+            }
+        </div>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="showPostDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
+                  severity="secondary"/>
+        <p-button (onClick)="submitPost()" [disabled]="!postValid()" [label]="'BILLS.POST' | translate"
+                  [loading]="saving()" severity="primary"/>
+    </ng-template>
+</p-dialog>
+
+<!-- ── Skip a period ───────────────────────────────────────────────────────── -->
+<p-dialog (visibleChange)="showSkipDialog.set($event)" [draggable]="false" [modal]="true" [resizable]="false"
+          [style]="{width: '440px'}" [visible]="showSkipDialog()" appendTo="body">
+    <ng-template pTemplate="header">
+        <div class="flex flex-col gap-0.5">
+            <span class="text-sm font-semibold text-text-primary">{{ 'BILLS.SKIP_TITLE' | translate }}</span>
+            <span class="text-[0.6875rem] text-text-muted">{{ skippingBill()?.description }}</span>
+        </div>
+    </ng-template>
+
+    <div class="flex flex-col gap-4">
+        <p class="text-[0.6875rem] text-text-muted m-0">{{ 'BILLS.SKIP_EXPLAINER' | translate }}</p>
+
+        <div class="flex flex-col gap-1.5">
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'BILLS.SKIP_REASON' | translate }}</label>
+            <input (keydown.enter)="submitSkip()" (ngModelChange)="skipReason.set($event)"
+                   [maxlength]="skipReasonMaxLength" [ngModel]="skipReason()"
+                   [placeholder]="'BILLS.SKIP_REASON_PLACEHOLDER' | translate" pInputText type="text"/>
+            <!-- Optional, and worth asking for: a month with no rent in it gets queried a year on. -->
+            <span class="text-[0.625rem] text-text-muted">{{ 'BILLS.SKIP_REASON_HINT' | translate }}</span>
+        </div>
+    </div>
+
+    <ng-template pTemplate="footer">
+        <p-button (onClick)="showSkipDialog.set(false)" [label]="'COMMON.CANCEL' | translate" [text]="true"
+                  severity="secondary"/>
+        <p-button (onClick)="submitSkip()" [label]="'BILLS.SKIP' | translate" [loading]="saving()"
+                  severity="danger"/>
+    </ng-template>
+</p-dialog>

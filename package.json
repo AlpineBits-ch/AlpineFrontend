@@ -21,6 +21,7 @@
     "@ngrx/signals": "^21.1.0",
     "@ngx-translate/core": "^17.0.0",
     "@ngx-translate/http-loader": "^17.0.0",
+    "@noble/curves": "^2.3.0",
     "@primeuix/themes": "^2.0.3",
     "@sentry/angular": "^10.59.0",
     "@sentry/cli": "2",

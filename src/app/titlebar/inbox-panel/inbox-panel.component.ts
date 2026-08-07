@@ -84,6 +84,12 @@ export class InboxPanelComponent {
                 return 'pi pi-flag';
             case 'ListAssignment':
                 return 'pi pi-check-square';
+            case 'BillDue':
+                return 'pi pi-calendar';
+            case 'CookingToday':
+                return 'pi pi-book';
+            case 'MaintenanceDue':
+                return 'pi pi-wrench';
             default:
                 return 'pi pi-check-circle';
         }

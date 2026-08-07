@@ -38,6 +38,38 @@ export const HouseholdAlertKind = {
     PantryRestock: 'pantry.restock',
     /** Batched per pantry, so <b>`targetId` is a channel id</b>, not an item. */
     PantryExpiring: 'pantry.expiring',
+
+    /**
+     * Somebody nudged about an overdue chore. `targetId` is the occurrence.
+     *
+     * <p><b>The sender is not in the payload and must not be in the copy.</b> The app does the
+     * asking precisely so nobody in the house has to be the one who nags.</p>
+     */
+    ChoreNudge: 'chore.nudge',
+    /** An absence handed this occurrence over. `targetId` is the occurrence. */
+    ChoreReassigned: 'chore.reassigned',
+
+    /** A bill is coming up. `targetId` is the <b>bill occurrence</b>. */
+    LedgerBillDue: 'ledger.bill_due',
+    /**
+     * A bill became a real expense.
+     *
+     * <p><b>`targetId` is the expense, not the occurrence</b> - the one trap in this table, and the
+     * reason a deep link written by analogy with its two siblings opens nothing.</p>
+     */
+    LedgerBillPosted: 'ledger.bill_posted',
+    /** A varying bill came due with nobody having said what it cost. `targetId` is the occurrence. */
+    LedgerBillNeedsAmount: 'ledger.bill_needs_amount',
+
+    /** You are down to cook today. `targetId` is the meal plan entry. */
+    MealsCookingToday: 'meals.cooking_today',
+
+    /** A service is due. `targetId` is the asset. */
+    MaintenanceDue: 'maintenance.due',
+    /** A warranty is about to lapse. `targetId` is the asset. */
+    MaintenanceWarranty: 'maintenance.warranty',
+    /** Somebody marked it broken. `targetId` is the asset. */
+    MaintenanceBroken: 'maintenance.broken',
 } as const;
 
 export type HouseholdAlertKind = typeof HouseholdAlertKind[keyof typeof HouseholdAlertKind];
@@ -97,6 +129,61 @@ export function householdAlertKey(alert: HouseholdAlert): string {
  * `targetId`) with the two ids the click handler needs to get there. `extra` is a string map end to
  * end - the Windows toast bridge marshals it as one - so nothing structured goes in here.</p>
  */
+/**
+ * What kind of thing an alert's `targetId` names.
+ *
+ * <p>Every kind carries a `channelId`, so a click always has somewhere to go; this says whether it
+ * can go somewhere more specific than the channel, and what to look for when it gets there.</p>
+ */
+export type HouseholdAlertTarget =
+    | 'chore-occurrence' | 'expense' | 'settlement' | 'decision' | 'list-item'
+    | 'bill' | 'meal-plan-entry' | 'maintenance-asset' | 'pantry-item'
+    /** The target *is* the channel, or the kind is one this build does not know. */
+    | 'channel';
+
+/**
+ * Where a kind's `targetId` points.
+ *
+ * <p><b>`ledger.bill_posted` is the trap.</b> Its two siblings target the bill occurrence; it
+ * targets the <i>expense</i> the bill became, because by then the obligation is history and the row
+ * worth opening is the one in the ledger. A router written by analogy with `bill_due` looks up an
+ * expense id in the bill list, finds nothing, and silently opens the channel instead.</p>
+ *
+ * <p>An unrecognised kind resolves to `channel`, which is always safe: the envelope guarantees a
+ * `channelId`, and landing on the right board beats not navigating at all.</p>
+ */
+export function householdAlertTarget(kind: string): HouseholdAlertTarget {
+    switch (kind) {
+        case HouseholdAlertKind.ChoreDue:
+        case HouseholdAlertKind.ChoreNudge:
+        case HouseholdAlertKind.ChoreReassigned:
+            return 'chore-occurrence';
+        case HouseholdAlertKind.LedgerExpense:
+        case HouseholdAlertKind.LedgerBillPosted:
+            return 'expense';
+        case HouseholdAlertKind.LedgerSettlement:
+            return 'settlement';
+        case HouseholdAlertKind.LedgerBillDue:
+        case HouseholdAlertKind.LedgerBillNeedsAmount:
+            return 'bill';
+        case HouseholdAlertKind.DecisionOpened:
+        case HouseholdAlertKind.DecisionBlocked:
+            return 'decision';
+        case HouseholdAlertKind.PantryRestock:
+            return 'list-item';
+        case HouseholdAlertKind.MealsCookingToday:
+            return 'meal-plan-entry';
+        case HouseholdAlertKind.MaintenanceDue:
+        case HouseholdAlertKind.MaintenanceWarranty:
+        case HouseholdAlertKind.MaintenanceBroken:
+            return 'maintenance-asset';
+        default:
+            // `pantry.expiring` lands here by design - its target already is the channel - along
+            // with every kind added after this build shipped.
+            return 'channel';
+    }
+}
+
 export function householdAlertExtra(alert: HouseholdAlert): Record<string, string> {
     return {
         type: 'household',

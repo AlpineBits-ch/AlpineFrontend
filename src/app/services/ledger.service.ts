@@ -4,6 +4,7 @@ import {forkJoin, Observable, of, tap} from 'rxjs';
 import {catchError} from 'rxjs/operators';
 import {
     Expense,
+    ExpenseCategory,
     ExpenseCreated,
     ExpenseDeleted,
     ExpenseUpdated,
@@ -14,6 +15,12 @@ import {
     SettlementRecorded,
     TransferSuggestion,
 } from '../dtos/response/ledger.dto';
+import {
+    ExpenseReceipt,
+    ExpenseReceiptAdded,
+    ExpenseReceiptDeleted,
+    LedgerSummary,
+} from '../dtos/response/ledger-insight.dto';
 import {
     CreateExpenseDto,
     RecordSettlementDto,
@@ -35,6 +42,7 @@ const EMPTY_STATE: LedgerChannelState = {
     suggestions: [],
     recentSettlements: [],
     config: null,
+    category: null,
     loading: false,
     loaded: false,
     forbidden: false,
@@ -59,6 +67,15 @@ export interface LedgerChannelState {
     /** Only what has arrived over the socket this session - there is no settlements endpoint. */
     recentSettlements: Settlement[];
     config: LedgerConfig | null;
+    /**
+     * The category the loaded pages were filtered to, or `null` for everything.
+     *
+     * <p>Held in state rather than in the component because it is part of what the pages <i>mean</i>:
+     * a `nextCursor` was minted under one filter and paging it under another interleaves two
+     * different queries. {@link LedgerService.setCategory} is the only way to change it, and it
+     * re-reads from the first page.</p>
+     */
+    category: ExpenseCategory | null;
     loading: boolean;
     loaded: boolean;
     /**
@@ -72,6 +89,22 @@ export interface LedgerChannelState {
     forbidden: boolean;
     failed: boolean;
 }
+
+/** The spending rollup for one channel, plus enough to know whether it is the one being asked for. */
+export interface LedgerSummaryState {
+    summary: LedgerSummary | null;
+    /** How many months back the loaded summary covers, so a window change is detectable. */
+    months: number;
+    loading: boolean;
+    failed: boolean;
+}
+
+const EMPTY_SUMMARY_STATE: LedgerSummaryState = {
+    summary: null,
+    months: 0,
+    loading: false,
+    failed: false,
+};
 
 /**
  * Everything one household's ledger channels hold: expenses, balances, the settle-up plan and the
@@ -108,6 +141,24 @@ export class LedgerService {
     private readonly balancesInFlight = new Set<string>();
     private readonly balancesDirty = new Set<string>();
 
+    /**
+     * Which receipts each expense has, as bare ids keyed by expense id.
+     *
+     * <p><b>Ids, deliberately - never the receipts themselves.</b> A receipt's `url` is presigned per
+     * request and carries an expiry, so a cache of them is a cache of things that start 403ing at an
+     * unpredictable moment and look exactly like lost files. An id list is enough for the paperclip
+     * on a row, and the gallery re-lists every time it opens.</p>
+     *
+     * <p>Ids rather than a plain count for one reason: every write is applied twice, once from the
+     * caller's own response and once from the socket echo of that same write. Adding and removing by
+     * id is idempotent, where `count + 1` twice puts a paperclip and a "2" on an expense with one
+     * photo on it.</p>
+     */
+    private readonly receiptIds = signal<Record<string, string[]>>({});
+
+    /** One summary per channel, with the window it was fetched for. */
+    private readonly summaries = signal<Record<string, LedgerSummaryState>>({});
+
     constructor() {
         // Registered once, here, in a root singleton: `RealtimeConnectionService.on` does not
         // deduplicate, so a second registration delivers every expense twice - and a double-counted
@@ -117,6 +168,9 @@ export class LedgerService {
         this.realtime.on('guild.ExpenseUpdated', (d: ExpenseUpdated) => this.onExpenseUpdated(d));
         this.realtime.on('guild.ExpenseDeleted', (d: ExpenseDeleted) => this.onExpenseDeleted(d));
         this.realtime.on('guild.SettlementRecorded', (d: SettlementRecorded) => this.onSettlementRecorded(d));
+        // Counts only - see `receiptCounts`. Nothing holds a receipt URL between requests.
+        this.realtime.on('guild.ExpenseReceiptAdded', (d: ExpenseReceiptAdded) => this.onReceiptAdded(d));
+        this.realtime.on('guild.ExpenseReceiptDeleted', (d: ExpenseReceiptDeleted) => this.onReceiptDeleted(d));
     }
 
     // ── Reads ────────────────────────────────────────────────────────────────
@@ -138,6 +192,15 @@ export class LedgerService {
         return state.config?.currency ?? state.expenses[0]?.currency ?? 'CHF';
     }
 
+    /** How many receipts an expense is known to have. `0` also covers "nobody has looked yet". */
+    receiptCountFor(expenseId: string): number {
+        return this.receiptIds()[expenseId]?.length ?? 0;
+    }
+
+    summaryFor(channelId: string): LedgerSummaryState {
+        return this.summaries()[channelId] ?? EMPTY_SUMMARY_STATE;
+    }
+
     // ── Loading ──────────────────────────────────────────────────────────────
 
     /** Idempotent per channel for the session; call it on every open. */
@@ -153,7 +216,7 @@ export class LedgerService {
         // No cursor: a refresh re-reads the *first* page and replaces what was held. Carrying the
         // stored cursor over would append the page after the one that is about to be discarded and
         // leave a hole in the middle of the ledger.
-        this.api.listExpenses(channelId).subscribe({
+        this.api.listExpenses(channelId, EXPENSE_PAGE_SIZE, null, this.stateFor(channelId).category).subscribe({
             next: page => this.patch(channelId, state => ({
                 ...state,
                 expenses: this.sorted((page.items ?? []).map(normalizeExpense)),
@@ -193,7 +256,7 @@ export class LedgerService {
         const cursor = state.nextCursor;
         this.patch(channelId, current => ({...current, loadingMore: true}));
 
-        this.api.listExpenses(channelId, EXPENSE_PAGE_SIZE, cursor).subscribe({
+        this.api.listExpenses(channelId, EXPENSE_PAGE_SIZE, cursor, state.category).subscribe({
             next: page => this.patch(channelId, current => {
                 // A `refresh` that landed while this page was in the air threw away everything this
                 // page sits behind, and moved the cursor back to the top of the ledger. Applying
@@ -214,6 +277,70 @@ export class LedgerService {
             }),
             error: () => this.patch(channelId, current => ({...current, loadingMore: false})),
         });
+    }
+
+    /**
+     * Narrows the expense list to one category, or to everything with `null`.
+     *
+     * <p>Re-reads from the first page rather than filtering what is held: the filter has to reach
+     * past the fifty rows on screen, and the stored cursor was minted under the old filter, so
+     * paging it would interleave two different queries. Balances are deliberately untouched - the
+     * house's position is not a property of what the reader is currently looking at.</p>
+     */
+    setCategory(channelId: string, category: ExpenseCategory | null): void {
+        if (this.stateFor(channelId).category === category) return;
+        this.patch(channelId, state => ({...state, category, nextCursor: null}));
+        this.refresh(channelId);
+    }
+
+    /**
+     * Loads the spending rollup for the last `months` months.
+     *
+     * <p>Always fetched, never served stale from a different window: the two questions "what did we
+     * spend this quarter" and "this year" are different questions, and answering one with the other
+     * silently is worse than a spinner.</p>
+     */
+    loadSummary(channelId: string, months: number): void {
+        const current = this.summaryFor(channelId);
+        if (current.loading && current.months === months) return;
+
+        this.patchSummary(channelId, state => ({...state, months, loading: true, failed: false}));
+
+        const from = new Date();
+        from.setMonth(from.getMonth() - months);
+
+        this.api.summary(channelId, {from: from.toISOString()}).subscribe({
+            next: summary => this.patchSummary(channelId, state =>
+                // Dropped if the window moved on while this was in the air - the answer is for a
+                // question nobody is asking any more, and applying it would relabel the picker.
+                state.months === months ? {...state, summary, loading: false} : state),
+            error: () => this.patchSummary(channelId, state =>
+                state.months === months ? {...state, loading: false, failed: true} : state),
+        });
+    }
+
+    // ── Receipts ─────────────────────────────────────────────────────────────
+
+    /**
+     * The receipts on one expense, freshly presigned.
+     *
+     * <p>Passes straight through with no caching, on purpose - see {@link receiptCounts}. What it
+     * does keep is the count, so the paperclip on the row is right the moment the gallery has been
+     * opened once.</p>
+     */
+    listReceipts(expenseId: string): Observable<ExpenseReceipt[]> {
+        return this.api.listReceipts(expenseId)
+            .pipe(tap(receipts => this.setReceiptIds(expenseId, receipts.map(r => r.id))));
+    }
+
+    uploadReceipt(expenseId: string, file: File): Observable<ExpenseReceipt> {
+        return this.api.uploadReceipt(expenseId, file)
+            .pipe(tap(receipt => this.addReceiptId(expenseId, receipt.id)));
+    }
+
+    removeReceipt(expenseId: string, receiptId: string): Observable<void> {
+        return this.api.deleteReceipt(receiptId)
+            .pipe(tap(() => this.dropReceiptId(expenseId, receiptId)));
     }
 
     /**
@@ -323,6 +450,19 @@ export class LedgerService {
         this.refreshBalances(event.channelId);
     }
 
+    /**
+     * Only the id is kept. The event carries the whole receipt, presigned URL and all, and storing
+     * that URL is exactly the mistake this shape exists to avoid - by the time anybody clicked it,
+     * it would have expired.
+     */
+    private onReceiptAdded(event: ExpenseReceiptAdded): void {
+        this.addReceiptId(event.expenseId, event.receipt?.id);
+    }
+
+    private onReceiptDeleted(event: ExpenseReceiptDeleted): void {
+        this.dropReceiptId(event.expenseId, event.receiptId);
+    }
+
     // ── State plumbing ───────────────────────────────────────────────────────
 
     private upsertExpense(channelId: string, raw: Expense): void {
@@ -377,8 +517,32 @@ export class LedgerService {
             b.occurredAt.localeCompare(a.occurredAt) || b.id.localeCompare(a.id));
     }
 
+    /** A fresh listing is authoritative and replaces whatever the events had accumulated. */
+    private setReceiptIds(expenseId: string, ids: string[]): void {
+        this.receiptIds.update(all => ({...all, [expenseId]: ids}));
+    }
+
+    private addReceiptId(expenseId: string, receiptId: string | undefined): void {
+        if (!receiptId) return;
+        this.receiptIds.update(all => {
+            const held = all[expenseId] ?? [];
+            return held.includes(receiptId) ? all : {...all, [expenseId]: [...held, receiptId]};
+        });
+    }
+
+    private dropReceiptId(expenseId: string, receiptId: string): void {
+        this.receiptIds.update(all => {
+            const held = all[expenseId];
+            return held ? {...all, [expenseId]: held.filter(id => id !== receiptId)} : all;
+        });
+    }
+
     private patch(channelId: string, fn: (state: LedgerChannelState) => LedgerChannelState): void {
         this.states.update(all => ({...all, [channelId]: fn(all[channelId] ?? EMPTY_STATE)}));
+    }
+
+    private patchSummary(channelId: string, fn: (state: LedgerSummaryState) => LedgerSummaryState): void {
+        this.summaries.update(all => ({...all, [channelId]: fn(all[channelId] ?? EMPTY_SUMMARY_STATE)}));
     }
 
     /** As {@link patch}, but silently drops events for channels nobody has opened. */

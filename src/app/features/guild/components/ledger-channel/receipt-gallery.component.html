@@ -1,0 +1,70 @@
+<div class="flex flex-col gap-3">
+
+    @if (loading() && receipts().length === 0) {
+        <div class="flex items-center justify-center py-8">
+            <i class="pi pi-spin pi-spinner text-lg text-text-muted"></i>
+        </div>
+    } @else if (failed()) {
+        <div class="flex flex-col items-center gap-2 py-6">
+            <p class="text-[0.6875rem] text-offline m-0">{{ 'RECEIPTS.LOAD_FAILED' | translate }}</p>
+            <p-button (onClick)="reload()" [label]="'COMMON.RETRY' | translate" [text]="true"
+                      severity="secondary" size="small"/>
+        </div>
+    } @else if (receipts().length === 0) {
+        <div class="flex flex-col items-center justify-center py-8 gap-2 text-center">
+            <i class="pi pi-receipt text-2xl text-white/10"></i>
+            <p class="text-[0.8125rem] text-text-muted m-0">{{ 'RECEIPTS.EMPTY' | translate }}</p>
+        </div>
+    } @else {
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            @for (receipt of receipts(); track receipt.id) {
+                <div class="relative group rounded-xl border border-border-subtle overflow-hidden bg-card">
+                    <!-- The URL is used the moment it arrives and never stored. Opening in a new
+                         tab rather than a lightbox for the same reason: the tab holds its own copy
+                         of a link that is already counting down. -->
+                    @if (isImage(receipt) && receipt.url) {
+                        <a [href]="receipt.url" class="block aspect-square" rel="noopener" target="_blank">
+                            <img [alt]="receipt.fileName" [src]="receipt.url" class="w-full h-full object-cover"/>
+                        </a>
+                    } @else {
+                        <a [href]="receipt.url ?? ''" class="flex flex-col items-center justify-center aspect-square gap-2 px-2"
+                           rel="noopener" target="_blank">
+                            <i class="pi pi-file-pdf text-2xl text-text-muted"></i>
+                            <span class="text-[0.625rem] text-text-muted text-center break-all line-clamp-2">
+                                {{ receipt.fileName }}
+                            </span>
+                        </a>
+                    }
+
+                    <div class="px-2 py-1 border-t border-border-subtle flex items-center gap-1">
+                        <span class="text-[0.5625rem] text-text-muted truncate">{{ sizeLabel(receipt) }}</span>
+                        @if (canEdit()) {
+                            <p-button (onClick)="remove(receipt)" [text]="true" class="ml-auto"
+                                      icon="pi pi-trash" severity="danger" size="small"/>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @if (canEdit()) {
+        <div class="flex items-center gap-2">
+            <label
+                [class.opacity-50]="atCapacity() || uploading()"
+                class="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle px-3 py-1.5 text-[0.6875rem] text-text-secondary cursor-pointer hover:bg-hover transition-colors">
+                @if (uploading()) {
+                    <i class="pi pi-spin pi-spinner text-[0.625rem]"></i>
+                } @else {
+                    <i class="pi pi-upload text-[0.625rem]"></i>
+                }
+                {{ 'RECEIPTS.ADD' | translate }}
+                <input (change)="onFilePicked($event)" [accept]="accept" [disabled]="atCapacity() || uploading()"
+                       class="hidden" type="file"/>
+            </label>
+            <span class="text-[0.625rem] text-text-muted">
+                {{ 'RECEIPTS.LIMIT' | translate: {count: receipts().length, max: maxReceipts} }}
+            </span>
+        </div>
+    }
+</div>

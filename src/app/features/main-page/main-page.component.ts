@@ -40,6 +40,8 @@ import {ChoresChannelComponent} from '../guild/components/chores-channel/chores-
 import {LedgerChannelComponent} from '../guild/components/ledger-channel/ledger-channel.component';
 import {PantryChannelComponent} from '../guild/components/pantry-channel/pantry-channel.component';
 import {DecisionsChannelComponent} from '../guild/components/decisions-channel/decisions-channel.component';
+import {MealsChannelComponent} from '../guild/components/meals-channel/meals-channel.component';
+import {MaintenanceChannelComponent} from '../guild/components/maintenance-channel/maintenance-channel.component';
 import {HouseHomeComponent} from '../guild/components/house-home/house-home.component';
 import {GuildMemberListComponent} from '../guild/components/guild-member-list/guild-member-list.component';
 import {UserTokenService} from '../../services/user-token.service';
@@ -97,6 +99,8 @@ import {ReportDialogComponent} from '../../components/report-dialog/report-dialo
         LedgerChannelComponent,
         PantryChannelComponent,
         DecisionsChannelComponent,
+        MealsChannelComponent,
+        MaintenanceChannelComponent,
         HouseHomeComponent,
         ServerTaskbarComponent,
         ActivityFeedComponent,

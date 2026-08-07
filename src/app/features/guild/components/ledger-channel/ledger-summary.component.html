@@ -1,0 +1,143 @@
+<div class="flex flex-col gap-4">
+
+    <!-- ── Window picker ───────────────────────────────────────────────────── -->
+    <div class="flex items-center gap-2 flex-wrap">
+        <div class="flex items-center rounded-lg border border-border-subtle p-0.5">
+            @for (window of windows; track window) {
+                <button (click)="setMonths(window)"
+                        [class]="months() === window ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                    {{ windowLabelKey(window) | translate: windowLabelParams(window) }}
+                </button>
+            }
+        </div>
+        @if (state().loading && summary()) {
+            <i class="pi pi-spin pi-spinner text-xs text-text-muted"></i>
+        }
+    </div>
+
+    @if (showSpinner()) {
+        <div class="flex items-center justify-center py-16">
+            <i class="pi pi-spin pi-spinner text-xl text-text-muted"></i>
+        </div>
+    } @else if (state().failed) {
+        <p class="text-[0.6875rem] text-offline text-center m-0">{{ 'LEDGER.SUMMARY.LOAD_FAILED' | translate }}</p>
+    } @else if (summary(); as data) {
+
+        <!-- ── The headline: what the house costs, and what of it is yours ─── -->
+        <section class="rounded-2xl border border-border bg-card px-4 py-4 grid grid-cols-2 sm:grid-cols-3 gap-4">
+            <div>
+                <p class="text-[0.6875rem] uppercase tracking-widest text-text-muted m-0">
+                    {{ 'LEDGER.SUMMARY.PER_MONTH' | translate }}
+                </p>
+                <p class="text-2xl font-semibold text-text-primary m-0 mt-1 tabular-nums">{{ monthlyAverage() }}</p>
+            </div>
+            <div>
+                <p class="text-[0.6875rem] uppercase tracking-widest text-text-muted m-0">
+                    {{ 'LEDGER.SUMMARY.TOTAL' | translate }}
+                </p>
+                <p class="text-lg font-semibold text-text-primary m-0 mt-1 tabular-nums">{{ total() }}</p>
+            </div>
+            <div>
+                <!-- The caller's share of everything, not what they happened to pay for. -->
+                <p class="text-[0.6875rem] uppercase tracking-widest text-text-muted m-0">
+                    {{ 'LEDGER.SUMMARY.YOUR_SHARE' | translate }}
+                </p>
+                <p class="text-lg font-semibold text-text-primary m-0 mt-1 tabular-nums">{{ myShare() }}</p>
+            </div>
+        </section>
+
+        <!-- The window was longer than the cap and got shortened. A total that quietly covers
+             less than what was asked for is a number somebody acts on and is wrong about. -->
+        @if (data.clamped) {
+            <p class="text-[0.625rem] text-connecting m-0">{{ 'LEDGER.SUMMARY.CLAMPED' | translate }}</p>
+        }
+
+        @if (isEmpty()) {
+            <div class="flex flex-col items-center justify-center py-12 gap-3 text-center px-6">
+                <i class="pi pi-chart-bar text-3xl text-white/10"></i>
+                <p class="text-sm text-text-muted m-0">{{ 'LEDGER.SUMMARY.EMPTY' | translate }}</p>
+            </div>
+        } @else {
+
+            <!-- ── By category ─────────────────────────────────────────────── -->
+            @if (categoryRows().length > 0) {
+                <section class="rounded-2xl border border-border bg-sidebar overflow-hidden">
+                    <div class="px-4 py-2.5 border-b border-border-subtle">
+                        <p class="text-xs font-semibold text-text-secondary m-0">{{ 'LEDGER.SUMMARY.BY_CATEGORY' | translate }}</p>
+                        <!-- Uncategorized is its own row, never folded into Other: the size of the
+                             gap is the part that says whether to trust the rest. -->
+                        <p class="text-[0.625rem] text-text-muted m-0 mt-0.5">{{ 'LEDGER.SUMMARY.BY_CATEGORY_HINT' | translate }}</p>
+                    </div>
+                    @for (row of categoryRows(); track row.total.category) {
+                        <div class="px-4 py-2.5 border-b border-border-subtle last:border-b-0">
+                            <div class="flex items-baseline gap-2">
+                                <span class="text-[0.8125rem] text-text-primary truncate">{{ row.labelKey | translate }}</span>
+                                <span class="text-[0.625rem] text-text-muted">{{ row.total.count }}</span>
+                                <span class="ml-auto text-[0.8125rem] font-semibold text-text-primary tabular-nums shrink-0">
+                                    {{ row.amount }}
+                                </span>
+                                <span class="text-[0.625rem] text-text-muted tabular-nums shrink-0 w-24 text-right">
+                                    {{ 'LEDGER.SUMMARY.YOURS' | translate: {amount: row.myShare} }}
+                                </span>
+                            </div>
+                            <!-- Sized against the biggest bucket, so the bars read as a ranking. -->
+                            <div class="mt-1.5 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                                <div [style.width.%]="row.barPercent" class="h-full rounded-full bg-brand/60"></div>
+                            </div>
+                        </div>
+                    }
+                </section>
+            }
+
+            <!-- ── By month ────────────────────────────────────────────────── -->
+            @if (periodRows().length > 0) {
+                <section class="rounded-2xl border border-border bg-sidebar overflow-hidden">
+                    <div class="px-4 py-2.5 border-b border-border-subtle">
+                        <p class="text-xs font-semibold text-text-secondary m-0">{{ 'LEDGER.SUMMARY.BY_MONTH' | translate }}</p>
+                        <!-- Months with nothing in them are absent from the answer, and stay absent
+                             here: a drawn 0.00 would claim the house spent nothing that month. -->
+                        <p class="text-[0.625rem] text-text-muted m-0 mt-0.5">{{ 'LEDGER.SUMMARY.BY_MONTH_HINT' | translate }}</p>
+                    </div>
+                    @for (row of periodRows(); track row.total.period) {
+                        <div class="px-4 py-2.5 border-b border-border-subtle last:border-b-0">
+                            <div class="flex items-baseline gap-2">
+                                <span class="text-[0.8125rem] text-text-primary truncate">{{ row.label }}</span>
+                                <span class="text-[0.625rem] text-text-muted">{{ row.total.count }}</span>
+                                <span class="ml-auto text-[0.8125rem] font-semibold text-text-primary tabular-nums shrink-0">
+                                    {{ row.amount }}
+                                </span>
+                                <span class="text-[0.625rem] text-text-muted tabular-nums shrink-0 w-24 text-right">
+                                    {{ 'LEDGER.SUMMARY.YOURS' | translate: {amount: row.myShare} }}
+                                </span>
+                            </div>
+                            <div class="mt-1.5 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+                                <div [style.width.%]="row.barPercent" class="h-full rounded-full bg-brand/60"></div>
+                            </div>
+                        </div>
+                    }
+                </section>
+            }
+
+            <!-- ── Who fronted it ──────────────────────────────────────────── -->
+            @if (payerRows().length > 0) {
+                <section class="rounded-2xl border border-border bg-sidebar overflow-hidden">
+                    <div class="px-4 py-2.5 border-b border-border-subtle">
+                        <p class="text-xs font-semibold text-text-secondary m-0">{{ 'LEDGER.SUMMARY.BY_PAYER' | translate }}</p>
+                        <!-- Explicitly not a balance. Carrying the cash flow and owing money are
+                             different facts and the two get confused on sight. -->
+                        <p class="text-[0.625rem] text-text-muted m-0 mt-0.5">{{ 'LEDGER.SUMMARY.BY_PAYER_HINT' | translate }}</p>
+                    </div>
+                    @for (row of payerRows(); track row.userId) {
+                        <div class="flex items-center gap-3 px-4 py-2.5 border-b border-border-subtle last:border-b-0">
+                            <span class="text-[0.8125rem] text-text-primary truncate">{{ row.name }}</span>
+                            <span class="ml-auto text-[0.8125rem] font-semibold text-text-primary tabular-nums shrink-0">
+                                {{ row.amount }}
+                            </span>
+                        </div>
+                    }
+                </section>
+            }
+        }
+    }
+</div>

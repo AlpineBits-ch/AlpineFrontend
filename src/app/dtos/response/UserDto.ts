@@ -50,6 +50,21 @@ export interface UserDto {
     createdAt: Date;
     updatedAt: Date;
     birthDate: Date;
+    /**
+     * The account's own phone number in E.164, or null/absent when it has never recorded one.
+     *
+     * <p><b>Nothing has checked it.</b> It is whatever its owner typed, format-checked and no more -
+     * see `models/e164-phone.ts`. {@link phoneVerifiedAt} sits next to it and is always null; the
+     * column exists because SMS verification was designed and then dropped, and its presence is not
+     * a claim that anything verifies these numbers. No UI may render a tick against this field.</p>
+     *
+     * <p>Read from here rather than from a second endpoint: `GET /users/self` already projects it,
+     * so the client can tell whether the account has a number - which is what lets the per-household
+     * sharing toggle say "there is nothing to share yet" instead of switching on and appearing to do
+     * nothing. Optional because a self-hosted server predating the field sends neither it nor the
+     * `PUT`/`DELETE` routes that write it.</p>
+     */
+    phoneNumber?: string | null;
     phoneVerifiedAt: Date | undefined;
     emailVerifiedAt: Date | undefined;
     ageVerification: unknown;

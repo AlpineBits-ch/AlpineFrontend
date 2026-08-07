@@ -99,6 +99,19 @@ export const Permissions = {
     ChangeNickname: 1n << 53n,
     ManageNicknames: 1n << 54n,
 
+    // ── Household: meals ──────────────────────────────────────────────────────
+    PlanMeals: 1n << 55n,
+    ManageMeals: 1n << 56n,
+
+    // ── Household: maintenance ────────────────────────────────────────────────
+    /**
+     * Log a repair, and **mark something broken**. Deliberately the participation bit rather
+     * than the manage one: whoever discovers the washing machine is dead is whoever tried to
+     * use it, not whoever administers the house.
+     */
+    LogMaintenance: 1n << 57n,
+    ManageMaintenance: 1n << 58n,
+
     // ── Catch-all ────────────────────────────────────────────────────────────
     Superadmin: 1n << 63n,
 } as const;
@@ -203,6 +216,18 @@ export const PERM_GROUPS: PermGroup[] = [
         labelKey: 'PERM_GROUP.GUESTS',
         feature: 'GuestAccess',
         perms: ['ManageGuests'],
+    },
+    {
+        label: 'Meals',
+        labelKey: 'PERM_GROUP.MEALS',
+        feature: 'Meals',
+        perms: ['PlanMeals', 'ManageMeals'],
+    },
+    {
+        label: 'Maintenance',
+        labelKey: 'PERM_GROUP.MAINTENANCE',
+        feature: 'Maintenance',
+        perms: ['LogMaintenance', 'ManageMaintenance'],
     },
     {
         label: 'Admin',

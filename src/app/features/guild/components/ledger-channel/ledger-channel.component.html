@@ -18,6 +18,14 @@
 
         @if (!hidden()) {
             <div class="ml-auto flex items-center gap-1">
+                <!--
+                  Deliberately here and not in guild settings, which is gated on ManageGuild: every
+                  member has to be able to record how they are paid back, and a flatmate who is not
+                  an admin is exactly the person who needs to.
+                -->
+                <p-button (onClick)="showHandlesDialog.set(true)" [pTooltip]="'PAY.EDITOR.TITLE' | translate"
+                          [text]="true" icon="pi pi-wallet" severity="secondary" size="small"
+                          tooltipPosition="bottom"/>
                 @if (canManageLedger()) {
                     <p-button (onClick)="openCurrencyDialog()" [pTooltip]="'LEDGER.CURRENCY_SETTING' | translate"
                               [text]="true" icon="pi pi-cog" severity="secondary" size="small"
@@ -34,13 +42,45 @@
         }
     </header>
 
+    <!-- Three bodies, and the middle one is not history. A bill is an obligation before it is an
+         expense, so upcoming bills sit apart from the ledger rather than above it. -->
+    @if (!hidden()) {
+        <div class="px-3 sm:px-5 pt-3 shrink-0">
+            <div class="flex items-center rounded-lg border border-border-subtle p-0.5 self-start w-fit">
+                <button (click)="tab.set('expenses')"
+                        [class]="tab() === 'expenses' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                    {{ 'LEDGER.EXPENSES' | translate }}
+                </button>
+                <button (click)="tab.set('bills')"
+                        [class]="tab() === 'bills' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                    {{ 'BILLS.TAB' | translate }}
+                </button>
+                <button (click)="tab.set('summary')"
+                        [class]="tab() === 'summary' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                        class="px-3 py-1 rounded-md text-[0.6875rem] font-medium transition-colors" type="button">
+                    {{ 'LEDGER.SUMMARY.TAB' | translate }}
+                </button>
+            </div>
+        </div>
+    }
+
     <!-- The module being off renders nothing at all: "your house doesn't do money" is not a
          permission error and must not be dressed up as one. -->
     @if (!hidden()) {
         <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar">
             <div class="px-3 sm:px-5 py-4 flex flex-col gap-4 max-w-3xl mx-auto w-full">
 
-                @if (state().loading && !state().loaded) {
+                @if (tab() === 'bills') {
+                    <app-bills-panel [canAddExpense]="canAddExpense()" [canManage]="canManageLedger()"
+                                     [channelId]="channel().id" [currency]="currency()"
+                                     [memberOptions]="memberOptions()" [nameOf]="nameResolver()"
+                                     [ownUserId]="ownUserId()"/>
+                } @else if (tab() === 'summary') {
+                    <app-ledger-summary [channelId]="channel().id" [currency]="currency()"
+                                        [nameOf]="nameResolver()"/>
+                } @else if (state().loading && !state().loaded) {
                     <div class="flex items-center justify-center py-16">
                         <i class="pi pi-spin pi-spinner text-xl text-text-muted"></i>
                     </div>
@@ -142,8 +182,17 @@
 
                     <!-- ── Expenses ───────────────────────────────────────────────── -->
                     <section class="rounded-2xl border border-border bg-sidebar overflow-hidden">
-                        <div class="px-4 py-2.5 border-b border-border-subtle">
+                        <div class="px-4 py-2.5 border-b border-border-subtle flex items-center gap-2 flex-wrap">
                             <span class="text-xs font-semibold text-text-secondary">{{ 'LEDGER.EXPENSES' | translate }}</span>
+                            <!-- Applied server-side and from the first page: the filter has to reach
+                                 past what is loaded, or it narrows fifty rows and calls that "all
+                                 the groceries". -->
+                            <div class="ml-auto flex items-center gap-1.5">
+                                <p-select (ngModelChange)="setCategoryFilter($event)" [ngModel]="categoryFilter()"
+                                          [options]="categoryOptions()"
+                                          [placeholder]="'LEDGER.CATEGORY_ALL' | translate" [showClear]="true"
+                                          optionLabel="label" optionValue="value" size="small" styleClass="w-40"/>
+                            </div>
                         </div>
 
                         @if (expenseRows().length === 0) {
@@ -166,6 +215,10 @@
                                             {{ 'LEDGER.PAID_BY' | translate: {name: row.payerName} }}
                                             <span class="mx-1">·</span>{{ day(row.expense.occurredAt) }}
                                             <span class="mx-1">·</span>{{ row.splitLabelKey | translate }}
+                                            <span class="mx-1">·</span>{{ row.categoryLabelKey | translate }}
+                                            @if (row.receiptCount > 0) {
+                                                <i class="pi pi-paperclip text-[0.5625rem] ml-1.5"></i>
+                                            }
                                         </p>
                                         <!-- createdByUserId is often not payerUserId, and a ledger
                                              that hides it reads as if the payer wrote it. -->
@@ -185,6 +238,15 @@
                                                 {{ 'LEDGER.YOUR_SHARE' | translate: {amount: money(row.ownShareMinor)} }}
                                             </p>
                                         }
+                                    </div>
+
+                                    <!-- Receipts are readable by anybody who can see the channel;
+                                         only the editor may add or remove one. -->
+                                    <div class="flex items-center shrink-0">
+                                        <p-button (onClick)="openReceipts(row.expense)"
+                                                  [pTooltip]="'RECEIPTS.TITLE' | translate" [text]="true"
+                                                  icon="pi pi-receipt" severity="secondary" size="small"
+                                                  tooltipPosition="left"/>
                                     </div>
 
                                     @if (row.canEdit) {
@@ -294,6 +356,14 @@
             }
         </div>
 
+        <!-- Left at Uncategorized rather than guessed. It is a bucket the rollup names out loud,
+             where a defaulted "Groceries" would quietly file the rent under food. -->
+        <div class="flex flex-col gap-1.5">
+            <label class="text-[0.6875rem] uppercase tracking-widest text-text-muted">{{ 'LEDGER.CATEGORY' | translate }}</label>
+            <p-select (ngModelChange)="formCategory.set($event)" [ngModel]="formCategory()"
+                      [options]="categoryOptions()" optionLabel="label" optionValue="value" styleClass="w-full"/>
+        </div>
+
         <!-- Split. Exact is deliberately absent: the client must never decide who eats the
              remainder, because the server already has and will disagree. -->
         <div class="flex flex-col gap-2">
@@ -399,6 +469,25 @@
         @if (!canRecordCurrentSettlement()) {
             <p class="text-[0.625rem] text-connecting m-0">{{ 'LEDGER.SETTLE_THIRD_PARTY_DENIED' | translate }}</p>
         }
+
+        <!--
+          How to actually pay, above the button that records having paid, in that order: the payment
+          happens in another app and the record is what you come back to. Shown only when the viewer
+          is the payer - see `payeeForSheet`, which keeps a third party's bank details off screen for
+          a transfer the viewer is not part of.
+
+          `markPaid` calls the same `submitSettlement()` the footer button does. The sheet records
+          nothing by itself: no payment app returns a result to us, so a settlement is always the
+          payer's own assertion.
+        -->
+        @if (payeeForSheet(); as payee) {
+            <div class="border-t border-border-subtle pt-3">
+                <app-pay-sheet (markPaid)="submitSettlement()" [amountMinor]="settleAmountMinor() ?? 0"
+                               [currency]="currency()" [guildId]="channel().guildId"
+                               [payeeName]="nameOf(payee)" [payeeUserId]="payee"
+                               [reference]="settlementReference()"/>
+            </div>
+        }
     </div>
 
     <ng-template pTemplate="footer">
@@ -440,4 +529,36 @@
         <p-button (onClick)="submitCurrency()" [disabled]="!currencyValid()"
                   [label]="'LEDGER.CURRENCY_CONFIRM' | translate" [loading]="saving()" severity="danger"/>
     </ng-template>
+</p-dialog>
+
+<!-- ── Receipts ────────────────────────────────────────────────────────────── -->
+<!-- Mounted only while open, deliberately: the gallery re-lists on construction and every URL it
+     holds is presigned with an expiry, so a panel kept alive in the background would be showing
+     links that have quietly stopped working. -->
+<p-dialog (visibleChange)="$event || receiptsFor.set(null)" [draggable]="false" [modal]="true"
+          [resizable]="false" [style]="{width: '520px'}" [visible]="!!receiptsFor()" appendTo="body">
+    <ng-template pTemplate="header">
+        <div class="flex flex-col gap-0.5">
+            <span class="text-sm font-semibold text-text-primary">{{ 'RECEIPTS.TITLE' | translate }}</span>
+            <span class="text-[0.6875rem] text-text-muted">{{ receiptsFor()?.description }}</span>
+        </div>
+    </ng-template>
+
+    @if (receiptsFor(); as expense) {
+        <app-receipt-gallery [canEdit]="canEditExpense(expense)" [expenseId]="expense.id"/>
+    }
+</p-dialog>
+
+<!-- ── Payment handles ─────────────────────────────────────────────────────── -->
+<!-- Mounted only while open. The editor decrypts on load and holds the plaintext in memory; there
+     is no reason for a background dialog to be holding somebody's bank details. -->
+<p-dialog (visibleChange)="showHandlesDialog.set($event)" [draggable]="false" [modal]="true"
+          [resizable]="false" [style]="{width: '560px'}" [visible]="showHandlesDialog()" appendTo="body">
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">{{ 'PAY.EDITOR.TITLE' | translate }}</span>
+    </ng-template>
+
+    @if (showHandlesDialog()) {
+        <app-payment-handles-editor [guildId]="channel().guildId"/>
+    }
 </p-dialog>

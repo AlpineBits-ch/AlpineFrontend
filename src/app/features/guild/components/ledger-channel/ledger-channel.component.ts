@@ -9,8 +9,19 @@ import {Tooltip} from 'primeng/tooltip';
 import {PrimeTemplate} from 'primeng/api';
 import {ChannelDto} from '../../../../dtos/response/guild.dto';
 import {GuildMemberDto, SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
-import {Expense, ExpenseSplitKind, TransferSuggestion} from '../../../../dtos/response/ledger.dto';
+import {
+    EXPENSE_CATEGORIES,
+    Expense,
+    ExpenseCategory,
+    expenseCategoryLabelKey,
+    ExpenseSplitKind,
+    TransferSuggestion,
+} from '../../../../dtos/response/ledger.dto';
 import {ExpenseShareDto, LEDGER_LIMITS, normalizeCurrencyCode} from '../../../../dtos/request/ledger.dto';
+import {BillsPanelComponent} from './bills-panel.component';
+import {LedgerSummaryComponent} from './ledger-summary.component';
+import {ReceiptGalleryComponent} from './receipt-gallery.component';
+import {PaymentHandlesEditorComponent, PaySheetComponent} from '../../../payments';
 import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
 import {formatMinor, minorToInputString, parseMinor} from '../../../../helpers/money.helper';
 import {GuildService} from '../../../../services/guild.service';
@@ -38,8 +49,14 @@ interface ExpenseRow {
     /** What this expense costs the viewer, or null when they are not in the split. */
     ownShareMinor: number | null;
     splitLabelKey: string;
+    categoryLabelKey: string;
+    /** Only drawn once somebody has looked - see `LedgerService.receiptCountFor`. */
+    receiptCount: number;
     canEdit: boolean;
 }
+
+/** Which body the channel is showing. Bills are not history and get their own. */
+type LedgerTab = 'expenses' | 'bills' | 'summary';
 
 interface BalanceRow {
     userId: string;
@@ -77,7 +94,11 @@ interface SuggestionRow {
 @Component({
     selector: 'app-ledger-channel',
     changeDetection: ChangeDetectionStrategy.OnPush,
-    imports: [Button, Dialog, InputText, Select, Tooltip, FormsModule, PrimeTemplate, TranslateModule],
+    imports: [
+        Button, Dialog, InputText, Select, Tooltip, FormsModule, PrimeTemplate, TranslateModule,
+        BillsPanelComponent, LedgerSummaryComponent, ReceiptGalleryComponent, PaySheetComponent,
+        PaymentHandlesEditorComponent,
+    ],
     templateUrl: './ledger-channel.component.html',
 })
 export class LedgerChannelComponent {
@@ -164,9 +185,28 @@ export class LedgerChannelComponent {
                 : this.nameOf(expense.createdByUserId),
             ownShareMinor: expense.shares.find(s => s.userId === ownUserId)?.amountMinor ?? null,
             splitLabelKey: `LEDGER.SPLIT_${expense.splitKind.toUpperCase()}`,
+            categoryLabelKey: expenseCategoryLabelKey(expense.category ?? ExpenseCategory.Uncategorized),
+            receiptCount: this.ledger.receiptCountFor(expense.id),
             canEdit: this.canEditExpense(expense),
         }));
     });
+
+    // ── Tabs and the category filter ─────────────────────────────────────────
+
+    protected tab = signal<LedgerTab>('expenses');
+
+    /** `null` is everything. Held in the service, because it decides what the loaded pages mean. */
+    protected categoryFilter = computed(() => this.state().category);
+
+    protected readonly categories = EXPENSE_CATEGORIES;
+
+    protected categoryOptions = computed<MemberOption[]>(() => this.categories.map(category => ({
+        value: category,
+        label: this.translate.instant(expenseCategoryLabelKey(category)),
+    })));
+
+    /** The receipt gallery's expense, or null when it is closed. */
+    protected receiptsFor = signal<Expense | null>(null);
 
     /**
      * Everyone with a non-zero position, biggest creditor first.
@@ -228,6 +268,7 @@ export class LedgerChannelComponent {
     protected formSplitEveryone = signal(true);
     protected formParticipantIds = signal<string[]>([]);
     protected formWeights = signal<Record<string, number>>({});
+    protected formCategory = signal<ExpenseCategory>(ExpenseCategory.Uncategorized);
 
     protected formAmountMinor = computed(() => parseMinor(this.formAmount(), this.currency()));
     protected formAmountInvalid = computed(() => {
@@ -268,6 +309,9 @@ export class LedgerChannelComponent {
         return this.formParticipantIds().length > 0;
     });
 
+    /** The viewer's own payment details, opened from the header. Guild-scoped, not per channel. */
+    protected showHandlesDialog = signal(false);
+
     // ── Settlement dialog ────────────────────────────────────────────────────
     protected showSettleDialog = signal(false);
     protected settleFromUserId = signal<string | null>(null);
@@ -292,6 +336,32 @@ export class LedgerChannelComponent {
         const known = this.memberById();
         return known.has(this.settleFromUserId() ?? '') && known.has(this.settleToUserId() ?? '');
     });
+
+    /**
+     * Who this dialog would actually help pay, or null.
+     *
+     * <p>Only ever the viewer paying somebody else. Recording a settlement between two other people
+     * is a `ManageLedger` bookkeeping action - the money moved elsewhere, days ago, and nobody
+     * present needs a QR code for it. Offering payment details there would put a flatmate's IBAN on
+     * screen for a transaction the viewer is not party to, which is the kind of casual disclosure
+     * the sealed blob exists to avoid.</p>
+     */
+    protected payeeForSheet = computed(() => {
+        const ownUserId = this.ownUserId();
+        const to = this.settleToUserId();
+        if (!ownUserId || !to || to === ownUserId) return null;
+        return this.settleFromUserId() === ownUserId ? to : null;
+    });
+
+    /**
+     * What goes in the QR-bill's message line, and therefore on somebody's bank statement.
+     *
+     * <p>The channel name rather than the ledger's contents. A settlement clears a running balance
+     * made of many expenses, so naming one of them would be wrong, and listing them would put the
+     * household's shopping on a bank statement that other people read.</p>
+     */
+    protected settlementReference = computed(() =>
+        this.translate.instant('LEDGER.SETTLEMENT_REFERENCE', {channel: this.channel().name}));
 
     // ── Currency dialog ──────────────────────────────────────────────────────
     protected showCurrencyDialog = signal(false);
@@ -372,6 +442,22 @@ export class LedgerChannelComponent {
         return member?.nickname ?? member?.profile?.userName ?? this.translate.instant('LEDGER.SOMEONE');
     }
 
+    /**
+     * {@link nameOf} as a value, for the panels that render member names but hold no roster.
+     *
+     * <p>A computed over `memberById` rather than a bound method reference, so a child re-renders
+     * when the roster lands - a plain `this.nameOf.bind(this)` is a stable reference and would leave
+     * every name in the bills panel reading "Someone" until something else happened to change.</p>
+     */
+    protected nameResolver = computed(() => {
+        const members = this.memberById();
+        const fallback = this.translate.instant('LEDGER.SOMEONE');
+        return (userId: string): string => {
+            const member = members.get(userId);
+            return member?.nickname ?? member?.profile?.userName ?? fallback;
+        };
+    });
+
     protected initialOf(userId: string): string {
         return this.nameOf(userId).trim().charAt(0).toUpperCase() || '?';
     }
@@ -389,6 +475,9 @@ export class LedgerChannelComponent {
         this.formSplitEveryone.set(true);
         this.formParticipantIds.set([]);
         this.formWeights.set({});
+        // Uncategorized rather than a guess. It is a real bucket the rollup names honestly, where a
+        // defaulted "Groceries" would quietly file the rent under food.
+        this.formCategory.set(ExpenseCategory.Uncategorized);
         this.showExpenseDialog.set(true);
     }
 
@@ -409,7 +498,17 @@ export class LedgerChannelComponent {
         this.formSplitEveryone.set(expense.shares.length === 0);
         this.formParticipantIds.set(expense.shares.map(s => s.userId));
         this.formWeights.set(Object.fromEntries(expense.shares.map(s => [s.userId, s.shareValue || 1])));
+        this.formCategory.set(expense.category ?? ExpenseCategory.Uncategorized);
         this.showExpenseDialog.set(true);
+    }
+
+    /** Narrows the list. Re-reads from the first page - see `LedgerService.setCategory`. */
+    protected setCategoryFilter(category: ExpenseCategory | null): void {
+        this.ledger.setCategory(this.channel().id, category);
+    }
+
+    protected openReceipts(expense: Expense): void {
+        this.receiptsFor.set(expense);
     }
 
     protected toggleParticipant(userId: string): void {
@@ -458,6 +557,7 @@ export class LedgerChannelComponent {
             occurredAt: this.occurredAtIso(),
             splitKind: this.formSplitKind(),
             shares: this.sharesForSubmit(),
+            category: this.formCategory(),
         };
 
         this.saving.set(true);

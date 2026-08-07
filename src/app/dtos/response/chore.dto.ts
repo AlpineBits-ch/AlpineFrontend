@@ -59,6 +59,17 @@ export interface ChoreOccurrence {
     /** Set means skipped, and skipped is <b>not</b> done - see {@link occurrenceStatus}. */
     skippedAt?: string | null;
     isOverdue: boolean;
+    /**
+     * When somebody last nudged about this - and deliberately <b>not who</b>.
+     *
+     * <p>The nudger is anonymous in the payload and must stay anonymous in the UI. The entire value
+     * of the feature is that the app does the asking so nobody in the house has to be the person
+     * who nags; attributing it puts the social cost straight back where it was.</p>
+     *
+     * <p>Its job here is to grey the button. A second nudge inside twelve hours is a `409`, so
+     * offering one is offering an action that cannot work.</p>
+     */
+    nudgedAt?: string | null;
 }
 
 /** One member's standing over the balance window. */
@@ -72,6 +83,18 @@ export interface ChoreBalanceEntry {
      * directions: it inflates a small house and it hides who is coasting in a large one.
      */
     balanceMinutes: number;
+    /**
+     * How many days of the balance window this member was actually here.
+     *
+     * <p>The balance is weighted by it, so being away no longer reads as being behind. Surface it:
+     * it is what lets the board <i>explain</i> the number rather than only state it. "40 minutes
+     * light over the 16 days you were here" is a sentence people accept; the bare number is the
+     * thing they argue with.</p>
+     *
+     * <p>Absent from a server that predates absences, which is why every reader has to tolerate
+     * `undefined` and simply say less.</p>
+     */
+    presentDays?: number;
 }
 
 // ── Realtime payloads ───────────────────────────────────────────────────────
@@ -117,6 +140,62 @@ export interface ChoreOccurrenceUpdated {
     guildId: string;
     channelId: string;
     occurrence: ChoreOccurrence;
+}
+
+/**
+ * `guild.ChoreOccurrenceNudged` - somebody asked the assignee to get on with it.
+ *
+ * <p>The only occurrence event that carries a <b>fragment</b> rather than the whole row, and it is
+ * short by exactly one field on purpose: there is no sender here, in the payload, in the alert or
+ * in the copy. The app does the asking so that nobody in the house has to be the person who nags,
+ * and naming them hands the social cost straight back.</p>
+ */
+export interface ChoreOccurrenceNudged {
+    guildId: string;
+    channelId: string;
+    occurrenceId: string;
+    nudgedAt: string;
+}
+
+/** How long a nudge holds off the next one, per occurrence. Mirrors `ChoreAlertService`. */
+export const NUDGE_COOLDOWN_HOURS = 12;
+
+/**
+ * Whether a nudge would be accepted right now, judged from the row alone.
+ *
+ * <p>Every clause here mirrors a way the endpoint refuses, so the button can be hidden or greyed
+ * rather than offered and then explained. It cannot see quiet hours - that answer lives on the
+ * guild - so the remaining `409` is the caller's to handle.</p>
+ */
+export function canNudge(
+    occurrence: ChoreOccurrence,
+    graceHours: number,
+    ownUserId: string | null,
+    now: number = Date.now(),
+): boolean {
+    // Nudging yourself is not a thing, and rendering the button on your own row is the shape a
+    // client bug takes - so it is checked first and unconditionally.
+    if (!ownUserId || occurrence.assignedUserId === ownUserId) return false;
+    // Done and skipped are both refused server-side. A skip is still outstanding work, but it is
+    // not this occurrence's any more - the rota will hand it back round on its own.
+    if (occurrence.completedAt || occurrence.skippedAt) return false;
+
+    const dueMs = new Date(occurrence.dueAt).getTime();
+    if (Number.isNaN(dueMs)) return false;
+    // Only once it is genuinely late. A nudge about something not yet overdue is not a reminder,
+    // it is a person leaning over your shoulder - which is what gets the feature muted.
+    if (dueMs + graceHours * 3_600_000 >= now) return false;
+
+    if (!occurrence.nudgedAt) return true;
+    const last = new Date(occurrence.nudgedAt).getTime();
+    return Number.isNaN(last) || now - last >= NUDGE_COOLDOWN_HOURS * 3_600_000;
+}
+
+/** When the cooldown lapses, or `null` when nobody has nudged. For the greyed button's tooltip. */
+export function nextNudgeAt(occurrence: ChoreOccurrence): Date | null {
+    if (!occurrence.nudgedAt) return null;
+    const last = new Date(occurrence.nudgedAt).getTime();
+    return Number.isNaN(last) ? null : new Date(last + NUDGE_COOLDOWN_HOURS * 3_600_000);
 }
 
 /**

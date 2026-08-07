@@ -18,6 +18,8 @@ export enum ChannelType {
     Ledger = 'Ledger',
     Pantry = 'Pantry',
     Decisions = 'Decisions',
+    Meals = 'Meals',
+    Maintenance = 'Maintenance',
 }
 
 /** Forum and Media behave identically everywhere except how their post list is drawn. */

@@ -1,6 +1,9 @@
+import {BillStatus} from './bill.dto';
 import {ChoreOccurrence} from './chore.dto';
 import {HomeStatusDto} from './home-status.dto';
 import {ListItem} from './list.dto';
+import {AssetStatus} from './maintenance.dto';
+import {MealSlot} from './meal.dto';
 import {PantryItem} from './pantry.dto';
 
 /**
@@ -29,6 +32,19 @@ export interface HouseholdDigest {
     ledger?: HouseholdDigestLedger[] | null;
     decisions?: HouseholdDigestDecisions | null;
     homeStatus?: HomeStatusDto[] | null;
+    /** What the house owes and when, from the ledger channels the caller can see. */
+    bills?: HouseholdDigestBills | null;
+    meals?: HouseholdDigestMeals | null;
+    maintenance?: HouseholdDigestMaintenance | null;
+    /**
+     * Who is away right now, and until when.
+     *
+     * <p>Beside {@link homeStatus} and deliberately not folded into it - see
+     * {@link import('./absence.dto').Absence}. One is a decaying assertion about this minute, the
+     * other a dated plan the rota reads, and merging them would give a fortnight in Lisbon an
+     * expiry it does not have.</p>
+     */
+    away?: HouseholdDigestAbsence[] | null;
 }
 
 export interface HouseholdDigestChores {
@@ -74,6 +90,87 @@ export interface HouseholdDigestDecisionRef {
     closesAt?: string | null;
 }
 
+export interface HouseholdDigestBills {
+    /**
+     * Pending bills due inside the next fortnight, soonest first, with anything already late at the
+     * top. Overdue rows stay <b>in</b> the list rather than being counted away from it: a bill that
+     * is late is still a bill that is due, and hiding it would leave the most urgent row off.
+     */
+    dueSoon: HouseholdDigestBill[];
+    overdueCount: number;
+    /**
+     * Varying bills that came due with nobody having said what they cost. Counted apart from
+     * {@link overdueCount} because the action is different - one needs money moved, the other needs
+     * somebody to open the post.
+     */
+    needsAmountCount: number;
+}
+
+export interface HouseholdDigestBill {
+    id: string;
+    channelId: string;
+    description: string;
+    dueAt: string;
+    /** Null while the amount is still unknown. **Never rendered as zero.** */
+    amountMinor?: number | null;
+    currency: string;
+    /**
+     * What this period will cost the caller. Null when there is no total to divide yet, and also
+     * when the template's split no longer resolves - a wrong share on a glance is worse than a
+     * missing one, because it is the number somebody transfers.
+     */
+    myShareMinor?: number | null;
+    status: BillStatus;
+}
+
+export interface HouseholdDigestMeals {
+    /** What is planned for today, in board order across every meals channel the caller can see. */
+    today: HouseholdDigestMeal[];
+    /** Computed over the whole day rather than the capped {@link today} list. */
+    imCookingToday: boolean;
+}
+
+export interface HouseholdDigestMeal {
+    id: string;
+    channelId: string;
+    slot: MealSlot;
+    /** The recipe's title or the entry's free text, flattened - a glance renders one line either way. */
+    title: string;
+    cookUserId?: string | null;
+}
+
+export interface HouseholdDigestMaintenance {
+    brokenCount: number;
+    serviceOverdueCount: number;
+    /** Warranties lapsing soon. Already-lapsed ones are not counted - nothing left to do. */
+    warrantyExpiringCount: number;
+    /** The few worth showing, most urgent first. */
+    attention: HouseholdDigestAsset[];
+}
+
+export interface HouseholdDigestAsset {
+    id: string;
+    channelId: string;
+    name: string;
+    status: AssetStatus;
+    /**
+     * The single most urgent of the attention board's tokens.
+     *
+     * <p>One where the full board carries all of them, and that is the difference between the two
+     * surfaces rather than an omission: the board has room to say a machine is both broken and out
+     * of warranty, a glance line has room for the word that decides whether anybody gets up.</p>
+     */
+    reason: string;
+}
+
+export interface HouseholdDigestAbsence {
+    userId: string;
+    startAt: string;
+    /** Exclusive. */
+    endAt: string;
+    note?: string | null;
+}
+
 /**
  * A digest plus the `ETag` it came with.
  *
@@ -110,5 +207,13 @@ export function isDigestEmpty(digest: HouseholdDigest | null | undefined): boole
         && !digest.pantry?.expiringCount
         && !digest.ledger?.some(l => l.myNetMinor !== 0)
         && !digest.decisions?.openCount
-        && !digest.homeStatus?.length;
+        && !digest.homeStatus?.length
+        && !digest.bills?.dueSoon.length
+        && !digest.meals?.today.length
+        // The counts and not `attention.length`: a house can have a broken machine the capped
+        // attention list did not have room for, and "all clear" would then be a lie.
+        && !digest.maintenance?.brokenCount
+        && !digest.maintenance?.serviceOverdueCount
+        && !digest.maintenance?.warrantyExpiringCount
+        && !digest.away?.length;
 }

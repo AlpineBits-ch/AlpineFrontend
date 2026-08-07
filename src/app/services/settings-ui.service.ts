@@ -13,12 +13,33 @@ export class SettingsUiService {
     /** Page id to open, or null when there is nothing pending. */
     readonly requestedPage = signal<string | null>(null);
 
-    open(page: string): void {
+    /**
+     * A field within that page to reveal, or null.
+     *
+     * <p><b>Consumed separately from {@link requestedPage}, and that is not an oversight.</b> The
+     * dialog's host clears the page request the instant it acts on it, which is before the page has
+     * been created - so a field on that page would never see a value cleared on the same tick. The
+     * anchor is therefore left standing for the field itself to claim, via
+     * {@link consumeAnchor}.</p>
+     *
+     * <p>A settings page can be several screens long. Opening the right page and landing at the top
+     * of it is, for the person who followed a link about one particular field, close to
+     * indistinguishable from having gone nowhere.</p>
+     */
+    readonly requestedAnchor = signal<string | null>(null);
+
+    open(page: string, anchor?: string): void {
+        this.requestedAnchor.set(anchor ?? null);
         this.requestedPage.set(page);
     }
 
-    /** Called by the dialog's host once it has acted on the request. */
+    /** Called by the dialog's host once it has acted on the request. Leaves the anchor alone. */
     consume(): void {
         this.requestedPage.set(null);
+    }
+
+    /** Called by the field named in the anchor, once it has revealed itself. */
+    consumeAnchor(): void {
+        this.requestedAnchor.set(null);
     }
 }

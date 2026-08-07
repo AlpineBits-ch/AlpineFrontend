@@ -8,7 +8,7 @@ import {GuildFeature} from './guild-features';
  */
 export type ChannelView =
     | 'voice' | 'forum' | 'message'
-    | 'list' | 'chores' | 'ledger' | 'pantry' | 'decisions'
+    | 'list' | 'chores' | 'ledger' | 'pantry' | 'decisions' | 'meals' | 'maintenance'
     | 'unsupported';
 
 export interface ChannelTypeMeta {
@@ -28,6 +28,7 @@ export interface ChannelTypeMeta {
 const HOUSEHOLD_TYPE_SET: ReadonlySet<string> = new Set([
     ChannelType.List, ChannelType.Chores, ChannelType.Ledger,
     ChannelType.Pantry, ChannelType.Decisions,
+    ChannelType.Meals, ChannelType.Maintenance,
 ]);
 
 /**
@@ -45,6 +46,8 @@ const HOUSEHOLD_VIEW_BY_TYPE: ReadonlyMap<string, ChannelView> = new Map<string,
     [ChannelType.Ledger, 'ledger'],
     [ChannelType.Pantry, 'pantry'],
     [ChannelType.Decisions, 'decisions'],
+    [ChannelType.Meals, 'meals'],
+    [ChannelType.Maintenance, 'maintenance'],
 ]);
 
 /**
@@ -137,6 +140,20 @@ export const CHANNEL_META: readonly ChannelTypeMeta[] = [
         feature: GuildFeature.Decisions,
         labelKey: 'CHANNEL_TYPE.DECISIONS.LABEL',
         descKey: 'CHANNEL_TYPE.DECISIONS.DESC',
+    },
+    {
+        type: ChannelType.Meals,
+        icon: 'pi pi-book',
+        feature: GuildFeature.Meals,
+        labelKey: 'CHANNEL_TYPE.MEALS.LABEL',
+        descKey: 'CHANNEL_TYPE.MEALS.DESC',
+    },
+    {
+        type: ChannelType.Maintenance,
+        icon: 'pi pi-wrench',
+        feature: GuildFeature.Maintenance,
+        labelKey: 'CHANNEL_TYPE.MAINTENANCE.LABEL',
+        descKey: 'CHANNEL_TYPE.MAINTENANCE.DESC',
     },
 ];
 

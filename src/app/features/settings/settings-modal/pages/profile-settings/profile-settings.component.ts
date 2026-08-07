@@ -19,10 +19,14 @@ import {FONT_LABELS, FONT_STACKS, safeAccentColor} from '../../../../../models/p
 import {cacheBustedUrl} from '../../../../../models/profile-image.model';
 import {BrokenImageService} from '../../../../../services/broken-image.service';
 import {ProfileFont} from '../../../../../dtos/response/profile.dto';
+import {AccountPhoneComponent} from '../../../components/account-phone.component';
 
 @Component({
     selector: 'app-profile-settings',
-    imports: [Button, Dialog, ImageCropperComponent, TranslateModule, FormsModule, DatePipe, Select],
+    imports: [
+        Button, Dialog, ImageCropperComponent, TranslateModule, FormsModule, DatePipe, Select,
+        AccountPhoneComponent,
+    ],
     templateUrl: './profile-settings.component.html',
     styleUrl: './profile-settings.component.css',
 })

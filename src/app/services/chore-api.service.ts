@@ -6,6 +6,23 @@ import {Chore, ChoreBalanceEntry, ChoreOccurrence} from '../dtos/response/chore.
 import {CreateChoreDto, UpdateChoreDto} from '../dtos/request/chore.dto';
 
 /**
+ * What a successful nudge answers with. No sender, deliberately - see {@link ChoreApiService.nudge}.
+ */
+export interface ChoreNudgeResult {
+    occurrenceId: string;
+    nudgedAt: string;
+}
+
+/** The `409` body, whichever of the two reasons it is. Exactly one field is ever set. */
+export interface ChoreNudgeRefusal {
+    error?: string;
+    /** Somebody nudged inside the cooldown; this is when the next one becomes possible. */
+    nextNudgeAt?: string;
+    /** The house is in quiet hours until here. The nudge was refused, not queued. */
+    quietUntil?: string;
+}
+
+/**
  * The Chores HTTP surface, and nothing else. State, optimism and realtime reconciliation live in
  * {@link import('./chore.service').ChoreService}.
  *
@@ -109,6 +126,31 @@ export class ChoreApiService {
     swap(occurrenceId: string): Observable<ChoreOccurrence | null> {
         return this.http.post<ChoreOccurrence | null>(
             `${this.base}/chore-occurrences/${occurrenceId}/swap`, null);
+    }
+
+    /**
+     * Asks the assignee to get on with an overdue chore. `CompleteChores`.
+     *
+     * <p><b>The sender is not recorded and is not in the notification.</b> The value of the feature
+     * is that the app does the asking so nobody in the house has to be the person who nags; naming
+     * them puts the social cost straight back. Nothing here or downstream may attribute a nudge.</p>
+     *
+     * <p>Three ways it refuses, and the caller has to tell them apart:</p>
+     * <ul>
+     *   <li>`400` - you are the assignee, it is already done or skipped, or it is not yet overdue
+     *       past its grace period. Prevented by hiding the button, not by explaining it after.</li>
+     *   <li>`409` with `nextNudgeAt` - somebody nudged inside the last twelve hours. <b>Per
+     *       occurrence, not per sender</b>, so "I have not nudged" is not a defence; this is what
+     *       {@link ChoreOccurrence.nudgedAt} exists to pre-empt.</li>
+     *   <li>`409` with `quietUntil` - the house is in quiet hours. <b>Rejected, not deferred</b>,
+     *       which is the opposite of what a due reminder does: a deferred reminder is still true at
+     *       07:00, a deferred nudge is somebody's 23:40 impulse arriving seven hours later about a
+     *       bin that may well have been taken out in the meantime.</li>
+     * </ul>
+     */
+    nudge(occurrenceId: string): Observable<ChoreNudgeResult> {
+        return this.http.post<ChoreNudgeResult>(
+            `${this.base}/chore-occurrences/${occurrenceId}/nudge`, null);
     }
 
     // ── Balance ─────────────────────────────────────────────────────────────

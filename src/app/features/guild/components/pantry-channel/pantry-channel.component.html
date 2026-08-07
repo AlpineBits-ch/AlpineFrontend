@@ -17,6 +17,14 @@
         </div>
 
         <div class="flex items-center gap-1 ml-auto shrink-0">
+            @if (canManage()) {
+                <!-- The fastest way to add stock, and the reason the module survives past a
+                     fortnight: a code the house knows is one Enter, no form and no arithmetic. -->
+                <p-button (onClick)="view() === 'scan' ? view.set('stock') : showScan()"
+                          [pTooltip]="'PANTRY.SCAN_TOOLTIP' | translate"
+                          [severity]="view() === 'scan' ? 'primary' : 'secondary'" [text]="true"
+                          icon="pi pi-qrcode" size="small" tooltipPosition="bottom"/>
+            }
             <!-- House-wide, and labelled as such - it is not this pantry's list. -->
             <p-button (onClick)="view() === 'expiring' ? view.set('stock') : showExpiring()"
                       [pTooltip]="'PANTRY.EXPIRING_TOOLTIP' | translate" [text]="true"
@@ -41,6 +49,20 @@
                 <p class="text-[0.8125rem] text-text-secondary m-0">{{ 'PANTRY.MODULE_OFF_BODY' | translate }}</p>
             </div>
         </div>
+    } @else if (view() === 'scan') {
+
+        <!-- ── Scan ────────────────────────────────────────────────────────── -->
+        <div class="flex-1 min-h-0 flex flex-col">
+            <div class="flex items-center gap-2 px-3 sm:px-5 py-2.5 border-b border-border-subtle shrink-0">
+                <p-button (onClick)="view.set('stock')" [text]="true" icon="pi pi-arrow-left" severity="secondary"
+                          size="small"/>
+                <span class="text-xs font-semibold text-text-secondary">{{ 'PANTRY.SCAN_TITLE' | translate }}</span>
+            </div>
+            <div class="flex-1 min-h-0 overflow-y-auto thin-scrollbar px-3 sm:px-5 py-4">
+                <app-pantry-scan [channelId]="channel().id" [guildId]="channel().guildId"/>
+            </div>
+        </div>
+
     } @else if (view() === 'expiring') {
 
         <!-- ── House-wide expiring ─────────────────────────────────────────── -->
@@ -224,12 +246,23 @@
 
                                 @if (canManage()) {
                                     <div class="flex items-center gap-0.5 shrink-0">
-                                        <p-button (onClick)="bumpQuantity(row.item, -1)"
+                                        <!-- Consume and restock rather than a raw quantity edit:
+                                             the two run the server's low-stock loop and the second
+                                             also ticks off the list line the pantry created. -->
+                                        <p-button (onClick)="consumeOne(row.item)"
                                                   [disabled]="row.item.quantity <= 0"
                                                   [pTooltip]="'PANTRY.USE_ONE' | translate" [text]="true"
                                                   icon="pi pi-minus" severity="secondary" size="small"
                                                   tooltipPosition="top"/>
-                                        <p-button (onClick)="bumpQuantity(row.item, 1)"
+                                        <!-- "That was the last of it" - the commonest change of all,
+                                             and the one an amount cannot express without first
+                                             knowing the exact stock. -->
+                                        <p-button (onClick)="consumeAll(row.item)"
+                                                  [disabled]="row.item.quantity <= 0"
+                                                  [pTooltip]="'PANTRY.USE_ALL' | translate" [text]="true"
+                                                  icon="pi pi-times-circle" severity="secondary" size="small"
+                                                  tooltipPosition="top"/>
+                                        <p-button (onClick)="restockOne(row.item)"
                                                   [pTooltip]="'PANTRY.RESTOCK_ONE' | translate" [text]="true"
                                                   icon="pi pi-plus" severity="secondary" size="small"
                                                   tooltipPosition="top"/>

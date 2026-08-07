@@ -246,6 +246,171 @@
                 </section>
             }
 
+            <!-- ── Bills ───────────────────────────────────────────────────────
+                 An obligation before it is an expense, and drawn apart from the ledger section for
+                 exactly that reason: nothing here has been spent yet. -->
+            @if (bills(); as b) {
+                <section class="rounded-xl border border-border bg-card overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border-subtle">
+                        <i class="pi pi-calendar text-text-muted text-xs"></i>
+                        <span class="text-[0.8125rem] font-semibold text-text-primary">
+                            {{ 'HOUSE_HOME.BILLS_TITLE' | translate }}
+                        </span>
+                        @if (b.overdueCount > 0) {
+                            <span class="ml-auto shrink-0 text-[0.6875rem] text-rose-300">
+                                {{ 'HOUSE_HOME.BILLS_OVERDUE' | translate: {count: b.overdueCount} }}
+                            </span>
+                        }
+                    </div>
+
+                    <!-- Counted apart from overdue: one needs money moved, the other needs somebody
+                         to open the post. -->
+                    @if (b.needsAmountCount > 0) {
+                        <p class="px-4 py-2 text-[0.6875rem] text-amber-300 m-0 border-b border-border-subtle">
+                            {{ 'HOUSE_HOME.BILLS_NEEDS_AMOUNT' | translate: {count: b.needsAmountCount} }}
+                        </p>
+                    }
+
+                    @for (row of billRows(); track trackBill($index, row)) {
+                        <button (click)="openChannel(row.bill.channelId)"
+                                class="w-full flex items-center gap-3 px-4 py-2.5 text-left border-0 bg-transparent
+                                       cursor-pointer hover:bg-hover transition-colors">
+                            <span class="text-[0.8125rem] text-text-primary truncate flex-1">{{ row.bill.description }}</span>
+                            <span class="shrink-0 text-[0.6875rem] text-text-muted">{{ row.dueLabel }}</span>
+                            @if (row.myShare) {
+                                <span class="shrink-0 text-[0.8125rem] text-text-primary tabular-nums">{{ row.myShare }}</span>
+                            } @else if (row.amount) {
+                                <span class="shrink-0 text-[0.8125rem] text-text-primary tabular-nums">{{ row.amount }}</span>
+                            } @else {
+                                <!-- Not zero. Nobody has said what this period costs yet. -->
+                                <span class="shrink-0 text-[0.6875rem] text-amber-300">{{ 'BILLS.AMOUNT_UNKNOWN' | translate }}</span>
+                            }
+                        </button>
+                    }
+                </section>
+            }
+
+            <!-- ── Meals ───────────────────────────────────────────────────────
+                 Today only. The plan is a week; a glance is a day. -->
+            @if (meals(); as m) {
+                <section class="rounded-xl border border-border bg-card overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border-subtle">
+                        <i class="pi pi-book text-text-muted text-xs"></i>
+                        <span class="text-[0.8125rem] font-semibold text-text-primary">
+                            {{ 'HOUSE_HOME.MEALS_TITLE' | translate }}
+                        </span>
+                        <!-- Computed over the whole day rather than over the capped list, so a busy
+                             day cannot quietly answer "no" for somebody who is in fact cooking. -->
+                        @if (m.imCookingToday) {
+                            <span class="ml-auto shrink-0 text-[0.6875rem] text-brand">
+                                {{ 'HOUSE_HOME.MEALS_YOURE_COOKING' | translate }}
+                            </span>
+                        }
+                    </div>
+
+                    @if (m.today.length === 0) {
+                        <p class="px-4 py-3 text-[0.8125rem] text-text-secondary m-0">
+                            {{ 'HOUSE_HOME.MEALS_NONE' | translate }}
+                        </p>
+                    } @else {
+                        @for (meal of m.today; track trackMeal($index, meal)) {
+                            <button (click)="openChannel(meal.channelId)"
+                                    class="w-full flex items-center gap-3 px-4 py-2 text-left border-0 bg-transparent
+                                           cursor-pointer hover:bg-hover transition-colors">
+                                <span class="shrink-0 text-[0.5625rem] uppercase tracking-wide text-text-muted w-16">
+                                    {{ mealSlotKey(meal) | translate }}
+                                </span>
+                                <span class="text-[0.8125rem] text-text-primary truncate flex-1">{{ meal.title }}</span>
+                                @if (meal.cookUserId) {
+                                    <span class="shrink-0 text-[0.6875rem] text-text-muted">{{ displayName(meal.cookUserId) }}</span>
+                                }
+                            </button>
+                        }
+                    }
+                </section>
+            }
+
+            <!-- ── Maintenance ─────────────────────────────────────────────────
+                 The warranty count is up here rather than buried, because it is the one date nobody
+                 tracks and the expensive one to have missed. -->
+            @if (maintenance(); as mt) {
+                <section class="rounded-xl border border-border bg-card overflow-hidden">
+                    <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border-subtle">
+                        <i class="pi pi-wrench text-text-muted text-xs"></i>
+                        <span class="text-[0.8125rem] font-semibold text-text-primary">
+                            {{ 'HOUSE_HOME.MAINTENANCE_TITLE' | translate }}
+                        </span>
+                    </div>
+
+                    <div class="px-4 py-2 flex flex-wrap items-center gap-3 border-b border-border-subtle">
+                        @if (mt.brokenCount > 0) {
+                            <span class="text-[0.6875rem] text-rose-300">
+                                {{ 'HOUSE_HOME.MAINTENANCE_BROKEN' | translate: {count: mt.brokenCount} }}
+                            </span>
+                        }
+                        @if (mt.serviceOverdueCount > 0) {
+                            <span class="text-[0.6875rem] text-amber-300">
+                                {{ 'HOUSE_HOME.MAINTENANCE_SERVICE_OVERDUE' | translate: {count: mt.serviceOverdueCount} }}
+                            </span>
+                        }
+                        @if (mt.warrantyExpiringCount > 0) {
+                            <span class="text-[0.6875rem] text-amber-300 inline-flex items-center gap-1">
+                                <i class="pi pi-shield text-[0.5625rem]"></i>
+                                {{ 'HOUSE_HOME.MAINTENANCE_WARRANTY' | translate: {count: mt.warrantyExpiringCount} }}
+                            </span>
+                        }
+                    </div>
+
+                    @for (asset of mt.attention; track trackAsset($index, asset)) {
+                        <button (click)="openChannel(asset.channelId)"
+                                class="w-full flex items-center gap-3 px-4 py-2 text-left border-0 bg-transparent
+                                       cursor-pointer hover:bg-hover transition-colors">
+                            <span class="text-[0.8125rem] text-text-primary truncate flex-1">{{ asset.name }}</span>
+                            <span class="shrink-0 text-[0.6875rem] text-text-muted">{{ assetReasonKey(asset) | translate }}</span>
+                        </button>
+                    }
+                </section>
+            }
+
+            <!-- ── Away ────────────────────────────────────────────────────────
+                 Beside "who's home" and deliberately not folded into it: one is a dated plan the
+                 rota reads, the other a decaying assertion about this minute.
+
+                 The digest's own summary is skipped when the editable board is on screen - two
+                 lists of the same absences one above the other is not a glance. -->
+            @if (away(); as absences) {
+                @if (absences.length > 0 && !awayBoardVisible()) {
+                    <section class="rounded-xl border border-border bg-card overflow-hidden">
+                        <div class="flex items-center gap-2 px-4 py-2.5 border-b border-border-subtle">
+                            <i class="pi pi-send text-text-muted text-xs"></i>
+                            <span class="text-[0.8125rem] font-semibold text-text-primary">
+                                {{ 'HOUSE_HOME.AWAY_TITLE' | translate }}
+                            </span>
+                        </div>
+
+                        @for (row of awayRows(); track trackAway($index, row)) {
+                            <div class="flex items-center gap-3 px-4 py-2">
+                                <span class="text-[0.8125rem] text-text-primary truncate">
+                                    {{ displayName(row.absence.userId) }}
+                                </span>
+                                @if (row.absence.note) {
+                                    <span class="text-[0.6875rem] text-text-muted truncate">{{ row.absence.note }}</span>
+                                }
+                                <span class="ml-auto shrink-0 text-[0.6875rem] text-text-muted">
+                                    {{ 'HOUSE_HOME.AWAY_UNTIL' | translate: {date: row.until} }}
+                                </span>
+                            </div>
+                        }
+                    </section>
+                }
+            }
+
+            <!-- The editable board. It gates itself on the Presence module and renders nothing
+                 when the house has not got it. -->
+            @if (awayBoardVisible()) {
+                <app-away-board [guildId]="guildId()"/>
+            }
+
             <!-- ── Who's home ──────────────────────────────────────────────────
                  Asserted, not derived, and it expires - which is why somebody with no live status
                  is simply absent rather than drawn as "unknown". Not connection presence. -->

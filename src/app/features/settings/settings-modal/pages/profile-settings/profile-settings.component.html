@@ -214,6 +214,15 @@
                 </div>
                 <p-button [disabled]="true" [text]="true" label="Edit" severity="secondary" size="small"/>
             </div>
+
+            <!--
+              Here rather than beside the money in the ledger, because one number lives on the
+              account and is the same field a future SMS step would use. Whether a given house may
+              see it is a separate, per-house consent that stays in that house's ledger.
+            -->
+            <div class="bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+                <app-account-phone/>
+            </div>
         </div>
     </section>
 

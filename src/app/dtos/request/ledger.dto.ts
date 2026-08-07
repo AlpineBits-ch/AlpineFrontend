@@ -1,4 +1,4 @@
-import {ExpenseSplitKind} from '../response/ledger.dto';
+import {ExpenseCategory, ExpenseSplitKind} from '../response/ledger.dto';
 
 /** What `LedgerEndpoint` refuses, mirrored so the form refuses it first. */
 export const LEDGER_LIMITS = {
@@ -49,6 +49,11 @@ export interface CreateExpenseDto {
      * only spelling that stays correct when a flatmate moves in.
      */
     shares?: ExpenseShareDto[];
+    /**
+     * What it was for. Omitted lands in `Uncategorized`, which is a real bucket the rollup names
+     * rather than a hole it hides - so nothing here needs to guess a category to avoid one.
+     */
+    category?: ExpenseCategory;
 }
 
 /** Only the fields sent are touched; omitting one leaves it unchanged. */
