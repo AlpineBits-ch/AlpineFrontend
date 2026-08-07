@@ -1,7 +1,7 @@
 # Screen publish, proven end to end
 
 **Date:** 2026-08-07
-**Status:** approved, ready to plan
+**Status:** implemented. Four notes from the build are recorded at the end.
 
 ## The problem
 
@@ -187,3 +187,51 @@ A `Screen publish end-to-end` step in `ci.yml`, mirroring the voice one at `ci.y
 
 No new CI dependency. `encoder.rs`'s tests already provision Cisco's OpenH264 blob and cache it
 under `src-tauri/target`; these tests reuse the same `provision()` path.
+
+## What the build changed
+
+Four things the design did not anticipate.
+
+### `wait_until_connected`, which the design missed entirely
+
+`Publication::start` returns as soon as the answer is applied, which is *before* ICE and DTLS
+finish. In production that is correct - capture should not wait on a handshake, and a viewer's PLI
+recovers whatever the opening window loses - but it means the first frames are written into a
+transport that is not up yet and simply vanish. Written as specified, the headline test collected
+five access units instead of the sixteen it pumped, and asserting on `received[0] == sent[0]` was
+asserting on a race.
+
+It passed the first time it was run as part of the module and failed three times out of three when
+run alone. `MockBackend::wait_until_connected` closes it by waiting on the stand-in SFU's
+`RTCPeerConnectionState::Connected`.
+
+### The PLI test was vacuous as designed
+
+Written with the real encoder, `a_viewer_that_joins_late_gets_a_keyframe_on_request` passed with the
+RTCP handler mutated to discard every request. openh264 emits intra frames of its own accord on a
+moving picture, so the IDR the test looked for arrived whether or not the keyframe path worked.
+
+It now runs on the recording encoder with the wall-clock floor pushed out of reach, so the viewer's
+request is the only thing in the system that can produce a keyframe, and it asserts at both ends:
+the encoder was asked, and the result reached the viewer.
+
+### `set_publish_fps` has never worked
+
+Not in scope, found while restructuring `session::start`. The framerate `AtomicU32` was cloned for
+the capture loop and for the pump, and then `PublishHandle` was given a *fourth*, freshly allocated
+one. Every framerate change from the UI was stored somewhere nothing read. Fixed in passing - the
+handle now holds a clone of the same Arc - and untested, because the capture loop it feeds needs a
+real screen.
+
+### Each test was checked against a mutation of what it guards
+
+- Wall-clock keyframe floor removed → 4 tests fail, including the headline.
+- RTCP keyframe requests discarded → `a_viewer_that_joins_late_gets_a_keyframe_on_request` fails,
+  and only that one.
+- `WRITE_FAILURES_BEFORE_GIVING_UP` dropped to 1 → `a_burst_of_write_failures_does_not_end_the_publication`
+  fails, and only that one.
+- `write_frame` returning `Ok(())` without sending → all three media tests fail. This is the exact
+  shape of the silent failure the module exists for: the share reports healthy and transports
+  nothing.
+
+The module runs in ~4s.

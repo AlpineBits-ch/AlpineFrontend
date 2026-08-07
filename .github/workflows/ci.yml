@@ -247,3 +247,39 @@ jobs:
             echo "::error::only ${passed:-0} voice tests ran; expected at least 180"
             exit 1
           fi
+
+      # Screen sharing has broken twice with the whole suite green, and both times the fault was
+      # invisible from the sharing side: a keyframe interval counted in frames on a screen that
+      # produces almost none (a viewer waited ~45s for a decodable picture), and one full UDP send
+      # queue ending the publication outright while capture and encoding carried on. The share
+      # reported "running" everywhere except on the wire, and the sharer's own preview - drawn from
+      # the capture source, not the stream - looked perfect throughout.
+      #
+      # `media::publisher::e2e_tests` puts frames in one end and asserts on the NAL units a viewer
+      # reassembles at the other, with the backend mocked at the socket. Same shape, and same
+      # reasoning, as the voice gate above: its own red cross in the checks list, and a name grep
+      # plus a count floor so it cannot pass vacuously.
+      - name: Screen publish end-to-end
+        env:
+          RUSTC_WRAPPER: sccache
+          SCCACHE_GHA_ENABLED: "true"
+        run: |
+          set -o pipefail
+          cargo test --manifest-path src-tauri/Cargo.toml --lib media::publisher:: 2>&1 \
+            | tee publisher-tests.log
+
+          # The end-to-end test by name: it is the one that proves a viewer receives the picture,
+          # and the one whose absence must fail this job rather than pass it.
+          grep -q 'media::publisher::e2e_tests::a_published_screen_arrives_at_a_viewer_end_to_end \.\.\. ok' \
+            publisher-tests.log || {
+              echo "::error::the screen publish end-to-end test did not run - it was renamed, ignored or removed"
+              exit 1
+            }
+
+          passed=$(sed -n 's/^test result: ok\. \([0-9]*\) passed.*/\1/p' publisher-tests.log | head -1)
+          echo "publisher tests passed: ${passed:-0}"
+          # 66 as of this commit. A floor, not an exact count.
+          if [ "${passed:-0}" -lt 60 ]; then
+            echo "::error::only ${passed:-0} publisher tests ran; expected at least 60"
+            exit 1
+          fi

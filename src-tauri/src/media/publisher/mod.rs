@@ -24,9 +24,20 @@ pub mod encoder_sw;
 pub mod encoder_mf;
 pub mod nv12;
 pub mod openh264_blob;
+pub mod pump;
 pub mod rtc;
 pub mod session;
 pub mod signalling;
+
+/// Frames in one end, RTP out the other, with the backend mocked over real HTTP.
+///
+/// Screen sharing has broken twice with the whole suite green - a keyframe interval counted in
+/// frames on a screen that produces almost none, and one full UDP send queue ending a publication
+/// outright. Neither is visible to a unit test, and neither is visible from the sharing side at
+/// all: the share reports "running" everywhere except on the wire, and the sharer's own preview is
+/// drawn from the capture source and looks perfect either way.
+#[cfg(test)]
+mod e2e_tests;
 
 use std::path::PathBuf;
 use std::sync::{Mutex, OnceLock};

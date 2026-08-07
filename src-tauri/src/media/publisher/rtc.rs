@@ -41,6 +41,67 @@ pub struct IceServerConfig {
     pub credential: Option<String>,
 }
 
+/// The codec capability every screen track is published with.
+///
+/// Constrained Baseline 3.1 with non-interleaved packetisation: the profile every browser decoder
+/// accepts, which matters because Cloudflare forwards whatever we send and a viewer that cannot
+/// decode it simply sees nothing.
+///
+/// Public, and used by `super::e2e_tests` rather than copied there - see [`publisher_api`] for why
+/// a copy is the wrong shape.
+pub fn h264_capability() -> RTCRtpCodecCapability {
+    RTCRtpCodecCapability {
+        mime_type: MIME_TYPE_H264.to_owned(),
+        clock_rate: 90_000,
+        sdp_fmtp_line: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f"
+            .to_owned(),
+        ..Default::default()
+    }
+}
+
+/// The API every publishing peer connection is built from.
+///
+/// Public, and used by `super::e2e_tests` rather than copied there. Which codecs and interceptors
+/// are registered is precisely what decides whether an inbound stream can be matched to a
+/// transceiver at all, so a test that builds its own media engine tests its own media engine - and
+/// a copy that drifts from this one passes while no viewer sees a picture.
+pub fn publisher_api() -> Result<webrtc::api::API, String> {
+    let mut media_engine = MediaEngine::default();
+    media_engine
+        .register_default_codecs()
+        .map_err(|e| e.to_string())?;
+
+    let mut registry = Registry::new();
+    registry =
+        register_default_interceptors(registry, &mut media_engine).map_err(|e| e.to_string())?;
+
+    Ok(APIBuilder::new()
+        .with_media_engine(media_engine)
+        .with_interceptor_registry(registry)
+        .build())
+}
+
+/// Where encoded frames go once they leave the pump.
+///
+/// A trait rather than a bare [`Publication`] so the writer loop's failure handling can be driven
+/// directly. The behaviour it guards - a burst of failed writes is survived, a genuinely dead
+/// connection is not encoded into forever - is reachable no other way: the failure it exists for is
+/// a full UDP send queue, which cannot be provoked from outside the socket.
+///
+/// Generic rather than `dyn`, so async fn in trait is enough and no `async-trait` is needed.
+/// `Sync` because the futures are taken from `&self` and have to cross the writer task's threads.
+pub trait FrameSink: Send + Sync + 'static {
+    /// Hand one encoded access unit to the transport.
+    fn write_frame(
+        &self,
+        data: Vec<u8>,
+        duration: Duration,
+    ) -> impl std::future::Future<Output = Result<(), String>> + Send;
+
+    /// Tear the transport down. Consumes the sink: nothing may be written afterwards.
+    fn stop(self) -> impl std::future::Future<Output = ()> + Send;
+}
+
 /// A live publication: the peer connection, the track being fed, and the identifiers other clients
 /// need in order to subscribe.
 pub struct Publication {
@@ -75,19 +136,7 @@ impl Publication {
         share_id: &str,
         ice_servers: Vec<IceServerConfig>,
     ) -> Result<Self, String> {
-        let mut media_engine = MediaEngine::default();
-        media_engine
-            .register_default_codecs()
-            .map_err(|e| e.to_string())?;
-
-        let mut registry = Registry::new();
-        registry = register_default_interceptors(registry, &mut media_engine)
-            .map_err(|e| e.to_string())?;
-
-        let api = APIBuilder::new()
-            .with_media_engine(media_engine)
-            .with_interceptor_registry(registry)
-            .build();
+        let api = publisher_api()?;
 
         let config = RTCConfiguration {
             ice_servers: ice_servers
@@ -110,16 +159,7 @@ impl Publication {
 
         let track_name = format!("screen-{share_id}");
         let track = Arc::new(TrackLocalStaticSample::new(
-            RTCRtpCodecCapability {
-                mime_type: MIME_TYPE_H264.to_owned(),
-                clock_rate: 90_000,
-                // Constrained Baseline 3.1 with non-interleaved packetisation: the profile every
-                // browser decoder accepts, which matters because Cloudflare forwards whatever we
-                // send and a viewer that cannot decode it simply sees nothing.
-                sdp_fmtp_line: "level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42001f"
-                    .to_owned(),
-                ..Default::default()
-            },
+            h264_capability(),
             "video".to_owned(),
             track_name.clone(),
         ));
@@ -239,19 +279,6 @@ impl Publication {
         Ok(publication)
     }
 
-    /// Hand one encoded access unit to the packetiser.
-    pub async fn write_frame(&self, data: Vec<u8>, duration: Duration) -> Result<(), String> {
-        self.track
-            .write_sample(&Sample {
-                data: data.into(),
-                timestamp: SystemTime::now(),
-                duration,
-                ..Default::default()
-            })
-            .await
-            .map_err(|e| e.to_string())
-    }
-
     async fn renegotiate(&self) -> Result<(), String> {
         let offer = self
             .peer_connection
@@ -282,8 +309,24 @@ impl Publication {
             .map_err(|e| e.to_string())
     }
 
+}
+
+impl FrameSink for Publication {
+    /// Hand one encoded access unit to the packetiser.
+    async fn write_frame(&self, data: Vec<u8>, duration: Duration) -> Result<(), String> {
+        self.track
+            .write_sample(&Sample {
+                data: data.into(),
+                timestamp: SystemTime::now(),
+                duration,
+                ..Default::default()
+            })
+            .await
+            .map_err(|e| e.to_string())
+    }
+
     /// Close the track server-side and tear down the connection.
-    pub async fn stop(self) {
+    async fn stop(self) {
         let _ = self
             .signalling
             .close_tracks(&self.cf_session_id, &[self.track_name.clone()])

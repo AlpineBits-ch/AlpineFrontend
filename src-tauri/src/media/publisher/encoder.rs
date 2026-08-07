@@ -59,8 +59,46 @@ fn new_hardware_encoder(spec: EncoderSpec) -> Option<Box<dyn VideoEncoder>> {
     }
 }
 
-fn new_software_encoder(spec: EncoderSpec) -> Option<Box<dyn VideoEncoder>> {
+/// `pub(crate)` for the tests, which must not go through [`new_encoder`].
+///
+/// Hardware encoders are pipelined - they emit nothing for the first few frames - so one-in-one-out
+/// assertions only hold for openh264, and which encoder `new_encoder` picks depends on the machine's
+/// GPU. Selecting software directly is what keeps those tests from passing or failing by hardware.
+pub(crate) fn new_software_encoder(spec: EncoderSpec) -> Option<Box<dyn VideoEncoder>> {
     super::encoder_sw::SoftwareEncoder::new(spec).map(|e| Box::new(e) as Box<dyn VideoEncoder>)
+}
+
+/// Provision Cisco's OpenH264 into the build directory so the encoder can be exercised.
+///
+/// The first run downloads it (~450 KB) and every run afterwards reuses the cache, so this is
+/// network-dependent exactly once per checkout. It deliberately fails loudly rather than skipping:
+/// a silently-skipped codec test is worse than no test.
+///
+/// At module level rather than inside `mod tests` because `super::e2e_tests` needs it too, and two
+/// copies of a download-and-cache helper is one more than anybody wants.
+#[cfg(test)]
+pub(crate) async fn provision_async() {
+    if super::openh264_blob::ready_path().is_some() {
+        return;
+    }
+    let cache = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/test-openh264");
+    super::openh264_blob::ensure(cache)
+        .await
+        .expect("OpenH264 must be provisioned for encoder tests (needs network on first run)");
+}
+
+/// [`provision_async`] for tests that are not already on a runtime.
+///
+/// Split rather than unified because `block_on` from inside `#[tokio::test]` panics outright -
+/// "cannot start a runtime from within a runtime" - so the async tests must await the work
+/// directly and the sync ones cannot.
+#[cfg(test)]
+pub(crate) fn provision() {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("tokio runtime")
+        .block_on(provision_async());
 }
 
 /// Build the best available encoder, preferring hardware, and keep software in reserve.
@@ -186,26 +224,6 @@ impl VideoEncoder for ResilientEncoder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
-
-    /// Provision Cisco's OpenH264 into the build directory so the encoder can be exercised.
-    ///
-    /// The first run downloads it (~450 KB) and every run afterwards reuses the cache, so this is
-    /// network-dependent exactly once per checkout. It deliberately fails loudly rather than
-    /// skipping: a silently-skipped codec test is worse than no test.
-    fn provision() {
-        if super::super::openh264_blob::ready_path().is_some() {
-            return;
-        }
-        let cache = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("target/test-openh264");
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("tokio runtime");
-        runtime
-            .block_on(super::super::openh264_blob::ensure(cache))
-            .expect("OpenH264 must be provisioned for encoder tests (needs network on first run)");
-    }
 
     fn spec(width: u32, height: u32) -> EncoderSpec {
         EncoderSpec {
