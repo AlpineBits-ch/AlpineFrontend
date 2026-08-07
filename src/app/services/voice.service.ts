@@ -9,13 +9,18 @@ import {CreateCallDto} from '../dtos/request/create-call.dto';
 import {ApiConfigService} from "./api-config.service";
 import {VoiceRoomSnapshot} from '../models/voice-room';
 
-// ── Cloudflare Calls proxy DTOs ───────────────────────────────────────────────
+// ── Voice media DTOs ─────────────────────────────────────────────────────────
+//
+// Backend-neutral: no SFU vocabulary reaches this client any more. The session response names its
+// backend so a client can refuse a room it cannot handle, and everything else - routes, bodies,
+// responses - is the same whichever SFU is behind it.
 
 export interface CfTrackNew {
-    location: 'local' | 'remote';
-    mid?: string;       // local tracks: set after RTCPeerConnection.setLocalDescription
-    trackName?: string; // local: the name to publish under; remote: the name to subscribe to
-    sessionId?: string; // remote tracks: the peer's CF session ID
+    /** What this caller is doing, rather than where the media sits. */
+    direction: 'publish' | 'subscribe';
+    mid?: string;       // publish: set after RTCPeerConnection.setLocalDescription
+    trackName?: string; // publish: the name to publish under; subscribe: the name to pull
+    mediaSessionId?: string; // subscribe: the session publishing it
 }
 
 export interface CfTracksNewRequest {
@@ -29,12 +34,10 @@ export interface CfTrackResult {
      *  one, leaving the participant marked subscribed and permanently inaudible. */
     mid?: string;
     trackName: string;
-    sessionId?: string;
-    location?: string;
-    /** Cloudflare's per-track failure fields, relayed verbatim by the backend proxy. The proxy now
-     *  answers a response containing these with a 502 rather than passing it off as a success, so
-     *  in practice a failed track no longer reaches this client - they are declared because the
-     *  wire contract carries them. */
+    mediaSessionId?: string;
+    /** Per-track failure fields. The backend answers a response containing these with a 502 rather
+     *  than passing it off as a success, so in practice a failed track no longer reaches this
+     *  client - they are declared because the wire contract carries them. */
     errorCode?: string;
     errorDescription?: string;
 }
@@ -162,67 +165,47 @@ export class VoiceService {
         return this.client.get<Record<string, string[]>>(`${this.base}/call/${callId}/shares/viewers`);
     }
 
-    // ── Cloudflare Calls proxy endpoints ─────────────────────────────────────
+    // ── Voice media endpoints ────────────────────────────────────────────────
     //
-    // All CF Calls requests are proxied through the backend so the App ID and
-    // App Secret never leave the server.  Base CF URL on the server side:
-    //   https://rtc.live.cloudflare.com/v1/apps/{CF_APP_ID}/sessions/{cfSessionId}/...
-    //
-    // Auth header the backend must add: Authorization: Bearer {CF_APP_SECRET}
+    // Note the plural `calls/` here against the singular `call/` on the lifecycle routes above.
+    // That is historical and both are correct; getting it backwards 404s at the gateway.
 
-    // TODO(backend): POST /api/v1/messaging/voice/calls/{callId}/session
-    //   → proxies to CF POST /sessions/new (no body)
-    //   → stores the returned cfSessionId in the DB associated with userId + callId
-    //   → returns { cfSessionId: string }
     /**
      * `primary` decides whether the backend runs this session through `Call.ConnectDevice`, which
      * is where device-takeover detection lives. The microphone is published from Rust on its own
      * session, so the webview's session is secondary - a second primary session for the same user
      * reads as a takeover and hangs up the call.
      */
-    cfCreateSession(callId: string, primary = true): Observable<{ cfSessionId: string }> {
-        return this.client.post<{ cfSessionId: string }>(
+    cfCreateSession(callId: string, primary = true): Observable<{ mediaSessionId: string; backend?: string }> {
+        return this.client.post<{ mediaSessionId: string; backend?: string }>(
             `${this.base}/calls/${callId}/session?primary=${primary}`, {}
         );
     }
 
-    // TODO(backend): POST /api/v1/messaging/voice/calls/{callId}/cf/tracks/new
-    //   Body: { cfSessionId, sessionDescription: { type, sdp }, tracks: [CfTrackNew] }
-    //   → proxies to CF POST /sessions/{cfSessionId}/tracks/new with the same body
-    //     (minus cfSessionId which is in the URL on the CF side)
-    //   → returns CF response as-is:
-    //     { sessionDescription: { type, sdp }, tracks: [CfTrackResult], requiresImmediateRenegotiation }
-    //   After a successful local-track publish, emit 'TrackPublished' via SignalR to other call members.
-    cfTracksNew(callId: string, cfSessionId: string, body: CfTracksNewRequest): Observable<CfTracksNewResponse> {
+    /** Publish and subscribe are one route; `direction` on each track says which. */
+    cfTracksNew(callId: string, mediaSessionId: string, body: CfTracksNewRequest): Observable<CfTracksNewResponse> {
         return this.client.post<CfTracksNewResponse>(
-            `${this.base}/calls/${callId}/cf/tracks/new`,
-            {cfSessionId, ...body}
+            `${this.base}/calls/${callId}/tracks`,
+            {mediaSessionId, ...body}
         );
     }
 
-    // TODO(backend): PUT /api/v1/messaging/voice/calls/{callId}/cf/renegotiate
-    //   Body: { cfSessionId, sessionDescription: { type, sdp } }
-    //   → proxies to CF PUT /sessions/{cfSessionId}/renegotiate
-    //   → returns CF response: { sessionDescription: { type, sdp } }
     cfRenegotiate(
         callId: string,
-        cfSessionId: string,
+        mediaSessionId: string,
         sessionDescription: RTCSessionDescriptionInit,
     ): Observable<CfRenegotiateResponse> {
         return this.client.put<CfRenegotiateResponse>(
-            `${this.base}/calls/${callId}/cf/renegotiate`,
-            {cfSessionId, sessionDescription}
+            `${this.base}/calls/${callId}/negotiate`,
+            {mediaSessionId, sessionDescription}
         );
     }
 
-    // TODO(backend): PUT /api/v1/messaging/voice/calls/{callId}/cf/tracks/close
-    //   Body: { cfSessionId, trackNames: string[] }
-    //   → proxies to CF PUT /sessions/{cfSessionId}/tracks/close
-    //     with { tracks: trackNames.map(t => ({ trackName: t })) }
-    cfCloseTracks(callId: string, cfSessionId: string, trackNames: string[]): Observable<void> {
-        return this.client.put<void>(
-            `${this.base}/calls/${callId}/cf/tracks/close`,
-            {cfSessionId, trackNames}
+    /** POST, not PUT - the close verb changed with the route. */
+    cfCloseTracks(callId: string, mediaSessionId: string, trackNames: string[]): Observable<void> {
+        return this.client.post<void>(
+            `${this.base}/calls/${callId}/tracks/close`,
+            {mediaSessionId, trackNames}
         );
     }
 }

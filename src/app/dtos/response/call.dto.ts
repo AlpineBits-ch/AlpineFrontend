@@ -28,7 +28,7 @@ export interface CallParticipant {
      *  used to backfill-subscribe on connect/reconnect without waiting for a
      *  live `call.ParticipantJoined` event, which can be missed across a
      *  SignalR reconnect gap. */
-    cfSessionId?: string;
+    mediaSessionId?: string;
     audioTrackName?: string;
     /** Per-participant `CallStatus`, same dual string/ordinal encoding as {@link CallDto.status}.
      *  Carried by `call.CallDeclined`, which is how the caller tells "the callee said no" from

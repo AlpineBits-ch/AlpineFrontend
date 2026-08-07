@@ -7,57 +7,44 @@ import {GuildVoiceActivityDto} from '../dtos/response/guild-voice-activity.dto';
 import {ShareViewersDto} from '../dtos/response/share-viewers.dto';
 import {VoiceRoomSnapshot} from '../models/voice-room';
 
-export interface VoiceParticipantDto {
-    userId: string;
-    channelId: string;
-    guildId: string;
-    cfSessionId: string | null;
-    audioTrackName: string | null;
-    isSelfMuted: boolean;
-    isSelfDeafened: boolean;
-    isServerMuted: boolean;
-    isServerDeafened: boolean;
-    isStreaming: boolean;
-    joinedAt: string;
-}
-
-export interface VoiceStateDto {
-    channelId: string;
-    guildId: string;
-    participants: VoiceParticipantDto[];
-}
-
-export interface CfGuildTrackNew {
-    location: 'local' | 'remote';
+/**
+ * One track in a negotiate request.
+ *
+ * `direction` says what this caller is doing rather than where the media happens to sit, which is
+ * the whole point of the neutral contract: `publish` carries a `mid` and no session, `subscribe`
+ * carries the `mediaSessionId` it is pulling from and no mid (the SFU allocates that).
+ */
+export interface VoiceTrackRef {
+    direction: 'publish' | 'subscribe';
     mid?: string;
     trackName?: string;
-    sessionId?: string;
+    /** Subscribe only: the session publishing this track. */
+    mediaSessionId?: string;
 }
 
-export interface CfGuildTracksNewRequest {
-    cfSessionId: string;
+export interface VoiceNegotiateRequest {
+    mediaSessionId: string;
     sessionDescription: RTCSessionDescriptionInit;
-    tracks: CfGuildTrackNew[];
+    tracks: VoiceTrackRef[];
 }
 
-export interface CfGuildTrackResult {
+export interface VoiceTrackResult {
     /** Absent when the track failed - see errorCode/errorDescription. */
     mid?: string;
     trackName: string;
-    sessionId?: string;
-    location?: string;
-    /** Cloudflare's per-track failure fields - see the note on CfTrackResult in voice.service.ts. */
+    mediaSessionId?: string;
+    /** Per-track failure fields - see the note on VoiceTrackResult in voice.service.ts. */
     errorCode?: string;
     errorDescription?: string;
 }
 
-export interface CfGuildTracksNewResponse {
+export interface VoiceNegotiateResponse {
     sessionDescription: RTCSessionDescriptionInit;
-    tracks: CfGuildTrackResult[];
+    tracks: VoiceTrackResult[];
     requiresImmediateRenegotiation: boolean;
 }
 
-export interface CfGuildRenegotiateResponse {
+export interface VoiceRenegotiateResponse {
     sessionDescription: RTCSessionDescriptionInit;
 }
 
@@ -65,64 +52,79 @@ export interface CfGuildRenegotiateResponse {
 export class GuildVoiceService {
     private client = inject(HttpClient);
     private apiConfig = inject(ApiConfigService);
-    join(guildId: string, channelId: string): Observable<VoiceStateDto> {
-        return this.client.post<VoiceStateDto>(`${this.base(guildId, channelId)}/join`, {});
+    /**
+     * Join the room, and get its authoritative state back in the same round trip.
+     *
+     * <p>The server also pushes the identical `Snapshot` over SignalR, so this response is a
+     * convenience rather than the only copy - but it means the roster can be rendered without
+     * waiting for an event to arrive.</p>
+     */
+    join(guildId: string, channelId: string): Observable<VoiceRoomSnapshot> {
+        return this.client.post<VoiceRoomSnapshot>(`${this.base(guildId, channelId)}/join`, {});
     }
 
     leave(guildId: string, channelId: string): Observable<void> {
         return this.client.post<void>(`${this.base(guildId, channelId)}/leave`, {});
     }
 
-    getState(guildId: string, channelId: string): Observable<VoiceStateDto> {
-        return this.client.get<VoiceStateDto>(this.base(guildId, channelId));
-    }
-
     /**
      * The authoritative state of the room: who is pullable, on which session, and which
      * screen-share tracks are live right now.
      *
-     * <p>This is the recovery read, and the only one that carries `shares[].trackNames`. The
-     * response {@link getState} returns deliberately withheld the media handles, which is what made
-     * HTTP catch-up structurally incapable of restoring a subscription - a viewer joining a channel
-     * where a share was already running knew someone was streaming and could not find out what to
-     * pull.</p>
+     * <p>This is the recovery read, and the only one that carries `shares[].trackNames`. The shape
+     * this replaces deliberately withheld the media handles, which is what made HTTP catch-up
+     * structurally incapable of restoring a subscription - a viewer joining a channel where a share
+     * was already running knew someone was streaming and could not find out what to pull.</p>
+     *
+     * <p>`GET .../voice` answers the same thing, for anyone still calling it.</p>
      */
     getSnapshot(guildId: string, channelId: string): Observable<VoiceRoomSnapshot> {
         return this.client.get<VoiceRoomSnapshot>(`${this.base(guildId, channelId)}/snapshot`);
     }
 
     /**
-     * Open a Cloudflare session.
+     * Open a media session.
      *
-     * `primary` decides whether the backend runs this session through the device-connect path. The
-     * microphone is published from Rust on its own session, so the webview's session is secondary -
-     * it exists only to receive.
+     * <p>`primary` decides whether the backend runs this session through the device-connect path.
+     * The microphone is published from Rust on its own session, so the webview's session is
+     * secondary - it exists only to receive.</p>
+     *
+     * <p>`backend` names the SFU behind it. Nothing else on this surface is backend-specific, so it
+     * is read for logging rather than branched on; an unrecognised value means "I cannot handle
+     * this room" rather than "assume Cloudflare".</p>
      */
-    createSession(guildId: string, channelId: string, primary = true): Observable<{ cfSessionId: string }> {
-        return this.client.post<{ cfSessionId: string }>(
+    createSession(guildId: string, channelId: string, primary = true)
+        : Observable<{ mediaSessionId: string; backend?: string }> {
+        return this.client.post<{ mediaSessionId: string; backend?: string }>(
             `${this.base(guildId, channelId)}/session?primary=${primary}`, {});
     }
 
-    tracksNew(guildId: string, channelId: string, body: CfGuildTracksNewRequest): Observable<CfGuildTracksNewResponse> {
-        return this.client.post<CfGuildTracksNewResponse>(`${this.base(guildId, channelId)}/cf/tracks/new`, body);
+    /** Publish and subscribe are one route now; `direction` on each track says which. */
+    negotiateTracks(
+        guildId: string,
+        channelId: string,
+        body: VoiceNegotiateRequest,
+    ): Observable<VoiceNegotiateResponse> {
+        return this.client.post<VoiceNegotiateResponse>(`${this.base(guildId, channelId)}/tracks`, body);
     }
 
     renegotiate(
         guildId: string,
         channelId: string,
-        cfSessionId: string,
+        mediaSessionId: string,
         sessionDescription: RTCSessionDescriptionInit,
-    ): Observable<CfGuildRenegotiateResponse> {
-        return this.client.put<CfGuildRenegotiateResponse>(
-            `${this.base(guildId, channelId)}/cf/renegotiate`,
-            {cfSessionId, sessionDescription},
+    ): Observable<VoiceRenegotiateResponse> {
+        return this.client.put<VoiceRenegotiateResponse>(
+            `${this.base(guildId, channelId)}/negotiate`,
+            {mediaSessionId, sessionDescription},
         );
     }
 
-    closeTracks(guildId: string, channelId: string, cfSessionId: string, trackNames: string[]): Observable<void> {
-        return this.client.put<void>(
-            `${this.base(guildId, channelId)}/cf/tracks/close`,
-            {cfSessionId, trackNames},
+    /** POST, not PUT - the close verb changed with the route. */
+    closeTracks(guildId: string, channelId: string, mediaSessionId: string, trackNames: string[]): Observable<void> {
+        return this.client.post<void>(
+            `${this.base(guildId, channelId)}/tracks/close`,
+            {mediaSessionId, trackNames},
         );
     }
 

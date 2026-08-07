@@ -43,7 +43,7 @@ pub struct PublishHandle {
     /// Fixed output geometry, and the target the encoder was built for.
     width: AtomicU32,
     height: AtomicU32,
-    pub cf_session_id: String,
+    pub media_session_id: String,
     pub track_name: String,
     pub encoder_name: &'static str,
 }
@@ -139,7 +139,7 @@ pub async fn start(
     let encoder_name = encoder.name();
 
     let publication = Publication::start(signalling, &share_id, ice_servers).await?;
-    let cf_session_id = publication.cf_session_id.clone();
+    let media_session_id = publication.media_session_id.clone();
     let track_name = publication.track_name.clone();
     // Taken before the publication is moved into the writer task below.
     let keyframe_requests = publication.keyframe_requests();
@@ -185,7 +185,7 @@ pub async fn start(
         fps: handle_fps,
         width: AtomicU32::new(width),
         height: AtomicU32::new(height),
-        cf_session_id,
+        media_session_id,
         track_name,
         encoder_name,
     })

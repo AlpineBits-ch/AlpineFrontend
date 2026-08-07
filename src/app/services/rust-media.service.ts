@@ -51,7 +51,7 @@ interface PreviewFrame {
 }
 
 export interface ScreenPublishResult {
-    cfSessionId: string;
+    mediaSessionId: string;
     trackName: string;
     /** Which encoder was selected - 'media-foundation' or 'openh264'. */
     encoder: string;

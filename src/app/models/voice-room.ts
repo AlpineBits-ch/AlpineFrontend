@@ -26,7 +26,7 @@ export interface VoiceShareSnapshot {
 export interface VoiceParticipantSnapshot {
     userId: string;
     /** Null unless `publishState` is `Publishing`. */
-    cfSessionId: string | null;
+    mediaSessionId: string | null;
     /** Null unless `publishState` is `Publishing`. */
     audioTrackName: string | null;
     publishState: VoicePublishState;
@@ -85,7 +85,7 @@ export interface VoiceHeartbeatState {
     knownInstanceId: string | null;
     knownVersion: number;
     /** The session we are publishing on, or null when not publishing. */
-    cfSessionId: string | null;
+    mediaSessionId: string | null;
     /** The microphone track we have published, or null when not publishing. */
     audioTrackName: string | null;
 }
@@ -154,27 +154,19 @@ export type VoiceEventDecision = 'apply' | 'ignore' | 'refetch';
  * the roster wrong until the session ends, which is the shape of every incident in this area: the
  * state was fine, the announcement was missed, and nothing ever repeated it.</p>
  *
- * <h4>Why this is not the rule the frontend guide prints</h4>
- *
- * <p>The guide's pseudocode treats <code>version &lt;= held</code> as "duplicate or out of order,
- * ignore". That is wrong against this backend in two ways, both of which drop real events:</p>
+ * <h4>The three subtleties</h4>
  *
  * <ul>
- *   <li><b>Batched announcements share a version.</b> <code>RecordTracksAsync</code> mutates the
- *   room once and then emits one <code>TrackPublished</code> per track, all reading the same
- *   <code>room.Version</code>. Publishing a screen share with audio is exactly this case: two
- *   events, one version - and the guide's rule discards the second, so every share would arrive
- *   silent.</li>
- *   <li><b>Relay events never bump the version at all.</b> <code>SetSpeakingAsync</code> and
- *   <code>SetCameraAsync</code> load the room instead of mutating it, so their events carry the
- *   version already held. Under the guide's rule every speaking indicator and every camera toggle
- *   is ignored.</li>
+ *   <li><b>Equality applies.</b> One mutation can produce several events: publishing a screen share
+ *   with audio bumps the version once and then emits one <code>TrackPublished</code> per track, all
+ *   at that version. Treating equal versions as duplicates drops every track after the first, so a
+ *   share with audio arrives silent. Handlers must therefore be idempotent - they are, since each
+ *   sets a value or adds a track by name rather than incrementing anything.</li>
+ *   <li><b>Relay events apply without advancing.</b> See {@link receiveRelay}.</li>
+ *   <li><b>Snapshots and resyncs are not gated at all.</b> Both are handled by their callers rather
+ *   than here - a resync is an instruction, and <code>roomGone</code> carries a blank instance and
+ *   version zero precisely because there is no room left to describe.</li>
  * </ul>
- *
- * <p>So equality is applied rather than ignored. Only a <em>lower</em> version is stale, which is
- * the case the guide was actually reaching for - an event from another server instance arriving
- * late must not overwrite newer state. The gap and instance checks are unchanged, and they are the
- * two that carry the recovery guarantee.</p>
  */
 export class VoiceRoomTracker {
     private held: { instanceId: string; version: number } | null = null;
@@ -204,10 +196,38 @@ export class VoiceRoomTracker {
     }
 
     /**
-     * Classify an arriving event.
+     * Classify a *relay* event - one the server does not store and does not bump the version for.
+     *
+     * <p>`SpeakingChanged` and `CameraChanged` are pure relays: the server loads the room rather
+     * than mutating it, so they arrive carrying whatever version is current. That makes them
+     * useless as evidence of sequence, and actively dangerous as evidence of *progress*.</p>
+     *
+     * <p>The failure it prevents: we hold v5, someone publishes (v6) and we miss it, then a
+     * speaking relay arrives carrying v6. Advanced through {@link receive}, that reads as the next
+     * event in sequence - so we absorb the version of a publish we never saw, and the real v7 that
+     * follows looks perfectly contiguous. The missed publish is then permanent, which is the exact
+     * class of bug the whole mechanism exists to remove.</p>
+     *
+     * <p>So a relay is applied and nothing is advanced. It cannot report a gap either, and that is
+     * deliberate rather than a gap in coverage: speaking is written ten times a second, and putting
+     * the recovery path behind it means a room we cannot resynchronise refetches at that rate.
+     * Every other event detects the same gap at a sane one.</p>
+     */
+    receiveRelay(event: VoiceEventEnvelope): VoiceEventDecision {
+        const {instanceId} = event;
+        if (instanceId === undefined) return 'apply';
+        if (this.held === null) return 'refetch';
+        // A rebuilt room still invalidates everything held, relay or not.
+        if (instanceId !== this.held.instanceId) return 'refetch';
+        return 'apply';
+    }
+
+    /**
+     * Classify an arriving state event.
      *
      * <p>Advances the held version as a side effect when the answer is `apply`, so a caller must
-     * act on the result rather than calling this twice for one event.</p>
+     * act on the result rather than calling this twice for one event. Relay events go through
+     * {@link receiveRelay} instead.</p>
      */
     receive(event: VoiceEventEnvelope): VoiceEventDecision {
         const {instanceId, version} = event;

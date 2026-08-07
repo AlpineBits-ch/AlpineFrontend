@@ -435,7 +435,7 @@ pub struct Publication {
     open: Arc<AtomicBool>,
     sources: Sources,
     control: Arc<Control>,
-    pub cf_session_id: String,
+    pub media_session_id: String,
     pub track_name: String,
 }
 
@@ -489,7 +489,7 @@ impl Publication {
     pub async fn subscribe(
         &self,
         id: String,
-        cf_session_id: String,
+        media_session_id: String,
         track_name: String,
     ) -> Result<(), String> {
         {
@@ -509,7 +509,7 @@ impl Publication {
         let register_id = id.clone();
         let result = self
             .inner
-            .subscribe(&[(cf_session_id, track_name)], move |assigned| {
+            .subscribe(&[(media_session_id, track_name)], move |assigned| {
                 if let (Ok(mut map), Some(mid)) = (mids.lock(), assigned.first()) {
                     map.insert(mid.clone(), register_id);
                 }
@@ -843,7 +843,7 @@ impl Engine {
         // rejoin leaves the existing call alone rather than dropping it on the way out.
         self.unpublish(&slot);
 
-        let cf_session_id = inner.cf_session_id.clone();
+        let media_session_id = inner.media_session_id.clone();
         let track_name = inner.track_name.clone();
 
         let (packet_tx, mut packet_rx) = tokio::sync::mpsc::channel::<Bytes>(PACKET_QUEUE);
@@ -917,7 +917,7 @@ impl Engine {
             open,
             sources: Arc::clone(&self.sources),
             control: Arc::clone(&self.control),
-            cf_session_id,
+            media_session_id,
             track_name,
         });
         self.publications.insert(slot, Arc::clone(&publication));

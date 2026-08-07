@@ -20,7 +20,7 @@ export type VoiceTarget =
  */
 export interface VoiceSession {
     readonly slot: string;
-    readonly cfSessionId: string;
+    readonly mediaSessionId: string;
     readonly trackName: string;
 }
 
@@ -64,7 +64,7 @@ export interface RemoteLevel {
 /** One publication's transport counters. Mirrors the Rust `PublicationReport`. */
 export interface PublicationStats {
     slot: string;
-    cfSessionId: string;
+    mediaSessionId: string;
     trackName: string;
     open: boolean;
     peerState: string;
@@ -306,12 +306,12 @@ export class VoiceEngineService {
     async subscribe(
         session: VoiceSession,
         id: string,
-        cfSessionId: string,
+        mediaSessionId: string,
         trackName: string,
     ): Promise<void> {
         this.subscribedBySlot.get(session.slot)?.add(id);
         if (!isTauri()) return;
-        await invoke('voice_subscribe', {slot: session.slot, id, cfSessionId, trackName});
+        await invoke('voice_subscribe', {slot: session.slot, id, mediaSessionId, trackName});
     }
 
     async unsubscribe(session: VoiceSession, id: string): Promise<void> {

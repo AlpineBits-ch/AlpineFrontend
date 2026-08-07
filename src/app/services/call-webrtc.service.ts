@@ -19,6 +19,7 @@ import {ScreenPickerService} from './screen-picker.service';
 import type {CallDto} from '../dtos/response/call.dto';
 import {
     describeTrack,
+    VoiceEventDecision,
     VoiceEventEnvelope,
     VoiceRoomSnapshot,
     VoiceRoomTracker,
@@ -51,12 +52,9 @@ export interface CallStats {
  *     changes (mute, camera, screen share) to the peer connection.
  *   - SignalR events (via VoiceWebsocketService) drive remote participant state.
  *
- * Backend TODO summary (see individual TODOs below for details):
- *   1. POST /calls/{callId}/session                → create CF session, return cfSessionId
- *   2. POST /calls/{callId}/cf/tracks/new          → proxy to CF tracks/new
- *   3. PUT  /calls/{callId}/cf/renegotiate         → proxy to CF renegotiate
- *   4. PUT  /calls/{callId}/cf/tracks/close        → proxy to CF tracks/close
- *   5. SignalR hub: handle invocations + relay events (see voice-websocket.service.ts)
+ * The media surface is backend-neutral - no SFU vocabulary reaches this client. Sessions carry a
+ * `mediaSessionId` and declare their `backend`; publish and subscribe share one `POST .../tracks`
+ * and are told apart by each track's `direction`.
  */
 @Injectable({providedIn: 'root'})
 export class CallWebRtcService {
@@ -100,7 +98,7 @@ export class CallWebRtcService {
     private oauth = inject(OAuthService);
     // ── WebRTC state ─────────────────────────────────────────────────────────
     private pc: RTCPeerConnection | null = null;
-    private cfSessionId: string | null = null;
+    private mediaSessionId: string | null = null;
     private callId: string | null = null;
     /**
      * The Rust publication carrying this call's audio.
@@ -130,7 +128,7 @@ export class CallWebRtcService {
     // was the live TrackPublished event. The snapshot backfill covers the same tracks, so without
     // this a viewer present when a share starts subscribes twice and leaks a transceiver per
     // snapshot. A *different* session id for the same name is a republish and a real resubscribe.
-    private readonly subscribedVideoTracks = new Map<string, { cfSessionId: string; userId: string }>();
+    private readonly subscribedVideoTracks = new Map<string, { mediaSessionId: string; userId: string }>();
     /**
      * `instanceId` and `version` for this call, and the decision procedure for every event about
      * it. See {@link VoiceRoomTracker}.
@@ -290,22 +288,11 @@ export class CallWebRtcService {
             if (this.pc) this.pcState.set(this.pc.connectionState);
         };
 
-        // TODO(backend): Implement POST /api/v1/messaging/voice/calls/{callId}/session.
-        // Steps on the server:
-        //   1. POST to CF: https://rtc.live.cloudflare.com/v1/apps/{APP_ID}/sessions/new
-        //      with header: Authorization: Bearer {APP_SECRET}  (no request body needed)
-        //   2. Store the returned sessionId in your DB as the CF session for this user in this call.
-        //   3. Respond to the client with: { cfSessionId: string }
-        //   4. Emit 'ParticipantJoined' via SignalR to all OTHER call members with:
-        //        { userId, cfSessionId, audioTrackName: 'audio' }
-        //      (you'll need to emit this AFTER the client publishes their audio track -see cfTracksNew)
-        // Secondary: the Rust session started below carries this participant's microphone, and a
-        // second primary session for the same user reads as a device takeover and ends the call.
-        const {cfSessionId} = await firstValueFrom(this.voiceService.cfCreateSession(callId, false));
+        const {mediaSessionId} = await firstValueFrom(this.voiceService.cfCreateSession(callId, false));
         if (!this.callId) return;
-        this.cfSessionId = cfSessionId;
+        this.mediaSessionId = mediaSessionId;
 
-        // Set up WS listeners NOW -cfSessionId is ready and we need to be subscribed before the
+        // Set up WS listeners NOW -mediaSessionId is ready and we need to be subscribed before the
         // Rust session's publish triggers ExchangeParticipantJoined on the server, which sends
         // ParticipantJoined back to us for any already-connected participants.
         this.setupWsListeners();
@@ -388,7 +375,7 @@ export class CallWebRtcService {
         this.pcState.set('new');
         this.participantsWithAudio.set(new Set());
         this.pc = null;
-        this.cfSessionId = null;
+        this.mediaSessionId = null;
         this.callId = null;
         this.videoSender = null;
         this.videoTrackName = null;
@@ -419,23 +406,14 @@ export class CallWebRtcService {
     }
 
     private async doOfferAnswer(buildTracks: () => CfTrackNew[]): Promise<CfTrackResult[]> {
-        if (!this.pc || !this.cfSessionId || !this.callId) return [];
+        if (!this.pc || !this.mediaSessionId || !this.callId) return [];
 
         const offer = await this.pc.createOffer();
         await this.pc.setLocalDescription(offer);
         if (!this.callId) return [];
 
-        // TODO(backend): Implement POST /api/v1/messaging/voice/calls/{callId}/cf/tracks/new.
-        // Request body: { cfSessionId, sessionDescription: { type, sdp }, tracks: [...] }
-        // Proxy to CF: POST https://rtc.live.cloudflare.com/v1/apps/{APP_ID}/sessions/{cfSessionId}/tracks/new
-        // Return the CF response as-is:
-        //   { sessionDescription: { type, sdp }, tracks: [{ mid, trackName, ... }], requiresImmediateRenegotiation }
-        // If the published track is a new audio track (kind='audio'), after success:
-        //   emit 'ParticipantJoined' SignalR event to other call members with the user's cfSessionId.
-        // If the published track is video or screen, emit 'TrackPublished' to other call members:
-        //   { userId, cfSessionId, trackName, kind: 'video'|'screen', shareId? }
         const response = await firstValueFrom(
-            this.voiceService.cfTracksNew(this.callId, this.cfSessionId, {
+            this.voiceService.cfTracksNew(this.callId, this.mediaSessionId, {
                 sessionDescription: offer,
                 tracks: buildTracks(),
             })
@@ -450,12 +428,8 @@ export class CallWebRtcService {
             await this.pc.setLocalDescription(reOffer);
             if (!this.callId) return [];
 
-            // TODO(backend): Implement PUT /api/v1/messaging/voice/calls/{callId}/cf/renegotiate.
-            // Request body: { cfSessionId, sessionDescription: { type, sdp } }
-            // Proxy to CF: PUT https://rtc.live.cloudflare.com/v1/apps/{APP_ID}/sessions/{cfSessionId}/renegotiate
-            // Return CF response: { sessionDescription: { type, sdp } }
             const renegResponse = await firstValueFrom(
-                this.voiceService.cfRenegotiate(this.callId, this.cfSessionId, reOffer)
+                this.voiceService.cfRenegotiate(this.callId, this.mediaSessionId, reOffer)
             );
             if (!this.callId) return [];
             await this.setRemoteDescriptionOrThrow(renegResponse.sessionDescription, 'renegotiate');
@@ -492,7 +466,7 @@ export class CallWebRtcService {
         if (!track) return;
         const transceiver = this.pc.addTransceiver(track, {direction: 'sendonly'});
         const results = await this.offerAnswerCycle(() => [{
-            location: 'local',
+            direction: 'publish',
             mid: transceiver.mid ?? '0',
             trackName: 'video',
         }]);
@@ -511,14 +485,9 @@ export class CallWebRtcService {
         }
         this.videoTrackName = null;
 
-        if (this.cfSessionId) {
-            // TODO(backend): Implement PUT /api/v1/messaging/voice/calls/{callId}/cf/tracks/close.
-            // Request body: { cfSessionId, trackNames: string[] }
-            // Proxy to CF: PUT .../sessions/{cfSessionId}/tracks/close
-            //   with body: { tracks: [{ trackName }] }
-            // Emit 'TrackClosed' SignalR event to other call members after closing.
+        if (this.mediaSessionId) {
             await firstValueFrom(
-                this.voiceService.cfCloseTracks(this.callId, this.cfSessionId, [trackName])
+                this.voiceService.cfCloseTracks(this.callId, this.mediaSessionId, [trackName])
             ).catch(() => void 0);
         }
         if (this.callId) this.voiceWs.invokeCameraChanged(this.callId, false);
@@ -538,7 +507,7 @@ export class CallWebRtcService {
 
         const cfTrackName = `screen-${shareId}`;
         const results = await this.offerAnswerCycle(() => [{
-            location: 'local',
+            direction: 'publish',
             mid: transceiver.mid ?? '0',
             trackName: cfTrackName,
         }]);
@@ -546,7 +515,7 @@ export class CallWebRtcService {
         this.screenTrackName = results[0]?.trackName ?? cfTrackName;
         this.screenShareId = shareId;
         await applyScreenEncoding(transceiver.sender, this.callSession.screenPreset() ?? DEFAULT_STREAM_PRESET);
-        if (this.callId) this.voiceWs.invokeScreenShareStarted(this.callId, shareId, this.screenTrackName);
+        if (this.callId) this.voiceWs.invokeScreenShareStarted(this.callId, shareId);
     }
 
     private async unpublishScreenTrack(): Promise<void> {
@@ -560,9 +529,9 @@ export class CallWebRtcService {
         this.screenTrackName = null;
         this.screenShareId = null;
 
-        if (this.cfSessionId && trackName) {
+        if (this.mediaSessionId && trackName) {
             await firstValueFrom(
-                this.voiceService.cfCloseTracks(this.callId, this.cfSessionId, [trackName])
+                this.voiceService.cfCloseTracks(this.callId, this.mediaSessionId, [trackName])
             ).catch(() => void 0);
         }
         if (shareId && this.callId) this.voiceWs.invokeScreenShareStopped(this.callId, shareId);
@@ -572,7 +541,7 @@ export class CallWebRtcService {
 
     private async subscribeToTrack(
         userId: string,
-        remoteCfSessionId: string,
+        remoteMediaSessionId: string,
         trackName: string,
         kind: 'audio' | 'video' | 'screen',
         shareId?: string,
@@ -586,7 +555,7 @@ export class CallWebRtcService {
             // Audio never touches this peer connection now: it is pulled onto the Rust session,
             // decoded and mixed there, and played through the output device Rust owns.
             try {
-                await this.voiceEngine.subscribe(session, userId, remoteCfSessionId, trackName);
+                await this.voiceEngine.subscribe(session, userId, remoteMediaSessionId, trackName);
                 this.participantsWithAudio.update(s => {
                     const n = new Set(s);
                     n.add(userId);
@@ -606,7 +575,7 @@ export class CallWebRtcService {
         if (!this.pc) return;
         // Same dedupe reasoning as the audio guard above, keyed on (track, publishing session) so a
         // republish on a new session still resubscribes. Claimed only on success, below.
-        if (this.subscribedVideoTracks.get(trackName)?.cfSessionId === remoteCfSessionId) return;
+        if (this.subscribedVideoTracks.get(trackName)?.mediaSessionId === remoteMediaSessionId) return;
         // Everything below is a network round trip (or more than one, via CF
         // renegotiation) that can throw or transiently fail -most likely on a cold
         // app start (fresh CF session, cold DNS/TLS). If we don't roll back the
@@ -616,14 +585,14 @@ export class CallWebRtcService {
         // gated behind the same subscribedAudioUserIds check, so a single failed
         // attempt here would have zero chance of ever being retried.
         try {
-            console.log('[WebRTC] subscribeToTrack', {userId, remoteCfSessionId, trackName, kind});
+            console.log('[WebRTC] subscribeToTrack', {userId, remoteMediaSessionId, trackName, kind});
             // Only video reaches this connection now; audio returned above.
             const transceiver = this.pc.addTransceiver('video', {direction: 'recvonly'});
             preferVideoCodecs(transceiver, 'receiver');
 
             const results = await this.offerAnswerCycle(() => [{
-                location: 'remote',
-                sessionId: remoteCfSessionId,
+                direction: 'subscribe',
+                mediaSessionId: remoteMediaSessionId,
                 trackName,
             }]);
             console.log('[WebRTC] subscribeToTrack results', results);
@@ -637,14 +606,14 @@ export class CallWebRtcService {
             const mid = results.find(r => r.trackName === trackName)?.mid;
             if (!mid) {
                 throw new Error(
-                    `Cloudflare returned no mid for ${kind} track "${trackName}" on session ${remoteCfSessionId}`);
+                    `Cloudflare returned no mid for ${kind} track "${trackName}" on session ${remoteMediaSessionId}`);
             }
             console.log('[WebRTC] midMap set', mid, '→', {userId, kind});
             this.midMap.set(mid, {userId, kind, shareId});
             // Recorded only once it worked, for the same reason the audio guard is rolled back on
             // failure: claiming it early would make every later retry skip the one thing that could
             // have recovered the track.
-            this.subscribedVideoTracks.set(trackName, {cfSessionId: remoteCfSessionId, userId});
+            this.subscribedVideoTracks.set(trackName, {mediaSessionId: remoteMediaSessionId, userId});
             this.processPendingTracks();
         } catch (e) {
             console.error('[WebRTC] subscribeToTrack failed', {userId, trackName, kind}, e);
@@ -808,7 +777,16 @@ export class CallWebRtcService {
      * ever in one call, so anything else is stale routing.</p>
      */
     private gate(event: VoiceEventEnvelope, apply: () => void): void {
-        switch (this.tracker.receive(event)) {
+        this.decide(apply, () => this.tracker.receive(event));
+    }
+
+    /** The same, for relay events - applied without advancing the version. */
+    private gateRelay(event: VoiceEventEnvelope, apply: () => void): void {
+        this.decide(apply, () => this.tracker.receiveRelay(event));
+    }
+
+    private decide(apply: () => void, classify: () => VoiceEventDecision): void {
+        switch (classify()) {
             case 'apply':
                 apply();
                 return;
@@ -875,10 +853,10 @@ export class CallWebRtcService {
             this.callSession.onParticipantJoined(p.userId);
             // A session id alone is not an invitation to subscribe: `Joined` means a session exists
             // and a microphone track does not, so the pull fails and burns the retry budget.
-            if (p.publishState !== 'Publishing' || !p.cfSessionId || !p.audioTrackName) continue;
+            if (p.publishState !== 'Publishing' || !p.mediaSessionId || !p.audioTrackName) continue;
 
-            const cfSessionId = p.cfSessionId;
-            void this.subscribeToTrack(p.userId, cfSessionId, p.audioTrackName, 'audio');
+            const mediaSessionId = p.mediaSessionId;
+            void this.subscribeToTrack(p.userId, mediaSessionId, p.audioTrackName, 'audio');
 
             for (const share of p.shares) {
                 for (const trackName of share.trackNames) {
@@ -889,7 +867,7 @@ export class CallWebRtcService {
                     // Cloudflare for an audio track on a video transceiver.
                     if (kind === 'screenAudio') continue;
                     void this.subscribeToTrack(
-                        p.userId, cfSessionId, trackName, 'screen', share.shareId);
+                        p.userId, mediaSessionId, trackName, 'screen', share.shareId);
                 }
             }
         }
@@ -916,9 +894,9 @@ export class CallWebRtcService {
         this.voiceWs.invokeVoiceHeartbeat(this.callId, {
             knownInstanceId: this.tracker.instanceId,
             knownVersion: this.tracker.version,
-            // The Rust publication, not `this.cfSessionId`. The webview session is secondary and
+            // The Rust publication, not `this.mediaSessionId`. The webview session is secondary and
             // receive-only; asserting it would hand peers a session with no audio track on it.
-            cfSessionId: this.voiceSession?.cfSessionId ?? null,
+            mediaSessionId: this.voiceSession?.mediaSessionId ?? null,
             audioTrackName: this.voiceSession?.trackName ?? null,
         });
     }
@@ -937,7 +915,7 @@ export class CallWebRtcService {
                 // The backfill in syncParticipants already skips ownId; this path did not.
                 const localId = this.callSession.session()?.participants.find(p => p.isLocal)?.userId;
                 if (e.userId === localId) return;
-                void this.subscribeToTrack(e.userId, e.cfSessionId, e.audioTrackName, 'audio');
+                void this.subscribeToTrack(e.userId, e.mediaSessionId, e.audioTrackName, 'audio');
             })),
 
             // New video / screen track published → subscribe to it
@@ -945,9 +923,9 @@ export class CallWebRtcService {
                 const localId = this.callSession.session()?.participants.find(p => p.isLocal)?.userId;
                 if (e.userId === localId) return; // Skip own tracks
                 if (e.kind === 'video') {
-                    void this.subscribeToTrack(e.userId, e.cfSessionId, e.trackName, 'video');
+                    void this.subscribeToTrack(e.userId, e.mediaSessionId, e.trackName, 'video');
                 } else if (e.kind === 'screen') {
-                    void this.subscribeToTrack(e.userId, e.cfSessionId, e.trackName, 'screen', e.shareId);
+                    void this.subscribeToTrack(e.userId, e.mediaSessionId, e.trackName, 'screen', e.shareId);
                 }
             })),
 
@@ -971,15 +949,14 @@ export class CallWebRtcService {
             this.voiceWs.muteChangedObservable.subscribe(e => this.gate(e, () =>
                 this.callSession.onMuteChanged(e.userId, e.isMuted))),
 
-            // Deliberately not gated. Speaking is pure relay - it is written at speaking rate, the
-            // server does not bump the version for it, and it is worthless a second later. Putting
-            // the recovery path behind an event that fires ten times a second means a room we cannot
-            // resynchronise refetches ten times a second; every other event below detects the same
-            // gap at a sane rate.
-            this.voiceWs.speakingChangedObservable.subscribe(e =>
-                this.callSession.onSpeakingChanged(e.userId, e.isSpeaking)),
+            // Relay, and the highest-frequency one there is - applied without advancing the
+            // version and without gap detection, so a room we cannot resynchronise does not refetch
+            // at speaking rate.
+            this.voiceWs.speakingChangedObservable.subscribe(e => this.gateRelay(e, () =>
+                this.callSession.onSpeakingChanged(e.userId, e.isSpeaking))),
 
-            this.voiceWs.cameraChangedObservable.subscribe(e => this.gate(e, () => {
+            // Relay: not stored server-side, not versioned. See VoiceRoomTracker.receiveRelay.
+            this.voiceWs.cameraChangedObservable.subscribe(e => this.gateRelay(e, () => {
                 // Turn-off: update UI immediately (track.onended handles stream cleanup)
                 if (!e.isCameraOn) this.callSession.onCameraChanged(e.userId, false);
                 // Turn-on: handled by trackPublishedObservable → subscribeToTrack → ontrack → onCameraChanged

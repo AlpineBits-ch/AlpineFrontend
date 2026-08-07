@@ -167,11 +167,11 @@ pub struct VoicePublication {
     /// `voice-rtc.service.ts`. This connection did not, which is what made joining a busy channel -
     /// where the backend backfills the whole room at once - the case that broke.
     negotiation: tokio::sync::Mutex<()>,
-    pub cf_session_id: String,
+    pub media_session_id: String,
     pub track_name: String,
 }
 
-/// Build the pull request for a set of `(cf_session_id, track_name)` pairs.
+/// Build the pull request for a set of `(media_session_id, track_name)` pairs.
 ///
 /// Split out from `subscribe` so the request shape is testable without a peer connection or a
 /// network. The shape is the part that is easy to get wrong; the plumbing around it is not.
@@ -179,7 +179,6 @@ fn subscription_tracks(sources: &[(String, String)]) -> Vec<RemoteTrack> {
     sources
         .iter()
         .map(|(session_id, track_name)| RemoteTrack {
-            location: "remote",
             track_name: track_name.clone(),
             session_id: session_id.clone(),
         })
@@ -431,7 +430,7 @@ impl VoicePublication {
             *guard = candidates;
         }
 
-        let cf_session_id = signalling.create_session().await?;
+        let media_session_id = signalling.create_session().await?;
 
         // The mid is assigned during offer creation, so it can only be read now.
         let mid = peer_connection
@@ -445,13 +444,12 @@ impl VoicePublication {
 
         let response = signalling
             .tracks_new(
-                &cf_session_id,
+                &media_session_id,
                 &SessionDescription {
                     sdp_type: "offer".to_owned(),
                     sdp: local.sdp,
                 },
                 &[LocalTrack {
-                    location: "local",
                     mid,
                     track_name: TRACK_NAME.to_owned(),
                 }],
@@ -507,7 +505,7 @@ impl VoicePublication {
             packet_sink,
             stats,
             negotiation: tokio::sync::Mutex::new(()),
-            cf_session_id,
+            media_session_id,
             track_name,
         };
 
@@ -628,7 +626,7 @@ impl VoicePublication {
         let response = self
             .signalling
             .tracks_new_remote(
-                &self.cf_session_id,
+                &self.media_session_id,
                 &SessionDescription {
                     sdp_type: "offer".to_owned(),
                     sdp: local.sdp,
@@ -727,7 +725,7 @@ impl VoicePublication {
         let response = self
             .signalling
             .renegotiate(
-                &self.cf_session_id,
+                &self.media_session_id,
                 &SessionDescription {
                     sdp_type: "offer".to_owned(),
                     sdp: offer.sdp,
@@ -750,7 +748,7 @@ impl VoicePublication {
     pub async fn stop(&self) {
         let _ = self
             .signalling
-            .close_tracks(&self.cf_session_id, &[self.track_name.clone()])
+            .close_tracks(&self.media_session_id, &[self.track_name.clone()])
             .await;
         let _ = self.peer_connection.close().await;
     }
@@ -762,14 +760,14 @@ mod tests {
 
     #[test]
     fn a_subscription_asks_for_remote_tracks_only() {
-        // The request shape is what Cloudflare validates, and getting it wrong fails only against
-        // the real SFU - which is the most expensive place to find out.
+        // The request shape is what the SFU validates, and getting it wrong fails only against the
+        // real one - which is the most expensive place to find out. The `direction: subscribe` half
+        // is now added by `Signalling` per dialect and pinned by its own tests.
         let tracks = subscription_tracks(&[
             ("sess-a".to_string(), "audio".to_string()),
             ("sess-b".to_string(), "screen-audio-x".to_string()),
         ]);
         assert_eq!(tracks.len(), 2);
-        assert!(tracks.iter().all(|t| t.location == "remote"));
         assert_eq!(tracks[0].session_id, "sess-a");
         assert_eq!(tracks[0].track_name, "audio");
         assert_eq!(tracks[1].session_id, "sess-b");

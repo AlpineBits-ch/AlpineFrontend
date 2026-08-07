@@ -74,7 +74,7 @@ export class VoiceChannelComponent {
     });
     protected callScreenShares = computed((): CallScreenShare[] =>
         this.screenSharers().map(p => ({
-            shareId: p.cfSessionId ?? p.userId,
+            shareId: p.mediaSessionId ?? p.userId,
             userId: p.userId,
             displayName: p.displayName,
             avatarLabel: p.avatarLabel,

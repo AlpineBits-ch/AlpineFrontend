@@ -109,7 +109,7 @@ fn nal_bodies(annex_b: &[u8]) -> AccessUnit {
 struct BackendState {
     /// Cloudflare's side of the connection, and the viewer: the publisher's only peer.
     sfu: Arc<RTCPeerConnection>,
-    cf_session_id: String,
+    media_session_id: String,
     /// What `tracks/new` reports, so the renegotiation path can be driven.
     require_renegotiation: bool,
     renegotiations: AtomicU32,
@@ -156,7 +156,7 @@ impl MockBackend {
 
         let state = Arc::new(BackendState {
             sfu,
-            cf_session_id: "cf-session-under-test".to_owned(),
+            media_session_id: "cf-session-under-test".to_owned(),
             require_renegotiation,
             renegotiations: AtomicU32::new(0),
             // The same handle the `on_track` reader writes to.
@@ -331,16 +331,21 @@ async fn handle_request(mut stream: TcpStream, state: Arc<BackendState>) -> std:
     }
 
     let head = String::from_utf8_lossy(&buf[..body_start]).to_string();
-    let path = head
-        .lines()
-        .next()
-        .and_then(|line| line.split_whitespace().nth(1))
-        .unwrap_or("/")
-        .to_owned();
+    let request_line = head.lines().next().unwrap_or_default().to_owned();
+    let mut parts = request_line.split_whitespace();
+    let method = parts.next().unwrap_or("GET").to_owned();
+    let path = parts.next().unwrap_or("/").to_owned();
     let body: serde_json::Value =
         serde_json::from_slice(&buf[body_start..]).unwrap_or(serde_json::Value::Null);
 
-    state.paths.lock().unwrap().push(path.clone());
+    // Method and path together, because the neutral rename changed one without the other: the close
+    // route became a POST while Isle's stayed a PUT, and a client that keeps the old verb gets a 405
+    // from a path that exists - which reads like a routing problem rather than a contract one.
+    state
+        .paths
+        .lock()
+        .unwrap()
+        .push(format!("{method} {path}"));
     let response = route(&path, &body, &state).await;
     let payload = response.to_string();
 
@@ -365,10 +370,31 @@ async fn route(
     let route = path.split('?').next().unwrap_or(path);
 
     if route.ends_with("/voice/session") || route.ends_with("/cf/session") {
-        return serde_json::json!({ "cfSessionId": state.cf_session_id });
+        // The neutral shape. `backend` is what tells a client which media implementation to pick,
+        // and answering without it is how a client would silently assume Cloudflare forever.
+        return serde_json::json!({
+            "mediaSessionId": state.media_session_id,
+            "backend": "cloudflare",
+        });
     }
 
-    if route.ends_with("/cf/tracks/new") {
+    // The neutral surface collapsed publish and subscribe onto one route; Isle's `cf/tracks/new` is
+    // accepted too so the same mock can stand in for either dialect.
+    if route.ends_with("/voice/tracks") || route.ends_with("/cf/tracks/new") {
+        // Asserted rather than assumed: a publisher that sent Cloudflare's `location` to this route
+        // would still get a plausible answer here and fail only against the real backend, which is
+        // exactly the class of bug the neutral rename introduces.
+        let direction = &body["tracks"][0]["direction"];
+        assert_eq!(
+            direction, "publish",
+            "the neutral surface expects `direction`, got tracks: {}",
+            body["tracks"]
+        );
+        assert!(
+            body["mediaSessionId"].is_string(),
+            "the neutral surface expects `mediaSessionId`, got body: {body}"
+        );
+
         let answer = answer_the_offer(state, body).await;
         let track = &body["tracks"][0];
         return serde_json::json!({
@@ -378,7 +404,7 @@ async fn route(
         });
     }
 
-    if route.ends_with("/cf/renegotiate") {
+    if route.ends_with("/voice/negotiate") || route.ends_with("/cf/renegotiate") {
         state.renegotiations.fetch_add(1, Ordering::Relaxed);
         let answer = answer_the_offer(state, body).await;
         return serde_json::json!({
@@ -386,7 +412,7 @@ async fn route(
         });
     }
 
-    if route.ends_with("/cf/tracks/close") {
+    if route.ends_with("/voice/tracks/close") || route.ends_with("/cf/tracks/close") {
         if let Some(names) = body["trackNames"].as_array() {
             let mut closed = state.closed_tracks.lock().unwrap();
             closed.extend(names.iter().filter_map(|n| n.as_str().map(str::to_owned)));
@@ -797,13 +823,33 @@ async fn the_publish_opens_a_secondary_session_and_closes_its_track() {
 
     let paths = backend.paths();
     assert!(
-        paths.iter().any(|p| p.contains("/voice/session?primary=false")),
+        paths
+            .iter()
+            .any(|p| p.contains("/voice/session?primary=false")),
         "the session must be opened as secondary; got {paths:?}"
     );
     assert_eq!(
         backend.closed_tracks(),
         vec![track_name],
         "stopping a publication must close its track server-side"
+    );
+
+    // The neutral routes, with their verbs. Both halves matter: the paths lost their `cf/` segment
+    // and the close changed from PUT to POST, and either alone still reaches a real route on the
+    // server and fails for a reason that does not name the contract.
+    assert!(
+        paths.iter().any(|p| p == "POST /api/v1/guild/guilds/g1/channels/c1/voice/tracks"),
+        "publishing must POST the neutral tracks route; got {paths:?}"
+    );
+    assert!(
+        paths
+            .iter()
+            .any(|p| p == "POST /api/v1/guild/guilds/g1/channels/c1/voice/tracks/close"),
+        "closing must POST, not PUT as the Cloudflare surface did; got {paths:?}"
+    );
+    assert!(
+        !paths.iter().any(|p| p.contains("/cf/")),
+        "nothing on a guild channel may still speak the Cloudflare surface; got {paths:?}"
     );
 }
 

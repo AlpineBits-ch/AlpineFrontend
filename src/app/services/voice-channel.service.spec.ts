@@ -28,7 +28,7 @@ function emptySnapshot(roomId: string): VoiceRoomSnapshot {
 function publisher(userId: string, over: Partial<VoiceParticipantSnapshot> = {}): VoiceParticipantSnapshot {
     return {
         userId,
-        cfSessionId: `cf-${userId}`,
+        mediaSessionId: `cf-${userId}`,
         audioTrackName: 'audio',
         publishState: 'Publishing',
         isSelfMuted: false, isSelfDeafened: false,
@@ -59,11 +59,14 @@ function setup(options: {inChannel?: boolean} = {}) {
         'invokeVoiceScreenShareStarted', 'invokeVoiceScreenShareStopped', 'invokeVoiceHeartbeat',
     ]) wsCalls[name] = vi.fn();
 
+    // Both answer for whichever channel was asked, because a snapshot whose `roomId` does not match
+    // the joined channel is correctly ignored - a fixed id here would silently disable the very
+    // apply path most of these tests are about.
     const guildVoice = {
-        join: vi.fn(() => of({participants: []})),
+        // Join answers with the room's authoritative state, same shape as the snapshot read.
+        join: vi.fn((_g: string, channelId: string) => of(emptySnapshot(channelId))),
         leave: vi.fn(() => of(undefined)),
-        getState: vi.fn(() => of({participants: []})),
-        getSnapshot: vi.fn(() => of(emptySnapshot('chan-1'))),
+        getSnapshot: vi.fn((_g: string, channelId: string) => of(emptySnapshot(channelId))),
     };
     // Every member the service reads at construction: the subjects it subscribes to and the
     // pass-through signals it aliases as its own fields.
@@ -74,7 +77,7 @@ function setup(options: {inChannel?: boolean} = {}) {
         subscribedUserIds: vi.fn(() => [] as string[]),
         cleanupParticipant: vi.fn(),
         handleRemoteTrackClosed: vi.fn(),
-        publishedMedia: null as { cfSessionId: string; audioTrackName: string } | null,
+        publishedMedia: null as { mediaSessionId: string; audioTrackName: string } | null,
         teardown: vi.fn(),
         connect: vi.fn(async () => true),
         setDeafened: vi.fn(),
@@ -160,7 +163,7 @@ it('does not subscribe to our own audio when the server announces us', async () 
     const {ws, rtc} = setup();
 
     ws['guildParticipantJoinedObservable'].next({
-        channelId: 'chan-1', userId: 'me', cfSessionId: 'sess-mine', audioTrackName: 'audio',
+        channelId: 'chan-1', userId: 'me', mediaSessionId: 'sess-mine', audioTrackName: 'audio',
     });
     await tick();
 
@@ -171,12 +174,12 @@ it('still subscribes when somebody else is announced', async () => {
     const {ws, rtc} = setup();
 
     ws['guildParticipantJoinedObservable'].next({
-        channelId: 'chan-1', userId: 'them', cfSessionId: 'sess-theirs', audioTrackName: 'audio',
+        channelId: 'chan-1', userId: 'them', mediaSessionId: 'sess-theirs', audioTrackName: 'audio',
     });
     await tick();
 
     expect(rtc.subscribeAudio).toHaveBeenCalledWith([
-        {userId: 'them', cfSessionId: 'sess-theirs', trackName: 'audio'},
+        {userId: 'them', mediaSessionId: 'sess-theirs', trackName: 'audio'},
     ]);
 });
 
@@ -390,7 +393,7 @@ describe('screen share backfill from the snapshot', () => {
         expect(rtc.subscribeVideo).toHaveBeenCalledWith(
             'guild-1', 'chan-1', 'them', 'cf-them', 'screen-abc', 'screen');
         expect(rtc.subscribeAudio).toHaveBeenCalledWith([
-            {userId: 'them', cfSessionId: 'cf-them', trackName: 'screen-audio-abc', kind: 'screenAudio'},
+            {userId: 'them', mediaSessionId: 'cf-them', trackName: 'screen-audio-abc', kind: 'screenAudio'},
         ]);
     });
 
@@ -404,7 +407,7 @@ describe('screen share backfill from the snapshot', () => {
         ws['voiceSnapshotObservable'].next({
             ...emptySnapshot('chan-1'),
             participants: [publisher('them', {
-                publishState: 'Joined', cfSessionId: null, audioTrackName: null,
+                publishState: 'Joined', mediaSessionId: null, audioTrackName: null,
             })],
         });
         await tick();
@@ -463,6 +466,52 @@ describe('screen share backfill from the snapshot', () => {
         expect(rtc.cleanupParticipant).not.toHaveBeenCalledWith('them');
     });
 
+    /**
+     * Join answers with the room's authoritative state, so there is no second shape and no second
+     * code path - the same snapshot the SignalR event carries, through the same apply. Before the
+     * unification this response deliberately withheld the media handles, which is what made HTTP
+     * catch-up structurally incapable of restoring a subscription.
+     */
+    it('subscribes from the snapshot the join call returns', async () => {
+        const {service, guildVoice, rtc} = setup({inChannel: false});
+        guildVoice.join.mockReturnValue(of({
+            ...emptySnapshot('chan-1'),
+            participants: [publisher('them', {
+                isStreaming: true,
+                shares: [{shareId: 'abc', trackNames: ['screen-abc']}],
+            })],
+        }));
+
+        await service.joinChannel(
+            {id: 'chan-1', guildId: 'guild-1', name: 'General', type: ChannelType.Voice} as ChannelDto,
+            'Guild',
+        );
+
+        expect(rtc.subscribeVideo).toHaveBeenCalledWith(
+            'guild-1', 'chan-1', 'them', 'cf-them', 'screen-abc', 'screen');
+    });
+
+    /**
+     * A room the local user is not rendered in reads as "the join failed".
+     *
+     * <p>Asserted after a full join, which applies *two* snapshots - the one join returns and the
+     * one refetched once the transport is up. The roster is replaced wholesale by each, so the
+     * second erasing us is exactly as bad as the first never adding us.</p>
+     */
+    it('keeps us in the roster across every snapshot, not just the join one', async () => {
+        const {service, guildVoice} = setup({inChannel: false});
+        guildVoice.join.mockReturnValue(of(emptySnapshot('chan-1')));
+        guildVoice.getSnapshot.mockReturnValue(of(emptySnapshot('chan-1')));
+
+        await service.joinChannel(
+            {id: 'chan-1', guildId: 'guild-1', name: 'General', type: ChannelType.Voice} as ChannelDto,
+            'Guild',
+        );
+        await tick();
+
+        expect(service.channelParticipants().get('chan-1')?.some(p => p.isLocal)).toBe(true);
+    });
+
     it('ignores a snapshot for a channel we are not in', async () => {
         const {ws, rtc} = setup();
 
@@ -502,7 +551,7 @@ describe('version recovery', () => {
         guildVoice.getSnapshot.mockClear();
 
         ws['guildParticipantJoinedObservable'].next({
-            channelId: 'chan-1', userId: 'them', cfSessionId: 'cf-them', audioTrackName: 'audio',
+            channelId: 'chan-1', userId: 'them', mediaSessionId: 'cf-them', audioTrackName: 'audio',
             instanceId: 'inst-1', version: 2,
         });
         await tick();
@@ -563,7 +612,7 @@ describe('heartbeat', () => {
      */
     it('asserts the tracked version and the session we actually publish on', async () => {
         const {ws, rtc, wsCalls, service} = setup();
-        rtc.publishedMedia = {cfSessionId: 'cf-rust', audioTrackName: 'audio'};
+        rtc.publishedMedia = {mediaSessionId: 'cf-rust', audioTrackName: 'audio'};
 
         ws['voiceSnapshotObservable'].next({...emptySnapshot('chan-1'), version: 7});
         await tick();
@@ -571,7 +620,7 @@ describe('heartbeat', () => {
 
         expect(wsCalls['invokeVoiceHeartbeat']).toHaveBeenCalledWith('chan-1', {
             knownInstanceId: 'inst-1', knownVersion: 7,
-            cfSessionId: 'cf-rust', audioTrackName: 'audio',
+            mediaSessionId: 'cf-rust', audioTrackName: 'audio',
         });
     });
 
@@ -582,7 +631,7 @@ describe('heartbeat', () => {
         (service as unknown as { sendHeartbeat(id: string): void }).sendHeartbeat('chan-1');
 
         expect(wsCalls['invokeVoiceHeartbeat']).toHaveBeenCalledWith('chan-1', {
-            knownInstanceId: null, knownVersion: 0, cfSessionId: null, audioTrackName: null,
+            knownInstanceId: null, knownVersion: 0, mediaSessionId: null, audioTrackName: null,
         });
     });
 });

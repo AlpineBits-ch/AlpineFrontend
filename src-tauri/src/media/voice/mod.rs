@@ -300,7 +300,7 @@ impl VoiceSettings {
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct VoiceStartResult {
-    pub cf_session_id: String,
+    pub media_session_id: String,
     pub track_name: String,
     /// Which publication this call became, to be handed back to every later command.
     ///
@@ -406,7 +406,7 @@ pub async fn voice_start(
     spawn_stats_logger();
 
     Ok(VoiceStartResult {
-        cf_session_id: publication.cf_session_id.clone(),
+        media_session_id: publication.media_session_id.clone(),
         track_name: publication.track_name.clone(),
         slot,
     })
@@ -488,7 +488,7 @@ pub fn voice_set_processing(settings: VoiceSettings) {
 pub async fn voice_subscribe(
     slot: String,
     id: String,
-    cf_session_id: String,
+    media_session_id: String,
     track_name: String,
 ) -> Result<(), String> {
     // Cloned out of the lock rather than held across the await, for the same reason `voice_start`
@@ -500,7 +500,7 @@ pub async fn voice_subscribe(
             None => return Err(format!("no voice session is running for {slot}")),
         }
     };
-    publication.subscribe(id, cf_session_id, track_name).await
+    publication.subscribe(id, media_session_id, track_name).await
 }
 
 /// One publication's transport counters, for [`voice_stats`].
@@ -508,7 +508,7 @@ pub async fn voice_subscribe(
 #[serde(rename_all = "camelCase")]
 pub struct PublicationReport {
     pub slot: String,
-    pub cf_session_id: String,
+    pub media_session_id: String,
     pub track_name: String,
     /// Whether captured audio is currently routed to this call.
     pub open: bool,
@@ -613,7 +613,7 @@ pub fn voice_stats() -> VoiceStats {
             let counters = publication.stats();
             PublicationReport {
                 slot,
-                cf_session_id: publication.cf_session_id.clone(),
+                media_session_id: publication.media_session_id.clone(),
                 track_name: publication.track_name.clone(),
                 open: publication.open(),
                 peer_state: counters

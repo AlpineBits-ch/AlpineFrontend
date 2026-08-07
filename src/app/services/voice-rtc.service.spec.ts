@@ -45,7 +45,7 @@ class FakeEngine {
  * Every engine call now names one, because Isle proximity voice can be running on the same
  * microphone. `slot` is Rust's, and opaque to the frontend.
  */
-const SESSION = {slot: 'primary', cfSessionId: 'rust_sess', trackName: 'audio'};
+const SESSION = {slot: 'primary', mediaSessionId: 'rust_sess', trackName: 'audio'};
 
 let engine: FakeEngine;
 let service: VoiceRTCService;
@@ -53,8 +53,8 @@ let service: VoiceRTCService;
 /** The failure Cloudflare returns while the publisher is still connecting. */
 const notFound = () => new Error('not_found_track_error');
 
-const target = (userId = 'user_a', cfSessionId = 'sess_1') => ({
-    userId, cfSessionId, trackName: 'audio',
+const target = (userId = 'user_a', mediaSessionId = 'sess_1') => ({
+    userId, mediaSessionId, trackName: 'audio',
 });
 
 beforeEach(() => {
@@ -100,7 +100,7 @@ async function drainRetries(): Promise<void> {
  * The backend backfills the room from inside its `cf/tracks/new` handler, awaiting the SignalR
  * sends *before* returning the HTTP 200 that the Rust `voice_start` is still waiting on. So an
  * announcement for someone already in the channel always arrives before `voiceSession` is set - and
- * `VoiceStateResponse` deliberately carries no `cfSessionId`, so that announcement is the only one
+ * `VoiceStateResponse` deliberately carries no `mediaSessionId`, so that announcement is the only one
  * there will ever be. Dropping it made everyone already present permanently inaudible.
  */
 it('waits for the session rather than dropping an announcement that beat it', async () => {

@@ -1,7 +1,7 @@
 /**
  * A call in progress in a conversation, as described to a member who is not in it.
  *
- * <p>Deliberately narrower than {@link CallDto}: no `cfSessionId` and no `audioTrackName`. Those are
+ * <p>Deliberately narrower than {@link CallDto}: no `mediaSessionId` and no `audioTrackName`. Those are
  * a live capability over media on a shared Cloudflare Calls app, and the server withholds them from
  * anyone who has not actually joined - they arrive over SignalR once you have. Nothing here can be
  * used to pull a track, which is the point.</p>

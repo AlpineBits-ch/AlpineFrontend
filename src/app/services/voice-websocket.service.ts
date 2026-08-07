@@ -43,17 +43,17 @@ export interface ConversationRemoved {
 // path receives under a different prefix, carrying the same `instanceId`/`version` envelope. See
 // VoiceRoomTracker.
 
-/** Someone joined the call. cfSessionId is their CF Calls session -needed to subscribe to their tracks. */
+/** Someone joined the call. mediaSessionId is their CF Calls session -needed to subscribe to their tracks. */
 export interface WsParticipantJoined extends VoiceEventEnvelope {
     userId: string;
-    cfSessionId: string;
+    mediaSessionId: string;
     audioTrackName: string;
 }
 
 /** A remote participant published a new video / screen-share track. */
 export interface WsTrackPublished extends VoiceEventEnvelope {
     userId: string;
-    cfSessionId: string;
+    mediaSessionId: string;
     trackName: string;
     kind: 'audio' | 'video' | 'screen' | 'screenAudio';
     shareId?: string;
@@ -83,7 +83,7 @@ export interface WsCameraChanged extends VoiceEventEnvelope {
 export interface WsScreenShareStarted extends VoiceEventEnvelope {
     shareId: string;
     userId: string;
-    cfSessionId: string;
+    mediaSessionId: string;
     trackName: string;
 }
 
@@ -256,9 +256,9 @@ export class VoiceWebsocketService {
         void this.realtime.invoke('call.CameraChanged', {callId, isCameraOn});
     }
 
-    // { shareId, userId, cfSessionId, trackName } to other call members.
-    invokeScreenShareStarted(callId: string, shareId: string, trackName: string): void {
-        void this.realtime.invoke('call.ScreenShareStarted', {callId, shareId, trackName});
+    // { shareId, userId, mediaSessionId, trackName } to other call members.
+    invokeScreenShareStarted(callId: string, shareId: string): void {
+        void this.realtime.invoke('call.ScreenShareStarted', {callId, shareId});
     }
 
     // Broadcast { shareId } to other call members.

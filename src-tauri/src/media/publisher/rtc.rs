@@ -113,7 +113,7 @@ pub struct Publication {
     /// A flag rather than a channel because the request is idempotent: ten viewers asking at once,
     /// or one viewer asking ten times while a frame is in flight, all want the same single IDR.
     keyframe_wanted: Arc<AtomicBool>,
-    pub cf_session_id: String,
+    pub media_session_id: String,
     pub track_name: String,
 }
 
@@ -219,7 +219,7 @@ impl Publication {
             .await
             .ok_or_else(|| "no local description after gathering".to_string())?;
 
-        let cf_session_id = signalling.create_session().await?;
+        let media_session_id = signalling.create_session().await?;
 
         // The mid is assigned during offer creation, so it can only be read now.
         let mid = peer_connection
@@ -233,13 +233,12 @@ impl Publication {
 
         let response = signalling
             .tracks_new(
-                &cf_session_id,
+                &media_session_id,
                 &SessionDescription {
                     sdp_type: "offer".to_owned(),
                     sdp: local.sdp,
                 },
                 &[LocalTrack {
-                    location: "local",
                     mid,
                     track_name: track_name.clone(),
                 }],
@@ -268,7 +267,7 @@ impl Publication {
             track,
             signalling,
             keyframe_wanted,
-            cf_session_id,
+            media_session_id,
             track_name: resolved_track_name,
         };
 
@@ -293,7 +292,7 @@ impl Publication {
         let response = self
             .signalling
             .renegotiate(
-                &self.cf_session_id,
+                &self.media_session_id,
                 &SessionDescription {
                     sdp_type: "offer".to_owned(),
                     sdp: offer.sdp,
@@ -329,7 +328,7 @@ impl FrameSink for Publication {
     async fn stop(self) {
         let _ = self
             .signalling
-            .close_tracks(&self.cf_session_id, &[self.track_name.clone()])
+            .close_tracks(&self.media_session_id, &[self.track_name.clone()])
             .await;
         let _ = self.peer_connection.close().await;
     }

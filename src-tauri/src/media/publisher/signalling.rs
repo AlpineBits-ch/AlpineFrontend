@@ -1,14 +1,24 @@
-//! Cloudflare Realtime signalling, spoken from Rust.
+//! Voice signalling, spoken from Rust.
 //!
 //! Deliberately a mirror of the frontend's `GuildVoiceService`: the same backend endpoints, the
-//! same request and response shapes, the same bearer token. The publisher opens its *own*
-//! Cloudflare session alongside the webview's, so other clients subscribe to the resulting screen
-//! track exactly as they already do - they only ever see `{cfSessionId, trackName}` and cannot tell
+//! same request and response shapes, the same bearer token. The publisher opens its *own* media
+//! session alongside the webview's, so other clients subscribe to the resulting screen track
+//! exactly as they already do - they only ever see `{mediaSessionId, trackName}` and cannot tell
 //! which process published it.
+//!
+//! # Two dialects, on purpose
+//!
+//! Guild channels and calls moved to a backend-neutral contract (Echo `075c096`): `mediaSessionId`,
+//! `direction: publish|subscribe`, and routes with no `cf/` in them. Isle deliberately did *not* -
+//! it drives `CloudflareService` directly, has no room model, and was left on the Cloudflare-shaped
+//! surface. So one `Signalling` has to speak both, and the difference is not incidental: the
+//! session-id field name, the per-track direction key *and* its values, and three of the four route
+//! suffixes all change. [`Dialect`] is the one place that knows which.
 
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
+use serde_json::{json, Map, Value};
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(20);
 
@@ -20,41 +30,27 @@ pub struct SessionDescription {
     pub sdp: String,
 }
 
-#[derive(Serialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
+/// A track this client is publishing.
+///
+/// Carries no direction field: which key that is (`direction` or `location`) and which value
+/// (`publish` or `local`) depends on the dialect, so [`Signalling`] adds it on the way out rather
+/// than every caller having to know.
+#[derive(Debug, Clone)]
 pub struct LocalTrack {
-    pub location: &'static str,
     pub mid: String,
     pub track_name: String,
-}
-
-#[derive(Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct TracksNewRequest<'a> {
-    cf_session_id: &'a str,
-    session_description: &'a SessionDescription,
-    tracks: &'a [LocalTrack],
 }
 
 /// A track to pull from another participant's session.
 ///
 /// A separate type from [`LocalTrack`] rather than the same one with an optional `mid`: a remote
-/// pull that sends a mid is rejected by Cloudflare, and an optional field is exactly the kind of
-/// thing that gets filled in by accident.
-#[derive(Serialize, Debug, Clone)]
-#[serde(rename_all = "camelCase")]
+/// pull that sends a mid is rejected by the SFU, and an optional field is exactly the kind of thing
+/// that gets filled in by accident.
+#[derive(Debug, Clone)]
 pub struct RemoteTrack {
-    pub location: &'static str,
     pub track_name: String,
+    /// The session publishing it.
     pub session_id: String,
-}
-
-#[derive(Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct TracksNewRemoteRequest<'a> {
-    cf_session_id: &'a str,
-    session_description: &'a SessionDescription,
-    tracks: &'a [RemoteTrack],
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -78,7 +74,17 @@ pub struct TracksNewResponse {
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct CreateSessionResponse {
-    pub cf_session_id: String,
+    /// `mediaSessionId` on the neutral surface, `cfSessionId` on Isle's. Aliased rather than
+    /// branched: one field means one thing to every caller, and the alias costs nothing.
+    #[serde(alias = "cfSessionId")]
+    pub media_session_id: String,
+    /// Which SFU is behind the session, on surfaces that declare one. Absent on Isle.
+    ///
+    /// Read but not acted on: this publisher speaks WebRTC to whatever answers, and the SDP
+    /// exchange is the same shape either way. It exists so an unrecognised backend is *loggable*
+    /// rather than silently assumed to be Cloudflare.
+    #[serde(default)]
+    pub backend: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -87,22 +93,60 @@ pub struct RenegotiateResponse {
     pub session_description: SessionDescription,
 }
 
-#[derive(Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct RenegotiateRequest<'a> {
-    cf_session_id: &'a str,
-    session_description: &'a SessionDescription,
+/// Which vocabulary a surface speaks. See the module docs for why there are two.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Dialect {
+    /// Guild channels and DM calls, after Echo `075c096`.
+    Neutral,
+    /// Isle proximity voice, which still talks Cloudflare's shape.
+    Cloudflare,
 }
 
-#[derive(Serialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct CloseTracksRequest<'a> {
-    cf_session_id: &'a str,
-    track_names: &'a [String],
+impl Dialect {
+    /// The name of the "which session is this" field, in request bodies.
+    fn session_key(self) -> &'static str {
+        match self {
+            Dialect::Neutral => "mediaSessionId",
+            Dialect::Cloudflare => "cfSessionId",
+        }
+    }
+
+    /// The per-track direction key, and its two values.
+    ///
+    /// The neutral form says what the caller is *doing*; the Cloudflare form says where the media
+    /// sits. They are not interchangeable - sending `location` to the neutral surface deserialises
+    /// to a null direction and the track is rejected.
+    fn direction_key(self) -> &'static str {
+        match self {
+            Dialect::Neutral => "direction",
+            Dialect::Cloudflare => "location",
+        }
+    }
+
+    fn publish_value(self) -> &'static str {
+        match self {
+            Dialect::Neutral => "publish",
+            Dialect::Cloudflare => "local",
+        }
+    }
+
+    fn subscribe_value(self) -> &'static str {
+        match self {
+            Dialect::Neutral => "subscribe",
+            Dialect::Cloudflare => "remote",
+        }
+    }
+
+    /// The field naming the session a remote track is pulled *from*.
+    fn remote_source_key(self) -> &'static str {
+        match self {
+            Dialect::Neutral => "mediaSessionId",
+            Dialect::Cloudflare => "sessionId",
+        }
+    }
 }
 
-/// Which call surface a publish belongs to. The two have separate controllers and route shapes but
-/// identical request and response bodies, so only the endpoint root differs.
+/// Which call surface a publish belongs to.
 #[derive(Debug, Clone)]
 pub enum VoiceTarget {
     /// A guild voice channel.
@@ -111,6 +155,15 @@ pub enum VoiceTarget {
     Call { call_id: String },
     /// Isle proximity voice. One session per player, no channel or call to address.
     Isle,
+}
+
+impl VoiceTarget {
+    fn dialect(&self) -> Dialect {
+        match self {
+            VoiceTarget::Isle => Dialect::Cloudflare,
+            _ => Dialect::Neutral,
+        }
+    }
 }
 
 /// Whether this session is the one the backend should record as the participant's audio.
@@ -218,85 +271,202 @@ impl Signalling {
         }
     }
 
-    /// Open a Cloudflare session for this client's tracks alone.
+    /// Which vocabulary this target speaks.
+    pub fn dialect(&self) -> Dialect {
+        self.target.dialect()
+    }
+
+    /// Where tracks are published and subscribed.
+    ///
+    /// The neutral surface collapsed publish and subscribe onto one `POST .../tracks` and dropped
+    /// the `cf/` segment; Isle still has `cf/tracks/new`.
+    pub fn tracks_url(&self) -> String {
+        match self.dialect() {
+            Dialect::Neutral => format!("{}/tracks", self.voice_base()),
+            Dialect::Cloudflare => format!("{}/cf/tracks/new", self.voice_base()),
+        }
+    }
+
+    pub fn negotiate_url(&self) -> String {
+        match self.dialect() {
+            Dialect::Neutral => format!("{}/negotiate", self.voice_base()),
+            Dialect::Cloudflare => format!("{}/cf/renegotiate", self.voice_base()),
+        }
+    }
+
+    /// Note the *method* differs too, not just the path - the neutral close is a POST, Isle's a
+    /// PUT. See [`Self::close_tracks`].
+    pub fn close_tracks_url(&self) -> String {
+        match self.dialect() {
+            Dialect::Neutral => format!("{}/tracks/close", self.voice_base()),
+            Dialect::Cloudflare => format!("{}/cf/tracks/close", self.voice_base()),
+        }
+    }
+
+    /// A request body carrying this client's own session id under whichever name the dialect uses.
+    fn body_with_session(&self, session_id: &str) -> Map<String, Value> {
+        let mut body = Map::new();
+        body.insert(
+            self.dialect().session_key().to_owned(),
+            Value::String(session_id.to_owned()),
+        );
+        body
+    }
+
+    /// Open a media session for this client's tracks alone.
     pub async fn create_session(&self) -> Result<String, String> {
-        let response: CreateSessionResponse =
-            self.post(&self.session_url(), &serde_json::json!({})).await?;
-        Ok(response.cf_session_id)
+        let response: CreateSessionResponse = self.post(&self.session_url(), &json!({})).await?;
+        // Logged rather than enforced: an unrecognised SFU is still WebRTC, and refusing to publish
+        // over one we merely have not heard of would be a self-inflicted outage. But a silent
+        // assumption is how a backend swap would present as "screen sharing is broken".
+        if let Some(backend) = response.backend.as_deref() {
+            if backend != "cloudflare" {
+                eprintln!("[publisher] media session on an unfamiliar backend: {backend}");
+            }
+        }
+        Ok(response.media_session_id)
+    }
+
+    /// The publish body, built rather than sent.
+    ///
+    /// Split out for the same reason `subscription_tracks` is in `media::voice::rtc`: the request
+    /// shape is the part that is easy to get wrong, it is validated only by the real SFU, and that
+    /// is the most expensive place to find out.
+    fn publish_body(
+        &self,
+        media_session_id: &str,
+        session_description: &SessionDescription,
+        tracks: &[LocalTrack],
+    ) -> Result<Value, String> {
+        let dialect = self.dialect();
+        let mut body = self.body_with_session(media_session_id);
+        body.insert(
+            "sessionDescription".into(),
+            serde_json::to_value(session_description).map_err(|e| e.to_string())?,
+        );
+        body.insert(
+            "tracks".into(),
+            Value::Array(
+                tracks
+                    .iter()
+                    .map(|t| {
+                        json!({
+                            dialect.direction_key(): dialect.publish_value(),
+                            "mid": t.mid,
+                            "trackName": t.track_name,
+                        })
+                    })
+                    .collect(),
+            ),
+        );
+        Ok(Value::Object(body))
     }
 
     pub async fn tracks_new(
         &self,
-        cf_session_id: &str,
+        media_session_id: &str,
         session_description: &SessionDescription,
         tracks: &[LocalTrack],
     ) -> Result<TracksNewResponse, String> {
-        self.post(
-            &format!("{}/cf/tracks/new", self.voice_base()),
-            &TracksNewRequest {
-                cf_session_id,
-                session_description,
-                tracks,
-            },
-        )
-        .await
+        let body = self.publish_body(media_session_id, session_description, tracks)?;
+        self.post(&self.tracks_url(), &body).await
     }
 
     /// Subscribe to tracks published on other participants' sessions.
     ///
-    /// The backend routes an all-remote request through its retry path
-    /// (`TracksNewWithRetryAsync`), which absorbs the window where the publisher's track has not
-    /// finished propagating across Cloudflare's SFU. That retry is what makes this safe to call the
-    /// instant a ParticipantJoined arrives, rather than having to guess at a delay.
+    /// The backend routes an all-subscribe request through its retry path, which absorbs the window
+    /// where the publisher's track has not finished propagating across the SFU. That retry is what
+    /// makes this safe to call the instant a ParticipantJoined arrives, rather than having to guess
+    /// at a delay.
+    fn subscribe_body(
+        &self,
+        media_session_id: &str,
+        session_description: &SessionDescription,
+        tracks: &[RemoteTrack],
+    ) -> Result<Value, String> {
+        let dialect = self.dialect();
+        let mut body = self.body_with_session(media_session_id);
+        body.insert(
+            "sessionDescription".into(),
+            serde_json::to_value(session_description).map_err(|e| e.to_string())?,
+        );
+        body.insert(
+            "tracks".into(),
+            Value::Array(
+                tracks
+                    .iter()
+                    .map(|t| {
+                        // No mid, deliberately - the SFU allocates it, and sending one is rejected.
+                        json!({
+                            dialect.direction_key(): dialect.subscribe_value(),
+                            "trackName": t.track_name,
+                            dialect.remote_source_key(): t.session_id,
+                        })
+                    })
+                    .collect(),
+            ),
+        );
+        Ok(Value::Object(body))
+    }
+
     pub async fn tracks_new_remote(
         &self,
-        cf_session_id: &str,
+        media_session_id: &str,
         session_description: &SessionDescription,
         tracks: &[RemoteTrack],
     ) -> Result<TracksNewResponse, String> {
-        self.post(
-            &format!("{}/cf/tracks/new", self.voice_base()),
-            &TracksNewRemoteRequest {
-                cf_session_id,
-                session_description,
-                tracks,
-            },
-        )
-        .await
+        let body = self.subscribe_body(media_session_id, session_description, tracks)?;
+        self.post(&self.tracks_url(), &body).await
     }
 
     pub async fn renegotiate(
         &self,
-        cf_session_id: &str,
+        media_session_id: &str,
         session_description: &SessionDescription,
     ) -> Result<RenegotiateResponse, String> {
-        self.put(
-            &format!("{}/cf/renegotiate", self.voice_base()),
-            &RenegotiateRequest {
-                cf_session_id,
-                session_description,
-            },
-        )
-        .await
+        let mut body = self.body_with_session(media_session_id);
+        body.insert(
+            "sessionDescription".into(),
+            serde_json::to_value(session_description).map_err(|e| e.to_string())?,
+        );
+        self.put(&self.negotiate_url(), &Value::Object(body)).await
+    }
+
+    fn close_tracks_body(&self, media_session_id: &str, track_names: &[String]) -> Value {
+        let mut body = self.body_with_session(media_session_id);
+        body.insert(
+            "trackNames".into(),
+            Value::Array(
+                track_names
+                    .iter()
+                    .map(|n| Value::String(n.clone()))
+                    .collect(),
+            ),
+        );
+        Value::Object(body)
     }
 
     pub async fn close_tracks(
         &self,
-        cf_session_id: &str,
+        media_session_id: &str,
         track_names: &[String],
     ) -> Result<(), String> {
-        let url = format!("{}/cf/tracks/close", self.voice_base());
+        let url = self.close_tracks_url();
+        let body = self.close_tracks_body(media_session_id, track_names);
+
+        // The neutral surface takes a POST here and Isle still takes a PUT, which is the one place
+        // the two dialects disagree on method rather than only on path.
+        let request = match self.dialect() {
+            Dialect::Neutral => self.client.post(&url),
+            Dialect::Cloudflare => self.client.put(&url),
+        };
+
         // Builds its own request rather than going through `send`, so the header has to be
         // repeated here - this is the path that would otherwise silently drop it.
-        let response = self
-            .client
-            .put(&url)
+        let response = request
             .bearer_auth(&self.token)
             .header("X-Device-Id", &self.device_id)
-            .json(&CloseTracksRequest {
-                cf_session_id,
-                track_names,
-            })
+            .json(&body)
             .send()
             .await
             .map_err(|e| e.to_string())?;
@@ -462,69 +632,125 @@ mod tests {
         assert_eq!(json["sdp"], "v=0");
     }
 
-    #[test]
-    fn tracks_new_request_uses_camel_case_keys() {
-        let sdp = SessionDescription {
+    fn isle_signalling() -> Signalling {
+        Signalling::new(
+            "https://api.example.test".into(),
+            "tok".into(),
+            "dev-1".into(),
+            VoiceTarget::Isle,
+            SessionRole::Primary,
+        )
+        .unwrap()
+    }
+
+    fn offer() -> SessionDescription {
+        SessionDescription {
             sdp_type: "offer".into(),
             sdp: "v=0".into(),
-        };
-        let tracks = [LocalTrack {
-            location: "local",
-            mid: "0".into(),
-            track_name: "screen-abc".into(),
-        }];
-        let json = serde_json::to_value(TracksNewRequest {
-            cf_session_id: "sess",
-            session_description: &sdp,
-            tracks: &tracks,
-        })
-        .unwrap();
-
-        assert_eq!(json["cfSessionId"], "sess");
-        assert_eq!(json["sessionDescription"]["type"], "offer");
-        assert_eq!(json["tracks"][0]["location"], "local");
-        assert_eq!(json["tracks"][0]["trackName"], "screen-abc");
-        assert_eq!(json["tracks"][0]["mid"], "0");
+        }
     }
 
     #[test]
-    fn a_remote_track_request_carries_a_session_id_and_no_mid() {
-        let sdp = SessionDescription {
-            sdp_type: "offer".into(),
-            sdp: "v=0".into(),
-        };
+    fn a_publish_names_the_media_session_and_says_publish() {
+        let tracks = [LocalTrack {
+            mid: "0".into(),
+            track_name: "screen-abc".into(),
+        }];
+        let json = signalling()
+            .publish_body("sess", &offer(), &tracks)
+            .unwrap();
+
+        assert_eq!(json["mediaSessionId"], "sess");
+        assert_eq!(json["sessionDescription"]["type"], "offer");
+        assert_eq!(json["tracks"][0]["direction"], "publish");
+        assert_eq!(json["tracks"][0]["trackName"], "screen-abc");
+        assert_eq!(json["tracks"][0]["mid"], "0");
+        assert!(
+            json["tracks"][0].get("location").is_none(),
+            "the neutral surface deserialises `direction`; a stray `location` leaves it null"
+        );
+    }
+
+    /// Isle stayed on the Cloudflare shape because it drives `CloudflareService` directly. Sending
+    /// it the neutral vocabulary is rejected, and the failure is a 4xx from a route that exists,
+    /// which reads like an auth problem rather than a contract one.
+    #[test]
+    fn isle_still_speaks_the_cloudflare_shape() {
+        let tracks = [LocalTrack {
+            mid: "0".into(),
+            track_name: "audio".into(),
+        }];
+        let json = isle_signalling()
+            .publish_body("sess", &offer(), &tracks)
+            .unwrap();
+
+        assert_eq!(json["cfSessionId"], "sess");
+        assert_eq!(json["tracks"][0]["location"], "local");
+        assert!(json.get("mediaSessionId").is_none());
+        assert!(json["tracks"][0].get("direction").is_none());
+    }
+
+    #[test]
+    fn a_subscribe_names_the_publishing_session_and_claims_no_mid() {
         let tracks = [RemoteTrack {
-            location: "remote",
             track_name: "audio".into(),
             session_id: "their-session".into(),
         }];
-        let json = serde_json::to_value(TracksNewRemoteRequest {
-            cf_session_id: "mine",
-            session_description: &sdp,
-            tracks: &tracks,
-        })
-        .unwrap();
+        let json = signalling()
+            .subscribe_body("mine", &offer(), &tracks)
+            .unwrap();
+
+        assert_eq!(json["mediaSessionId"], "mine");
+        assert_eq!(json["tracks"][0]["direction"], "subscribe");
+        assert_eq!(json["tracks"][0]["trackName"], "audio");
+        assert_eq!(json["tracks"][0]["mediaSessionId"], "their-session");
+        assert!(
+            json["tracks"][0].get("mid").is_none(),
+            "a subscribe must not claim a mid - the SFU allocates it"
+        );
+    }
+
+    /// The one field that changes name *and* meaning between the two: the session a track is pulled
+    /// from is `mediaSessionId` on the neutral surface and `sessionId` on Isle's, while the caller's
+    /// own session sits under the top-level key in both.
+    #[test]
+    fn isle_names_the_source_session_differently() {
+        let tracks = [RemoteTrack {
+            track_name: "audio".into(),
+            session_id: "their-session".into(),
+        }];
+        let json = isle_signalling()
+            .subscribe_body("mine", &offer(), &tracks)
+            .unwrap();
 
         assert_eq!(json["cfSessionId"], "mine");
         assert_eq!(json["tracks"][0]["location"], "remote");
-        assert_eq!(json["tracks"][0]["trackName"], "audio");
         assert_eq!(json["tracks"][0]["sessionId"], "their-session");
-        assert!(
-            json["tracks"][0].get("mid").is_none(),
-            "a remote pull must not claim a mid - Cloudflare allocates it"
-        );
     }
 
     #[test]
     fn close_tracks_request_uses_camel_case_keys() {
         let names = ["screen-abc".to_string()];
-        let json = serde_json::to_value(CloseTracksRequest {
-            cf_session_id: "sess",
-            track_names: &names,
-        })
-        .unwrap();
-        assert_eq!(json["cfSessionId"], "sess");
+        let json = signalling().close_tracks_body("sess", &names);
+        assert_eq!(json["mediaSessionId"], "sess");
         assert_eq!(json["trackNames"][0], "screen-abc");
+    }
+
+    #[test]
+    fn the_neutral_routes_have_no_cf_segment() {
+        let client = signalling();
+        assert!(client.tracks_url().ends_with("/voice/tracks"));
+        assert!(client.negotiate_url().ends_with("/voice/negotiate"));
+        assert!(client.close_tracks_url().ends_with("/voice/tracks/close"));
+        assert!(!client.tracks_url().contains("/cf/"));
+    }
+
+    #[test]
+    fn isle_keeps_its_cf_routes() {
+        let client = isle_signalling();
+        assert!(client.tracks_url().ends_with("/voice/cf/tracks/new"));
+        assert!(client.negotiate_url().ends_with("/voice/cf/renegotiate"));
+        assert!(client.close_tracks_url().ends_with("/voice/cf/tracks/close"));
     }
 
     #[test]
@@ -555,10 +781,22 @@ mod tests {
     }
 
     #[test]
-    fn create_session_response_parses() {
+    fn create_session_response_parses_the_neutral_shape() {
+        let parsed: CreateSessionResponse =
+            serde_json::from_str(r#"{"mediaSessionId": "abc123", "backend": "cloudflare"}"#)
+                .unwrap();
+        assert_eq!(parsed.media_session_id, "abc123");
+        assert_eq!(parsed.backend.as_deref(), Some("cloudflare"));
+    }
+
+    /// Isle answers `{cfSessionId}` and no backend, and one alias is cheaper than two response
+    /// types for a field that means the same thing on both.
+    #[test]
+    fn create_session_response_still_parses_isles_shape() {
         let parsed: CreateSessionResponse =
             serde_json::from_str(r#"{"cfSessionId": "abc123"}"#).unwrap();
-        assert_eq!(parsed.cf_session_id, "abc123");
+        assert_eq!(parsed.media_session_id, "abc123");
+        assert!(parsed.backend.is_none());
     }
 
     #[test]

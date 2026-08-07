@@ -59,7 +59,7 @@ fn active() -> &'static Mutex<Option<PublishHandle>> {
 #[derive(serde::Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct PublishResult {
-    pub cf_session_id: String,
+    pub media_session_id: String,
     pub track_name: String,
     /// Which encoder was selected, so the UI can show whether hardware encoding is in use.
     pub encoder: String,
@@ -118,7 +118,7 @@ pub async fn start_screen_publish(
     .await?;
 
     let result = PublishResult {
-        cf_session_id: handle.cf_session_id.clone(),
+        media_session_id: handle.media_session_id.clone(),
         track_name: handle.track_name.clone(),
         encoder: handle.encoder_name.to_string(),
     };

@@ -60,14 +60,14 @@ export interface WsUserLeftVoice extends VoiceEventEnvelope {
 
 export interface WsGuildParticipantJoined extends VoiceEventEnvelope {
     userId: string;
-    cfSessionId: string;
+    mediaSessionId: string;
     audioTrackName: string;
     channelId: string;
 }
 
 export interface WsGuildTrackPublished extends VoiceEventEnvelope {
     userId: string;
-    cfSessionId: string;
+    mediaSessionId: string;
     trackName: string;
     kind: 'video' | 'screen' | 'screenAudio';
     shareId?: string;
@@ -830,8 +830,8 @@ export class GuildWebsocketService {
         void this.realtime.invoke('guild.voice.CameraChanged', {channelId, isCameraOn});
     }
 
-    invokeVoiceScreenShareStarted(channelId: string, shareId: string, trackName: string): void {
-        void this.realtime.invoke('guild.voice.ScreenShareStarted', {channelId, shareId, trackName});
+    invokeVoiceScreenShareStarted(channelId: string, shareId: string): void {
+        void this.realtime.invoke('guild.voice.ScreenShareStarted', {channelId, shareId});
     }
 
     invokeVoiceScreenShareStopped(channelId: string, shareId: string): void {

@@ -40,15 +40,44 @@ describe('VoiceRoomTracker', () => {
         expect(tracker.version).toBe(6);
     });
 
-    /**
-     * Speaking and camera are relayed rather than stored, so the server never bumps the version for
-     * them and they arrive carrying the one already held. Ignoring those drops every speaking
-     * indicator in the app.
-     */
-    it('applies a relay event that carries the version already held', () => {
+    it('applies a state event that carries the version already held', () => {
         const tracker = tracking('inst-1', 5);
 
         expect(tracker.receive({instanceId: 'inst-1', version: 5})).toBe('apply');
+    });
+});
+
+describe('VoiceRoomTracker relay events', () => {
+    it('applies a relay carrying the version already held', () => {
+        expect(tracking('inst-1', 5).receiveRelay({instanceId: 'inst-1', version: 5})).toBe('apply');
+    });
+
+    /**
+     * The failure this prevents: hold v5, miss the publish at v6, then a speaking relay arrives
+     * carrying v6. Advanced like a state event that reads as the next in sequence, so the missed
+     * publish is absorbed and the real v7 looks contiguous - the dropped event becomes permanent,
+     * which is the exact thing the version mechanism exists to stop.
+     */
+    it('does not advance the version, so a missed state event is still detected', () => {
+        const tracker = tracking('inst-1', 5);
+
+        expect(tracker.receiveRelay({instanceId: 'inst-1', version: 6})).toBe('apply');
+        expect(tracker.version).toBe(5);
+        // The publish at v6 was never seen, and the next real event proves it.
+        expect(tracker.receive({instanceId: 'inst-1', version: 7})).toBe('refetch');
+    });
+
+    /**
+     * Speaking is written ten times a second. Gap-detecting on it means a room we cannot
+     * resynchronise refetches at that rate; every other event finds the same gap at a sane one.
+     */
+    it('never reports a gap, however far ahead it is', () => {
+        expect(tracking('inst-1', 5).receiveRelay({instanceId: 'inst-1', version: 99})).toBe('apply');
+    });
+
+    /** A rebuilt room invalidates everything held, relay or not. */
+    it('still refetches when the room was rebuilt', () => {
+        expect(tracking('inst-1', 5).receiveRelay({instanceId: 'inst-2', version: 5})).toBe('refetch');
     });
 
     it('ignores a genuinely older event', () => {

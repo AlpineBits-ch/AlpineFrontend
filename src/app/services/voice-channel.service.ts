@@ -2,7 +2,7 @@ import {computed, effect, inject, Injectable, signal} from '@angular/core';
 import {firstValueFrom} from 'rxjs';
 import {ChannelDto, ChannelType} from '../dtos/response/guild.dto';
 import {ProfileService} from './profile.service';
-import {GuildVoiceService, VoiceParticipantDto} from './guild-voice.service';
+import {GuildVoiceService} from './guild-voice.service';
 import {
     GuildWebsocketService,
     WsGuildParticipantJoined,
@@ -24,6 +24,7 @@ import {VoiceEngineService} from './voice-engine.service';
 import {ToastService} from './toast.service';
 import {
     describeTrack,
+    VoiceEventDecision,
     VoiceEventEnvelope,
     VoiceParticipantSnapshot,
     VoiceRoomSnapshot,
@@ -41,7 +42,7 @@ export interface VoiceChannelParticipant {
     isScreenSharing: boolean;
     isServerDeafened: boolean;
     isLocal: boolean;
-    cfSessionId?: string | null;
+    mediaSessionId?: string | null;
 }
 
 export interface VoiceLocalState {
@@ -193,11 +194,23 @@ export class VoiceChannelService {
      * for the channel we are *in* would refetch on every one of them.</p>
      */
     private gate(channelId: string, event: VoiceEventEnvelope, apply: () => void): void {
+        this.decide(channelId, apply, () => this.tracker.receive(event));
+    }
+
+    /**
+     * The same, for relay events - applied without advancing the version. See
+     * {@link VoiceRoomTracker.receiveRelay}.
+     */
+    private gateRelay(channelId: string, event: VoiceEventEnvelope, apply: () => void): void {
+        this.decide(channelId, apply, () => this.tracker.receiveRelay(event));
+    }
+
+    private decide(channelId: string, apply: () => void, classify: () => VoiceEventDecision): void {
         if (channelId !== this.joinedChannelId()) {
             apply();
             return;
         }
-        switch (this.tracker.receive(event)) {
+        switch (classify()) {
             case 'apply':
                 apply();
                 return;
@@ -267,6 +280,10 @@ export class VoiceChannelService {
             n.set(channelId, withLocal);
             return n;
         });
+        // Every snapshot, not just the one from join. The roster is replaced wholesale, so any
+        // snapshot that has not caught up with our own join erases us from our own channel - which
+        // reads as "the join failed" and hides the mute button's target.
+        this.ensureLocalParticipant(channelId);
 
         // Anyone who left while we were out of sync. `Resync{participantLeft}` covers the live case;
         // this covers everything missed.
@@ -299,11 +316,11 @@ export class VoiceChannelService {
             if (p.userId === ownId) continue;
             // A session id alone is not an invitation to subscribe. `Joined` means a session exists
             // and a track does not, so the pull would fail and burn the retry budget.
-            if (p.publishState !== 'Publishing' || !p.cfSessionId || !p.audioTrackName) continue;
+            if (p.publishState !== 'Publishing' || !p.mediaSessionId || !p.audioTrackName) continue;
 
-            const cfSessionId = p.cfSessionId;
+            const mediaSessionId = p.mediaSessionId;
             void this.rtc.subscribeAudio([{
-                userId: p.userId, cfSessionId, trackName: p.audioTrackName,
+                userId: p.userId, mediaSessionId, trackName: p.audioTrackName,
             }]);
 
             for (const share of p.shares) {
@@ -311,11 +328,11 @@ export class VoiceChannelService {
                     const {kind} = describeTrack(trackName);
                     if (kind === 'screenAudio') {
                         void this.rtc.subscribeAudio([{
-                            userId: p.userId, cfSessionId, trackName, kind: 'screenAudio',
+                            userId: p.userId, mediaSessionId, trackName, kind: 'screenAudio',
                         }]);
                     } else {
                         void this.rtc.subscribeVideo(
-                            guildId, channelId, p.userId, cfSessionId, trackName, 'screen');
+                            guildId, channelId, p.userId, mediaSessionId, trackName, 'screen');
                     }
                 }
             }
@@ -357,7 +374,7 @@ export class VoiceChannelService {
         this.guildWsSvc.invokeVoiceHeartbeat(channelId, {
             knownInstanceId: this.tracker.instanceId,
             knownVersion: this.tracker.version,
-            cfSessionId: published?.cfSessionId ?? null,
+            mediaSessionId: published?.mediaSessionId ?? null,
             audioTrackName: published?.audioTrackName ?? null,
         });
     }
@@ -372,10 +389,11 @@ export class VoiceChannelService {
             .filter(c => c.type === ChannelType.Voice)
             .forEach(channel => {
                 if (this.joinedChannelId() === channel.id) return;
-                this.guildVoiceSvc.getState(guildId, channel.id).subscribe({
-                    next: state => {
+                this.guildVoiceSvc.getSnapshot(guildId, channel.id).subscribe({
+                    next: snapshot => {
                         const ownId = this.profileService.ownProfile()?.userId ?? '';
-                        const participants = state.participants.map(p => this.dtoToParticipant(p, ownId));
+                        const participants = snapshot.participants
+                            .map(p => this.snapshotToParticipant(p, ownId));
                         this.channelParticipantsSignal.update(map => {
                             const n = new Map(map);
                             n.set(channel.id, participants);
@@ -411,33 +429,13 @@ export class VoiceChannelService {
             this.localState.update(s => ({...s, isCameraOn: false, isScreenSharing: false}));
 
             try {
-                const state = await firstValueFrom(this.guildVoiceSvc.join(channel.guildId, channel.id));
-                const ownId = this.profileService.ownProfile()?.userId ?? '';
-                const list = state.participants.map(p => this.dtoToParticipant(p, ownId));
-
-                if (!list.find(p => p.isLocal)) {
-                    const profile = this.profileService.ownProfile();
-                    list.unshift({
-                        userId: ownId,
-                        displayName: profile?.userName ?? 'You',
-                        avatarLabel: (profile?.userName?.[0] ?? 'Y').toUpperCase(),
-                        avatarUrl: profile?.avatarUrl,
-                        // Seeded, not assumed false: arriving muted and rendering yourself live is
-                        // the one state where the room and the roster disagree about the same fact.
-                        isMuted: this.localState().isMuted,
-                        isSpeaking: false,
-                        isCameraOn: false,
-                        isScreenSharing: false,
-                        isServerDeafened: false,
-                        isLocal: true,
-                    });
-                }
-
-                this.channelParticipantsSignal.update(map => {
-                    const n = new Map(map);
-                    n.set(channel.id, list);
-                    return n;
-                });
+                // Join answers with the room's authoritative state, so there is no second read and
+                // no second shape: the same snapshot the SignalR event carries, through the same
+                // apply path. `applySnapshot` also seeds the version tracker, which is what makes
+                // the very next event classifiable.
+                const snapshot = await firstValueFrom(
+                    this.guildVoiceSvc.join(channel.guildId, channel.id));
+                await this.applySnapshot(snapshot);
                 this.soundSettings.playVoiceJoin();
                 const connected = await this.rtc.connect(channel.guildId, channel.id);
                 if (!connected) {
@@ -456,11 +454,11 @@ export class VoiceChannelService {
 
                 // Read the room again now that there is something to subscribe *on*.
                 //
-                // The server pushes a snapshot the moment `join` returns, which is before this
-                // point: audio survives that because subscribeAudio waits for the Rust session, but
-                // video needs `pc` and the receive-side Cloudflare session, and neither exists until
-                // connect resolves. Without this, the snapshot's screen shares are dropped on the
-                // floor and joining a channel mid-share shows nothing - the exact bug this is for.
+                // The join snapshot above lands before this point: audio survives that because
+                // subscribeAudio waits for the Rust session, but video needs `pc` and the
+                // receive-side media session, and neither exists until connect resolves. Without
+                // this, the snapshot's screen shares are dropped on the floor and joining a channel
+                // mid-share shows nothing - the exact bug this is all for.
                 void this.refetchSnapshot();
 
                 // Tell the room what it cannot infer. Everyone else builds their roster from the
@@ -597,7 +595,7 @@ export class VoiceChannelService {
         } else {
             const result = await this.rtc.publishScreen(guildId, channelId);
             if (!result) return;
-            this.guildWsSvc.invokeVoiceScreenShareStarted(channelId, result.shareId, `screen-${result.shareId}`);
+            this.guildWsSvc.invokeVoiceScreenShareStarted(channelId, result.shareId);
             this.localState.update(s => ({...s, isScreenSharing: true}));
         }
         this.syncLocal();
@@ -619,8 +617,7 @@ export class VoiceChannelService {
         if (!restart) return;
 
         this.guildWsSvc.invokeVoiceScreenShareStopped(channelId, restart.oldShareId);
-        this.guildWsSvc.invokeVoiceScreenShareStarted(
-            channelId, restart.newShareId, `screen-${restart.newShareId}`);
+        this.guildWsSvc.invokeVoiceScreenShareStarted(channelId, restart.newShareId);
     }
 
     setServerDeafened(userId: string, isDeafened: boolean): void {
@@ -762,7 +759,7 @@ export class VoiceChannelService {
     private onParticipantJoined(e: WsGuildParticipantJoined): void {
         if (e.channelId !== this.joinedChannelId()) return;
         this.gate(e.channelId, e, () => {
-            this.patchParticipant(e.channelId, e.userId, p => ({...p, cfSessionId: e.cfSessionId}));
+            this.patchParticipant(e.channelId, e.userId, p => ({...p, mediaSessionId: e.mediaSessionId}));
 
             // Our own announcement is still worth patching in above - it is what carries our session
             // id into the participant row - but it must never be subscribed to. Since the Rust
@@ -773,7 +770,7 @@ export class VoiceChannelService {
             if (e.userId === (this.profileService.ownProfile()?.userId ?? '')) return;
 
             void this.rtc.subscribeAudio([{
-                userId: e.userId, cfSessionId: e.cfSessionId, trackName: e.audioTrackName,
+                userId: e.userId, mediaSessionId: e.mediaSessionId, trackName: e.audioTrackName,
             }]);
         });
     }
@@ -786,10 +783,10 @@ export class VoiceChannelService {
         this.gate(e.channelId, e, () => {
             if (e.kind === 'screenAudio') {
                 void this.rtc.subscribeAudio([{
-                    userId: e.userId, cfSessionId: e.cfSessionId, trackName: e.trackName, kind: 'screenAudio',
+                    userId: e.userId, mediaSessionId: e.mediaSessionId, trackName: e.trackName, kind: 'screenAudio',
                 }]);
             } else {
-                void this.rtc.subscribeVideo(guildId, e.channelId, e.userId, e.cfSessionId, e.trackName,
+                void this.rtc.subscribeVideo(guildId, e.channelId, e.userId, e.mediaSessionId, e.trackName,
                     e.kind === 'screen' ? 'screen' : 'video');
             }
         });
@@ -819,8 +816,9 @@ export class VoiceChannelService {
         });
     }
 
+    /** Relay: the server does not store camera state and does not version it. */
     private onCameraChanged(e: WsVoiceCameraChanged): void {
-        this.gate(e.channelId, e, () =>
+        this.gateRelay(e.channelId, e, () =>
             this.patchParticipant(e.channelId, e.userId, p => ({...p, isCameraOn: e.isCameraOn})));
     }
 
@@ -906,24 +904,40 @@ export class VoiceChannelService {
             isScreenSharing: p.isStreaming,
             isServerDeafened: p.isServerDeafened,
             isLocal: p.userId === ownId,
-            cfSessionId: p.cfSessionId,
+            mediaSessionId: p.mediaSessionId,
         };
     }
 
-    private dtoToParticipant(dto: VoiceParticipantDto, ownId: string): VoiceChannelParticipant {
-        const profile = this.profileService.getCachedByUserId(dto.userId);
-        return {
-            userId: dto.userId,
-            displayName: profile?.userName ?? dto.userId,
-            avatarLabel: (profile?.userName?.[0] ?? '?').toUpperCase(),
-            avatarUrl: profile?.avatarUrl,
-            isMuted: dto.isSelfMuted || dto.isServerMuted,
-            isSpeaking: false,
-            isCameraOn: false,
-            isScreenSharing: dto.isStreaming,
-            isServerDeafened: dto.isServerDeafened,
-            isLocal: dto.userId === ownId,
-            cfSessionId: dto.cfSessionId,
-        };
+    /**
+     * Put ourselves in the roster if the snapshot has not caught up yet.
+     *
+     * <p>The server adds the joiner before any media work, so normally we are already in it. But a
+     * room the local user is not rendered in reads as "the join failed", and that is not a state
+     * worth leaving to a race.</p>
+     */
+    private ensureLocalParticipant(channelId: string): void {
+        const ownId = this.profileService.ownProfile()?.userId ?? '';
+        this.channelParticipantsSignal.update(map => {
+            const list = map.get(channelId) ?? [];
+            if (list.some(p => p.isLocal)) return map;
+
+            const profile = this.profileService.ownProfile();
+            const n = new Map(map);
+            n.set(channelId, [{
+                userId: ownId,
+                displayName: profile?.userName ?? 'You',
+                avatarLabel: (profile?.userName?.[0] ?? 'Y').toUpperCase(),
+                avatarUrl: profile?.avatarUrl,
+                // Seeded, not assumed false: arriving muted and rendering yourself live is the one
+                // state where the room and the roster disagree about the same fact.
+                isMuted: this.localState().isMuted,
+                isSpeaking: false,
+                isCameraOn: false,
+                isScreenSharing: false,
+                isServerDeafened: false,
+                isLocal: true,
+            }, ...list]);
+            return n;
+        });
     }
 }

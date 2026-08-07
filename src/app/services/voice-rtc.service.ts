@@ -96,7 +96,7 @@ export class VoiceRTCService {
 
     // ── WebRTC internals ───────────────────────────────────────────────────────
     private pc: RTCPeerConnection | null = null;
-    private cfSessionId: string | null = null;
+    private mediaSessionId: string | null = null;
     /**
      * The Rust publication carrying this channel's audio.
      *
@@ -146,7 +146,7 @@ export class VoiceRTCService {
     // the live TrackPublished event, which fires once. It stops being harmless now that the
     // snapshot backfill covers the same tracks - a viewer who is present when a share starts would
     // subscribe twice and leak an m-line per snapshot.
-    private readonly subscribedVideoTracks = new Map<string, { cfSessionId: string; userId: string }>();
+    private readonly subscribedVideoTracks = new Map<string, { mediaSessionId: string; userId: string }>();
 
     /**
      * Quality of the running screen share, or null when not sharing. Set by the picker and changed
@@ -212,9 +212,9 @@ export class VoiceRTCService {
 
             // Secondary: the Rust session opened above is the one carrying this participant's audio,
             // and only one session per participant may claim that.
-            const {cfSessionId} = await firstValueFrom(
+            const {mediaSessionId} = await firstValueFrom(
                 this.guildVoiceSvc.createSession(guildId, channelId, false));
-            this.cfSessionId = cfSessionId;
+            this.mediaSessionId = mediaSessionId;
 
             // No offer/answer here. There is no local track to publish, and an offer carrying only
             // unused recvonly m-lines asks Cloudflare to answer a subscription that was never
@@ -234,7 +234,7 @@ export class VoiceRTCService {
     /**
      * What this client is actually publishing, for the heartbeat's state assertion.
      *
-     * <p>Deliberately the *Rust* session and not `this.cfSessionId`. The webview's session is
+     * <p>Deliberately the *Rust* session and not `this.mediaSessionId`. The webview's session is
      * secondary and receive-only; the microphone lives on the Rust publication, and that is the
      * session peers are told to pull from. Asserting the webview's would have the server hand peers
      * a session with no audio track on it.</p>
@@ -242,10 +242,10 @@ export class VoiceRTCService {
      * <p>Null while not publishing, which is the honest thing to send - the server corrects its
      * record from it and tells peers to drop us.</p>
      */
-    get publishedMedia(): { cfSessionId: string; audioTrackName: string } | null {
+    get publishedMedia(): { mediaSessionId: string; audioTrackName: string } | null {
         if (!this.voiceSession) return null;
         return {
-            cfSessionId: this.voiceSession.cfSessionId,
+            mediaSessionId: this.voiceSession.mediaSessionId,
             audioTrackName: this.voiceSession.trackName,
         };
     }
@@ -296,7 +296,7 @@ export class VoiceRTCService {
         this.pcState.set('new');
         this.participantsWithAudio.set(new Set());
         this.pc = null;
-        this.cfSessionId = null;
+        this.mediaSessionId = null;
         this.cfVideoTrackName = null;
         this.setupDone = false;
         this.midMeta.clear();
@@ -386,7 +386,7 @@ export class VoiceRTCService {
      * `guildId`/`channelId` are gone from the signature - the Rust session already knows its target.
      */
     async subscribeAudio(
-        targets: { userId: string; cfSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' }[],
+        targets: { userId: string; mediaSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' }[],
     ): Promise<void> {
         // Concurrently, because a subscribe now retries for several seconds before giving up.
         // Sequentially, one participant losing the publish race would hold up everyone announced
@@ -425,7 +425,7 @@ export class VoiceRTCService {
     }
 
     private async subscribeOne(
-        target: { userId: string; cfSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' },
+        target: { userId: string; mediaSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' },
     ): Promise<void> {
         // Captured once: the channel can be left mid-retry, and the loop below must not resubscribe
         // onto a publication that has since been replaced by a different channel's.
@@ -445,13 +445,13 @@ export class VoiceRTCService {
         // just passed in, the backfill reads whatever is on the participant row, which is stale
         // if they rejoined. Acting on that difference is the only recovery path there is.
         const previous = this.subscribedAudioSessions.get(id);
-        if (previous === target.cfSessionId) return;
+        if (previous === target.mediaSessionId) return;
         if (previous !== undefined) {
             // The old subscription points at a session that is no longer publishing. Drop it,
             // or the mixer keeps a dead source and Rust keeps a recvonly transceiver per
             // announcement - one leaked m-line every time somebody rejoins.
             console.warn('[voice] session id changed, resubscribing', {
-                id, from: previous, to: target.cfSessionId,
+                id, from: previous, to: target.mediaSessionId,
             });
             await this.voiceEngine.unsubscribe(session, id);
             this.subscribedAudioSessions.delete(id);
@@ -466,7 +466,7 @@ export class VoiceRTCService {
         for (let attempt = 0; ; attempt++) {
             if (this.subscribeTokens.get(id) !== token) return;
             try {
-                await this.voiceEngine.subscribe(session, id, target.cfSessionId, target.trackName);
+                await this.voiceEngine.subscribe(session, id, target.mediaSessionId, target.trackName);
                 if (this.subscribeTokens.get(id) !== token) {
                     // Superseded while the call was in flight. Drop what we just took, or it
                     // outlives the participant it belongs to.
@@ -475,7 +475,7 @@ export class VoiceRTCService {
                 }
                 // Only after it succeeds. Recording a failed subscribe would make the retry above
                 // skip the very announcement that could have carried a working session id.
-                this.subscribedAudioSessions.set(id, target.cfSessionId);
+                this.subscribedAudioSessions.set(id, target.mediaSessionId);
                 if (target.kind === 'screenAudio') {
                     this.remoteScreenAudioIds.set(target.userId, id);
                     // A stream that starts while its author is already muted must stay muted.
@@ -527,17 +527,17 @@ export class VoiceRTCService {
         guildId: string,
         channelId: string,
         userId: string,
-        cfSessionId: string,
+        mediaSessionId: string,
         trackName: string,
         kind: 'video' | 'screen',
     ): Promise<void> {
-        if (this.subscribedVideoTracks.get(trackName)?.cfSessionId === cfSessionId) return Promise.resolve();
+        if (this.subscribedVideoTracks.get(trackName)?.mediaSessionId === mediaSessionId) return Promise.resolve();
 
         return this.enqueueNegotiation(async () => {
-            if (!this.pc || !this.cfSessionId) return;
+            if (!this.pc || !this.mediaSessionId) return;
             // Re-checked inside the queue: two callers can pass the guard above before either has
             // run, and the queue is what serialises them.
-            if (this.subscribedVideoTracks.get(trackName)?.cfSessionId === cfSessionId) return;
+            if (this.subscribedVideoTracks.get(trackName)?.mediaSessionId === mediaSessionId) return;
 
             const transceiver = this.pc.addTransceiver('video', {direction: 'recvonly'});
             preferVideoCodecs(transceiver, 'receiver');
@@ -546,10 +546,10 @@ export class VoiceRTCService {
             await this.pc.setLocalDescription(offer);
 
             try {
-                const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
-                    cfSessionId: this.cfSessionId,
+                const resp = await firstValueFrom(this.guildVoiceSvc.negotiateTracks(guildId, channelId, {
+                    mediaSessionId: this.mediaSessionId,
                     sessionDescription: this.pc.localDescription!,
-                    tracks: [{location: 'remote', trackName, sessionId: cfSessionId}],
+                    tracks: [{direction: 'subscribe', trackName, mediaSessionId}],
                 }));
 
                 if (resp.tracks[0]?.mid) {
@@ -561,7 +561,7 @@ export class VoiceRTCService {
                 // every later attempt - the next snapshot, a republish - skip the one thing that
                 // could have recovered it, which is how a transient 502 becomes a permanently black
                 // tile.
-                this.subscribedVideoTracks.set(trackName, {cfSessionId, userId});
+                this.subscribedVideoTracks.set(trackName, {mediaSessionId, userId});
                 if (resp.requiresImmediateRenegotiation) await this.renegotiate(guildId, channelId);
             } catch (e) {
                 console.error('[voice] video subscribe failed', {userId, trackName, kind}, e);
@@ -583,7 +583,7 @@ export class VoiceRTCService {
     }
 
     async publishCamera(guildId: string, channelId: string): Promise<string | null> {
-        if (!this.pc || !this.cfSessionId) return null;
+        if (!this.pc || !this.mediaSessionId) return null;
 
         try {
             // Honour the camera picked in settings; this used to hardcode `video: true` and always
@@ -597,15 +597,15 @@ export class VoiceRTCService {
 
             let cfTrackName: string | null = null;
             await this.enqueueNegotiation(async () => {
-                if (!this.pc || !this.cfSessionId) return;
+                if (!this.pc || !this.mediaSessionId) return;
                 const sender = this.pc.addTrack(this.localVideoTrack!, stream);
                 const offer = await this.pc.createOffer();
                 await this.pc.setLocalDescription(offer);
                 const mid = this.pc.getTransceivers().find(t => t.sender === sender)?.mid ?? '0';
-                const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
-                    cfSessionId: this.cfSessionId!,
+                const resp = await firstValueFrom(this.guildVoiceSvc.negotiateTracks(guildId, channelId, {
+                    mediaSessionId: this.mediaSessionId!,
                     sessionDescription: this.pc.localDescription!,
-                    tracks: [{location: 'local', mid, trackName: 'video'}],
+                    tracks: [{direction: 'publish', mid, trackName: 'video'}],
                 }));
                 cfTrackName = this.cfVideoTrackName = resp.tracks[0]?.trackName ?? 'video';
                 await this.pc.setRemoteDescription(resp.sessionDescription);
@@ -620,12 +620,12 @@ export class VoiceRTCService {
     }
 
     async closeCamera(guildId: string, channelId: string): Promise<void> {
-        if (!this.pc || !this.cfSessionId || !this.localVideoTrack) return;
+        if (!this.pc || !this.mediaSessionId || !this.localVideoTrack) return;
         this.localVideoTrack.stop();
         const sender = this.pc.getSenders().find(s => s.track === this.localVideoTrack);
         if (sender) this.pc.removeTrack(sender);
         await firstValueFrom(
-            this.guildVoiceSvc.closeTracks(guildId, channelId, this.cfSessionId, [this.cfVideoTrackName ?? 'video'])
+            this.guildVoiceSvc.closeTracks(guildId, channelId, this.mediaSessionId, [this.cfVideoTrackName ?? 'video'])
         ).catch(() => {
         });
         this.localVideoTrack = null;
@@ -635,7 +635,7 @@ export class VoiceRTCService {
     }
 
     async publishScreen(guildId: string, channelId: string): Promise<{ shareId: string } | null> {
-        if (!this.pc || !this.cfSessionId) return null;
+        if (!this.pc || !this.mediaSessionId) return null;
 
         try {
             const choice = await this.screenPicker.show();
@@ -674,7 +674,7 @@ export class VoiceRTCService {
             this.localScreenTrack.onended = () => this.screenEnded$.next();
 
             await this.enqueueNegotiation(async () => {
-                if (!this.pc || !this.cfSessionId) return;
+                if (!this.pc || !this.mediaSessionId) return;
 
                 const videoSender = this.pc.addTrack(this.localScreenTrack!, stream);
                 const audioSender = this.localScreenAudioTrack
@@ -694,16 +694,16 @@ export class VoiceRTCService {
                 });
 
                 const videoMid = this.pc.getTransceivers().find(t => t.sender === videoSender)?.mid ?? '0';
-                const tracks: { location: 'local'; mid: string; trackName: string }[] = [
-                    {location: 'local', mid: videoMid, trackName: `screen-${shareId}`},
+                const tracks: { direction: 'publish'; mid: string; trackName: string }[] = [
+                    {direction: 'publish', mid: videoMid, trackName: `screen-${shareId}`},
                 ];
                 if (audioSender) {
                     const audioMid = this.pc.getTransceivers().find(t => t.sender === audioSender)?.mid ?? '1';
-                    tracks.push({location: 'local', mid: audioMid, trackName: `screen-audio-${shareId}`});
+                    tracks.push({direction: 'publish', mid: audioMid, trackName: `screen-audio-${shareId}`});
                 }
 
-                const resp = await firstValueFrom(this.guildVoiceSvc.tracksNew(guildId, channelId, {
-                    cfSessionId: this.cfSessionId!,
+                const resp = await firstValueFrom(this.guildVoiceSvc.negotiateTracks(guildId, channelId, {
+                    mediaSessionId: this.mediaSessionId!,
                     sessionDescription: this.pc.localDescription!,
                     tracks,
                 }));
@@ -736,7 +736,7 @@ export class VoiceRTCService {
             this.screenPreset.set(null);
             return {shareId};
         }
-        if (!this.pc || !this.cfSessionId || !this.localScreenTrack) return null;
+        if (!this.pc || !this.mediaSessionId || !this.localScreenTrack) return null;
 
         const shareId = this.screenShareId ?? 'share';
         const trackNames = [`screen-${shareId}`];
@@ -757,7 +757,7 @@ export class VoiceRTCService {
         }
 
         await firstValueFrom(
-            this.guildVoiceSvc.closeTracks(guildId, channelId, this.cfSessionId, trackNames)
+            this.guildVoiceSvc.closeTracks(guildId, channelId, this.mediaSessionId, trackNames)
         ).catch(() => {
         });
 
@@ -932,11 +932,11 @@ export class VoiceRTCService {
 
     /** Closes all currently published local tracks via the Cloudflare Calls API. */
     async closeAllTracks(guildId: string, channelId: string): Promise<void> {
-        if (!this.cfSessionId) return;
+        if (!this.mediaSessionId) return;
         const trackNames = this.getActiveTrackNames();
         if (trackNames.length > 0) {
             await firstValueFrom(
-                this.guildVoiceSvc.closeTracks(guildId, channelId, this.cfSessionId, trackNames)
+                this.guildVoiceSvc.closeTracks(guildId, channelId, this.mediaSessionId, trackNames)
             ).catch(() => {
             });
         }
@@ -1002,10 +1002,10 @@ export class VoiceRTCService {
     }
 
     private async renegotiate(guildId: string, channelId: string): Promise<void> {
-        if (!this.pc || !this.cfSessionId) return;
+        if (!this.pc || !this.mediaSessionId) return;
         const offer = await this.pc.createOffer();
         await this.pc.setLocalDescription(offer);
-        const resp = await firstValueFrom(this.guildVoiceSvc.renegotiate(guildId, channelId, this.cfSessionId, offer));
+        const resp = await firstValueFrom(this.guildVoiceSvc.renegotiate(guildId, channelId, this.mediaSessionId, offer));
         await this.pc.setRemoteDescription(resp.sessionDescription);
     }
 
