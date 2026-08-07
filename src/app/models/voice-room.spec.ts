@@ -8,6 +8,7 @@
  */
 import {
     describeTrack,
+    isDeadMediaSession,
     isStaleSubscription,
     VoiceRoomSnapshot,
     VoiceRoomTracker,
@@ -177,6 +178,62 @@ describe('isStaleSubscription', () => {
         expect(isStaleSubscription(new Error('network down'))).toBe(false);
         expect(isStaleSubscription(null)).toBe(false);
         expect(isStaleSubscription(undefined)).toBe(false);
+    });
+});
+
+/**
+ * "Our own session is dead", as distinct from "the track we asked for is gone".
+ *
+ * The two arrive at the same call site and have opposite remedies. A stale subscription is answered
+ * by refetching the roster and pulling whatever replaced the track; this is answered by rebuilding
+ * the session, because no roster can repair the thing doing the pulling.
+ *
+ * The body below is verbatim from the report that produced this: a viewer who joined voice and later
+ * opened somebody's screen share got it on every attempt, saw the "sharing" placeholder, and never
+ * got a picture.
+ */
+describe('isDeadMediaSession', () => {
+    const sfuBody = '{"errorCode":"session_error","errorDescription":"Session appears to be '
+        + 'disconnected. Please check if the PeerConnection is connected."}';
+
+    it('recognises the 502 the gateway relays from the SFU', () => {
+        expect(isDeadMediaSession({
+            status: 502,
+            error: {operation: 'tracks/new', error: sfuBody},
+        })).toBe(true);
+    });
+
+    it('recognises it when the body arrives as a string', () => {
+        expect(isDeadMediaSession({status: 502, error: sfuBody})).toBe(true);
+    });
+
+    /** The Rust engine can only hand back a string. */
+    it('recognises the marker in an engine error', () => {
+        expect(isDeadMediaSession('tracks/new failed: session_error')).toBe(true);
+    });
+
+    /**
+     * The distinction that matters most. A 409 means the *track* is gone; tearing down a healthy
+     * receive session over one would drop every other stream on it to fix nothing.
+     */
+    it('does not match a stale subscription', () => {
+        expect(isDeadMediaSession({
+            status: 409,
+            error: {error: 'staleSubscription', action: 'refetchSnapshot'},
+        })).toBe(false);
+    });
+
+    it('does not match a 502 that means something else', () => {
+        expect(isDeadMediaSession({
+            status: 502,
+            error: {operation: 'tracks/new', error: '{"errorCode":"not_found_track_error"}'},
+        })).toBe(false);
+    });
+
+    it('does not match arbitrary failures', () => {
+        expect(isDeadMediaSession(new Error('network down'))).toBe(false);
+        expect(isDeadMediaSession(null)).toBe(false);
+        expect(isDeadMediaSession(undefined)).toBe(false);
     });
 });
 

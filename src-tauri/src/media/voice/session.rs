@@ -421,6 +421,15 @@ impl Control {
     }
 }
 
+/// Whether any negotiated mid in `mids` routes to `id`.
+///
+/// A lookup by *value*, not by key. The map is `mid -> source id` and the two namespaces have
+/// nothing in common, so reading it the other way round answers "no" for every healthy subscription
+/// and re-pulls each one - mixing the participant in twice and leaking an m-line per announcement.
+fn routes_to(mids: &HashMap<String, String>, id: &str) -> bool {
+    mids.values().any(|source_id| source_id == id)
+}
+
 /// One peer connection to one SFU session, and the participants pulled onto it.
 ///
 /// Publications share the engine's devices, capture chain and mixer; what they own is transport and
@@ -482,6 +491,17 @@ impl Publication {
         self.open.store(open, Ordering::Relaxed);
     }
 
+    /// Whether any negotiated mid currently routes to this source.
+    ///
+    /// The join between the two halves of a working subscription: RTP arrives keyed by mid, sources
+    /// are keyed by id, and a source with no mid pointing at it can never be reached.
+    fn has_route_to(&self, id: &str) -> bool {
+        match self.mids.lock() {
+            Ok(map) => routes_to(&map, id),
+            Err(_) => false,
+        }
+    }
+
     /// Pull one participant's track onto this publication and start mixing them in.
     ///
     /// The source is created *before* the subscribe, so the mid-to-source mapping written inside
@@ -494,10 +514,21 @@ impl Publication {
     ) -> Result<(), String> {
         {
             let mut sources = self.sources.lock().map_err(|_| "sources poisoned")?;
+            // "Already subscribed" needs a route as well as a source. Re-pulling a healthy one would
+            // add a second transceiver and mix the participant in twice - but a source with no mid
+            // pointing at it is not a subscription, it is the wreckage of one, and every packet the
+            // SFU sends for it is counted `unmapped` and dropped. Answering `Ok` for that state is
+            // what made it permanent: the caller recorded a subscription it did not have, and every
+            // later announcement was then skipped as a duplicate.
             if sources.contains_key(&id) {
-                // Already subscribed. Re-pulling would add a second transceiver for the same
-                // participant and mix them in twice.
-                return Ok(());
+                if self.has_route_to(&id) {
+                    return Ok(());
+                }
+                eprintln!(
+                    "[voice] source {id} has no mid route - re-pulling rather than \
+                     reporting it subscribed"
+                );
+                sources.remove(&id);
             }
             sources.insert(id.clone(), RemoteSource::new()?);
         }
@@ -987,6 +1018,53 @@ fn broadcast(events: &Events, event: VoiceEvent) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The join between a subscription's two halves: RTP arrives keyed by mid, sources are keyed by
+    /// id, and a source nothing routes to is unreachable however healthy the transport looks.
+    ///
+    /// This decides whether `subscribe` may report an existing source as already subscribed. Getting
+    /// it wrong is silent in both directions - too strict and every announcement re-pulls a track
+    /// already being pulled; too lax and a source with no route is reported subscribed, the caller
+    /// records a subscription it does not have, and every packet for it is dropped as unmapped for
+    /// the rest of the session.
+    mod routing {
+        use super::*;
+
+        fn map(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+            pairs
+                .iter()
+                .map(|(mid, id)| ((*mid).to_owned(), (*id).to_owned()))
+                .collect()
+        }
+
+        #[test]
+        fn a_source_with_a_mid_pointing_at_it_is_routed() {
+            assert!(routes_to(&map(&[("1", "user_a")]), "user_a"));
+        }
+
+        #[test]
+        fn a_source_nothing_points_at_is_not() {
+            // The wreckage state from the incident: the pull happened, then the route was torn out
+            // from under it. The source exists and is reachable by nothing.
+            assert!(!routes_to(&map(&[("1", "user_b")]), "user_a"));
+            assert!(!routes_to(&HashMap::new(), "user_a"));
+        }
+
+        #[test]
+        fn mids_are_read_as_values_rather_than_keys() {
+            // The two namespaces are disjoint, so a lookup by key answers "not routed" for every
+            // healthy subscription there is - and every announcement then re-pulls a track already
+            // being pulled, mixing the participant in twice.
+            assert!(!routes_to(&map(&[("user_a", "1")]), "user_a"));
+        }
+
+        #[test]
+        fn a_source_stays_routed_while_any_mid_points_at_it() {
+            // Re-pulled after a repair, a source can briefly hold more than one mid. It is routed
+            // for as long as one of them survives.
+            assert!(routes_to(&map(&[("1", "user_a"), ("2", "user_a")]), "user_a"));
+        }
+    }
 
     #[test]
     fn the_echo_reference_is_mono_and_frame_sized() {

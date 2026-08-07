@@ -125,6 +125,37 @@ export function isStaleSubscription(error: unknown): boolean {
     return (body as {error?: string} | null)?.error === STALE_SUBSCRIPTION;
 }
 
+/** The SFU's word for "the session you are operating on has no live peer connection". */
+export const DEAD_MEDIA_SESSION = 'session_error';
+
+/**
+ * Whether a failed track operation means *our own* media session is gone, rather than the media we
+ * asked for.
+ *
+ * <p>Distinct from {@link isStaleSubscription} in both direction and remedy. A stale subscription is
+ * a track that has stopped: refetch the snapshot and pull whatever replaced it. This is the session
+ * doing the pulling being dead, which no snapshot can repair - the session has to be rebuilt before
+ * anything can be pulled onto it at all.</p>
+ *
+ * <p>It reaches us as a 502 whose body carries the SFU's own error verbatim, e.g.
+ * `{"errorCode":"session_error","errorDescription":"Session appears to be disconnected. Please check
+ * if the PeerConnection is connected."}`. Matched on the code rather than the description, which is
+ * prose and not a contract.</p>
+ */
+export function isDeadMediaSession(error: unknown): boolean {
+    if (typeof error === 'string') return error.includes(DEAD_MEDIA_SESSION);
+
+    // 502 is the gateway reporting what the SFU said. Anything else with this text in it is not the
+    // SFU refusing a session, and must not be answered by tearing one down.
+    if ((error as {status?: number} | null)?.status !== 502) return false;
+
+    const body = (error as {error?: unknown} | null)?.error;
+    if (typeof body === 'string') return body.includes(DEAD_MEDIA_SESSION);
+    // `{ operation, error }`, where `error` is the SFU's JSON response as a string.
+    const inner = (body as {error?: unknown} | null)?.error;
+    return typeof inner === 'string' && inner.includes(DEAD_MEDIA_SESSION);
+}
+
 // ── Track naming ─────────────────────────────────────────────────────────────
 
 export type VoiceTrackKind = 'audio' | 'video' | 'screen' | 'screenAudio';

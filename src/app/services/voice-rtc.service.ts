@@ -11,7 +11,7 @@ import {OAuthService} from 'angular-oauth2-oidc';
 import {bitrateFor, DEFAULT_STREAM_PRESET, StreamPreset} from '../models/stream-preset';
 import {solveGeometry} from '../models/capture-geometry';
 import {publishOptions, useRustPublisher} from './screen-publish';
-import {isStaleSubscription} from '../models/voice-room';
+import {isDeadMediaSession, isStaleSubscription} from '../models/voice-room';
 import {VoiceEngineService, VoiceSession} from './voice-engine.service';
 import {ScreenPickerChoice} from './screen-picker.service';
 import {
@@ -158,6 +158,25 @@ export class VoiceRTCService {
     // superseded and stop rather than subscribing on behalf of someone who already left.
     private readonly subscribeTokens = new Map<string, number>();
 
+    // Mixer source id → the tail of the chain of engine operations for that source.
+    //
+    // Every subscribe/unsubscribe for one source runs to completion before the next one starts, and
+    // that is load-bearing rather than tidy. The same participant is announced up to three times
+    // concurrently - the join snapshot, the refetch after connect, and the live ParticipantJoined -
+    // and all three are fire-and-forget. Unserialised they interleaved like this:
+    //
+    //   A: claims token 1, pulls the track, the engine registers mid 1 -> user
+    //   B: sees no recorded subscription (A only records on success), claims token 2, calls the
+    //      engine, which returns Ok for a source it already holds *without pulling anything*
+    //   A: returns, finds its token superseded, and unsubscribes - taking mid 1's route with it
+    //   B: returns Ok and records itself as subscribed
+    //
+    // The end state is the one in the logs: the SFU is still sending, `tracks 1`, and the engine has
+    // no route for it, so every packet is counted `unmapped` and dropped. Worse, the recorded
+    // subscription makes every later announcement a no-op, so it never repairs - one participant
+    // audible for a second and then permanently silent, on a connection that looks healthy.
+    private readonly audioOps = new Map<string, Promise<unknown>>();
+
     // Remote video/screen track name → the Cloudflare session it is being pulled from.
     //
     // Video has no equivalent of the audio path's mixer-source identity, so nothing used to stop a
@@ -205,11 +224,11 @@ export class VoiceRTCService {
         // ParticipantJoined event the backend emits when that session publishes "audio", and it
         // carries the Rust session id.
         //
-        // Deliberately *outside* the negotiation queue block below. Sending and receiving are
-        // independent here - the engine has its own session and its own peer connection - so a slow
-        // or wedged engine must not be able to hold up subscriptions on this one. It could: the
-        // engine start waits on ICE gathering in Rust, and when that stalled, every subscribe
-        // queued behind it forever and the only symptom was one-way silence with an empty console.
+        // Sending and receiving are independent here - the engine has its own session and its own
+        // peer connection - so a slow or wedged engine must not be able to hold up subscriptions on
+        // the receive side. It could: the engine start waits on ICE gathering in Rust, and when that
+        // stalled, every subscribe queued behind it forever and the only symptom was one-way silence
+        // with an empty console.
         try {
             this.voiceSession = await this.voiceEngine.start(
                 {kind: 'guild', guildId, channelId},
@@ -224,39 +243,75 @@ export class VoiceRTCService {
             return false;
         }
 
-        // Block the negotiation queue until the session exists, so that GuildParticipantJoined WS
-        // events don't try to subscribe before there is a session to subscribe on.
-        let releaseQueue!: () => void;
-        this.negotiationChain = new Promise<void>(resolve => {
-            releaseQueue = resolve;
-        });
+        // The receive session is *not* opened here - see ensureReceiveSession. Joining a channel is
+        // complete once the engine is publishing and mixing; video is opened by whoever first needs
+        // it.
+        this.setupDone = true;
+        return true;
+    }
+
+    /**
+     * The peer connection this client receives camera and screen video on, opened on first use.
+     *
+     * <p>Lazily, and that is the whole point. It used to be opened during {@link connect}, but
+     * nothing negotiates it until a camera or a screen share actually appears: audio moved to the
+     * Rust engine, so a client that is only listening never sends an offer at all and the connection
+     * sits in `'new'` indefinitely. Cloudflare creates the session the moment we ask for one and
+     * drops any session whose peer connection never connects - so a session opened at join and first
+     * used when somebody starts sharing minutes later was routinely already gone. `tracks/new` then
+     * answered 502 `session_error` ("Session appears to be disconnected"), permanently, because
+     * nothing rebuilt it: the viewer saw the "sharing" placeholder and never got a picture.</p>
+     *
+     * <p>Opened where it is first needed, the session is negotiated in the same second it is
+     * created, and from then on it is a live connection that stays up on its own.</p>
+     */
+    private async ensureReceiveSession(guildId: string, channelId: string): Promise<boolean> {
+        if (this.pc && this.mediaSessionId) return true;
+
+        const pc = new RTCPeerConnection({iceServers: environment.iceServers, bundlePolicy: 'max-bundle'});
+        pc.ontrack = e => this.handleRemoteTrack(e);
+        // Guarded on identity: a connection that has been replaced must not keep writing the state
+        // its successor is reporting.
+        pc.onconnectionstatechange = () => {
+            if (this.pc === pc) this.pcState.set(pc.connectionState);
+        };
 
         try {
-            this.pc = new RTCPeerConnection({iceServers: environment.iceServers, bundlePolicy: 'max-bundle'});
-            this.pc.ontrack = e => this.handleRemoteTrack(e);
-            this.pc.onconnectionstatechange = () => {
-                if (this.pc) this.pcState.set(this.pc.connectionState);
-            };
-
-            // Secondary: the Rust session opened above is the one carrying this participant's audio,
-            // and only one session per participant may claim that.
+            // Secondary: the Rust session carries this participant's audio, and only one session per
+            // participant may claim that.
             const {mediaSessionId} = await firstValueFrom(
                 this.guildVoiceSvc.createSession(guildId, channelId, false));
+            this.pc = pc;
             this.mediaSessionId = mediaSessionId;
-
-            // No offer/answer here. There is no local track to publish, and an offer carrying only
-            // unused recvonly m-lines asks Cloudflare to answer a subscription that was never
-            // requested. The first negotiation is now whatever the first subscribeAudio issues, and
-            // its m-lines match the tracks it asks for one-to-one.
-            this.setupDone = true;
             return true;
-
         } catch (e) {
-            console.log(e)
-            throw e
-        } finally {
-            releaseQueue();
+            pc.close();
+            console.error('[voice] could not open the receive session', e);
+            return false;
         }
+    }
+
+    /**
+     * Throw away a receive session the SFU has stopped acknowledging, so the next subscribe opens a
+     * fresh one.
+     *
+     * <p>Only safe while nothing is published on it - a rebuilt session does not carry the local
+     * camera or screen tracks over, and silently dropping someone's own share to recover a
+     * subscription is a worse failure than the one being recovered.</p>
+     */
+    private dropReceiveSession(): boolean {
+        if (this.localSenders.size > 0 || this.localVideoTrack || this.localScreenTrack) return false;
+        this.pc?.close();
+        this.pc = null;
+        this.mediaSessionId = null;
+        this.pcState.set('new');
+        this.midMeta.clear();
+        // Cleared with the session that held them: a claim recorded against a connection that no
+        // longer exists would make every resubscribe look like a duplicate and skip it.
+        this.subscribedVideoTracks.clear();
+        this.videoStreamsSignal.set(new Map());
+        this.screenStreamsSignal.set(new Map());
+        return true;
     }
 
     /**
@@ -298,6 +353,9 @@ export class VoiceRTCService {
         this.localSenders.clear();
         this.subscribedAudioSessions.clear();
         this.subscribedVideoTracks.clear();
+        // Dropped rather than awaited: the publication below is about to be stopped, which removes
+        // every source on it, and anything still queued is for a channel that no longer exists.
+        this.audioOps.clear();
         // Bumped, not cleared: a cleared map reads as token 0 to a retry that is still sleeping,
         // which is the value it would match if it was the first attempt for that source.
         this.subscribeTokens.forEach((token, id) => this.subscribeTokens.set(id, token + 1));
@@ -367,7 +425,11 @@ export class VoiceRTCService {
 
     cleanupParticipant(userId: string): void {
         // Drops their source from the mixer, their entry from the mid map, and their volume.
-        void this.dropSource(userId);
+        //
+        // Queued behind any subscribe still running for them, or the drop lands first and the
+        // subscribe it was meant to undo finishes afterwards - putting a participant who has left
+        // back in the mix. The token bumped below is what stops that subscribe recording itself.
+        void this.queueAudioOp(userId, () => this.dropSource(userId));
         // Forget the session they were on, so rejoining resubscribes rather than being skipped as
         // a duplicate - a leave/rejoin almost always comes back on a new Cloudflare session.
         this.subscribedAudioSessions.delete(userId);
@@ -452,11 +514,29 @@ export class VoiceRTCService {
         return this.voiceSession;
     }
 
+    /**
+     * Run one engine operation for a source, after every operation already queued for it.
+     *
+     * See {@link audioOps}. A failure is contained to its own caller: the chain itself is kept
+     * settled, or one rejected subscribe would take every later operation for that source with it.
+     */
+    private queueAudioOp<T>(id: string, op: () => Promise<T>): Promise<T> {
+        const next = (this.audioOps.get(id) ?? Promise.resolve()).catch(() => {
+        }).then(op);
+        this.audioOps.set(id, next.catch(() => {
+        }));
+        return next;
+    }
+
     private async subscribeOne(
         target: { userId: string; mediaSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' },
     ): Promise<void> {
         // Captured once: the channel can be left mid-retry, and the loop below must not resubscribe
         // onto a publication that has since been replaced by a different channel's.
+        //
+        // Waited for *outside* the queue. The first announcement of a channel arrives before the
+        // engine has a session and waits seconds for one; inside the queue that wait would hold up
+        // every other announcement for the same source behind it.
         const session = await this.awaitSession();
         if (!session) {
             console.error('[voice] dropped a subscribe - no session after waiting', target);
@@ -467,6 +547,21 @@ export class VoiceRTCService {
         // does not mute the voice of whoever is streaming.
         const id = target.kind === 'screenAudio' ? target.trackName : target.userId;
 
+        return this.queueAudioOp(id, () => this.subscribeQueued(session, id, target));
+    }
+
+    /**
+     * One subscribe, with no other operation for the same source in flight - see {@link audioOps}.
+     *
+     * The dedupe check below is only meaningful here: it reads a record written on *success*, so
+     * outside the queue it is blind for exactly as long as a subscribe takes, which is the entire
+     * window duplicate announcements arrive in.
+     */
+    private async subscribeQueued(
+        session: VoiceSession,
+        id: string,
+        target: { userId: string; mediaSessionId: string; trackName: string; kind?: 'audio' | 'screenAudio' },
+    ): Promise<void> {
         // A participant is announced twice: once live when they publish, and once more out of
         // the stored record when *we* join and the backend backfills everyone already present.
         // The two do not always agree - the live announcement carries the session id that was
@@ -570,6 +665,9 @@ export class VoiceRTCService {
         if (this.subscribedVideoTracks.get(trackName)?.mediaSessionId === mediaSessionId) return Promise.resolve();
 
         return this.enqueueNegotiation(async () => {
+            // Inside the queue, so the session is opened once however many tracks are announced at
+            // the same moment - a snapshot backfill covering a share announces two.
+            if (!await this.ensureReceiveSession(guildId, channelId)) return;
             if (!this.pc || !this.mediaSessionId) return;
             // Re-checked inside the queue: two callers can pass the guard above before either has
             // run, and the queue is what serialises them.
@@ -608,6 +706,14 @@ export class VoiceRTCService {
                     this.staleSubscriptionSignal.next({userId});
                     return;
                 }
+                if (isDeadMediaSession(e) && this.dropReceiveSession()) {
+                    // Our own receive session, not the track. Rebuilding it is the only thing that
+                    // can help, and the refetch that follows re-announces every track worth pulling
+                    // - which opens a fresh session on the way through.
+                    console.warn('[voice] receive session is dead, rebuilding', {trackName});
+                    this.staleSubscriptionSignal.next({userId});
+                    return;
+                }
                 console.error('[voice] video subscribe failed', {userId, trackName, kind}, e);
                 throw e;
             }
@@ -627,7 +733,7 @@ export class VoiceRTCService {
     }
 
     async publishCamera(guildId: string, channelId: string): Promise<string | null> {
-        if (!this.pc || !this.mediaSessionId) return null;
+        if (!await this.ensureReceiveSession(guildId, channelId)) return null;
 
         try {
             // Honour the camera picked in settings; this used to hardcode `video: true` and always
@@ -679,8 +785,6 @@ export class VoiceRTCService {
     }
 
     async publishScreen(guildId: string, channelId: string): Promise<{ shareId: string } | null> {
-        if (!this.pc || !this.mediaSessionId) return null;
-
         try {
             const choice = await this.screenPicker.show();
             if (!choice) return null;
@@ -689,9 +793,13 @@ export class VoiceRTCService {
             this.screenPreset.set(preset);
             this.screenSourceSize = {width: sourceWidth, height: sourceHeight};
 
+            // Checked after the Rust branch, not before it. The Rust publisher owns its own session
+            // and needs nothing from this connection, so requiring one here would have made screen
+            // sharing depend on a receive session that may not exist yet.
             if (useRustPublisher()) {
                 return await this.publishScreenFromRust(guildId, channelId, choice);
             }
+            if (!await this.ensureReceiveSession(guildId, channelId)) return null;
 
             // Solved once, before capture starts, and held for the session.
             const geometry = solveGeometry(sourceWidth, sourceHeight, preset.resolution);

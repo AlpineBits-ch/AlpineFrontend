@@ -22,6 +22,8 @@ import {isTauri} from '@tauri-apps/api/core';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {OAuthService} from 'angular-oauth2-oidc';
+import {of} from 'rxjs';
+import {GuildVoiceService} from './guild-voice.service';
 import {SUBSCRIBE_RETRY_DELAYS_MS, VoiceRTCService} from './voice-rtc.service';
 import {VoiceEngineService} from './voice-engine.service';
 import {RustMediaService} from './rust-media.service';
@@ -201,6 +203,64 @@ it('ignores a repeated announcement for a session it is already pulling', async 
     expect(engine.subscribe).toHaveBeenCalledTimes(1);
 });
 
+/**
+ * The interleaving behind the incident logs, where a caller heard a peer for a second or two and
+ * then never again on a connection that reported itself perfectly healthy.
+ *
+ * Three paths announce the same publisher and none of them is awaited: the join snapshot, the
+ * refetch after connect, and the live ParticipantJoined. A subscription is only *recorded* once it
+ * succeeds, so a duplicate arriving while the first is in flight saw no record, claimed a newer
+ * token, and called the engine again - which returns Ok for a source it already holds without
+ * pulling anything. The first attempt then found its token superseded and unsubscribed, taking the
+ * engine's mid route with it, while the duplicate recorded a subscription that did not exist.
+ *
+ * The SFU carried on sending: `tracks 1`, `routed +0`, `unmapped +N`, `subscribed []`. And because
+ * the phantom record made every later announcement a duplicate, it never repaired.
+ */
+it('does not tear down a subscription when one participant is announced twice at once', async () => {
+    let settle: () => void = () => {
+    };
+    engine.subscribe.mockImplementationOnce(() => new Promise<void>(r => {
+        settle = r;
+    }));
+
+    const first = service.subscribeAudio([target()]);
+    await vi.advanceTimersByTimeAsync(0);
+    // Identical announcement, arriving while the first is still in flight.
+    const second = service.subscribeAudio([target()]);
+    settle();
+    await Promise.all([first, second]);
+
+    expect(engine.subscribe).toHaveBeenCalledTimes(1);
+    expect(engine.unsubscribe).not.toHaveBeenCalled();
+    expect(service.participantsWithAudio()).toContain('user_a');
+});
+
+/**
+ * The same overlap, but where the second announcement is a genuine correction. Both must still
+ * happen, and in an order that leaves the engine holding the *new* session - the unsubscribe of the
+ * old one must land before the new one is pulled, never after it.
+ */
+it('orders a corrected announcement behind the one it supersedes', async () => {
+    let settle: () => void = () => {
+    };
+    engine.subscribe.mockImplementationOnce(() => new Promise<void>(r => {
+        settle = r;
+    }));
+
+    const first = service.subscribeAudio([target('user_a', 'sess_1')]);
+    await vi.advanceTimersByTimeAsync(0);
+    const second = service.subscribeAudio([target('user_a', 'sess_2')]);
+    settle();
+    await Promise.all([first, second]);
+
+    expect(engine.subscribe).toHaveBeenNthCalledWith(2, SESSION, 'user_a', 'sess_2', 'audio');
+    // An unsubscribe that ran after the replacement was pulled would drop the replacement's route
+    // and leave the source unreachable - which is the failure, not the recovery.
+    expect(engine.unsubscribe.mock.invocationCallOrder[0])
+        .toBeLessThan(engine.subscribe.mock.invocationCallOrder[1]);
+});
+
 it('resubscribes when the same participant is announced on a new session', async () => {
     await service.subscribeAudio([target('user_a', 'sess_1')]);
     await service.subscribeAudio([target('user_a', 'sess_2')]);
@@ -209,6 +269,78 @@ it('resubscribes when the same participant is announced on a new session', async
     // mixed in and a dead m-line being carried by every later renegotiation.
     expect(engine.unsubscribe).toHaveBeenCalledWith(SESSION, 'user_a');
     expect(engine.subscribe).toHaveBeenNthCalledWith(2, SESSION, 'user_a', 'sess_2', 'audio');
+});
+
+/**
+ * When the connection that receives video is opened.
+ *
+ * It used to be opened during `connect`, and that is why a screen share never rendered for a viewer
+ * who had been sitting in the channel. Nothing negotiates that connection until a camera or a share
+ * actually appears - audio is the Rust engine's now, so a listener never sends an offer at all - and
+ * the SFU drops any session whose peer connection never connects. By the time somebody shared, the
+ * session created at join was already gone, `tracks/new` answered 502 `session_error` forever, and
+ * the viewer sat on the "sharing" placeholder.
+ */
+describe('the receive session', () => {
+    /** jsdom has no WebRTC; only construction and the ontrack hook are reached here. */
+    class StubPeerConnection {
+        ontrack: unknown = null;
+        onconnectionstatechange: unknown = null;
+        connectionState = 'new';
+        localDescription = {type: 'offer', sdp: ''};
+
+        addTransceiver = vi.fn(() => ({setCodecPreferences: vi.fn()}));
+        createOffer = vi.fn(async () => ({type: 'offer', sdp: ''}));
+        setLocalDescription = vi.fn(async () => {
+        });
+        setRemoteDescription = vi.fn(async () => {
+        });
+        close = vi.fn();
+    }
+
+    let createSession: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+        const globals = globalThis as unknown as Record<string, unknown>;
+        globals['RTCPeerConnection'] = StubPeerConnection;
+        // Codec preference ordering reads these; jsdom has neither.
+        globals['RTCRtpReceiver'] = {getCapabilities: () => ({codecs: []})};
+        globals['RTCRtpSender'] = {getCapabilities: () => ({codecs: []})};
+        const guildVoice = TestBed.inject(GuildVoiceService);
+        createSession = vi.spyOn(guildVoice, 'createSession')
+            .mockReturnValue(of({mediaSessionId: 'recv_sess', backend: 'cloudflare'}));
+        vi.spyOn(guildVoice, 'negotiateTracks').mockReturnValue(of({
+            sessionDescription: {type: 'answer', sdp: ''},
+            tracks: [{mid: '0', trackName: 'screen-abc'}],
+            requiresImmediateRenegotiation: false,
+        }));
+    });
+
+    it('is not opened until something needs it', async () => {
+        // Joining a channel and listening is the common case, and it must cost no session at all.
+        await service.subscribeAudio([target()]);
+
+        expect(createSession).not.toHaveBeenCalled();
+    });
+
+    it('is opened by the subscribe that first needs it', async () => {
+        await service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen');
+
+        // Created and negotiated inside the same operation, which is the point: an SFU session with
+        // no peer connection behind it does not survive being left for later.
+        expect(createSession).toHaveBeenCalledWith('g1', 'c1', false);
+    });
+
+    it('is opened once however many tracks are announced together', async () => {
+        // A share with audio, or a snapshot backfill covering several publishers, announces more
+        // than one track at the same moment.
+        await Promise.all([
+            service.subscribeVideo('g1', 'c1', 'user_a', 'sess_1', 'screen-abc', 'screen'),
+            service.subscribeVideo('g1', 'c1', 'user_b', 'sess_2', 'video', 'video'),
+        ]);
+
+        expect(createSession).toHaveBeenCalledTimes(1);
+    });
 });
 
 it('does not let one slow participant hold up the others announced with them', async () => {
