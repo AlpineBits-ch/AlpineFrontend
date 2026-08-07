@@ -452,3 +452,57 @@ describe('a publication refused as stale', () => {
         expect(service.participantsWithAudio()).toContain('user_b');
     });
 });
+
+/**
+ * Rebuilding the publish at a new resolution is the only path that stops one share in order to
+ * start another. The old share is dead the moment the stop returns, and the room learns that only
+ * from what this hands back - so a rebuild that fails must still report the stop. Swallowing it
+ * left the share on the server's roster with no session behind it, which is the state every viewer
+ * then loops against.
+ */
+describe('rebuilding a share at a new resolution', () => {
+    const preset = {resolution: '1440p', framerate: 30} as const;
+
+    function sharing(): {startScreenPublish: ReturnType<typeof vi.fn>} {
+        const rustMedia = TestBed.inject(RustMediaService) as unknown as Record<string, unknown>;
+        rustMedia['stopScreenPublish'] = vi.fn(async () => undefined);
+        rustMedia['startScreenPublish'] = vi.fn();
+        vi.mocked(isTauri).mockReturnValue(true);
+        // `publishOptions` reads this; the shared stub only carries the method other tests need.
+        (TestBed.inject(DeviceIdentityService) as unknown as Record<string, unknown>)['deviceId'] =
+            vi.fn(async () => 'device');
+
+        // The state a running Rust publish leaves behind, reached into directly rather than stood
+        // up through a real publish and its signalling.
+        Object.assign(service as unknown as Record<string, unknown>, {
+            rustPublishing: true,
+            screenShareId: 'old-share',
+            rustChoice: {sourceId: 'monitor:0', sourceWidth: 1920, sourceHeight: 1080, preset: {resolution: '1080p', framerate: 30}, shareAudio: false},
+        });
+        service.screenPreset.set({resolution: '1080p', framerate: 30});
+        return {startScreenPublish: rustMedia['startScreenPublish'] as ReturnType<typeof vi.fn>};
+    }
+
+    it('reports the swap when the new publish comes up', async () => {
+        const {startScreenPublish} = sharing();
+        startScreenPublish.mockResolvedValue({encoder: 'media-foundation', audioTrackName: null});
+
+        const restart = await service.setScreenPreset(preset, 'g1', 'c1');
+
+        expect(restart?.oldShareId).toBe('old-share');
+        expect(restart?.newShareId).toBeTruthy();
+    });
+
+    it('still reports the stop when the new publish fails', async () => {
+        // Not exotic: the rebuild constructs an encoder at a resolution the hardware may refuse,
+        // which is exactly the case this path exists for.
+        const {startScreenPublish} = sharing();
+        startScreenPublish.mockRejectedValue(new Error('no H.264 encoder available'));
+
+        const restart = await service.setScreenPreset(preset, 'g1', 'c1');
+
+        expect(restart).not.toBeNull();
+        expect(restart?.oldShareId).toBe('old-share');
+        expect(restart?.newShareId).toBeNull();
+    });
+});

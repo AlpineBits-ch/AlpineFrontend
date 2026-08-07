@@ -101,6 +101,7 @@ function setup(options: {inChannel?: boolean} = {}) {
         videoStreams: () => new Map(),
         screenStreams: () => new Map(),
         screenAudioMuted: () => new Map(),
+        setScreenPreset: vi.fn(async () => null as {oldShareId: string; newShareId: string | null} | null),
     };
     const toast = {info: vi.fn(), success: vi.fn(), httpError: vi.fn()};
     const engineSetMute = vi.fn(async () => undefined);
@@ -741,5 +742,57 @@ describe('a hub reconnect', () => {
         settle();
 
         expect(wsCalls['invokeVoiceHeartbeat']).not.toHaveBeenCalled();
+    });
+});
+
+/**
+ * A resolution change rebuilds the encoder, which means a new Cloudflare session and a new share
+ * id. The old one is dead the moment the rebuild starts, and the room only learns that from the
+ * `ScreenShareStopped` sent here - there is no other path. Losing it leaves the share on the
+ * server's roster with no session behind it, and every viewer then pulls a track the SFU has
+ * already dropped.
+ */
+describe('a screen share rebuilt at a new resolution', () => {
+    const preset = {resolution: '1440p', framerate: 30} as const;
+
+    it('announces the swap when the rebuild works', async () => {
+        const {service, rtc, wsCalls} = setup();
+        rtc.setScreenPreset.mockResolvedValue({oldShareId: 'old', newShareId: 'new'});
+
+        await service.setScreenPreset(preset);
+
+        expect(wsCalls['invokeVoiceScreenShareStopped']).toHaveBeenCalledWith('chan-1', 'old');
+        expect(wsCalls['invokeVoiceScreenShareStarted']).toHaveBeenCalledWith('chan-1', 'new');
+    });
+
+    it('still announces the stop when the rebuild fails', async () => {
+        // The failing case is not exotic: the rebuild constructs an encoder at a resolution the
+        // hardware may refuse, which is exactly when this path is taken.
+        const {service, rtc, wsCalls} = setup();
+        rtc.setScreenPreset.mockResolvedValue({oldShareId: 'old', newShareId: null});
+
+        await service.setScreenPreset(preset);
+
+        expect(wsCalls['invokeVoiceScreenShareStopped']).toHaveBeenCalledWith('chan-1', 'old');
+    });
+
+    it('does not announce a start for a publish that never happened', async () => {
+        const {service, rtc, wsCalls} = setup();
+        rtc.setScreenPreset.mockResolvedValue({oldShareId: 'old', newShareId: null});
+
+        await service.setScreenPreset(preset);
+
+        expect(wsCalls['invokeVoiceScreenShareStarted']).not.toHaveBeenCalled();
+    });
+
+    it('announces nothing when only the framerate changed', async () => {
+        // Framerate is applied in place, so there is no swap and nothing to tell the room.
+        const {service, rtc, wsCalls} = setup();
+        rtc.setScreenPreset.mockResolvedValue(null);
+
+        await service.setScreenPreset(preset);
+
+        expect(wsCalls['invokeVoiceScreenShareStopped']).not.toHaveBeenCalled();
+        expect(wsCalls['invokeVoiceScreenShareStarted']).not.toHaveBeenCalled();
     });
 });

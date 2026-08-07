@@ -335,12 +335,23 @@ export class CallSessionService {
         const ownId = this.profileService.ownProfile()?.userId ?? '';
         if (!choice) return;
 
+        const callId = this.session()?.callId;
+        const oldShareIds = (this.session()?.screenShares ?? [])
+            .filter(sh => sh.isLocal)
+            .map(sh => sh.shareId);
+
         await this.rustMedia.stopScreenPublish();
         this.rustPublishing = false;
         this.session.update(st => st ? {
             ...st,
             screenShares: st.screenShares.filter(sh => !sh.isLocal),
         } : st);
+
+        // Told to the room, not just dropped locally. This path only ever announced the *new*
+        // share, so every resolution change left the old id on the server's roster with no session
+        // behind it - and peers acting on the snapshot then pulled a track the SFU had already
+        // dropped. Sent before the rebuild, so it lands even if the rebuild fails.
+        if (callId) for (const shareId of oldShareIds) this.voiceWs.invokeScreenShareStopped(callId, shareId);
 
         await this.startRustPublish({...choice, preset}, crypto.randomUUID(), ownId);
     }

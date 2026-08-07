@@ -647,7 +647,10 @@ export class VoiceChannelService {
         if (!restart) return;
 
         this.guildWsSvc.invokeVoiceScreenShareStopped(channelId, restart.oldShareId);
-        this.guildWsSvc.invokeVoiceScreenShareStarted(channelId, restart.newShareId);
+        // Only if one exists. A rebuild that failed still ended the old share, and announcing a
+        // start for a publish that never happened would put the roster back into the state the
+        // stop above was clearing.
+        if (restart.newShareId) this.guildWsSvc.invokeVoiceScreenShareStarted(channelId, restart.newShareId);
     }
 
     setServerDeafened(userId: string, isDeafened: boolean): void {

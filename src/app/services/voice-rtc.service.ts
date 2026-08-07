@@ -64,7 +64,8 @@ export interface StaleSubscription {
  */
 export interface ScreenPublishRestart {
     oldShareId: string;
-    newShareId: string;
+    /** Null when the rebuild failed: the old share is still gone and must still be announced. */
+    newShareId: string | null;
 }
 
 @Injectable({providedIn: 'root'})
@@ -1094,7 +1095,15 @@ export class VoiceRTCService {
         this.rustPublishing = false;
 
         const started = await this.publishScreenFromRust(guildId, channelId, {...choice, preset});
-        if (!started) return null;
+        // Reported either way. The old publish is gone the moment the line above returns, so the
+        // room has to be told even when nothing replaced it - and a rebuild is exactly when that
+        // fails, because the encoder is being constructed at a resolution it may refuse. Returning
+        // null here used to swallow the stop entirely, leaving the share on the server's roster
+        // with no session behind it: every viewer then pulled a track the SFU no longer had.
+        if (!started) {
+            this.screenShareId = null;
+            return {oldShareId, newShareId: null};
+        }
         return {oldShareId, newShareId: started.shareId};
     }
 
