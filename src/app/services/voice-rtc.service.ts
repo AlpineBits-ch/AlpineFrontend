@@ -163,6 +163,14 @@ export class VoiceRTCService {
     private rustPublishing = false;
     /** The picker choice behind the running publish, so a resolution change can rebuild it. */
     private rustChoice: ScreenPickerChoice | null = null;
+    /**
+     * The audio track the Rust publisher actually opened, or null for a video-only share.
+     *
+     * Held rather than derived, because "the user asked for audio" and "the share has audio" are
+     * different facts - the loopback device can be unavailable - and the close path has to name the
+     * tracks that exist.
+     */
+    private rustAudioTrackName: string | null = null;
     private readonly oauth = inject(OAuthService);
 
     // ── Connection setup / teardown ────────────────────────────────────────────
@@ -731,6 +739,9 @@ export class VoiceRTCService {
             await this.rustMedia.stopScreenPublish();
             this.rustPublishing = false;
             this.rustChoice = null;
+            this.rustAudioTrackName = null;
+            this.localScreenHasAudio.set(false);
+            this.localScreenAudioMuted.set(false);
             this.screenShareId = null;
             this.screenSourceSize = null;
             this.screenPreset.set(null);
@@ -802,6 +813,12 @@ export class VoiceRTCService {
             this.screenShareId = shareId;
             this.rustPublishing = true;
             this.rustChoice = choice;
+            // What Rust actually published, not what was asked for: the loopback device can be
+            // unavailable, and the share is then video-only. Driving the UI from `choice.shareAudio`
+            // would show a speaker icon on a share that carries no sound.
+            this.rustAudioTrackName = published.audioTrackName;
+            this.localScreenHasAudio.set(published.audioTrackName !== null);
+            this.localScreenAudioMuted.set(false);
             return {shareId};
         } catch (e) {
             console.error('[voice] Rust publish failed', e);
@@ -916,8 +933,19 @@ export class VoiceRTCService {
     }
 
     toggleLocalScreenAudio(): void {
-        if (!this.localScreenAudioTrack) return;
         const muted = !this.localScreenAudioMuted();
+
+        if (this.rustPublishing) {
+            // Nothing to disable on this side - the track lives in Rust. Without this branch the
+            // control was dead for every Rust-published share: the button moved, the signal moved,
+            // and the audio kept going out.
+            if (!this.rustAudioTrackName) return;
+            void this.rustMedia.setScreenAudioMuted(muted);
+            this.localScreenAudioMuted.set(muted);
+            return;
+        }
+
+        if (!this.localScreenAudioTrack) return;
         this.localScreenAudioTrack.enabled = !muted;
         this.localScreenAudioMuted.set(muted);
     }

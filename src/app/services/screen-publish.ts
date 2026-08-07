@@ -68,6 +68,7 @@ export function publishOptions(
         apiBase,
         token,
         deviceId,
+        shareAudio: choice.shareAudio,
         ...target,
     };
 }

@@ -31,6 +31,7 @@ import {
     CAMERA_KBPS,
     preferVideoCodecs,
 } from './webrtc-encoding';
+import {SUBSCRIBE_RETRY_DELAYS_MS} from './voice-rtc.service';
 
 export interface CallStats {
     inboundKbps: number;
@@ -348,6 +349,28 @@ export class CallWebRtcService {
         if (this.voiceSession) void this.voiceEngine.setPttOpen(this.voiceSession, open);
     }
 
+    /**
+     * Wait for this call's publication to exist, rather than dropping a subscribe that arrived
+     * before it.
+     *
+     * <p>The server announces every publisher the moment a session is created, and this client
+     * creates its session and sets up its listeners *before* `voiceEngine.start()` resolves - so
+     * every participant already in the call is announced while `voiceSession` is still null. The
+     * snapshot refetch after connect covers most of it, but an announcement landing inside that
+     * window has nothing to retry it. Bounded by the same schedule a subscribe retries on, because
+     * a connect that has not produced a session in that long is not going to.</p>
+     *
+     * <p>Ported from the guild path, which has had this since the Rust engine landed.</p>
+     */
+    private async awaitSession(): Promise<VoiceSession | null> {
+        if (this.voiceSession) return this.voiceSession;
+        for (const delay of SUBSCRIBE_RETRY_DELAYS_MS) {
+            await new Promise(r => setTimeout(r, delay));
+            if (this.voiceSession) return this.voiceSession;
+        }
+        return this.voiceSession;
+    }
+
     /** Drop a source from this call's publication. Null-safe: WS events outlive the call. */
     private async dropSource(id: string): Promise<void> {
         if (this.voiceSession) await this.voiceEngine.unsubscribe(this.voiceSession, id);
@@ -548,9 +571,20 @@ export class CallWebRtcService {
     ): Promise<void> {
         if (kind === 'audio') {
             if (this.subscribedAudioUserIds.has(userId)) return;
-            const session = this.voiceSession;
-            if (!session) return;
+            // Claimed before the wait below, not after: two announcements for the same user can
+            // both be in flight, and the guard is the only thing stopping the second from
+            // subscribing again behind the first.
             this.subscribedAudioUserIds.add(userId);
+
+            const session = await this.awaitSession();
+            if (!session) {
+                // Released, so a later announcement or the next snapshot can retry. This used to
+                // return silently while still holding the guard, which made the participant
+                // permanently inaudible for the call.
+                this.subscribedAudioUserIds.delete(userId);
+                console.error('[WebRTC] dropped a subscribe - no session after waiting', {userId});
+                return;
+            }
 
             // Audio never touches this peer connection now: it is pulled onto the Rust session,
             // decoded and mixed there, and played through the output device Rust owns.

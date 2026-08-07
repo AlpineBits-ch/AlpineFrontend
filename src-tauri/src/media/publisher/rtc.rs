@@ -25,6 +25,7 @@ use webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSampl
 use webrtc::track::track_local::TrackLocal;
 
 use super::signalling::{LocalTrack, SessionDescription, Signalling};
+use crate::media::voice::rtc::opus_capability;
 
 /// One ICE server, mirroring the browser's `RTCIceServer`.
 ///
@@ -115,9 +116,24 @@ pub struct Publication {
     keyframe_wanted: Arc<AtomicBool>,
     pub media_session_id: String,
     pub track_name: String,
+    /// The Opus track carrying the share's own sound, when the user chose to share it.
+    ///
+    /// Optional rather than always-present: a share without audio must not publish an empty track,
+    /// or every viewer opens a decoder and a mixer slot for silence that will never arrive.
+    audio_track: Option<Arc<TrackLocalStaticSample>>,
+    pub audio_track_name: Option<String>,
 }
 
 impl Publication {
+    /// The Opus track to feed, when this share carries audio.
+    ///
+    /// Handed out as the track rather than written through `&self`, for the same reason
+    /// [`Self::keyframe_requests`] is: the publication is moved into the video writer task, and the
+    /// audio writer is a separate task that never holds it.
+    pub fn audio_track(&self) -> Option<Arc<TrackLocalStaticSample>> {
+        self.audio_track.clone()
+    }
+
     /// A handle to the viewers' keyframe requests, for the capture thread to consume.
     ///
     /// Handed out as the shared flag rather than read through `&self`, because the publication
@@ -131,10 +147,15 @@ impl Publication {
     ///
     /// Deliberately mirrors the webview's publish path so subscribers cannot tell the difference:
     /// they resolve a stream from `{cfSessionId, trackName}` and neither field says who produced it.
+    /// `with_audio` adds a second Opus track, `screen-audio-<share_id>`, published in the *same*
+    /// negotiation as the video. One call rather than two because the contract asks for it, and
+    /// because two negotiations would announce the halves of one share separately - a viewer would
+    /// build the tile, then have audio arrive against a share it had already finished laying out.
     pub async fn start(
         signalling: Signalling,
         share_id: &str,
         ice_servers: Vec<IceServerConfig>,
+        with_audio: bool,
     ) -> Result<Self, String> {
         let api = publisher_api()?;
 
@@ -168,6 +189,33 @@ impl Publication {
             .add_track(Arc::clone(&track) as Arc<dyn TrackLocal + Send + Sync>)
             .await
             .map_err(|e| e.to_string())?;
+
+        // The audio half. Added before the offer so both m-lines are in one negotiation.
+        let audio_track_name = with_audio.then(|| format!("screen-audio-{share_id}"));
+        let audio_track = match &audio_track_name {
+            Some(name) => {
+                let audio = Arc::new(TrackLocalStaticSample::new(
+                    opus_capability(),
+                    // A distinct stream id from the video's "video". Sharing one would have the two
+                    // halves arrive as one MediaStream, which is what a *camera* looks like - the
+                    // receiving client groups a share by its track names, not by its stream.
+                    "screen-audio".to_owned(),
+                    name.clone(),
+                ));
+                let audio_sender = peer_connection
+                    .add_track(Arc::clone(&audio) as Arc<dyn TrackLocal + Send + Sync>)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                // Drained and discarded. Unlike the video sender there is nothing to act on - audio
+                // has no keyframes - but an undrained sender fills its buffers and stalls the track.
+                tokio::spawn(async move {
+                    let mut buf = vec![0u8; 1500];
+                    while audio_sender.read(&mut buf).await.is_ok() {}
+                });
+                Some(audio)
+            }
+            None => None,
+        };
 
         // RTCP has to be drained or the sender's buffers fill and stall the track - but *what* is in
         // it matters, and until now none of it was read.
@@ -221,15 +269,30 @@ impl Publication {
 
         let media_session_id = signalling.create_session().await?;
 
-        // The mid is assigned during offer creation, so it can only be read now.
-        let mid = peer_connection
-            .get_transceivers()
-            .await
-            .first()
-            .ok_or_else(|| "no transceiver on the publishing connection".to_string())?
-            .mid()
-            .map(|m| m.to_string())
-            .unwrap_or_else(|| "0".to_string());
+        // Mids are assigned during offer creation, so they can only be read now. Taken in
+        // transceiver order, which is add_track order: video first, then audio if it exists.
+        let transceivers = peer_connection.get_transceivers().await;
+        let mid_at = |index: usize| -> Result<String, String> {
+            transceivers
+                .get(index)
+                .ok_or_else(|| format!("no transceiver {index} on the publishing connection"))
+                .map(|t| {
+                    t.mid()
+                        .map(|m| m.to_string())
+                        .unwrap_or_else(|| index.to_string())
+                })
+        };
+
+        let mut tracks = vec![LocalTrack {
+            mid: mid_at(0)?,
+            track_name: track_name.clone(),
+        }];
+        if let Some(name) = &audio_track_name {
+            tracks.push(LocalTrack {
+                mid: mid_at(1)?,
+                track_name: name.clone(),
+            });
+        }
 
         let response = signalling
             .tracks_new(
@@ -238,15 +301,12 @@ impl Publication {
                     sdp_type: "offer".to_owned(),
                     sdp: local.sdp,
                 },
-                &[LocalTrack {
-                    mid,
-                    track_name: track_name.clone(),
-                }],
+                &tracks,
             )
             .await?;
 
         if let Some(error) = response.tracks.iter().find_map(|t| t.error.as_ref()) {
-            return Err(format!("Cloudflare rejected the track: {error}"));
+            return Err(format!("the SFU rejected the track: {error}"));
         }
 
         let answer = RTCSessionDescription::answer(response.session_description.sdp)
@@ -269,6 +329,8 @@ impl Publication {
             keyframe_wanted,
             media_session_id,
             track_name: resolved_track_name,
+            audio_track,
+            audio_track_name,
         };
 
         if response.requires_immediate_renegotiation {
@@ -324,11 +386,19 @@ impl FrameSink for Publication {
             .map_err(|e| e.to_string())
     }
 
-    /// Close the track server-side and tear down the connection.
+    /// Close every track server-side and tear down the connection.
+    ///
+    /// Both halves of a share go in one close call. Closing only the video would leave viewers
+    /// holding a live audio track from a share that no longer exists - silent, but still subscribed,
+    /// still mixed, and still counted against the sharer's egress.
     async fn stop(self) {
+        let mut names = vec![self.track_name.clone()];
+        if let Some(audio) = &self.audio_track_name {
+            names.push(audio.clone());
+        }
         let _ = self
             .signalling
-            .close_tracks(&self.media_session_id, &[self.track_name.clone()])
+            .close_tracks(&self.media_session_id, &names)
             .await;
         let _ = self.peer_connection.close().await;
     }

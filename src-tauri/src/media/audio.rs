@@ -34,7 +34,60 @@ pub struct AudioChunk {
 const RNNOISE_FRAME: usize = 480; // 10 ms @ 48 kHz -nnnoiseless::FRAME_SIZE
 /// Number of RNNoise frames batched per IPC send (4 × 10 ms = 40 ms latency)
 const BATCH_FRAMES: usize = 4;
-pub(super) const BATCH_SAMPLES: usize = RNNOISE_FRAME * BATCH_FRAMES;
+pub(crate) const BATCH_SAMPLES: usize = RNNOISE_FRAME * BATCH_FRAMES;
+
+/// Where captured system audio goes.
+///
+/// A seam, because there are now two consumers with nothing in common. The webview wants base64
+/// over Tauri IPC so it can build a `MediaStreamTrack`; the Rust screen publisher wants the raw
+/// samples so it can Opus-encode them without a round trip through the renderer and back. Both
+/// capture backends below are generic over this, so neither has to know which it is feeding.
+pub trait LoopbackSink: Send + 'static {
+    /// One batch of mono f32 PCM at 48 kHz, exactly [`BATCH_SAMPLES`] long.
+    ///
+    /// Returning `false` ends the capture - it is how a closed IPC channel or a stopped
+    /// publication stops the device rather than being written to forever.
+    fn on_batch(&self, pcm: &[f32]) -> bool;
+}
+
+/// The webview path: f32-LE bytes, base64'd, over the IPC channel. Unchanged behaviour.
+impl LoopbackSink for Channel<AudioChunk> {
+    fn on_batch(&self, pcm: &[f32]) -> bool {
+        let raw: Vec<u8> = pcm.iter().flat_map(|&f| f.to_le_bytes()).collect();
+        self.send(AudioChunk {
+            data: base64_encode(&raw),
+            sample_rate: 48_000,
+            channels: 1,
+        })
+        .is_ok()
+    }
+}
+
+/// Start system-audio capture on a background thread, feeding `sink` until the returned flag is set.
+///
+/// <p>Process-excluded WASAPI where it exists, cpal device loopback otherwise. The exclusion is not
+/// a nicety: without it the remote participants' voices, which the webview plays through the system
+/// output, are captured and sent back as an echo to whoever is watching the share.</p>
+pub fn spawn_loopback<S: LoopbackSink + Clone>(sink: S) -> Arc<std::sync::atomic::AtomicBool> {
+    let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stop_thread = Arc::clone(&stop);
+
+    #[cfg(target_os = "windows")]
+    tokio::task::spawn_blocking(move || {
+        match crate::media::loopback_win::capture_excluded(sink.clone(), stop_thread.clone()) {
+            Ok(()) => {}
+            Err(e) => {
+                eprintln!("[loopback] Process-excluded loopback failed ({e}), falling back");
+                loopback_cpal(sink, stop_thread);
+            }
+        }
+    });
+
+    #[cfg(not(target_os = "windows"))]
+    tokio::task::spawn_blocking(move || loopback_cpal(sink, stop_thread));
+
+    stop
+}
 
 // cpal::Stream contains raw pointers and is not Send, but it is safe to move
 // between threads when we only keep it alive (no concurrent method calls).
@@ -174,7 +227,7 @@ pub async fn start_loopback_capture(
 }
 
 /// Device-loopback capture via cpal (fallback / non-Windows path).
-fn loopback_cpal(on_chunk: Channel<AudioChunk>, stop: Arc<std::sync::atomic::AtomicBool>) {
+fn loopback_cpal<S: LoopbackSink>(sink: S, stop: Arc<std::sync::atomic::AtomicBool>) {
     let host = cpal::default_host();
     let device = match host.default_output_device() {
         Some(d) => d,
@@ -252,16 +305,7 @@ fn loopback_cpal(on_chunk: Channel<AudioChunk>, stop: Arc<std::sync::atomic::Ato
 
         while input_buf.len() >= BATCH_SAMPLES {
             let samples: Vec<f32> = input_buf.drain(..BATCH_SAMPLES).collect();
-            let raw: Vec<u8> = samples.iter().flat_map(|&f| f.to_le_bytes()).collect();
-            let encoded = base64_encode(&raw);
-            if on_chunk
-                .send(AudioChunk {
-                    data: encoded,
-                    sample_rate: 48_000,
-                    channels: 1,
-                })
-                .is_err()
-            {
+            if !sink.on_batch(&samples) {
                 return;
             }
             output_batch.clear();

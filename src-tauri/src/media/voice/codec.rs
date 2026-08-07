@@ -25,8 +25,30 @@ pub struct VoiceEncoder {
 
 impl VoiceEncoder {
     pub fn new(bitrate_bps: i32) -> Result<Self, String> {
-        let mut inner = Encoder::new(SAMPLE_RATE, Channels::Mono, Application::Voip)
+        Self::with_application(Application::Voip, bitrate_bps)
+    }
+
+    /// An encoder for shared media - a screen share's own sound rather than a microphone.
+    ///
+    /// <p>Three differences from the voice configuration, all of which matter for music and game
+    /// audio. `Application::Audio` keeps the full band instead of optimising for speech, which is
+    /// what makes VoIP mode sound hollow on anything that is not a voice. DTX is off, because it
+    /// decides "this is silence" from a speech model and clips quiet passages. FEC is off too: it
+    /// spends bits on redundancy that matters for a conversation and much less for a stream nobody
+    /// is talking over, and those bits are better spent on the band.</p>
+    pub fn for_shared_media(bitrate_bps: i32) -> Result<Self, String> {
+        let mut encoder = Self::with_application(Application::Audio, bitrate_bps)?;
+        encoder.inner.set_dtx(false).map_err(|e| e.to_string())?;
+        encoder
+            .inner
+            .set_inband_fec(false)
             .map_err(|e| e.to_string())?;
+        Ok(encoder)
+    }
+
+    fn with_application(application: Application, bitrate_bps: i32) -> Result<Self, String> {
+        let mut inner =
+            Encoder::new(SAMPLE_RATE, Channels::Mono, application).map_err(|e| e.to_string())?;
         inner
             .set_bitrate(Bitrate::Bits(bitrate_bps))
             .map_err(|e| e.to_string())?;

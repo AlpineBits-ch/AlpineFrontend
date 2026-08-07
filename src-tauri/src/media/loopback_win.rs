@@ -7,12 +7,12 @@
 //! which WebView2 plays through the system output, from being looped back and
 //! heard as an echo by the screen-share recipient.
 
-use super::audio::{base64_encode, resample_linear, AudioChunk, BATCH_SAMPLES};
+use super::audio::{resample_linear, LoopbackSink, BATCH_SAMPLES};
 use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc, Mutex, OnceLock,
 };
-use tauri::ipc::Channel;
+
 use windows::{
     core::{implement, AgileReference, Error, Interface, Result, HRESULT, PROPVARIANT},
     Win32::{
@@ -112,13 +112,16 @@ impl IActivateAudioInterfaceCompletionHandler_Impl for CompletionHandler_Impl {
 
 // ── Public capture entry point ────────────────────────────────────────────────
 
-/// Captures all system audio except this process tree and sends `AudioChunk`
-/// messages via `on_chunk` until `stop` is set.
+/// Captures all system audio except this process tree and feeds `sink` until `stop` is set.
+///
+/// Generic over the sink so the same capture serves the webview (base64 over IPC) and the Rust
+/// screen publisher (raw samples straight into an Opus encoder) - see
+/// [`crate::media::audio::LoopbackSink`].
 ///
 /// Returns `Err` if process-excluded activation is unsupported (pre-2004
 /// Windows) or if the mix format is not 32-bit float -the caller should
 /// fall back to the device-loopback path.
-pub fn capture_excluded(on_chunk: Channel<AudioChunk>, stop: Arc<AtomicBool>) -> Result<()> {
+pub fn capture_excluded<S: LoopbackSink>(sink: S, stop: Arc<AtomicBool>) -> Result<()> {
     // Pin the MTA before touching any COM/WASAPI/WGC API.
     ensure_mta_alive()?;
 
@@ -302,16 +305,7 @@ pub fn capture_excluded(on_chunk: Channel<AudioChunk>, stop: Arc<AtomicBool>) ->
         // Flush complete batches.
         while mono_buf.len() >= BATCH_SAMPLES {
             let samples: Vec<f32> = mono_buf.drain(..BATCH_SAMPLES).collect();
-            let raw: Vec<u8> = samples.iter().flat_map(|&f| f.to_le_bytes()).collect();
-            let encoded = base64_encode(&raw);
-            if on_chunk
-                .send(AudioChunk {
-                    data: encoded,
-                    sample_rate: 48_000,
-                    channels: 1,
-                })
-                .is_err()
-            {
+            if !sink.on_batch(&samples) {
                 stop.store(true, Ordering::Relaxed);
                 break;
             }

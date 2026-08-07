@@ -17,6 +17,7 @@
 // readback, encoder naming). Suppressed module-wide rather than annotated item by item.
 #![allow(dead_code)]
 
+pub mod audio;
 pub mod encoder;
 pub mod fit;
 pub mod encoder_sw;
@@ -61,6 +62,11 @@ fn active() -> &'static Mutex<Option<PublishHandle>> {
 pub struct PublishResult {
     pub media_session_id: String,
     pub track_name: String,
+    /// The share's audio track, or `None` when it has none.
+    ///
+    /// Answers what was *published*, not what was asked for: a machine with no usable loopback
+    /// device shares video only, and the caller has to announce the tracks that actually exist.
+    pub audio_track_name: Option<String>,
     /// Which encoder was selected, so the UI can show whether hardware encoding is in use.
     pub encoder: String,
 }
@@ -90,6 +96,8 @@ pub async fn start_screen_publish(
     channel_id: Option<String>,
     call_id: Option<String>,
     on_preview: tauri::ipc::Channel<session::PreviewFrame>,
+    // Whether to capture and publish the system's audio alongside the picture.
+    share_audio: bool,
 ) -> Result<PublishResult, String> {
     stop_screen_publish();
 
@@ -114,12 +122,14 @@ pub async fn start_screen_publish(
         ice_servers,
         signalling,
         on_preview,
+        share_audio,
     )
     .await?;
 
     let result = PublishResult {
         media_session_id: handle.media_session_id.clone(),
         track_name: handle.track_name.clone(),
+        audio_track_name: handle.audio_track_name.clone(),
         encoder: handle.encoder_name.to_string(),
     };
 
@@ -139,6 +149,19 @@ pub fn set_publish_fps(fps: u32) {
     if let Ok(guard) = active().lock() {
         if let Some(handle) = guard.as_ref() {
             handle.set_fps(fps);
+        }
+    }
+}
+
+/// Mute or unmute the running share's own sound, without dropping the capture device.
+///
+/// A no-op for a share that has no audio half, which is the honest answer - the UI reads
+/// `localScreenHasAudio` to decide whether to offer the control at all.
+#[tauri::command]
+pub fn set_screen_audio_muted(muted: bool) {
+    if let Ok(guard) = active().lock() {
+        if let Some(handle) = guard.as_ref() {
+            handle.set_screen_audio_muted(muted);
         }
     }
 }

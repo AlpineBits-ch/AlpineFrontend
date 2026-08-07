@@ -45,7 +45,13 @@ pub struct PublishHandle {
     height: AtomicU32,
     pub media_session_id: String,
     pub track_name: String,
+    /// Present only when this share carries its own sound. Viewers read it out of the snapshot's
+    /// `shares[].trackNames`, so it has to reflect what was actually published rather than what was
+    /// asked for - a machine with no usable loopback device publishes video only.
+    pub audio_track_name: Option<String>,
     pub encoder_name: &'static str,
+    /// Stopped alongside the capture loop, so the loopback device is released with the share.
+    screen_audio: Option<super::audio::ScreenAudioCapture>,
 }
 
 impl PublishHandle {
@@ -61,10 +67,28 @@ impl PublishHandle {
     }
 
     pub fn stop(&self) {
+        // Explicit, and not left to the writer task noticing its channel closed: the loopback device
+        // is a system-wide capture, and leaving it open after a share ends is both a battery cost
+        // and, on the process-excluded path, a WASAPI client nothing will reclaim until exit.
+        if let Some(audio) = &self.screen_audio {
+            audio.stop();
+        }
         // Dropping the sender disconnects the channel; the capture loop's recv_timeout returns
         // Disconnected and unwinds the whole pipeline.
         if let Ok(mut guard) = self.stop_tx.lock() {
             guard.take();
+        }
+    }
+
+    /// Counters for the audio half. `None` when this share has no audio.
+    pub fn screen_audio_stats(&self) -> Option<super::audio::ScreenAudioStats> {
+        self.screen_audio.as_ref().map(|a| a.stats())
+    }
+
+    /// Mute the share's own sound. Silently ignored on a video-only share.
+    pub fn set_screen_audio_muted(&self, muted: bool) {
+        if let Some(audio) = &self.screen_audio {
+            audio.set_muted(muted);
         }
     }
 }
@@ -113,6 +137,33 @@ pub async fn run_writer<S: FrameSink>(
     sink.stop().await;
 }
 
+/// Feed encoded Opus packets to the share's audio track until the encoder stops producing.
+///
+/// <p>No failure counting, unlike [`run_writer`]. A failed audio write means one lost 20 ms packet;
+/// Opus and the receiver's jitter buffer handle that, and there is no equivalent of the keyframe
+/// dependency that makes a lost *video* frame matter beyond itself. The publication's lifetime is
+/// decided by the video writer, so this task ends when its channel closes and never on its own.</p>
+pub async fn run_audio_writer(
+    track: Arc<webrtc::track::track_local::track_local_static_sample::TrackLocalStaticSample>,
+    mut packets: tokio::sync::mpsc::Receiver<super::audio::OpusPacket>,
+) {
+    while let Some(packet) = packets.recv().await {
+        let sample = webrtc::media::Sample {
+            data: packet.into(),
+            timestamp: std::time::SystemTime::now(),
+            duration: OPUS_PACKET_DURATION,
+            ..Default::default()
+        };
+        if let Err(e) = track.write_sample(&sample).await {
+            eprintln!("[publisher] dropped a screen-audio packet: {e}");
+        }
+    }
+}
+
+/// 20 ms, matching `voice::codec::PACKET_SAMPLES` at 48 kHz. The packetiser derives RTP timestamps
+/// from this, so a value that disagrees with the encoder makes every viewer's jitter buffer wrong.
+const OPUS_PACKET_DURATION: Duration = Duration::from_millis(20);
+
 /// Start capturing, encoding and publishing a source.
 ///
 /// Returns once the track is live on Cloudflare, so the caller can tell other clients to subscribe.
@@ -127,6 +178,7 @@ pub async fn start(
     ice_servers: Vec<crate::media::publisher::rtc::IceServerConfig>,
     signalling: Signalling,
     on_preview: tauri::ipc::Channel<PreviewFrame>,
+    share_audio: bool,
 ) -> Result<PublishHandle, String> {
     let spec = EncoderSpec {
         width,
@@ -138,11 +190,30 @@ pub async fn start(
         .ok_or_else(|| "no H.264 encoder available (OpenH264 not provisioned?)".to_string())?;
     let encoder_name = encoder.name();
 
-    let publication = Publication::start(signalling, &share_id, ice_servers).await?;
+    // The audio capture is started *before* the publication, so a machine with no usable loopback
+    // device publishes a video-only share rather than a share advertising a silent audio track.
+    // Viewers read `shares[].trackNames`, so a track that exists and never carries anything is worse
+    // than one that was never announced.
+    let screen_audio = if share_audio {
+        match super::audio::start() {
+            Ok(started) => Some(started),
+            Err(e) => {
+                eprintln!("[publisher] screen audio unavailable, sharing video only: {e}");
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let publication =
+        Publication::start(signalling, &share_id, ice_servers, screen_audio.is_some()).await?;
     let media_session_id = publication.media_session_id.clone();
     let track_name = publication.track_name.clone();
     // Taken before the publication is moved into the writer task below.
     let keyframe_requests = publication.keyframe_requests();
+    let audio_track = publication.audio_track();
+    let audio_track_name = publication.audio_track_name.clone();
 
     // One AtomicU32, three holders: the capture loop's pacing, the pump's frame-interval maths, and
     // the handle `set_publish_fps` writes through. It used to be two plus a *fourth* freshly
@@ -155,6 +226,25 @@ pub async fn start(
     let (frame_tx, frame_rx) = tokio::sync::mpsc::channel::<(Vec<u8>, Duration)>(FRAME_QUEUE);
 
     tokio::spawn(run_writer(publication, frame_rx));
+
+    // The audio writer is its own task and deliberately not part of `run_writer`. The two have
+    // different failure meanings: a run of failed *video* writes means the connection is gone and
+    // ends the publication, whereas audio that stops arriving is a share whose sound was muted or
+    // whose device vanished, and ending the whole share over it would take the picture with it.
+    let audio_capture = match (screen_audio, audio_track) {
+        (Some((capture, packets)), Some(track)) => {
+            tokio::spawn(run_audio_writer(track, packets));
+            Some(capture)
+        }
+        // Capture started but the track did not exist, or vice versa. Neither should be reachable -
+        // the publication is told whether audio exists by `screen_audio.is_some()` - but leaving a
+        // capture running with nowhere to write would hold the device open for the whole share.
+        (Some((capture, _)), None) => {
+            capture.stop();
+            None
+        }
+        _ => None,
+    };
 
     let mut pump = FramePump::new(
         width,
@@ -187,6 +277,8 @@ pub async fn start(
         height: AtomicU32::new(height),
         media_session_id,
         track_name,
+        audio_track_name,
         encoder_name,
+        screen_audio: audio_capture,
     })
 }

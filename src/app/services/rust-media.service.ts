@@ -41,6 +41,14 @@ export interface ScreenPublishOptions {
     guildId?: string;
     channelId?: string;
     callId?: string;
+    /**
+     * Capture and publish the system's audio alongside the picture, as a second
+     * `screen-audio-{shareId}` track.
+     *
+     * A request, not a guarantee: a machine with no usable loopback device publishes video only,
+     * and {@link ScreenPublishResult.audioTrackName} says what actually happened.
+     */
+    shareAudio: boolean;
 }
 
 interface PreviewFrame {
@@ -53,6 +61,13 @@ interface PreviewFrame {
 export interface ScreenPublishResult {
     mediaSessionId: string;
     trackName: string;
+    /**
+     * The share's audio track, or null when it has none.
+     *
+     * What was *published*, not what was asked for - announce this rather than assuming
+     * `shareAudio` succeeded, or viewers subscribe to a track that does not exist.
+     */
+    audioTrackName: string | null;
     /** Which encoder was selected - 'media-foundation' or 'openh264'. */
     encoder: string;
 }
@@ -281,6 +296,18 @@ export class RustMediaService {
     async setPublishFps(fps: number): Promise<void> {
         if (!isTauri()) return;
         await invoke('set_publish_fps', {fps: Math.round(fps)}).catch(() => {
+        });
+    }
+
+    /**
+     * Mute the running share's own sound.
+     *
+     * Stops packets rather than the capture device, so unmuting is instant. A no-op on a share with
+     * no audio half.
+     */
+    async setScreenAudioMuted(muted: boolean): Promise<void> {
+        if (!isTauri()) return;
+        await invoke('set_screen_audio_muted', {muted}).catch(() => {
         });
     }
 

@@ -116,6 +116,8 @@ struct BackendState {
     /// The SSRC of the inbound video, learned from `on_track`. Needed to address a PLI at it.
     media_ssrc: Arc<Mutex<Option<u32>>>,
     closed_tracks: Mutex<Vec<String>>,
+    /// Every track name the publisher asked to publish, in order.
+    published_tracks: Mutex<Vec<String>>,
     /// Every request path served, so tests can assert on what the publisher actually asked for.
     paths: Mutex<Vec<String>>,
 }
@@ -162,6 +164,7 @@ impl MockBackend {
             // The same handle the `on_track` reader writes to.
             media_ssrc,
             closed_tracks: Mutex::new(Vec::new()),
+            published_tracks: Mutex::new(Vec::new()),
             paths: Mutex::new(Vec::new()),
         });
 
@@ -247,6 +250,10 @@ impl MockBackend {
 
     fn closed_tracks(&self) -> Vec<String> {
         self.state.closed_tracks.lock().unwrap().clone()
+    }
+
+    fn published_tracks(&self) -> Vec<String> {
+        self.state.published_tracks.lock().unwrap().clone()
     }
 
     fn paths(&self) -> Vec<String> {
@@ -396,10 +403,27 @@ async fn route(
         );
 
         let answer = answer_the_offer(state, body).await;
-        let track = &body["tracks"][0];
+        // Every track echoed, not just the first. A share with audio publishes two in one call, and
+        // answering for one of them makes the second look like it was silently dropped.
+        let echoed: Vec<serde_json::Value> = body["tracks"]
+            .as_array()
+            .map(|tracks| {
+                tracks
+                    .iter()
+                    .map(|t| serde_json::json!({ "mid": t["mid"], "trackName": t["trackName"] }))
+                    .collect()
+            })
+            .unwrap_or_default();
+        state
+            .published_tracks
+            .lock()
+            .unwrap()
+            .extend(echoed.iter().filter_map(|t| {
+                t["trackName"].as_str().map(str::to_owned)
+            }));
         return serde_json::json!({
             "sessionDescription": { "type": "answer", "sdp": answer },
-            "tracks": [{ "mid": track["mid"], "trackName": track["trackName"] }],
+            "tracks": echoed,
             "requiresImmediateRenegotiation": state.require_renegotiation,
         });
     }
@@ -654,7 +678,7 @@ async fn publishing(
     keyframe_interval: Duration,
     encoder: Box<dyn VideoEncoder>,
 ) -> Publishing {
-    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![])
+    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false)
         .await
         .expect("the publication must start against the mock backend");
     let keyframe_wanted = publication.keyframe_requests();
@@ -815,7 +839,7 @@ async fn the_publish_opens_a_secondary_session_and_closes_its_track() {
     let (backend, _units) = MockBackend::start(false).await;
     provision_async().await;
 
-    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![])
+    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false)
         .await
         .expect("the publication must start");
     let track_name = publication.track_name.clone();
@@ -851,6 +875,80 @@ async fn the_publish_opens_a_secondary_session_and_closes_its_track() {
         !paths.iter().any(|p| p.contains("/cf/")),
         "nothing on a guild channel may still speak the Cloudflare surface; got {paths:?}"
     );
+}
+
+/// A share that carries its own sound publishes both halves in **one** negotiation, and closes both.
+///
+/// <p>One call rather than two is the contract (§2 of the frontend guide) and it is also what stops
+/// a viewer laying out the tile from the video track and then having audio arrive against a share it
+/// has already finished building. Asserted over real HTTP because the failure mode is a second
+/// `tracks` request nobody notices.</p>
+///
+/// <p>The capture device is not exercised here - CI has no audio hardware and this is about the
+/// negotiation, not the encoder. `publisher::audio` covers the encode path directly.</p>
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_share_with_audio_publishes_and_closes_both_tracks() {
+    let (backend, _units) = MockBackend::start(false).await;
+    provision_async().await;
+
+    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], true)
+        .await
+        .expect("the publication must start");
+
+    assert_eq!(
+        publication.audio_track_name.as_deref(),
+        Some("screen-audio-abc"),
+        "the audio half must be named for the share it belongs to"
+    );
+    assert!(
+        publication.audio_track().is_some(),
+        "an audio share must expose a track for the writer to feed"
+    );
+
+    let track_name = publication.track_name.clone();
+    let audio_track_name = publication.audio_track_name.clone().unwrap();
+    publication.stop().await;
+
+    assert_eq!(
+        backend.published_tracks(),
+        vec![track_name.clone(), audio_track_name.clone()],
+        "both halves must go out together, video first"
+    );
+    assert_eq!(
+        backend
+            .paths()
+            .iter()
+            .filter(|p| p.ends_with("/voice/tracks"))
+            .count(),
+        1,
+        "one negotiation, not one per track"
+    );
+    // Closing only the video would leave viewers subscribed to a live audio track from a share that
+    // no longer exists - silent, still mixed, and still costing the sharer egress.
+    assert_eq!(backend.closed_tracks(), vec![track_name, audio_track_name]);
+}
+
+/// The other half of the same rule: no audio asked for, no audio track announced.
+///
+/// A track that exists and never carries anything is worse than one that was never announced -
+/// viewers read `shares[].trackNames` and would open a decoder and a mixer slot for silence.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_share_without_audio_announces_no_audio_track() {
+    let (backend, _units) = MockBackend::start(false).await;
+    provision_async().await;
+
+    let publication = Publication::start(signalling_to(&backend.base_url), "abc", vec![], false)
+        .await
+        .expect("the publication must start");
+
+    assert!(publication.audio_track_name.is_none());
+    assert!(publication.audio_track().is_none());
+
+    let track_name = publication.track_name.clone();
+    publication.stop().await;
+
+    assert_eq!(backend.published_tracks(), vec![track_name.clone()]);
+    assert_eq!(backend.closed_tracks(), vec![track_name]);
 }
 
 // ── Pump policy ───────────────────────────────────────────────────────────────────────────────
