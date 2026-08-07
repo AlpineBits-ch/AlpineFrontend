@@ -40,6 +40,17 @@ export class CallSessionService {
     private rustPublishing = false;
     /** The picker choice behind the running publish, so a resolution change can rebuild it. */
     private rustChoice: ScreenPickerChoice | null = null;
+    /**
+     * Whether the running share actually carries its own sound, and whether it is locally muted.
+     *
+     * `hasAudio` is what the publisher *published*, not what the picker asked for: a machine with no
+     * usable loopback device shares video only, and offering a mute button for a track that does not
+     * exist is worse than not offering one.
+     */
+    readonly localScreenHasAudio = signal(false);
+    readonly localScreenAudioMuted = signal(false);
+    /** The audio track Rust opened, or null for a video-only share. */
+    private rustAudioTrackName: string | null = null;
     private readonly oauth = inject(OAuthService);
     private readonly apiConfig = inject(ApiConfigService);
     private readonly deviceIdentity = inject(DeviceIdentityService);
@@ -181,6 +192,9 @@ export class CallSessionService {
                 void this.rustMedia.stopScreenCapture();
             }
             this.rustChoice = null;
+            this.rustAudioTrackName = null;
+            this.localScreenHasAudio.set(false);
+            this.localScreenAudioMuted.set(false);
             this.screenPreset.set(null);
             this.screenSourceSize = null;
             this.session.update(st => st ? {
@@ -234,6 +248,20 @@ export class CallSessionService {
     }
 
     /**
+     * Mute the sound of the share this client is publishing.
+     *
+     * <p>Stops packets in Rust rather than tearing down the capture device, so unmuting is instant.
+     * A no-op on a video-only share - the UI reads {@link localScreenHasAudio} to decide whether to
+     * offer the control at all.</p>
+     */
+    toggleLocalScreenAudio(): void {
+        if (!this.rustAudioTrackName) return;
+        const muted = !this.localScreenAudioMuted();
+        void this.rustMedia.setScreenAudioMuted(muted);
+        this.localScreenAudioMuted.set(muted);
+    }
+
+    /**
      * Publish the screen from Rust, on its own Cloudflare session.
      *
      * CallWebRtcService watches the session's local share for a stream to publish; there is none
@@ -260,6 +288,9 @@ export class CallSessionService {
                 ),
             );
             console.log(`[call] Rust publisher live on ${published.encoder}`, published);
+            this.rustAudioTrackName = published.audioTrackName;
+            this.localScreenHasAudio.set(published.audioTrackName !== null);
+            this.localScreenAudioMuted.set(false);
         } catch (e) {
             console.error('[call] Rust publish failed', e);
             return;

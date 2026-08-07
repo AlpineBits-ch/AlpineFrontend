@@ -100,6 +100,7 @@ function setup() {
     });
 
     const engineSubscribe = vi.fn(async () => undefined);
+    const engineVolume = vi.fn(async () => undefined);
     // Never resolves on its own - the test decides when the publication exists, which is the whole
     // window this covers.
     let resolveStart: (s: VoiceSession) => void = () => undefined;
@@ -151,7 +152,7 @@ function setup() {
                     setMute: vi.fn(async () => undefined),
                     setDeafened: vi.fn(async () => undefined),
                     setPttOpen: vi.fn(),
-                    setUserVolume: vi.fn(async () => undefined),
+                    setUserVolume: engineVolume,
                     speaking: () => false,
                     remoteLevels: () => new Map(),
                 },
@@ -164,7 +165,7 @@ function setup() {
     });
 
     const service = TestBed.inject(CallWebRtcService);
-    return {service, ws, engineSubscribe, resolveStart: (s: VoiceSession) => resolveStart(s)};
+    return {service, ws, engineSubscribe, engineVolume, resolveStart: (s: VoiceSession) => resolveStart(s)};
 }
 
 const tick = (ms = 0) => new Promise<void>(r => setTimeout(r, ms));
@@ -222,5 +223,63 @@ describe('subscribing before the publication exists', () => {
         await subscribeAudio(service, 'them');
 
         expect(engineSubscribe).toHaveBeenCalledTimes(1);
+    });
+});
+
+/**
+ * A share's own sound is a second track, and a second *source* - the participant's voice and the
+ * audio of the stream they are sharing have to be mutable independently.
+ */
+describe('screen-share audio', () => {
+    function subscribeScreenAudio(service: CallWebRtcService, userId: string, trackName: string) {
+        return (service as unknown as {
+            subscribeToTrack(u: string, s: string, t: string, k: 'screenAudio'): Promise<void>;
+        }).subscribeToTrack(userId, 'cf-theirs', trackName, 'screenAudio');
+    }
+
+    /**
+     * Keyed by track name, not user id. Sharing the key with the voice source is what would make
+     * muting a noisy stream also mute the person sharing it.
+     */
+    it('pulls the share audio as its own mixer source', async () => {
+        const {service, engineSubscribe, resolveStart} = setup();
+        resolveStart({slot: 'slot-1', mediaSessionId: 'cf-rust', trackName: 'audio'} as VoiceSession);
+
+        await subscribeScreenAudio(service, 'them', 'screen-audio-abc');
+
+        expect(engineSubscribe).toHaveBeenCalledWith(
+            expect.objectContaining({slot: 'slot-1'}), 'screen-audio-abc', 'cf-theirs', 'screen-audio-abc');
+    });
+
+    it('mutes one participant stream without touching their voice', async () => {
+        const {service, engineVolume, resolveStart} = setup();
+        resolveStart({slot: 'slot-1', mediaSessionId: 'cf-rust', trackName: 'audio'} as VoiceSession);
+        await subscribeScreenAudio(service, 'them', 'screen-audio-abc');
+
+        service.toggleScreenAudioMute('them');
+
+        expect(service.isScreenAudioMuted('them')).toBe(true);
+        // The stream's source, not the participant's.
+        expect(engineVolume).toHaveBeenCalledWith('screen-audio-abc', 0);
+        expect(engineVolume).not.toHaveBeenCalledWith('them', 0);
+
+        service.toggleScreenAudioMute('them');
+        expect(service.isScreenAudioMuted('them')).toBe(false);
+        expect(engineVolume).toHaveBeenCalledWith('screen-audio-abc', 1);
+    });
+
+    /**
+     * A share that restarts - which a resolution change does, with a fresh share id - must come back
+     * muted for anyone who had muted it. The mute is a statement about the person's streams, not
+     * about the track that happened to be carrying one.
+     */
+    it('keeps a stream muted across a restart of the share', async () => {
+        const {service, engineVolume, resolveStart} = setup();
+        resolveStart({slot: 'slot-1', mediaSessionId: 'cf-rust', trackName: 'audio'} as VoiceSession);
+
+        service.toggleScreenAudioMute('them');
+        await subscribeScreenAudio(service, 'them', 'screen-audio-second');
+
+        expect(engineVolume).toHaveBeenCalledWith('screen-audio-second', 0);
     });
 });

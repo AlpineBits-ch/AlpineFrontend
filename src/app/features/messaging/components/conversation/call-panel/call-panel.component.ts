@@ -38,6 +38,8 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     protected panelHeight = signal(DEFAULT_HEIGHT);
     protected isResizing = signal(false);
     protected duration = '00:00';
+    private callSession = inject(CallSessionService);
+    private callWebRtc = inject(CallWebRtcService);
     protected callParticipants = computed((): CallParticipant[] => this.session()?.participants ?? []);
     protected callScreenShares = computed((): CallScreenShare[] =>
         (this.session()?.screenShares ?? []).map(sh => ({
@@ -48,11 +50,16 @@ export class CallPanelComponent implements OnInit, OnDestroy {
             isLocal: sh.isLocal,
             stream: sh.stream,
             previewSrc: sh.isLocal ? this.rustMedia.publishPreview() : null,
-            hasAudio: false,  // DM screen share does not capture audio yet
-            isAudioMuted: false,
+            // Own share: what the publisher actually opened, since a machine with no usable loopback
+            // device shares video only. Remote share: assumed present, exactly as the guild tiles
+            // do - the mute is a preference about that person's stream and is harmless to offer for
+            // one that turns out to be silent.
+            hasAudio: sh.isLocal ? this.callSession.localScreenHasAudio() : true,
+            isAudioMuted: sh.isLocal
+                ? this.callSession.localScreenAudioMuted()
+                : this.callWebRtc.isScreenAudioMuted(sh.userId),
         }))
     );
-    private callSession = inject(CallSessionService);
     protected session = this.callSession.session;
     /** Where these shares live, so watching them can be announced - see ShareWatchService. */
     protected watchScope = computed((): WatchScope | null => {
@@ -62,12 +69,22 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     protected screenPreset = this.callSession.screenPreset;
     /** Set only while the local user is the last one in the call. */
     protected aloneNotice = computed(() => formatAloneNotice(this.callSession.aloneDeadline()));
-    private callWebRtc = inject(CallWebRtcService);
     protected stats = this.callWebRtc.stats;
     protected rtcState = this.callWebRtc.rtcState;
     protected participantsWithAudio = this.callWebRtc.participantsWithAudio;
     protected audio = trackAudioWait(this.callParticipants, this.participantsWithAudio);
     private durationInterval?: ReturnType<typeof setInterval>;
+
+    /** Mute the sound of the share this client is publishing. */
+    protected toggleLocalScreenAudio(): void {
+        this.callSession.toggleLocalScreenAudio();
+    }
+
+    /** Mute one participant's shared stream, leaving their voice alone. */
+    protected toggleRemoteScreenAudio(userId: string): void {
+        this.callWebRtc.toggleScreenAudioMute(userId);
+    }
+
 
     // ── Shared-type projections ────────────────────────────────────────────────
     private resizeStartY = 0;

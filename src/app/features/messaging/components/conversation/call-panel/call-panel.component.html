@@ -101,6 +101,8 @@
                 <!-- ── Screen share layout ────────────────────────────────────────────── -->
                 <app-call-screen-layout
                         (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
+                        (localAudioToggle)="toggleLocalScreenAudio()"
+                        (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
                         [participantsWithAudio]="participantsWithAudio()"
                         [participants]="callParticipants()"
                         [screenShares]="callScreenShares()"

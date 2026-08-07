@@ -123,6 +123,13 @@ export class CallWebRtcService {
     // safe to call more than once for the same user (the live ParticipantJoined
     // event and a reconcile-on-reconnect backfill can race for the same user).
     private readonly subscribedAudioUserIds = new Set<string>();
+    // userId → the mixer source id of their share's audio, so the per-stream mute can find it.
+    //
+    // Keyed by *track name* rather than user id in the mixer, because a share's audio and its
+    // author's voice are separate sources - muting the stream must not mute the person sharing it.
+    private readonly remoteScreenAudioIds = new Map<string, string>();
+    private readonly screenAudioMutedSignal = signal<Set<string>>(new Set());
+    readonly screenAudioMuted = this.screenAudioMutedSignal.asReadonly();
     // Remote video/screen track name → the session it is pulled from, and whose it is.
     //
     // The audio path has had a dedupe guard all along; video never did, because the only route to it
@@ -350,6 +357,77 @@ export class CallWebRtcService {
     }
 
     /**
+     * Pull a share's own sound into the Rust mixer.
+     *
+     * <p>Keyed by track name, not by user: a participant's voice and the audio of the stream they
+     * are sharing are two sources, and muting the stream must leave the person audible. That is
+     * also why this cannot go through the `'audio'` branch above, which keys on the user id.</p>
+     */
+    private async subscribeScreenAudio(
+        userId: string,
+        remoteMediaSessionId: string,
+        trackName: string,
+    ): Promise<void> {
+        if (this.remoteScreenAudioIds.get(userId) === trackName) return;
+
+        const session = await this.awaitSession();
+        if (!session) {
+            console.error('[WebRTC] dropped a screen-audio subscribe - no session', {trackName});
+            return;
+        }
+
+        try {
+            await this.voiceEngine.subscribe(session, trackName, remoteMediaSessionId, trackName);
+            this.remoteScreenAudioIds.set(userId, trackName);
+            // A share that starts while its author is already muted must stay muted - the mute is a
+            // statement about that participant's stream, not about the track that happens to carry
+            // it, and a restarted share would otherwise come back at full volume.
+            if (this.screenAudioMutedSignal().has(userId)) {
+                await this.voiceEngine.setUserVolume(trackName, 0);
+            }
+        } catch (e) {
+            console.error('[WebRTC] screen-audio subscribe failed', {userId, trackName}, e);
+        }
+    }
+
+    /**
+     * Unwind whatever share audio we hold for a participant who has gone.
+     *
+     * The mute flag deliberately survives: it is a preference about that person's streams, and
+     * clearing it would un-mute a noisy sharer the moment they reconnect.
+     */
+    private dropScreenAudio(userId: string): void {
+        const sourceId = this.remoteScreenAudioIds.get(userId);
+        if (!sourceId) return;
+        void this.dropSource(sourceId);
+        this.remoteScreenAudioIds.delete(userId);
+    }
+
+    /** Whether this participant's shared stream is muted locally. */
+    isScreenAudioMuted(userId: string): boolean {
+        return this.screenAudioMutedSignal().has(userId);
+    }
+
+    /**
+     * Mute or unmute one participant's shared stream, leaving their voice alone.
+     *
+     * <p>Remembered even when there is no live source: the flag survives the share stopping and
+     * restarting, so a user who muted a noisy stream does not have to mute it again every time the
+     * sharer changes resolution.</p>
+     */
+    toggleScreenAudioMute(userId: string): void {
+        const willMute = !this.screenAudioMutedSignal().has(userId);
+        const sourceId = this.remoteScreenAudioIds.get(userId);
+        if (sourceId) void this.voiceEngine.setUserVolume(sourceId, willMute ? 0 : 1);
+        this.screenAudioMutedSignal.update(s => {
+            const n = new Set(s);
+            if (willMute) n.add(userId);
+            else n.delete(userId);
+            return n;
+        });
+    }
+
+    /**
      * Wait for this call's publication to exist, rather than dropping a subscribe that arrived
      * before it.
      *
@@ -409,6 +487,8 @@ export class CallWebRtcService {
         this.userVolumes.clear();
         this.subscribedAudioUserIds.clear();
         this.subscribedVideoTracks.clear();
+        this.remoteScreenAudioIds.clear();
+        this.screenAudioMutedSignal.set(new Set());
         this.pendingTracks.length = 0;
         this.negotiationChain = Promise.resolve();
         this.wsSubs = [];
@@ -566,9 +646,13 @@ export class CallWebRtcService {
         userId: string,
         remoteMediaSessionId: string,
         trackName: string,
-        kind: 'audio' | 'video' | 'screen',
+        kind: 'audio' | 'video' | 'screen' | 'screenAudio',
         shareId?: string,
     ): Promise<void> {
+        if (kind === 'screenAudio') {
+            await this.subscribeScreenAudio(userId, remoteMediaSessionId, trackName);
+            return;
+        }
         if (kind === 'audio') {
             if (this.subscribedAudioUserIds.has(userId)) return;
             // Claimed before the wait below, not after: two announcements for the same user can
@@ -875,6 +959,7 @@ export class CallWebRtcService {
             if (!p.isLocal && !present.has(p.userId)) {
                 this.callSession.onParticipantLeft(p.userId);
                 this.subscribedAudioUserIds.delete(p.userId);
+                this.dropScreenAudio(p.userId);
                 for (const [name, held] of this.subscribedVideoTracks) {
                     if (held.userId === p.userId) this.subscribedVideoTracks.delete(name);
                 }
@@ -895,13 +980,13 @@ export class CallWebRtcService {
             for (const share of p.shares) {
                 for (const trackName of share.trackNames) {
                     const {kind} = describeTrack(trackName);
-                    // Screen audio has no home on this path yet - the call UI has no per-stream
-                    // audio control and the mixer source would have nothing to drive it. Skipped
-                    // explicitly rather than falling into the video branch, which would ask
-                    // Cloudflare for an audio track on a video transceiver.
-                    if (kind === 'screenAudio') continue;
+                    // Both halves, each on its own path: the video onto this peer connection, the
+                    // audio onto the Rust mixer. Sending screen audio down the video branch would
+                    // ask the SFU for an audio track on a video transceiver.
                     void this.subscribeToTrack(
-                        p.userId, mediaSessionId, trackName, 'screen', share.shareId);
+                        p.userId, mediaSessionId, trackName,
+                        kind === 'screenAudio' ? 'screenAudio' : 'screen',
+                        share.shareId);
                 }
             }
         }
@@ -960,6 +1045,8 @@ export class CallWebRtcService {
                     void this.subscribeToTrack(e.userId, e.mediaSessionId, e.trackName, 'video');
                 } else if (e.kind === 'screen') {
                     void this.subscribeToTrack(e.userId, e.mediaSessionId, e.trackName, 'screen', e.shareId);
+                } else if (e.kind === 'screenAudio') {
+                    void this.subscribeToTrack(e.userId, e.mediaSessionId, e.trackName, 'screenAudio', e.shareId);
                 }
             })),
 
@@ -977,6 +1064,12 @@ export class CallWebRtcService {
                 const {kind, shareId} = describeTrack(e.trackName);
                 if (kind === 'video') this.callSession.onCameraChanged(e.userId, false);
                 else if (kind === 'screen' && shareId) this.callSession.onScreenShareStopped(shareId);
+                else if (kind === 'screenAudio') {
+                    // Dropped, or a stopped share keeps its slot in the mixer forever - silent, but
+                    // still popped and mixed on every frame.
+                    void this.dropSource(e.trackName);
+                    this.remoteScreenAudioIds.delete(e.userId);
+                }
             })),
 
             // Remote mute/speaking/camera state changes
@@ -1011,6 +1104,7 @@ export class CallWebRtcService {
             this.voiceWs.callParticipantLeftObservable.subscribe(e => {
                 this.callSession.onParticipantLeft(e.userId);
                 this.subscribedAudioUserIds.delete(e.userId);
+                this.dropScreenAudio(e.userId);
                 void this.dropSource(e.userId);
                 this.participantsWithAudio.update(s => {
                     const n = new Set(s);
