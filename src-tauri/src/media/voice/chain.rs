@@ -7,7 +7,7 @@
 
 use super::codec::{VoiceEncoder, MAX_PACKET, PACKET_SAMPLES};
 use super::denoise::Denoiser;
-use super::gate::{Gate, GateConfig};
+use super::gate::{dbfs, Gate, GateConfig};
 use super::process::{self, AudioProcessor, NoiseSuppression, ProcessConfig};
 use super::resample::Resampler;
 use super::{FRAME, SAMPLE_RATE};
@@ -26,7 +26,7 @@ pub struct ChainConfig {
     pub input_gain: f32,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub struct ChainStatus {
     /// Whether the user should be shown as speaking.
     ///
@@ -36,6 +36,31 @@ pub struct ChainStatus {
     pub speaking: bool,
     /// RMS of the most recent frame, 0.0-1.0, for the input meter.
     pub level: f32,
+    /// The same level in dBFS.
+    ///
+    /// Sent alongside the linear one rather than instead of it: a linear meter crushes the whole
+    /// of speech into the bottom tenth of its travel, which is unreadable, but existing callers
+    /// read `level` and a silent change of scale under them would be worse than a second field.
+    pub level_db: f32,
+    /// The level the gate will open at, in dBFS, as the room currently sounds.
+    ///
+    /// The settings page draws this across the meter. It is not derivable from the slider alone -
+    /// the threshold is relative to the noise floor, so it moves as the room does.
+    pub threshold_db: f32,
+}
+
+/// Silence and a threshold at the bottom of the scale, so a status read before any audio has
+/// arrived does not present as a full-scale meter. `#[derive(Default)]` would give 0.0 dBFS, which
+/// is not silence - it is clipping.
+impl Default for ChainStatus {
+    fn default() -> Self {
+        Self {
+            speaking: false,
+            level: 0.0,
+            level_db: dbfs(0.0),
+            threshold_db: dbfs(0.0),
+        }
+    }
 }
 
 pub struct CaptureChain {
@@ -156,6 +181,8 @@ impl CaptureChain {
         self.last_status = ChainStatus {
             speaking: decision.speaking,
             level: rms,
+            level_db: dbfs(rms),
+            threshold_db: self.gate.threshold_db(),
         };
 
         // Applied here, after the gate and after the meter reads `rms`, so the slider changes only
@@ -222,6 +249,23 @@ mod tests {
         }
     }
 
+    /// The same chain with the gate switched off, for the tests that are not about the gate.
+    ///
+    /// Most of the tests below drive the chain with a continuous tone and count what comes out the
+    /// other end - packet cadence, resampling, codec limits. A continuous tone is, correctly, what
+    /// the gate now calls the noise floor: it has no envelope, so there is nothing in it to tell
+    /// speech apart from a fan. Leaving the gate armed in those tests would mean measuring
+    /// packetisation through a gate that is busy deciding the test signal is a fan.
+    fn ungated() -> ChainConfig {
+        ChainConfig {
+            gate: GateConfig {
+                sensitivity: 1.0,
+                ..config().gate
+            },
+            ..config()
+        }
+    }
+
     /// A loud 440 Hz tone, comfortably above any gate threshold.
     fn tone(samples: usize, start: usize) -> Vec<f32> {
         (0..samples)
@@ -260,7 +304,7 @@ mod tests {
     #[test]
     fn the_input_slider_scales_what_is_sent() {
         let full = decoded_peak(
-            &mut CaptureChain::new(SAMPLE_RATE, config()).unwrap(),
+            &mut CaptureChain::new(SAMPLE_RATE, ungated()).unwrap(),
             &tone(SAMPLE_RATE as usize / 10, 0),
         );
 
@@ -269,7 +313,7 @@ mod tests {
                 SAMPLE_RATE,
                 ChainConfig {
                     input_gain: 0.5,
-                    ..config()
+                    ..ungated()
                 },
             )
             .unwrap(),
@@ -337,7 +381,7 @@ mod tests {
 
     #[test]
     fn packets_arrive_once_every_twenty_milliseconds() {
-        let mut chain = CaptureChain::new(SAMPLE_RATE, config()).unwrap();
+        let mut chain = CaptureChain::new(SAMPLE_RATE, ungated()).unwrap();
         // One second of audio is fifty 20 ms packets.
         let (packets, _) = collect(&mut chain, &tone(SAMPLE_RATE as usize, 0));
         assert_eq!(packets.len(), 50);
@@ -355,7 +399,7 @@ mod tests {
 
     #[test]
     fn a_device_at_44100_is_resampled_to_the_pipeline_rate() {
-        let mut chain = CaptureChain::new(44_100, config()).unwrap();
+        let mut chain = CaptureChain::new(44_100, ungated()).unwrap();
         // One second at 44.1 kHz is still one second of audio, so still ~50 packets. The resampler
         // has warm-up latency, so allow a packet or two of slack.
         let (packets, _) = collect(&mut chain, &tone(44_100, 0));
@@ -389,10 +433,10 @@ mod tests {
         // which is the thing that matters, since a mute may last hours.
         let speech = tone(SAMPLE_RATE as usize * 2, 0);
 
-        let mut open = CaptureChain::new(SAMPLE_RATE, config()).unwrap();
+        let mut open = CaptureChain::new(SAMPLE_RATE, ungated()).unwrap();
         let (unmuted, _) = collect(&mut open, &speech);
 
-        let mut muted_chain = CaptureChain::new(SAMPLE_RATE, config()).unwrap();
+        let mut muted_chain = CaptureChain::new(SAMPLE_RATE, ungated()).unwrap();
         muted_chain.set_muted(true);
         let (muted, status) = collect(&mut muted_chain, &speech);
 
@@ -442,7 +486,7 @@ mod tests {
 
     #[test]
     fn every_packet_fits_the_codec_limit() {
-        let mut chain = CaptureChain::new(SAMPLE_RATE, config()).unwrap();
+        let mut chain = CaptureChain::new(SAMPLE_RATE, ungated()).unwrap();
         let (packets, _) = collect(&mut chain, &tone(SAMPLE_RATE as usize, 0));
         assert!(packets.iter().all(|p| p.len() <= MAX_PACKET));
         assert!(packets.iter().all(|p| !p.is_empty()));
@@ -472,7 +516,7 @@ mod tests {
 
     #[test]
     fn enhanced_noise_suppression_still_produces_packets() {
-        let mut cfg = config();
+        let mut cfg = ungated();
         cfg.processing.noise_suppression = NoiseSuppression::Enhanced;
         let mut chain = CaptureChain::new(SAMPLE_RATE, cfg).unwrap();
         let (packets, _) = collect(&mut chain, &tone(SAMPLE_RATE as usize / 2, 0));
@@ -553,11 +597,20 @@ mod tests {
         cfg.gate.sensitivity = 0.6; // what `audio-settings.service.ts` ships
         let mut chain = CaptureChain::new(SAMPLE_RATE, cfg).unwrap();
 
-        let (packets, status) = collect(&mut chain, &tone_at_dbfs(SAMPLE_RATE as usize / 2, -40.0));
+        // A second of the room before anyone talks. The threshold is relative to it, and a gate
+        // handed nothing but a talker has no way to tell the talker apart from the room - which is
+        // what the priming window in `gate` exists to bridge, and what a call supplies for free.
+        collect(&mut chain, &tone_at_dbfs(SAMPLE_RATE as usize, -65.0));
+
+        // One burst, cut off mid-word, so the status reflects a talker rather than the pause after
+        // them - `speech_like_at_dbfs` ends its last quarter-second silent.
+        let (_, status) = collect(&mut chain, &tone_at_dbfs(SAMPLE_RATE as usize / 5, -40.0));
         assert!(status.speaking, "a -40 dBFS talker is speaking");
+
+        let (packets, _) = collect(&mut chain, &speech_like_at_dbfs(SAMPLE_RATE as usize, -40.0));
         assert!(
             packets.len() >= 24,
-            "half a second of quiet speech should be about 25 packets, got {}",
+            "a second of quiet speech, half of it silence, should be about 25 packets, got {}",
             packets.len()
         );
     }
@@ -570,6 +623,94 @@ mod tests {
 
         let (_, status) = collect(&mut chain, &tone_at_dbfs(SAMPLE_RATE as usize / 2, -65.0));
         assert!(!status.speaking, "room tone must not open the gate or light up the tile");
+    }
+
+    /// Bursts of a 300 Hz tone at a given RMS level: 250 ms on, 250 ms off.
+    ///
+    /// Like [`speech_like`], but at a level the caller chooses, because the whole question here is
+    /// what happens to a talker sitting near the threshold rather than well above it.
+    fn speech_like_at_dbfs(samples: usize, db: f32) -> Vec<f32> {
+        let amplitude = 10f32.powf(db / 20.0) * std::f32::consts::SQRT_2;
+        (0..samples)
+            .map(|i| {
+                let t = i as f32 / SAMPLE_RATE as f32;
+                if (t * 2.0).fract() < 0.5 {
+                    (t * 300.0 * std::f32::consts::TAU).sin() * amplitude
+                } else {
+                    0.0
+                }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn the_noise_suppressor_does_not_decide_whether_the_gate_opens() {
+        // `process_frame` measures the level *after* both suppressors and gates on that number, so
+        // a suppressor that shaves a few dB off a marginal talker closes the gate on them
+        // entirely - and it shaves hardest at word onsets, where it is least sure what it is
+        // looking at. Turning noise suppression up should change how a voice sounds, not whether it
+        // is transmitted at all.
+        let mut cfg = config();
+        cfg.gate.sensitivity = 0.5;
+        // Deliberately near the threshold. That is where a talker who is being cut off lives; well
+        // above it every setting agrees and the test would prove nothing.
+        let input = speech_like_at_dbfs(SAMPLE_RATE as usize * 2, -40.0);
+
+        let counts: Vec<(NoiseSuppression, usize)> = [
+            NoiseSuppression::Off,
+            NoiseSuppression::Standard,
+            NoiseSuppression::Enhanced,
+        ]
+        .into_iter()
+        .map(|mode| {
+            let mut chain = CaptureChain::new(
+                SAMPLE_RATE,
+                ChainConfig {
+                    processing: ProcessConfig {
+                        noise_suppression: mode,
+                        ..cfg.processing
+                    },
+                    ..cfg
+                },
+            )
+            .unwrap();
+            let (packets, _) = collect(&mut chain, &input);
+            (mode, packets.len())
+        })
+        .collect();
+
+        let baseline = counts[0].1;
+        assert!(baseline > 40, "the unsuppressed baseline is itself gated: {baseline} packets");
+
+        // Every mode reported before asserting: which suppressors starve the gate and by how much
+        // is the whole diagnosis, and an assert that trips on the first one hides the rest.
+        let starved: Vec<String> = counts
+            .iter()
+            .filter(|(_, count)| (*count as f32) <= baseline as f32 * 0.9)
+            .map(|(mode, count)| format!("{mode:?} {count}"))
+            .collect();
+        assert!(
+            starved.is_empty(),
+            "against {baseline} packets with suppression off: {} - the suppressor is deciding who \
+             is audible, not just how they sound",
+            starved.join(", "),
+        );
+    }
+
+    #[test]
+    fn enhanced_suppression_still_gates_room_tone() {
+        // The guard that stops the test above being satisfied by moving the measurement somewhere
+        // that never closes the gate at all.
+        let mut cfg = config();
+        cfg.gate.sensitivity = 0.5;
+        cfg.processing.noise_suppression = NoiseSuppression::Enhanced;
+        let mut chain = CaptureChain::new(SAMPLE_RATE, cfg).unwrap();
+
+        let (_, status) = collect(&mut chain, &speech_like_at_dbfs(SAMPLE_RATE as usize, -70.0));
+        assert!(
+            !status.speaking,
+            "room tone must stay gated at every suppression setting"
+        );
     }
 
     #[test]

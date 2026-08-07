@@ -21,6 +21,7 @@ import {invoke} from '@tauri-apps/api/core';
 import {AudioSettings, AudioSettingsService} from '../../../../../services/audio-settings.service';
 import {DeviceOption, MediaDeviceCatalogService} from '../../../../../services/media-device-catalog.service';
 import {IsleProximityService} from '../../../../../services/isle-proximity.service';
+import {SILENCE_DBFS, VoiceEngineService} from '../../../../../services/voice-engine.service';
 import {StreamSrcDirective} from '../../../../../directives/stream-src.directive';
 
 interface RustCameraDevice {
@@ -29,6 +30,34 @@ interface RustCameraDevice {
 }
 
 type NoiseSuppressionMode = AudioSettings['noiseSuppressionMode'];
+
+/**
+ * How far above the room's noise floor the gate opens at each end of the slider, in decibels.
+ *
+ * These mirror `LEAST_SENSITIVE_MARGIN_DB` and `MOST_SENSITIVE_MARGIN_DB` in
+ * `src-tauri/src/media/voice/gate.rs`, reversed, because the slider here is a cutoff and the
+ * engine's is a sensitivity. They exist twice so the meter can draw where the cutoff sits without
+ * a round trip; if the gate is ever retuned, the handle drifts off the level bar until they are
+ * brought back into line.
+ */
+const MARGIN_MIN_DB = 3;
+const MARGIN_MAX_DB = 18;
+
+/**
+ * The width of the meter, in decibels above the noise floor.
+ *
+ * Wider than the handle's own range, so an ordinary talker - who sits well above any cutoff worth
+ * setting - still has bar left to fill instead of pinning at the end and looking broken.
+ */
+const METER_RANGE_DB = 24;
+
+function marginFor(threshold: number): number {
+    return MARGIN_MIN_DB + ((MARGIN_MAX_DB - MARGIN_MIN_DB) * clamp(threshold, 0, 100)) / 100;
+}
+
+function clamp(value: number, low: number, high: number): number {
+    return Number.isFinite(value) ? Math.min(high, Math.max(low, value)) : low;
+}
 
 @Component({
     selector: 'app-voice-video-settings',
@@ -40,6 +69,8 @@ type NoiseSuppressionMode = AudioSettings['noiseSuppressionMode'];
 export class VoiceVideoSettingsComponent implements OnDestroy {
     /** Bubbled up to the settings modal, which switches to the Keybinds page. */
     @Output() readonly openKeybinds = new EventEmitter<void>();
+
+    private readonly engine = inject(VoiceEngineService);
 
     /**
      * Mic and speaker lists come from the shared catalog, so this page and the bottom bar's device
@@ -149,12 +180,94 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         this.audioSettings.update({inputMode: v});
     }
 
-    get inputSensitivity(): number {
-        return this.audioSettings.settings().inputSensitivity;
+    get voiceThreshold(): number {
+        return this.audioSettings.settings().voiceThreshold;
     }
 
-    set inputSensitivity(v: number) {
-        this.audioSettings.update({inputSensitivity: v});
+    set voiceThreshold(v: number) {
+        this.audioSettings.update({voiceThreshold: Math.round(clamp(v, 0, 100))});
+    }
+
+    /**
+     * Where the handle sits on the meter, as a percentage of its width.
+     *
+     * The handle *is* the cutoff, which is the whole point of drawing it on the meter: the bar
+     * running past it is the same event as the gate opening, so setting it is a matter of talking
+     * and looking rather than of guessing what a percentage means.
+     */
+    readonly cutoffPercent = computed(() => (marginFor(this.thresholdSetting()) / METER_RANGE_DB) * 100);
+
+    /**
+     * How far the live level has filled the meter, as a percentage of its width.
+     *
+     * Measured from the room's own noise floor rather than from full scale, because that is what
+     * the gate compares against - a bar drawn on any other axis would cross the handle at a
+     * different moment than the gate actually opens, which is worse than having no bar at all.
+     */
+    readonly levelPercent = computed(() => {
+        const level = this.engine.levelDb();
+        if (level <= SILENCE_DBFS) return 0;
+        return clamp(((level - this.floorDb()) / METER_RANGE_DB) * 100, 0, 100);
+    });
+
+    /** Whether the level has reached the handle - the same condition as the gate being open. */
+    readonly overCutoff = computed(() => this.levelPercent() > this.cutoffPercent());
+
+    /** Green only once the bar is past the handle; the part below it stays amber. */
+    readonly greenPercent = computed(() => Math.max(0, this.levelPercent() - this.cutoffPercent()));
+    readonly amberPercent = computed(() => Math.min(this.levelPercent(), this.cutoffPercent()));
+
+    /** Whether the engine is running, and so whether the bar means anything yet. */
+    readonly metering = computed(() => this.engine.active());
+
+    /**
+     * The room's noise floor, in dBFS, backed out of the cutoff the engine reports.
+     *
+     * The engine sends the cutoff rather than the floor because the cutoff is what it actually
+     * decides with. The floor is `cutoff - margin`, and the margin is the setting - so this stays
+     * correct as long as {@link marginFor} matches `margin_db` in `gate.rs`.
+     */
+    private readonly floorDb = computed(() => this.engine.thresholdDb() - marginFor(this.thresholdSetting()));
+
+    /** The stored setting as a signal, so the computeds above recompute when it is dragged. */
+    private readonly thresholdSetting = computed(() => this.audioSettings.settings().voiceThreshold);
+
+    private dragging = false;
+
+    /** Follow the pointer for as long as it is down, wherever it goes. */
+    onMeterPointerDown(event: PointerEvent, track: HTMLElement): void {
+        this.dragging = true;
+        (event.target as HTMLElement).setPointerCapture?.(event.pointerId);
+        this.applyPointer(event, track);
+        event.preventDefault();
+    }
+
+    onMeterPointerMove(event: PointerEvent, track: HTMLElement): void {
+        if (this.dragging) this.applyPointer(event, track);
+    }
+
+    onMeterPointerUp(): void {
+        this.dragging = false;
+    }
+
+    /** Arrow keys move the handle, so the control is not pointer-only. */
+    onMeterKeyDown(event: KeyboardEvent): void {
+        const step = event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -5
+            : event.key === 'ArrowRight' || event.key === 'ArrowUp' ? 5
+                : event.key === 'Home' ? -100
+                    : event.key === 'End' ? 100 : 0;
+        if (!step) return;
+        this.voiceThreshold = this.voiceThreshold + step;
+        event.preventDefault();
+    }
+
+    private applyPointer(event: PointerEvent, track: HTMLElement): void {
+        const {left, width} = track.getBoundingClientRect();
+        if (!width) return;
+        // The pointer lands on the meter's dB axis; the setting is the margin that puts the cutoff
+        // there. Inverse of `cutoffPercent`, and the only place the mapping runs backwards.
+        const margin = (clamp((event.clientX - left) / width, 0, 1)) * METER_RANGE_DB;
+        this.voiceThreshold = ((margin - MARGIN_MIN_DB) / (MARGIN_MAX_DB - MARGIN_MIN_DB)) * 100;
     }
 
     get echoCancellation(): boolean {

@@ -109,12 +109,49 @@
             <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
                 <div class="flex items-center justify-between">
                     <p class="text-sm text-white/75">Input Sensitivity</p>
-                    <span class="text-xs text-white/40 tabular-nums">{{ inputSensitivity }}%</span>
+                    <span class="text-xs text-white/40 tabular-nums">{{ voiceThreshold }}%</span>
                 </div>
-                <p class="text-xs text-white/35 -mt-1">Higher = picks up quieter sounds; 100% transmits everything.
-                    Lower it if your mic keeps sending background noise between words, raise it if words get cut
-                    off.</p>
-                <p-slider [(ngModel)]="inputSensitivity" [max]="100" [min]="0" [step]="5" styleClass="w-full mt-1"/>
+                <p class="text-xs text-white/35 -mt-1">The handle is where your voice cuts off. Talk normally: the
+                    bar turns green when you are being heard. Drag right if background noise gets through, left if
+                    your words get clipped.</p>
+
+                <!--
+                  The handle sits on the same axis as the bar, so "past the handle" and "the gate is
+                  open" are the same event rather than two things the user has to correlate. The
+                  axis is decibels above the room's own noise floor, which is what the gate compares
+                  against - drawn against full scale instead, the bar would cross the handle at a
+                  different moment than the microphone actually opens.
+                -->
+                <div #meterTrack
+                     (keydown)="onMeterKeyDown($event)"
+                     (pointercancel)="onMeterPointerUp()"
+                     (pointerdown)="onMeterPointerDown($event, meterTrack)"
+                     (pointermove)="onMeterPointerMove($event, meterTrack)"
+                     (pointerup)="onMeterPointerUp()"
+                     [attr.aria-valuenow]="voiceThreshold"
+                     aria-label="Input sensitivity cutoff"
+                     aria-valuemax="100"
+                     aria-valuemin="0"
+                     class="relative mt-2 h-3 w-full cursor-pointer touch-none select-none rounded-full bg-white/[0.06]"
+                     role="slider"
+                     tabindex="0">
+                    <!-- Below the cutoff: heard, but not transmitted. -->
+                    <div [style.width.%]="amberPercent()"
+                         class="absolute inset-y-0 left-0 rounded-full bg-amber-500/80 transition-[width] duration-75"></div>
+                    <!-- Past the cutoff: on air. -->
+                    <div [style.left.%]="cutoffPercent()"
+                         [style.width.%]="greenPercent()"
+                         class="absolute inset-y-0 rounded-full bg-emerald-400 transition-[width] duration-75"></div>
+
+                    <div [class.ring-emerald-400]="overCutoff()"
+                         [class.ring-white/20]="!overCutoff()"
+                         [style.left.%]="cutoffPercent()"
+                         class="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow ring-2"></div>
+                </div>
+
+                @if (!metering()) {
+                    <p class="text-[0.6875rem] text-white/25">The bar moves while you are in a call.</p>
+                }
             </div>
         }
     </section>

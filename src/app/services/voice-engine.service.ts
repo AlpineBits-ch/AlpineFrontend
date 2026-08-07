@@ -108,6 +108,9 @@ interface VoiceEvent {
     kind: 'speaking' | 'levels' | 'error';
     speaking: boolean;
     level: number;
+    /** Capture level in dBFS, and where the gate currently opens. Both on `kind: 'speaking'`. */
+    levelDb: number;
+    thresholdDb: number;
     message?: string;
     levels?: RemoteLevel[];
 }
@@ -122,6 +125,21 @@ interface VoiceEvent {
  */
 function asGain(percent: number): number {
     return Number.isFinite(percent) ? Math.min(1, Math.max(0, percent / 100)) : 1;
+}
+
+/** The bottom of the meter's scale, and what a level reads before any audio has arrived. */
+export const SILENCE_DBFS = -100;
+
+/**
+ * A 0-100 cutoff slider position as the engine's 0.0-1.0 sensitivity, which runs the other way.
+ *
+ * A broken value falls back to the *permissive* end - cutoff 0, sensitivity 1.0, the gate switched
+ * off. {@link asGain} cannot be reused here even though the arithmetic looks identical: its
+ * fallback of 1 means "full volume", and through this inversion that becomes "only transmit a
+ * shout" - silencing the microphone on precisely the corrupted-settings case the guard exists for.
+ */
+function asSensitivity(threshold: number): number {
+    return 1 - (Number.isFinite(threshold) ? Math.min(1, Math.max(0, threshold / 100)) : 0);
 }
 
 /**
@@ -149,6 +167,15 @@ export class VoiceEngineService {
     readonly speaking = signal(false);
     /** Input level, 0.0-1.0, for the microphone meter. */
     readonly level = signal(0);
+    /**
+     * Input level in dBFS, and the level the gate is currently opening at.
+     *
+     * Both come from the engine rather than being derived here. The cutoff is relative to the room's
+     * own noise floor, so there is nothing in the slider position alone from which the frontend
+     * could work out where the line goes.
+     */
+    readonly levelDb = signal(SILENCE_DBFS);
+    readonly thresholdDb = signal(SILENCE_DBFS);
 
     /** Slots with a call running on them. */
     private readonly runningSlots = signal<ReadonlySet<string>>(new Set());
@@ -243,6 +270,8 @@ export class VoiceEngineService {
             }
             this.speaking.set(event.speaking);
             this.level.set(event.level);
+            this.levelDb.set(event.levelDb ?? SILENCE_DBFS);
+            this.thresholdDb.set(event.thresholdDb ?? SILENCE_DBFS);
         };
 
         const session = await invoke<VoiceSession>('voice_start', {
@@ -417,6 +446,7 @@ export class VoiceEngineService {
         if (!this.active()) {
             this.speaking.set(false);
             this.level.set(0);
+            this.levelDb.set(SILENCE_DBFS);
         }
     }
 
@@ -447,11 +477,17 @@ export class VoiceEngineService {
             echoCancellation: s.echoCancellation,
             autoGainControl: s.autoGainControl,
             inputMode: s.inputMode === 'push-to-talk' ? 'ptt' : 'voice',
-            // `inputSensitivity` is the slider that decides when the gate opens, stored 0-100. Not
-            // `vadStrength`, which is a separate 0-1 control that only applied when enhanced noise
-            // suppression was on - sending that one instead would leave the gate at its least
+            // The one place the UI's vocabulary and the engine's meet, and they run opposite ways.
+            // `voiceThreshold` is a cutoff - the knob's position on the meter, where left is
+            // permissive - because that is the only arrangement in which "the knob is where your
+            // voice cuts off" is true. The engine takes a sensitivity, where 1.0 is permissive.
+            // Inverted here, once, rather than in the component: a widget that quietly reversed its
+            // own model would be invisible to everything that reads the setting.
+            //
+            // Not `vadStrength`, which is a separate 0-1 control that only applied when enhanced
+            // noise suppression was on - sending that one instead would leave the gate at its least
             // sensitive setting by default and cut off anyone speaking quietly.
-            sensitivity: Math.min(1, Math.max(0, s.inputSensitivity / 100)),
+            sensitivity: asSensitivity(s.voiceThreshold),
             // Both sliders are stored 0-100 and consumed as gains. Until now nothing read either of
             // them: the microphone and output volume controls moved, saved, and changed nothing.
             inputVolume: asGain(s.inputVolume),

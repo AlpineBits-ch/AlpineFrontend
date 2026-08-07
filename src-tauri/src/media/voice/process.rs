@@ -95,7 +95,7 @@ pub fn create(config: ProcessConfig) -> Box<dyn AudioProcessor> {
 #[cfg(feature = "aec")]
 mod apm {
     use webrtc_audio_processing::config::{
-        Config, EchoCanceller, GainController, GainController2, HighPassFilter,
+        AdaptiveDigital, Config, EchoCanceller, GainController, GainController2, HighPassFilter,
         NoiseSuppression as ApmNoiseSuppression, NoiseSuppressionLevel,
     };
     use webrtc_audio_processing::Processor;
@@ -148,9 +148,23 @@ mod apm {
                 },
                 // AGC2 rather than AGC1: adaptive digital gain, which is what a software pipeline
                 // with no analogue mixer control should use.
-                gain_controller: config
-                    .auto_gain
-                    .then(|| GainController::GainController2(GainController2::default())),
+                //
+                // `adaptive_digital` spelled out rather than left to `GainController2::default()`,
+                // which derives to `None` - an gain controller switched on and configured to apply
+                // nothing. That is not a hypothetical: it shipped, and the settings toggle moved a
+                // -45 dBFS talker by -0.6 dB. It also made every downstream threshold wrong,
+                // because the one stage meant to bring a quiet or distant microphone up to a
+                // predictable level was never running.
+                //
+                // The input volume controller stays off. It drives the OS capture slider, and
+                // moving a control the user set by hand - system-wide, outside this app - is a
+                // bigger claim than a call needs to make.
+                gain_controller: config.auto_gain.then(|| {
+                    GainController::GainController2(GainController2 {
+                        adaptive_digital: Some(AdaptiveDigital::default()),
+                        ..Default::default()
+                    })
+                }),
                 ..Default::default()
             }
         }
@@ -189,6 +203,48 @@ mod apm {
 
         fn set_config(&mut self, config: ProcessConfig) {
             self.inner.set_config(Self::to_apm_config(config));
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn gain_control_is_configured_to_actually_apply_gain() {
+            // `GainController2::default()` derives to `adaptive_digital: None`,
+            // `input_volume_controller_enabled: false` and `fixed_digital: 0 dB` - a gain
+            // controller switched on and configured to do nothing. That shipped, and it made the
+            // settings toggle a no-op: measured, it moved a -45 dBFS talker by -0.6 dB.
+            //
+            // Asserted on the configuration rather than only through the processor, because the
+            // behavioural measurement is not sharp enough to carry this alone: AGC2's adaptive
+            // stage tracks what its own speech detector accepts, and on synthetic audio the gain it
+            // settles on is not monotonic in the input level. This assertion cannot be fooled by
+            // the choice of test signal.
+            let config = Apm::to_apm_config(ProcessConfig {
+                auto_gain: true,
+                ..ProcessConfig::default()
+            });
+            let Some(GainController::GainController2(agc)) = config.gain_controller else {
+                panic!(
+                    "gain control is on but no AGC2 was configured: {:?}",
+                    config.gain_controller
+                );
+            };
+            assert!(
+                agc.adaptive_digital.is_some(),
+                "AGC2 is configured but its adaptive digital stage is off, so it applies no gain"
+            );
+        }
+
+        #[test]
+        fn gain_control_off_configures_no_controller() {
+            let config = Apm::to_apm_config(ProcessConfig {
+                auto_gain: false,
+                ..ProcessConfig::default()
+            });
+            assert!(config.gain_controller.is_none());
         }
     }
 }
@@ -286,6 +342,170 @@ mod tests {
             }
         }
 
+        /// Frames of a 300 Hz tone at `db` dBFS RMS, in bursts: 250 ms on, 250 ms off.
+        ///
+        /// AGC2's adaptive stage estimates a *speech* level and aims that at its headroom target,
+        /// so it needs a speech-like envelope to estimate from. A continuous tone tells it nothing
+        /// about what to aim at, and a test built on one would measure the wrong thing whichever
+        /// way it came out.
+        fn bursts_at_dbfs(frames: usize, db: f32) -> Vec<Vec<f32>> {
+            // A 110 Hz buzz with twenty harmonics falling at 1/n, which is roughly the spectrum of
+            // a voiced vowel. A pure sine is not enough: AGC2's adaptive stage only tracks what its
+            // own speech detector accepts as speech, and on a single tone that detector fires
+            // erratically - measured across five input levels, a sine produced +12.9, +4.5, -0.6,
+            // +12.8 and -0.6 dB, which is noise, not a curve.
+            let mut raw: Vec<Vec<f32>> = (0..frames)
+                .map(|f| {
+                    let speaking = (f / 25) % 2 == 0;
+                    (0..FRAME)
+                        .map(|i| {
+                            if !speaking {
+                                return 0.0;
+                            }
+                            let t = (f * FRAME + i) as f32 / SAMPLE_RATE as f32;
+                            (1..=20)
+                                .map(|h| {
+                                    let hz = 110.0 * h as f32;
+                                    (t * hz * std::f32::consts::TAU).sin() / h as f32
+                                })
+                                .sum()
+                        })
+                        .collect()
+                })
+                .collect();
+
+            // Scaled after the fact, because the level of a harmonic stack is not something you can
+            // write down in advance - and the level is the whole point of the measurement.
+            let speaking: Vec<f32> = raw.iter().flatten().copied().filter(|s| *s != 0.0).collect();
+            let scale = 10f32.powf(db / 20.0) / rms(&speaking);
+            for frame in raw.iter_mut() {
+                for sample in frame.iter_mut() {
+                    *sample *= scale;
+                }
+            }
+            raw
+        }
+
+        fn rms(frame: &[f32]) -> f32 {
+            (frame.iter().map(|s| s * s).sum::<f32>() / frame.len() as f32).sqrt()
+        }
+
+        /// Decibels of gain `config` applied to the speaking frames of the final second.
+        ///
+        /// Six seconds, and only the tail measured, because the adaptive stage moves at a bounded
+        /// rate (6 dB/s by default) - a measurement taken while it is still climbing says more about
+        /// the ramp than about where it settles.
+        fn gain_applied_db(config: ProcessConfig, level_dbfs: f32) -> f32 {
+            let mut p = create(config);
+            let input = bursts_at_dbfs(600, level_dbfs);
+            let silence = vec![0.0f32; FRAME];
+            let (mut input_energy, mut output_energy, mut counted) = (0.0f64, 0.0f64, 0u32);
+
+            for (index, frame) in input.iter().enumerate() {
+                let mut captured = frame.clone();
+                p.process_render(&silence);
+                p.process_capture(&mut captured);
+
+                let level = rms(frame);
+                // Speaking frames only: the gaps are digital silence, and a ratio taken over them
+                // is either zero or a division by zero.
+                if index >= 500 && level > 0.0 {
+                    input_energy += (level as f64).powi(2);
+                    output_energy += (rms(&captured) as f64).powi(2);
+                    counted += 1;
+                }
+            }
+
+            assert!(counted > 0, "no speaking frames fell inside the measurement window");
+            (10.0 * (output_energy / input_energy).log10()) as f32
+        }
+
+        #[test]
+        fn gain_control_lifts_a_quiet_talker() {
+            // -55 dBFS: a quiet talker on a low-gain microphone, and the level at which the effect
+            // is unambiguous. It is not a monotonic curve on synthetic audio - measured across the
+            // range it produced +15.5, +5.5, -2.1, +4.6 and -2.1 dB at -55, -45, -35, -25 and -12
+            // dBFS - because AGC2's adaptive stage only tracks what its own speech detector accepts
+            // as speech, and a harmonic stack is not a voice. The deterministic guard against the
+            // defect this was written for is `gain_control_is_configured_to_actually_apply_gain`,
+            // below; this one is here to show the stage is reached and running at all.
+            let gain = gain_applied_db(
+                ProcessConfig {
+                    // Isolated: noise suppression and echo cancellation both move the level on
+                    // their own, and either would muddy what this measures.
+                    echo_cancellation: false,
+                    noise_suppression: NoiseSuppression::Off,
+                    auto_gain: true,
+                },
+                -55.0,
+            );
+            assert!(
+                gain > 6.0,
+                "automatic gain control moved a -55 dBFS talker by {gain:.1} dB. \
+                 `GainController2::default()` is `adaptive_digital: None`, \
+                 `input_volume_controller_enabled: false` and `fixed_digital: 0 dB` - the settings \
+                 toggle is wired to a controller that is switched on and configured to do nothing, \
+                 so the one stage that would lift a quiet talker to where the gate's threshold \
+                 makes sense never runs",
+            );
+        }
+
+        #[test]
+        fn gain_control_leaves_a_healthy_talker_where_they_are() {
+            // The other side of the same fix, and the reason it cannot be satisfied with a fixed
+            // gain: lifting the quiet must not also drive an already-healthy talker into the
+            // limiter. This one passes today, because today nothing moves at all - it is here to
+            // stay passing once something does.
+            let gain = gain_applied_db(
+                ProcessConfig {
+                    echo_cancellation: false,
+                    noise_suppression: NoiseSuppression::Off,
+                    auto_gain: true,
+                },
+                -12.0,
+            );
+            assert!(
+                gain.abs() < 6.0,
+                "a -12 dBFS talker was moved by {gain:.1} dB - gain control should be leaving them \
+                 alone, not compressing them"
+            );
+        }
+
+        /// The isolated processor, with gain control in the given position.
+        fn gain_only(auto_gain: bool) -> ProcessConfig {
+            ProcessConfig {
+                echo_cancellation: false,
+                noise_suppression: NoiseSuppression::Off,
+                auto_gain,
+            }
+        }
+
+        #[test]
+        fn gain_control_off_adds_no_gain() {
+            // Deliberately one-sided. The high-pass filter runs whatever the gain setting is, and
+            // it costs this signal about 2 dB by taking out the fundamental - so a symmetric
+            // `abs() < 1` here would be asserting that the high-pass does not work. What must not
+            // happen with the toggle off is gain being *added*.
+            let gain = gain_applied_db(gain_only(false), -55.0);
+            assert!(
+                gain < 1.0,
+                "gain control is switched off but {gain:+.1} dB was applied anyway"
+            );
+        }
+
+        #[test]
+        fn the_gain_control_toggle_changes_the_signal() {
+            // Pins the toggle to something observable in both positions. Without this, the tests
+            // above could be satisfied by a processor that applies its gain unconditionally - or,
+            // as shipped, by one that applies it in neither position.
+            let on = gain_applied_db(gain_only(true), -55.0);
+            let off = gain_applied_db(gain_only(false), -55.0);
+            assert!(
+                on - off > 6.0,
+                "gain control on and off are indistinguishable: {on:+.1} dB against {off:+.1} dB"
+            );
+        }
+
         #[test]
         fn the_high_pass_filter_removes_a_dc_offset() {
             let mut p = create(ProcessConfig::default());
@@ -353,3 +573,4 @@ mod tests {
         }
     }
 }
+

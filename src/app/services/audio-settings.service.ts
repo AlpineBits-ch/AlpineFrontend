@@ -37,11 +37,23 @@ export interface AudioSettings {
     proximitySpatialEnabled: boolean;
     /** How the mic decides when to transmit for regular (non-Isle) calls. */
     inputMode: 'voice-activity' | 'push-to-talk';
-    /** Voice-activity threshold, 0 (least sensitive) – 100 (most sensitive). Ignored in push-to-talk mode. */
-    inputSensitivity: number;
+    /**
+     * Where the voice-activity gate cuts off, 0 (transmits almost anything) – 100 (only clearly
+     * loud speech). Ignored in push-to-talk mode.
+     *
+     * A cutoff, not a sensitivity: it is the knob position on the meter in the settings page, and
+     * on that meter left is permissive and right is strict. The engine still speaks in
+     * sensitivity - see `payloadFrom` in `voice-engine.service.ts`, which is the one place the two
+     * vocabularies meet.
+     *
+     * This replaced `inputSensitivity`, which ran the other way. Stored values are not migrated:
+     * the gate underneath changed from an absolute threshold to one relative to the room, so an
+     * old number would not have meant the same thing on the new scale even reversed.
+     */
+    voiceThreshold: number;
 }
 
-const DEFAULTS: AudioSettings = {
+export const DEFAULTS: AudioSettings = {
     micId: 'default',
     speakerId: 'default',
     cameraId: '',
@@ -55,7 +67,9 @@ const DEFAULTS: AudioSettings = {
     proximityMicGain: 1,
     proximitySpatialEnabled: true,
     inputMode: 'voice-activity',
-    inputSensitivity: 60,
+    // 40 leaves the gate opening about 9 dB above whatever the room measures - permissive enough
+    // that ordinary speech never has to fight it, strict enough to sit above room tone.
+    voiceThreshold: 40,
 };
 
 const STORAGE_KEY = 'alpine_audio_settings';

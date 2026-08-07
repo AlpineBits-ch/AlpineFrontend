@@ -22,7 +22,7 @@ use std::time::{Duration, Instant};
 use bytes::Bytes;
 
 use super::capture;
-use super::chain::{CaptureChain, ChainConfig};
+use super::chain::{CaptureChain, ChainConfig, ChainStatus};
 use super::gate::InputMode;
 use super::jitter::Packet;
 use super::mixer::{Mixer, Position, SpatialModel};
@@ -132,6 +132,12 @@ pub struct VoiceEvent {
     pub speaking: bool,
     pub level: f32,
     pub message: Option<String>,
+    /// Capture level and the gate's current cutoff, both in dBFS. Populated on `kind: "speaking"`.
+    ///
+    /// The cutoff travels with the level because the settings page draws one across the other, and
+    /// a floor-relative gate has no fixed cutoff the frontend could work out for itself.
+    pub level_db: f32,
+    pub threshold_db: f32,
     /// Populated only on `kind: "levels"`, so the speaking-state payload stays small.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub levels: Vec<RemoteLevel>,
@@ -147,11 +153,13 @@ pub struct RemoteLevel {
 }
 
 impl VoiceEvent {
-    pub fn speaking(speaking: bool, level: f32) -> Self {
+    pub fn speaking(status: ChainStatus) -> Self {
         Self {
             kind: "speaking".into(),
-            speaking,
-            level,
+            speaking: status.speaking,
+            level: status.level,
+            level_db: status.level_db,
+            threshold_db: status.threshold_db,
             message: None,
             levels: Vec::new(),
         }
@@ -162,6 +170,8 @@ impl VoiceEvent {
             kind: "levels".into(),
             speaking: false,
             level: 0.0,
+            level_db: 0.0,
+            threshold_db: 0.0,
             message: None,
             levels,
         }
@@ -173,6 +183,8 @@ impl VoiceEvent {
             kind: "error".into(),
             speaking: false,
             level: 0.0,
+            level_db: 0.0,
+            threshold_db: 0.0,
             message: Some(message.into()),
             levels: Vec::new(),
         }
@@ -733,6 +745,7 @@ impl Engine {
                 let tick = Duration::from_millis(FRAME_MS as u64);
                 let mut frame = vec![0.0f32; FRAME];
                 let mut last_speaking = false;
+                let mut frames_since_report = 0u32;
                 let mut next = Instant::now();
 
                 while capture_control.running() {
@@ -790,12 +803,16 @@ impl Engine {
                             }
                         });
 
-                        if status.speaking != last_speaking {
+                        // On change, so the speaking indicator is immediate, and on a fixed
+                        // cadence besides, so the settings meter has a level to draw. Before this
+                        // the local level was only ever reported when the gate changed state,
+                        // which is precisely when it is least informative.
+                        frames_since_report += 1;
+                        let changed = status.speaking != last_speaking;
+                        if changed || frames_since_report >= LEVEL_REPORT_FRAMES {
                             last_speaking = status.speaking;
-                            broadcast(
-                                &capture_events,
-                                VoiceEvent::speaking(status.speaking, status.level),
-                            );
+                            frames_since_report = 0;
+                            broadcast(&capture_events, VoiceEvent::speaking(status));
                         }
                     }
                 }
@@ -1255,7 +1272,7 @@ mod tests {
         assert_eq!(json["levels"][0]["speaking"], true);
 
         // Speaking events are sent far more often; they must not carry an empty array each time.
-        let speaking = serde_json::to_value(VoiceEvent::speaking(true, 0.2)).unwrap();
+        let speaking = serde_json::to_value(VoiceEvent::speaking(status(true, 0.2))).unwrap();
         assert!(speaking.get("levels").is_none());
     }
 
@@ -1320,13 +1337,38 @@ mod tests {
         assert!(control.take_config().is_none());
     }
 
+    /// A capture status with the given speaking flag and linear level.
+    fn status(speaking: bool, level: f32) -> ChainStatus {
+        ChainStatus {
+            speaking,
+            level,
+            level_db: crate::media::voice::gate::dbfs(level),
+            threshold_db: -50.0,
+            ..ChainStatus::default()
+        }
+    }
+
     #[test]
     fn a_speaking_event_carries_the_level() {
-        let event = VoiceEvent::speaking(true, 0.42);
+        let event = VoiceEvent::speaking(status(true, 0.42));
         assert_eq!(event.kind, "speaking");
         assert!(event.speaking);
         assert!((event.level - 0.42).abs() < f32::EPSILON);
         assert!(event.message.is_none());
+    }
+
+    #[test]
+    fn a_speaking_event_carries_the_cutoff_the_meter_draws() {
+        // The settings page paints the level bar orange below this line and green above it. Without
+        // it the frontend would have to guess where the gate opens, and a floor-relative gate gives
+        // it nothing to guess from - the slider position alone does not determine the cutoff.
+        let json = serde_json::to_value(VoiceEvent::speaking(status(true, 0.42))).unwrap();
+        assert_eq!(json["thresholdDb"], -50.0);
+        assert!(
+            json["levelDb"].as_f64().unwrap() < 0.0,
+            "the meter needs the level in dBFS, got {}",
+            json["levelDb"]
+        );
     }
 
     #[test]
@@ -1339,7 +1381,7 @@ mod tests {
 
     #[test]
     fn events_serialise_with_the_keys_the_frontend_reads() {
-        let json = serde_json::to_value(VoiceEvent::speaking(true, 0.5)).unwrap();
+        let json = serde_json::to_value(VoiceEvent::speaking(status(true, 0.5))).unwrap();
         assert_eq!(json["kind"], "speaking");
         assert_eq!(json["speaking"], true);
         assert_eq!(json["level"], 0.5);

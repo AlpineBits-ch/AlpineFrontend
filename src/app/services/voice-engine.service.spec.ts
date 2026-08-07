@@ -43,7 +43,7 @@ function withSettings(overrides: Partial<AudioSettings>): void {
         echoCancellation: true,
         autoGainControl: true,
         inputMode: 'voice-activity',
-        inputSensitivity: 50,
+        voiceThreshold: 50,
         inputVolume: 100,
         outputVolume: 100,
         ...overrides,
@@ -113,4 +113,40 @@ it('clamps a slider that somehow exceeds its range', async () => {
     const payload = lastPayload();
     expect(payload['inputVolume']).toBe(1);
     expect(payload['outputVolume']).toBe(0);
+});
+
+/**
+ * The cutoff slider and the engine's sensitivity run in opposite directions, and the inversion
+ * happens exactly once, here. Getting it backwards is silent in both directions: the setting saves,
+ * the payload sends, the gate applies it - and every user's microphone behaves as though their
+ * slider were mirrored. Which is the failure this whole change exists for, arriving from the other
+ * side.
+ */
+it('sends the cutoff slider to the engine as its inverse', async () => {
+    withSettings({voiceThreshold: 0});
+    await engine.applySettings();
+    expect(lastPayload()['sensitivity']).toBe(1);
+
+    withSettings({voiceThreshold: 100});
+    await engine.applySettings();
+    expect(lastPayload()['sensitivity']).toBe(0);
+});
+
+it('puts the shipped default in the permissive half of the range', async () => {
+    // A default that gates an ordinary talker is the reported bug, and nobody changes a default
+    // they have not been bitten by - so it has to err open.
+    const {DEFAULTS} = await import('./audio-settings.service');
+
+    withSettings({voiceThreshold: DEFAULTS.voiceThreshold});
+    await engine.applySettings();
+
+    expect(lastPayload()['sensitivity']).toBeGreaterThan(0.5);
+});
+
+it('does not let a corrupted cutoff mute the microphone', async () => {
+    // A missing or NaN stored value must not arrive as "only transmit a shout". Sensitivity 1.0 is
+    // the gate switched off, which is the safe end to fail towards.
+    withSettings({voiceThreshold: NaN});
+    await engine.applySettings();
+    expect(lastPayload()['sensitivity']).toBe(1);
 });
