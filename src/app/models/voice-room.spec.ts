@@ -196,6 +196,14 @@ describe('isDeadMediaSession', () => {
     const sfuBody = '{"errorCode":"session_error","errorDescription":"Session appears to be '
         + 'disconnected. Please check if the PeerConnection is connected."}';
 
+    /** The server's own classification, and the one the guide documents. */
+    it('recognises the 409 the server answers', () => {
+        expect(isDeadMediaSession({
+            status: 409,
+            error: {error: 'sessionGone', action: 'recreateSession'},
+        })).toBe(true);
+    });
+
     it('recognises the 502 the gateway relays from the SFU', () => {
         expect(isDeadMediaSession({
             status: 502,
@@ -221,6 +229,19 @@ describe('isDeadMediaSession', () => {
             status: 409,
             error: {error: 'staleSubscription', action: 'refetchSnapshot'},
         })).toBe(false);
+    });
+
+    /**
+     * Both live on 409 now and are told apart by the code alone, so this pair is the whole
+     * distinction. Confusing them either rebuilds a healthy session over a stopped share, or
+     * answers a spent session with a roster refetch that cannot possibly help.
+     */
+    it('is not confused with a stale subscription on the same status', () => {
+        const stale = {status: 409, error: {error: 'staleSubscription', action: 'refetchSnapshot'}};
+        const gone = {status: 409, error: {error: 'sessionGone', action: 'recreateSession'}};
+
+        expect(isDeadMediaSession(stale)).toBe(false);
+        expect(isStaleSubscription(gone)).toBe(false);
     });
 
     it('does not match a 502 that means something else', () => {

@@ -193,6 +193,14 @@ export class CallWebRtcService {
             const wasConnected = this.prevConnState === ConnectionState.Connected;
             this.prevConnState = cs;
             if (cs === ConnectionState.Connected && !wasConnected && this.callId) {
+                // Asserted immediately rather than at the next tick of the 30-second timer. A
+                // disconnect shortens our liveness window server-side, and the heartbeat is what
+                // restores it - and what pulls back a Snapshot if we fell behind while away.
+                //
+                // Nothing here rebuilds media. The peer connection and the media session ride their
+                // own transport and a hub blip says nothing about them; tearing them down on one
+                // spends the session id and earns `sessionGone` on every call after it.
+                this.sendHeartbeat();
                 void this.syncParticipants();
             }
         });

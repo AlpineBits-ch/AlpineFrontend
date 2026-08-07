@@ -3,10 +3,12 @@
  * fought over one media session and the first device's audio silently broke. The kick is entirely
  * server-driven; the client's only job is to tear down cleanly when told.
  */
+import {ApplicationRef, signal} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {of, Subject} from 'rxjs';
 import {loadStickyVoiceState, VoiceChannelService} from './voice-channel.service';
 import {GuildWebsocketService} from './guild-websocket.service';
+import {ConnectionState} from './realtime-connection.service';
 import {GuildVoiceService} from './guild-voice.service';
 import {VoiceRTCService} from './voice-rtc.service';
 import {ProfileService} from './profile.service';
@@ -59,6 +61,11 @@ function setup(options: {inChannel?: boolean} = {}) {
         'invokeVoiceScreenShareStarted', 'invokeVoiceScreenShareStopped', 'invokeVoiceHeartbeat',
     ]) wsCalls[name] = vi.fn();
 
+    // The hub's own connection state, which the service watches so it can assert itself the moment
+    // a dropped socket comes back rather than up to 30 seconds later. A signal, so a test can move
+    // it and drive the reconnect path.
+    const connectionState = signal(ConnectionState.Connected);
+
     // Both answer for whichever channel was asked, because a snapshot whose `roomId` does not match
     // the joined channel is correctly ignored - a fixed id here would silently disable the very
     // apply path most of these tests are about.
@@ -100,7 +107,7 @@ function setup(options: {inChannel?: boolean} = {}) {
 
     TestBed.configureTestingModule({
         providers: [
-            {provide: GuildWebsocketService, useValue: {...ws, ...wsCalls}},
+            {provide: GuildWebsocketService, useValue: {...ws, ...wsCalls, connectionState}},
             {provide: GuildVoiceService, useValue: guildVoice},
             {provide: VoiceRTCService, useValue: rtc},
             {
@@ -126,7 +133,7 @@ function setup(options: {inChannel?: boolean} = {}) {
         service.joinedChannelId.set('chan-1');
         service.joinedGuildId.set('guild-1');
     }
-    return {service, ws, wsCalls, guildVoice, rtc, toast, engineSetMute};
+    return {service, ws, wsCalls, guildVoice, rtc, toast, engineSetMute, connectionState};
 }
 
 const tick = () => new Promise<void>(r => setTimeout(r, 0));
@@ -673,3 +680,66 @@ describe('heartbeat', () => {
     });
 });
 
+
+/**
+ * What a hub reconnect means, and - just as important - what it does not.
+ *
+ * A dropped socket is not a departure: the server shortens this client's liveness window rather
+ * than evicting it, and reconnecting restores it. So the client must assert itself immediately
+ * instead of waiting up to 30 seconds for the next timer tick, and must leave the media alone -
+ * media rides its own transport, and rebuilding the peer connection on a websocket blip spends the
+ * media session id and earns `sessionGone` on every call after it.
+ */
+describe('a hub reconnect', () => {
+    /** Angular flushes effects on the microtask queue, so a signal write needs a turn to land. */
+    const settle = () => TestBed.inject(ApplicationRef).tick();
+
+    it('asserts our state as soon as the socket is back', async () => {
+        const {wsCalls, connectionState} = setup();
+        settle();
+        wsCalls['invokeVoiceHeartbeat'].mockClear();
+
+        connectionState.set(ConnectionState.Disconnected);
+        settle();
+        connectionState.set(ConnectionState.Connected);
+        settle();
+
+        expect(wsCalls['invokeVoiceHeartbeat']).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not touch the media when the socket blips', () => {
+        const {rtc, connectionState} = setup();
+
+        connectionState.set(ConnectionState.Disconnected);
+        settle();
+        connectionState.set(ConnectionState.Connected);
+        settle();
+
+        expect(rtc.teardown).not.toHaveBeenCalled();
+        expect(rtc.connect).not.toHaveBeenCalled();
+    });
+
+    /** Only the transition into Connected. A repeated report is not a reconnect. */
+    it('does not re-assert on a state that was already connected', () => {
+        const {wsCalls, connectionState} = setup();
+        settle();
+        wsCalls['invokeVoiceHeartbeat'].mockClear();
+
+        connectionState.set(ConnectionState.Connected);
+        settle();
+
+        expect(wsCalls['invokeVoiceHeartbeat']).not.toHaveBeenCalled();
+    });
+
+    it('stays quiet when not in a channel', () => {
+        const {wsCalls, connectionState} = setup({inChannel: false});
+        settle();
+
+        connectionState.set(ConnectionState.Disconnected);
+        settle();
+        connectionState.set(ConnectionState.Connected);
+        settle();
+
+        expect(wsCalls['invokeVoiceHeartbeat']).not.toHaveBeenCalled();
+    });
+});

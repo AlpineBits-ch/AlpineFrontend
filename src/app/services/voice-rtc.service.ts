@@ -292,15 +292,38 @@ export class VoiceRTCService {
     }
 
     /**
-     * Throw away a receive session the SFU has stopped acknowledging, so the next subscribe opens a
+     * Throw away a receive session the server has declared gone, so the next subscribe opens a
      * fresh one.
      *
-     * <p>Only safe while nothing is published on it - a rebuilt session does not carry the local
-     * camera or screen tracks over, and silently dropping someone's own share to recover a
-     * subscription is a worse failure than the one being recovered.</p>
+     * <p>Unconditional, including when a camera or screen share is publishing on it. That is not a
+     * choice this makes lightly: the session is <em>already</em> spent, so those tracks are dead at
+     * the SFU whatever the local UI says, and every call on that id fails identically from now on.
+     * Keeping the connection to preserve them would preserve nothing but the appearance of them, and
+     * cost the subscription that could have been recovered.</p>
+     *
+     * <p>So the local capture is stopped and its state cleared, which makes the UI say what is
+     * actually true - the camera is off - instead of showing it live to a room that cannot see it.
+     * Turning it back on republishes onto the new session. Doing that automatically would be
+     * friendlier and is worth doing; it is a larger change than this recovery path.</p>
      */
     private dropReceiveSession(): boolean {
-        if (this.localSenders.size > 0 || this.localVideoTrack || this.localScreenTrack) return false;
+        this.localVideoTrack?.stop();
+        this.localVideoTrack = null;
+        this.localVideoStream.set(null);
+        this.cfVideoTrackName = null;
+        // The Rust publisher owns its own session and is untouched by this; only a share published
+        // on *this* connection dies with it.
+        if (!this.rustPublishing) {
+            this.localScreenTrack?.stop();
+            this.localScreenAudioTrack?.stop();
+            this.localScreenTrack = null;
+            this.localScreenAudioTrack = null;
+            this.localScreenStream.set(null);
+            this.localScreenHasAudio.set(false);
+            this.screenShareId = null;
+            this.screenPreset.set(null);
+        }
+        this.localSenders.clear();
         this.pc?.close();
         this.pc = null;
         this.mediaSessionId = null;

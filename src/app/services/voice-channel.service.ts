@@ -1,4 +1,4 @@
-import {computed, effect, inject, Injectable, signal} from '@angular/core';
+import {computed, effect, inject, Injectable, signal, untracked} from '@angular/core';
 import {firstValueFrom} from 'rxjs';
 import {ChannelDto, ChannelType} from '../dtos/response/guild.dto';
 import {ProfileService} from './profile.service';
@@ -22,6 +22,7 @@ import {VoiceRTCService} from './voice-rtc.service';
 import {StreamPreset} from '../models/stream-preset';
 import {VoiceEngineService} from './voice-engine.service';
 import {ToastService} from './toast.service';
+import {ConnectionState} from './realtime-connection.service';
 import {
     describeTrack,
     VoiceEventDecision,
@@ -133,6 +134,8 @@ export class VoiceChannelService {
     private readonly tracker = new VoiceRoomTracker();
     /** Guards against a burst of gaps firing a refetch per event. */
     private refetchInFlight = false;
+    /** Previous hub state, so only the transition *into* Connected fires the reconnect heartbeat. */
+    private prevConnectionState: ConnectionState | null = null;
 
     constructor() {
         // Remote participants' speaking state, from the Rust mixer.
@@ -159,6 +162,29 @@ export class VoiceChannelService {
             const ownId = this.profileService.ownProfile()?.userId;
             if (!channelId || !ownId) return;
             this.patchParticipant(channelId, ownId, p => p.isSpeaking === isSpeaking ? p : {...p, isSpeaking});
+        });
+
+        // A hub reconnect is when to *assert* our state, not when to rebuild it.
+        //
+        // Nothing here touches the peer connection or the media session, deliberately. Media rides
+        // its own transport and a websocket blip says nothing about it; rebuilding on every blip
+        // spends the media session id and earns `sessionGone` on everything after it.
+        //
+        // What a reconnect does mean is that events broadcast during the gap are lost - SignalR does
+        // not queue them - and that the server has shortened our liveness to 45 seconds. One
+        // heartbeat answers both: it restores the liveness window, and it hands back a Snapshot if
+        // we fell behind. Sent now rather than at the next tick of the 30-second timer, which could
+        // be 29 seconds of a stale roster away.
+        effect(() => {
+            const state = this.guildWsSvc.connectionState();
+            untracked(() => {
+                const wasConnected = this.prevConnectionState === ConnectionState.Connected;
+                this.prevConnectionState = state;
+                const channelId = this.joinedChannelId();
+                if (state === ConnectionState.Connected && !wasConnected && channelId) {
+                    this.sendHeartbeat(channelId);
+                }
+            });
         });
 
         // Auto-stop screen share when the OS ends the screen track

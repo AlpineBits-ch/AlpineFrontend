@@ -125,7 +125,15 @@ export function isStaleSubscription(error: unknown): boolean {
     return (body as {error?: string} | null)?.error === STALE_SUBSCRIPTION;
 }
 
-/** The SFU's word for "the session you are operating on has no live peer connection". */
+/**
+ * The server's word for "your own media session has no live peer connection".
+ *
+ * Answered as `409 {"error":"sessionGone","action":"recreateSession"}`. The SFU's own
+ * `session_error` is also matched: it is what leaks through as a 502 when the operation reaches the
+ * transport before the server classifies it, and it is what this client was actually seeing in the
+ * field.
+ */
+export const SESSION_GONE = 'sessionGone';
 export const DEAD_MEDIA_SESSION = 'session_error';
 
 /**
@@ -143,15 +151,24 @@ export const DEAD_MEDIA_SESSION = 'session_error';
  * prose and not a contract.</p>
  */
 export function isDeadMediaSession(error: unknown): boolean {
-    if (typeof error === 'string') return error.includes(DEAD_MEDIA_SESSION);
+    if (typeof error === 'string') {
+        return error.includes(SESSION_GONE) || error.includes(DEAD_MEDIA_SESSION);
+    }
 
-    // 502 is the gateway reporting what the SFU said. Anything else with this text in it is not the
-    // SFU refusing a session, and must not be answered by tearing one down.
-    if ((error as {status?: number} | null)?.status !== 502) return false;
+    const status = (error as {status?: number} | null)?.status;
+    // Only these two. The status is checked as well as the code so that an unrelated failure whose
+    // body happens to carry the word cannot be answered by tearing down a healthy session.
+    if (status !== 409 && status !== 502) return false;
 
     const body = (error as {error?: unknown} | null)?.error;
-    if (typeof body === 'string') return body.includes(DEAD_MEDIA_SESSION);
-    // `{ operation, error }`, where `error` is the SFU's JSON response as a string.
+    if (typeof body === 'string') {
+        return body.includes(SESSION_GONE) || body.includes(DEAD_MEDIA_SESSION);
+    }
+
+    // The server's own shape: `{ error: "sessionGone", action: "recreateSession" }`.
+    if ((body as {error?: string} | null)?.error === SESSION_GONE) return true;
+
+    // The transport's, relayed: `{ operation, error }`, where `error` is the SFU's JSON as a string.
     const inner = (body as {error?: unknown} | null)?.error;
     return typeof inner === 'string' && inner.includes(DEAD_MEDIA_SESSION);
 }
