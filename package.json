@@ -101,5 +101,5 @@
     "watch": "ng build --watch --configuration development",
     "sentry:sourcemaps": "node scripts/sentry-sourcemaps.mjs"
   },
-  "version": "3.0.191"
+  "version": "3.0.192"
 }
