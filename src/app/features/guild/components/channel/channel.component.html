@@ -282,7 +282,14 @@
         <!-- Says why this device cannot read or send here - including a server that reports the
              channel as unencrypted after this device has encrypted messages in it, which the
              composer refuses outright rather than downgrading. -->
-        <app-mls-unreadable-banner (relink)="relinkDevice()" [contextId]="channel().id"
+        <!--
+          `accessOfferedElsewhere` because app-channel-access-banner below is the better surface for
+          a device holding no group: it replaces the composer outright and carries the identity
+          fingerprint an approver will ask for. Two notices saying the same thing, one above the
+          other, is how a reader learns to skip both.
+        -->
+        <app-mls-unreadable-banner (relink)="relinkDevice()" [accessOfferedElsewhere]="isLockedOut()"
+                                   [contextId]="channel().id" [isChannel]="true"
                                    [status]="relinkStatus()"/>
         @if (autoModError(); as reason) {
             <div class="mx-4 mb-2 flex items-center gap-2 rounded-md border border-offline/40

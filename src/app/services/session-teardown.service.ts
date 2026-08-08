@@ -3,6 +3,7 @@ import {firstValueFrom} from 'rxjs';
 import {MlsService} from './mls.service';
 import {DeviceService} from './device.service';
 import {PaymentHandleService} from '../features/payments';
+import {MlsCoverageService} from './mls-coverage.service';
 
 /** What a teardown managed to do, so the caller can report the parts that matter to it. */
 export interface TeardownOutcome {
@@ -69,6 +70,12 @@ export class SessionTeardownService {
         // cannot read the last one's flatmates' bank details out of a live service. Included in the
         // engine-state path as well as the account path because both end a session's right to them.
         this.paymentHandles.forgetAll();
+
+        // Coverage answers are a list of one account's device names, held in memory. The group
+        // registry they were cross-checked against has just gone, so they are stale anyway - but
+        // the reason to drop them here is the same as for the handles above: the next account
+        // signed in on this machine must not read the last one's hardware out of a live service.
+        this.injector.get(MlsCoverageService).clear();
 
         return {keyPackagesReset: await this.resetKeyPackages(deviceId)};
     }

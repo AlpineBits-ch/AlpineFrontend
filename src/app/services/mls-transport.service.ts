@@ -9,6 +9,7 @@ import {
     MlsCommitDto,
     MlsCommitPublishedDto,
     MlsContextStateDto,
+    MlsCoverageDto,
     MlsToggleResultDto,
     PendingWelcomeDto,
     PublishMlsCommitDto,
@@ -79,6 +80,17 @@ export class MlsTransportService {
 
     getState(contextId: string, isChannel: boolean): Observable<MlsContextStateDto> {
         return this.http.get<MlsContextStateDto>(`${this.contextBase(contextId, isChannel)}/state`);
+    }
+
+    /**
+     * Which devices can read the context, for the caller's account and for everyone else's.
+     *
+     * Reports only - the server holds no group keys and cannot add anyone. See
+     * {@link MlsCoverageService} for the caching and the local cross-check that decide what any of
+     * this is allowed to claim.
+     */
+    getCoverage(contextId: string, isChannel: boolean): Observable<MlsCoverageDto> {
+        return this.http.get<MlsCoverageDto>(`${this.contextBase(contextId, isChannel)}/coverage`);
     }
 
     /** Turns encryption on for a channel. Requires ManageChannel server-side. */

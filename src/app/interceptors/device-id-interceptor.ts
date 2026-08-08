@@ -7,9 +7,11 @@ import {DeviceIdentityService} from '../services/device-identity.service';
 /**
  * Stamps `X-Device-Id` on every API request.
  *
- * The backend validates the header on call accept/decline/leave, the Cloudflare session create
- * and guild voice join; elsewhere it is ignored. Sending it everywhere is simpler than
- * maintaining a path list, and costs nothing.
+ * The backend validates the header on call accept/decline/leave, the Cloudflare session create and
+ * guild voice join, and reads it on conversation create and on `mls/enable` to record which device
+ * built the group; elsewhere it is ignored. Sending it everywhere is simpler than maintaining a
+ * path list, costs nothing, and is why `mls/enable` needed no change when the server started
+ * reading it - a path list would have.
  *
  * Placed *after* `tokenInterceptor` in the chain so the self-hosted base-URL rewrite has already
  * happened by the time the `baseUrl()` guard runs.

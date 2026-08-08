@@ -14,6 +14,7 @@ import {signal} from '@angular/core';
 import {SessionTeardownService} from './session-teardown.service';
 import {MlsService} from './mls.service';
 import {DeviceService} from './device.service';
+import {MlsCoverageService} from './mls-coverage.service';
 
 const DEVICE_ID = 'device-a';
 
@@ -60,6 +61,10 @@ function build(): SessionTeardownService {
             SessionTeardownService,
             {provide: MlsService, useValue: mlsStub()},
             {provide: DeviceService, useValue: deviceStub()},
+            // Stubbed rather than left to the root injector for the reason this harness exists at
+            // all: the real one reaches MlsTransportService -> ApiConfigService -> OAuthService,
+            // and a wipe has no business dragging an auth provider into a pure Tauri harness.
+            {provide: MlsCoverageService, useValue: {clear: () => calls.push('forgetCoverage')}},
         ],
     });
     return TestBed.inject(SessionTeardownService);
@@ -87,8 +92,22 @@ describe('wipeAccount', () => {
             'clearStorage',
             'clearGroupRegistry',
             'clearMessageCache',
+            'forgetCoverage',
             `resetKeyPackages:${DEVICE_ID}`,
         ]);
+    });
+
+    /**
+     * A coverage answer is one account's list of device names, held in memory. Left behind, the
+     * next account signed in on this machine would read the last one's hardware out of a live
+     * service - the same reason the decrypted payment handles are dropped here.
+     */
+    it('forgets which devices could read what', async () => {
+        const service = build();
+
+        await service.wipeAccount(DEVICE_ID);
+
+        expect(calls).toContain('forgetCoverage');
     });
 
     it('releases the session handle before deleting the key it refers to', async () => {
@@ -160,6 +179,7 @@ describe('wipeEngineState', () => {
             'clearStorage',
             'clearGroupRegistry',
             'clearMessageCache',
+            'forgetCoverage',
             `resetKeyPackages:${DEVICE_ID}`,
         ]);
     });

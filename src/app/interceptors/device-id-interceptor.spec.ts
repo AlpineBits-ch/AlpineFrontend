@@ -53,6 +53,26 @@ it('sets X-Device-Id on requests to the API base URL', async () => {
     req.flush({});
 });
 
+/**
+ * The MLS enable routes read the header to record which device built the group. Without it the
+ * server declines to report on this account's devices at all, on exactly the path - re-keying -
+ * where the account's other devices are most likely to fall out. Nothing errors; the answer is
+ * just narrower, which is precisely the kind of regression nothing else would catch.
+ */
+it.each([
+    `${BASE}/api/v1/messaging/conversations/conv1/mls/enable`,
+    `${BASE}/api/v1/messaging/channels/chan1/mls/enable`,
+])('sets X-Device-Id on %s', async url => {
+    const {http, ctrl} = setup();
+
+    http.post(url, {}).subscribe();
+    await tick();
+
+    const req = ctrl.expectOne(url);
+    expect(req.request.headers.get('X-Device-Id')).toBe('device-abc');
+    req.flush({});
+});
+
 it('leaves requests outside the API base URL alone', async () => {
     const {http, ctrl, identity} = setup();
 

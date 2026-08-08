@@ -10,13 +10,15 @@ import {GuildService} from '../../../../../../services/guild.service';
 import {MlsToggleConflictDto} from '../../../../../../dtos/mls.dto';
  import {JoinRequestVerificationError, MlsJoinRequestDto, MlsJoinRequestService} from '../../../../../../services/mls-join-request.service';
  import {ProfileService} from '../../../../../../services/profile.service';
+import {MlsCoverageDevicesComponent} from '../../../../../../components/mls-coverage-devices/mls-coverage-devices.component';
+import {MlsCoverageService} from '../../../../../../services/mls-coverage.service';
 
 /** One page of members per request; a channel roster past this is paged through. */
 const MEMBER_PAGE = 100;
 
 @Component({
     selector: 'app-channel-encryption',
-    imports: [NgClass, Button, TranslateModule],
+    imports: [NgClass, Button, TranslateModule, MlsCoverageDevicesComponent],
     templateUrl: './channel-encryption.component.html',
 })
 export class ChannelEncryptionComponent {
@@ -44,10 +46,15 @@ export class ChannelEncryptionComponent {
     protected readonly verificationError = signal<string | null>(null);
     protected readonly actingOn = signal<string | null>(null);
 
+    /** Gates the slot, so the page's `gap-8` never opens up around an empty section. */
+    protected readonly hasDeviceReport = computed(
+        () => this.coverage.hasDeviceReport(this.channel().id));
+
     private readonly encryption = inject(ChannelEncryptionService);
     private readonly guildService = inject(GuildService);
     private readonly joinRequestService = inject(MlsJoinRequestService);
     private readonly profileService = inject(ProfileService);
+    private readonly coverage = inject(MlsCoverageService);
 
     constructor() {
         void this.refresh();
@@ -61,6 +68,9 @@ export class ChannelEncryptionComponent {
             this.generation.set(state.activeGeneration ?? null);
             this.terminatedCount.set(state.generations.filter(g => g.state === 'Terminated').length);
             await this.refreshJoinRequests();
+            // Always refetched here rather than reused from whatever the channel view cached: this
+            // is the one screen the user came to in order to ask the question.
+            await this.coverage.refresh(this.channel().id, true);
         } catch {
             this.error.set('CHANNEL_SETTINGS.ENCRYPTION.LOAD_FAILED');
         } finally {

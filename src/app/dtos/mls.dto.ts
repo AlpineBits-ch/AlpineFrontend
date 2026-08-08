@@ -207,6 +207,52 @@ export interface UnreachableDeviceDto {
     deviceName: string;
 }
 
+/** One of the caller's own devices, and whether the server can show it got into the group. */
+export interface OwnDeviceCoverageDto {
+    deviceId: string;
+    deviceName: string;
+    /**
+     * Evidence that this device is in the group, not proof that it is not.
+     *
+     * The server computes it from a Welcome addressed to the device in this generation, a commit
+     * published from it, or the record that it built the group. A device that joined by external
+     * commit leaves none of those and reads as false while decrypting perfectly, so false means
+     * *ask the device*, never *assert a fault*.
+     */
+    covered: boolean;
+}
+
+/**
+ * Who can and cannot read a context, asked long after the moment it was decided.
+ *
+ * The three responses that already carried this - create, enable, and the commit that admits
+ * someone - are each handed to one client for a few seconds. This is the same question asked again,
+ * by any participant, at any time.
+ */
+export interface MlsCoverageDto {
+    contextId: string;
+    /** False when the context has no live group. Both lists are then empty and mean nothing is
+     * outside anything - not that everybody is outside. */
+    encrypted: boolean;
+    /** Which group the answer is about. Null when {@link encrypted} is false. */
+    generation?: number | null;
+    /** Every active device on the caller's account, with a verdict each. */
+    ownDevices: OwnDeviceCoverageDto[];
+    /**
+     * Other participants' devices holding no leaf. Only the uncovered ones appear, so this is not a
+     * directory of everyone's hardware. Always empty for a channel, whose roster Messaging cannot
+     * enumerate.
+     */
+    unreachableDevices: UnreachableDeviceDto[];
+    /**
+     * True when the device list could not be read at all - a sibling service was down.
+     *
+     * Both lists then come back empty *because nothing could be looked up*, which is the one
+     * reading that must never be rendered as "all clear".
+     */
+    coverageUnavailable?: boolean;
+}
+
 export interface ConsumeTokensResultDto {
     deviceTokens: MlsDeviceTokenDto[];
     /**

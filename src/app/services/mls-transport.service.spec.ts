@@ -131,6 +131,28 @@ describe('MlsTransportService', () => {
         });
     });
 
+    describe('coverage', () => {
+        it('reads a channel from the channel path', () => {
+            const {service, ctrl} = setup();
+            service.getCoverage('chan1', true).subscribe();
+            const req = ctrl.expectOne(`${MLS}/channels/chan1/mls/coverage`);
+            expect(req.request.method).toBe('GET');
+            req.flush({
+                contextId: 'chan1', encrypted: true, generation: 1,
+                ownDevices: [], unreachableDevices: [], coverageUnavailable: false,
+            });
+        });
+
+        it('reads a conversation from the conversation path', () => {
+            const {service, ctrl} = setup();
+            service.getCoverage('conv1', false).subscribe();
+            ctrl.expectOne(`${MLS}/conversations/conv1/mls/coverage`).flush({
+                contextId: 'conv1', encrypted: false,
+                ownDevices: [], unreachableDevices: [], coverageUnavailable: false,
+            });
+        });
+    });
+
     it('escapes ids so a crafted context id cannot reshape the path', () => {
         const {service, ctrl} = setup();
         service.getState('a/b', false).subscribe();

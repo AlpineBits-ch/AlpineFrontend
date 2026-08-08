@@ -77,4 +77,16 @@
 
     }
 
+    <!--
+      Where someone goes looking, and nowhere else. Neither a device of yours nor a device of
+      theirs being stranded is something the reader can act on from a conversation, and neither is
+      inconveniencing them right now - so it gets no badge, no dot on the conversation list and no
+      push. It renders nothing at all unless there is something true to say.
+    -->
+    @if (hasDeviceReport()) {
+        <div class="px-4 py-4 border-t border-white/[0.06]">
+            <app-mls-coverage-devices [contextId]="conversation().id" [ownerNames]="ownerNames()"/>
+        </div>
+    }
+
 </div>

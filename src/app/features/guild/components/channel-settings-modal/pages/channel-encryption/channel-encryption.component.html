@@ -115,6 +115,16 @@
         </section>
     }
 
+    <!--
+      ── Devices that are still outside, long after the enable ──────────
+      The block above is what one enable call reported, once, and only to whoever pressed the
+      button. This is the same question asked again, by anyone, at any time - which is the only way
+      a device left out weeks ago is ever heard about.
+    -->
+    @if (hasDeviceReport()) {
+        <app-mls-coverage-devices [contextId]="channel().id" [isChannel]="true"/>
+    }
+
     <!-- ── History that predates the current generation ────────────────── -->
     @if (terminatedCount() > 0) {
         <section class="flex flex-col gap-1">
