@@ -10,14 +10,15 @@
                     [styleClass]="p.isSpeaking ? '!w-5 !h-5 !text-[9px] speaking-ring' : '!w-5 !h-5 !text-[9px]'"/>
     </div>
     <span [ngClass]="p.isSpeaking ? 'text-online/85' : 'text-white/55'"
-          class="text-[13px] flex-1 truncate">
+          class="flex-1 truncate text-[0.8125rem]">
         {{ p.displayName }}
     </span>
     @if (p.isScreenSharing) {
-        <span class="text-[9px] font-bold text-red-400 bg-red-500/15 px-1 py-0.5 rounded leading-none shrink-0">LIVE</span>
+        <app-call-live-badge class="shrink-0" size="sm" variant="soft"/>
     } @else if (p.isMuted) {
         <!-- Drawn slash - PrimeIcons has no slashed microphone, see .icon-slashed. -->
-        <span class="icon-slashed relative flex items-center justify-center text-[9px] text-white/35 shrink-0">
+        <span [attr.aria-label]="'CALL.MUTED' | translate"
+              class="icon-slashed relative flex shrink-0 items-center justify-center text-[0.5625rem] text-white/35">
             <i class="pi pi-microphone"></i>
         </span>
     }

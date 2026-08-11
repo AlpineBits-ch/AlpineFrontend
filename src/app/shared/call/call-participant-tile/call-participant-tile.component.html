@@ -1,20 +1,17 @@
 @let p = participant();
-<div
-        (contextmenu)="contextMenu.emit($event); $event.preventDefault(); $event.stopPropagation()"
-        [ngClass]="[
-            p.isSpeaking
-                ? 'border-online/60 shadow-[0_0_0_2px_rgba(52,211,153,0.2),0_4px_24px_rgba(0,0,0,0.5)]'
-                : 'border-white/[0.12]',
-            p.isCameraOn ? 'bg-black' : 'bg-card max-w-[12.5rem]'
-        ]"
-        [style.aspect-ratio]="p.isCameraOn ? '16/9' : '4/3'"
-        class="group relative flex flex-col items-center justify-center gap-3 rounded-2xl overflow-hidden border transition-all shadow-[0_4px_24px_rgba(0,0,0,0.5)] w-full mx-auto">
 
-    <!-- Speaking glow ring -->
-    @if (p.isSpeaking) {
-        <div class="absolute inset-0 rounded-2xl pointer-events-none z-10"
-             style="animation: speaking-ring 1.4s ease-in-out infinite"></div>
-    }
+<!-- One aspect ratio whether the camera is on or off.
+
+     It used to be 4/3 and capped at 12.5rem with the camera off, 16/9 and full width with it on -
+     so switching your camera on resized your tile and reflowed the whole grid, and any call with a
+     mix of the two was ragged rows of two different shapes. The tile is a seat in the call; what
+     is drawn inside it is the part that varies. -->
+<div #root
+     (contextmenu)="contextMenu.emit($event); $event.preventDefault(); $event.stopPropagation()"
+     [class]="'group relative flex aspect-video w-full flex-col items-center justify-center overflow-hidden '
+              + 'rounded-2xl border transition-colors '
+              + (p.isCameraOn ? 'bg-black ' : 'bg-card ')
+              + (p.isSpeaking ? 'border-online/60 speaking-ring' : 'border-border-subtle')">
 
     <!-- Camera, filling the tile.
 
@@ -24,57 +21,57 @@
          face-sized space is for. -->
     @if (p.isCameraOn) {
         @if (videoStream(); as stream) {
-            <video [streamSrc]="stream"
+            <video #video
                    [class.-scale-x-100]="p.isLocal"
                    [muted]="p.isLocal"
+                   [streamSrc]="stream"
                    autoplay
-                   class="absolute inset-0 w-full h-full object-cover"
+                   class="absolute inset-0 h-full w-full object-cover"
                    playsinline></video>
         } @else {
             <!-- Camera on, no stream yet: the track is still being negotiated. -->
             <div class="absolute inset-0 flex items-center justify-center bg-card">
-                <i class="pi pi-camera text-2xl text-white/20"></i>
+                <i [attr.aria-label]="'CALL.CAMERA_ON' | translate" class="pi pi-camera text-2xl text-white/20"></i>
             </div>
         }
     } @else {
         <app-avatar [label]="p.avatarLabel" [userId]="p.userId" size="large"/>
     }
 
-    <!-- LIVE badge -->
     @if (p.isScreenSharing) {
-        <div class="absolute top-3 right-3 bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded tracking-wider z-20">
-            LIVE
-        </div>
+        <app-call-live-badge class="absolute right-3 top-3 z-20"/>
     }
 
     <!-- Video actions. Hover-only, so a wall of tiles is faces rather than buttons. -->
     @if (p.isCameraOn && videoStream()) {
-        <div class="absolute top-3 left-3 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-            <button (click)="pipVideo($event)"
-                    class="w-7 h-7 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer"
-                    title="Picture in picture">
-                <i class="pi pi-external-link text-xs text-white/80"></i>
-            </button>
-            <button (click)="toggleFullscreen($event)"
-                    class="w-7 h-7 flex items-center justify-center rounded-lg bg-black/40 backdrop-blur-sm border border-white/10 hover:bg-black/60 transition-colors cursor-pointer"
-                    title="Fullscreen">
-                <i class="pi pi-window-maximize text-xs text-white/80"></i>
-            </button>
+        <div class="absolute left-3 top-3 z-20 flex items-center gap-1.5 opacity-0 transition-opacity
+                    group-hover:opacity-100 focus-within:opacity-100">
+            <app-call-tile-action
+                    (action)="togglePip()"
+                    [label]="'CALL.PICTURE_IN_PICTURE' | translate"
+                    icon="pi-external-link"
+                    size="sm"/>
+            <app-call-tile-action
+                    (action)="toggleFullscreen()"
+                    [label]="'CALL.FULLSCREEN' | translate"
+                    icon="pi-window-maximize"
+                    size="sm"/>
         </div>
     }
 
     <!-- Name + muted icon. Over the video when there is one, so it reads at any tile size. -->
-    <div [ngClass]="p.isCameraOn
-            ? 'absolute bottom-2 left-2 max-w-[calc(100%-1rem)] bg-black/50 backdrop-blur-sm rounded-lg px-2 py-1'
-            : 'max-w-full'"
-         class="flex items-center justify-center gap-1.5 z-20">
+    <div [class]="'z-20 flex items-center justify-center gap-1.5 '
+                  + (p.isCameraOn
+                      ? 'absolute bottom-2 left-2 max-w-[calc(100%-1rem)] rounded-lg bg-black/50 px-2 py-1 backdrop-blur-sm'
+                      : 'mt-3 max-w-full px-2')">
         @if (p.isMuted) {
             <!-- Drawn slash - PrimeIcons has no slashed microphone, see .icon-slashed. -->
-            <span class="icon-slashed relative flex items-center justify-center text-xs text-rose-400/80 shrink-0">
+            <span [attr.aria-label]="'CALL.MUTED' | translate"
+                  class="icon-slashed relative flex shrink-0 items-center justify-center text-xs text-offline">
                 <i class="pi pi-microphone"></i>
             </span>
         }
-        <span class="text-sm font-medium text-white/85 truncate">{{ p.displayName }}</span>
+        <span class="truncate text-sm font-medium text-white/85">{{ p.displayName }}</span>
     </div>
 
     <!-- Audio badge: quiet while the subscribe is still landing, amber once it is overdue -->

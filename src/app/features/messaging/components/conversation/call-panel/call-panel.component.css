@@ -1,3 +1,13 @@
+/* What is left of this stylesheet is the panel shell and its resize handle: the parts that are
+   genuinely specific to a call docked above a conversation.
+
+   Everything else moved out. The status bar, the three connection banners, the stats strip, the
+   live dot and the status label were a second implementation of markup the guild voice channel
+   also had, disagreeing with it on padding, type scale and colour - they are now
+   app-call-status-bar and app-call-stats-popover, shared by both. A `.focused-*` block of eight
+   rules went with them: it styled a focused-stream view that no template had rendered since
+   fullscreen moved onto the tiles themselves. */
+
 /* ── Panel shell ─────────────────────────────────────────────────────────── */
 
 .panel {
@@ -23,7 +33,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.15s;
+    transition: background var(--duration-fast);
 }
 
 .resize-handle:hover {
@@ -35,7 +45,7 @@
     height: 3px;
     border-radius: 2px;
     background: rgba(255, 255, 255, 0.10);
-    transition: background 0.15s, width 0.15s;
+    transition: background var(--duration-fast), width var(--duration-fast);
 }
 
 .resize-handle:hover .resize-grip {
@@ -43,275 +53,29 @@
     width: 56px;
 }
 
-/* ── Status bar ──────────────────────────────────────────────────────────── */
-
-.status-bar {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    border-bottom: 1px solid var(--color-border-subtle);
-    flex-shrink: 0;
-}
-
-.stats-toggle {
-    margin-left: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 4px;
-    border: none;
-    background: transparent;
-    color: var(--color-text-muted);
-    cursor: pointer;
-    transition: background 0.12s, color 0.12s;
-    flex-shrink: 0;
-}
-
-.stats-toggle:hover {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--color-text-secondary);
-}
-
-.stats-toggle--active {
-    background: color-mix(in srgb, var(--color-brand) 15%, transparent);
-    color: var(--color-brand-dim);
-}
-
-/* ── Stats bar ───────────────────────────────────────────────────────────── */
-
-.stats-bar {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 16px;
-    background: rgba(0, 0, 0, 0.18);
-    border-bottom: 1px solid var(--color-border-subtle);
-    font-size: 10px;
-    font-family: ui-monospace, monospace;
-    color: var(--color-text-muted);
-    flex-shrink: 0;
-    flex-wrap: wrap;
-}
-
-.stats-item {
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    white-space: nowrap;
-}
-
-.stats-item--muted {
-    color: rgba(255, 255, 255, 0.22);
-}
-
-.stats-item--warn {
-    color: #fbbf24;
-}
-
-.stats-arrow--down {
-    color: #34d399;
-}
-
-.stats-arrow--up {
-    color: var(--color-brand-dim);
-}
-
-.stats-sep {
-    color: rgba(255, 255, 255, 0.12);
-}
-
-.live-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--color-online);
-    box-shadow: 0 0 6px var(--color-online);
-    animation: live-pulse 2s ease-in-out infinite;
-    flex-shrink: 0;
-}
-
-.status-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--color-online);
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-}
-
 /* ── Participants grid ───────────────────────────────────────────────────── */
 
 .participants {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 8px;
-    padding: 10px 12px 114px;
+    /* The bottom pad clears the floating control bar. It was a bare `114px` here and absent
+       altogether from the screen-share layout, which is why the bar sat on the participant strip
+       over there; both now read the same token. */
+    padding: 10px 12px var(--spacing-call-controls);
     overflow-y: auto;
     flex: 1;
     min-height: 0;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
 }
 
 /* Fewer participants → larger tiles */
 .participants[data-count="1"] {
-    grid-template-columns: repeat(1, minmax(0, 180px));
+    grid-template-columns: repeat(1, minmax(0, 260px));
     justify-content: center;
 }
 
-.participants[data-count="2"] {
-    grid-template-columns: repeat(2, 1fr);
-}
-
+.participants[data-count="2"],
 .participants[data-count="3"],
 .participants[data-count="4"] {
     grid-template-columns: repeat(2, 1fr);
-}
-
-/* ── Focused stream view ─────────────────────────────────────────────────── */
-
-.focused-view {
-    flex: 1;
-    min-height: 0;
-    position: relative;
-    background: #000;
-    margin: 10px 12px 114px;
-    border-radius: 10px;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.focused-header {
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 10px;
-    background: linear-gradient(to bottom, rgba(0, 0, 0, 0.65) 0%, transparent 100%);
-    z-index: 1;
-}
-
-.focused-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.85);
-}
-
-.focused-actions {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.focused-action-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 26px;
-    height: 26px;
-    border-radius: 6px;
-    border: none;
-    background: rgba(0, 0, 0, 0.45);
-    color: rgba(255, 255, 255, 0.7);
-    cursor: pointer;
-    transition: background 0.12s, color 0.12s;
-}
-
-.focused-action-btn:hover {
-    background: rgba(255, 255, 255, 0.12);
-    color: #fff;
-}
-
-.focused-close {
-    background: rgba(244, 63, 94, 0.25);
-    color: #fb7185;
-}
-
-.focused-close:hover {
-    background: rgba(244, 63, 94, 0.45);
-    color: #fff;
-}
-
-.focused-video {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-}
-
-.focused-video--mirror {
-    transform: scaleX(-1);
-}
-
-/* ── Connection state variants ───────────────────────────────────────────── */
-
-.live-dot--connecting {
-    background: #fbbf24;
-    box-shadow: 0 0 5px rgba(251, 191, 36, 0.5);
-    animation: rtc-pulse 1s ease-in-out infinite !important;
-}
-
-.live-dot--failed {
-    background: #f43f5e;
-    box-shadow: 0 0 6px rgba(244, 63, 94, 0.6);
-    animation: rtc-pulse 0.8s ease-in-out infinite !important;
-}
-
-.status-label--connecting {
-    color: #fbbf24;
-}
-
-.status-label--failed {
-    color: #f43f5e;
-}
-
-/* ── Connection banners ───────────────────────────────────────────────────── */
-
-.conn-banner {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 6px 14px;
-    font-size: 11px;
-    font-weight: 500;
-    flex-shrink: 0;
-    border-bottom: 1px solid transparent;
-}
-
-.conn-banner--error {
-    background: rgba(244, 63, 94, 0.12);
-    border-color: rgba(244, 63, 94, 0.2);
-    color: #fb7185;
-}
-
-.conn-banner--warn {
-    background: rgba(251, 191, 36, 0.10);
-    border-color: rgba(251, 191, 36, 0.2);
-    color: #fbbf24;
-}
-
-/* ── Animations ──────────────────────────────────────────────────────────── */
-
-@keyframes live-pulse {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.5;
-    }
-}
-
-@keyframes rtc-pulse {
-    0%, 100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.3;
-    }
 }

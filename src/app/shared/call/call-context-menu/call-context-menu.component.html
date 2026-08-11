@@ -1,74 +1,96 @@
 <div [style.left.px]="menu().x"
-     [style.top.px]="menu().y" class="fixed z-[9999] bg-card border border-border rounded-[10px] p-2 min-w-[220px] flex flex-col gap-0.5 shadow-[0_8px_28px_rgba(0,0,0,0.55),0_2px_8px_rgba(0,0,0,0.3)]">
+     [style.top.px]="menu().y"
+     class="fixed z-[9999] flex min-w-[13.75rem] flex-col gap-0.5 rounded-[10px] border border-border bg-card p-2
+            shadow-[0_8px_28px_rgba(0,0,0,0.55),0_2px_8px_rgba(0,0,0,0.3)]">
 
     <!-- Header -->
-    <div class="flex items-center gap-2 px-2 pt-1.5 pb-2.5 border-b border-white/[0.08] mb-1">
-        <div class="w-7 h-7 rounded-full flex items-center justify-center shrink-0 text-[11px] font-bold text-white"
+    <div class="mb-1 flex items-center gap-2 border-b border-border-subtle px-2 pb-2.5 pt-1.5">
+        <div class="flex size-7 shrink-0 items-center justify-center rounded-full text-[0.6875rem] font-bold text-white"
              style="background: linear-gradient(135deg, var(--color-brand-dim) 0%, var(--color-brand-dark) 100%)">
             {{ menu().participant.avatarLabel }}
         </div>
-        <span class="text-[13px] font-semibold text-white/85 flex-1 min-w-0 truncate">{{ menu().participant.displayName }}</span>
+        <span class="min-w-0 flex-1 truncate text-sm font-semibold text-white/85">
+            {{ menu().participant.displayName }}
+        </span>
         @if (menu().participant.isServerDeafened) {
-            <span class="shrink-0 text-[9px] font-semibold tracking-[0.04em] uppercase px-[5px] py-0.5 rounded bg-rose-500/15 text-rose-400">
-        Server deafened
-      </span>
+            <span class="shrink-0 rounded bg-offline/15 px-[0.3125rem] py-0.5 text-[0.5625rem] font-semibold uppercase
+                         tracking-wide text-offline">
+                {{ 'CALL.SERVER_DEAFENED' | translate }}
+            </span>
         }
     </div>
 
     <!-- Volume -->
-    <div class="px-2 pt-1 pb-1.5">
-        <div class="flex items-center gap-[5px] text-[11px] font-semibold text-white/40 uppercase tracking-[0.05em] mb-2">
-            <svg fill="currentColor" height="11" viewBox="0 0 24 24" width="11">
+    <div class="px-2 pb-1.5 pt-1">
+        <label class="mb-2 flex items-center gap-[0.3125rem] text-[0.6875rem] font-semibold uppercase tracking-wide
+                      text-white/40"
+               for="call-volume">
+            <svg aria-hidden="true" fill="currentColor" height="11" viewBox="0 0 24 24" width="11">
                 <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
             </svg>
-            Volume
-            <span class="ml-auto font-mono font-normal normal-case tracking-normal text-white/60">{{ menu().volume }}
-                %</span>
-        </div>
-        <input (input)="onVolumeInput($event)" [value]="menu().volume" class="vc-volume-slider w-full" max="100" min="0"
+            {{ 'CALL.VOLUME' | translate }}
+            <span class="ml-auto font-normal normal-case tabular-nums tracking-normal text-white/60">
+                {{ menu().volume }}%
+            </span>
+        </label>
+        <input (input)="onVolumeInput($event)"
+               [value]="menu().volume"
+               class="vc-volume-slider call-focusable w-full"
+               id="call-volume"
+               max="100"
+               min="0"
                type="range"/>
     </div>
 
     <!-- Admin actions (superadmin only) -->
     @if (isSuperadmin()) {
-        <div class="h-px bg-white/[0.08] my-1"></div>
+        <div aria-hidden="true" class="my-1 h-px bg-border-subtle"></div>
 
         <button (click)="serverDeafen.emit()"
-                class="flex items-center gap-2 w-full px-2.5 py-[7px] rounded-md border-0 bg-transparent text-[13px] font-medium cursor-pointer text-left transition-colors text-amber-400 hover:bg-amber-400/10">
+                class="call-focusable flex w-full cursor-pointer items-center gap-2 rounded-md border-0 bg-transparent
+                       px-2.5 py-[0.4375rem] text-left text-sm font-medium text-connecting transition-colors
+                       hover:bg-connecting/10"
+                type="button">
             @if (menu().participant.isServerDeafened) {
-                <svg fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
+                <svg aria-hidden="true" fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
                     <path d="M12 3a9 9 0 0 0-9 9v3a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H5v-1a7 7 0 0 1 14 0v1h-2a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-3a9 9 0 0 0-9-9z"/>
                 </svg>
-                Remove server deafen
+                {{ 'CALL.REMOVE_SERVER_DEAFEN' | translate }}
             } @else {
-                <svg fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
+                <svg aria-hidden="true" fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
                     <path d="M12 3a9 9 0 0 0-9 9v3a3 3 0 0 0 3 3h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H5v-1a7 7 0 0 1 14 0v1h-2a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h1a3 3 0 0 0 3-3v-3a9 9 0 0 0-9-9z"
                           opacity=".5"/>
                     <line stroke="currentColor" stroke-linecap="round" stroke-width="1.8" x1="3" x2="21" y1="3"
                           y2="21"/>
                 </svg>
-                Server deafen
+                {{ 'CALL.SERVER_DEAFEN' | translate }}
             }
         </button>
 
         @if (moderationEnabled()) {
-        <button (click)="kick.emit()"
-                class="flex items-center gap-2 w-full px-2.5 py-[7px] rounded-md border-0 bg-transparent text-[13px] font-medium cursor-pointer text-left transition-colors text-rose-400 hover:bg-rose-500/[0.12]">
-            <svg fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
-                <path d="M13 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
-                <path d="M19.5 8.5l-1.5 1.5 1.5 1.5L22 9z" opacity=".6"/>
-                <path d="M17 7l-1.5 1.5 3 3L20 10z" opacity=".6"/>
-            </svg>
-            Kick
-        </button>
+            <button (click)="kick.emit()"
+                    class="call-focusable flex w-full cursor-pointer items-center gap-2 rounded-md border-0
+                           bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-offline
+                           transition-colors hover:bg-offline/[0.12]"
+                    type="button">
+                <svg aria-hidden="true" fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
+                    <path d="M13 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+                    <path d="M19.5 8.5l-1.5 1.5 1.5 1.5L22 9z" opacity=".6"/>
+                    <path d="M17 7l-1.5 1.5 3 3L20 10z" opacity=".6"/>
+                </svg>
+                {{ 'CALL.KICK' | translate }}
+            </button>
 
-        <button (click)="ban.emit()"
-                class="flex items-center gap-2 w-full px-2.5 py-[7px] rounded-md border-0 bg-transparent text-[13px] font-medium cursor-pointer text-left transition-colors text-rose-400 hover:bg-rose-500/[0.12]">
-            <svg fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
-                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 0 1 4 12zm8 8a7.9 7.9 0 0 1-4.9-1.69l11.21-11.21A7.9 7.9 0 0 1 20 12c0 4.42-3.58 8-8 8z"/>
-            </svg>
-            Ban
-        </button>
+            <button (click)="ban.emit()"
+                    class="call-focusable flex w-full cursor-pointer items-center gap-2 rounded-md border-0
+                           bg-transparent px-2.5 py-[0.4375rem] text-left text-sm font-medium text-offline
+                           transition-colors hover:bg-offline/[0.12]"
+                    type="button">
+                <svg aria-hidden="true" fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4 12c0-4.42 3.58-8 8-8 1.85 0 3.55.63 4.9 1.69L5.69 16.9A7.902 7.902 0 0 1 4 12zm8 8a7.9 7.9 0 0 1-4.9-1.69l11.21-11.21A7.9 7.9 0 0 1 20 12c0 4.42-3.58 8-8 8z"/>
+                </svg>
+                {{ 'CALL.BAN' | translate }}
+            </button>
         }
     }
 

@@ -1,16 +1,19 @@
-<div class="flex flex-col h-full bg-app-bg overflow-hidden">
+<div class="flex h-full flex-col overflow-hidden bg-app-bg">
 
     <!-- Header -->
-    <header class="app-header flex items-center px-3 sm:px-5 border-b border-white/[0.10] shrink-0 bg-app-bg">
+    <header class="app-header flex shrink-0 items-center border-b border-border-subtle bg-app-bg px-3 sm:px-5">
         <button (click)="navService.mobileNavOpen.set(true)"
-                class="lg:hidden shrink-0 mr-1 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-white/[0.07] text-white/50 border-0 bg-transparent cursor-pointer transition-colors">
+                [attr.aria-label]="'CALL.OPEN_NAVIGATION' | translate"
+                class="call-focusable mr-1 flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg
+                       border-0 bg-transparent text-white/50 transition-colors hover:bg-white/[0.07] lg:hidden"
+                type="button">
             <i class="pi pi-bars text-sm"></i>
         </button>
-        <div class="flex items-center gap-2 sm:gap-3 min-w-0">
-            <i class="pi pi-volume-up text-white/35 shrink-0"></i>
-            <span class="text-sm font-semibold text-white/85 truncate">{{ channel().name }}</span>
+        <div class="flex min-w-0 items-center gap-2 sm:gap-3">
+            <i aria-hidden="true" class="pi pi-volume-up shrink-0 text-white/35"></i>
+            <span class="truncate text-sm font-semibold text-white/85">{{ channel().name }}</span>
             @if (participants().length > 0) {
-                <span class="text-xs text-white/40 shrink-0">· {{ participants().length }} connected</span>
+                <span class="shrink-0 text-xs text-white/40">· {{ ('CALL.CONNECTED_COUNT' | translate: {count: participants().length}) }}</span>
             }
         </div>
     </header>
@@ -23,61 +26,37 @@
                 (joinVoice)="joinChannel()"
                 [channel]="channel()"
                 [participants]="participants()"
-                class="flex-1 min-h-0"
+                class="min-h-0 flex-1"
         />
 
     } @else {
 
-        <!-- Connected view -->
-        <div class="flex-1 min-h-0 flex flex-col overflow-hidden relative group/call">
+        <!-- Connected view. One status row, then the stage, then the controls - the same three
+             parts in the same order as the DM call panel. This used to be up to three stacked
+             banner strips of its own design. See call-status.ts. -->
+        <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
 
-            <!-- Connection state banners -->
-            @let rtc = voiceSvc.rtcState();
-            @if (rtc === 'failed' || rtc === 'disconnected') {
-                <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium bg-rose-500/[0.12] border-b border-rose-500/20 text-rose-400">
-                    <div class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"
-                         style="animation: rtc-status-pulse 0.8s ease-in-out infinite"></div>
-                    <svg class="shrink-0" fill="currentColor" height="12" viewBox="0 0 24 24" width="12">
-                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-                    </svg>
-                    {{ rtc === 'failed' ? 'Connection failed -audio unavailable' : 'Connection lost -attempting to reconnect' }}
-                </div>
-            } @else if (rtc === 'new' || rtc === 'connecting') {
-                <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium bg-amber-400/10 border-b border-amber-400/20 text-amber-400">
-                    <div class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"
-                         style="animation: rtc-status-pulse 1s ease-in-out infinite"></div>
-                    Establishing connection...
-                </div>
-            }
+            <app-call-status-bar
+                    [meta]="('CALL.CONNECTED_COUNT' | translate: {count: participants().length})"
+                    [rtcState]="voiceSvc.rtcState()"
+                    [stalledAudio]="audio.anyStalled()"/>
 
-            <!-- No-audio warning. Held back until the grace window passes - a subscribe that is
-                 still landing is a loading state, and the tiles say so on their own. -->
-            @if (audio.anyStalled()) {
-                <div class="shrink-0 flex items-center gap-2 px-4 py-2 text-[11px] font-medium bg-amber-400/10 border-b border-amber-400/20 text-amber-400">
-                    <svg class="shrink-0" fill="currentColor" height="12" viewBox="0 0 24 24" width="12">
-                        <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-                    </svg>
-                    No audio received from some participants -they may need to rejoin
-                </div>
-            }
-
-            <!-- Screen share layout or participant grid -->
-            <div class="flex-1 min-h-0 relative">
+            <div class="relative min-h-0 flex-1">
                 @if (callScreenShares().length > 0) {
                     <app-call-screen-layout
                             (localAudioToggle)="toggleLocalScreenAudio()"
                             (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
                             (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
-                            [participantsWithAudio]="voiceSvc.participantsWithAudio()"
                             [participants]="callParticipants()"
+                            [participantsWithAudio]="voiceSvc.participantsWithAudio()"
                             [screenShares]="callScreenShares()"
                             [watchScope]="watchScope()"
-                            class="w-full h-full"
+                            class="h-full w-full"
                     />
                 } @else {
-                    <div class="w-full h-full overflow-y-auto p-6 flex items-center justify-center bg-black/10"
-                         style="scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.08) transparent;">
-                        <div [ngClass]="participantGridClass()" class="grid gap-6 w-full justify-center">
+                    <div class="thin-scrollbar flex h-full w-full items-center justify-center overflow-y-auto
+                                bg-stage p-6 pb-call-controls">
+                        <div [class]="'grid w-full justify-center gap-6 ' + participantGridClass()">
                             @for (p of participants(); track p.userId) {
                                 <app-call-participant-tile
                                         (contextMenu)="onParticipantContextMenu($event, p)"
@@ -90,8 +69,8 @@
                     </div>
                 }
 
-                <!-- Floating Controls bar -->
-                <div class="absolute bottom-8 left-0 right-0 flex justify-center z-20 pointer-events-none transition-all duration-300">
+                <!-- Floating controls bar -->
+                <div class="pointer-events-none absolute bottom-8 left-0 right-0 z-20 flex justify-center">
                     <app-call-controls-bar
                             (cameraToggle)="toggleCamera()"
                             (deafenToggle)="toggleDeafen()"
@@ -100,11 +79,12 @@
                             (presetChange)="setScreenPreset($event)"
                             (screenAudioToggle)="toggleLocalScreenAudio()"
                             (screenShareToggle)="toggleScreenShare()"
-                            [preset]="voiceSvc.rtc.screenPreset()"
+                            [disconnectLabel]="'CALL.DISCONNECT' | translate"
                             [isCameraOn]="voiceSvc.localState().isCameraOn"
                             [isDeafened]="voiceSvc.localState().isDeafened"
                             [isMuted]="voiceSvc.localState().isMuted"
                             [isScreenSharing]="voiceSvc.localState().isScreenSharing"
+                            [preset]="voiceSvc.rtc.screenPreset()"
                             [screenAudioMuted]="voiceSvc.localScreenAudioMuted()"
                             [screenHasAudio]="voiceSvc.localScreenHasAudio()"
                             class="pointer-events-auto"

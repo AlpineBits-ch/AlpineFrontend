@@ -3,117 +3,74 @@
 
     <div [class.panel--resizing]="isResizing()" [style.height.px]="panelHeight()" class="panel">
 
-        <!-- ── Status bar ──────────────────────────────────────────────────────── -->
-        @let rtc = rtcState();
-        @let rtcFailed = rtc === 'failed' || rtc === 'disconnected';
-        @let rtcConnecting = rtc === 'new' || rtc === 'connecting';
-        <div class="status-bar">
-      <span [class.live-dot--connecting]="rtcConnecting"
-            [class.live-dot--failed]="rtcFailed"
-            class="live-dot"></span>
-            <span [class.status-label--connecting]="rtcConnecting"
-                  [class.status-label--failed]="rtcFailed"
-                  class="status-label">
-        {{ rtcFailed ? (rtc === 'failed' ? 'Connection Failed' : 'Connection Lost') : rtcConnecting ? 'Connecting...' : 'Voice Call' }}
-                @if (!rtcFailed && !rtcConnecting) {
-                    · {{ duration }}
-                }
-      </span>
-            <button (click)="toggleStats()" [class.stats-toggle--active]="showStats()"
-                    class="stats-toggle" title="Connection stats">
-                <svg fill="currentColor" height="12" viewBox="0 0 24 24" width="12">
-                    <rect height="10" rx="1" width="4" x="2" y="12"/>
-                    <rect height="15" rx="1" width="4" x="9" y="7"/>
-                    <rect height="20" rx="1" width="4" x="16" y="2"/>
-                </svg>
-            </button>
-            <button (click)="toggleMaximize()" [title]="panelHeight() >= 900 ? 'Restore' : 'Maximize'"
-                    class="stats-toggle">
-                @if (panelHeight() >= 900) {
-                    <svg fill="none" height="12" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="12">
-                        <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+        <!-- ── Status ──────────────────────────────────────────────────────────
+             One row for every condition, ranked. This was a status bar plus up to
+             three separate banner strips below it, each with its own colours and
+             padding. See call-status.ts. -->
+        <div class="relative shrink-0">
+            <app-call-status-bar
+                    [aloneUntil]="aloneUntil()"
+                    [meta]="duration()"
+                    [rtcState]="rtcState()"
+                    [stalledAudio]="audio.anyStalled()">
+
+                <button (click)="toggleStats()"
+                        [attr.aria-expanded]="showStats()"
+                        [attr.aria-label]="'CALL.STATS_TITLE' | translate"
+                        [attr.title]="'CALL.STATS_TITLE' | translate"
+                        [class]="chipClass(showStats())"
+                        type="button">
+                    <svg aria-hidden="true" fill="currentColor" height="12" viewBox="0 0 24 24" width="12">
+                        <rect height="10" rx="1" width="4" x="2" y="12"/>
+                        <rect height="15" rx="1" width="4" x="9" y="7"/>
+                        <rect height="20" rx="1" width="4" x="16" y="2"/>
                     </svg>
-                } @else {
-                    <svg fill="none" height="12" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" width="12">
-                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
-                    </svg>
-                }
-            </button>
+                </button>
+
+                <button (click)="toggleMaximize()"
+                        [attr.aria-label]="(isMaximized() ? 'CALL.RESTORE' : 'CALL.MAXIMIZE') | translate"
+                        [attr.aria-pressed]="isMaximized()"
+                        [attr.title]="(isMaximized() ? 'CALL.RESTORE' : 'CALL.MAXIMIZE') | translate"
+                        [class]="chipClass(false)"
+                        type="button">
+                    @if (isMaximized()) {
+                        <svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-width="2"
+                             viewBox="0 0 24 24" width="12">
+                            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+                        </svg>
+                    } @else {
+                        <svg aria-hidden="true" fill="none" height="12" stroke="currentColor" stroke-width="2"
+                             viewBox="0 0 24 24" width="12">
+                            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                        </svg>
+                    }
+                </button>
+            </app-call-status-bar>
+
+            <!-- Diagnostics, over the stage rather than wedged into the layout. -->
+            @if (showStats() && stats(); as st) {
+                <app-call-stats-popover [stats]="st"/>
+            }
         </div>
 
-        <!-- ── Connection problem banner ─────────────────────────────────────── -->
-        @if (rtcFailed) {
-            <div class="conn-banner conn-banner--error">
-                <svg class="shrink-0" fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
-                </svg>
-                <span>{{ rtc === 'failed' ? 'WebRTC connection failed -you may not be able to hear others' : 'Connection lost -attempting to reconnect' }}</span>
-            </div>
-        }
-
-        <!-- ── Alone-timeout notice ──────────────────────────────────────────── -->
-        @if (aloneNotice(); as notice) {
-            <div class="conn-banner conn-banner--warn">
-                <svg class="shrink-0" fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
-                    <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm1 11h-4v-2h2V7h2v6z"/>
-                </svg>
-                <span>{{ notice }}</span>
-            </div>
-        }
-
-        <!-- ── No-audio warning (only once the grace window has passed) ───────── -->
-        @if (audio.anyStalled()) {
-            <div class="conn-banner conn-banner--warn">
-                <svg class="shrink-0" fill="currentColor" height="13" viewBox="0 0 24 24" width="13">
-                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-                </svg>
-                <span>No audio received from some participants -they may need to rejoin</span>
-            </div>
-        }
-
-        <!-- ── Stats bar ─────────────────────────────────────────────────────── -->
-        @if (showStats() && stats(); as st) {
-            <div class="stats-bar">
-                <span class="stats-item"><span class="stats-arrow stats-arrow--down">↓</span><span>{{ st.inboundKbps }}
-                    kbps</span></span>
-                <span class="stats-sep">·</span>
-                <span class="stats-item"><span class="stats-arrow stats-arrow--up">↑</span><span>{{ st.outboundKbps }}
-                    kbps</span></span>
-                @if (st.inboundVideoKbps > 0) {
-                    <span class="stats-sep">·</span>
-                    <span class="stats-item stats-item--muted">vid ↓ {{ st.inboundVideoKbps }}k</span>
-                }
-                @if (st.outboundVideoKbps > 0) {
-                    <span class="stats-sep">·</span>
-                    <span class="stats-item stats-item--muted">vid ↑ {{ st.outboundVideoKbps }}k</span>
-                }
-                @if (st.packetsLost > 0) {
-                    <span class="stats-sep">·</span>
-                    <span class="stats-item stats-item--warn">✗ {{ st.packetsLost }}</span>
-                }
-            </div>
-        }
-
-        <!-- ── Content + floating controls ─────────────────────────────────────── -->
-        <div class="relative flex-1 min-h-0 flex flex-col">
+        <!-- ── Stage + floating controls ───────────────────────────────────────── -->
+        <div class="relative flex min-h-0 flex-1 flex-col bg-stage">
             @if (callScreenShares().length > 0) {
 
-                <!-- ── Screen share layout ────────────────────────────────────────────── -->
                 <app-call-screen-layout
-                        (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
                         (localAudioToggle)="toggleLocalScreenAudio()"
+                        (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
                         (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
-                        [participantsWithAudio]="participantsWithAudio()"
                         [participants]="callParticipants()"
+                        [participantsWithAudio]="participantsWithAudio()"
                         [screenShares]="callScreenShares()"
                         [watchScope]="watchScope()"
-                        class="flex-1 min-h-0"
+                        class="min-h-0 flex-1"
                 />
 
             } @else {
 
-                <!-- ── Participants grid ─────────────────────────────────────────────── -->
-                <div [attr.data-count]="s.participants.length" class="participants">
+                <div [attr.data-count]="s.participants.length" class="participants thin-scrollbar">
                     @for (p of callParticipants(); track p.userId) {
                         <app-call-participant-tile
                                 (contextMenu)="onParticipantContextMenu($event, p)"
@@ -127,7 +84,7 @@
             }
 
             <!-- ── Floating controls bar ───────────────────────────────────────── -->
-            <div class="absolute bottom-8 left-0 right-0 flex justify-center z-20 pointer-events-none transition-all duration-300">
+            <div class="pointer-events-none absolute bottom-8 left-0 right-0 z-20 flex justify-center">
                 <app-call-controls-bar
                         (cameraToggle)="toggleCamera()"
                         (deafenToggle)="toggleDeafen()"
@@ -135,20 +92,23 @@
                         (muteToggle)="toggleMute()"
                         (presetChange)="setScreenPreset($event)"
                         (screenShareToggle)="toggleScreenShare()"
-                        [preset]="screenPreset()"
+                        [disconnectLabel]="'CALL.END_CALL' | translate"
                         [isCameraOn]="s.local.isCameraOn"
                         [isDeafened]="s.local.isDeafened"
                         [isMuted]="s.local.isMuted"
                         [isScreenSharing]="s.local.isSharing"
+                        [preset]="screenPreset()"
                         [screenHasAudio]="false"
                         class="pointer-events-auto"
-                        disconnectLabel="End Call"
                 />
             </div>
         </div>
 
         <!-- ── Resize handle ───────────────────────────────────────────────────── -->
-        <div (mousedown)="onResizeStart($event)" class="resize-handle">
+        <div (mousedown)="onResizeStart($event)"
+             [attr.aria-label]="'CALL.RESIZE_PANEL' | translate"
+             class="resize-handle"
+             role="separator">
             <div class="resize-grip"></div>
         </div>
 

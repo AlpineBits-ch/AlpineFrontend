@@ -1,4 +1,5 @@
 import {ChangeDetectionStrategy, Component, computed, input} from '@angular/core';
+import {TranslateModule} from '@ngx-translate/core';
 import {AudioState} from '../audio-wait';
 
 /**
@@ -11,20 +12,21 @@ import {AudioState} from '../audio-wait';
 @Component({
     selector: 'app-call-audio-status',
     changeDetection: ChangeDetectionStrategy.OnPush,
+    imports: [TranslateModule],
     template: `
         @switch (state()) {
             @case ('connecting') {
-                <span [class]="shellClass()" title="Waiting for audio from this participant">
-                    Connecting
-                    <span class="connecting-dots"><i></i><i></i><i></i></span>
+                <span [class]="shellClass()" [attr.title]="'CALL.WAITING_FOR_AUDIO' | translate">
+                    {{ 'CALL.STATUS.CONNECTING' | translate }}
+                    <span class="connecting-dots" aria-hidden="true"><i></i><i></i><i></i></span>
                 </span>
             }
             @case ('stalled') {
-                <span [class]="shellClass()" title="No audio received from this participant">
-                    <svg fill="currentColor" height="8" viewBox="0 0 24 24" width="8">
+                <span [class]="shellClass()" [attr.title]="'CALL.NO_AUDIO_PARTICIPANT' | translate">
+                    <svg aria-hidden="true" fill="currentColor" height="8" viewBox="0 0 24 24" width="8">
                         <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
                     </svg>
-                    No audio
+                    {{ 'CALL.NO_AUDIO' | translate }}
                 </span>
             }
         }
@@ -82,15 +84,15 @@ export class CallAudioStatusComponent {
 
     protected readonly shellClass = computed(() => {
         const badge = this.variant() === 'badge';
-        const base = 'inline-flex items-center gap-1 text-[9px] font-medium leading-none'
+        const base = 'inline-flex items-center gap-1 text-[0.5625rem] font-medium leading-none'
             + (badge ? ' px-1.5 py-0.5 rounded-full border' : '');
         if (this.state() === 'stalled') {
             return base + (badge
-                ? ' bg-amber-400/[0.15] border-amber-400/35 text-amber-400 font-semibold'
-                : ' text-amber-400 font-semibold');
+                ? ' bg-connecting/15 border-connecting/35 text-connecting font-semibold'
+                : ' text-connecting font-semibold');
         }
         return base + (badge
-            ? ' bg-white/[0.06] border-white/[0.10] text-white/45'
+            ? ' bg-white/[0.06] border-border-subtle text-white/45'
             : ' text-white/40');
     });
 }

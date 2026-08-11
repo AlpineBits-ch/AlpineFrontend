@@ -1,8 +1,10 @@
 import {Component, HostListener, input, output} from '@angular/core';
+import {TranslateModule} from '@ngx-translate/core';
 import {CallParticipantMenuData} from '../call.types';
 
 @Component({
     selector: 'app-call-context-menu',
+    imports: [TranslateModule],
     templateUrl: './call-context-menu.component.html',
     styleUrl: './call-context-menu.component.css',
     host: {'(click)': '$event.stopPropagation()'}

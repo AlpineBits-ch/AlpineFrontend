@@ -11,12 +11,18 @@ import {
 import {CallControlsBarComponent} from '../../../../../shared/call/call-controls-bar/call-controls-bar.component';
 import {CallScreenLayoutComponent} from '../../../../../shared/call/call-screen-layout/call-screen-layout.component';
 import {CallContextMenuComponent} from '../../../../../shared/call/call-context-menu/call-context-menu.component';
-import {formatAloneNotice} from './alone-countdown';
+import {CallStatusBarComponent} from '../../../../../shared/call/call-status-bar/call-status-bar.component';
+import {CallStatsPopoverComponent} from '../../../../../shared/call/call-stats-popover/call-stats-popover.component';
+import {formatAloneDeadline} from './alone-countdown';
 import {WatchScope} from '../../../../../services/share-watch.service';
+import {TranslateModule} from '@ngx-translate/core';
 
 const MIN_HEIGHT = 200;
 const MAX_HEIGHT = 900;
 const DEFAULT_HEIGHT = 420;
+
+const CHIP_BASE = 'call-focusable flex size-[1.375rem] shrink-0 cursor-pointer items-center justify-center'
+    + ' rounded border-0 bg-transparent transition-colors';
 
 @Component({
     selector: 'app-call-panel',
@@ -27,6 +33,9 @@ const DEFAULT_HEIGHT = 420;
         CallControlsBarComponent,
         CallScreenLayoutComponent,
         CallContextMenuComponent,
+        CallStatusBarComponent,
+        CallStatsPopoverComponent,
+        TranslateModule,
     ],
 })
 export class CallPanelComponent implements OnInit, OnDestroy {
@@ -37,7 +46,10 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     protected participantMenu = signal<CallParticipantMenuData | null>(null);
     protected panelHeight = signal(DEFAULT_HEIGHT);
     protected isResizing = signal(false);
-    protected duration = '00:00';
+    /** A signal, not a field: it is bound into the status bar, which is OnPush. */
+    protected duration = signal('00:00');
+    /** Named rather than comparing the height to a literal 900 at the point of use. */
+    protected isMaximized = computed(() => this.panelHeight() >= MAX_HEIGHT);
     private callSession = inject(CallSessionService);
     private callWebRtc = inject(CallWebRtcService);
     protected callParticipants = computed((): CallParticipant[] => this.session()?.participants ?? []);
@@ -68,7 +80,7 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     });
     protected screenPreset = this.callSession.screenPreset;
     /** Set only while the local user is the last one in the call. */
-    protected aloneNotice = computed(() => formatAloneNotice(this.callSession.aloneDeadline()));
+    protected aloneUntil = computed(() => formatAloneDeadline(this.callSession.aloneDeadline()));
     protected stats = this.callWebRtc.stats;
     protected rtcState = this.callWebRtc.rtcState;
     protected participantsWithAudio = this.callWebRtc.participantsWithAudio;
@@ -97,7 +109,7 @@ export class CallPanelComponent implements OnInit, OnDestroy {
             const elapsed = Math.floor((Date.now() - new Date(s.startedAt).getTime()) / 1000);
             const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
             const sec = (elapsed % 60).toString().padStart(2, '0');
-            this.duration = `${m}:${sec}`;
+            this.duration.set(`${m}:${sec}`);
         }, 1000);
     }
 
@@ -168,7 +180,14 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     }
 
     protected toggleMaximize(): void {
-        this.panelHeight.update(h => h >= MAX_HEIGHT ? DEFAULT_HEIGHT : MAX_HEIGHT);
+        this.panelHeight.set(this.isMaximized() ? DEFAULT_HEIGHT : MAX_HEIGHT);
+    }
+
+    /** The two small square buttons that sit at the end of the status row. */
+    protected chipClass(active: boolean): string {
+        return active
+            ? `${CHIP_BASE} bg-brand/15 text-brand-dim`
+            : `${CHIP_BASE} text-white/40 hover:bg-white/[0.08] hover:text-white/70`;
     }
 
     // A focused-stream view used to live here, with the only fullscreen button in the app on it -

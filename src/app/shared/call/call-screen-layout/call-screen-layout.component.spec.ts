@@ -1,5 +1,6 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {TranslateModule} from '@ngx-translate/core';
 import {CallScreenLayoutComponent} from './call-screen-layout.component';
 import {CallScreenShare} from '../call.types';
 import {ShareWatchService} from '../../../services/share-watch.service';
@@ -15,7 +16,8 @@ function share(shareId: string, isLocal = false): CallScreenShare {
 
 function setup(shares: CallScreenShare[]) {
     TestBed.configureTestingModule({
-        imports: [CallScreenLayoutComponent],
+        // The layout renders translated tiles now, so it needs a TranslateService to resolve them.
+        imports: [CallScreenLayoutComponent, TranslateModule.forRoot()],
         providers: [
             {
                 provide: ShareWatchService,

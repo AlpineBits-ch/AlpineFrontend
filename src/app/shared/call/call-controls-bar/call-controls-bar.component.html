@@ -1,13 +1,19 @@
-<div class="shrink-0 bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] px-4 py-4 flex items-center justify-center gap-3">
+<!-- The bar reads as part of Alpine now: the app's own card surface and border, not a black glass
+     slab with a 32px drop shadow floating over a near-black stage, where the shadow had nothing to
+     cast onto and only muddied the tile edges under it. -->
+<div class="flex shrink-0 items-center justify-center gap-3 rounded-2xl border border-border bg-sidebar/95
+            px-4 py-4 shadow-[0_4px_16px_rgba(0,0,0,0.35)] backdrop-blur-sm"
+     [attr.aria-label]="'CALL.CONTROLS' | translate"
+     role="group">
 
     <!-- Mute -->
     <button
             (click)="muteToggle.emit()"
-            [ngClass]="isMuted()
-      ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'
-      : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
-            [title]="isMuted() ? 'Unmute' : 'Mute'"
-            class="group w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer border-0">
+            [attr.aria-label]="(isMuted() ? 'CALL.UNMUTE' : 'CALL.MUTE') | translate"
+            [attr.aria-pressed]="isMuted()"
+            [attr.title]="(isMuted() ? 'CALL.UNMUTE' : 'CALL.MUTE') | translate"
+            [class]="toggleClass(isMuted(), 'danger')"
+            type="button">
         <!-- The slash is drawn, not looked up: PrimeIcons has no slashed microphone, and binding a
              `pi-microphone-slash` that does not exist renders an empty glyph - which is exactly what
              this button did when muted, a red square with no icon in it. See .icon-slashed. -->
@@ -20,11 +26,11 @@
     <!-- Deafen -->
     <button
             (click)="deafenToggle.emit()"
-            [ngClass]="isDeafened()
-      ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'
-      : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
-            [title]="isDeafened() ? 'Undeafen' : 'Deafen'"
-            class="group w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer border-0">
+            [attr.aria-label]="(isDeafened() ? 'CALL.UNDEAFEN' : 'CALL.DEAFEN') | translate"
+            [attr.aria-pressed]="isDeafened()"
+            [attr.title]="(isDeafened() ? 'CALL.UNDEAFEN' : 'CALL.DEAFEN') | translate"
+            [class]="toggleClass(isDeafened(), 'danger')"
+            type="button">
         <!-- Headphones rather than a speaker, and slashed only when deafened: the icon used to be
              the "off" speaker in both states, so the button never showed which way it was set. -->
         <span [class.icon-slashed]="isDeafened()"
@@ -36,22 +42,22 @@
     <!-- Camera -->
     <button
             (click)="cameraToggle.emit()"
-            [ngClass]="isCameraOn()
-      ? 'bg-brand/20 text-brand-dim hover:bg-brand/30'
-      : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
-            [title]="isCameraOn() ? 'Turn off camera' : 'Turn on camera'"
-            class="group w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer border-0">
+            [attr.aria-label]="(isCameraOn() ? 'CALL.CAMERA_OFF' : 'CALL.CAMERA_ON_ACTION') | translate"
+            [attr.aria-pressed]="isCameraOn()"
+            [attr.title]="(isCameraOn() ? 'CALL.CAMERA_OFF' : 'CALL.CAMERA_ON_ACTION') | translate"
+            [class]="toggleClass(isCameraOn(), 'brand')"
+            type="button">
         <i class="pi pi-camera text-base transition-transform duration-150 group-hover:scale-110"></i>
     </button>
 
     <!-- Screen share -->
     <button
             (click)="screenShareToggle.emit()"
-            [ngClass]="isScreenSharing()
-      ? 'bg-brand/20 text-brand-dim hover:bg-brand/30'
-      : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
-            [title]="isScreenSharing() ? 'Stop sharing' : 'Share screen'"
-            class="group w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer border-0">
+            [attr.aria-label]="(isScreenSharing() ? 'CALL.STOP_SHARING' : 'CALL.SHARE_SCREEN') | translate"
+            [attr.aria-pressed]="isScreenSharing()"
+            [attr.title]="(isScreenSharing() ? 'CALL.STOP_SHARING' : 'CALL.SHARE_SCREEN') | translate"
+            [class]="toggleClass(isScreenSharing(), 'brand')"
+            type="button">
         <i class="pi pi-desktop text-base transition-transform duration-150 group-hover:scale-110"></i>
     </button>
 
@@ -59,52 +65,57 @@
     @if (isScreenSharing() && screenHasAudio()) {
         <button
                 (click)="screenAudioToggle.emit()"
-                [ngClass]="screenAudioMuted()
-        ? 'bg-rose-500/20 text-rose-400 hover:bg-rose-500/30'
-        : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12] hover:text-white/80'"
-                [title]="screenAudioMuted() ? 'Unmute stream audio' : 'Mute stream audio'"
-                class="group w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-150 active:scale-95 cursor-pointer border-0">
-            <i [ngClass]="screenAudioMuted() ? 'pi-volume-off' : 'pi-volume-up'"
+                [attr.aria-label]="(screenAudioMuted() ? 'CALL.UNMUTE_STREAM_AUDIO' : 'CALL.MUTE_STREAM_AUDIO') | translate"
+                [attr.aria-pressed]="screenAudioMuted()"
+                [attr.title]="(screenAudioMuted() ? 'CALL.UNMUTE_STREAM_AUDIO' : 'CALL.MUTE_STREAM_AUDIO') | translate"
+                [class]="toggleClass(screenAudioMuted(), 'danger')"
+                type="button">
+            <i [class]="screenAudioMuted() ? 'pi-volume-off' : 'pi-volume-up'"
                class="pi text-base transition-transform duration-150 group-hover:scale-110"></i>
         </button>
     }
 
     <!-- Stream quality -visible only while sharing. Bitrate is derived from the pair, never set. -->
     @if (isScreenSharing() && preset()) {
-        <div class="flex items-center gap-0.5 bg-white/[0.05] rounded-lg px-1 py-1 border border-white/[0.08]">
+        <div [attr.aria-label]="'CALL.RESOLUTION' | translate"
+             class="flex items-center gap-0.5 rounded-lg border border-border-subtle bg-white/[0.05] p-1"
+             role="group">
             @for (res of resolutions; track res.value) {
                 <button
                         (click)="setResolution(res.value)"
-                        [ngClass]="isResolution(res.value)
-            ? 'bg-brand text-white'
-            : 'bg-transparent text-white/45 hover:text-white/75 hover:bg-white/[0.07]'"
-                        [title]="res.label"
-                        class="px-2 py-1 rounded text-xs font-mono transition-all border-0 cursor-pointer leading-none active:scale-90">{{ res.label }}
+                        [attr.aria-pressed]="isResolution(res.value)"
+                        [attr.title]="res.label"
+                        [class]="segmentClass(isResolution(res.value))"
+                        type="button">{{ res.label }}
                 </button>
             }
         </div>
-        <div class="flex items-center gap-0.5 bg-white/[0.05] rounded-lg px-1 py-1 border border-white/[0.08]">
+        <div [attr.aria-label]="'CALL.FRAMERATE' | translate"
+             class="flex items-center gap-0.5 rounded-lg border border-border-subtle bg-white/[0.05] p-1"
+             role="group">
             @for (fps of framerates; track fps) {
                 <button
                         (click)="setFramerate(fps)"
-                        [ngClass]="isFramerate(fps)
-            ? 'bg-brand text-white'
-            : 'bg-transparent text-white/45 hover:text-white/75 hover:bg-white/[0.07]'"
-                        [title]="fps + ' fps'"
-                        class="px-2 py-1 rounded text-xs font-mono transition-all border-0 cursor-pointer leading-none active:scale-90">{{ fps }}
+                        [attr.aria-pressed]="isFramerate(fps)"
+                        [attr.title]="'CALL.FPS' | translate: {fps}"
+                        [class]="segmentClass(isFramerate(fps))"
+                        type="button">{{ fps }}
                 </button>
             }
         </div>
     }
 
-    <div class="w-px h-7 bg-white/[0.12] mx-1"></div>
+    <div aria-hidden="true" class="mx-1 h-7 w-px bg-border"></div>
 
     <!-- Disconnect / End Call -->
     <button
             (click)="disconnect.emit()"
-            [title]="disconnectLabel()"
-            class="group w-12 h-12 rounded-xl flex items-center justify-center bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 hover:text-rose-300 transition-all duration-150 active:scale-95 cursor-pointer border-0">
-        <i class="pi pi-phone text-base transition-transform duration-150 group-hover:scale-110" style="transform: rotate(135deg); display: inline-block;"></i>
+            [attr.aria-label]="disconnectLabel()"
+            [attr.title]="disconnectLabel()"
+            class="call-focusable group flex size-12 cursor-pointer items-center justify-center rounded-xl border-0
+                   bg-offline/15 text-offline transition-all duration-150 hover:bg-offline/25 active:scale-95"
+            type="button">
+        <i class="pi pi-phone rotate-[135deg] text-base transition-transform duration-150 group-hover:scale-110"></i>
     </button>
 
 </div>

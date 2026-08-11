@@ -1,40 +1,23 @@
 @if (voiceSvc.isInVoice()) {
-    @let rtcState = voiceSvc.rtcState();
-    @let isFailed = rtcState === 'failed' || rtcState === 'disconnected';
-    @let isConnecting = rtcState === 'new' || rtcState === 'connecting';
+    @let status = callStatus();
 
-    <div class="shrink-0 bg-sidebar border-t border-white/[0.10] px-3 py-2 select-none">
-
-        <!-- Connection problem banner -->
-        @if (isFailed) {
-            <div class="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-md bg-rose-500/15 border border-rose-500/25">
-                <div class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"
-                     style="animation: rtc-warn-pulse 1s ease-in-out infinite"></div>
-                <span class="text-[10px] font-semibold text-rose-400 uppercase tracking-wide">
-          {{ (rtcState === 'failed' ? 'VOICE_BAR.FAILED' : 'VOICE_BAR.LOST') | translate }}
-                    -{{ 'VOICE_BAR.AUDIO_INTERRUPTED' | translate }}
-        </span>
-            </div>
-        }
+    <div class="shrink-0 select-none border-t border-border-subtle bg-sidebar px-3 py-2">
 
         <div class="flex items-center gap-2">
 
-            <!-- Status dot -->
-            <div [style.animation]="isConnecting ? 'rtc-warn-pulse 1s ease-in-out infinite' : (isFailed ? 'rtc-warn-pulse 1s ease-in-out infinite' : 'none')"
-                 [style.background]="isFailed ? '#f43f5e' : isConnecting ? '#fbbf24' : '#34d399'"
-                 [style.box-shadow]="isFailed ? '0 0 6px rgba(244,63,94,0.6)' : isConnecting ? '0 0 5px rgba(251,191,36,0.5)' : '0 0 6px rgba(52,211,153,0.6)'"
-                 class="w-2 h-2 rounded-full shrink-0 transition-colors">
-            </div>
+            <!-- Status dot. Colour and pulse come from the same resolver the in-call status row
+                 uses, so the sidebar cannot disagree with the call about how it is going. -->
+            <span [class]="dotClass()"></span>
 
             <!-- Channel info (clickable) -->
             <button
                     (click)="navigateToChannel()"
-                    class="flex-1 min-w-0 text-left border-0 bg-transparent p-0 cursor-pointer group">
-                <p [style.color]="isFailed ? '#f43f5e' : isConnecting ? '#fbbf24' : '#34d399'"
-                   class="text-xs font-semibold leading-tight transition-colors">
-                    {{ (isFailed ? (rtcState === 'failed' ? 'VOICE_BAR.FAILED' : 'VOICE_BAR.LOST') : isConnecting ? 'VOICE_BAR.CONNECTING' : 'VOICE_BAR.VOICE_CONNECTED') | translate }}
+                    class="call-focusable min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-left"
+                    type="button">
+                <p [class]="'text-xs font-semibold leading-tight ' + labelClass()">
+                    {{ status.labelKey | translate }}
                 </p>
-                <p class="text-[11px] text-white/55 truncate leading-tight mt-0.5">
+                <p class="mt-0.5 truncate text-[0.6875rem] leading-tight text-white/55">
                     {{ voiceSvc.joinedChannelName() }}
                     @if (voiceSvc.joinedGuildName()) {
                         <span class="text-white/35"> · {{ voiceSvc.joinedGuildName() }}</span>
@@ -45,22 +28,14 @@
             <!-- Disconnect -->
             <button
                     (click)="voiceSvc.leaveChannel()"
-                    [title]="'VOICE_BAR.DISCONNECT' | translate"
-                    class="w-7 h-7 flex items-center justify-center rounded-lg bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 transition-colors cursor-pointer border-0 shrink-0">
-                <i class="pi pi-phone text-xs" style="transform: rotate(135deg); display: inline-block;"></i>
+                    [attr.aria-label]="'VOICE_BAR.DISCONNECT' | translate"
+                    [attr.title]="'VOICE_BAR.DISCONNECT' | translate"
+                    class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg
+                           border-0 bg-offline/15 text-offline transition-colors hover:bg-offline/25"
+                    type="button">
+                <i class="pi pi-phone rotate-[135deg] text-xs"></i>
             </button>
 
         </div>
     </div>
 }
-
-<style>
-    @keyframes rtc-warn-pulse {
-        0%, 100% {
-            opacity: 1;
-        }
-        50% {
-            opacity: 0.35;
-        }
-    }
-</style>

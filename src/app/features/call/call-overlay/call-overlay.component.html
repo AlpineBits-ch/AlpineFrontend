@@ -6,34 +6,42 @@
 
     <!-- Card -->
     <div class="fixed inset-0 flex items-center justify-center pointer-events-none" style="z-index:2000">
-        <div class="pointer-events-auto call-card-enter w-80 rounded-2xl overflow-hidden
-                border border-white/[0.10] shadow-2xl" style="background: var(--color-sidebar)">
+        <div [attr.aria-label]="'CALL.INCOMING' | translate"
+             class="call-card-enter pointer-events-auto w-80 overflow-hidden rounded-2xl border border-border
+                    bg-sidebar shadow-2xl"
+             role="dialog">
 
-            <!-- Emerald header band -->
-            <div class="px-5 py-3 flex items-center gap-2.5 border-b border-emerald-500/20"
-                 style="background:linear-gradient(90deg,rgba(52,211,153,0.18),rgba(52,211,153,0.05))">
-        <span class="relative flex h-2 w-2 shrink-0">
-          <span class="animate-ping absolute inset-0 rounded-full bg-emerald-400 opacity-75"></span>
-          <span class="relative rounded-full h-2 w-2 bg-emerald-400"></span>
-        </span>
-                <span class="text-[0.6875rem] font-semibold text-emerald-400 uppercase tracking-widest">
-          Incoming Voice Call
-        </span>
+            <!-- Header band. The tint is the shared online token now, not a hardcoded emerald -
+                 the same green the status dot and the speaking ring are drawn in. -->
+            <div class="flex items-center gap-2.5 border-b border-online/20 px-5 py-3"
+                 style="background:linear-gradient(90deg,
+                        color-mix(in srgb, var(--color-online) 18%, transparent),
+                        color-mix(in srgb, var(--color-online) 5%, transparent))">
+                <span aria-hidden="true" class="relative flex size-2 shrink-0">
+                    <span class="absolute inset-0 animate-ping rounded-full bg-online opacity-75
+                                 motion-reduce:hidden"></span>
+                    <span class="relative size-2 rounded-full bg-online"></span>
+                </span>
+                <span class="text-[0.6875rem] font-semibold uppercase tracking-widest text-online">
+                    {{ 'CALL.INCOMING' | translate }}
+                </span>
             </div>
 
             <!-- Body -->
-            <div class="px-8 py-7 flex flex-col items-center gap-6">
+            <div class="flex flex-col items-center gap-6 px-8 py-7">
 
                 <!-- Avatar with concentric pulse rings -->
-                <div class="relative flex items-center justify-center w-24 h-24">
-                    <div class="absolute w-32 h-32 rounded-full border border-emerald-400/15 animate-ping"></div>
-                    <div class="absolute w-28 h-28 rounded-full border border-emerald-400/25 animate-pulse"></div>
+                <div aria-hidden="true" class="relative flex size-24 items-center justify-center">
+                    <div class="absolute size-32 animate-ping rounded-full border border-online/15
+                                motion-reduce:hidden"></div>
+                    <div class="absolute size-28 animate-pulse rounded-full border border-online/25
+                                motion-reduce:hidden"></div>
                     <p-avatar [label]="inc.avatarLabel" shape="circle"
                               styleClass="!w-20 !h-20 !text-3xl relative z-10"/>
                 </div>
 
                 <!-- Name -->
-                <h2 class="text-lg font-bold text-white/90 text-center leading-tight -mt-1">
+                <h2 class="-mt-1 text-center text-lg font-bold leading-tight text-white/90">
                     {{ inc.displayName }}
                 </h2>
 
@@ -41,24 +49,28 @@
                 <div class="flex items-end gap-12">
                     <div class="flex flex-col items-center gap-2">
                         <button (click)="callState.reject()"
-                                class="w-14 h-14 rounded-full flex items-center justify-center cursor-pointer
-                     border border-rose-500/35 bg-rose-500/15 hover:bg-rose-500/30
-                     transition-all duration-200 group active:scale-95">
-                            <i class="pi pi-phone text-rose-400 text-xl rotate-[135deg]
-                        group-hover:scale-110 transition-transform duration-150"></i>
+                                [attr.aria-label]="'CALL.DECLINE' | translate"
+                                class="call-focusable group flex size-14 cursor-pointer items-center justify-center
+                                       rounded-full border border-offline/35 bg-offline/15 transition-all duration-200
+                                       hover:bg-offline/30 active:scale-95"
+                                type="button">
+                            <i class="pi pi-phone rotate-[135deg] text-xl text-offline transition-transform
+                                      duration-150 group-hover:scale-110"></i>
                         </button>
-                        <span class="text-[0.6875rem] text-white/35">Decline</span>
+                        <span class="text-[0.6875rem] text-white/35">{{ 'CALL.DECLINE' | translate }}</span>
                     </div>
 
                     <div class="flex flex-col items-center gap-2">
                         <button (click)="callState.accept()"
-                                class="w-14 h-14 rounded-full flex items-center justify-center cursor-pointer
-                     border border-emerald-500/35 bg-emerald-500/15 hover:bg-emerald-500/30
-                     transition-all duration-200 group active:scale-95">
-                            <i class="pi pi-phone text-emerald-400 text-xl
-                        group-hover:scale-110 transition-transform duration-150"></i>
+                                [attr.aria-label]="'CALL.ACCEPT' | translate"
+                                class="call-focusable group flex size-14 cursor-pointer items-center justify-center
+                                       rounded-full border border-online/35 bg-online/15 transition-all duration-200
+                                       hover:bg-online/30 active:scale-95"
+                                type="button">
+                            <i class="pi pi-phone text-xl text-online transition-transform duration-150
+                                      group-hover:scale-110"></i>
                         </button>
-                        <span class="text-[0.6875rem] text-white/35">Accept</span>
+                        <span class="text-[0.6875rem] text-white/35">{{ 'CALL.ACCEPT' | translate }}</span>
                     </div>
                 </div>
 
@@ -69,38 +81,44 @@
 
 <!-- ── Outgoing call ────────────────────────────────────────────────────── -->
 @if (showOutgoingCard() && callState.outgoingCall(); as out) {
-    <div class="fixed bottom-6 right-6 w-72 rounded-2xl overflow-hidden call-card-enter
-              border border-white/[0.08] shadow-2xl" style="z-index:1800; background: var(--color-sidebar)">
+    <div class="call-card-enter fixed bottom-6 right-6 w-72 overflow-hidden rounded-2xl border border-border-subtle
+                bg-sidebar shadow-2xl"
+         style="z-index:1800">
 
-        <!-- Indigo accent line -->
-        <div class="h-[2px] bg-gradient-to-r from-[color-mix(in_srgb,var(--color-brand)_70%,transparent)] via-[color-mix(in_srgb,var(--color-brand-dim)_30%,transparent)] to-transparent"></div>
+        <!-- Brand accent line -->
+        <div aria-hidden="true"
+             class="h-[2px] bg-gradient-to-r from-[color-mix(in_srgb,var(--color-brand)_70%,transparent)] via-[color-mix(in_srgb,var(--color-brand-dim)_30%,transparent)] to-transparent"></div>
 
-        <div class="px-4 py-4 flex items-center gap-3">
+        <div class="flex items-center gap-3 px-4 py-4">
 
             <!-- Avatar with soft pulse halo -->
             <div class="relative shrink-0">
-                <div class="absolute inset-0 rounded-full bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)] scale-[1.35] animate-pulse"></div>
+                <div aria-hidden="true"
+                     class="absolute inset-0 scale-[1.35] animate-pulse rounded-full bg-[color-mix(in_srgb,var(--color-brand)_20%,transparent)] motion-reduce:hidden"></div>
                 <p-avatar [label]="out.avatarLabel" shape="circle" size="large" styleClass="relative z-10"/>
             </div>
 
             <!-- Info -->
-            <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-0.5 text-[0.6875rem] text-white/40 mb-0.5">
-                    <span>Calling</span>
-                    <span class="dot" style="animation-delay:0ms">.</span>
-                    <span class="dot" style="animation-delay:250ms">.</span>
-                    <span class="dot" style="animation-delay:500ms">.</span>
+            <div class="min-w-0 flex-1">
+                <div class="mb-0.5 flex items-center gap-0.5 text-[0.6875rem] text-white/40">
+                    <span>{{ 'CALL.CALLING' | translate }}</span>
+                    <span aria-hidden="true" class="dot" style="animation-delay:0ms">.</span>
+                    <span aria-hidden="true" class="dot" style="animation-delay:250ms">.</span>
+                    <span aria-hidden="true" class="dot" style="animation-delay:500ms">.</span>
                 </div>
-                <p class="text-sm font-semibold text-white/85 truncate">{{ out.displayName }}</p>
+                <p class="truncate text-sm font-semibold text-white/85">{{ out.displayName }}</p>
             </div>
 
             <!-- Cancel -->
             <button (click)="callState.cancelOutgoing()"
-                    class="shrink-0 w-10 h-10 rounded-full flex items-center justify-center cursor-pointer
-               border border-rose-500/35 bg-rose-500/15 hover:bg-rose-500/30
-               transition-all duration-200 group active:scale-95">
-                <i class="pi pi-phone text-rose-400 rotate-[135deg]
-                  group-hover:scale-110 transition-transform duration-150"></i>
+                    [attr.aria-label]="'CALL.CANCEL_CALL' | translate"
+                    [attr.title]="'CALL.CANCEL_CALL' | translate"
+                    class="call-focusable group flex size-10 shrink-0 cursor-pointer items-center justify-center
+                           rounded-full border border-offline/35 bg-offline/15 transition-all duration-200
+                           hover:bg-offline/30 active:scale-95"
+                    type="button">
+                <i class="pi pi-phone rotate-[135deg] text-offline transition-transform duration-150
+                          group-hover:scale-110"></i>
             </button>
         </div>
     </div>

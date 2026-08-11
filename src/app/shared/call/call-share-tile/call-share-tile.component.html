@@ -1,0 +1,129 @@
+@let s = share();
+
+<div #root
+     class="group/tile relative flex min-h-0 items-center justify-center overflow-hidden rounded-xl
+            border border-border-subtle bg-black/70">
+
+    <!-- Zoomable, pannable content. The tile clips the overflow, so zooming past 100% would hide
+         the edges with no way to reach them; this wrapper is the drag surface that pans them in. -->
+    <div (mousedown)="startPan($event)"
+         (mouseleave)="endPan()"
+         (mousemove)="movePan($event)"
+         (mouseup)="endPan()"
+         [class.cursor-grab]="zoom() > 1"
+         class="absolute inset-0 overflow-hidden">
+        <div [style.transform]="transform()"
+             class="flex h-full w-full items-center justify-center transition-transform duration-150"
+             style="transform-origin: center center">
+            @if (s.stream; as stream) {
+                <video #video [streamSrc]="stream" autoplay class="h-full w-full object-contain" muted
+                       playsinline></video>
+            } @else if (s.previewSrc) {
+                <img [alt]="'CALL.YOUR_SCREEN' | translate" [src]="s.previewSrc"
+                     class="h-full w-full object-contain"/>
+            } @else {
+                <div class="pointer-events-none flex select-none flex-col items-center gap-3 text-white/20">
+                    <i class="pi pi-desktop text-5xl"></i>
+                    <span class="text-sm">
+                        {{ s.isLocal
+                            ? ('CALL.YOUR_SCREEN' | translate)
+                            : ('CALL.SCREEN_SHARE_LABEL' | translate: label()) }}
+                    </span>
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- Top-left: what this stream is. The badge and the viewer count are always visible because
+         they are information; the buttons beside them appear on hover because they are not. -->
+    <div class="absolute left-3 top-3 z-10 flex items-center gap-1.5">
+        <app-call-live-badge/>
+
+        <!-- Hidden at zero rather than shown as "0 watching": a stream nobody has opened yet and a
+             stream whose audience we have not heard about look the same from here, and the second
+             is the more likely of the two. -->
+        @if (viewers(); as count) {
+            <span [attr.title]="'CALL.WATCHING' | translate: {count}"
+                  class="flex select-none items-center gap-1 rounded bg-black/50 px-2 py-0.5 text-xs text-white/70
+                         backdrop-blur-sm">
+                <i class="pi pi-eye text-[0.625rem] text-white/45"></i>{{ count }}
+            </span>
+        }
+
+        <div class="flex items-center gap-1.5 opacity-0 transition-opacity
+                    group-hover/tile:opacity-100 focus-within:opacity-100">
+            <app-call-tile-action
+                    (action)="togglePip()"
+                    [label]="'CALL.PICTURE_IN_PICTURE' | translate"
+                    icon="pi-external-link"/>
+            <app-call-tile-action
+                    (action)="toggleFullscreen()"
+                    [label]="'CALL.FULLSCREEN' | translate"
+                    icon="pi-arrows-alt"/>
+            <app-call-tile-action
+                    (action)="maximizeToggle.emit()"
+                    [label]="(maximized() ? 'CALL.SHOW_OTHER_STREAMS' : 'CALL.HIDE_OTHER_STREAMS') | translate"
+                    [icon]="maximized() ? 'pi-window-minimize' : 'pi-window-maximize'"
+                    [pressed]="maximized()"/>
+        </div>
+    </div>
+
+    <!-- Stream audio. Offered for a remote share whether or not we know it carries sound: the mute
+         is a preference about that person's stream and is harmless to set on a silent one. -->
+    @if (!s.isLocal || s.hasAudio) {
+        <app-call-tile-action
+                (action)="audioToggle.emit()"
+                [icon]="s.isAudioMuted ? 'pi-volume-off' : 'pi-volume-up'"
+                [label]="(s.isAudioMuted ? 'CALL.UNMUTE_STREAM_AUDIO' : 'CALL.MUTE_STREAM_AUDIO') | translate"
+                [pressed]="!!s.isAudioMuted"
+                [tone]="s.isAudioMuted ? 'danger' : 'neutral'"
+                class="absolute right-3 top-3 z-10"/>
+    }
+
+    <!-- Whose screen this is -->
+    <div class="absolute bottom-3 left-3 z-10 flex items-center gap-2 rounded-lg bg-black/50 px-2.5 py-1.5
+                backdrop-blur-sm">
+        <span class="flex size-5 shrink-0 items-center justify-center rounded-full bg-sidebar text-[0.5625rem]
+                     font-semibold text-white/70">
+            {{ s.avatarLabel ?? s.displayName[0] }}
+        </span>
+        <span class="text-sm text-white/80">{{ s.displayName }}</span>
+    </div>
+
+    <!-- Bottom-right: throughput, then zoom. Hover-only - zoom is a tool, not a readout. -->
+    <div class="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 opacity-0 transition-opacity
+                group-hover/tile:opacity-100 focus-within:opacity-100">
+        @if (s.isLocal && s.renderedFps != null) {
+            <span class="select-none rounded bg-black/50 px-2 py-1 text-[0.6875rem] tabular-nums text-white/55
+                         backdrop-blur-sm">
+                {{ 'CALL.FPS_OUT' | translate: {fps: s.renderedFps} }}
+            </span>
+        }
+        <div class="flex items-center gap-0.5 rounded bg-black/50 px-1.5 py-1 backdrop-blur-sm">
+            <button (click)="zoomOut()"
+                    [attr.aria-label]="'CALL.ZOOM_OUT' | translate"
+                    [attr.title]="'CALL.ZOOM_OUT' | translate"
+                    [disabled]="zoom() <= 1"
+                    class="call-focusable flex size-5 cursor-pointer items-center justify-center rounded border-0
+                           bg-transparent text-white/60 transition-colors hover:bg-white/10 hover:text-white/85
+                           disabled:cursor-default disabled:opacity-30"
+                    type="button">
+                <i class="pi pi-minus text-[0.5625rem]"></i>
+            </button>
+            <span class="min-w-[2.25rem] select-none text-center text-[0.625rem] tabular-nums text-white/55">
+                {{ (zoom() * 100).toFixed(0) }}%
+            </span>
+            <button (click)="zoomIn()"
+                    [attr.aria-label]="'CALL.ZOOM_IN' | translate"
+                    [attr.title]="'CALL.ZOOM_IN' | translate"
+                    [disabled]="zoom() >= 3"
+                    class="call-focusable flex size-5 cursor-pointer items-center justify-center rounded border-0
+                           bg-transparent text-white/60 transition-colors hover:bg-white/10 hover:text-white/85
+                           disabled:cursor-default disabled:opacity-30"
+                    type="button">
+                <i class="pi pi-plus text-[0.5625rem]"></i>
+            </button>
+        </div>
+    </div>
+
+</div>

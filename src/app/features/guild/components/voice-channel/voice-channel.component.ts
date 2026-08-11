@@ -1,5 +1,4 @@
 import {Component, computed, effect, inject, input, signal} from '@angular/core';
-import {NgClass} from '@angular/common';
 import {firstValueFrom} from 'rxjs';
 import {ChannelDto} from '../../../../dtos/response/guild.dto';
 import {VoiceChannelParticipant, VoiceChannelService} from '../../../../services/voice-channel.service';
@@ -19,6 +18,7 @@ import {
 import {CallControlsBarComponent} from '../../../../shared/call/call-controls-bar/call-controls-bar.component';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {CallScreenLayoutComponent} from '../../../../shared/call/call-screen-layout/call-screen-layout.component';
+import {CallStatusBarComponent} from '../../../../shared/call/call-status-bar/call-status-bar.component';
 import {CallParticipant, CallParticipantMenuData, CallScreenShare} from '../../../../shared/call/call.types';
 import {WatchScope} from '../../../../services/share-watch.service';
 import {trackAudioWait} from '../../../../shared/call/audio-wait';
@@ -27,12 +27,12 @@ import {TranslateModule} from '@ngx-translate/core';
 @Component({
     selector: 'app-voice-channel',
     imports: [
-        NgClass,
         VoiceChannelLobbyComponent,
         CallContextMenuComponent,
         CallParticipantTileComponent,
         CallControlsBarComponent,
         CallScreenLayoutComponent,
+        CallStatusBarComponent,
         TranslateModule,
     ],
     templateUrl: './voice-channel.component.html',

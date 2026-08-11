@@ -122,22 +122,58 @@ button, a, [role="button"], input, select, textarea, label {
   padding: 0 2px;
 }
 
-/* ── Call / voice connection-state pulse ─────────────────────────────────── */
+/* ── Call / voice connection-state pulse ─────────────────────────────────────
+   One keyframe, one class. There used to be three identical definitions under
+   three names - `rtc-pulse` in the call panel's stylesheet, `rtc-status-pulse`
+   here, and `rtc-warn-pulse` in an inline <style> block inside a component
+   template - each applied through an inline `style="animation: ..."` attribute.
+   Anything that pulses to report connection state uses `.status-pulse`. */
 
-@keyframes rtc-status-pulse {
+@keyframes status-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.3; }
 }
 
+.status-pulse {
+  animation: status-pulse 1.2s ease-in-out infinite;
+}
+
+/* Faster, because it is reporting something worse. */
+.status-pulse--urgent {
+  animation-duration: 0.8s;
+}
+
 @keyframes speaking-ring {
-  0%, 100% { box-shadow: 0 0 0 2px rgba(52, 211, 153, 0.35); }
-  50% { box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.6); }
+  0%, 100% { box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-online) 35%, transparent); }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-online) 60%, transparent); }
 }
 
 /* Put this on the avatar element itself - a wrapper around an inline-level
    avatar is as tall as its line box, which makes the ring an oval. */
 .speaking-ring {
   animation: speaking-ring 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-pulse,
+  .speaking-ring {
+    animation: none;
+  }
+
+  /* The ring is the only thing marking a speaker, so it stays - it just stops moving. */
+  .speaking-ring {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-online) 55%, transparent);
+  }
+}
+
+/* ── Call focus ring ─────────────────────────────────────────────────────────
+   The call surface is icon-only buttons on video, several of them revealed on
+   hover. Without this a keyboard user tabs into controls that are not merely
+   unstyled but literally invisible. Pairs with `focus-within:opacity-100` on
+   the hover-revealed groups. */
+.call-focusable:focus-visible {
+  outline: 2px solid var(--color-brand-dim);
+  outline-offset: 2px;
 }
 
 /* ── Slashed icons ───────────────────────────────────────────────────────────
@@ -355,6 +391,16 @@ button, a, [role="button"], input, select, textarea, label {
   --color-connecting:  #fbbf24;
   --color-offline:     #f43f5e;
 
+  /* ── Call surface ────────────────────────────────────────
+     Not part of ThemeColors, so not in ThemeService.applyTheme():
+     `--color-stage` is derived from the app background and follows
+     it automatically when a theme overrides that at runtime, and
+     LIVE is a fixed signal red that should not drift with a user
+     palette. Before this there were two reds on screen at once -
+     `red-500` on the LIVE badges, `rose-*` everywhere else. */
+  --color-stage: color-mix(in srgb, var(--color-app-bg) 82%, #000);
+  --color-live:  #e5484d;
+
   /* ── Text shorthands (use with opacity modifier) ────────── */
   /* bg-white/[0.85] → text-primary feel; these aliases make intent clearer */
   --color-text-primary:   rgba(255 255 255 / 0.88);
@@ -379,6 +425,13 @@ button, a, [role="button"], input, select, textarea, label {
      headers all read it through `.app-header`, so their bottom rules
      land on the same line no matter which pane you are looking at. */
   --spacing-header: 3.125rem;
+
+  /* The room the floating call controls need at the bottom of a stage.
+     Both call views reserve it with `pb-call-controls`. The DM panel used
+     to hardcode `padding-bottom: 114px` and the screen-share layout
+     reserved nothing at all, which is why the bar sat on top of the
+     participant strip there. */
+  --spacing-call-controls: 7rem;
 }
 
 /* ── Wiki markdown content ───────────────────────────────────────────────────

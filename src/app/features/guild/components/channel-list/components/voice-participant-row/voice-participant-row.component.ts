@@ -1,13 +1,15 @@
 import {Component, input, output} from '@angular/core';
 import {NgClass} from '@angular/common';
+import {TranslateModule} from '@ngx-translate/core';
 import {AppAvatarComponent} from '../../../../../../components/avatar/avatar.component';
 import {VoiceChannelParticipant} from '../../../../../../services/voice-channel.service';
+import {CallLiveBadgeComponent} from '../../../../../../shared/call/call-live-badge/call-live-badge.component';
 
 /** A single member listed underneath a voice channel. */
 @Component({
     selector: 'app-voice-participant-row',
     host: {class: 'contents'},
-    imports: [NgClass, AppAvatarComponent],
+    imports: [NgClass, AppAvatarComponent, TranslateModule, CallLiveBadgeComponent],
     templateUrl: './voice-participant-row.component.html',
 })
 export class VoiceParticipantRowComponent {
