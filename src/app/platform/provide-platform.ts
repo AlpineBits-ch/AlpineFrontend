@@ -212,6 +212,10 @@ export function providePlatform(): EnvironmentProviders {
         // `available` is false only once loading the module has actually failed - not while it is still
         // loading - because `MlsService` answers registry reads with "never encrypted here" when it is
         // false, and that answer during a boot is a §L.9 cleartext downgrade.
+        // The web adapter also holds an exclusive Web Lock per account scope for the tab's lifetime, and
+        // a tab that does not own the scope refuses every engine command: two tabs each exporting their
+        // own snapshot to one blob key silently discard each other's group state, and two live engines on
+        // one MLS leaf reuse sender-ratchet generations. Desktop has one process and takes no lock.
         {
             provide: MlsEngine,
             useFactory: (): MlsEngine =>

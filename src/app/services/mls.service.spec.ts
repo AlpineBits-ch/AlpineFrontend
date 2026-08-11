@@ -22,6 +22,7 @@
  */
 import {TestBed} from '@angular/core/testing';
 import {firstValueFrom} from 'rxjs';
+import {classifyMlsStorageFault, runMlsStorageInit} from '../features/main-page/mls-storage-init';
 import {MlsEngine} from '../platform/ports/mls-engine.port';
 import {MlsLocalStoreFactory} from '../platform/ports/mls-local-store.port';
 import {SecureStore} from '../platform/ports/secure-store.port';
@@ -1907,6 +1908,167 @@ describe('MlsService', () => {
         it('propagates invoke rejection', async () => {
             mockInvokeReject('failed to create app data dir');
             await expect(firstValueFrom(service.initStorage())).rejects.toBe('failed to create app data dir');
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // The local state key
+    //
+    // The one place a recoverable storage fault could still be turned into irreversible key loss.
+    // Minting a fresh state key on a read that *failed* hands the engine the wrong key; the sealed
+    // state file then fails to authenticate, and that failure is on `mls-storage-init.ts`'s corrupt
+    // list, so the launch wipes. Every message in every group on the device, destroyed by a locked
+    // keychain. These tests exist to keep the licence to mint tied to a successful read that reported
+    // absence, and to nothing else.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    describe('the local state key', () => {
+        const STATE_KEY_NAME = `alpine_mls_${DEVICE_ID}_statekey`;
+
+        /**
+         * The fake store is a module-level singleton and `platformProviders` resets only its error
+         * flags, so a key minted by an earlier test would otherwise be found by the next one - and
+         * "mints on a fresh device" is one of the two directions that has to be provable.
+         */
+        beforeEach(async () => {
+            for (const key of secureStore.keys()) await secureStore.removeItem(key);
+        });
+
+        const storedKey = (): string | null => secureStore.peek(STATE_KEY_NAME);
+
+        it('mints a 32-byte key on a device that has none, and stores it under the device-scoped name',
+            async () => {
+                mockInvoke(false);
+                await firstValueFrom(service.initStorage());
+
+                const minted = storedKey();
+                expect(minted).toBeTruthy();
+                expect(Buffer.from(minted as string, 'base64')).toHaveLength(32);
+                // The name is what makes the key reachable on the next launch. Renaming it presents
+                // as this device being ejected from every group it belongs to.
+                expect(callArgs()['stateKeyB64']).toBe(minted);
+            });
+
+        it('reuses a stored key and writes nothing', async () => {
+            const existing = Buffer.alloc(32, 7).toString('base64');
+            secureStore.put(STATE_KEY_NAME, existing);
+            mockInvoke(true);
+
+            await firstValueFrom(service.initStorage());
+
+            expect(callArgs()['stateKeyB64']).toBe(existing);
+            expect(storedKey()).toBe(existing);
+        });
+
+        /**
+         * The regression. A store that could not read must not be read as a store with no entry.
+         */
+        it('does not mint when the read fails - it propagates, and the engine is never called',
+            async () => {
+                secureStore.put(STATE_KEY_NAME, Buffer.alloc(32, 9).toString('base64'));
+                const locked = new Error('the OS keychain is locked');
+                secureStore.getError = locked;
+                mockInvoke(false);
+
+                await expect(firstValueFrom(service.initStorage())).rejects.toBe(locked);
+
+                // Nothing was handed to the engine, so nothing could have been sealed under a key
+                // that is not this device's.
+                expect(invokeStub).not.toHaveBeenCalled();
+                // And the entry that was there is still there, unchanged.
+                expect(storedKey()).toBe(Buffer.alloc(32, 9).toString('base64'));
+            });
+
+        /**
+         * `undefined` is not an answer {@link SecureStore} permits, and it is exactly what a read that
+         * faulted half-way looks like. Falling through to minting on it is the same catastrophe as
+         * above by a different route, so it is refused rather than treated as absence.
+         */
+        it('does not mint when the read resolves undefined instead of null', async () => {
+            secureStore.put(STATE_KEY_NAME, Buffer.alloc(32, 4).toString('base64'));
+            const read = vi.spyOn(secureStore, 'getItem')
+                .mockResolvedValue(undefined as unknown as string | null);
+            mockInvoke(false);
+
+            try {
+                await expect(firstValueFrom(service.initStorage())).rejects.toThrow(/resolved undefined/);
+                expect(invokeStub).not.toHaveBeenCalled();
+                expect(storedKey()).toBe(Buffer.alloc(32, 4).toString('base64'));
+            } finally {
+                read.mockRestore();
+            }
+        });
+
+        /**
+         * The one falsy value that is still minted over. An empty string cannot be a 32-byte base64
+         * key under any encoding, so nothing recoverable is destroyed - and refusing would leave the
+         * device unable to launch with no way back.
+         */
+        it('mints over a stored empty string', async () => {
+            secureStore.put(STATE_KEY_NAME, '');
+            mockInvoke(false);
+
+            await firstValueFrom(service.initStorage());
+
+            expect(Buffer.from(storedKey() as string, 'base64')).toHaveLength(32);
+        });
+
+        /**
+         * End to end, through the classifier that actually decides. This is the assertion that says
+         * the outcome of a locked keychain is a retry banner and not a wipe.
+         */
+        it('a failed read reaches the storage-init classifier as transient, and nothing is wiped',
+            async () => {
+                secureStore.put(STATE_KEY_NAME, Buffer.alloc(32, 3).toString('base64'));
+                secureStore.getError = new Error('Couldn\'t access platform secure storage: '
+                    + 'the credential store is locked');
+                const wipe = vi.fn(async () => undefined);
+
+                const outcome = await runMlsStorageInit({
+                    initStorage: () => firstValueFrom(service.initStorage()),
+                    wipe,
+                });
+
+                expect(outcome.fault?.kind).toBe('unknown');
+                expect(outcome.fault?.mayWipe).toBe(false);
+                expect(outcome.fault?.retryable).toBe(true);
+                expect(outcome.wiped).toBe(false);
+                expect(wipe).not.toHaveBeenCalled();
+                expect(storedKey()).toBe(Buffer.alloc(32, 3).toString('base64'));
+            });
+
+        /**
+         * The message cache is sealed under the same key, and it derives it once per session. Now that
+         * a keychain fault propagates instead of minting, that derivation can reject for a reason that
+         * lifts by itself - so the rejection must not be the thing that is remembered. Caching it would
+         * make one unlucky moment at boot render every message with no ratchet left as undecryptable
+         * for as long as the app stayed open.
+         */
+        it('does not remember a failed key derivation for the rest of the session', async () => {
+            secureStore.put(STATE_KEY_NAME, Buffer.alloc(32, 5).toString('base64'));
+            secureStore.getError = new Error('the OS keychain is locked');
+
+            await expect(service.cacheMessage('ctx-key-retry', 3, 'msg-1', 'aGVsbG8='))
+                .rejects.toThrow('locked');
+
+            secureStore.getError = null;
+            await service.cacheMessage('ctx-key-retry', 3, 'msg-1', 'aGVsbG8=');
+            expect(await service.getCachedMessage('ctx-key-retry', 3, 'msg-1')).toBe('aGVsbG8=');
+        });
+
+        /**
+         * The refusal above is a message the classifier will read, so it must not accidentally contain
+         * a phrase that licenses a wipe.
+         */
+        it('the refusal for an undefined read is not classified as unreadable stored state', () => {
+            const fault = classifyMlsStorageFault(new Error(
+                'SecureStore.getItem("x") resolved undefined. The port answers a string or null, so '
+                + 'this is a store that could not read, not a device with no entry - and minting a '
+                + 'fresh state key over an entry that may still be there is what makes a recoverable '
+                + 'fault into permanent loss of this device\'s group keys.',
+            ));
+            expect(fault.kind).toBe('unknown');
+            expect(fault.mayWipe).toBe(false);
         });
     });
 

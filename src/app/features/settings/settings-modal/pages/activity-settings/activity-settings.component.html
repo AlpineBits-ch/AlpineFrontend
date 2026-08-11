@@ -80,6 +80,15 @@
                                 styleClass="shrink-0"/>
             </div>
 
+            <!-- The switch above was disabled with nothing said. A user who came here looking for the
+                 integration is entitled to the reason, which is a property of the host rather than of
+                 anything they can change. -->
+            @if (!canDetect()) {
+                <p class="text-xs text-white/35" data-testid="discord-unsupported">
+                    {{ 'SETTINGS.ACTIVITY.DISCORD_INTEGRATION_UNSUPPORTED' | translate }}
+                </p>
+            }
+
             <!-- On, running, and still useless: something else holds discord-ipc-0. Worth its own
                  line because every other signal says the feature is working fine. -->
             @if (rpcLostRace()) {

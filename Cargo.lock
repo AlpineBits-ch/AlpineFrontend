@@ -19,6 +19,7 @@ dependencies = [
  "hrtf",
  "image",
  "jpeg-encoder",
+ "keyring",
  "nnnoiseless",
  "nokhwa",
  "openh264",

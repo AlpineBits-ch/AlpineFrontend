@@ -12,7 +12,10 @@
             }
         </div>
 
-        <div class="flex items-center gap-3">
+        <!-- Only where the running app can replace itself. A web client updates by being reloaded, so
+             there is no control here to explain the absence of - see the component. -->
+        @if (capabilities.selfUpdate) {
+        <div class="flex items-center gap-3" data-testid="update-check">
             <p-button
                     (onClick)="updateService.checkForUpdates(true)"
                     [disabled]="updateService.isChecking() || updateService.isDownloading()"
@@ -35,6 +38,7 @@
                 </span>
             }
         </div>
+        }
     </section>
 
     <!-- Third-party software -->

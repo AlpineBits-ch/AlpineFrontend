@@ -35,8 +35,10 @@ import {MarkdownPipe} from '../../../../../pipes/markdown.pipe';
 import {AttachmentDto, FileService} from '../../../../../services/file.service';
 import {
     AttachmentDownloadService,
+    attachmentSavedToastKey,
     DownloadableAttachment,
 } from '../../../../../services/attachment-download.service';
+import {PlatformCapabilities} from '../../../../../platform/capabilities';
 import {AuthImageDirective} from '../../../../../directives/auth-image.directive';
 import {AudioAttachmentComponent} from './audio-attachment/audio-attachment.component';
 import {MessagingService} from '../../../../../services/messaging.service';
@@ -501,6 +503,10 @@ export class MessageComponent {
     private destroyRef = inject(DestroyRef);
     private toast = inject(ToastService);
     private translate = inject(TranslateService);
+    /**
+     * Read only to pick the wording of the save confirmation. See {@link download}.
+     */
+    private capabilities = inject(PlatformCapabilities);
     @ViewChild('editArea') private editAreaRef?: ElementRef<HTMLTextAreaElement>;
     private readonly replyCtx = computed(() => ({
         id: this.message().inReplyTo,
@@ -621,6 +627,9 @@ export class MessageComponent {
      *
      * <p>Latched while a save is in flight: the dialog is modal to the window but not to this
      * handler, and a second click behind it would open a second dialog over the first.</p>
+     *
+     * <p>The confirmation is worded for what the host can actually observe - see
+     * {@link attachmentSavedToastKey}, which is where that asymmetry is explained and tested.</p>
      */
     download(att: DownloadableAttachment): void {
         if (this.downloading()) return;
@@ -629,7 +638,9 @@ export class MessageComponent {
             .then(saved => {
                 // Nothing is said about a dismissed dialog - the user knows they cancelled, and
                 // there is no download shelf here to confirm a save that did happen.
-                if (saved) this.toast.success(this.translate.instant('MESSAGE.DOWNLOAD_SAVED'));
+                if (!saved) return;
+                this.toast.success(this.translate.instant(
+                    attachmentSavedToastKey(this.capabilities.host)));
             })
             .catch(err => this.toast.httpError(
                 this.translate.instant('MESSAGE.DOWNLOAD_FAILED'), err))

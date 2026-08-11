@@ -1,13 +1,17 @@
 import {IDBFactory as FakeIdbFactory} from 'fake-indexeddb';
-import {beforeEach, describe, expect, it} from 'vitest';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
 
+import {FakeLockManager} from '../testing/fake-lock-manager';
 import {
     MLS_MUTATING_COMMANDS,
+    MlsSessionGuardUnavailableError,
+    MlsSessionHeldElsewhereError,
     MlsStateNotPersistedError,
     MlsStateUnreadableError,
     WebMlsEngine,
 } from './mls-engine.web';
 import {IdbStore, openStore} from './idb';
+import {SessionLock, WebLocksSessionLock} from './session-lock';
 import {VentaCryptoModule} from './venta-crypto';
 
 /**
@@ -115,12 +119,50 @@ class FakeEngineModule implements VentaCryptoModule {
 
 /** One browser profile's IndexedDB, surviving every reload in a test. */
 let factory: IDBFactory;
+/**
+ * One browser profile's lock manager, likewise.
+ *
+ * <p>Shared by every engine a test builds, because that is what makes two engines here behave as two
+ * tabs: the single-session guard is nothing but contention on this object. jsdom has no
+ * `navigator.locks` of its own, so without it every adapter would report `unsupported` and refuse.</p>
+ */
+let profile: FakeLockManager;
 let module: FakeEngineModule;
 let engine: WebMlsEngine;
+/** The tab `engine` belongs to, so a reload can end it the way closing a tab does. */
+let tab: Tab | undefined;
 
 /** Opens the adapter's store the way the adapter itself would, against the test's factory. */
 function open(): Promise<IdbStore> {
     return openStore(DB_NAME, STORE_NAME, {factory});
+}
+
+/** One tab of this profile: its own engine and module, the profile's storage and lock manager. */
+interface Tab {
+    readonly engine: WebMlsEngine;
+    readonly module: FakeEngineModule;
+    /** This tab goes away. The browser releases its lock however the tab ended - crash included. */
+    close(): void;
+}
+
+/**
+ * Opens a tab whose store is the profile's, with `overrides` applied to it.
+ *
+ * <p>The lock manager is the profile's, which is what makes two tabs here contend as two tabs do.</p>
+ */
+function openTab(overrides: Partial<IdbStore> = {}): Tab {
+    const tabModule = new FakeEngineModule();
+    let tabLock: SessionLock | undefined;
+    const tabEngine = new WebMlsEngine(
+        async () => tabModule,
+        () => storeWith(overrides),
+        name => (tabLock = new WebLocksSessionLock(name, profile)),
+    );
+    return {
+        engine: tabEngine,
+        module: tabModule,
+        close: () => tabLock?.release(),
+    };
 }
 
 /**
@@ -128,10 +170,21 @@ function open(): Promise<IdbStore> {
  *
  * <p>This is the whole harness. Every assertion about persistence has to survive one of these, because
  * anything that only survives inside one is exactly the bug.</p>
+ *
+ * <p>It ends the previous tab first, because a reload is not a second tab: leaving the old lock held
+ * would make every test below assert the guard's refusal instead of what it is about.</p>
  */
-function reload(): void {
-    module = new FakeEngineModule();
-    engine = new WebMlsEngine(async () => module, open);
+function reload(overrides: Partial<IdbStore> = {}): void {
+    tab?.close();
+    const next = openTab(overrides);
+    tab = next;
+    module = next.module;
+    engine = next.engine;
+}
+
+/** Lets queued lock grants run. A grant crosses microtasks here as it crosses a task in a browser. */
+async function settle(): Promise<void> {
+    for (let i = 0; i < 10; i++) await Promise.resolve();
 }
 
 /** What `MlsService.initStorage()` sends. */
@@ -163,6 +216,8 @@ async function storeWith(overrides: Partial<IdbStore>): Promise<IdbStore> {
 
 beforeEach(() => {
     factory = new FakeIdbFactory();
+    profile = new FakeLockManager();
+    tab = undefined;
     reload();
 });
 
@@ -303,10 +358,7 @@ describe('WebMlsEngine when the stored state cannot be read', () => {
 
     /** A reload whose store rejects every read - a `blocked` upgrade, a transient IndexedDB fault. */
     function reloadWithUnreadableStore(): void {
-        module = new FakeEngineModule();
-        engine = new WebMlsEngine(async () => module, () => storeWith({
-            get: async () => { throw new Error('the database is blocked'); },
-        }));
+        reload({get: async () => { throw new Error('the database is blocked'); }});
     }
 
     it('does not throw out of initStorage, because the caller answer to that is a wipe', async () => {
@@ -364,15 +416,12 @@ describe('WebMlsEngine clearing', () => {
     });
 
     it('reports a wipe that did not reach storage', async () => {
+        reload({delete: async () => { throw new Error('the database is read-only'); }});
         await engine.call('mls_init_storage', initArgs());
-        const broken = new WebMlsEngine(async () => module, () => storeWith({
-            delete: async () => { throw new Error('the database is read-only'); },
-        }));
-        await broken.call('mls_init_storage', initArgs());
 
         // A wipe that did not wipe leaves this account's key material for whoever uses the browser
         // next, so it must not resolve.
-        await expect(broken.call('mls_clear_storage')).rejects.toBeInstanceOf(MlsStateNotPersistedError);
+        await expect(engine.call('mls_clear_storage')).rejects.toBeInstanceOf(MlsStateNotPersistedError);
     });
 });
 
@@ -383,7 +432,11 @@ describe('WebMlsEngine availability', () => {
     });
 
     it('reports a module that failed to load, and refuses every call loudly', async () => {
-        const broken = new WebMlsEngine(async () => { throw new Error('chunk load failed'); }, open);
+        const broken = new WebMlsEngine(
+            async () => { throw new Error('chunk load failed'); },
+            open,
+            name => new WebLocksSessionLock(name, profile),
+        );
 
         await expect(broken.ready()).rejects.toThrow(/chunk load failed/);
         expect(broken.available).toBe(false);
@@ -399,6 +452,315 @@ describe('WebMlsEngine availability', () => {
         // the first second of every boot a §L.9 downgrade window.
         const slow = new WebMlsEngine(() => new Promise(() => undefined), open);
         expect(slow.available).toBe(true);
+    });
+});
+
+/**
+ * The single-session guard: only one tab of a browser profile may hold a live engine for a scope.
+ *
+ * <p><b>Why the harness is shaped as it is.</b> Two tabs of one account each hold their own in-memory
+ * engine and each exports it to `state::${scope}`, so without a guard the last writer silently discards
+ * the other's membership, ratchet generations and pending commits - and two live engines on one leaf
+ * reuse sender-ratchet generations, which breaks sending for that leaf and voids its forward secrecy.
+ * So every test here runs <i>two engines against one {@link FakeLockManager} and one IndexedDB</i>: the
+ * shared manager is the profile, and giving each tab its own would make all of this pass vacuously.</p>
+ *
+ * <p>The assertions that matter are about the <b>blob</b>, not about the lock: that the second tab's
+ * mutation never reaches storage, and that what the first tab wrote is what a later load reads. A test
+ * asserting that `request` was called would prove nothing at all.</p>
+ */
+describe('WebMlsEngine with two tabs in one browser profile', () => {
+    const GROUP = 'Z3JvdXAx';
+    const sendArgs = {groupIdB64: GROUP, keyHandle: 'h', plaintextB64: 'aGk='};
+
+    /** The tab that got there first, holding the lock for `DEVICE_A` with a group in its engine. */
+    let first: Tab;
+    /** A second tab of the same account, opened while the first is still live. */
+    let second: Tab;
+
+    beforeEach(async () => {
+        // The harness' own tab would hold the lock and confuse which engine is which.
+        tab?.close();
+        tab = undefined;
+
+        first = openTab();
+        await first.engine.call('mls_init_storage', initArgs());
+        await first.engine.call('mls_create_group', {groupIdB64: GROUP, keyHandle: 'h'});
+
+        second = openTab();
+    });
+
+    it('lets the first tab own the scope', async () => {
+        expect(first.engine.sessionState()).toBe('held');
+        await expect(first.engine.call('mls_get_group_info', {groupIdB64: GROUP})).resolves.toBeTruthy();
+    });
+
+    it('reports the second tab as blocked rather than starting a second engine', async () => {
+        await expect(second.engine.call<boolean>('mls_init_storage', initArgs())).resolves.toBe(false);
+
+        expect(second.engine.sessionState()).toBe('blocked');
+    });
+
+    it('refuses a mutation from the second tab', async () => {
+        await second.engine.call('mls_init_storage', initArgs());
+
+        await expect(second.engine.call('mls_send_message', sendArgs))
+            .rejects.toBeInstanceOf(MlsSessionHeldElsewhereError);
+    });
+
+    it('does not run the command in the second tab engine either', async () => {
+        await second.engine.call('mls_init_storage', initArgs());
+        second.module.calls.length = 0;
+
+        await second.engine.call('mls_send_message', sendArgs).catch(() => undefined);
+
+        // Refused before the engine, not after: an operation that ran and then failed to persist has
+        // already advanced this leaf's ratchet, which is the half of the hazard storage cannot undo.
+        expect(second.module.calls).toEqual([]);
+    });
+
+    it('does not write the blob from the second tab', async () => {
+        await second.engine.call('mls_init_storage', initArgs());
+        const before = await blob();
+
+        await second.engine.call('mls_send_message', sendArgs).catch(() => undefined);
+        await second.engine.call('mls_create_group', {groupIdB64: 'Z3JvdXAy', keyHandle: 'h'})
+            .catch(() => undefined);
+
+        expect(await blob()).toBe(before);
+    });
+
+    it('leaves the first tab state intact for the next load, which is the loss being prevented', async () => {
+        await second.engine.call('mls_init_storage', initArgs());
+        await second.engine.call('mls_send_message', sendArgs).catch(() => undefined);
+
+        // What the surviving tab persisted is what storage holds. Without the guard the second tab's
+        // empty-engine export would be here instead, and this device's group would be gone.
+        second.close();
+        first.close();
+        await settle();
+        reload();
+        await expect(engine.call<boolean>('mls_init_storage', initArgs())).resolves.toBe(true);
+        expect(module.groups).toEqual([GROUP]);
+    });
+
+    it('refuses reads in the second tab as well, rather than answering from an engine with no state', async () => {
+        await second.engine.call('mls_init_storage', initArgs());
+
+        // The read-only tab is not honest here. `mls_process_message` advances the ratchet, so receiving
+        // is a write; and this engine never restored the blob, so "no such group" would be a confident
+        // wrong answer that callers respond to by trying to rejoin.
+        await expect(second.engine.call('mls_get_group_info', {groupIdB64: GROUP}))
+            .rejects.toBeInstanceOf(MlsSessionHeldElsewhereError);
+    });
+
+    it('never wipes stored state on being blocked, because init resolves rather than rejects', async () => {
+        // `MainPageComponent.runDeviceLaunch` answers an `initStorage` rejection by wiping local MLS
+        // state. A guard that rejected here would destroy the state the other tab is working from - the
+        // exact loss it exists to prevent, caused by the guard.
+        await expect(second.engine.call('mls_init_storage', initArgs())).resolves.toBe(false);
+        expect(await blob()).toBeTypeOf('string');
+    });
+
+    it('takes the engine over when the first tab closes, with no reload', async () => {
+        await second.engine.call('mls_init_storage', initArgs());
+
+        first.close();
+        await settle();
+
+        // The blocked request was queued, so the browser grants it here. The takeover restores the blob
+        // the other tab left before running anything, which is why the group is present.
+        await expect(second.engine.call('mls_get_group_info', {groupIdB64: GROUP})).resolves.toBeTruthy();
+        expect(second.engine.sessionState()).toBe('held');
+    });
+
+    it('restores the other tab state before mutating on takeover, not after', async () => {
+        await second.engine.call('mls_init_storage', initArgs());
+
+        first.close();
+        await settle();
+        await second.engine.call('mls_send_message', sendArgs);
+
+        // Both the group the first tab created and this tab's send. Persisting first and importing
+        // afterwards - or not importing at all - would have written an engine holding only the send,
+        // silently dropping the group.
+        expect(second.module.groups).toEqual([GROUP, `${GROUP}#sent`]);
+        second.close();
+        await settle();
+        reload();
+        await engine.call('mls_init_storage', initArgs());
+        expect(module.groups).toEqual([GROUP, `${GROUP}#sent`]);
+    });
+
+    it('does not import the blob into a tab that is only blocked', async () => {
+        await second.engine.call('mls_init_storage', initArgs());
+
+        // A blocked tab holding a snapshot is how a stale write happens: it would be behind the owning
+        // tab from the moment it read. Nothing is imported until the lock is actually held.
+        expect(second.module.calls).toEqual(['mls_init_storage']);
+        expect(second.module.groups).toEqual([]);
+    });
+
+    it('lets a second account work in the second tab, because the lock names the scope', async () => {
+        // Two accounts in one profile have two device ids, two blobs and no shared engine state, so one
+        // must not lock the other out - the guard is per scope for the same reason `state::${scope}` is.
+        await expect(second.engine.call<boolean>('mls_init_storage', initArgs('device-b')))
+            .resolves.toBe(false);
+        await expect(second.engine.call('mls_create_group', {groupIdB64: 'YWNjb3VudEI=', keyHandle: 'h'}))
+            .resolves.toBeTruthy();
+        expect(second.engine.sessionState()).toBe('held');
+    });
+
+    it('still lets a blocked tab wipe, so signing out does not leave keys behind', async () => {
+        await second.engine.call('mls_init_storage', initArgs());
+
+        // The one write a tab without the lock may perform: a delete cannot overwrite newer state with
+        // older, and refusing it would abort `SessionTeardownService.wipeAccountState` before it deletes
+        // this device's signing key.
+        await expect(second.engine.call('mls_clear_storage')).resolves.toBeNull();
+        expect(await blob()).toBeUndefined();
+    });
+
+    it('refuses the second tab in its own words, and not in words two classifiers read as something else',
+        async () => {
+            await second.engine.call('mls_init_storage', initArgs());
+            const message = await second.engine.call('mls_send_message', sendArgs)
+                .then(() => '', (err: unknown) => (err as Error).message);
+
+            expect(message).toContain('another tab');
+            // `MlsService.callOptional` reads the command name plus "not found"/"unknown command"/"not
+            // allowed" as a command this build does not define, and answers by degrading the feature
+            // silently. A refusal must never be readable that way.
+            expect(message).not.toMatch(/not\s+found|unknown command|not\s+allowed/i);
+            // And `classifyMlsStorageFault` reads these as "the stored state is present and unreadable",
+            // whose licence is to delete the user's only copy of their group keys.
+            for (const marker of [
+                "did not open with this device's state key",
+                'is listed in state but its data is missing from storage',
+                'failed to load group',
+                'encrypted blob too short',
+                'aead::Error',
+                'does not hold a state blob',
+            ]) {
+                expect(message).not.toContain(marker);
+            }
+        });
+
+    it('does not persist an operation whose ownership went away while it ran', async () => {
+        // The narrow window the export is guarded against on its own account: ownership is checked
+        // before the command, and the write happens after it. Modelled by making the engine give the
+        // scope up as a side effect of the command - which is what a lease switch mid-operation would
+        // do - because if that write landed it would be exactly the stale overwrite the guard is for.
+        const before = await blob();
+        const send = first.module.mls_send_message;
+        first.module.mls_send_message = (json: string): string => {
+            first.close();
+            return send(json);
+        };
+
+        await expect(first.engine.call('mls_send_message', sendArgs))
+            .rejects.toBeInstanceOf(MlsSessionHeldElsewhereError);
+        expect(await blob()).toBe(before);
+    });
+
+    /** The sealed blob for `DEVICE_A`, read outside both engines. The only durable state there is. */
+    async function blob(): Promise<string | undefined> {
+        const store = await open();
+        try {
+            const value = await store.get(`state::${DEVICE_A}`);
+            return typeof value === 'string' ? value : undefined;
+        } finally {
+            store.close();
+        }
+    }
+});
+
+/**
+ * A browser with no Web Locks API: an insecure origin, or a browser older than Chrome 69 / Firefox 96 /
+ * Safari 15.4.
+ *
+ * <p><b>Fails closed.</b> The alternative is failing open with a warning, and the two costs are not
+ * comparable: refusing costs a small population an encrypted client they can restore by updating the
+ * browser or by using https, while proceeding costs whoever opens a second tab their group keys, with
+ * nothing reporting it and no way back. `available` deliberately stays true, because false there makes
+ * `MlsService.readRegistry` answer "never encrypted here" and that answer permits cleartext.</p>
+ */
+describe('WebMlsEngine where the browser has no Web Locks', () => {
+    let unguarded: WebMlsEngine;
+
+    beforeEach(() => {
+        unguarded = new WebMlsEngine(
+            async () => module,
+            open,
+            name => new WebLocksSessionLock(name, undefined),
+        );
+    });
+
+    it('refuses every command rather than risking a second engine', async () => {
+        await unguarded.call('mls_init_storage', initArgs());
+
+        await expect(unguarded.call('mls_create_group', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h'}))
+            .rejects.toBeInstanceOf(MlsSessionGuardUnavailableError);
+    });
+
+    it('says why, in terms that name the browser rather than the operation', async () => {
+        await unguarded.call('mls_init_storage', initArgs());
+        const message = await unguarded.call('mls_send_message', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h', plaintextB64: 'aGk='})
+            .then(() => '', (err: unknown) => (err as Error).message);
+
+        expect(message).toContain('Web Locks');
+        expect(message).not.toMatch(/not\s+found|unknown command|not\s+allowed/i);
+    });
+
+    it('keeps reporting the engine as available, so nothing downgrades to cleartext', async () => {
+        await unguarded.ready();
+
+        // `available` false is not a stricter refusal, it is a *looser* one: it makes `readRegistry`
+        // answer "this context was never encrypted here", which permits composing cleartext into an
+        // encrypted conversation. Refusing commands is the loud failure; this flag is not the place.
+        expect(unguarded.available).toBe(true);
+    });
+
+    it('does not write the blob', async () => {
+        await unguarded.call('mls_init_storage', initArgs());
+        await unguarded.call('mls_create_group', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h'})
+            .catch(() => undefined);
+
+        const store = await open();
+        try {
+            expect(await store.get(`state::${DEVICE_A}`)).toBeUndefined();
+        } finally {
+            store.close();
+        }
+    });
+
+    it('does not reject out of initStorage when the lock machinery itself fails', async () => {
+        // The rejection that costs group keys: `MainPageComponent.runDeviceLaunch` answers an
+        // `initStorage` rejection by wiping local MLS state, so a broken lock manager must degrade to a
+        // refusal rather than raise here.
+        const refusing = new WebMlsEngine(
+            async () => module,
+            open,
+            name => new WebLocksSessionLock(name, {
+                request: () => Promise.reject(new Error('nope')),
+                query: () => Promise.reject(new Error('nope')),
+            } as LockManager),
+        );
+
+        await expect(refusing.call<boolean>('mls_init_storage', initArgs())).resolves.toBe(false);
+        await expect(refusing.call('mls_create_group', {groupIdB64: 'Z3JvdXAx', keyHandle: 'h'}))
+            .rejects.toBeInstanceOf(MlsSessionGuardUnavailableError);
+    });
+
+    it('warns on the boot path, because a refusing tab otherwise looks like a working one', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        try {
+            await unguarded.call('mls_init_storage', initArgs());
+            expect(warn).toHaveBeenCalledTimes(1);
+            expect(String(warn.mock.calls[0]?.[0])).toContain('Web Locks');
+        } finally {
+            warn.mockRestore();
+        }
     });
 });
 

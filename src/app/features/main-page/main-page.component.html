@@ -168,6 +168,37 @@
         }
 
         <!--
+          The strip above is about the signing key; this one is about the saved group state. It shows
+          only on the failures MainPageComponent refuses to wipe on, which is why it can promise that
+          nothing was deleted - and that promise is the whole point of the classification behind it. A
+          "reset encryption" action is deliberately absent: the state this could not read is still on
+          disk, and the only safe action is to read it again.
+
+          TODO(i18n): needs locale entries before these can stop being hardcoded. Proposed keys:
+          MLS.STORAGE_UNAVAILABLE_TITLE, MLS.STORAGE_UNAVAILABLE_BODY, MLS.STORAGE_UNAVAILABLE_RETRY.
+          The two strips either side of it are hardcoded for the same reason; locales are a submodule
+          and need their own commit.
+        -->
+        @if (mlsStorageUnavailable()) {
+            <div class="fixed bottom-4 right-4 z-50 max-w-sm rounded-xl border border-amber-500/30
+                        bg-[#1b1b1f] p-4 shadow-xl">
+                <p class="text-sm font-medium text-amber-200">Encryption is unavailable right now</p>
+                <p class="mt-1 text-[12px] leading-snug text-white/60">
+                    Your saved encryption state couldn't be opened on this launch, so encrypted
+                    conversations stay unreadable until it can. Nothing has been deleted - your keys
+                    and message history are still on this device.
+                </p>
+                <div class="mt-3 flex justify-end">
+                    <button (click)="retryMlsStorage()"
+                            class="rounded-lg bg-white/10 px-3 py-1.5 text-[12px] font-medium
+                                   text-white/85 hover:bg-white/15">
+                        Try again
+                    </button>
+                </div>
+            </div>
+        }
+
+        <!--
           Distinct from the strip above, and it has to be: the keychain is fine here. What failed is
           the upload that keeps this device addable. Nobody can add a device with no key package
           left, so until this succeeds every new conversation is created without it - which reads to

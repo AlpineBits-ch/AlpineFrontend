@@ -11,6 +11,13 @@
             <p-select [(ngModel)]="selectedMicId" [options]="micOptions()" optionLabel="label"
                       optionValue="value" placeholder="Select microphone"
                       styleClass="w-full"/>
+            <!-- Numbered stand-ins, not the real names. Actionable, so it is worth saying: starting
+                 the mic test below grants the permission that reveals them. -->
+            @if (deviceNamesWithheld()) {
+                <p class="text-[0.6875rem] text-white/25" data-testid="device-names-withheld">
+                    {{ 'SETTINGS.VOICE.DEVICE_NAMES_WITHHELD' | translate }}
+                </p>
+            }
         </div>
 
         <div class="flex flex-col gap-2">
@@ -85,17 +92,31 @@
 
         <div class="flex flex-col gap-2">
             @for (opt of inputModeOptions; track opt.value) {
-                <label class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3 cursor-pointer">
-                    <div>
-                        <p class="text-sm text-white/75">{{ opt.label }}</p>
-                        <p class="text-xs text-white/35 mt-0.5">{{ opt.desc }}</p>
+                <!-- The push-to-talk row is disabled rather than dropped where no global hotkey exists:
+                     it is the mode people arrive expecting, and the reason belongs next to it. -->
+                <label [class.opacity-50]="opt.value === 'push-to-talk' && !canPushToTalk"
+                       [class.cursor-pointer]="opt.value !== 'push-to-talk' || canPushToTalk"
+                       class="flex flex-col gap-1 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-white/75">{{ opt.label }}</p>
+                            <p class="text-xs text-white/35 mt-0.5">{{ opt.desc }}</p>
+                        </div>
+                        <p-radiobutton [(ngModel)]="inputMode"
+                                       [disabled]="opt.value === 'push-to-talk' && !canPushToTalk"
+                                       [value]="opt.value" name="inputMode"/>
                     </div>
-                    <p-radiobutton [(ngModel)]="inputMode" [value]="opt.value" name="inputMode"/>
+
+                    @if (opt.value === 'push-to-talk' && !canPushToTalk) {
+                        <p class="text-xs text-white/35" data-testid="ptt-unsupported">
+                            {{ 'SETTINGS.VOICE.PTT_UNSUPPORTED' | translate }}
+                        </p>
+                    }
                 </label>
             }
         </div>
 
-        @if (inputMode === 'push-to-talk') {
+        @if (inputMode === 'push-to-talk' && canPushToTalk) {
             <div class="flex items-center justify-between gap-4 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
                 <div>
                     <p class="text-sm text-white/75">Push-to-Talk Key</p>
@@ -105,7 +126,47 @@
             </div>
         }
 
-        @if (inputMode === 'voice-activity') {
+        <!--
+          The browser gate's own sensitivity control. Its own card rather than a branch inside the
+          desktop one below: the two gates measure against different reference points, so one meter
+          drawn for both would put the handle where the microphone does not actually open. See the
+          component's `vadCutoffPercent`.
+        -->
+        @if (capabilities.voiceActivityDetection && voiceActivityInForce()) {
+            <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3"
+                 data-testid="vad-sensitivity">
+                <div class="flex items-center justify-between">
+                    <p class="text-sm text-white/75">{{ 'SETTINGS.VOICE.VAD_SENSITIVITY' | translate }}</p>
+                    <span class="text-xs text-white/40 tabular-nums">{{ voiceThreshold }}%</span>
+                </div>
+                <p class="text-xs text-white/35 -mt-1">{{ 'SETTINGS.VOICE.VAD_SENSITIVITY_DESC' | translate }}</p>
+
+                <!-- Level and cutoff on one axis, both mapped through `vadMeterScale`. -->
+                <div class="relative mt-2 h-3 w-full rounded-full bg-white/[0.06]">
+                    <div [style.width.%]="vadAmberPercent()"
+                         class="absolute inset-y-0 left-0 rounded-full bg-amber-500/80 transition-[width] duration-75"></div>
+                    <div [style.left.%]="vadCutoffPercent()"
+                         [style.width.%]="vadGreenPercent()"
+                         class="absolute inset-y-0 rounded-full bg-emerald-400 transition-[width] duration-75"></div>
+                    <div [class.ring-emerald-400]="vadOpen()"
+                         [class.ring-white/20]="!vadOpen()"
+                         [style.left.%]="vadCutoffPercent()"
+                         class="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow ring-2"></div>
+                </div>
+
+                <p-slider [(ngModel)]="voiceThreshold" [max]="100" [min]="0" styleClass="w-full mt-2"/>
+
+                @if (!vadRunning()) {
+                    <p class="text-[0.6875rem] text-white/25" data-testid="vad-idle">
+                        {{ 'SETTINGS.VOICE.VAD_METER_IDLE' | translate }}
+                    </p>
+                }
+            </div>
+        }
+
+        <!-- The desktop gate's meter, unchanged. Its axis is the room's own noise floor, which the
+             browser gate does not report, so it is drawn only where that gate is the one running. -->
+        @if (!capabilities.voiceActivityDetection && inputMode === 'voice-activity') {
             <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
                 <div class="flex items-center justify-between">
                     <p class="text-sm text-white/75">Input Sensitivity</p>
@@ -162,14 +223,30 @@
             Speaker
         </h2>
 
-        <div class="flex flex-col gap-1.5">
-            <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Output Device</label>
-            <p-select [(ngModel)]="selectedSpeakerId" [options]="speakerOptions()" optionLabel="label"
-                      optionValue="value" placeholder="Select speaker"
-                      styleClass="w-full"/>
-            <p class="text-[0.6875rem] text-white/25">Output device selection may not be supported in all
-                environments.</p>
-        </div>
+        <!--
+          Gated on `outputSupport().selectable`, never on the list being empty: an empty list is what
+          both "no speakers" and "this browser will not say" look like, and the old copy hedged at
+          everybody rather than answering for the host in front of them. Where routing is impossible
+          the picker is hidden - there is no choice to explain the absence of, and the volume slider
+          below still works on the default device.
+        -->
+        @if (outputSelectable()) {
+            <div class="flex flex-col gap-1.5" data-testid="output-picker">
+                <label class="text-xs font-medium text-white/45 uppercase tracking-wide">Output Device</label>
+                <p-select [(ngModel)]="selectedSpeakerId" [options]="speakerOptions()" optionLabel="label"
+                          optionValue="value" placeholder="Select speaker"
+                          styleClass="w-full"/>
+                @if (deviceNamesWithheld()) {
+                    <p class="text-[0.6875rem] text-white/25">
+                        {{ 'SETTINGS.VOICE.DEVICE_NAMES_WITHHELD' | translate }}
+                    </p>
+                }
+            </div>
+        } @else {
+            <p class="text-[0.6875rem] text-white/25" data-testid="output-not-selectable">
+                {{ 'SETTINGS.VOICE.OUTPUT_NOT_SELECTABLE' | translate }}
+            </p>
+        }
 
         <div class="flex flex-col gap-2">
             <div class="flex items-center justify-between">
@@ -279,16 +356,21 @@
             Isle Proximity Voice
         </h2>
 
-        <!-- Keybinds pointer -->
-        <div class="flex items-center justify-between gap-4 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
-            <div>
-                <p class="text-sm text-white/75">Push-to-Talk, Toggle Mute &amp; Push-to-Mute</p>
-                <p class="text-xs text-white/35 mt-0.5">Bind these (and the same for regular voice calls) from the
-                    Keybinds page.</p>
+        <!-- Keybinds pointer. Only where a key reaches us while the game has focus - which is the whole
+             point of these three bindings, so in a browser the row would be an invitation to bind
+             something that cannot fire. The substitute is stated at the foot of the section. -->
+        @if (canPushToTalk) {
+            <div class="flex items-center justify-between gap-4 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3"
+                 data-testid="isle-keybinds-link">
+                <div>
+                    <p class="text-sm text-white/75">Push-to-Talk, Toggle Mute &amp; Push-to-Mute</p>
+                    <p class="text-xs text-white/35 mt-0.5">Bind these (and the same for regular voice calls) from the
+                        Keybinds page.</p>
+                </div>
+                <p-button (onClick)="openKeybinds.emit()" [text]="true" icon="pi pi-key" label="Open Keybinds"
+                          severity="secondary" size="small"/>
             </div>
-            <p-button (onClick)="openKeybinds.emit()" [text]="true" icon="pi pi-key" label="Open Keybinds"
-                      severity="secondary" size="small"/>
-        </div>
+        }
 
         <!-- Spatial audio -->
         <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
@@ -323,10 +405,14 @@
             <p-slider [(ngModel)]="proximityMicBoost" [max]="200" [min]="0" [step]="5" styleClass="w-full mt-1"/>
         </div>
 
-        <p class="text-[11px] text-white/25 pt-1">
-            The voice hotkey requires the desktop app; in the browser the mic stays open while connected and can
-            only be muted from the proximity bar.
-        </p>
+        <!-- Said only on the host it is true of. This paragraph used to assert "requires the desktop
+             app" while running in the desktop app, and it also predates voice activity: the browser mic
+             no longer stays open, it is keyed by the gate above. -->
+        @if (!canPushToTalk) {
+            <p class="text-[0.6875rem] text-white/25 pt-1" data-testid="isle-hotkey-unsupported">
+                {{ 'SETTINGS.VOICE.ISLE_HOTKEY_UNSUPPORTED' | translate }}
+            </p>
+        }
     </section>
 
 </div>

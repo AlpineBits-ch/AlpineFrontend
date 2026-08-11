@@ -2,8 +2,10 @@ import {ChangeDetectionStrategy, Component, inject, OnDestroy, signal} from '@an
 import {NgClass} from '@angular/common';
 import {FormsModule} from '@angular/forms';
 import {Select} from 'primeng/select';
+import {TranslateModule} from '@ngx-translate/core';
 import {KeybindsService} from '../../../../../services/keybinds.service';
 import {findKeybindAction, KEYBIND_ACTIONS, KeybindActionDef, KeybindActionId} from '../../../../../models/keybind-action.model';
+import {PlatformCapabilities} from '../../../../../platform/capabilities';
 
 interface KeybindGroup {
     category: string;
@@ -20,13 +22,29 @@ interface KeybindGroup {
  */
 @Component({
     selector: 'app-keybinds-settings',
-    imports: [NgClass, FormsModule, Select],
+    imports: [NgClass, FormsModule, Select, TranslateModule],
     templateUrl: './keybinds-settings.component.html',
     styleUrl: './keybinds-settings.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class KeybindsSettingsComponent implements OnDestroy {
     protected readonly keybinds = inject(KeybindsService);
+
+    /**
+     * Read for `globalHotkeys`, which decides whether a binding on this page means what it says.
+     *
+     * <p><b>The single most user-visible difference in the browser port, so it is stated at the top of
+     * the page rather than left to be discovered.</b> The bindings still capture and still fire - the
+     * web adapter listens for `keydown` - but only while this tab has focus, and push-to-talk exists
+     * precisely for the case where it does not: a game is in front. No web API fires while the tab is
+     * unfocused, so this is not an unfinished adapter.</p>
+     *
+     * <p>Nothing here is disabled on the strength of it. A focused-only key is genuinely useful for
+     * everything on this page that is not proximity voice, and the honest answer for the part that is
+     * broken is not a dead row but the substitute: voice activity keys the microphone instead, which
+     * is what makes Isle proximity voice usable in a browser at all.</p>
+     */
+    protected readonly capabilities = inject(PlatformCapabilities);
 
     protected readonly groups: KeybindGroup[] = groupByCategory(KEYBIND_ACTIONS);
 

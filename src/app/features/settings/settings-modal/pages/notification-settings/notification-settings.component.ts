@@ -4,6 +4,8 @@ import {FormsModule} from '@angular/forms';
 import {TranslateModule} from '@ngx-translate/core';
 import {UserSettingsService} from '../../../../../services/user-settings.service';
 import {SoundKey, SoundSettingsService} from '../../../../../services/sound-settings.service';
+import {NotificationService} from '../../../../../services/notification.service';
+import {PlatformCapabilities} from '../../../../../platform/capabilities';
 
 @Component({
     selector: 'app-notification-settings',
@@ -14,6 +16,30 @@ import {SoundKey, SoundSettingsService} from '../../../../../services/sound-sett
 export class NotificationSettingsComponent {
     protected readonly userSettings = inject(UserSettingsService);
     protected readonly soundSettings = inject(SoundSettingsService);
+
+    /**
+     * Whether the host has durably refused to show notifications.
+     *
+     * <p><b>Nothing read this before, which is the bug.</b> In a browser a denied permission cannot be
+     * re-requested by the app, so "Enable Notifications" could sit there switched on, look entirely
+     * correct, and deliver nothing at all.</p>
+     *
+     * <p>The switch is <i>not</i> disabled on the strength of it. It still gates the sound and the
+     * cooldown below, both of which keep working while the toast is blocked, so disabling it would
+     * take away two controls that do work in order to describe one that does not. What the page owes
+     * the user here is the sentence, not a dead switch.</p>
+     */
+    protected readonly notifications = inject(NotificationService);
+
+    /**
+     * Read for `backgroundPush`, and deliberately not for `nativeToasts`.
+     *
+     * <p>A browser tab shows toasts perfectly well; what it cannot do is receive anything once it is
+     * closed. Rendering that as "notifications do not work here" would be wrong in the direction that
+     * loses messages the user believes they will be told about, so the copy says what is true:
+     * notifications arrive only while Venta is open.</p>
+     */
+    protected readonly capabilities = inject(PlatformCapabilities);
 
     protected readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
     protected readonly uploadError = signal('');

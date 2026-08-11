@@ -21,7 +21,7 @@ import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {FileSaver} from '../platform/ports/file-saver.port';
 import {FakeFileSaver} from '../platform/testing/fake-file-saver';
-import {AttachmentDownloadService} from './attachment-download.service';
+import {AttachmentDownloadService, attachmentSavedToastKey} from './attachment-download.service';
 import {ApiConfigService} from './api-config.service';
 
 const BASE = 'https://api.test.example';
@@ -134,5 +134,30 @@ describe('AttachmentDownloadService', () => {
         await expect(saved).rejects.toBeTruthy();
         expect(saver.calls).toHaveLength(0);
         http.verify();
+    });
+});
+
+/**
+ * What the confirmation toast may claim, per host.
+ *
+ * <p>The bug: `true` from a browser save means "handed to the download manager", not "saved", because a
+ * browser reports no cancellation at all. The old copy said "Attachment saved" either way, so dismissing
+ * the browser's own dialog still produced a success toast.</p>
+ *
+ * <p>Both hosts are asserted, and asserted to differ. Softening the desktop wording too would have been
+ * the easy mistake: there the dialog really was completed, and downgrading a fact to a hedge is its own
+ * kind of dishonesty.</p>
+ */
+describe('attachmentSavedToastKey', () => {
+    it('claims a save on a host whose dialog can be cancelled', () => {
+        expect(attachmentSavedToastKey('tauri')).toBe('MESSAGE.DOWNLOAD_SAVED');
+    });
+
+    it('claims only a started download in a browser', () => {
+        expect(attachmentSavedToastKey('web')).toBe('MESSAGE.DOWNLOAD_STARTED');
+    });
+
+    it('says something different on each host, which is the whole point', () => {
+        expect(attachmentSavedToastKey('web')).not.toBe(attachmentSavedToastKey('tauri'));
     });
 });

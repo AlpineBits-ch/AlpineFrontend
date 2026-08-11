@@ -40,14 +40,25 @@
         <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
             {{ 'SETTINGS.OTHER.SECTION_SYSTEM' | translate }}</h2>
 
-        <div class="flex items-center justify-between bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
-            <div>
-                <p class="text-sm text-white/75">{{ 'SETTINGS.OTHER.AUTOSTART' | translate }}</p>
-                <p class="text-xs text-white/35 mt-0.5">{{ 'SETTINGS.OTHER.AUTOSTART_DESC' | translate }}</p>
+        <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-white/75">{{ 'SETTINGS.OTHER.AUTOSTART' | translate }}</p>
+                    <p class="text-xs text-white/35 mt-0.5">{{ 'SETTINGS.OTHER.AUTOSTART_DESC' | translate }}</p>
+                </div>
+                <p-toggleswitch
+                        (ngModelChange)="userSettings.updateAutostart($event)"
+                        [disabled]="!capabilities.autostart"
+                        [ngModel]="userSettings.autostartEnabled()"/>
             </div>
-            <p-toggleswitch
-                    (ngModelChange)="userSettings.updateAutostart($event)"
-                    [ngModel]="userSettings.autostartEnabled()"/>
+
+            <!-- Disabled, not hidden: this is a setting people go looking for, so the row stays and
+                 says why it cannot be honoured here. -->
+            @if (!capabilities.autostart) {
+                <p class="text-xs text-white/35" data-testid="autostart-unsupported">
+                    {{ 'SETTINGS.OTHER.AUTOSTART_UNSUPPORTED' | translate }}
+                </p>
+            }
         </div>
 
         @for (toggle of systemToggles; track toggle.label) {

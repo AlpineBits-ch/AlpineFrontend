@@ -35,6 +35,19 @@ export class VoiceToggleComponent {
     devices = input.required<DeviceOption[]>();
     selected = input.required<string>();
 
+    /**
+     * Whether the labels above are stand-ins rather than the devices' own names.
+     *
+     * <p>True in a browser until the page holds a media permission: `enumerateDevices()` returns real
+     * ids with blank labels, and the adapter substitutes "Microphone 2" rather than rendering a nameless
+     * row. Worth a line here as well as in the settings page because this menu is where most people
+     * change device, and "Microphone 2" with no explanation looks like a bug rather than a permission
+     * that has not been granted yet.</p>
+     *
+     * <p>Optional, so nothing that lists devices from a host which always names them has to say so.</p>
+     */
+    namesWithheld = input(false);
+
     toggled = output<void>();
     deviceChosen = output<string>();
     openSettings = output<void>();
@@ -65,6 +78,16 @@ export class VoiceToggleComponent {
             icon: device.value === selected ? 'pi pi-check' : 'pi pi-fw',
             command: () => this.deviceChosen.emit(device.value),
         }));
+
+        // Disabled rather than a command: it is a sentence, not a row to pick. Only shown alongside a
+        // list, because with no devices listed there is nothing for it to be explaining.
+        if (deviceItems.length && this.namesWithheld()) {
+            deviceItems.push({
+                label: this.translate.instant('QUICK_SETTINGS.DEVICE_NAMES_WITHHELD'),
+                icon: 'pi pi-fw pi-info-circle',
+                disabled: true,
+            });
+        }
 
         return [
             ...(deviceItems.length

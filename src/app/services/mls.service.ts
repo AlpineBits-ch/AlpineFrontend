@@ -796,10 +796,26 @@ export class MlsService {
         return new TextDecoder().decode(plain);
     }
 
+    /**
+     * The imported AES key, derived from {@link localStateKey} once per session.
+     *
+     * <p><b>A rejection is not memoised.</b> `localStateKey` now propagates a keychain fault instead of
+     * minting over it, so this promise can reject for a reason that lifts by itself - a keyring that
+     * was still starting, an IndexedDB connection another tab had just upgraded. Caching that rejection
+     * would make one unlucky moment at boot permanent for the session: every cached plaintext would
+     * stay unreadable and every message that has no ratchet left would render as undecryptable for as
+     * long as the app stayed open. Same reasoning as the deliberately un-memoised rejections in
+     * `platform/web/secure-store.ts` and `platform/tauri/secure-store.ts`.</p>
+     */
     private async cacheKey(): Promise<CryptoKey> {
-        this._cacheKey ??= this.localStateKey().then(raw =>
-            crypto.subtle.importKey('raw', fromB64(raw), 'AES-GCM', false, ['encrypt', 'decrypt']),
-        );
+        this._cacheKey ??= this.localStateKey()
+            .then(raw =>
+                crypto.subtle.importKey('raw', fromB64(raw), 'AES-GCM', false, ['encrypt', 'decrypt']),
+            )
+            .catch((err: unknown) => {
+                this._cacheKey = null;
+                throw err;
+            });
         return this._cacheKey;
     }
 
@@ -816,13 +832,58 @@ export class MlsService {
      * `SecureStore.hardwareBacked` is false there and the key-backup UI says so. It is still the same
      * key and the same format, which is what keeps a browser session's state file openable by the
      * desktop build. See the Security posture section of the browser-only build design.</p>
+     *
+     * <h3>Minting is licensed by a successful read that reported absence, and by nothing else</h3>
+     *
+     * <p>This used to mint whenever the read came back falsy, which is right for a genuinely fresh
+     * device and catastrophic for a read that <i>failed</i>. A store that answers "no entry" for an
+     * entry it is holding - an OS keychain reporting empty while locked, a credential service that has
+     * not started, an IndexedDB fault - would then have handed the engine the <b>wrong</b> key, the
+     * sealed `mls_state.json` would have failed to authenticate under it, and that failure
+     * ("did not open with this device's state key", or `aead::Error` on web) is legitimately on
+     * `mls-storage-init.ts`'s corrupt list. So the launch wiped: every group key and every message on
+     * that device destroyed by a fault that was recoverable a moment earlier. No classifier can undo
+     * that, because by then the error genuinely is ambiguous between "the file is corrupt" and "the
+     * file is fine and we used the wrong key". The only place the two are still distinguishable is
+     * here, before the wrong key is ever handed over.</p>
+     *
+     * <p>Hence: <b>nothing in this method may catch.</b> A failed read propagates, reaches
+     * `classifyMlsStorageFault` as `unknown`, and is answered with a retry banner and untouched state.
+     * A rejection that costs the user one launch is not comparable to a mint that costs them their
+     * keys. {@link SecureStore.getItem} is specified to reject rather than answer `null` when it could
+     * not read - the web adapter is built that way and `platform/web/secure-store.spec.ts` pins it.</p>
+     *
+     * <p><b>The desktop is now covered by that guarantee too.</b> It was not: the desktop adapter read
+     * through `tauri-plugin-secure-storage`, whose `get_item` collapses every `keyring` error into
+     * `data: None`, so a locked or corrupt keychain was indistinguishable from an absent entry at the
+     * IPC boundary and this method minted over it. Reads go through the local `keychain_read` command
+     * (`src-tauri/src/keychain.rs`) instead, which maps `keyring`'s `NoEntry` - and nothing else - to
+     * absence; `platform/tauri/secure-store.ts` turns every other variant into a rejection, which
+     * lands in the branch above. Nothing here changed for it, which was the point of writing the
+     * refusal as a property of this method rather than of one adapter.</p>
      */
     private async localStateKey(): Promise<string> {
         const deviceId = await this.deviceIdentity.deviceId();
         const name = `alpine_mls_${deviceId}_statekey`;
 
-        const existing = await this.secureStore.getItem(name);
-        if (existing) return existing;
+        // Typed wider than the port promises, deliberately. `undefined` is what a read that faulted
+        // half-way looks like, and it is the one falsy value that must not be read as "absent": the
+        // compiler is made to keep the case rather than let it collapse into a truthiness test.
+        const existing: string | null | undefined = await this.secureStore.getItem(name);
+        if (existing === undefined) {
+            // Not phrased with any marker from `MLS_STATE_UNREADABLE_MARKERS`, so it classifies as
+            // `unknown` - transient, no wipe. That is the whole point of refusing here.
+            throw new Error(
+                `SecureStore.getItem("${name}") resolved undefined. The port answers a string or `
+                + `null, so this is a store that could not read, not a device with no entry - and `
+                + `minting a fresh state key over an entry that may still be there is what makes a `
+                + `recoverable fault into permanent loss of this device's group keys.`,
+            );
+        }
+        // Absent, or holding an empty string. Only the first is a fresh device; the second cannot be
+        // a 32-byte base64 key under any encoding, so nothing recoverable is overwritten by minting -
+        // whereas refusing would leave the device permanently unable to launch with no way back.
+        if (existing !== null && existing !== '') return existing;
 
         const minted = toB64(crypto.getRandomValues(new Uint8Array(32)));
         await this.secureStore.setItem(name, minted);
@@ -1520,6 +1581,29 @@ export class MlsService {
      *        should make that unreachable - this is the check that makes a bug in that scoping
      *        loud instead of silent, and silent is what it was: the stored identity has always
      *        been the user id, and nothing ever compared it to anything.
+     *
+     * <h3>The remaining conflation, named rather than fixed</h3>
+     *
+     * <p>The `catch` below covers a read that <b>rejected</b>, and since reads on desktop now go
+     * through `keychain_read` that finally includes a locked or corrupt keychain - see
+     * `platform/tauri/secure-store.ts`. What it does not cover is the `!pub || !priv || !identity`
+     * test underneath, which reads a resolved `null` as "this device has never registered" and routes
+     * to the registration modal. That modal mints a <i>fresh</i> signing keypair, which orphans this
+     * device from every group it belongs to - the same shape of irreversible loss `localStateKey`
+     * refuses, and arguably worse, because it is visible to the whole group rather than only to this
+     * machine.</p>
+     *
+     * <p><b>That `null` is now trustworthy on both hosts</b> - it means the store was read and reported
+     * no entry - so the conflation left here is a narrower one: a device that holds two of the three
+     * entries, or holds an empty string in one, is treated as unregistered. <b>What closing it would
+     * take</b>, deliberately not done here because the blast radius is a separate decision: distinguish
+     * "all three absent" (a genuinely fresh device - register) from "some present, some absent" (a
+     * partially written or partially deleted keychain, where minting destroys a key that exists), and
+     * give the second its own `MlsTypedError` kind alongside `IdentityMismatch` so it routes to a
+     * retry/repair path rather than to registration. `persistSigningKey` writes the three in one
+     * `Promise.all` with no atomicity, so the partial state is reachable by an interrupted first run,
+     * and `clearStoredSigningKey` deletes five entries the same way. Both would need looking at before
+     * the new error kind means anything - which is why it is one change and not a line here.</p>
      */
     autoUnlock(deviceId: string, expectedUserId?: string): Observable<string> {
         return from(
@@ -1541,6 +1625,10 @@ export class MlsService {
             }),
         ).pipe(
             switchMap(([pub, priv, identity]) => {
+                // Behaviour deliberately unchanged. A `null` here is now an honest "no entry" on
+                // desktop as well as on web, which is what makes this test defensible at all; what it
+                // still cannot tell is a fresh device from a keychain holding only some of the three.
+                // See the "remaining conflation" note in this method's doc comment.
                 if (!pub || !priv || !identity) {
                     const err: MlsTypedError = {
                         kind: 'KeyNotFound',

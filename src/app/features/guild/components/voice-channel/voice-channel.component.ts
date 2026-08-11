@@ -91,6 +91,20 @@ export class VoiceChannelComponent {
             inboundFps: p.isLocal ? this.rustMedia.inboundFps() : null,
         }))
     );
+    /**
+     * Whether this client's own share asked for audio and got none.
+     *
+     * <p>`'unavailable'` is the one outcome that needs saying: `'off'` means nobody asked, and
+     * `'published'` needs no comment. The two must not read the same, which is why
+     * `RustMediaService.screenAudioOutcome` is three-valued rather than a boolean - see its comment.</p>
+     *
+     * <p>Only while this client is actually sharing, so a stale outcome from a share that has since
+     * ended cannot leave the notice on screen.</p>
+     */
+    protected screenAudioUnavailable = computed(() =>
+        this.voiceSvc.localState().isScreenSharing
+        && this.rustMedia.screenAudioOutcome() === 'unavailable',
+    );
     protected isJoined = computed(() =>
         this.voiceSvc.joinedChannelId() === this.channel().id,
     );

@@ -1,5 +1,6 @@
 import {inject, Injectable} from '@angular/core';
 import {firstValueFrom} from 'rxjs';
+import {PlatformHost} from '../platform/host';
 import {FileSaver} from '../platform/ports/file-saver.port';
 import {FileService} from './file.service';
 
@@ -7,6 +8,25 @@ import {FileService} from './file.service';
 export interface DownloadableAttachment {
     id: string;
     fileName: string;
+}
+
+/**
+ * Which confirmation a completed save has earned on this host.
+ *
+ * <p><b>Because `true` means two different things.</b> On a host with a real save dialog it means the user
+ * picked a destination and the bytes went there, so "Attachment saved" is a fact. A browser has no
+ * cancellation signal at all - see {@link FileSaver} - so `true` there means only that the download was
+ * handed over, and the user may have dismissed the browser's own dialog immediately afterwards. The
+ * toast fired regardless, claiming a save that may never have happened.</p>
+ *
+ * <p>"Download started" is the strongest claim that stays true either way, and it is also the honest
+ * division of labour: what confirms a browser download is the download shelf, not us.</p>
+ *
+ * <p>Lives here rather than in the component because this is the file that already documents the
+ * asymmetry, and because a pure function of the host is testable without standing up a message row.</p>
+ */
+export function attachmentSavedToastKey(host: PlatformHost): string {
+    return host === 'web' ? 'MESSAGE.DOWNLOAD_STARTED' : 'MESSAGE.DOWNLOAD_SAVED';
 }
 
 /**

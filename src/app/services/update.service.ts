@@ -51,11 +51,10 @@ export class UpdateService {
         // on the build configuration, and `force` must not be able to conjure a check that cannot
         // happen. `force` is what the About page's button passes.
         //
-        // TODO(i18n + UI): the About page should hide its updater section entirely when
-        // `PlatformCapabilities.selfUpdate` is false - the design spec's "hidden when its absence needs
-        // no explanation". Until then the button is present and reports this status, which renders as
-        // nothing rather than as a false "you are up to date". Proposed key if a line is wanted
-        // instead: SETTINGS.ABOUT.UPDATES_UNSUPPORTED.
+        // The About page now hides its whole updater block on `PlatformCapabilities.selfUpdate`, so
+        // nothing in the UI reaches this branch any more - the design spec's "hidden when its absence
+        // needs no explanation". It stays because a caller that is not the About page still must not be
+        // told a check succeeded when none happened.
         if (!this.updater.supported) {
             if (this.statusTimer) clearTimeout(this.statusTimer);
             this.statusTimer = null;

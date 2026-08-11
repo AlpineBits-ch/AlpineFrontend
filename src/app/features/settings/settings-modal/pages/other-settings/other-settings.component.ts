@@ -11,6 +11,7 @@ import {OnboardingService} from '../../../../../services/onboarding.service';
 import {SocialKeyGateService} from '../../../../../services/social-key-gate.service';
 import {UserInterest} from '../../../../../dtos/response/UserDto';
 import {WalletPreferenceSettingComponent} from '../../../../payments';
+import {PlatformCapabilities} from '../../../../../platform/capabilities';
 
 @Component({
     selector: 'app-other-settings',
@@ -44,6 +45,15 @@ export class OtherSettingsComponent {
     protected readonly userSettings = inject(UserSettingsService);
     protected readonly language = inject(LanguageService);
     protected readonly appInfo = inject(AppInfoService);
+    /**
+     * Read for `autostart`, which the launch-at-login switch is disabled on.
+     *
+     * <p>Disabled with a reason rather than hidden: "start Venta when I sign in" is a setting people
+     * come looking for, and a row that has simply vanished reads as a missing feature rather than as
+     * one the host cannot offer. `UserSettingsService` already declines to call the port when it is
+     * unsupported, so the switch moved and persisted a preference nothing would ever act on.</p>
+     */
+    protected readonly capabilities = inject(PlatformCapabilities);
     private readonly userService = inject(UserService);
     private readonly onboarding = inject(OnboardingService);
     private readonly socialGate = inject(SocialKeyGateService);

@@ -86,6 +86,7 @@
                     [devices]="catalog.mics()" [selected]="audio.settings().micId"
                     (toggled)="voiceControls.toggleMute()"
                     (deviceChosen)="audio.update({micId: $event})"
+                    [namesWithheld]="catalog.namesWithheld()"
                     (openSettings)="openVoiceSettings()"/>
 
             <app-voice-toggle
@@ -96,6 +97,7 @@
                     [devices]="catalog.speakers()" [selected]="audio.settings().speakerId"
                     (toggled)="voiceControls.toggleDeafen()"
                     (deviceChosen)="audio.update({speakerId: $event})"
+                    [namesWithheld]="catalog.namesWithheld()"
                     (openSettings)="openVoiceSettings()"/>
 
             <!-- Three controls, not five. Status moved into the profile menu, where it can carry

@@ -68,10 +68,9 @@ export class ActivitySettingsComponent implements OnInit {
      * a Tauri phone build reports `gameDetection: true` while still being unable to enumerate a
      * process.</p>
      *
-     * <p>TODO(i18n): `SETTINGS.ACTIVITY.GAMES_UNSUPPORTED` already covers the per-game list. The
-     * Discord row is disabled with no reason line - the copy pass wants
-     * `SETTINGS.ACTIVITY.DISCORD_INTEGRATION_UNSUPPORTED` ("Desktop only - a browser cannot bind
-     * Discord's local socket").</p>
+     * <p>Both places that read it now say why: `SETTINGS.ACTIVITY.GAMES_UNSUPPORTED` for the per-game
+     * list, and `SETTINGS.ACTIVITY.DISCORD_INTEGRATION_UNSUPPORTED` under the Discord row, which was
+     * disabled with no reason line at all.</p>
      */
     protected readonly canDetect = computed(() =>
         this.capabilities.gameDetection && !this.platform.isMobile);

@@ -327,10 +327,38 @@ jobs:
       # and - unlike a total - they cannot pass vacuously. If a total floor is ever wanted, take the
       # number from a green run of *this job*, not from a local run.
       #
-      # Note that media::publisher::encoder's tests provision Cisco's precompiled OpenH264 binary
-      # on first run and cache it under src-tauri/target - deliberately not restored from the
-      # Actions cache (it is a build artifact directory), so this step makes one network fetch per
-      # run.
+      # media::publisher::encoder's tests provision Cisco's precompiled OpenH264 binary and cache
+      # it under src-tauri/target/test-openh264 (see `provision_async` in encoder.rs, which builds
+      # that path from CARGO_MANIFEST_DIR).
+      #
+      # That fetch used to happen once per run, and it took the whole job down on 2026-08-11: all 11
+      # media::publisher::encoder tests failed at once on `OpenH264 must be provisioned for encoder
+      # tests`, with the same tests passing locally where the blob was already on disk. A red gate
+      # that means "Cisco's CDN was slow" teaches everyone to re-run it, and a gate people re-run
+      # reflexively is not a gate.
+      #
+      # The step below deliberately does NOT cache src-tauri/target - it is a build artifact
+      # directory, and that reasoning still holds. This caches the one leaf inside it that is a
+      # *download* rather than a build output.
+      #
+      # Keyed on openh264_blob.rs, which is where the pinned `VERSION` ("2.6.0") and the per-platform
+      # SHA-256s live. Not a constant key: the cached filename carries the version, so after a bump a
+      # constant key would hit, miss the file it needs, re-download every run, and never save the new
+      # blob - caching that quietly stops caching. Not `Cargo.lock` either, which changes constantly
+      # for reasons that have nothing to do with this binary.
+      #
+      # Caching a downloaded executable is safe here specifically because `openh264-sys2` verifies
+      # the blob's SHA-256 against its own built-in constant before loading it, so a truncated or
+      # tampered cache entry fails closed rather than being executed.
+      #
+      # If provisioning still fails, screen sharing itself is unaffected - it falls back to the
+      # software encoder (see the module docs). It is only these tests that require the real blob.
+      - name: Cache the OpenH264 test blob
+        uses: actions/cache@v4
+        with:
+          path: src-tauri/target/test-openh264
+          key: openh264-blob-${{ runner.os }}-${{ hashFiles('src-tauri/src/media/publisher/openh264_blob.rs') }}
+
       - name: Test Venta (src-tauri)
         env:
           RUSTC_WRAPPER: sccache

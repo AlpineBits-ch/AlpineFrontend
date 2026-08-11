@@ -36,13 +36,22 @@
                             }
                         </p>
                     </div>
-                    @if (isDownloadable(item.status)) {
+                    @if (isDownloadable(item.status) && !downloadBlocked) {
                         <p-button [label]="'SETTINGS.PRIVACY.EXPORT_DOWNLOAD' | translate"
                                   severity="secondary" size="small"
                                   [loading]="downloading() === item.exportId"
                                   (onClick)="download(item)"/>
                     }
                 </div>
+
+                <!-- The artifact exists and is ready; it is the fetch that cannot happen here. Said
+                     rather than offered, because the button would fail every single time. -->
+                @if (isDownloadable(item.status) && downloadBlocked) {
+                    <p class="text-xs text-white/35 mt-2 border-t border-white/[0.06] pt-2"
+                       data-testid="export-download-unsupported">
+                        {{ 'SETTINGS.PRIVACY.EXPORT_DOWNLOAD_UNSUPPORTED' | translate }}
+                    </p>
+                }
 
                 <!-- Partial is downloadable, so the warning sits beside the button rather than in
                      place of it, and names what is missing - "incomplete" alone is not actionable. -->

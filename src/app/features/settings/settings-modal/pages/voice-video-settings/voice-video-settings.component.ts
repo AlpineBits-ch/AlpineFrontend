@@ -21,8 +21,10 @@ import {AudioSettings, AudioSettingsService} from '../../../../../services/audio
 import {DeviceOption, MediaDeviceCatalogService} from '../../../../../services/media-device-catalog.service';
 import {IsleProximityService} from '../../../../../services/isle-proximity.service';
 import {SILENCE_DBFS, VoiceEngineService} from '../../../../../services/voice-engine.service';
+import {vadMeterScale, VoiceActivityService} from '../../../../../services/voice-activity.service';
 import {StreamSrcDirective} from '../../../../../directives/stream-src.directive';
 import {MediaDeviceSource} from '../../../../../platform/ports/media-devices.port';
+import {PlatformCapabilities} from '../../../../../platform/capabilities';
 
 type NoiseSuppressionMode = AudioSettings['noiseSuppressionMode'];
 
@@ -68,6 +70,24 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     private readonly engine = inject(VoiceEngineService);
 
     /**
+     * What this host can do, for the three gates on this page: the output picker, push-to-talk, and
+     * whether voice activity is the substitute for a bound key rather than one mode among two.
+     */
+    protected readonly capabilities = inject(PlatformCapabilities);
+
+    /**
+     * The browser's own speech gate, read for its live level and its threshold.
+     *
+     * <p>Only meaningful where {@link PlatformCapabilities.voiceActivityDetection} is true. The
+     * threshold is <b>not</b> written from here: `VoiceEngineService` already pushes every audio
+     * setting into the publisher whether or not a call is running, and the web publisher's
+     * `setProcessing` is what turns the stored cutoff into this service's threshold. Mapping it a
+     * second time in a settings page is how a marker ends up somewhere the gate does not actually
+     * open.</p>
+     */
+    protected readonly vad = inject(VoiceActivityService);
+
+    /**
      * Mic and speaker lists come from the shared catalog, so this page and the bottom bar's device
      * chevrons can never disagree about what is plugged in.
      *
@@ -79,6 +99,27 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         this.catalog.mics().length ? this.catalog.mics() : [{label: 'Default', value: 'default'}]);
     readonly speakerOptions = computed<DeviceOption[]>(() =>
         this.catalog.speakers().length ? this.catalog.speakers() : [{label: 'Default', value: 'default'}]);
+
+    /**
+     * Whether choosing an output device does anything on this host.
+     *
+     * <p><b>Read from the catalog's `outputSupport`, never from the speaker list being empty.</b> Those
+     * are different facts: an empty list is what both "this machine has no speakers" and "this browser
+     * will not tell us what it has" look like, and only one of them means the picker below is a no-op.
+     * Firefox is the case that matters - it enumerates no outputs and honours no `setSinkId` - so a
+     * chooser gated on the list would have been offered there and silently done nothing.</p>
+     */
+    readonly outputSelectable = computed(() => this.catalog.outputSupport().selectable);
+
+    /**
+     * Whether the device lists are showing stand-in names.
+     *
+     * <p>True in a browser until the page holds a media permission: `enumerateDevices()` returns real
+     * ids with blank labels, so the rows read "Microphone 2" and the user has no way to know why. The
+     * guidance is worth a line because it is actionable - starting the mic test grants the permission
+     * and the real names appear.</p>
+     */
+    readonly deviceNamesWithheld = computed(() => this.catalog.namesWithheld());
     readonly cameraOptions = signal<DeviceOption[]>([{label: 'None', value: ''}]);
     /** Mirrors Discord's None / Standard / Krisp. */
     readonly noiseSuppressionOptions: { label: string; value: NoiseSuppressionMode }[] = [
@@ -90,6 +131,28 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
         {value: 'voice-activity', label: 'Voice Activity', desc: 'Transmit automatically when your mic level crosses the sensitivity threshold below'},
         {value: 'push-to-talk', label: 'Push to Talk', desc: 'Only transmit while your bound key is held - bind it on the Keybinds page'},
     ];
+
+    /**
+     * Whether push-to-talk can be chosen at all.
+     *
+     * <p>False in a browser, and the radio is disabled there rather than removed: it is the mode a lot
+     * of people arrive expecting, so the row stays and carries the reason. The web publisher's gate is
+     * the voice-activity one unconditionally - `gateOpenFor` reads the VAD and never looks at
+     * `inputMode` - so leaving this selectable would be a control over a no-op in the exact sense the
+     * design spec forbids.</p>
+     */
+    readonly canPushToTalk = this.capabilities.globalHotkeys;
+
+    /**
+     * Whether voice activity is what actually keys the microphone.
+     *
+     * <p>Not the same question as "is the stored mode voice-activity". An account that last used the
+     * desktop app with push-to-talk arrives in a browser with that mode stored, and the browser gates
+     * on speech regardless - so the sensitivity card has to be on screen for that user too, or the one
+     * control that decides whether they can be heard is unreachable.</p>
+     */
+    readonly voiceActivityInForce = computed(() =>
+        !this.canPushToTalk || this.inputMode === 'voice-activity');
     readonly micLevel = signal(0);
     readonly isMicActive = signal(false);
     readonly isCameraActive = signal(false);
@@ -115,6 +178,15 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     private animFrameId: number | null = null;
     private lastTick = 0;
     private cameraTestGeneration = 0;
+    /**
+     * Whether the mic test, rather than a call, is what started the browser gate.
+     *
+     * <p>Latched so {@link stopMic} only stops a gate it started. `VoiceActivityService` is a singleton
+     * shared with the publisher, and `start()` repoints it at whatever stream it is handed - so
+     * stopping it unconditionally would close the microphone gate of a live call the moment somebody
+     * closed a settings page.</p>
+     */
+    private vadOwnedByMicTest = false;
 
     constructor() {
         void this.loadDevices();
@@ -219,6 +291,37 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
 
     /** Whether the engine is running, and so whether the bar means anything yet. */
     readonly metering = computed(() => this.engine.active());
+
+    // ── The browser gate's own meter ─────────────────────────────────────────
+    //
+    // A second meter rather than a branch inside the one above, because the two gates measure
+    // different things and a shared axis would misplace the handle on one of them. The desktop gate
+    // compares against the room's own noise floor and reports a cutoff in dBFS; the browser gate has
+    // an absolute cutoff and reports an RMS. Both are drawn through `vadMeterScale` here, which is the
+    // same mapping the threshold and the level are compared under, so "past the handle" and "the gate
+    // is open" remain one event rather than two the user has to correlate.
+
+    /** How far the live input has filled the browser gate's meter, as a percentage of its width. */
+    readonly vadLevelPercent = computed(() => this.vad.meter() * 100);
+
+    /** Where the cutoff sits on that meter. Driven by the gate's own threshold, not by the setting. */
+    readonly vadCutoffPercent = computed(() => vadMeterScale(this.vad.threshold()) * 100);
+
+    /** Green past the handle, amber below it. Same split as the desktop meter. */
+    readonly vadGreenPercent = computed(() => Math.max(0, this.vadLevelPercent() - this.vadCutoffPercent()));
+    readonly vadAmberPercent = computed(() => Math.min(this.vadLevelPercent(), this.vadCutoffPercent()));
+
+    /** The gate itself, so the handle can show the moment it opens. */
+    readonly vadOpen = computed(() => this.vad.speaking());
+
+    /**
+     * Whether anything is feeding the gate, and so whether its bar means anything.
+     *
+     * <p>The mic test is enough: {@link startMic} hands the test stream to the gate when no call owns
+     * it, which is the only way to set a threshold before joining a channel. Without that the slider
+     * could only be tuned mid-call, which is the moment it is least useful.</p>
+     */
+    readonly vadRunning = computed(() => this.vad.running());
 
     /**
      * The room's noise floor, in dBFS, backed out of the cutoff the engine reports.
@@ -389,6 +492,13 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
             // Monitor through the selected speaker, so the voice test actually
             // exercises the device the user just picked.
             void this.routeTestToSelectedSpeaker(this.audioCtx);
+            // The browser gate, fed from the test stream so its threshold can be set outside a call.
+            // Skipped while a call is live: the publisher owns the gate then, and repointing it at the
+            // test capture would gate the call on the wrong microphone.
+            if (this.capabilities.voiceActivityDetection && !this.engine.active()) {
+                this.vad.start(this.micStream);
+                this.vadOwnedByMicTest = true;
+            }
             this.isMicActive.set(true);
             this.permissionError.set(false);
             this.poll();
@@ -414,6 +524,10 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
 
     private stopMic(): void {
         this.applyVoiceTest(false);
+        if (this.vadOwnedByMicTest) {
+            this.vad.stop();
+            this.vadOwnedByMicTest = false;
+        }
         if (this.animFrameId !== null) {
             cancelAnimationFrame(this.animFrameId);
             this.animFrameId = null;

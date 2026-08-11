@@ -6,6 +6,7 @@ import {marked} from 'marked';
 import DOMPurify from 'dompurify';
 import {UpdateService} from '../../../../../services/update.service';
 import {AppInfoService} from '../../../../../services/app-info.service';
+import {PlatformCapabilities} from '../../../../../platform/capabilities';
 
 /**
  * Served from the frontend bundle rather than as a Tauri resource, so it also exists under
@@ -36,6 +37,16 @@ type NoticesState = 'idle' | 'loading' | 'ready' | 'error';
 export class AboutSettingsComponent {
     protected readonly updateService = inject(UpdateService);
     protected readonly appInfo = inject(AppInfoService);
+    /**
+     * Read for `selfUpdate`, which decides whether the update check exists on this page at all.
+     *
+     * <p><b>Hidden rather than disabled with a reason</b>, which is the design spec's own example: a
+     * web client updates by being reloaded, so there is nothing a user could have come looking for
+     * and nothing to explain. The check button was previously live on web and produced no visible
+     * status - `UpdateService` sets `checkStatus` to `'unsupported'`, which this page rendered as
+     * neither "up to date" nor "check failed", so pressing it looked like nothing happened.</p>
+     */
+    protected readonly capabilities = inject(PlatformCapabilities);
     private readonly http = inject(HttpClient);
     private readonly sanitizer = inject(DomSanitizer);
 

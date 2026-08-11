@@ -13,6 +13,7 @@ import {
     downloadErrorStatus,
 } from '../../../../../../services/data-export.service';
 import {ToastService} from '../../../../../../services/toast.service';
+import {PlatformCapabilities} from '../../../../../../platform/capabilities';
 
 /** How often an in-progress export is re-checked. The saga fans out across every service. */
 const POLL_INTERVAL_MS = 5_000;
@@ -56,6 +57,26 @@ export class DataExportComponent implements OnInit, OnDestroy {
     protected readonly requesting = signal(false);
     protected readonly downloading = signal<string | null>(null);
     protected readonly unavailable = signal(false);
+
+    /**
+     * Whether the artifact can be fetched at all on this host.
+     *
+     * <p><b>Both halves have to be false for the button to be dead, and in a browser both are.</b> The
+     * native streaming path needs the desktop shell, and the webview fallback is blocked outright: the
+     * download endpoint answers `302` to a signed Google Cloud Storage URL that serves no
+     * `Access-Control-Allow-Origin`, so a `fetch` of it never completes. The same URL downloads fine
+     * pasted into an address bar, because a navigation is not CORS-checked - which is exactly why this
+     * cannot be papered over client-side. Until the bucket sends CORS headers (or the API streams the
+     * bytes itself) a Download button in a browser is a button that always fails, so the row says so
+     * instead.</p>
+     *
+     * <p>Asked as `host` rather than through `DataExportService.canSaveToDisk`, deliberately: that
+     * getter is also false on a Tauri phone build, where the blob path <i>works</i> because the mobile
+     * shell writes a real file. Reusing it here would take a working download away from mobile in order
+     * to describe a browser limitation. Requesting an export is untouched - it is a server-side job, and
+     * a user can start it here and collect it from the desktop app.</p>
+     */
+    protected readonly downloadBlocked = inject(PlatformCapabilities).host === 'web';
 
     /** An export already in flight; the request button stays disabled while one exists. */
     protected readonly inFlight = computed(() =>

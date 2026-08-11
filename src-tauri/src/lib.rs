@@ -27,6 +27,14 @@ mod desktop_notifications;
 #[cfg(not(any(target_os = "android", target_os = "ios")))]
 mod data_export;
 
+/// An honest read of the OS keychain: `NoEntry` is absence, every other `keyring` failure is an
+/// error. Exists because `tauri-plugin-secure-storage`'s desktop `get_item` reports both as `null`,
+/// and "no entry" is what licenses the MLS layer to mint a fresh state key over one that is still
+/// there. `#[cfg(desktop)]`, matching the gate the plugin itself uses to pick `desktop.rs` - see the
+/// module header for why mobile must not reach it.
+#[cfg(desktop)]
+mod keychain;
+
 /// The pre-launch update gate: checks for and installs an update before the main
 /// window is built, so a client that panics during startup can still be fixed.
 /// See docs/superpowers/plans/2026-08-06-pre-launch-update-gate.md.
@@ -518,6 +526,12 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             send_windows_toast,
             prepare_notification_icon,
             data_export::download_data_export,
+            // Desktop list only, and deliberately absent from the mobile list below - the module
+            // header says why: on mobile the plugin does not use `keyring`, and on Android `keyring`
+            // has no store and falls back to an in-memory mock that answers "no entry" for
+            // everything. A missing command fails the `invoke` loudly; a mock would answer wrongly
+            // and quietly, which is the failure mode this command exists to remove.
+            keychain::keychain_read,
             crypto::crypto::generate_key,
             crypto::crypto::generate_key_pairs,
             crypto::crypto::setup_master_key,
@@ -614,6 +628,11 @@ fn build_and_run(builder: tauri::Builder<tauri::Wry>) {
             setup_toast_window,
             apply_maximize_fix,
             prepare_notification,
+            // No `keychain::keychain_read` here, and that asymmetry is intended rather than an
+            // oversight in keeping the two lists aligned. The `crypto::` lines are what these lists
+            // hold byte-identical; `keychain_read` is `#[cfg(desktop)]` because `keyring` addresses a
+            // different credential than the plugin's mobile implementation writes, and on Android no
+            // credential store exists at all. See `keychain.rs`'s header.
             crypto::crypto::generate_key,
             crypto::crypto::generate_key_pairs,
             crypto::crypto::setup_master_key,

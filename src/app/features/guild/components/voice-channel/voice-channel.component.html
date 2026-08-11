@@ -74,6 +74,23 @@
                     </div>
                 }
 
+                <!--
+                  Screen audio was asked for and could not be had.
+                  Worth its own line because every other signal says the share is fine: the video is
+                  up, the mute-stream-audio button is simply absent, and without a sentence the honest
+                  user report is "nobody can hear my game". A browser only ever captures audio from a
+                  tab or a window and only in Chromium, so a whole-screen share never carries it.
+                -->
+                @if (screenAudioUnavailable()) {
+                    <div class="pointer-events-none absolute bottom-28 left-0 right-0 z-20 flex justify-center px-6">
+                        <p class="pointer-events-auto rounded-lg border border-amber-400/20 bg-amber-400/[0.08]
+                                  px-3 py-2 text-xs text-white/70"
+                           data-testid="screen-audio-unavailable">
+                            {{ 'CALL.SCREEN_AUDIO_UNAVAILABLE' | translate }}
+                        </p>
+                    </div>
+                }
+
                 <!-- Floating controls bar -->
                 <div class="pointer-events-none absolute bottom-8 left-0 right-0 z-20 flex justify-center">
                     <app-call-controls-bar

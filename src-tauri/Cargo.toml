@@ -176,6 +176,19 @@ bytes = "1"
 # dynamically -see media::publisher::openh264_blob.
 openh264 = { version = "0.9", default-features = false, features = ["libloading"] }
 bzip2-rs = "0.1"
+# Direct, so `keychain.rs` can read the OS keychain without `tauri-plugin-secure-storage`'s
+# `get_item` collapsing every failure into "no entry" - see that module's header for what the
+# collapse costs. Already a transitive dependency through that plugin; this only names it.
+#
+# **The version and the feature list both matter and neither is a preference.** 3.6.3 is what
+# `Cargo.lock` already resolves for the plugin, and the three features are character for character
+# the plugin's own (`tauri-plugin-secure-storage-1.5.0/Cargo.toml`: `apple-native`,
+# `windows-native`, `sync-secret-service`). `keyring` picks its credential store by `cfg` *and*
+# feature, so under resolver 2's feature unification adding a feature here would change which store
+# the *plugin* uses too - re-pointing every existing entry at a different backend on some platform.
+# Union with the plugin's set has to be the plugin's set exactly. `keyring` declares no default
+# features, so there is nothing to disable.
+keyring = { version = "3.6.3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 
 # ── Voice pipeline (media::voice) ─────────────────────────────────────────────
 # Band-limited resampling. Replaces the linear interpolator in media::audio, which had no

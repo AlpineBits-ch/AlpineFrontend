@@ -69,6 +69,7 @@ import {EmailVerificationService} from '../../services/email-verification.servic
 import {AppReadyService} from '../../services/app-ready.service';
 import {GuildService} from '../../services/guild.service';
 import {runMlsLaunch} from './mls-launch';
+import {runMlsStorageInit} from './mls-storage-init';
 import {runSignOut} from './sign-out';
 import {MlsJoinRequestService} from '../../services/mls-join-request.service';
 import {ConversationEncryption} from '../../enums/conversation-encryption.enum';
@@ -162,6 +163,15 @@ export class MainPageComponent implements OnDestroy {
      * registered" - see {@link initLaunchSequence} for why conflating them is unrecoverable.
      */
     protected keyUnlockFailed = signal(false);
+    /**
+     * MLS storage could not be initialised, and the local state was <i>kept</i>.
+     *
+     * <p>Its own state rather than folded into {@link keyUnlockFailed}, for the reason every other
+     * flag here is separate: the log has to say which failed, and this one carries a promise the
+     * other does not - that nothing was deleted. It is set only on the paths
+     * {@link runMlsStorageInit} refuses to wipe on, so the banner can say so without qualification.</p>
+     */
+    protected mlsStorageUnavailable = signal(false);
     /**
      * The server holds no fresh key packages for this device, because uploading them failed.
      *
@@ -471,12 +481,27 @@ export class MainPageComponent implements OnDestroy {
 
     private async runDeviceLaunch(): Promise<void> {
         const deviceId = await this.mlsService.getOrCreateDeviceIdentifier();
-        try {
-            await firstValueFrom(this.mlsService.initStorage());
-        } catch (storageErr) {
-            console.error('MLS state corrupted -wiping and starting fresh:', storageErr);
-            await this.wipeLocalMlsState(deviceId);
+
+        // Only a state file that is present and unreadable may cost this device its groups. Every
+        // other reason `initStorage` rejects - a locked keychain, a credential service that has not
+        // started, an IndexedDB fault, an engine that failed to load - leaves the state intact and
+        // gets a retry instead. This used to be one `catch` that wiped for all of them, which turned
+        // a transient fault into permanent, irreversible loss of every message in every group.
+        const storage = await runMlsStorageInit({
+            initStorage: () => firstValueFrom(this.mlsService.initStorage()),
+            wipe: () => this.wipeLocalMlsState(deviceId),
+        });
+        if (storage.wiped) {
+            console.error('MLS state is present and unreadable -wiped and starting fresh:',
+                storage.fault?.message);
+        } else if (storage.fault) {
+            console.error(
+                `MLS storage could not be initialised (${storage.fault.kind}) -local state kept, `
+                + 'nothing wiped:', storage.fault.message,
+            );
         }
+        // Cleared as well as set, so a successful retry takes the banner down.
+        this.mlsStorageUnavailable.set(storage.fault !== null && !storage.wiped);
 
         // Who the engine is expected to be holding keys for. Read from the slot rather than kept
         // as a field, so the path that resumes here after the onboarding picker has it too.
@@ -568,6 +593,18 @@ export class MainPageComponent implements OnDestroy {
     /** Retry after a transient key-store failure, without minting anything. */
     protected async retryUnlock(): Promise<void> {
         this.keyUnlockFailed.set(false);
+        await this.initLaunchSequence();
+    }
+
+    /**
+     * Retry after MLS storage could not be initialised, without deleting anything.
+     *
+     * <p>Deliberately the same launch sequence and deliberately not a wipe: the state this failed to
+     * read is still on disk, and re-reading it is the entire remedy. A "reset encryption" button here
+     * would be an irreversible answer to a keychain that had not started yet.</p>
+     */
+    protected async retryMlsStorage(): Promise<void> {
+        this.mlsStorageUnavailable.set(false);
         await this.initLaunchSequence();
     }
 
