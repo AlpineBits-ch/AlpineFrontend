@@ -90,3 +90,8 @@ D1.zip
 # lands here, and this directory reached 6.3 GB unignored. Same trap the D1.zip note above describes,
 # two orders of magnitude larger.
 /target
+
+# Per-machine Claude Code state. settings.local.json is a permission allowlist built up by
+# whoever is sitting at the machine, so it conflicts on every pull and means nothing to anyone
+# else. It was tracked until now; see the history rewrite that removed it.
+.claude
