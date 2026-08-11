@@ -17,6 +17,7 @@ import { ApplicationRef } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { OAuthService } from 'angular-oauth2-oidc';
 import { VoiceEngineService, VoiceStats } from './app/services/voice-engine.service';
+import { IsleVoiceRtcService } from './app/services/isle-voice-rtc.service';
 
 const TOKEN_KEY = 'access_token';
 const STORED_AT_KEY = 'access_token_stored_at';
@@ -192,13 +193,38 @@ export function registerDebugHelpers(appRef: ApplicationRef): void {
     );
   };
 
+  const isleRtc = injector.get(IsleVoiceRtcService);
+
+  // Which proximity peers we were told to hear versus which we are actually pulling. Per-entity
+  // rather than a count: "12 peers subscribed" reads healthy while one of them is the person nobody
+  // can hear, and a peer with a standing order and `pulled: false` is precisely the fault.
+  (window as any).__isleSubs = (): void => {
+    const {peers, deferredOrders} = isleRtc.subscribeDiagnostics();
+    if (!peers.length) {
+      console.warn('[debug] no proximity peers have been ordered - nobody is in earshot, or voice is not joined');
+    } else {
+      console.table(peers);
+    }
+    const unpulled = peers.filter(p => !p.pulled);
+    if (unpulled.length) {
+      console.warn(
+        `[debug] ${unpulled.length} peer(s) ordered but not pulled - they are silent AND unplaced:`,
+        unpulled.map(p => p.userId),
+      );
+    }
+    if (deferredOrders) {
+      console.warn(`[debug] ${deferredOrders} order(s) arrived with no publication and are being held`);
+    }
+  };
+
   console.log(
     '%c[debug] Token helpers loaded:\n' +
     '  __showTokenState()           -print token timing\n' +
     '  __expireToken()              -corrupt token → next call 401s\n' +
     '  __expireTokenConcurrent(n)   -corrupt + fire n parallel requests\n' +
     '  __fireTokenExpiresEvent()    -fire token_expires event directly\n' +
-    '  __voiceStats(seconds)        -where the voice pipeline stops (run while in a call)',
+    '  __voiceStats(seconds)        -where the voice pipeline stops (run while in a call)\n' +
+    '  __isleSubs()                 -proximity peers ordered vs actually pulled',
     'color: cyan',
   );
 }

@@ -255,9 +255,15 @@ export class IsleProximityService {
             if (this.isVoiceActive()) void this.leave(true);
         });
 
-        this.ws.subscribeMutual$.subscribe(p => {
-            if (this.isVoiceActive()) void this.rtc.subscribeToPeer(p.targetUserId, p.cfSessionId, p.trackName);
-        });
+        // Ungated on purpose. `isVoiceActive` is only set at the *end* of join - after the publish and
+        // after the hotkeys are armed - while the relay pushes one of these for every already-audible
+        // peer from inside the publish itself. Gating on it therefore discarded exactly the orders that
+        // matter most, and since the same order establishes both the audio track and the positional
+        // entity, each one lost was a peer left silent and unplaced with no later event to repair it.
+        // `IsleVoiceRtcService` holds an order it cannot act on yet and drains it once the publication
+        // exists, which is a decision only that service has the state to make.
+        this.ws.subscribeMutual$.subscribe(p =>
+            void this.rtc.subscribeToPeer(p.targetUserId, p.cfSessionId, p.trackName));
         this.ws.selfPosition$.subscribe(p =>
             this.spatial.updateSelf(p.x, p.y, p.z, p.yaw, p.vx ?? 0, p.vy ?? 0, p.vz ?? 0));
         this.ws.playerPosition$.subscribe(p =>
@@ -280,6 +286,13 @@ export class IsleProximityService {
 
     private refreshStatus(): void {
         if (!this.userService.self()) return;
+
+        // Reuses this tick rather than adding a timer of its own. A peer whose pull exhausted its
+        // retries has no other route back - the relay records the pair as pushed whatever we made of
+        // it, so it will not order us again while the pair stays audible - and this only re-drives the
+        // difference, never a peer already being pulled, so a healthy graph costs nothing.
+        if (this.isVoiceActive()) void this.rtc.reconcile();
+
         firstValueFrom(this.api.getStatus())
             .then(status => {
                 this.isGameConnected.set(status.isGameConnected);
