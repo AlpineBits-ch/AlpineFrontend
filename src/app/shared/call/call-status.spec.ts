@@ -1,5 +1,6 @@
 import {describe, expect, it} from 'vitest';
 import {CALL_STATUS_PRECEDENCE, CallStatusInput, CallStatusKind, resolveCallStatus} from './call-status';
+import en from '../../../assets/i18n/locales/en.json';
 
 const OK: CallStatusInput = {rtcState: 'connected', stalledAudio: false, aloneUntil: null};
 
@@ -74,5 +75,22 @@ describe('resolveCallStatus', () => {
         // `no-audio` is the one kind whose key is not just its name uppercased.
         expect(resolveCallStatus({...OK, stalledAudio: true}).labelKey).toBe('CALL.STATUS.NO_AUDIO');
         expect(resolveCallStatus({...OK, stalledAudio: true}).detailKey).toBe('CALL.STATUS.NO_AUDIO_DETAIL');
+    });
+
+    it.each(Object.keys(TRIGGERS) as CallStatusKind[])('resolves %s to keys that exist in en.json', kind => {
+        // These keys are assembled from the kind at runtime, so no template mentions them and the
+        // static key sweep in i18n-keys.spec.ts cannot see them. Without this, renaming one leaves
+        // the status row rendering the literal string "CALL.STATUS.WHATEVER" at the user.
+        const status = resolveCallStatus({...OK, ...TRIGGERS[kind]});
+        const strings = en as Record<string, string>;
+
+        expect(strings[status.labelKey], `missing ${status.labelKey}`).toBeTruthy();
+        if (status.detailKey) expect(strings[status.detailKey], `missing ${status.detailKey}`).toBeTruthy();
+    });
+
+    it('gives the alone detail a slot for the time to land in', () => {
+        const status = resolveCallStatus({...OK, aloneUntil: '14:35'});
+
+        expect((en as Record<string, string>)[status.detailKey!]).toContain('{{ time }}');
     });
 });

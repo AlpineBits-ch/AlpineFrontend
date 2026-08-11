@@ -38,8 +38,11 @@
              banner strips of its own design. See call-status.ts. -->
         <div class="relative flex min-h-0 flex-1 flex-col overflow-hidden">
 
+            <!-- No `meta` here. The header directly above already carries the roster count, and
+                 repeating it one line down gave the channel two rows saying the same number. The
+                 DM panel does pass meta, because there it is the call's elapsed time - something
+                 the header cannot show. -->
             <app-call-status-bar
-                    [meta]="('CALL.CONNECTED_COUNT' | translate: {count: participants().length})"
                     [rtcState]="voiceSvc.rtcState()"
                     [stalledAudio]="audio.anyStalled()"/>
 
