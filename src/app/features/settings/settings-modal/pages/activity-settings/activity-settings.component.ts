@@ -7,7 +7,7 @@ import {PrivacySettingsService} from '../../../../../services/privacy-settings.s
 import {UserSettingsService} from '../../../../../services/user-settings.service';
 import {RichPresenceService} from '../../../../../services/rich-presence.service';
 import {ToastService} from '../../../../../services/toast.service';
-import {isTauri} from '@tauri-apps/api/core';
+import {PlatformCapabilities} from '../../../../../platform/capabilities';
 import {PlatformService} from '../../../../../services/platform.service';
 
 /** One row in the per-game list. */
@@ -41,6 +41,7 @@ export class ActivitySettingsComponent implements OnInit {
     private readonly userSettings = inject(UserSettingsService);
     private readonly richPresence = inject(RichPresenceService);
     private readonly platform = inject(PlatformService);
+    private readonly capabilities = inject(PlatformCapabilities);
     private readonly toast = inject(ToastService);
     private readonly translate = inject(TranslateService);
 
@@ -56,11 +57,24 @@ export class ActivitySettingsComponent implements OnInit {
      * <p>Mobile and web cannot enumerate processes or bind the sockets, so they are receive-only by
      * platform. Saying so is better than showing a per-game list that will never fill up.</p>
      *
-     * <p>The `isTauri()` half was missing and the omission was invisible: on web the toggles stayed
-     * enabled, and `RichPresenceService` guards every one of its Tauri calls on `isTauri()` too - so
-     * flipping them did nothing at all, silently. Same condition as the service's, deliberately.</p>
+     * <p>The host half was missing and the omission was invisible: on web the toggles stayed
+     * enabled, and `RichPresenceService` guards every one of its native calls on the same condition -
+     * so flipping them did nothing at all, silently. Same condition as the service's, deliberately.</p>
+     *
+     * <p>It is now `PlatformCapabilities.gameDetection` rather than `isTauri()`, which is the same
+     * answer asked as the question that actually matters - and it is why the web adapters behind those
+     * calls reject rather than resolving: if this gate is ever removed by accident, the failure is a
+     * console error naming the port instead of a switch that silently moves. `!isMobile` stays because
+     * a Tauri phone build reports `gameDetection: true` while still being unable to enumerate a
+     * process.</p>
+     *
+     * <p>TODO(i18n): `SETTINGS.ACTIVITY.GAMES_UNSUPPORTED` already covers the per-game list. The
+     * Discord row is disabled with no reason line - the copy pass wants
+     * `SETTINGS.ACTIVITY.DISCORD_INTEGRATION_UNSUPPORTED` ("Desktop only - a browser cannot bind
+     * Discord's local socket").</p>
      */
-    protected readonly canDetect = computed(() => isTauri() && !this.platform.isMobile);
+    protected readonly canDetect = computed(() =>
+        this.capabilities.gameDetection && !this.platform.isMobile);
 
     protected readonly discordIntegration = computed(() =>
         this.userSettings.activitySettings().discordIntegration

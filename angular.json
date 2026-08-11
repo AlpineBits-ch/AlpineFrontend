@@ -44,7 +44,13 @@
               {
                 "glob": "**/*",
                 "input": "src/assets",
-                "output": "assets"
+                "output": "assets",
+                "ignore": [
+                  "wasm/*.d.ts",
+                  "wasm/.gitignore",
+                  "wasm/package.json",
+                  "wasm/README.md"
+                ]
               },
               {
                 "glob": "64.png",

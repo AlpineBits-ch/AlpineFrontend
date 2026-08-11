@@ -1,7 +1,7 @@
 import {inject, Injectable, Injector, signal} from '@angular/core';
 import {firstValueFrom} from 'rxjs';
-import {secureStorage} from 'tauri-plugin-secure-storage-api';
-import {isTauri} from '@tauri-apps/api/core';
+import {PlatformCapabilities} from '../../platform/capabilities';
+import {SecureStore} from '../../platform/ports/secure-store.port';
 import {DeviceIdentityService} from '../../services/device-identity.service';
 import {ProfileService} from '../../services/profile.service';
 import {RealtimeConnectionService} from '../../services/realtime-connection.service';
@@ -91,17 +91,36 @@ const EMPTY: GuildPaymentState = {
  * attestation state is read and acted on, keys are pinned on first use, and the fingerprint shown
  * is the same string the MLS review screens print for the same key.</p>
  *
- * <p><b>Desktop only, for now.</b> Opening a blob needs this device's Ed25519 seed, which lives in
- * the OS keychain behind the Tauri secure-storage plugin. In the browser build there is no keychain
- * and no seed, so {@link isAvailable} is false and the UI renders nothing rather than an empty
- * list - the same line `MasterKeyService` draws, and for the same reason: a platform with no engine
- * is not a failure worth retrying.</p>
+ * <p><b>Desktop only, and deliberately still so on web.</b> Opening a blob needs this device's
+ * Ed25519 seed, which on desktop lives in the OS keychain. {@link isAvailable} is false wherever that
+ * keychain is absent, so the UI renders nothing rather than an empty list - the same line
+ * `MasterKeyService` draws, and for the same reason: a platform with no engine is not a failure worth
+ * retrying.</p>
+ *
+ * <p><b>Why the browser stays gated off even though a `SecureStore` now exists there.</b> The web
+ * adapter is IndexedDB, which is origin-scoped and readable by any script on the origin - that is a
+ * stated downgrade the design spec accepts for MLS keys, because the alternative is an unreachable
+ * device that blocks group adds for everyone else. No such argument applies here. What this feature
+ * decrypts is <i>other people's</i> bank details, shared with a housemate on the understanding that
+ * the server cannot read them, and it is not the caller's own risk to accept: sealing to a web
+ * session means every other member's plaintext is one XSS away, on a device they were shown as
+ * trusted in the seal plan. So this gate is read as "are these keys OS-protected", via
+ * `PlatformCapabilities.hardwareBackedKeys`, rather than as "is this Tauri" - it is a refusal to hold
+ * this particular key material without OS protection, not a missing implementation. Lifting it is a
+ * product decision about somebody else's money, and it needs the device-trust UI to say which
+ * recipients are browser sessions before it can be made honestly.</p>
  */
 @Injectable({providedIn: 'root'})
 export class PaymentHandleService {
     private readonly injector = inject(Injector);
     private readonly deviceIdentity = inject(DeviceIdentityService);
     private readonly pins = inject(DevicePinStore);
+    /**
+     * Injected as a field, unlike everything below: it is root-provided with a default factory of
+     * its own, so it resolves in any injector - including the bare harnesses that reach this service
+     * through `SessionTeardownService.forgetAll()` and must not need a platform provider to do it.
+     */
+    private readonly capabilities = inject(PlatformCapabilities);
 
     /**
      * Everything that reaches the network, resolved on demand rather than as fields.
@@ -162,9 +181,15 @@ export class PaymentHandleService {
         });
     }
 
-    /** False in the browser build, where there is no keychain to read this device's seed from. */
+    /**
+     * False wherever this device's seed would not be behind an OS keychain.
+     *
+     * <p>The capability, not the host: the question this feature has is "are these keys
+     * OS-protected", and it stays answerable if a third host appears. See the class comment for why
+     * that answer gates the whole feature rather than only the write path.</p>
+     */
     isAvailable(): boolean {
-        return isTauri();
+        return this.capabilities.hardwareBackedKeys;
     }
 
     stateFor(guildId: string): GuildPaymentState {
@@ -427,7 +452,9 @@ export class PaymentHandleService {
      */
     private async ownPrivateKey(deviceId: string): Promise<string | null> {
         try {
-            return await secureStorage.getItem(`alpine_mls_${deviceId}_priv`);
+            // Resolved here rather than as a field, for the same reason as `api` above: only this
+            // path needs it, and it is only reached after `isAvailable()` has already said yes.
+            return await this.injector.get(SecureStore).getItem(`alpine_mls_${deviceId}_priv`);
         } catch {
             return null;
         }

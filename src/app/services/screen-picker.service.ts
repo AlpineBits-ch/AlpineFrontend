@@ -2,6 +2,7 @@ import {inject, Injectable, signal} from '@angular/core';
 import {RustMediaService, ScreenSource} from './rust-media.service';
 import {DEFAULT_STREAM_PRESET, StreamPreset} from '../models/stream-preset';
 import {bestSourceMatch} from '../models/source-match';
+import {PlatformCapabilities} from '../platform/capabilities';
 
 export interface ScreenPickerChoice {
     sourceId: string;
@@ -41,6 +42,14 @@ export class ScreenPickerService {
      */
     readonly thumbnails = signal<Record<string, string>>({});
     private rustMedia = inject(RustMediaService);
+    /**
+     * Read for `screenSourcePicker`, rather than asking which host this is.
+     *
+     * <p>The question is "is there an in-app source list to show", and the answer is a capability: a
+     * browser cannot enumerate windows, so `getDisplayMedia` opens the host's own picker instead and
+     * this overlay is skipped entirely. See {@link show}.</p>
+     */
+    private capabilities = inject(PlatformCapabilities);
     private resolvePickerPromise: ((choice: ScreenPickerChoice | null) => void) | null = null;
     /** What the next {@link show} should try to match against, set by {@link preferSourceFor}. */
     private pendingPreference: string | null = null;
@@ -76,8 +85,15 @@ export class ScreenPickerService {
     /**
      * Open the screen picker overlay and wait for the user to choose a source and quality.
      * Resolves with the choice, or null if cancelled.
+     *
+     * <p><b>Where the host owns the picker this resolves immediately and shows nothing.</b> There is no
+     * source list to offer and no cancel to wait for: `getDisplayMedia` opens the host's own picker
+     * later, inside the publish, and a user who cancels *that* fails the publish - which the caller
+     * already treats as "no share". Showing this overlay first would be two pickers for one share.</p>
      */
     async show(): Promise<ScreenPickerChoice | null> {
+        if (!this.capabilities.screenSourcePicker) return this.hostPickedChoice();
+
         this.visible.set(true);
         this.loading.set(true);
         this.sources.set([]);
@@ -105,6 +121,44 @@ export class ScreenPickerService {
         return new Promise<ScreenPickerChoice | null>(resolve => {
             this.resolvePickerPromise = resolve;
         });
+    }
+
+    /**
+     * The choice to publish with when the host's own picker is the source chooser.
+     *
+     * <p>Everything here is what a preset needs and nothing more:</p>
+     * <ul>
+     *   <li><b>No source id.</b> Empty rather than a fabricated "screen" - the publisher ignores it,
+     *       and inventing one would imply a source that could be honoured.</li>
+     *   <li><b>The preset still applies.</b> It comes from {@link lastPreset} and is solved through
+     *       `solveGeometry` exactly as a desktop choice is, so "1080p at 30" means the same thing on
+     *       both hosts. Only the in-app picker persists a preset, so until a quality-only chooser
+     *       exists for this host a web share opens at the default and is changed with the in-call
+     *       quality control, which already works on this path.</li>
+     *   <li><b>Audio is requested, not promised.</b> The host picker carries its own "share audio"
+     *       checkbox, so asking for it is what puts that choice in front of the user; the publisher
+     *       answers with what it actually got, and the share proceeds video-only when that is
+     *       nothing. See `RustMediaService.screenAudioOutcome`.</li>
+     * </ul>
+     *
+     * <p>The source dimensions are the primary display's, as the box a preset is solved against. It is
+     * a stand-in - the real source is not known until the host picker closes - and a safe one, because
+     * `solveGeometry` only ever scales down: a window smaller than the display simply is not capped.</p>
+     */
+    private hostPickedChoice(): ScreenPickerChoice {
+        // Dropped rather than carried: an activity hint can only be honoured against an enumerated
+        // source list, and leaving it set would apply it to some later share on a host that can.
+        this.pendingPreference = null;
+
+        const scale = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+        const screenSize = typeof window !== 'undefined' ? window.screen : undefined;
+        return {
+            sourceId: '',
+            sourceWidth: Math.round((screenSize?.width ?? 1920) * scale),
+            sourceHeight: Math.round((screenSize?.height ?? 1080) * scale),
+            preset: this.lastPreset(),
+            shareAudio: true,
+        };
     }
 
     /**

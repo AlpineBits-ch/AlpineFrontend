@@ -17,17 +17,12 @@ import {Slider} from 'primeng/slider';
 import {Button} from 'primeng/button';
 import {RadioButton} from 'primeng/radiobutton';
 import {TranslateModule} from '@ngx-translate/core';
-import {invoke} from '@tauri-apps/api/core';
 import {AudioSettings, AudioSettingsService} from '../../../../../services/audio-settings.service';
 import {DeviceOption, MediaDeviceCatalogService} from '../../../../../services/media-device-catalog.service';
 import {IsleProximityService} from '../../../../../services/isle-proximity.service';
 import {SILENCE_DBFS, VoiceEngineService} from '../../../../../services/voice-engine.service';
 import {StreamSrcDirective} from '../../../../../directives/stream-src.directive';
-
-interface RustCameraDevice {
-    id: string;
-    name: string;
-}
+import {MediaDeviceSource} from '../../../../../platform/ports/media-devices.port';
 
 type NoiseSuppressionMode = AudioSettings['noiseSuppressionMode'];
 
@@ -106,6 +101,11 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     readonly micBars = Array.from({length: 24}, (_, i) => i);
     private audioSettings = inject(AudioSettingsService);
     private catalog = inject(MediaDeviceCatalogService);
+    /**
+     * Cameras come straight from the port rather than from the catalog: this is the only surface
+     * that picks one, so there is nothing yet for a shared list to keep in agreement.
+     */
+    private deviceSource = inject(MediaDeviceSource);
     private proximity = inject(IsleProximityService);
     private zone = inject(NgZone);
     private audioCtx: AudioContext | null = null;
@@ -360,15 +360,14 @@ export class VoiceVideoSettingsComponent implements OnDestroy {
     }
 
     private async loadDevices(): Promise<void> {
-        // Audio goes through the shared catalog. Cameras stay here: this is the only surface that
-        // picks one, so there is nothing yet for a shared list to keep in agreement.
+        // Audio goes through the shared catalog; cameras through the port directly.
         void this.catalog.refresh();
 
         try {
-            const cameras = await invoke<RustCameraDevice[]>('enumerate_camera_devices');
+            const cameras = await this.deviceSource.cameras();
             this.cameraOptions.set([
                 {label: 'None', value: ''},
-                ...cameras.map(d => ({label: d.name, value: d.id})),
+                ...cameras.map(d => ({label: d.label, value: d.id})),
             ]);
         } catch (e) {
             console.error('[devices] camera enumeration failed', e);

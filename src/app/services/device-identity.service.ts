@@ -1,6 +1,6 @@
 import {inject, Injectable, Injector} from '@angular/core';
 import {firstValueFrom, from, Observable, switchMap} from 'rxjs';
-import {secureStorage} from 'tauri-plugin-secure-storage-api';
+import {SecureStore} from '../platform/ports/secure-store.port';
 import {DeviceService} from './device.service';
 import {describeCurrentDevice} from './device-description';
 import {AccountRegistryService, BOOTSTRAP_SLOT_ID} from './account-registry.service';
@@ -46,6 +46,19 @@ export class DeviceIdentityService {
      */
     private get devices(): DeviceService {
         return this.injector.get(DeviceService);
+    }
+
+    /**
+     * The keychain on desktop, IndexedDB on web - resolved on demand, for the same reason as
+     * {@link devices}.
+     *
+     * <p>Only {@link ensureRegistered} reads it. Every other caller of this service - the device-id
+     * interceptor, the account switch, `MlsService` - wants an id and nothing else, and a field
+     * injection would make all of them require a `SecureStore` provider to construct a service that
+     * would never touch it.</p>
+     */
+    private get secureStore(): SecureStore {
+        return this.injector.get(SecureStore);
     }
 
     /** This account's device id, minted on first use. */
@@ -115,7 +128,7 @@ export class DeviceIdentityService {
     async ensureRegistered(): Promise<boolean> {
         try {
             const deviceId = await this.deviceId();
-            const identityPublicKey = await secureStorage.getItem(`alpine_mls_${deviceId}_pub`);
+            const identityPublicKey = await this.secureStore.getItem(`alpine_mls_${deviceId}_pub`);
             if (!identityPublicKey) return false;
 
             const {deviceName, deviceType} = describeCurrentDevice();

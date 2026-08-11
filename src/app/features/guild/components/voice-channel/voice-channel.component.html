@@ -13,7 +13,9 @@
             <i aria-hidden="true" class="pi pi-volume-up shrink-0 text-white/35"></i>
             <span class="truncate text-sm font-semibold text-white/85">{{ channel().name }}</span>
             @if (participants().length > 0) {
-                <span class="shrink-0 text-xs text-white/40">· {{ ('CALL.CONNECTED_COUNT' | translate: {count: participants().length}) }}</span>
+                <span class="shrink-0 text-xs text-white/40">
+                    · {{ 'CALL.PARTICIPANT_COUNT' | translate: {count: participants().length} }}
+                </span>
             }
         </div>
     </header>

@@ -1,6 +1,5 @@
-import {Injectable, signal} from '@angular/core';
-import {getCurrentWindow} from '@tauri-apps/api/window';
-import type {UnlistenFn} from '@tauri-apps/api/event';
+import {inject, Injectable, signal} from '@angular/core';
+import {WindowChrome} from '../platform/ports/window-chrome.port';
 
 /**
  * Owns the two things that follow from `decorations: false, transparent: true`: the window's own
@@ -20,25 +19,30 @@ export class WindowChromeService {
      */
     private static readonly TITLEBAR_HEIGHT = 38;
 
+    private readonly chrome = inject(WindowChrome);
+
     /** True whenever the window sits flush to the screen edges, by either route. */
     readonly isFlush = signal(false);
 
-    private unlistenResize?: UnlistenFn;
+    private unlistenResize?: () => void;
     private started = false;
 
     async start(): Promise<void> {
         if (this.started) return;
-        if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+        // There is no frame to own on a host that did not give us one, and nothing below degrades
+        // usefully: the corner radius belongs to a window we do not draw and the drag surface would
+        // have nothing to drag. Hidden rather than inert, per the capability rules.
+        if (!this.chrome.supported) return;
         this.started = true;
 
         // Capture phase, because an overlay mask will happily stop this from bubbling - and a mask
         // that swallows the press is the entire problem being solved here.
         document.addEventListener('mousedown', this.onMouseDown, true);
 
-        const win = getCurrentWindow();
         await this.refreshFlush();
-        // Maximize, restore and fullscreen all resize the window, so one listener covers all three.
-        this.unlistenResize = await win.onResized(() => void this.refreshFlush());
+        // Maximize, restore and fullscreen all resize the window, so one listener covers all three -
+        // and `WindowChrome.isFlush` folds all three into the one answer this needs.
+        this.unlistenResize = await this.chrome.onResized(() => void this.refreshFlush());
     }
 
     stop(): void {
@@ -49,10 +53,8 @@ export class WindowChromeService {
     }
 
     private async refreshFlush(): Promise<void> {
-        const win = getCurrentWindow();
         try {
-            const [maximized, fullscreen] = await Promise.all([win.isMaximized(), win.isFullscreen()]);
-            const flush = maximized || fullscreen;
+            const flush = await this.chrome.isFlush();
             this.isFlush.set(flush);
             // On the root element rather than a component host: the radius belongs to `app-root`,
             // which is styled globally and has no component of its own to bind a class on.
@@ -82,7 +84,7 @@ export class WindowChromeService {
         if (!this.isOverlaySurface(target)) return;
 
         event.preventDefault();
-        void getCurrentWindow().startDragging().catch(err =>
+        void this.chrome.startDragging().catch(err =>
             console.error('Could not start dragging the window', err));
     };
 

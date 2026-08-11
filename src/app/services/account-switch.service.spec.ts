@@ -5,14 +5,6 @@
  * for why. That makes the ordering the whole correctness argument: everything deciding who the app
  * comes back as has to be committed <i>before</i> the reload, because nothing after it runs.</p>
  */
-// Pinned true so the registry keeps resolving to the `LazyStore` stub below. These tests are about
-// the desktop path, and the real `isTauri()` answers false under the runner - which would quietly
-// move the slot list into `localStorage`, where `LazyStoreMock.files.clear()` does not reach it and
-// state would leak from one test into the next.
-vi.mock('@tauri-apps/api/core', () => ({
-    invoke: vi.fn(),
-    isTauri: vi.fn(() => true),
-}));
 vi.mock('@tauri-apps/plugin-store', () => ({
     LazyStore: class LazyStoreStub {
         static readonly files = new Map<string, Map<string, unknown>>();
@@ -102,7 +94,18 @@ function build(): void {
  */
 const store = new Map<string, string>();
 
+/**
+ * The global the Tauri runtime injects, defined so `detectHost()` answers `'tauri'` and the registry
+ * keeps resolving to the `LazyStore` stub above.
+ *
+ * <p>These tests are about the desktop path. Under the runner there is no Tauri host, and without
+ * this the slot list would quietly move into `localStorage` - where `LazyStoreMock.files.clear()`
+ * does not reach it, so state would leak from one test into the next.</p>
+ */
+const TAURI_GLOBAL = '__TAURI_INTERNALS__';
+
 beforeAll(() => {
+    (globalThis as Record<string, unknown>)[TAURI_GLOBAL] = {};
     Object.defineProperty(globalThis, 'localStorage', {
         configurable: true,
         value: {
@@ -112,6 +115,10 @@ beforeAll(() => {
             clear: () => store.clear(),
         },
     });
+});
+
+afterAll(() => {
+    delete (globalThis as Record<string, unknown>)[TAURI_GLOBAL];
 });
 
 function trackedSet(key: string, value: string): void {

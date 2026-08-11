@@ -11,37 +11,36 @@
  * and until now neither side stored or re-emitted it. Importing a mobile backup on Alpine and
  * exporting again destroyed the account's identity key.</p>
  */
-vi.mock('@tauri-apps/api/core', () => ({
-    invoke: vi.fn(),
-    isTauri: vi.fn(() => true),
-}));
-vi.mock('tauri-plugin-secure-storage-api', () => ({
-    secureStorage: {
-        getItem: vi.fn(),
-        setItem: vi.fn(async () => undefined),
-        removeItem: vi.fn(async () => undefined),
-    },
-}));
-vi.mock('@tauri-apps/plugin-store', () => ({
-    LazyStore: class {
-        private readonly values = new Map<string, unknown>();
-        async get<T>(key: string) { return this.values.get(key) as T | undefined; }
-        async set(key: string, value: unknown) { this.values.set(key, value); }
-        async delete(key: string) { this.values.delete(key); }
-        async entries<T>() { return [...this.values.entries()] as [string, T][]; }
-        async clear() { this.values.clear(); }
-        async save() { }
-    },
-}));
-
 import {TestBed} from '@angular/core/testing';
-import {invoke} from '@tauri-apps/api/core';
-import {secureStorage} from 'tauri-plugin-secure-storage-api';
+import {MlsEngine} from '../platform/ports/mls-engine.port';
+import {MlsLocalStoreFactory} from '../platform/ports/mls-local-store.port';
+import {SecureStore} from '../platform/ports/secure-store.port';
+import {FakeMlsEngine} from '../platform/testing/fake-mls-engine';
+import {FakeMlsLocalStoreFactory} from '../platform/testing/fake-mls-local-store';
 import {MlsFeatureUnavailableError, MlsService} from './mls.service';
 import {DeviceIdentityService} from './device-identity.service';
 
-const invokeStub = vi.mocked(invoke);
-const getItem = vi.mocked(secureStorage.getItem);
+/**
+ * The engine and the key store as provided fakes, in place of `vi.mock`ing two Tauri modules.
+ *
+ * <p>What the envelope carries is host-independent, and so is the §H account identity key this file is
+ * mostly about: Alpine mints none, a venta-mobile envelope carries one, and dropping it on re-export
+ * destroys the account's identity key. The key store it is read back from is a keychain on the desktop
+ * and IndexedDB in a browser, which is why it is a port and why this asserts the entry *names*.</p>
+ */
+const invokeStub = vi.fn<(command: string, args?: Record<string, unknown>) => Promise<unknown>>();
+const engine = new FakeMlsEngine();
+const localStores = new FakeMlsLocalStoreFactory();
+
+class StubSecureStore extends SecureStore {
+    readonly hardwareBacked = true;
+    getItem = vi.fn(async (_key: string): Promise<string | null> => null);
+    setItem = vi.fn(async (_key: string, _value: string): Promise<void> => undefined);
+    removeItem = vi.fn(async (_key: string): Promise<void> => undefined);
+}
+
+const secureStore = new StubSecureStore();
+const getItem = secureStore.getItem;
 
 const DEVICE_ID = 'device-a';
 const STATE_KEY = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
@@ -66,11 +65,17 @@ beforeEach(() => {
     invokeStub.mockReset();
     getItem.mockReset();
     keychain();
+    engine.reset();
+    engine.handler = invokeStub;
+    localStores.reset();
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
         providers: [
             MlsService,
+            {provide: MlsEngine, useValue: engine},
+            {provide: SecureStore, useValue: secureStore},
+            {provide: MlsLocalStoreFactory, useValue: localStores},
             {provide: DeviceIdentityService, useValue: {deviceId: async () => DEVICE_ID}},
         ],
     });
@@ -228,6 +233,12 @@ describe('MlsService.exportBackup', () => {
             TestBed.configureTestingModule({
                 providers: [
                     MlsService,
+                    {provide: MlsEngine, useValue: engine},
+                    {provide: SecureStore, useValue: secureStore},
+                    // The same factory instance, so "device-b" genuinely opens different files rather
+                    // than getting a fresh set - which is what makes the restore assertion mean
+                    // something.
+                    {provide: MlsLocalStoreFactory, useValue: localStores},
                     {provide: DeviceIdentityService, useValue: {deviceId: async () => 'device-b'}},
                 ],
             });

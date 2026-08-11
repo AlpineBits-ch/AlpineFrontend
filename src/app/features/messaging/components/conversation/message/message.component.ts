@@ -46,7 +46,7 @@ import {MessageEncryptionState} from '../../../../../enums/message-encryption-st
 import {toBase64} from '../../../../../helpers/base64.helper';
 import {ProfileDialogService} from '../../../../../services/profile-dialog.service';
 import {ReportDialogService} from '../../../../../services/report-dialog.service';
-import {openUrl} from '@tauri-apps/plugin-opener';
+import {LinkOpener} from '../../../../../platform/ports/link-opener.port';
 import {InviteCardComponent} from './invite-card/invite-card.component';
 import {WikiCardComponent} from './wiki-card/wiki-card.component';
 import {EmbedCardComponent} from './embed-card/embed-card.component';
@@ -380,7 +380,7 @@ export class MessageComponent {
     readonly saving = signal(false);
     readonly showDeleteConfirm = signal(false);
     readonly quickReactions = ['👍', '❤️', '😂'];
-    protected readonly openUrl = openUrl;
+    private readonly links = inject(LinkOpener);
     protected profileDialogSvc = inject(ProfileDialogService);
     private reportDialog = inject(ReportDialogService);
     protected readonly replyAuthorName = computed(() => {
@@ -612,7 +612,7 @@ export class MessageComponent {
         if (state?.attachment) {
             this.download(state.attachment);
         } else if (state?.url) {
-            void openUrl(state.url);
+            void this.openUrl(state.url);
         }
     }
 
@@ -793,13 +793,32 @@ export class MessageComponent {
         if (channel) this.navService.openChannel(channel);
     }
 
+    /**
+     * Opens a URL outside the app - used from the template as well as from here.
+     *
+     * <p>A method forwarding to {@link LinkOpener} rather than the plugin function it used to alias, so
+     * the same call works in a browser tab. Keeps the promise it returns, because the template's
+     * `(click)="openUrl(...)"` bindings pass it straight to Angular, which is what silences an
+     * unhandled rejection when a link fails to open.</p>
+     */
+    protected openUrl(url: string): Promise<void> {
+        return this.links.open(url);
+    }
+
+    /**
+     * Intercepts a click on a link inside rendered message content.
+     *
+     * <p>The href is whatever the message author wrote. It has already been through DOMPurify in the
+     * markdown pipe, and the web {@link LinkOpener} refuses non-web schemes again on the way out - a
+     * `javascript:` href reaching `window.open` would run in this origin.</p>
+     */
     onLinkClick(event: MouseEvent): void {
         const anchor = (event.target as HTMLElement).closest('a');
         if (!anchor) return;
         const href = anchor.getAttribute('href');
         if (!href) return;
         event.preventDefault();
-        openUrl(href);
+        void this.openUrl(href);
     }
 
     public getProfile(): Observable<ProfileDto> {

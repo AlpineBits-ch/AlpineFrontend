@@ -5,14 +5,9 @@
  * a rename must not strand the account's device id, MLS state and message history behind a slot
  * nothing looks up any more.</p>
  */
-// Stubbed true, and re-stubbed true in `beforeEach`, because everything outside the "outside Tauri"
-// block below is about the desktop path and would otherwise silently start asserting against
-// `localStorage`. `vi.clearAllMocks` clears calls but not implementations, so a test that flips this
-// to false would leak into every test after it without that reset.
-vi.mock('@tauri-apps/api/core', () => ({
-    invoke: vi.fn(),
-    isTauri: vi.fn(() => true),
-}));
+// Only the store plugin is mocked. Which backend `openSettingsStore()` returns is decided by
+// `detectHost()`, which reads the Tauri global - so the host is entered by defining it (see
+// `enterTauri`) rather than by stubbing a function.
 vi.mock('@tauri-apps/plugin-store', () => ({
     // Named, and self-referencing: the factory is hoisted above every module-level binding, so a
     // reference to anything declared below it is a ReferenceError at construction time.
@@ -39,7 +34,6 @@ vi.mock('@tauri-apps/plugin-store', () => ({
 }));
 
 import {TestBed} from '@angular/core/testing';
-import {isTauri} from '@tauri-apps/api/core';
 import {LazyStore} from '@tauri-apps/plugin-store';
 import {AccountRegistryService, BOOTSTRAP_SLOT_ID} from './account-registry.service';
 import {setActiveSlotId} from './scoped-oauth-storage';
@@ -54,6 +48,28 @@ const LazyStoreMock = LazyStore as unknown as {
  * read would answer "nobody is signed in".
  */
 const localStore = new Map<string, string>();
+
+/**
+ * Which host the bundle believes it is in.
+ *
+ * <p>Entered by defining the global the Tauri runtime injects, because that is what `detectHost()`
+ * reads and so what decides which `SettingsStore` the registry gets. Re-entered in `beforeEach`
+ * because the "outside Tauri" block below deletes it, and a leak in either direction would have the
+ * desktop tests silently asserting against `localStorage`.</p>
+ */
+const TAURI_GLOBAL = '__TAURI_INTERNALS__';
+
+function enterTauri(): void {
+    (globalThis as Record<string, unknown>)[TAURI_GLOBAL] = {};
+}
+
+function leaveTauri(): void {
+    delete (globalThis as Record<string, unknown>)[TAURI_GLOBAL];
+}
+
+afterAll(() => {
+    leaveTauri();
+});
 
 beforeAll(() => {
     Object.defineProperty(globalThis, 'localStorage', {
@@ -77,7 +93,7 @@ describe('AccountRegistryService', () => {
     let service: AccountRegistryService;
 
     beforeEach(() => {
-        vi.mocked(isTauri).mockReturnValue(true);
+        enterTauri();
         LazyStoreMock.files.clear();
         localStore.clear();
         service = freshService();
@@ -255,7 +271,7 @@ describe('AccountRegistryService', () => {
         const PREFIX = 'alpine_settings::';
 
         beforeEach(() => {
-            vi.mocked(isTauri).mockReturnValue(false);
+            leaveTauri();
         });
 
         it('reads an empty registry without ever opening the Tauri store', async () => {

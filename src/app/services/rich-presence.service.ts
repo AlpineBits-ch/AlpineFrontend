@@ -1,9 +1,8 @@
 import {computed, effect, inject, Injectable, signal} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
-import {invoke, isTauri} from '@tauri-apps/api/core';
-import {listen, UnlistenFn} from '@tauri-apps/api/event';
-import {getCurrentWindow} from '@tauri-apps/api/window';
 import {catchError, of} from 'rxjs';
+import {Presence} from '../platform/ports/presence.port';
+import {WindowChrome} from '../platform/ports/window-chrome.port';
 import {Activity, activitiesEqual, MAX_ACTIVITIES} from '../models/activity.model';
 import {ApiConfigService} from './api-config.service';
 import {GameCatalogService} from './game-catalog.service';
@@ -69,7 +68,9 @@ export interface PresenceRpcStatus {
  *
  * <p><b>Desktop-only, by platform, not by policy.</b> iOS and Android cannot enumerate processes or
  * bind the sockets any of this needs, so mobile and web clients render other people's activity and
- * never produce their own. The `isTauri()` / `!isMobile` guard is load-bearing, not defensive.</p>
+ * never produce their own. The `Presence.supported` / `!isMobile` guard is load-bearing, not
+ * defensive - it was `isTauri()` before the port layer, and it is still two questions rather than one
+ * because `Presence.supported` is true on a Tauri phone build, which still cannot detect anything.</p>
  *
  * <p><b>What changed from the poll it replaces.</b> The old service called `scan_game_process` on a
  * 15 s interval and put the answer in a signal that one `console.log` read. It now subscribes to
@@ -81,6 +82,9 @@ export class RichPresenceService {
     private readonly http = inject(HttpClient);
     private readonly apiConfig = inject(ApiConfigService);
     private readonly platform = inject(PlatformService);
+    private readonly presence = inject(Presence);
+    /** Only for the close hook: clearing the presence has to happen before the webview is torn down. */
+    private readonly windowChrome = inject(WindowChrome);
     private readonly privacy = inject(PrivacySettingsService);
     private readonly userSettings = inject(UserSettingsService);
     private readonly catalog = inject(GameCatalogService);
@@ -127,8 +131,8 @@ export class RichPresenceService {
      */
     private readonly canonicalNames = new Map<string, string>();
 
-    private unlistenPresence?: UnlistenFn;
-    private unlistenClose?: UnlistenFn;
+    private unlistenPresence?: () => void;
+    private unlistenClose?: () => void;
     private pollInterval?: ReturnType<typeof setInterval>;
     private started = false;
 
@@ -177,7 +181,7 @@ export class RichPresenceService {
     }
 
     start(): void {
-        if (this.started || !isTauri() || this.platform.isMobile) return;
+        if (this.started || !this.presence.supported || this.platform.isMobile) return;
         this.started = true;
 
         void this.subscribe();
@@ -229,25 +233,22 @@ export class RichPresenceService {
     /**
      * Wires the event channel, and degrades quietly when it is not there.
      *
-     * <p>`presence://changed` is emitted by a Rust module that does not exist yet. `listen` itself
+     * <p>`presence://changed` is emitted by a Rust module that does not exist yet. `Presence.onChanged`
      * resolves regardless — registering for an event nobody emits is not an error — so the failure
      * mode is simply that the fallback poll is the only source. That is the intended behaviour for
      * every build until the Rust side lands, not a degraded state worth warning about.</p>
      */
     private async subscribe(): Promise<void> {
         try {
-            this.unlistenPresence = await listen<Activity[] | null>(
-                'presence://changed',
-                event => {
-                    // Retires the fallback poll permanently. The first event proves the arbiter is
-                    // live, and from here it is the only thing allowed to write.
-                    this.eventSeen = true;
-                    clearInterval(this.pollInterval);
-                    this.pollInterval = undefined;
+            this.unlistenPresence = await this.presence.onChanged(activities => {
+                // Retires the fallback poll permanently. The first event proves the arbiter is
+                // live, and from here it is the only thing allowed to write.
+                this.eventSeen = true;
+                clearInterval(this.pollInterval);
+                this.pollInterval = undefined;
 
-                    this.setLocal(event.payload ?? []);
-                },
-            );
+                this.setLocal(activities);
+            });
         } catch (err) {
             console.warn('[RichPresence] presence://changed unavailable, falling back to polling', err);
         }
@@ -259,7 +260,7 @@ export class RichPresenceService {
         // outright. A non-empty answer also proves the arbiter is live, so it retires the poll on
         // exactly the same terms an event does.
         try {
-            const current = await invoke<Activity[]>('presence_current');
+            const current = await this.presence.current();
             if (current.length > 0 && this.started) {
                 this.eventSeen = true;
                 clearInterval(this.pollInterval);
@@ -280,8 +281,9 @@ export class RichPresenceService {
             // registered, the titlebar's close button goes through here. A throw out of the
             // handler skips the `destroy()` and the window silently refuses to close, which is
             // why this can never be allowed to reject: clearing a presence is not worth a window
-            // the user cannot shut.
-            this.unlistenClose = await getCurrentWindow().onCloseRequested(() => {
+            // the user cannot shut. The try/catch below is belt to the adapter's braces - the
+            // `WindowChrome` Tauri adapter wraps every handler for exactly this reason.
+            this.unlistenClose = await this.windowChrome.onCloseRequested(() => {
                 try {
                     this.stop();
                 } catch (err) {
@@ -311,7 +313,7 @@ export class RichPresenceService {
         if (this.eventSeen) return;
 
         try {
-            const game = await invoke<string | null>('scan_game_process');
+            const game = await this.presence.scan();
             if (this.eventSeen || !this.started) return;
 
             if (!game) {
@@ -345,14 +347,14 @@ export class RichPresenceService {
      * defaults to it for any unrecognised value.</p>
      */
     private async applyRpcMode(enabled: boolean): Promise<void> {
-        if (!isTauri() || this.platform.isMobile) return;
+        if (!this.presence.supported || this.platform.isMobile) return;
         if (this.rpcApplied === enabled) return;
         this.rpcApplied = enabled;
 
         try {
             const status = enabled
-                ? await invoke<PresenceRpcStatus>('presence_rpc_start', {mode: 'proxy'})
-                : await invoke<PresenceRpcStatus>('presence_rpc_stop');
+                ? await this.presence.rpcStart('proxy')
+                : await this.presence.rpcStop();
 
             this._rpcStatus.set(status);
 

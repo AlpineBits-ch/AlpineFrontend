@@ -1,0 +1,43 @@
+[workspace]
+members = ["src-tauri", "crates/venta-crypto"]
+
+# `2`, explicitly. `src-tauri` was a standalone edition-2021 package, which gets resolver 2 for
+# free; a *workspace* root does not - it defaults to `"1"` regardless of member editions. Leaving
+# it out would silently switch the whole dependency graph to v1 feature unification, which unifies
+# features across target-specific and build dependencies. That is a change to what gets compiled
+# into the desktop binary, made invisibly, by adding a workspace.
+resolver = "2"
+
+# Moved here from `src-tauri/Cargo.toml` because cargo only honours `[patch]` in the *workspace
+# root* manifest - a patch section in a member is ignored with a warning, which would have silently
+# un-patched all three of these. The paths are relative to this file, so each gained a `src-tauri/`
+# prefix and nothing else changed.
+#
+# Upstream `webrtc-audio-processing-sys` cannot build with MSVC: its build script applies
+# `-std=c++17` and `-Wno-unused-parameter` unconditionally, and `cl` rejects the latter outright
+# (`D8021`), so Windows could not have echo cancellation at all. The vendored copy adds an MSVC
+# branch and nothing else - see the two comments marked `ALPINE PATCH` in its build.rs.
+[patch.crates-io]
+webrtc-audio-processing-sys = { path = "src-tauri/vendor/webrtc-audio-processing-sys" }
+
+# Upstream `hrtf` panics building its face BSP whenever debug assertions are on: its LCG guards the
+# multiply with `overflowing_mul` and then adds without wrapping. Whether it fires depends only on
+# the mesh, so a given HRIR sphere either always panics or never does - and `HrirSphere::new` runs
+# at runtime, so unpatched a debug build of the app crashes the moment spatial audio is enabled.
+# The vendored copy changes that one addition and nothing else - see `ALPINE PATCH` in its lib.rs.
+hrtf = { path = "src-tauri/vendor/hrtf" }
+
+# Upstream `tauri-plugin-window-state` reads the maximized bit when the window closes, and on
+# Windows that reading is false for a window minimized *from* maximized - tao caches the bit and
+# clears it on WM_SIZE/SIZE_MINIMIZED. Minimize a maximized window, close it, and the saved state
+# says "not maximized" while its x/y still hold the maximized origin, so the next launch puts the
+# window off the top-left corner of the monitor at whatever size predated the maximize. That state
+# is self-sustaining: it describes a perfectly ordinary un-maximized window, so closing that window
+# saves it straight back and every launch afterwards lands in the same corner.
+# The vendored copy records the bit from the resize events instead, where the platform reports it
+# correctly, and leaves it alone while minimized - see the `ALPINE PATCH` comments in its lib.rs.
+# Upstream's x/y-holds-the-maximized-origin arrangement is left as it is: it is sound as long as the
+# bit that gates it is, because `restore_state` reads prev_x/prev_y whenever the bit is set.
+# Guarding the move handler on `is_maximized()` instead does nothing on Windows - tao sends Moved
+# from WM_WINDOWPOSCHANGED before DefSubclassProc raises the WM_SIZE that sets the bit.
+tauri-plugin-window-state = { path = "src-tauri/vendor/tauri-plugin-window-state" }

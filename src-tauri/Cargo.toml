@@ -44,6 +44,15 @@ tauri-build = { version = "2", features = [] }
 # whoever owns that pipeline makes the split. What made it actively harmful was the console output
 # beside it: no message path logs plaintext any more.
 tauri = { version = "2", features = [ "devtools"] }
+# The MLS engine, master-key wrapping and device-certificate verification. Used to be
+# `src/crypto/{mls,crypto,device_cert}.rs`; the files moved out unchanged so the same engine can also
+# be compiled to `wasm32-unknown-unknown` for the browser client.
+#
+# `features = ["tauri"]` is what turns on the `#[tauri::command]` wrappers at the bottom of each
+# module. Without it the crate has no `tauri` in its dependency graph at all, which is the property
+# the wasm target needs. `src/crypto/mod.rs` re-exports the three modules, so every path in
+# `generate_handler!` below is unchanged.
+venta-crypto = { path = "../crates/venta-crypto", features = ["tauri"] }
 tauri-plugin-opener = "2"
 # Key-package fingerprints in crypto::mls, and the certificate and revocation fingerprints in
 # crypto::device_cert. Has to be available on mobile too - this previously sat in the desktop-only
@@ -113,34 +122,11 @@ tauri-plugin-notifications = { version = "0.4.6", features = ["push-notification
 [target.x86_64-apple-ios.dependencies]
 tauri-plugin-notifications = { version = "0.4.6", features = ["push-notifications"] }
 
-# Upstream `webrtc-audio-processing-sys` cannot build with MSVC: its build script applies
-# `-std=c++17` and `-Wno-unused-parameter` unconditionally, and `cl` rejects the latter outright
-# (`D8021`), so Windows could not have echo cancellation at all. The vendored copy adds an MSVC
-# branch and nothing else - see the two comments marked `ALPINE PATCH` in its build.rs.
-[patch.crates-io]
-webrtc-audio-processing-sys = { path = "vendor/webrtc-audio-processing-sys" }
-
-# Upstream `hrtf` panics building its face BSP whenever debug assertions are on: its LCG guards the
-# multiply with `overflowing_mul` and then adds without wrapping. Whether it fires depends only on
-# the mesh, so a given HRIR sphere either always panics or never does - and `HrirSphere::new` runs
-# at runtime, so unpatched a debug build of the app crashes the moment spatial audio is enabled.
-# The vendored copy changes that one addition and nothing else - see `ALPINE PATCH` in its lib.rs.
-hrtf = { path = "vendor/hrtf" }
-
-# Upstream `tauri-plugin-window-state` reads the maximized bit when the window closes, and on
-# Windows that reading is false for a window minimized *from* maximized - tao caches the bit and
-# clears it on WM_SIZE/SIZE_MINIMIZED. Minimize a maximized window, close it, and the saved state
-# says "not maximized" while its x/y still hold the maximized origin, so the next launch puts the
-# window off the top-left corner of the monitor at whatever size predated the maximize. That state
-# is self-sustaining: it describes a perfectly ordinary un-maximized window, so closing that window
-# saves it straight back and every launch afterwards lands in the same corner.
-# The vendored copy records the bit from the resize events instead, where the platform reports it
-# correctly, and leaves it alone while minimized - see the `ALPINE PATCH` comments in its lib.rs.
-# Upstream's x/y-holds-the-maximized-origin arrangement is left as it is: it is sound as long as the
-# bit that gates it is, because `restore_state` reads prev_x/prev_y whenever the bit is set.
-# Guarding the move handler on `is_maximized()` instead does nothing on Windows - tao sends Moved
-# from WM_WINDOWPOSCHANGED before DefSubclassProc raises the WM_SIZE that sets the bit.
-tauri-plugin-window-state = { path = "vendor/tauri-plugin-window-state" }
+# `[patch.crates-io]` used to live here. Cargo only honours a patch section in the *workspace root*
+# manifest, and this crate became a workspace member when `crates/venta-crypto` was split out - a
+# patch left here would be ignored with a warning, un-patching MSVC echo cancellation, the `hrtf`
+# debug-assertion panic and the window-state maximize bit all at once. All three moved to
+# `../Cargo.toml` verbatim, with `src-tauri/` prepended to their paths.
 
 [features]
 default = ["aec"]

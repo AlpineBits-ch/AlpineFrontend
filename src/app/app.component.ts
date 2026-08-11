@@ -20,7 +20,7 @@ import {environment} from "../environments/environment";
 import {AppReadyService} from './services/app-ready.service';
 import {WindowChromeService} from './services/window-chrome.service';
 import {filter, take} from 'rxjs';
-import { getCurrent, onOpenUrl } from '@tauri-apps/plugin-deep-link';
+import {DeepLinks} from './platform/ports/deep-links.port';
 import {SteamService} from './services/steam.service';
 import {IsleProximityBarComponent} from './features/isle-proximity/isle-proximity-bar.component';
 import {BotInstallDialogComponent} from './features/bot-install/bot-install-dialog.component';
@@ -43,7 +43,6 @@ import {PlatformStatusService} from './services/platform-status.service';
     styleUrl: "./app.component.css",
 })
 export class AppComponent implements OnInit, OnDestroy {
-    private static readonly COLD_START_DEEP_LINK_CONSUMED_KEY = 'alpine.coldStartDeepLinkConsumed';
     protected readonly isPopup = window.location.pathname === '/toast-popup';
     private profileService = inject(ProfileService);
     private callWebRtc = inject(CallWebRtcService);
@@ -57,6 +56,7 @@ export class AppComponent implements OnInit, OnDestroy {
     private discordImportProgressService = inject(DiscordImportProgressService);
     private destroyRef = inject(DestroyRef);
     private windowChrome = inject(WindowChromeService);
+    private deepLinks = inject(DeepLinks);
     // Injected for its side effect: it holds the effect that keeps the identity on crash reports
     // in step with the account's data-collection consent. Nothing reads it back.
     private telemetryConsent = inject(TelemetryConsentService);
@@ -85,22 +85,18 @@ export class AppComponent implements OnInit, OnDestroy {
         // most wanted on the login screen, which is where an identity outage strands people.
         this.platformStatus.start();
 
-        void onOpenUrl((urls) => {
+        void this.deepLinks.onOpen((urls) => {
             for (const url of urls) this.handleDeepLink(url);
         });
-        // Cold start: the OS may have launched the app fresh via a deep link, in which case
-        // onOpenUrl's live listener misses it entirely - getCurrent() returns that initial URL.
-        // getCurrent() keeps returning that same URL for the lifetime of the OS process though,
-        // so a plain reload (Ctrl+F5) re-runs this and would reopen the same dialog every time.
-        // sessionStorage survives a reload but not a full app relaunch, so it's used here to
-        // consume the cold-start URL exactly once per process.
-        // TODO: replace with a proper "deep link consumed" signal from Tauri if one appears.
-        if (!sessionStorage.getItem(AppComponent.COLD_START_DEEP_LINK_CONSUMED_KEY)) {
-            sessionStorage.setItem(AppComponent.COLD_START_DEEP_LINK_CONSUMED_KEY, '1');
-            void getCurrent().then(urls => {
-                for (const url of urls ?? []) this.handleDeepLink(url);
-            });
-        }
+        // Cold start: the OS may have launched the app fresh via a deep link, in which case the live
+        // listener above misses it entirely - initial() is that launch URL. It answers at most once
+        // per process, and the guard that makes that true now lives in the Tauri adapter, where it
+        // belongs: "the same URL keeps coming back until the process exits" is a property of the
+        // plugin, not of this component. On web it is always null, because the address bar is the
+        // launch URL and the router has already handled it.
+        void this.deepLinks.initial().then(url => {
+            if (url) this.handleDeepLink(url);
+        });
 
         // Resumes an install-bot modal that was stashed because the user was logged out when
         // the deep link arrived (see BotInstallDialogService.requestOpen).

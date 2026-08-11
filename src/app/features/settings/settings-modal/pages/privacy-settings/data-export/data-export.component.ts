@@ -3,7 +3,7 @@ import {DatePipe} from '@angular/common';
 import {Button} from 'primeng/button';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {HttpErrorResponse} from '@angular/common/http';
-import {save} from '@tauri-apps/plugin-dialog';
+import {FileSaver} from '../../../../../../platform/ports/file-saver.port';
 import {
     canDownload,
     DATA_EXPORT_TERMINAL,
@@ -49,6 +49,7 @@ export class DataExportComponent implements OnInit, OnDestroy {
     private readonly exports = inject(DataExportService);
     private readonly toast = inject(ToastService);
     private readonly translate = inject(TranslateService);
+    private readonly fileSaver = inject(FileSaver);
 
     protected readonly items = signal<DataExportDto[]>([]);
     protected readonly loading = signal(false);
@@ -132,8 +133,11 @@ export class DataExportComponent implements OnInit, OnDestroy {
 
         this.exports.download(item.exportId).subscribe({
             next: blob => {
-                this.saveBlob(blob, this.filename(item));
-                this.downloading.set(null);
+                // Handing a blob to the host can itself fail - the mobile shell takes this path and
+                // writes a real file - so the rejection is caught rather than left floating.
+                this.saveBlob(blob, this.filename(item))
+                    .catch(err => this.reportDownloadError(err))
+                    .finally(() => this.downloading.set(null));
             },
             error: (err: HttpErrorResponse) => {
                 this.downloading.set(null);
@@ -144,15 +148,13 @@ export class DataExportComponent implements OnInit, OnDestroy {
 
     private async saveToDisk(item: DataExportDto): Promise<void> {
         try {
-            // Asked before the request rather than after: an export runs to whatever the account
-            // weighs, and a cancelled save should not have cost the user that download first.
-            const dest = await save({
-                defaultPath: this.filename(item),
-                filters: [{name: 'Zip archive', extensions: ['zip']}],
-            });
-            if (dest === null) return;
+            // The picker lives inside the service, next to the native download it feeds: the chosen
+            // path has to reach Rust, and a path is the one thing FileSaver deliberately never hands
+            // back. It is still asked for before the transfer starts - an export runs to whatever the
+            // account weighs, and a cancelled save should not have cost the user that download first.
+            const saved = await this.exports.saveToDiskWithPicker(item.exportId, this.filename(item));
+            if (!saved) return;
 
-            await this.exports.saveToDisk(item.exportId, dest);
             this.toast.success(this.translate.instant('SETTINGS.PRIVACY.EXPORT_SAVED'));
         } catch (err) {
             this.reportDownloadError(err);
@@ -194,14 +196,20 @@ export class DataExportComponent implements OnInit, OnDestroy {
         return canDownload(status);
     }
 
-    private saveBlob(blob: Blob, filename: string): void {
-        const url = URL.createObjectURL(blob);
-        const anchor = document.createElement('a');
-        anchor.href = url;
-        anchor.download = filename;
-        anchor.click();
-        // Revoking immediately would race the click on some engines; one turn of the loop is enough.
-        setTimeout(() => URL.revokeObjectURL(url), 0);
+    /**
+     * The non-desktop path: the archive is already a `Blob` in memory, so hand it to the host to save.
+     *
+     * <p>No success toast, unlike {@link saveToDisk}. On web the download manager is the confirmation,
+     * and {@link FileSaver} cannot tell whether the user then cancelled it - claiming "saved" would be
+     * a guess. The bytes are read once rather than streamed, which is the cost of the webview path and
+     * the reason the desktop one exists.</p>
+     */
+    private async saveBlob(blob: Blob, filename: string): Promise<void> {
+        await this.fileSaver.save(
+            filename,
+            new Uint8Array(await blob.arrayBuffer()),
+            blob.type || 'application/zip',
+        );
     }
 
     private syncPolling(): void {

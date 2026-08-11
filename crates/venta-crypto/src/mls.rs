@@ -214,6 +214,25 @@ impl MlsState {
         }
     }
 
+    /// wasm32: there is no disk, so this is the one place the browser host genuinely diverges.
+    ///
+    /// <p><b>Deliberate, and the reason `state_path` is `None` on wasm.</b> Web persistence is the
+    /// existing [`export_state`]/[`import_state`] pair - an encrypted blob out, an encrypted blob
+    /// in - written to IndexedDB by the TypeScript adapter. No new at-rest format, and no change to
+    /// any KDF parameter, so a blob the browser wrote opens on the desktop build and the other way
+    /// round.</p>
+    ///
+    /// <p>The consequence a caller must know: on wasm there is <i>no autosave</i>. Every operation
+    /// below that "persists" succeeds without writing anything, so the web adapter has to call
+    /// `export_state` after any mutating operation or that operation is lost on reload. On native
+    /// the same call is what makes the operation durable, and a missing `state_path` is a hard
+    /// error - see the native body below, and note that returning `Ok(())` there is exactly the bug
+    /// it was changed away from.</p>
+    #[cfg(target_arch = "wasm32")]
+    fn save_to_disk(&self) -> Result<(), String> {
+        Ok(())
+    }
+
     /// Persists the provider store, sealed, via [`write_state_file`].
     ///
     /// A missing `state_path` is an **error**, not a no-op.
@@ -222,6 +241,7 @@ impl MlsState {
     /// initialisation failed - performed every operation perfectly and persisted none of it. Every
     /// group it joined and every commit it merged vanished on the next launch, and nothing anywhere
     /// said so.
+    #[cfg(not(target_arch = "wasm32"))]
     fn save_to_disk(&self) -> Result<(), String> {
         let Some(path) = &self.state_path else {
             return Err(
@@ -2047,10 +2067,10 @@ pub fn import_backup(
 
 /// Seconds-precision UTC, without pulling `chrono` in for one timestamp.
 fn current_iso8601() -> String {
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs())
-        .unwrap_or(0);
+    // `crate::now_unix_secs()` rather than `SystemTime::now()` directly: the latter *panics* on
+    // `wasm32-unknown-unknown`, so a browser build aborted here while writing a §D backup
+    // envelope. Identical value on native - the helper is that expression, verbatim.
+    let now = crate::now_unix_secs();
 
     let days = now / 86_400;
     let secs_of_day = now % 86_400;
@@ -2093,6 +2113,9 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 // this module - a shim that did something would be behaviour the tests cover and the app does not.
 // ---------------------------------------------------------------------------
 
+// Their only consumer is `integration_tests`, which is native-only - see the note over it. Gated
+// the same way so wasm does not warn about an unused glob import of shims nothing calls.
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 #[rustfmt::skip]
 mod shims {
@@ -2129,6 +2152,7 @@ mod shims {
     pub(super) fn process_message_impl(m: &mut MlsState, g: String, b: String) -> Result<MlsProcessedMessage, String> { process_message(m, &g, &b, None) }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 use shims::*;
 
@@ -2136,6 +2160,7 @@ use shims::*;
 // Tauri commands - thin wrappers around the engine above
 // ---------------------------------------------------------------------------
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_load_signing_key(
     state: tauri::State<MlsStateHandle>,
@@ -2152,6 +2177,7 @@ pub fn mls_load_signing_key(
     )
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_unload_signing_key(
     state: tauri::State<MlsStateHandle>,
@@ -2161,6 +2187,7 @@ pub fn mls_unload_signing_key(
     unload_signing_key(&mut mls, &key_handle)
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn generate_mls_key_packages(
     state: tauri::State<MlsStateHandle>,
@@ -2171,6 +2198,7 @@ pub fn generate_mls_key_packages(
     generate_key_packages(&mut mls, identity, count)
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_generate_key_packages_with_handle(
     state: tauri::State<MlsStateHandle>,
@@ -2181,6 +2209,7 @@ pub fn mls_generate_key_packages_with_handle(
     generate_key_packages_with_handle(&mls, &key_handle, count)
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_create_group(
     state: tauri::State<MlsStateHandle>,
@@ -2191,6 +2220,7 @@ pub fn mls_create_group(
     create_group(&mut mls, &group_id_b64, &key_handle)
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_add_members(
     state: tauri::State<MlsStateHandle>,
@@ -2202,6 +2232,7 @@ pub fn mls_add_members(
     add_members(&mut mls, &group_id_b64, &key_handle, &key_packages_b64)
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_join_group(
     state: tauri::State<MlsStateHandle>,
@@ -2212,6 +2243,7 @@ pub fn mls_join_group(
     join_group(&mut mls, &welcome_b64, &key_handle)
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_leave_group(
     state: tauri::State<MlsStateHandle>,
@@ -2225,6 +2257,7 @@ pub fn mls_leave_group(
 /// Commit all pending proposals for a group (e.g. a leave proposal from a departing member).
 ///
 /// Returns a commit that must be broadcast to all remaining members.
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_commit_pending_proposals(
     state: tauri::State<MlsStateHandle>,
@@ -2236,6 +2269,7 @@ pub fn mls_commit_pending_proposals(
 }
 
 /// This device's own identity fingerprint, for reading out to whoever is reviewing its admission.
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_signing_key_fingerprint(
     state: tauri::State<MlsStateHandle>,
@@ -2247,6 +2281,7 @@ pub fn mls_signing_key_fingerprint(
 
 /// Inspects a key package so a reviewer can check who it really belongs to before vouching for it,
 /// and so the committing client can confirm the bytes match what was approved.
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_inspect_key_package(
     state: tauri::State<MlsStateHandle>,
@@ -2258,6 +2293,7 @@ pub fn mls_inspect_key_package(
 
 /// Applies a commit staged by add/remove/commit-proposals, once the server has accepted it.
 /// Returns the group's epoch afterwards.
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_merge_pending_commit(
     state: tauri::State<MlsStateHandle>,
@@ -2268,6 +2304,7 @@ pub fn mls_merge_pending_commit(
 }
 
 /// Discards a staged commit the server refused, leaving the group exactly where it was.
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_clear_pending_commit(
     state: tauri::State<MlsStateHandle>,
@@ -2277,6 +2314,7 @@ pub fn mls_clear_pending_commit(
     clear_pending_commit(&mut mls, &group_id_b64)
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_export_group_info(
     state: tauri::State<MlsStateHandle>,
@@ -2287,6 +2325,7 @@ pub fn mls_export_group_info(
     export_group_info(&mls, &group_id_b64, &key_handle)
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_rejoin_group(
     state: tauri::State<MlsStateHandle>,
@@ -2297,6 +2336,7 @@ pub fn mls_rejoin_group(
     rejoin_group(&mut mls, &group_info_b64, &key_handle)
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_delete_group(
     state: tauri::State<MlsStateHandle>,
@@ -2306,6 +2346,7 @@ pub fn mls_delete_group(
     delete_group(&mut mls, &group_id_b64)
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_send_message(
     state: tauri::State<MlsStateHandle>,
@@ -2322,6 +2363,7 @@ pub fn mls_send_message(
 /// `message_id` is the caller's id for it. A message from an epoch this device has not reached yet
 /// is buffered rather than refused, and the id is what lets `mls_drain_pending_messages` hand the
 /// plaintext back against the right row once the commit arrives.
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_process_message(
     state: tauri::State<MlsStateHandle>,
@@ -2334,6 +2376,7 @@ pub fn mls_process_message(
 }
 
 /// Replays every buffered message the group has now caught up to. Usually empty.
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_drain_pending_messages(
     state: tauri::State<MlsStateHandle>,
@@ -2343,6 +2386,7 @@ pub fn mls_drain_pending_messages(
     drain_pending_messages(&mut mls, &group_id_b64)
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_remove_members(
     state: tauri::State<MlsStateHandle>,
@@ -2354,6 +2398,7 @@ pub fn mls_remove_members(
     remove_members(&mut mls, &group_id_b64, &key_handle, &leaf_indices)
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_get_members(
     state: tauri::State<MlsStateHandle>,
@@ -2363,6 +2408,7 @@ pub fn mls_get_members(
     get_members(&mls, &group_id_b64)
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_get_group_info(
     state: tauri::State<MlsStateHandle>,
@@ -2384,6 +2430,7 @@ pub fn mls_get_group_info(
 /// accounts on one machine held one `mls_state.json` between them before it existed, which
 /// `init_storage_from_parts` was already written to survive - it clears everything when the path
 /// changes - but only because the *path* changing is what tells it the account did.
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_init_storage(
     state: tauri::State<MlsStateHandle>,
@@ -2455,6 +2502,7 @@ fn is_safe_scope(scope: &str) -> bool {
 }
 
 /// The directory the engine is currently persisting to, or `null` before initialisation.
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_current_state_dir(
     state: tauri::State<MlsStateHandle>,
@@ -2463,12 +2511,14 @@ pub fn mls_current_state_dir(
     Ok(current_state_dir(&mls))
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_clear_storage(state: tauri::State<MlsStateHandle>) -> Result<(), String> {
     let mut mls = state.lock().map_err(|e| e.to_string())?;
     clear_storage(&mut mls)
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_export_state(
     state: tauri::State<MlsStateHandle>,
@@ -2478,6 +2528,7 @@ pub fn mls_export_state(
     export_state(&mls, &encryption_key_b64)
 }
 
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_import_state(
     state: tauri::State<MlsStateHandle>,
@@ -2490,6 +2541,7 @@ pub fn mls_import_state(
 
 /// Seals everything needed to restore this device into one passphrase-protected envelope (§D).
 #[allow(clippy::too_many_arguments)]
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_export_backup(
     state: tauri::State<MlsStateHandle>,
@@ -2517,6 +2569,7 @@ pub fn mls_export_backup(
 }
 
 /// Opens a §D backup envelope and applies it.
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn mls_import_backup(
     state: tauri::State<MlsStateHandle>,
@@ -2542,6 +2595,13 @@ pub fn mls_import_backup(
 // Run with:  cargo test --package alpine --lib
 // The frontend does not need to be built.
 
+// Native-only. Every test below either writes a real state file, reads a checked-in fixture off
+// disk, or walks the TypeScript tree - none of which exists on `wasm32-unknown-unknown`, where
+// `std::fs` is a stub that returns `Unsupported`. The wasm half of the suite is `mod parity_tests`
+// at the bottom of this file: it embeds the same golden fixtures with `include_str!` and asserts the
+// engine produces byte-identical output on both targets. That test is the proof of no divergence;
+// this module is the proof that the desktop behaviour it is compared against did not change.
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod integration_tests {
     use super::{
@@ -3872,7 +3932,11 @@ mod integration_tests {
     // re-attaching a consumer is part of restoring the pin.
 
     fn golden_dir() -> std::path::PathBuf {
+        // Two levels: this crate is `crates/venta-crypto`, and `testdata/` is at the repo root. It
+        // was one while the engine lived in `src-tauri`. The fixtures did not move - they are
+        // shared byte for byte with venta-mobile's checkout and their path is in both READMEs.
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
             .join("..")
             .join("testdata")
             .join("mls-golden")
@@ -4605,7 +4669,8 @@ mod integration_tests {
     /// this was written, would have read 25 and passed.
     #[test]
     fn the_tauri_command_surface_is_present() {
-        let found = tauri_command_names(include_str!("mls.rs"));
+        let source = with_command_attrs_normalized(include_str!("mls.rs"));
+        let found = tauri_command_names(&source);
 
         let expected: std::collections::BTreeSet<&str> = [
             "generate_mls_key_packages",
@@ -4672,7 +4737,8 @@ mod integration_tests {
     /// on it sits on a path a user reaches once, under stress, after a password reset.
     #[test]
     fn the_crypto_command_surface_is_present() {
-        let found = tauri_command_names(include_str!("crypto.rs"));
+        let source = with_command_attrs_normalized(include_str!("crypto.rs"));
+        let found = tauri_command_names(&source);
 
         let expected: std::collections::BTreeSet<&str> = [
             "decrypt_master_key",
@@ -4720,8 +4786,11 @@ mod integration_tests {
         let mut uncalled: Vec<String> = Vec::new();
         let mut problems: Vec<String> = Vec::new();
 
-        for source in [include_str!("mls.rs"), include_str!("crypto.rs")] {
-            for (command, params) in tauri_command_signatures(source) {
+        for source in [
+            with_command_attrs_normalized(include_str!("mls.rs")),
+            with_command_attrs_normalized(include_str!("crypto.rs")),
+        ] {
+            for (command, params) in tauri_command_signatures(&source) {
                 let required: std::collections::BTreeSet<String> = params
                     .iter()
                     .filter(|(_, optional)| !optional)
@@ -4781,6 +4850,26 @@ mod integration_tests {
     }
 
     // ─── Parsing helpers for the three tests above ────────────────────────────
+
+    /// Rewrites `#[cfg_attr(feature = "tauri", tauri::command)]` to `#[tauri::command]`, so the two
+    /// parsers below have one marker to look for instead of two.
+    ///
+    /// <p>There are two spellings because the two files differ in what the attribute sits on. Here
+    /// and in `device_cert.rs` the commands are thin wrappers in their own section at the bottom, so
+    /// `#[cfg(feature = "tauri")]` removes them and leaves the engine untouched. In `crypto.rs` the
+    /// commands <i>are</i> the implementations - `decrypt_master_key` derives the Argon2id key
+    /// itself - so cfg-ing them out would delete the master-key API from every non-Tauri build,
+    /// including the wasm one.</p>
+    ///
+    /// <p>Applied to all three sources rather than only `crypto.rs`: a file that later switches
+    /// spelling must not silently start reporting an empty command set, which is the exact failure
+    /// `the_tauri_command_surface_is_present` was written to be loud about.</p>
+    fn with_command_attrs_normalized(source: &str) -> String {
+        source.replace(
+            "#[cfg_attr(feature = \"tauri\", tauri::command)]",
+            "#[tauri::command]",
+        )
+    }
 
     /// Names of every `#[tauri::command] pub fn` in `source`.
     ///
@@ -4926,7 +5015,11 @@ mod integration_tests {
 
         let mut out = Vec::new();
         walk(
+            // Two levels up: this crate is `crates/venta-crypto` and the Angular sources are at
+            // `src/` off the repo root. One level would silently walk a directory that does not
+            // exist, which the emptiness assertion in the caller exists to catch.
             &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("..")
                 .join("..")
                 .join("src"),
             &mut out,
@@ -5112,6 +5205,10 @@ mod integration_tests {
     #[test]
     fn the_shared_engine_dependencies_are_pinned_together() {
         let sibling = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            // One deeper than before: `crates/venta-crypto` instead of `src-tauri`. The sibling
+            // checkout is expected beside the Alpine repo, and this must keep resolving to the same
+            // absolute directory it did from `src-tauri` or the pin silently stops being checked.
+            .join("..")
             .join("..")
             .join("..")
             .join("..")
@@ -5131,7 +5228,10 @@ mod integration_tests {
             return;
         };
 
-        let ours = include_str!("../../Cargo.toml");
+        // `crates/venta-crypto/Cargo.toml`, one level up rather than two: the shared engine
+        // dependencies moved out of `src-tauri/Cargo.toml` with the engine. Comparing against
+        // `src-tauri`'s manifest now would compare the *host*'s dependencies with mobile's engine.
+        let ours = include_str!("../Cargo.toml");
 
         // Only the crates whose behaviour crosses the wire. Everything else may legitimately differ.
         for crate_name in [
@@ -5194,3 +5294,19 @@ mod integration_tests {
     }
 
 }
+
+// ---------------------------------------------------------------------------
+// Native/wasm parity vectors - lives in `parity_tests.rs`
+// ---------------------------------------------------------------------------
+//
+// Declared here rather than in `lib.rs` so it is a *child* of this module and can reach
+// `restore_persisted` and `PersistedMlsState`, which are private and stay private. The body is in
+// its own file so that this one gains three lines and no logic: the whole file is shared
+// line-for-line with venta-mobile, and a test module inlined here would be 200 lines the next port
+// has to merge instead of copy.
+//
+// Compiled for **both** targets, unlike `integration_tests` above. It is the load-bearing proof of
+// the WASM design: same fixtures, same asserted bytes, on native and on wasm32.
+#[cfg(test)]
+#[path = "parity_tests.rs"]
+mod parity_tests;

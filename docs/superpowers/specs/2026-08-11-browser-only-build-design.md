@@ -215,6 +215,40 @@ The command names and argument shapes are already settled and shared with mobile
 a TypeScript interface would create a second place for them to drift. The adapter routes to Tauri
 `invoke` or to wasm-bindgen; callers are unchanged.
 
+### Migration shape: existing services become delegates
+
+A port does **not** replace the service that uses it. `VoiceEngineService`, `RustMediaService`,
+`HotkeyService`, `NotificationService` and the rest keep their present public API exactly and become
+thin delegates over the injected port.
+
+This is not politeness about churn — it is what keeps the migration parallelisable. `VoiceEngine`'s
+consumers include `call-webrtc.service.ts`, `HotkeyService`'s include `call-hotkey.service.ts`, and
+those files are owned by other work in flight. Holding the public surface still means the ~60
+consumer call sites never enter the diff at all, and each port can land independently without a
+cross-cutting rename.
+
+Consumers migrate from the delegate to the port later, opportunistically, or never — a delegate that
+forwards one call is not a problem worth a second pass.
+
+### File partition
+
+Each track below owns its files exclusively; no file appears twice, so tracks can run concurrently.
+
+| Track | Files |
+|---|---|
+| Shell | `external-link.service`, `app-info.service`, `attachment-download.service`, `data-export.service`, `data-export.component`, `theme.service`, `message.component`, `embed-card.component`, `app.component` (deep link) |
+| Storage | `device-identity.service`, `ai-credentials.service`, `payment-handle.service`, `settings-store` |
+| Notifications | `notification.service`, `user-token.service` |
+| Devices | `media-device-catalog.service`, `voice-video-settings.component` |
+| Voice | `voice-engine.service`, `isle-voice-rtc.service`, `voice-channel.service` |
+| Screen | `rust-media.service`, `screen-publish`, `screen-picker.service` |
+| Desktop-only | `update.service`, `user-settings.service`, `window-chrome.service`, `titlebar.component`, `resize-handles.component`, `rich-presence.service`, `game-catalog.service`, `activity-settings.component`, `platform.service`, `device-description` |
+| Crypto | `platform/crypto.ts`, `crypto.service`, `master-key.service`, `mls.service` |
+| Hotkeys | `hotkey.service`, `native-ptt.service` |
+
+`call-*.ts`, `call-webrtc.service.ts`, `call-session*` and `call-state*` are **off limits** to every
+track — other work is live in them, and the delegate rule above means no track needs them.
+
 ## Crypto WASM crate
 
 Create a Cargo workspace at the repo root with two members: the existing `src-tauri` and a new
@@ -243,9 +277,21 @@ Known wasm32 work items:
 5. Golden-vector tests must run under `wasm32` too (`wasm-bindgen-test`), asserting the web engine
    produces byte-identical output to the native one. This is the test that proves no divergence.
 
-Build: `wasm-pack build crates/venta-crypto --target web`, output committed to
-`src/assets/wasm/` or emitted at build time via an npm script. Loaded by `import()` from the web
-adapter only.
+Build: `bun run build:wasm` (`wasm-pack build crates/venta-crypto --target web --release`), emitted
+at build time into `src/assets/wasm/` and gitignored — never committed. CI builds it before
+`ng build`, and asserts the blob exists, because `ng build` does **not** fail when it is missing (the
+asset entry is a `**/*` glob, and a glob matching nothing is not an error) — so the failure would
+otherwise surface as a client that dies on the login path.
+
+Measured 2026-08-11: **2.08 MB raw, 771 KiB gzipped**, exporting 37 symbols (the 36 commands plus
+`init`), each named identically to its Tauri command.
+
+That size is acceptable but not free, and it lands on the **login path** — unlocking the master key
+needs the crypto half. The adapter's lazy `import()` therefore does not defer it past sign-in in
+practice; it only keeps the blob out of the desktop bundle. If first-load latency becomes a
+complaint, the fix is splitting the crate so master-key unwrapping ships separately from the MLS
+group engine, not deferring the load — a spinner on the login button is better than an encrypted
+conversation that silently cannot open.
 
 ## Media
 
@@ -352,6 +398,43 @@ Two things the client cannot finish alone:
    `docs/specs/*-frontend-guide.md` per `project_echo_backend_repo`.
 2. **CORS and CSP** for the web origin on `api.venta.gg`, including the `/connect/token` endpoint
    the ROPC password flow posts to.
+3. **CORS on the data-export storage bucket.** The download endpoint answers 302 to a GCS bucket that
+   serves no `Access-Control-Allow-Origin`, so a browser `fetch` of it is blocked — desktop has a
+   native download path precisely because that fetch cannot work. Until the bucket sends CORS headers
+   (or the API streams the bytes itself), data export must be capability-gated with a reason on web
+   rather than offering a button that always fails.
+4. **https routes for deep links.** `venta://invite/…`, `install-bot`, `discord-import` and
+   `steam-auth` arrive through a custom scheme the browser has no delivery path for. They need
+   equivalent https routes before those flows work on web at all.
+
+### Federation on web: self-hosters build their own image
+
+CSP `connect-src` is the primary defence for key material here, so it cannot be a wildcard. But the
+client has a federation server picker calling `setServer(domain)`, and a pinned `connect-src` blocks
+every host but the official one.
+
+Decided: **the web image takes its allowed API hosts as configuration**, defaulting to the current
+tight list. A self-hoster deploys their own web client pointed at their own server — which they are
+already doing for the backend, so it adds no new burden. The official image stays as locked down as
+it is today, and nobody gets a looser default by accident.
+
+Each configured host derives both its API origin and its websocket origin, because SignalR builds
+`${baseUrl}/api/v1/ws/hub` and listing only one is the obvious mistake. A malformed value must fail
+the build or `nginx -t`; a CSP directive browsers cannot parse is dropped wholesale and falls back
+to `default-src`, which is the failure most likely to go unnoticed.
+
+On the client, the server picker is capability-gated to the configured hosts on web, reading the
+same source of truth the image renders its CSP from — not a second hard-coded list.
+
+### Two findings from the web image worth keeping
+
+- Angular's production build emits one inline event handler (Beasties'
+  `<link media="print" onload="this.media='all'">`). Under a strict `script-src` it never fires, the
+  stylesheet stays `media="print"`, and the app loads with critical CSS only. It is stripped from
+  the built `index.html` at package time, with an assertion that no inline handler survives.
+- `/assets/**` is **unhashed**. Caching it `immutable` for a year — as the e2e image config did —
+  would permanently pin users to a stale crypto engine, since the wasm blob lands there. Hashed
+  bundles keep 1y immutable; `/assets/` revalidates.
 
 Auth itself needs no work: `auth.service.ts:42` uses the password grant against `/connect/token`,
 a plain POST, and `angular-oauth2-oidc` already stores tokens in browser storage.

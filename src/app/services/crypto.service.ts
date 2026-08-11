@@ -1,5 +1,5 @@
-import {Injectable} from '@angular/core';
-import {invoke} from '@tauri-apps/api/core';
+import {inject, Injectable} from '@angular/core';
+import {CryptoEngine} from '../platform/ports/crypto-engine.port';
 
 export interface KeyPairEntry {
     keyId: string;
@@ -13,8 +13,18 @@ const RSA_OAEP_PARAMS = {name: 'RSA-OAEP', hash: 'SHA-256'} as const;
 export class CryptoService {
     private readonly keyStore = new Map<string, CryptoKeyPair>();
 
+    /**
+     * Key generation stays in Rust on both hosts.
+     *
+     * <p>Not reimplemented over WebCrypto for the browser: `generate_key_pairs` mints RSA-OAEP keys in
+     * the exact SPKI/PKCS8 encoding the server and every other client expect, and a second
+     * implementation of that would be a second thing to keep byte-compatible. The keys are imported
+     * into WebCrypto below on both hosts anyway, which is the half that has to be a browser API.</p>
+     */
+    private readonly engine = inject(CryptoEngine);
+
     async generateKeyPairs(count: number): Promise<KeyPairEntry[]> {
-        const entries = await invoke<KeyPairEntry[]>('generate_key_pairs', {count});
+        const entries = await this.engine.call<KeyPairEntry[]>('generate_key_pairs', {count});
 
         // Import each key into Web Crypto so decrypt() can use them
         await Promise.all(entries.map(async entry => {

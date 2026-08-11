@@ -1,0 +1,109 @@
+[package]
+name = "venta-crypto"
+version = "3.0.195"
+description = "Venta's MLS group engine, master-key wrapping and device-certificate verification."
+edition = "2021"
+license = "MIT"
+
+# The engine is one crate with three hosts: Tauri desktop (`features = ["tauri"]`, consumed by
+# `src-tauri`), venta-mobile's Flutter FFI (a separate repo, which keeps `mls.rs` line-for-line), and
+# the browser (`wasm32-unknown-unknown` + wasm-bindgen). Nothing about the engine itself changes
+# between them - see the module header at the top of `src/mls.rs`, which is normative.
+
+[lib]
+name = "venta_crypto"
+# `cdylib` is what `wasm-pack build --target web` links; `rlib` is what `src-tauri` links against.
+#
+# Cargo has no per-target `[lib]` override, so both are declared unconditionally. Unlike the
+# `crate-type` note in `src-tauri/Cargo.toml`, the extra type is cheap here: cargo builds only the
+# `rlib` when this crate is consumed as a dependency, so the desktop build pays nothing. The
+# `cdylib` pass happens when this crate is itself the build target, which is the wasm build.
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+# The `#[tauri::command]` wrappers at the bottom of each module. Off by default so that
+# `wasm32-unknown-unknown` (and mobile) never pull `tauri` into the graph at all.
+tauri = ["dep:tauri"]
+
+[dependencies]
+# ── Shared engine dependencies ────────────────────────────────────────────────
+#
+# These are the crates `the_shared_engine_dependencies_are_pinned_together` compares against
+# venta-mobile's `packages/venta_mls/rust/Cargo.toml`, crate by crate. That test now reads *this*
+# manifest (`include_str!("../Cargo.toml")`), because this is where the engine lives. MLS is a wire
+# protocol: a different `openmls` can change TLS-serialized shapes, and a client that cannot
+# deserialize a Welcome written by the other is locked out of every group it is invited to.
+openmls = "0.8.1"
+openmls_rust_crypto = "0.5"
+openmls_basic_credential = { version = "0.5", features = ["test-utils"] }
+aes-gcm = "0.10.3"
+base64 = "0.22"
+# Key-package fingerprints in `mls`, and the certificate and revocation fingerprints in
+# `device_cert`.
+sha2 = "0.10"
+# `hkdf` has a caller: the master-key public verifier in `crypto::derive_public_verifier` (§L.11).
+hkdf = "0.12"
+# `hmac` has no Alpine caller today, and is kept deliberately.
+#
+# The pin test above compares this manifest against venta-mobile's crate by crate, and mobile needs
+# it for the §G admission-proof code, which Alpine has no caller for and does not port. The
+# comparison reads an absent crate as `None`, so dropping it fails the pin rather than passing it -
+# and the pin is what stops the two engines drifting into mutually unreadable wire formats.
+hmac = "0.12"
+
+# ── Everything else the three modules use ─────────────────────────────────────
+argon2 = "0.5.3"
+rsa = { version = "0.9", features = ["sha2"] }
+rand = "0.8"
+getrandom = "0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1.0", features = ["v4"] }
+
+# Only for the `#[tauri::command]` wrapper sections. `optional`, so the crate has no `tauri` in its
+# graph unless the `tauri` feature is on - which is the whole reason the split exists.
+#
+# Default features left on, deliberately. `mls_init_storage` writes `app: tauri::AppHandle` with no
+# runtime parameter, which only resolves because `AppHandle<R = Wry>` gets its default from tauri's
+# `wry` feature - a default feature. With `default-features = false` this crate compiles only when
+# something else in the graph happens to turn `wry` back on, so `cargo check -p venta-crypto
+# --features tauri` on its own failed while the full desktop build passed. That is the worst shape
+# for a feature flag: it works until someone checks the crate in isolation.
+tauri = { version = "2", optional = true }
+
+# ── wasm32 ───────────────────────────────────────────────────────────────────
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+# `Date::now()`, for `now_unix_secs()`. `SystemTime::now()` panics on wasm32-unknown-unknown -
+# std's clock is `unsupported` there, not merely inaccurate.
+js-sys = "0.3"
+# `js` routes `getrandom` at `crypto.getRandomValues`. Without it every `getrandom::getrandom` call
+# - which is to say every key, salt, nonce and recovery code in this crate - fails at runtime with
+# `unsupported platform`. Feature-unified across the whole graph, so `rand`, `OsRng`, `rsa` and
+# `openmls_rust_crypto` all get it from here.
+getrandom = { version = "0.2", features = ["js"] }
+# Same story one layer up: `Uuid::new_v4()` needs a random source on wasm.
+uuid = { version = "1.0", features = ["v4", "js"] }
+# openmls refuses to build for wasm without this - a `compile_error!` in its `lib.rs`, not a runtime
+# surprise, which is the right call on their part. It routes openmls's own randomness at the JS crypto
+# API and its key-package *lifetime* clock at `fluvio_wasm_timer` rather than `std::time::SystemTime`,
+# which would otherwise panic exactly the way `current_iso8601` did. Version deliberately restated
+# rather than replaced: `the_shared_engine_dependencies_are_pinned_together` reads the first
+# `openmls =` line in this manifest, which is the unconditional one above, so the pin against
+# venta-mobile still compares the version both engines actually resolve.
+openmls = { version = "0.8.1", features = ["js"] }
+
+[dev-dependencies]
+serde_json = "1"
+
+# The MLS persistence tests write real state files. The crash-safety behaviour they cover - atomic
+# replace, a truncated state file, a group listed but missing - is not observable without one.
+#
+# Native-only: `tempfile` needs a real filesystem, and the whole point of the wasm build is that
+# there isn't one. The test modules that use it are `#[cfg(not(target_arch = "wasm32"))]`.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+tempfile = "3"
+
+[target.'cfg(target_arch = "wasm32")'.dev-dependencies]
+wasm-bindgen-test = "0.3"

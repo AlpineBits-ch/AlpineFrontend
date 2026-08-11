@@ -16,14 +16,6 @@
  * to be found" - rather than what any one module wrote. Reading the registry first, exactly as the
  * device-id interceptor does, is the point of the exercise and not incidental setup.</p>
  */
-// Pinned true so the registry keeps resolving to the `LazyStore` stub below. These tests are about
-// the desktop path, and the real `isTauri()` answers false under the runner - which would quietly
-// move the slot list into `localStorage`, where `LazyStoreMock.files.clear()` does not reach it and
-// state would leak from one simulated boot into the next.
-vi.mock('@tauri-apps/api/core', () => ({
-    invoke: vi.fn(),
-    isTauri: vi.fn(() => true),
-}));
 vi.mock('@tauri-apps/plugin-store', () => ({
     LazyStore: class LazyStoreStub {
         static readonly files = new Map<string, Map<string, unknown>>();
@@ -61,7 +53,18 @@ const LazyStoreMock = LazyStore as unknown as {files: Map<string, Map<string, un
 /** This runner's global `localStorage` has no methods, so the mirror would be unobservable. */
 const store = new Map<string, string>();
 
+/**
+ * The global the Tauri runtime injects, defined so `detectHost()` answers `'tauri'` and the registry
+ * keeps resolving to the `LazyStore` stub above.
+ *
+ * <p>These tests are about the desktop path. Under the runner there is no Tauri host, and without
+ * this the slot list would quietly move into `localStorage` - where `LazyStoreMock.files.clear()`
+ * does not reach it, so state would leak from one simulated boot into the next.</p>
+ */
+const TAURI_GLOBAL = '__TAURI_INTERNALS__';
+
 beforeAll(() => {
+    (globalThis as Record<string, unknown>)[TAURI_GLOBAL] = {};
     Object.defineProperty(globalThis, 'localStorage', {
         configurable: true,
         value: {
@@ -71,6 +74,10 @@ beforeAll(() => {
             clear: () => store.clear(),
         },
     });
+});
+
+afterAll(() => {
+    delete (globalThis as Record<string, unknown>)[TAURI_GLOBAL];
 });
 
 let reentered: ReentryTarget[];

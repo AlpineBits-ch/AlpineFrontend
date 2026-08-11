@@ -4,6 +4,10 @@ import {HttpTestingController, provideHttpClientTesting} from '@angular/common/h
 import {provideTranslateService, TranslateService} from '@ngx-translate/core';
 import {MessageService} from 'primeng/api';
 import {MessageComponent} from './message.component';
+import {FileSaver} from '../../../../../platform/ports/file-saver.port';
+import {LinkOpener} from '../../../../../platform/ports/link-opener.port';
+import {FakeFileSaver} from '../../../../../platform/testing/fake-file-saver';
+import {FakeLinkOpener} from '../../../../../platform/testing/fake-link-opener';
 import {ApiConfigService} from '../../../../../services/api-config.service';
 import {MessageStore} from '../../../../../stores/message.store';
 import {MessageDto} from '../../../../../dtos/response/message.dto';
@@ -50,6 +54,11 @@ async function setup(overrides: Partial<MessageDto> = {}, inputs: Record<string,
             provideTranslateService({defaultLanguage: 'en'}),
             MessageService,
             {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
+            // The component opens links and saves attachments through ports now, so the two adapters
+            // have to exist for it to be constructed at all. Fakes rather than the real ones: the web
+            // LinkOpener calls `window.open`, which would spawn tabs out of the test runner.
+            {provide: LinkOpener, useValue: new FakeLinkOpener()},
+            {provide: FileSaver, useValue: new FakeFileSaver()},
             // MessageStore's dependency chain reaches MlsService, which touches
             // @tauri-apps/plugin-store at construction time - unusable under jsdom.
             // These tests only exercise MessageComponent's own publish() latch, so a

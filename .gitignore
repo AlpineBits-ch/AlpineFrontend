@@ -11,6 +11,20 @@
 # source can enter the context in the first place.
 /.image-context
 
+# Staging directory for the public web client image, assembled the same way by
+# .github/workflows/web-client-image.yml (built output + docker/web/*.conf and nothing else).
+/.web-context
+
+# wasm-pack output for the browser build, produced by `bun run build:wasm`.
+#
+# A build artifact, not a source file, and deliberately not committed: it is the compiled form of
+# crates/venta-crypto, so a committed copy is a second place for the crypto engine to exist and the
+# only one anybody would notice going stale. CI builds it before `ng build` in both ci.yml's
+# frontend job and web-client-image.yml, and both assert the blob is present afterwards - `ng
+# build` copies src/assets with a `**/*` glob and a glob that matches nothing is not an error, so
+# a missing engine is otherwise silent.
+/src/assets/wasm/
+
 # Node
 /node_modules
 npm-debug.log
@@ -66,3 +80,13 @@ D1.zip
 # Transcripts from scripts/run-release.mjs. One file per run of the release build; useful to
 # attach to a bug report, never useful to commit.
 /logs
+
+# Cargo output at the repository root.
+#
+# New with the workspace: `src-tauri/.gitignore` has covered `/target/` since there was only one
+# crate, and that rule is scoped to that directory. A workspace puts `target/` beside its *root*
+# manifest, and `.cargo/config.toml` pins `target-dir` back to `src-tauri/target` for the sake of
+# build.yml's upload globs - but any cargo invocation that runs before or outside that config still
+# lands here, and this directory reached 6.3 GB unignored. Same trap the D1.zip note above describes,
+# two orders of magnitude larger.
+/target

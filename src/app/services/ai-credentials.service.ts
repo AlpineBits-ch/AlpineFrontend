@@ -1,5 +1,5 @@
-import {Injectable, signal} from '@angular/core';
-import {secureStorage} from 'tauri-plugin-secure-storage-api';
+import {inject, Injectable, signal} from '@angular/core';
+import {SecureStore} from '../platform/ports/secure-store.port';
 import {AI_PROVIDER_IDS, AiProviderId, isAiProviderId} from './ai-provider';
 
 const PROVIDER_KEY = 'wiki-ai-provider';
@@ -8,9 +8,14 @@ const MODEL_KEY = 'wiki-ai-model';
 /**
  * The user's own API keys for their own AI provider accounts.
  *
- * Keys go in the OS keychain via tauri-plugin-secure-storage - the same store the MLS identity
- * keys use - and never into localStorage. A provider key is a bearer credential for the user's
- * billing account: anything that can read localStorage could spend their money.
+ * Keys go in {@link SecureStore} - the same store the MLS identity keys use - and never into
+ * localStorage. A provider key is a bearer credential for the user's billing account: anything that
+ * can read localStorage could spend their money.
+ *
+ * On desktop that store is the OS keychain. In the browser it is IndexedDB, which is origin-scoped
+ * rather than OS-protected, so the guarantee there is weaker: it keeps the key out of the flat
+ * `localStorage` namespace and away from anything reading it by name, but a script running on the
+ * origin can still reach it. `SecureStore.hardwareBacked` is what says which of the two you have.
  *
  * Nothing here is ever sent to the Echo server. The provider is called directly from this client,
  * and the key's only destination is the provider the user picked.
@@ -22,17 +27,19 @@ const MODEL_KEY = 'wiki-ai-model';
  */
 @Injectable({providedIn: 'root'})
 export class AiCredentialsService {
+    private readonly secureStore = inject(SecureStore);
+
     /** Which providers currently have a key stored. Drives the settings and connect UI. */
     readonly configured = signal<ReadonlySet<AiProviderId>>(new Set());
 
     async setKey(provider: AiProviderId, key: string): Promise<void> {
-        await secureStorage.setItem(slot(provider), key);
+        await this.secureStore.setItem(slot(provider), key);
         this.configured.update(set => new Set(set).add(provider));
     }
 
     async getKey(provider: AiProviderId): Promise<string | null> {
         try {
-            const key = await secureStorage.getItem(slot(provider));
+            const key = await this.secureStore.getItem(slot(provider));
             return key ? key : null;
         } catch {
             // A locked or unavailable keychain reads as "not configured" rather than throwing
@@ -43,7 +50,7 @@ export class AiCredentialsService {
 
     async clearKey(provider: AiProviderId): Promise<void> {
         try {
-            await secureStorage.removeItem(slot(provider));
+            await this.secureStore.removeItem(slot(provider));
         } catch {
             // Removing a slot that was never written throws on some backends. The user asked for
             // the key to be gone; a slot that never held one already satisfies that.

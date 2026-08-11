@@ -1,6 +1,5 @@
-import {Component, OnInit, signal} from '@angular/core';
-
-type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 'SouthEast' | 'SouthWest' | 'West';
+import {Component, inject, OnInit, signal} from '@angular/core';
+import {ResizeDirection, WindowChrome} from '../platform/ports/window-chrome.port';
 
 // The titlebar (38px) occupies the full top edge and its corners,
 // so top/nw/ne handles are omitted -they would block drag and window controls.
@@ -32,14 +31,19 @@ type ResizeDirection = 'East' | 'North' | 'NorthEast' | 'NorthWest' | 'South' | 
   `]
 })
 export class ResizeHandlesComponent implements OnInit {
+    private readonly chrome = inject(WindowChrome);
+
+    /**
+     * Whether there is a frame to resize. Named as it was because the template reads it; it now means
+     * "this host lets the app own its frame", and a browser tab is resized by its own window manager.
+     */
     protected isTauri = signal(false);
 
     ngOnInit(): void {
-        this.isTauri.set('__TAURI_INTERNALS__' in window);
+        this.isTauri.set(this.chrome.supported);
     }
 
     protected async resize(direction: ResizeDirection): Promise<void> {
-        const {getCurrentWindow} = await import('@tauri-apps/api/window');
-        await getCurrentWindow().startResizeDragging(direction);
+        await this.chrome.startResizeDragging(direction);
     }
 }

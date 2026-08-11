@@ -3,6 +3,19 @@
 # `tauri build` (which runs cargo there) but silently ignored by
 # `cargo test --manifest-path src-tauri/Cargo.toml` run from the root. Here, both find it.
 
+[build]
+# Pinned to where it was before `Cargo.toml` at the root turned this into a workspace.
+#
+# A workspace puts `target/` beside its root manifest, so the split of `crates/venta-crypto` would
+# have silently moved every build artefact from `src-tauri/target/` to `./target/`. Three release
+# jobs in `.github/workflows/build.yml` upload from literal `src-tauri/target/release/bundle/...`
+# globs, and an `actions/upload-artifact` glob that matches nothing warns rather than fails - so the
+# first symptom would have been a green release with no installer attached.
+#
+# Relative to the directory holding this `.cargo/` - not to the invocation directory - so it resolves
+# to the same absolute path whether cargo is run from the repo root or from `src-tauri`.
+target-dir = "src-tauri/target"
+
 [env]
 # The libopus sources vendored by `audiopus_sys` declare `cmake_minimum_required(VERSION 3.1)`,
 # and CMake 4 removed compatibility with anything below 3.5 - so a modern CMake refuses to

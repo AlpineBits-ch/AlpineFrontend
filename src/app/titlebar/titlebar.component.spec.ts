@@ -10,6 +10,8 @@ import {InboxService} from '../services/inbox.service';
 import {IdentityWebsocketService} from '../services/identity-websocket.service';
 import {ConversationUtilsService} from '../services/conversation-utils.service';
 import {ApiConfigService} from '../services/api-config.service';
+import {WindowChrome} from '../platform/ports/window-chrome.port';
+import {FakeWindowChrome} from '../platform/testing/fake-window-chrome';
 
 const GERMAN = {'TITLEBAR.HELP_KEYBINDS': 'Tastenkürzel', 'TITLEBAR.HELP_ABOUT': 'Über Venta'};
 
@@ -89,8 +91,19 @@ function inboxStub(): InboxSurface {
     };
 }
 
+/**
+ * A host with no window frame - which is what a bare TestBed is, and what a browser is.
+ *
+ * <p>`supported = false` is what `ngOnInit` reads, so this keeps the bar undrawn by default exactly as
+ * the `__TAURI_INTERNALS__` check did. The one describe that needs the chrome rendered flips the signal
+ * by hand instead of flipping this - see {@link chrome} below.</p>
+ */
+let windowChrome: FakeWindowChrome;
+
 function setup() {
     const loader = new DeferredLoader();
+    windowChrome = new FakeWindowChrome();
+    windowChrome.supported = false;
     store.clear();
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -112,6 +125,7 @@ function setup() {
             // is - the real one reaches the shared SignalR connection, and through it `OAuthService`,
             // which none of these tests are about.
             {provide: IdentityWebsocketService, useValue: {}},
+            {provide: WindowChrome, useValue: windowChrome},
         ],
     });
 
@@ -162,9 +176,11 @@ describe('TitlebarComponent help menu labels', () => {
 });
 
 /**
- * The bar is only drawn under Tauri, and `ngOnInit` refuses to set that flag without
- * `__TAURI_INTERNALS__` on the window. Flipping the signal by hand is what renders the chrome
- * without pretending a whole Tauri runtime exists.
+ * The bar is only drawn where the app owns its window frame, and `ngOnInit` refuses to set that flag
+ * unless `WindowChrome.supported` says so. Flipping the signal by hand is what renders the chrome
+ * without pretending a whole Tauri runtime exists - still the right shape after the port migration: a
+ * `supported: true` fake would additionally have to answer `isMaximized` and `onResized` for the async
+ * half of `ngOnInit`, and none of these tests are about either.
  */
 function chrome() {
     const {fixture} = setup();

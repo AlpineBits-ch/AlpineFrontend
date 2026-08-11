@@ -1,15 +1,17 @@
-// Hoisted above every import by vitest, so it must be the first statement in the file - an
-// import before it makes the ordering read backwards and warns.
-vi.mock('tauri-plugin-secure-storage-api', () => ({
-    secureStorage: {getItem: vi.fn(), setItem: vi.fn(), removeItem: vi.fn()},
-}));
-
 import {TestBed} from '@angular/core/testing';
-import {secureStorage} from 'tauri-plugin-secure-storage-api';
+import {SecureStore} from '../platform/ports/secure-store.port';
+import {FakeSecureStore} from '../platform/testing/fake-secure-store';
 import {AiCredentialsService} from './ai-credentials.service';
 
-/** Stateful stand-in for the keychain, so a set is observable by the next get. */
-const keychain = new Map<string, string>();
+/**
+ * The keychain as a provided port, rather than `vi.mock('tauri-plugin-secure-storage-api')`.
+ *
+ * <p>The service depends on {@link SecureStore}, which is the OS keychain on desktop and IndexedDB in
+ * a browser - so a fake adapter is the only stand-in that covers both hosts. Its failure switches are
+ * what the module mock was really being used for: a keychain that is locked, and a backend that
+ * throws on removing a slot it never held.</p>
+ */
+let secure: FakeSecureStore;
 
 /** This runner's `localStorage` global has no methods - same stand-in the draft specs install. */
 const localStore = new Map<string, string>();
@@ -30,19 +32,13 @@ describe('AiCredentialsService', () => {
     let service: AiCredentialsService;
 
     beforeEach(() => {
-        keychain.clear();
         localStore.clear();
-        vi.mocked(secureStorage.getItem).mockImplementation(
-            async (k: string) => keychain.get(k) ?? '',
-        );
-        vi.mocked(secureStorage.setItem).mockImplementation(async (k: string, v: string) => {
-            keychain.set(k, v);
-        });
-        vi.mocked(secureStorage.removeItem).mockImplementation(async (k: string) => {
-            keychain.delete(k);
-        });
+        secure = new FakeSecureStore();
 
-        TestBed.configureTestingModule({});
+        TestBed.resetTestingModule();
+        TestBed.configureTestingModule({
+            providers: [{provide: SecureStore, useValue: secure}],
+        });
         service = TestBed.inject(AiCredentialsService);
     });
 
@@ -69,24 +65,24 @@ describe('AiCredentialsService', () => {
     // A locked keychain must read as "not configured" rather than throwing into the draft flow,
     // where the failure would surface as an unhandled rejection mid-generation.
     it('reports no key when the keychain throws', async () => {
-        vi.mocked(secureStorage.getItem).mockRejectedValue(new Error('locked'));
+        secure.getError = new Error('locked');
         expect(await service.getKey('openai')).toBeNull();
     });
 
     it('treats an empty stored value as no key', async () => {
-        keychain.set('wiki-ai-key-openai', '');
+        secure.put('wiki-ai-key-openai', '');
         expect(await service.getKey('openai')).toBeNull();
     });
 
     it('refresh discovers exactly the providers that hold a key', async () => {
-        keychain.set('wiki-ai-key-anthropic', 'a');
-        keychain.set('wiki-ai-key-gemini', 'g');
+        secure.put('wiki-ai-key-anthropic', 'a');
+        secure.put('wiki-ai-key-gemini', 'g');
         await service.refresh();
         expect([...service.configured()].sort()).toEqual(['anthropic', 'gemini']);
     });
 
     it('clearing does not fail when the slot was never written', async () => {
-        vi.mocked(secureStorage.removeItem).mockRejectedValue(new Error('no such key'));
+        secure.removeError = new Error('no such key');
         await expect(service.clearKey('openai')).resolves.toBeUndefined();
     });
 

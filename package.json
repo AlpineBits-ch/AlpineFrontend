@@ -82,6 +82,7 @@
     "@tauri-apps/cli": "^2.11.0",
     "@types/qrcode": "^1.5.6",
     "@types/twemoji": "^13.1.2",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
     "postcss": "^8.5.13",
     "typescript": "~5.9.3",
@@ -91,6 +92,7 @@
   "private": true,
   "scripts": {
     "build": "ng build && bun run sentry:sourcemaps",
+    "build:wasm": "wasm-pack build crates/venta-crypto --target web --release --no-pack --out-dir ../../src/assets/wasm --out-name venta_crypto",
     "licenses": "node scripts/generate-notices.js",
     "licenses:test": "node --test scripts/generate-notices.test.js",
     "nsis:check": "node scripts/check-nsis-template.mjs",

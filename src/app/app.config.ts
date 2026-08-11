@@ -24,6 +24,7 @@ import {GlobalErrorHandler} from "./core/global-error-handler";
 import {ThemeService} from './services/theme.service';
 import {LanguageService} from './services/language.service';
 import {DEFAULT_LANGUAGE, storedLanguage} from './models/language.model';
+import {providePlatform} from './platform/provide-platform';
 import {provideTranslateService} from '@ngx-translate/core';
 import {provideTranslateHttpLoader} from '@ngx-translate/http-loader';
 import {AlpinePreset} from './theme/alpine-preset';
@@ -68,6 +69,15 @@ export function storageFactory(): OAuthStorage {
 
 export const appConfig: ApplicationConfig = {
     providers: [
+        // Every native capability, bound once to whichever host this bundle is running in. First,
+        // deliberately: services resolved by later providers inject these ports, and a port with no
+        // adapter is a boot failure rather than a degraded feature.
+        //
+        // Providers are lazy, so the desktop build never constructs a browser adapter and the web
+        // build never constructs a Tauri one - which is what keeps `@tauri-apps/*` out of the web
+        // bundle, since each adapter `import()`s its plugin on first use rather than at module
+        // scope. See docs/superpowers/specs/2026-08-11-browser-only-build-design.md.
+        providePlatform(),
         // rateLimit is outermost so a backoff wait is not charged against the request timeout.
         // serverClock is innermost because it brackets the round trip with two local readings to
         // place the server's `Date` in the middle of it - time spent queued behind a rate-limit

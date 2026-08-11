@@ -12,25 +12,18 @@
  * of adopting that one would address all of it to a slot nothing looks up, which presents as this
  * device being silently ejected from every group it belongs to.</p>
  */
-// `isTauri` is stubbed true, and re-stubbed true in `beforeEach`, because everything outside the
-// "outside Tauri" block below is about the desktop path and would otherwise silently start
-// asserting against `localStorage`. `vi.clearAllMocks` clears calls but not implementations, so a
-// test that flips this to false would leak into every test after it without that reset.
-vi.mock('@tauri-apps/api/core', () => ({
-    invoke: vi.fn(),
-    isTauri: vi.fn(() => true),
-}));
+// The desktop settings backend is chosen by `detectHost()`, which reads the Tauri global - so the
+// host is entered by defining it (see `enterTauri`) rather than by mocking a function. Only the
+// store plugin still has to be mocked: `openSettingsStore()` reaches it through the Tauri adapter's
+// lazy `import()`, and the real one would attempt IPC.
 vi.mock('@tauri-apps/plugin-store');
-vi.mock('tauri-plugin-secure-storage-api', () => ({
-    secureStorage: {getItem: vi.fn(), setItem: vi.fn(), removeItem: vi.fn()},
-}));
 
 import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
-import {isTauri} from '@tauri-apps/api/core';
 import {LazyStore} from '@tauri-apps/plugin-store';
-import {secureStorage} from 'tauri-plugin-secure-storage-api';
+import {SecureStore} from '../platform/ports/secure-store.port';
+import {FakeSecureStore} from '../platform/testing/fake-secure-store';
 import {ApiConfigService} from './api-config.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {AccountRegistryService, BOOTSTRAP_SLOT_ID} from './account-registry.service';
@@ -57,6 +50,28 @@ const store = {
     delete: vi.fn(async (key: string) => { values.delete(key); }),
     save: vi.fn(async () => undefined),
 };
+
+/**
+ * Which host the bundle believes it is in.
+ *
+ * <p>Entered by defining the global the Tauri runtime injects, because that is what `detectHost()`
+ * reads and therefore what decides which `SettingsStore` adapter `openSettingsStore()` hands back.
+ * Re-entered in `beforeEach` for the same reason the old `isTauri` mock was re-stubbed there:
+ * everything outside the "outside Tauri" block is about the desktop path and would otherwise
+ * silently start asserting against `localStorage`.</p>
+ */
+const TAURI_GLOBAL = '__TAURI_INTERNALS__';
+
+function enterTauri(): void {
+    (globalThis as Record<string, unknown>)[TAURI_GLOBAL] = {};
+}
+
+function leaveTauri(): void {
+    delete (globalThis as Record<string, unknown>)[TAURI_GLOBAL];
+}
+
+/** The keychain, as a provided port rather than a mocked module. See {@link FakeSecureStore}. */
+let secure: FakeSecureStore;
 
 /** The registry, stubbed: these tests are about the id, not about slot bookkeeping. */
 class RegistryStub {
@@ -86,9 +101,14 @@ beforeAll(() => {
     });
 });
 
+afterAll(() => {
+    leaveTauri();
+});
+
 beforeEach(() => {
     vi.clearAllMocks();
-    vi.mocked(isTauri).mockReturnValue(true);
+    enterTauri();
+    secure = new FakeSecureStore();
     values.clear();
     localStorage.clear();
     failNextGet = false;
@@ -109,6 +129,7 @@ function setup(slotId = BOOTSTRAP_SLOT_ID): DeviceIdentityService {
             provideHttpClientTesting(),
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.venta.gg'}},
             {provide: AccountRegistryService, useValue: registry},
+            {provide: SecureStore, useValue: secure},
         ],
     });
     return TestBed.inject(DeviceIdentityService);
@@ -313,7 +334,7 @@ describe('registration', () => {
     }
 
     it('re-registers using the stored signing key, never a fresh one', async () => {
-        vi.mocked(secureStorage.getItem).mockResolvedValue('stored-public-key');
+        secure.put('alpine_mls_stored-device-id_pub', 'stored-public-key');
         const {service, ctrl} = withHttp();
 
         const result = service.ensureRegistered();
@@ -323,14 +344,18 @@ describe('registration', () => {
         expect(req.request.method).toBe('POST');
         expect(req.request.body.clientDeviceId).toBe('stored-device-id');
         expect(req.request.body.identityPublicKey).toBe('stored-public-key');
-        expect(secureStorage.getItem).toHaveBeenCalledWith('alpine_mls_stored-device-id_pub');
+        // Named after the device id, not after the slot: the entry is what every other piece of
+        // local MLS state is addressed by, so reading a different name is how a device orphans
+        // itself from its own key material.
+        expect(secure.reads).toContain('alpine_mls_stored-device-id_pub');
         req.flush({});
 
         await expect(result).resolves.toBe(true);
     });
 
     it('reports failure rather than inventing a key when none is stored', async () => {
-        vi.mocked(secureStorage.getItem).mockResolvedValue(null);
+        // Nothing put in the store: `FakeSecureStore` answers null, as the real one does for an
+        // absent key.
         const {service, ctrl} = withHttp();
 
         await expect(service.ensureRegistered()).resolves.toBe(false);
@@ -339,7 +364,7 @@ describe('registration', () => {
     });
 
     it('reports failure when the registration request errors', async () => {
-        vi.mocked(secureStorage.getItem).mockResolvedValue('stored-public-key');
+        secure.put('alpine_mls_stored-device-id_pub', 'stored-public-key');
         const {service, ctrl} = withHttp();
 
         const result = service.ensureRegistered();
@@ -395,7 +420,7 @@ describe('outside Tauri', () => {
     const PREFIX = 'alpine_settings::';
 
     beforeEach(() => {
-        vi.mocked(isTauri).mockReturnValue(false);
+        leaveTauri();
     });
 
     function stored<T>(key: string): T | undefined {

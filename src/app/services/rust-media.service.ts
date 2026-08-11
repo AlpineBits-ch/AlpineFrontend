@@ -1,7 +1,16 @@
-import {Injectable, signal} from '@angular/core';
-import {Channel, invoke, isTauri} from '@tauri-apps/api/core';
-import {platform} from '@tauri-apps/plugin-os';
+import {inject, Injectable, signal} from '@angular/core';
+import {Subject} from 'rxjs';
 import {CaptureGeometry} from '../models/capture-geometry';
+import {StreamPreset} from '../models/stream-preset';
+import {captureDisplay, retargetDisplayFps, retargetDisplayGeometry} from '../platform/display-capture';
+import {ScreenPublisher} from '../platform/ports/screen-publisher.port';
+import {
+    AudioChunk,
+    hostFor,
+    ScreenAudioOutcome,
+    ScreenFrame,
+    ScreenPublisherHost,
+} from '../platform/screen-publisher-host';
 
 export interface ScreenSource {
     id: string;
@@ -26,6 +35,12 @@ export interface IceServerConfig {
 }
 
 export interface ScreenPublishOptions {
+    /**
+     * Which source to capture.
+     *
+     * <p>Ignored by the web publisher: `getDisplayMedia` opens the host's own picker, which is the
+     * source chooser there. Empty is the honest value for that host - see `ScreenPickerService`.</p>
+     */
     sourceId: string;
     shareId: string;
     width: number;
@@ -45,17 +60,23 @@ export interface ScreenPublishOptions {
      * Capture and publish the system's audio alongside the picture, as a second
      * `screen-audio-{shareId}` track.
      *
-     * A request, not a guarantee: a machine with no usable loopback device publishes video only,
-     * and {@link ScreenPublishResult.audioTrackName} says what actually happened.
+     * A request, not a guarantee: a machine with no usable loopback device publishes video only, screen
+     * audio in a browser is Chromium-only and tab/window-scoped, and
+     * {@link ScreenPublishResult.audioTrackName} says what actually happened.
      */
     shareAudio: boolean;
-}
-
-interface PreviewFrame {
-    /** base64 JPEG. */
-    data: string;
-    width: number;
-    height: number;
+    /**
+     * The preset the geometry and bitrate above were solved from.
+     *
+     * <p>Carried as well as the derived numbers because the web sender's encoding parameters are applied
+     * by `applyScreenEncoding`, which takes the preset - and the point of passing the real one is that
+     * the web path cannot drift from the canvas path's idea of what a preset means. Nothing derives
+     * geometry from it a second time.</p>
+     *
+     * <p>Optional, and <b>not</b> forwarded to Rust: the native encoder is built from width, height, fps
+     * and kbps, which are already here.</p>
+     */
+    preset?: StreamPreset;
 }
 
 export interface ScreenPublishResult {
@@ -68,38 +89,53 @@ export interface ScreenPublishResult {
      * `shareAudio` succeeded, or viewers subscribe to a track that does not exist.
      */
     audioTrackName: string | null;
-    /** Which encoder was selected - 'media-foundation' or 'openh264'. */
+    /** Which encoder was selected - 'media-foundation', 'openh264', or 'browser' on web. */
     encoder: string;
 }
 
-interface AudioChunk {
-    data: string;        // base64 f32-LE PCM
-    sampleRate: number;
-    channels: number;
-}
-
-interface ScreenFrame {
-    data: string;        // base64 JPEG
-    width: number;
-    height: number;
-    timestampMs: number;
-}
-
+/**
+ * Screen capture and publishing, as the rest of the app sees it.
+ *
+ * <p>A <b>delegate over the {@link ScreenPublisher} port</b>. Its public surface is unchanged - the name
+ * still says "Rust" because ~30 call sites and two off-limits services depend on it, and holding the
+ * surface still is what let the port land without touching any of them. What changed is underneath: on
+ * desktop the port is the Rust publisher, and in a browser it is `getDisplayMedia` published directly.</p>
+ *
+ * <p>The three singleton commands - stop, framerate, share-audio mute - take a `shareId` in the port and
+ * take none here, so this holds {@link activeShareId} and supplies it. That is what makes the adapters'
+ * validation useful: this service can only ever name the share it started, so a mismatch downstream is a
+ * genuine mistake rather than a missing argument.</p>
+ */
 @Injectable({providedIn: 'root'})
 export class RustMediaService {
+    private readonly publisher = inject(ScreenPublisher);
+    /**
+     * The half of the host surface the port does not model - the canvas pipeline and the preview feed.
+     *
+     * <p>Null only for a stand-in that does not carry one (a spec's partial fake), which is why every
+     * use of it is guarded rather than asserted.</p>
+     */
+    private readonly host: ScreenPublisherHost | null = hostFor(this.publisher);
+
     private loopbackCtx: AudioContext | null = null;
     private loopbackWorklet: AudioWorkletNode | null = null;
     private loopbackDest: MediaStreamAudioDestinationNode | null = null;
-    private loopbackChannel: Channel<AudioChunk> | null = null;
 
     private screenCanvas: OffscreenCanvas | HTMLCanvasElement | null = null;
     private screenCtx: OffscreenCanvasRenderingContext2D | CanvasRenderingContext2D | null = null;
     private screenStream: MediaStream | null = null;
-    private screenChannel: Channel<ScreenFrame> | null = null;
     private latestFrame: ScreenFrame | null = null;
     private decodingFrame = false;
 
-    private _isLinux: boolean | null = null;
+    /**
+     * The browser display capture behind {@link startScreenCapture} on a host with no native pipeline.
+     *
+     * <p>Held because the video and the audio halves are asked for by two separate calls -
+     * `startScreenCapture` then `startLoopbackCapture` - but a browser hands both back from one
+     * `getDisplayMedia`, and there is no second picker prompt to be had.</p>
+     */
+    private displayCapture: {stream: MediaStream; video: MediaStreamTrack; audio: MediaStreamTrack | null} | null = null;
+
     private readonly _captureFps = signal(15);
     /** Currently requested capture rate (set via startScreenCapture / setCaptureFps). */
     readonly captureFps = this._captureFps.asReadonly();
@@ -108,15 +144,14 @@ export class RustMediaService {
     readonly captureGeometry = this._captureGeometry.asReadonly();
     private readonly _publishPreview = signal<string | null>(null);
     /**
-     * Data URL of the sharer's own screen while the Rust publisher owns the share.
+     * Data URL of the sharer's own screen while the publisher owns the share.
      *
-     * The publisher puts no MediaStream in the webview, so the local tile renders this instead -
-     * a ~5 fps thumbnail rather than the stream itself.
+     * The publisher puts no MediaStream in the webview - neither the Rust one nor the web one - so the
+     * local tile renders this instead: a low-rate thumbnail rather than the stream itself.
      */
     readonly publishPreview = this._publishPreview.asReadonly();
-    private publishPreviewChannel: Channel<PreviewFrame> | null = null;
     private readonly _inboundFps = signal(0);
-    /** Frames received from Rust per second. */
+    /** Frames received from the native pipeline per second. Stays 0 where frames never enter the webview. */
     readonly inboundFps = this._inboundFps.asReadonly();
     private readonly _renderedFps = signal(0);
     /** Frames drawn to the canvas per second (after decode). */
@@ -125,20 +160,50 @@ export class RustMediaService {
     private renderedFrameCount = 0;
     private fpsInterval?: ReturnType<typeof setInterval>;
 
+    /** The share {@link startScreenPublish} last opened, or null when nothing is publishing. */
+    private activeShareId: string | null = null;
+
+    private readonly _screenAudioOutcome = signal<ScreenAudioOutcome>('off');
     /**
-     * Returns true on Linux, where WebKitGTK getUserMedia() is permission-denied
-     * and the Rust cpal pipeline must be used instead.
+     * Whether the running share's audio was asked for, published, or asked for and unavailable.
+     *
+     * <p>Three states because "not requested" and "requested and impossible" must not read the same. The
+     * second one is a thing to tell the user: screen audio is Chromium-only and tab/window-scoped in a
+     * browser, and needs a usable loopback device on desktop, so a share that quietly dropped the audio
+     * half is exactly the failure this reports. `localScreenHasAudio` answers the narrower question of
+     * whether a track exists.</p>
+     */
+    readonly screenAudioOutcome = this._screenAudioOutcome.asReadonly();
+
+    private readonly publishEndedSignal = new Subject<void>();
+    /**
+     * The publisher's share ended without being asked to.
+     *
+     * <p>Fires when a web user stops the share from the browser's own capture bar - the primary way a
+     * share ends in a browser, and one that does not go through the app at all. <b>Nothing subscribes to
+     * this yet:</b> the services that own the "sharing" UI state are `voice-rtc.service.ts` and
+     * `call-session.service.ts`, and both belong to other work in flight. Until one of them forwards it
+     * into its own `screenEnded$`, a web share stopped from the browser bar leaves the button lit while
+     * the publish is genuinely gone.</p>
+     */
+    readonly publishEnded$ = this.publishEndedSignal.asObservable();
+
+    constructor() {
+        this.host?.onPreviewFrame(dataUrl => this._publishPreview.set(dataUrl));
+        this.host?.onPublishEnded(() => {
+            this._publishPreview.set(null);
+            this.activeShareId = null;
+            this._screenAudioOutcome.set('off');
+            this.publishEndedSignal.next();
+        });
+    }
+
+    /**
+     * Returns true where the microphone has to be captured natively rather than with `getUserMedia` -
+     * Linux, where WebKitGTK answers `getUserMedia` with a permission denial no prompt can clear.
      */
     async shouldUseRustAudio(): Promise<boolean> {
-        if (!isTauri()) return false;
-        if (this._isLinux === null) {
-            try {
-                this._isLinux = (await platform()) === 'linux';
-            } catch {
-                this._isLinux = false;
-            }
-        }
-        return this._isLinux;
+        return await this.host?.prefersNativeAudioCapture() ?? false;
     }
 
     // ── Screen sources ────────────────────────────────────────────────────────
@@ -148,46 +213,43 @@ export class RustMediaService {
      *
      * <p>Metadata only, and fast: capturing a preview of each is a full-resolution grab per source
      * and used to hold the dialog for tens of seconds on a busy desktop. Images are fetched per
-     * tile - see {@link captureSourceThumbnails}.</p>
+     * tile - see {@link captureSourceThumbnails}. Empty in a browser, where windows cannot be
+     * enumerated at all and the host's own picker is the enumerator.</p>
      */
-    async getScreenSources(): Promise<ScreenSource[]> {
-        if (!isTauri()) return [];
-        try {
-            return await invoke<ScreenSource[]>('enumerate_screen_sources');
-        } catch (e) {
-            console.warn('[RustMedia] enumerate_screen_sources failed', e);
-            return [];
-        }
+    getScreenSources(): Promise<ScreenSource[]> {
+        return this.publisher.sources();
     }
 
     /**
-     * Thumbnails for the named sources. Batches are capped Rust-side; an id that could not be
+     * Thumbnails for the named sources. Batches are capped host-side; an id that could not be
      * captured comes back with an empty string rather than being dropped, so a caller can tell
      * "failed" from "not asked for yet".
      */
-    async captureSourceThumbnails(sourceIds: string[]): Promise<SourceThumbnail[]> {
-        if (!isTauri() || sourceIds.length === 0) return [];
-        try {
-            return await invoke<SourceThumbnail[]>('capture_source_thumbnails', {sourceIds});
-        } catch (e) {
-            console.warn('[RustMedia] capture_source_thumbnails failed', e);
-            return [];
-        }
+    captureSourceThumbnails(sourceIds: string[]): Promise<SourceThumbnail[]> {
+        return this.publisher.thumbnails(sourceIds);
     }
 
     // ── Screen capture ────────────────────────────────────────────────────────
 
     /**
-     * Start Rust screen capture for the given source at a fixed output size.
+     * Start screen capture for the given source at a fixed output size.
      *
-     * Returns a MediaStreamTrack backed by a canvas capture stream. The geometry must already be
-     * solved (see {@link solveGeometry}) - it is locked in for the life of the session.
+     * Returns a MediaStreamTrack. The geometry must already be solved (see {@link solveGeometry}) - it is
+     * locked in for the life of the session.
+     *
+     * <p>Two pipelines behind one signature. On a host with native capture the frames arrive as JPEGs and
+     * are decoded onto a canvas whose capture stream is the track. In a browser the display track *is*
+     * the track, so there is no round trip - and `sourceId` is ignored, because the host picker that
+     * `getDisplayMedia` opens is what chooses the source.</p>
      */
     async startScreenCapture(sourceId: string, geometry: CaptureGeometry, fps = 30): Promise<MediaStreamTrack> {
         await this.stopScreenCapture();
 
         this._captureFps.set(fps);
         this._captureGeometry.set(geometry);
+
+        if (!this.host?.nativeCapture) return this.startDisplayCapture(geometry, fps);
+
         this.inboundFrameCount = 0;
         this.renderedFrameCount = 0;
         this.fpsInterval = setInterval(() => {
@@ -213,20 +275,10 @@ export class RustMediaService {
         const stream = (canvas as HTMLCanvasElement).captureStream(0);
         this.screenStream = stream;
 
-        const channel = new Channel<ScreenFrame>();
-        this.screenChannel = channel;
-
-        channel.onmessage = (frame) => {
+        await this.host.startNativeScreenCapture(sourceId, geometry, fps, frame => {
             this.inboundFrameCount++;
             this.queueFrame(frame);
-        };
-
-        await invoke('set_screen_capture_geometry', {
-            width: geometry.width,
-            height: geometry.height,
-        }).catch(() => {
         });
-        await invoke('start_screen_capture', {sourceId, fps, onFrame: channel});
 
         const track = stream.getVideoTracks()[0];
         if (!track) throw new Error('No video track from canvas');
@@ -237,58 +289,39 @@ export class RustMediaService {
         // framerate only because bitrate was chosen independently of resolution and fps; the
         // stream preset now couples all three.
         try {
-            (track as { contentHint?: string }).contentHint = 'detail';
+            (track as {contentHint?: string}).contentHint = 'detail';
         } catch {
         }
         return track;
     }
 
-    // ── Rust-native publishing ────────────────────────────────────────────────
+    // ── Publishing ────────────────────────────────────────────────────────────
 
     /**
-     * Capture, encode and publish a screen source entirely in Rust.
+     * Capture, encode and publish a screen source through the host's publisher.
      *
-     * Unlike {@link startScreenCapture} this returns no MediaStream: frames never enter the
-     * webview at all. The resolved ids are what other clients subscribe to, exactly as they would
-     * for a track the webview published.
+     * Unlike {@link startScreenCapture} this returns no MediaStream: on desktop frames never enter the
+     * webview at all, and the web publisher keeps its track on its own peer connection. The resolved ids
+     * are what other clients subscribe to, exactly as they would for a track the webview published.
      */
     async startScreenPublish(options: ScreenPublishOptions): Promise<ScreenPublishResult> {
-        const preview = new Channel<PreviewFrame>();
-        preview.onmessage = frame => this._publishPreview.set(`data:image/jpeg;base64,${frame.data}`);
-        this.publishPreviewChannel = preview;
-
-        return invoke<ScreenPublishResult>('start_screen_publish', {
-            onPreview: preview,
-            sourceId: options.sourceId,
-            shareId: options.shareId,
-            width: options.width,
-            height: options.height,
-            fps: options.fps,
-            kbps: options.kbps,
-            iceServers: options.iceServers,
-            apiBase: options.apiBase,
-            token: options.token,
-            deviceId: options.deviceId,
-            guildId: options.guildId ?? null,
-            channelId: options.channelId ?? null,
-            callId: options.callId ?? null,
-            // Defaulted rather than passed straight through: the picker is the only thing that sets
-            // it, and a caller that builds options by hand would otherwise fail the whole publish on
-            // a missing key rather than simply sharing without audio.
-            shareAudio: options.shareAudio ?? false,
-        });
+        const result = await this.publisher.start(options);
+        this.activeShareId = options.shareId;
+        // Derived from both halves, because that is the only place both facts are in hand: what the user
+        // asked for, and what came back.
+        this._screenAudioOutcome.set(
+            !options.shareAudio ? 'off' : result.audioTrackName === null ? 'unavailable' : 'published',
+        );
+        return result;
     }
 
     async stopScreenPublish(): Promise<void> {
-        if (this.publishPreviewChannel) {
-            this.publishPreviewChannel.onmessage = () => {
-            };
-            this.publishPreviewChannel = null;
-        }
         this._publishPreview.set(null);
-        if (!isTauri()) return;
-        await invoke('stop_screen_publish').catch(() => {
-        });
+        this._screenAudioOutcome.set('off');
+        const shareId = this.activeShareId;
+        this.activeShareId = null;
+        if (shareId === null) return;
+        await this.publisher.stop(shareId).catch(e => console.warn('[screen] stopping the publish failed', e));
     }
 
     /**
@@ -298,9 +331,9 @@ export class RustMediaService {
      * fixed to one geometry and bitrate for its lifetime; a resolution change restarts the publish.
      */
     async setPublishFps(fps: number): Promise<void> {
-        if (!isTauri()) return;
-        await invoke('set_publish_fps', {fps: Math.round(fps)}).catch(() => {
-        });
+        if (this.activeShareId === null) return;
+        await this.publisher.setFps(this.activeShareId, fps)
+            .catch(e => console.warn('[screen] setting the publish framerate failed', e));
     }
 
     /**
@@ -310,17 +343,21 @@ export class RustMediaService {
      * no audio half.
      */
     async setScreenAudioMuted(muted: boolean): Promise<void> {
-        if (!isTauri()) return;
-        await invoke('set_screen_audio_muted', {muted}).catch(() => {
-        });
+        if (this.activeShareId === null) return;
+        await this.publisher.setAudioMuted(this.activeShareId, muted)
+            .catch(e => console.warn('[screen] muting the share audio failed', e));
     }
 
     /** Change capture FPS mid-stream without stopping/restarting. Takes effect within one frame. */
     async setCaptureFps(fps: number): Promise<void> {
         this._captureFps.set(fps);
-        if (!isTauri()) return;
-        await invoke('set_screen_capture_fps', {fps: Math.round(fps)}).catch(() => {
-        });
+        if (!this.host?.nativeCapture) {
+            const video = this.displayCapture?.video;
+            if (video) await retargetDisplayFps(video, Math.round(fps)).catch(() => {
+            });
+            return;
+        }
+        await this.host.setNativeCaptureFps(fps);
     }
 
     /**
@@ -335,12 +372,15 @@ export class RustMediaService {
             this.screenCanvas.width = geometry.width;
             this.screenCanvas.height = geometry.height;
         }
-        if (!isTauri()) return;
-        await invoke('set_screen_capture_geometry', {
-            width: geometry.width,
-            height: geometry.height,
-        }).catch(() => {
-        });
+        if (!this.host?.nativeCapture) {
+            const video = this.displayCapture?.video;
+            if (video) {
+                await retargetDisplayGeometry(video, geometry.width, geometry.height).catch(() => {
+                });
+            }
+            return;
+        }
+        await this.host.setNativeCaptureGeometry(geometry);
     }
 
     async stopScreenCapture(): Promise<void> {
@@ -349,21 +389,19 @@ export class RustMediaService {
         this._inboundFps.set(0);
         this._renderedFps.set(0);
 
-        if (this.screenChannel) {
-            this.screenChannel.onmessage = () => {
-            };
-            this.screenChannel = null;
-        }
-        if (isTauri()) {
-            await invoke('stop_screen_capture').catch(() => {
-            });
-        }
+        await this.host?.stopNativeScreenCapture();
+
         this.screenStream?.getTracks().forEach(t => t.stop());
         this.screenStream = null;
         this.screenCanvas = null;
         this.screenCtx = null;
         this.latestFrame = null;
         this.decodingFrame = false;
+
+        // Both halves, because in a browser they are one capture: the audio track is not a device this
+        // opened separately, it is part of the source the user picked, and it ends with the picture.
+        this.displayCapture?.stream.getTracks().forEach(t => t.stop());
+        this.displayCapture = null;
     }
 
     // ── System audio (loopback) capture ───────────────────────────────────────
@@ -374,6 +412,16 @@ export class RustMediaService {
 
     async startLoopbackCapture(): Promise<MediaStreamTrack> {
         await this.stopLoopbackCapture();
+
+        if (!this.host?.nativeCapture) {
+            // A browser has no loopback device at all: the only system audio it will ever hand over is
+            // the audio of the source the user picked in the display-capture prompt, which is Chromium
+            // only and scoped to a tab or a window. Throwing is what makes the caller fall back to a
+            // video-only share and say so - answering with a silent track would be the quiet failure.
+            const audio = this.displayCapture?.audio;
+            if (!audio) throw new Error('This browser did not provide audio for the captured source.');
+            return audio;
+        }
 
         const ctx = new AudioContext({sampleRate: 48_000});
         this.loopbackCtx = ctx;
@@ -392,11 +440,7 @@ export class RustMediaService {
         this.loopbackDest = destination;
         worklet.connect(destination);
 
-        const channel = new Channel<AudioChunk>();
-        this.loopbackChannel = channel;
-        channel.onmessage = (chunk) => this.feedLoopback(chunk);
-
-        await invoke('start_loopback_capture', {onChunk: channel});
+        await this.host.startNativeLoopbackCapture(chunk => this.feedLoopback(chunk));
 
         const track = destination.stream.getAudioTracks()[0];
         if (!track) throw new Error('No audio track from loopback worklet');
@@ -404,21 +448,39 @@ export class RustMediaService {
     }
 
     async stopLoopbackCapture(): Promise<void> {
-        if (this.loopbackChannel) {
-            this.loopbackChannel.onmessage = () => {
-            };
-            this.loopbackChannel = null;
-        }
-        if (isTauri()) {
-            await invoke('stop_loopback_capture').catch(() => {
-            });
-        }
+        await this.host?.stopNativeLoopbackCapture();
         this.loopbackWorklet?.disconnect();
         this.loopbackWorklet = null;
         this.loopbackDest = null;
         this.loopbackCtx?.close().catch(() => {
         });
         this.loopbackCtx = null;
+
+        // The browser capture is deliberately *not* touched here. Its audio track is part of the display
+        // capture rather than a device this opened, so `stopScreenCapture` owns both halves - and
+        // `startLoopbackCapture` calls this first, so releasing it here would stop the very track that
+        // call is about to return.
+    }
+
+    /**
+     * Open the browser's display capture and keep both halves of it.
+     *
+     * <p>One prompt, two consumers: the video track is returned here and the audio track - if the host
+     * gave one - is what {@link startLoopbackCapture} hands back afterwards. Asking twice would put a
+     * second picker in front of the user for a share they already chose.</p>
+     */
+    private async startDisplayCapture(geometry: CaptureGeometry, fps: number): Promise<MediaStreamTrack> {
+        const capture = await captureDisplay({
+            width: geometry.width,
+            height: geometry.height,
+            fps,
+            // Asked for unconditionally, because this pipeline's two halves are opened by two separate
+            // calls and the audio decision is not known here. A host that offers no audio simply gives
+            // none, which `startLoopbackCapture` then reports.
+            audio: true,
+        });
+        this.displayCapture = {stream: capture.stream, video: capture.video, audio: capture.audio};
+        return capture.video;
     }
 
     // pick up the latest frame when it finishes instead of dropping it.

@@ -1,9 +1,9 @@
-import {inject, Injectable, signal} from '@angular/core';
-import {invoke, isTauri} from '@tauri-apps/api/core';
-import {firstValueFrom, from, Observable, of} from 'rxjs';
+import {inject, Injectable, Injector, signal} from '@angular/core';
+import {firstValueFrom, from, Observable} from 'rxjs';
 import {map, switchMap} from 'rxjs/operators';
-import {LazyStore} from '@tauri-apps/plugin-store';
-import {secureStorage} from 'tauri-plugin-secure-storage-api';
+import {MlsEngine} from '../platform/ports/mls-engine.port';
+import {MlsLocalStore, MlsLocalStoreFactory} from '../platform/ports/mls-local-store.port';
+import {SecureStore} from '../platform/ports/secure-store.port';
 import {DeviceIdentityService} from './device-identity.service';
 
 // ---------------------------------------------------------------------------
@@ -217,21 +217,24 @@ export interface MlsBackupImportResult {
 }
 
 /**
- * Every MLS operation goes through the Rust engine, which exists only inside Tauri.
+ * Every MLS operation goes through the Rust engine - over IPC on the desktop, over wasm-bindgen in a
+ * browser.
  *
- * Guarded explicitly rather than left to chance: the app happens not to boot in a browser today,
- * so nothing here was ever reached from one - but "it crashes earlier" is not an access control.
- * A web build that got this far would silently hold no keys and, without this, would report
- * success for operations that never happened.
+ * <p>Guarded explicitly rather than left to chance. The guard used to be "are we inside Tauri", which
+ * was the same question while Tauri was the only host with an engine; it is not any more, because the
+ * `venta-crypto` WASM crate gives a browser the same one. What survives the change is the reasoning:
+ * <b>"it crashes earlier" is not an access control</b>. A page whose engine failed to load holds no
+ * keys, and without this it would report success for operations that never happened.</p>
+ *
+ * <p>So the gate is now {@link MlsEngine.available} - which reflects whether this host has a working
+ * engine, not which shell it is running in - and it stays a loud, synchronous refusal at the call
+ * site rather than a rejected stream, so a caller that never subscribes cannot believe the work was
+ * queued.</p>
  */
 export class MlsUnavailableError extends Error {
     constructor() {
         super('MLS is unavailable: this build has no local MLS engine.');
     }
-}
-
-function requireTauri(): void {
-    if (!isTauri()) throw new MlsUnavailableError();
 }
 
 /**
@@ -247,11 +250,15 @@ export class MlsFeatureUnavailableError extends Error {
 }
 
 /**
- * Whether a rejection is Tauri refusing to resolve the command, rather than the command failing.
+ * Whether a rejection is the host refusing to resolve the command, rather than the command failing.
  *
  * Matched narrowly - the command's own name has to appear alongside the not-found wording - so a
  * genuine engine error that happens to contain "not found" (a missing group, a missing key) is
  * never mistaken for an absent feature and silently swallowed.
+ *
+ * <p>Host-independent on purpose: Tauri's own "Command X not found" is what this was written against,
+ * and the WASM adapter reports an absent export with the same wording rather than a browser-specific
+ * one, so a degradable absence degrades identically on both.</p>
  */
 function isCommandNotFound(err: unknown, command: string): boolean {
     const text = typeof err === 'string' ? err : err instanceof Error ? err.message : String(err);
@@ -392,6 +399,42 @@ export class MlsService {
     private readonly deviceIdentity = inject(DeviceIdentityService);
     private _cacheKey: Promise<CryptoKey> | null = null;
 
+    /**
+     * The three ports below are resolved on demand rather than injected as fields.
+     *
+     * <p>Same reason `DeviceIdentityService` reaches for `SecureStore` and `DeviceService` this way, and
+     * the same failure it names. `MlsService` is reached transitively from a lot of places -
+     * `MessageStore`, `GuildWebsocketService`, `BotCommandService` - and most of them never call a
+     * single method on it. Injecting the ports as fields makes <i>constructing</i> the service require
+     * all three providers, which took out seven unrelated spec files at once with
+     * `No provider found for MlsEngine` on paths that would never have touched an engine.</p>
+     *
+     * <p>`Injector.get` is a synchronous map lookup, so nothing about the guards below changes: an
+     * engine that is genuinely absent still fails loudly, at the call, rather than at construction.</p>
+     */
+    private readonly injector = inject(Injector);
+
+    /** IPC on the desktop, wasm-bindgen in a browser. The one thing every method here needs. */
+    private get engine(): MlsEngine {
+        return this.injector.get(MlsEngine);
+    }
+
+    /** The group registry and the plaintext message cache: `LazyStore` files, or IndexedDB. */
+    private get localStores(): MlsLocalStoreFactory {
+        return this.injector.get(MlsLocalStoreFactory);
+    }
+
+    /**
+     * The OS keychain on desktop, IndexedDB on web.
+     *
+     * <p>What lives here is the signing keypair, the §H account identity keypair and the key the engine
+     * state and message cache are sealed under - so on web this is a stated downgrade rather than a
+     * keychain, and `SecureStore.hardwareBacked` is what the key-backup UI says so with.</p>
+     */
+    private get secureStore(): SecureStore {
+        return this.injector.get(SecureStore);
+    }
+
     // -------------------------------------------------------------------------
     // Per-account local stores
     //
@@ -405,22 +448,26 @@ export class MlsService {
     // needs a store read, and a field initialiser cannot await.
     // -------------------------------------------------------------------------
 
-    private readonly _stores = new Map<string, {registry: LazyStore; cache: LazyStore}>();
+    private readonly _stores = new Map<string, {registry: MlsLocalStore; cache: MlsLocalStore}>();
 
-    private async storesForAccount(): Promise<{registry: LazyStore; cache: LazyStore}> {
+    private async storesForAccount(): Promise<{registry: MlsLocalStore; cache: MlsLocalStore}> {
         const deviceId = await this.deviceIdentity.deviceId();
         let pair = this._stores.get(deviceId);
         if (!pair) {
+            // Through the port rather than `new LazyStore(...)`, so a browser client has these two
+            // files too. The names are unchanged, which is what makes this a pure indirection on the
+            // desktop: the same two files, holding the same context-to-group mappings and the same
+            // `#floor` marks, opened by the same names.
             pair = {
-                registry: new LazyStore(`mls-group-registry-${deviceId}.json`),
-                cache: new LazyStore(`mls-message-cache-${deviceId}.json`),
+                registry: this.localStores.open(`mls-group-registry-${deviceId}.json`),
+                cache: this.localStores.open(`mls-message-cache-${deviceId}.json`),
             };
             this._stores.set(deviceId, pair);
         }
         return pair;
     }
 
-    private async registry(): Promise<LazyStore> {
+    private async registry(): Promise<MlsLocalStore> {
         return (await this.storesForAccount()).registry;
     }
 
@@ -430,14 +477,19 @@ export class MlsService {
      *
      * <p><b>Not a swallowed error, and the difference is the whole justification.</b> This registry
      * records what <i>this device</i> has done with MLS - which group it holds for a context, which
-     * generation it last saw live, how high its encryption floor has ever been. A build with no
-     * engine has provably done none of it, so `null` is the true answer rather than a fallback. The
-     * store behind it is a Tauri store, so without this each of those reads rejected instead.</p>
+     * generation it last saw live, how high its encryption floor has ever been. A host with no
+     * engine has provably done none of it, so `null` is the true answer rather than a fallback.</p>
+     *
+     * <p>Gated on {@link MlsEngine.available} rather than on the host, now that a browser has an engine
+     * too. That distinction is load-bearing in the other direction as well: `available` is false only
+     * once loading the engine has actually <i>failed</i>, never merely because it has not finished, or
+     * a floor read during the first second of a boot would answer "never encrypted" for a context this
+     * device encrypts - which is the §L.9 downgrade the floor exists to refuse.</p>
      *
      * <p>Reads only, and deliberately not the writes beside them. An engine command refuses through
-     * `requireTauri()`; a registry write refuses because the store itself is a Tauri store and
-     * rejects. Both stay refusals, because there "no engine" is a reason not to proceed rather than
-     * an answer - only a read has a truthful one.</p>
+     * {@link requireEngine}; a registry write is left to reject on its own. Both stay refusals,
+     * because there "no engine" is a reason not to proceed rather than an answer - only a read has a
+     * truthful one.</p>
      *
      * <p><b>What this fixed.</b> Both of the client's central paths were dead in a browser and both
      * looked like something else:</p>
@@ -456,11 +508,11 @@ export class MlsService {
      * </ul>
      */
     private async readRegistry<T>(key: string): Promise<T | null> {
-        if (!isTauri()) return null;
+        if (!this.engine.available) return null;
         return (await (await this.registry()).get<T>(key)) ?? null;
     }
 
-    private async cacheStore(): Promise<LazyStore> {
+    private async cacheStore(): Promise<MlsLocalStore> {
         return (await this.storesForAccount()).cache;
     }
 
@@ -762,11 +814,11 @@ export class MlsService {
         const deviceId = await this.deviceIdentity.deviceId();
         const name = `alpine_mls_${deviceId}_statekey`;
 
-        const existing = await secureStorage.getItem(name);
+        const existing = await this.secureStore.getItem(name);
         if (existing) return existing;
 
         const minted = toB64(crypto.getRandomValues(new Uint8Array(32)));
-        await secureStorage.setItem(name, minted);
+        await this.secureStore.setItem(name, minted);
         return minted;
     }
 
@@ -1116,7 +1168,13 @@ export class MlsService {
      * one machine shared one `mls_state.json`, and the engine's own defence - clearing everything
      * when the path changes - never fired, because the path never changed.</p>
      *
-     * @returns `true` when state was restored from disk, `false` when starting fresh.
+     * <p><b>On web there is no file, and this call is what restores instead.</b> The browser adapter
+     * requires the same state key, then reads the sealed blob it holds in IndexedDB under `scope` and
+     * feeds it through `mls_import_state` - the same encrypted format the desktop writes to disk. So
+     * the returned boolean means the same thing on both hosts, and `scope` is what keeps two accounts
+     * in one browser profile from ever reading each other's engine state.</p>
+     *
+     * @returns `true` when state was restored, `false` when starting fresh.
      */
     initStorage(): Observable<boolean> {
         // Both fetched here rather than passed in, so no caller can forget the key and quietly
@@ -1315,8 +1373,8 @@ export class MlsService {
         if (!pub || !priv) return;
 
         await Promise.all([
-            secureStorage.setItem(this.accountIdentityKey(deviceId, 'pub'), pub),
-            secureStorage.setItem(this.accountIdentityKey(deviceId, 'priv'), priv),
+            this.secureStore.setItem(this.accountIdentityKey(deviceId, 'pub'), pub),
+            this.secureStore.setItem(this.accountIdentityKey(deviceId, 'priv'), priv),
         ]);
     }
 
@@ -1326,8 +1384,8 @@ export class MlsService {
     ): Promise<{pub: string; priv: string} | null> {
         try {
             const [pub, priv] = await Promise.all([
-                secureStorage.getItem(this.accountIdentityKey(deviceId, 'pub')),
-                secureStorage.getItem(this.accountIdentityKey(deviceId, 'priv')),
+                this.secureStore.getItem(this.accountIdentityKey(deviceId, 'pub')),
+                this.secureStore.getItem(this.accountIdentityKey(deviceId, 'priv')),
             ]);
             return pub && priv ? {pub, priv} : null;
         } catch {
@@ -1434,9 +1492,9 @@ export class MlsService {
     ): Observable<void> {
         return from(
             Promise.all([
-                secureStorage.setItem(this.secureKey(deviceId, 'pub'), batch.signingPublicKey),
-                secureStorage.setItem(this.secureKey(deviceId, 'priv'), batch.signingPrivateKey),
-                secureStorage.setItem(this.secureKey(deviceId, 'identity'), identity),
+                this.secureStore.setItem(this.secureKey(deviceId, 'pub'), batch.signingPublicKey),
+                this.secureStore.setItem(this.secureKey(deviceId, 'priv'), batch.signingPrivateKey),
+                this.secureStore.setItem(this.secureKey(deviceId, 'identity'), identity),
             ]).then(() => undefined),
         );
     }
@@ -1464,9 +1522,9 @@ export class MlsService {
             // modal, which mints a *fresh* signing key and orphans the device from every group it
             // belongs to. That is unrecoverable; waiting and retrying is not.
             Promise.all([
-                secureStorage.getItem(this.secureKey(deviceId, 'pub')),
-                secureStorage.getItem(this.secureKey(deviceId, 'priv')),
-                secureStorage.getItem(this.secureKey(deviceId, 'identity')),
+                this.secureStore.getItem(this.secureKey(deviceId, 'pub')),
+                this.secureStore.getItem(this.secureKey(deviceId, 'priv')),
+                this.secureStore.getItem(this.secureKey(deviceId, 'identity')),
             ]).catch((cause: unknown) => {
                 const err: MlsTypedError = {
                     kind: 'MlsError',
@@ -1510,15 +1568,15 @@ export class MlsService {
     clearStoredSigningKey(deviceId: string): Observable<void> {
         return from(
             Promise.all([
-                secureStorage.removeItem(this.secureKey(deviceId, 'pub')),
-                secureStorage.removeItem(this.secureKey(deviceId, 'priv')),
-                secureStorage.removeItem(this.secureKey(deviceId, 'identity')),
+                this.secureStore.removeItem(this.secureKey(deviceId, 'pub')),
+                this.secureStore.removeItem(this.secureKey(deviceId, 'priv')),
+                this.secureStore.removeItem(this.secureKey(deviceId, 'identity')),
                 // The §H keypair goes with them. It is account key material like the rest, and
                 // leaving it behind for whoever signs in next is the leak this teardown exists to
                 // prevent - the more so because nothing else on this client ever mints one, so a
                 // stale entry would be indistinguishable from a legitimately restored one.
-                secureStorage.removeItem(this.accountIdentityKey(deviceId, 'pub')),
-                secureStorage.removeItem(this.accountIdentityKey(deviceId, 'priv')),
+                this.secureStore.removeItem(this.accountIdentityKey(deviceId, 'pub')),
+                this.secureStore.removeItem(this.accountIdentityKey(deviceId, 'priv')),
             ]).then(() => undefined),
         );
     }
@@ -1536,13 +1594,27 @@ export class MlsService {
     }
 
     /**
-     * Every call into the Rust engine goes through here, so the Tauri guard cannot be forgotten on
-     * a new command. Fails closed: outside Tauri there is no engine, and reporting success for an
-     * operation that never happened is worse than refusing it.
+     * Refuses when this host has no working engine.
+     *
+     * <p>Synchronous and thrown at the call site, not folded into the returned Observable: a caller
+     * that never subscribes must not be able to believe the work was queued.</p>
+     */
+    private requireEngine(): void {
+        if (!this.engine.available) throw new MlsUnavailableError();
+    }
+
+    /**
+     * Every call into the Rust engine goes through here, so the availability guard cannot be forgotten
+     * on a new command. Fails closed: with no engine there is nothing to hold keys, and reporting
+     * success for an operation that never happened is worse than refusing it.
+     *
+     * <p>The command name and the argument object are passed through untouched - `MlsEngine` is a
+     * lookup table with no translation, and on both hosts these are the same 36 names with the same
+     * `camelCase` fields. That is why the Rust tests can assert this file's call sites directly.</p>
      */
     private call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-        requireTauri();
-        return invoke<T>(command, args);
+        this.requireEngine();
+        return this.engine.call<T>(command, args);
     }
 
     /**
@@ -1566,9 +1638,9 @@ export class MlsService {
         args: Record<string, unknown> | undefined,
         onMissing: () => T,
     ): Promise<T> {
-        requireTauri();
+        this.requireEngine();
         try {
-            return await invoke<T>(command, args);
+            return await this.engine.call<T>(command, args);
         } catch (err) {
             if (isCommandNotFound(err, command)) return onMissing();
             throw err;

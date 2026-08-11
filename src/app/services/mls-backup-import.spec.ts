@@ -7,38 +7,41 @@
  * signing keypair, so even a wired restore would have worked until the app was next killed and
  * then looked exactly like lost keys.</p>
  */
-vi.mock('@tauri-apps/api/core', () => ({
-    invoke: vi.fn(),
-    isTauri: vi.fn(() => true),
-}));
-vi.mock('tauri-plugin-secure-storage-api', () => ({
-    secureStorage: {
-        getItem: vi.fn(async () => 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='),
-        setItem: vi.fn(async () => undefined),
-        removeItem: vi.fn(async () => undefined),
-    },
-}));
-vi.mock('@tauri-apps/plugin-store', () => ({
-    LazyStore: class {
-        private readonly values = new Map<string, unknown>();
-        async get<T>(key: string) { return this.values.get(key) as T | undefined; }
-        async set(key: string, value: unknown) { this.values.set(key, value); }
-        async delete(key: string) { this.values.delete(key); }
-        async entries<T>() { return [...this.values.entries()] as [string, T][]; }
-        async clear() { this.values.clear(); }
-        async save() { }
-    },
-}));
-
 import {TestBed} from '@angular/core/testing';
-import {invoke} from '@tauri-apps/api/core';
-import {secureStorage} from 'tauri-plugin-secure-storage-api';
+import {MlsEngine} from '../platform/ports/mls-engine.port';
+import {MlsLocalStoreFactory} from '../platform/ports/mls-local-store.port';
+import {SecureStore} from '../platform/ports/secure-store.port';
+import {FakeMlsEngine} from '../platform/testing/fake-mls-engine';
+import {FakeMlsLocalStoreFactory} from '../platform/testing/fake-mls-local-store';
 import {MlsBackupImportError, MlsBackupImportResult, MlsService} from './mls.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {describeImportFailure} from '../features/settings/key-backup-restore/key-backup-restore.component';
 
-const invokeStub = vi.mocked(invoke);
-const setItem = vi.mocked(secureStorage.setItem);
+/**
+ * The engine and the key store as provided fakes, in place of `vi.mock`ing two Tauri modules.
+ *
+ * <p>What this file is about does not change with the host: the ordering that keeps a failed restore
+ * from half-applying, and the fact that the signing keypair goes into the key store rather than only
+ * into the session - a restore that set only the session handle worked until the app was next killed
+ * and then looked exactly like lost keys. On web that store is IndexedDB rather than a keychain, which
+ * is a downgrade `SecureStore.hardwareBacked` states; the ordering requirement is identical.</p>
+ */
+const invokeStub = vi.fn<(command: string, args?: Record<string, unknown>) => Promise<unknown>>();
+const engine = new FakeMlsEngine();
+const localStores = new FakeMlsLocalStoreFactory();
+
+/** The state key the message-cache seal is derived from, as a keychain would answer it. */
+const STATE_KEY = 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
+
+class StubSecureStore extends SecureStore {
+    readonly hardwareBacked = true;
+    getItem = vi.fn(async (_key: string): Promise<string | null> => STATE_KEY);
+    setItem = vi.fn(async (_key: string, _value: string): Promise<void> => undefined);
+    removeItem = vi.fn(async (_key: string): Promise<void> => undefined);
+}
+
+const secureStore = new StubSecureStore();
+const setItem = secureStore.setItem;
 
 const DEVICE_ID = 'device-a';
 
@@ -65,10 +68,17 @@ describe('MlsService.importBackup', () => {
     beforeEach(() => {
         invokeStub.mockReset();
         setItem.mockClear();
+        secureStore.getItem.mockClear();
+        engine.reset();
+        engine.handler = invokeStub;
+        localStores.reset();
         TestBed.configureTestingModule({
             providers: [
                 MlsService,
-                // Pinned, because the keychain entry names are `alpine_mls_{deviceId}_*` and this
+                {provide: MlsEngine, useValue: engine},
+                {provide: SecureStore, useValue: secureStore},
+                {provide: MlsLocalStoreFactory, useValue: localStores},
+                // Pinned, because the key-store entry names are `alpine_mls_{deviceId}_*` and this
                 // test is specifically about which names get written.
                 {provide: DeviceIdentityService, useValue: {deviceId: async () => DEVICE_ID}},
             ],

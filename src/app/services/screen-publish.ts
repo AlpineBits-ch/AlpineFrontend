@@ -1,22 +1,30 @@
-import {isTauri} from '@tauri-apps/api/core';
 import {environment} from '../../environments/environment';
 import {bitrateFor, StreamPreset} from '../models/stream-preset';
 import {solveGeometry} from '../models/capture-geometry';
+import {detectHost} from '../platform/host';
 import {ScreenPickerChoice} from './screen-picker.service';
 import {IceServerConfig, ScreenPublishOptions} from './rust-media.service';
 
 /**
- * Whether screen shares should be published from Rust rather than through the canvas pipeline.
+ * Whether the share is owned by the {@link ScreenPublisher} port rather than published as a track on
+ * this client's own peer connection.
  *
- * Requires the desktop app: the publisher is a Tauri command, and in the browser there is no Rust
- * side at all.
+ * <p>The name is kept because two off-limits services branch on it, but the question it answers has
+ * widened: it is now "does the publisher own this share", and there are two publishers. On desktop that
+ * is the Rust one, behind `environment.rustPublisher` - the documented one-line rollback to the canvas
+ * pipeline, unchanged and still meaning exactly that.</p>
+ *
+ * <p><b>Always true in a browser</b>, and deliberately not gated on that flag. There is no Rust side to
+ * roll back to, so tying the web publisher to the Rust rollback switch would repurpose a flag whose whole
+ * value is that it means one thing. The web publisher captures with `getDisplayMedia` and publishes the
+ * track directly, which supersedes the canvas pipeline outright rather than falling back to it.</p>
  */
 export function useRustPublisher(): boolean {
-    return environment.rustPublisher && isTauri();
+    return detectHost() === 'web' || environment.rustPublisher;
 }
 
 /**
- * STUN servers for the Rust publisher. TURN entries are deliberately dropped.
+ * STUN servers for the publisher. TURN entries are deliberately dropped.
  *
  * Cloudflare's SFU runs ICE-lite on public IPs, so reaching it needs no relay: the client's
  * outbound packet creates the NAT mapping and the SFU answers on it. Symmetric NAT only defeats
@@ -25,7 +33,7 @@ export function useRustPublisher(): boolean {
  * UDP outright.
  *
  * Dropping them is not merely tidy. `webrtc-rs` validates the configuration up front and rejects a
- * `turn:` URL with no credentials, and this publish waits for ICE gathering to finish before
+ * `turn:` URL with no credentials, and the native publish waits for ICE gathering to finish before
  * offering - so relay entries that cannot authenticate would add their whole timeout to the start
  * of every share.
  */
@@ -41,10 +49,12 @@ export function iceServers(): IceServerConfig[] {
 }
 
 /**
- * Build the argument set for a Rust publish from a picker choice.
+ * Build the argument set for a publish from a picker choice.
  *
  * Geometry is solved here, once, from the source's own dimensions - the same solve the canvas path
- * does - so both pipelines agree on what a preset means.
+ * does - so both pipelines agree on what a preset means. **This is the only place a preset becomes
+ * pixels**, on either host: the web adapter applies the numbers below as capture constraints and never
+ * re-derives them, which is what keeps "1080p at 30" identical in a browser and on the desktop.
  */
 export function publishOptions(
     choice: ScreenPickerChoice,
@@ -69,6 +79,10 @@ export function publishOptions(
         token,
         deviceId,
         shareAudio: choice.shareAudio,
+        // Carried alongside the derived numbers, not instead of them: the web sender's encoding
+        // parameters come from `applyScreenEncoding`, which takes the preset. Ignored by the Rust
+        // publisher, whose encoder is built from the width/height/fps/kbps above.
+        preset,
         ...target,
     };
 }

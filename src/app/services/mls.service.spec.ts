@@ -4,41 +4,31 @@
  *
  * Strategy
  * ─────────
- * The service is a thin adapter over Tauri's `invoke`. Every method must:
- *   1. Call `invoke` with the correct snake_case command name.
+ * The service is a thin adapter over the {@link MlsEngine} port. Every method must:
+ *   1. Call the engine with the correct snake_case command name.
  *   2. Pass each argument under the exact camelCase key that Rust's
  *      `#[serde(rename_all = "camelCase")]` expects.
- *   3. Return an Observable that resolves to the value `invoke` resolves to.
- *   4. Surface any rejection from `invoke` as an Observable error.
+ *   3. Return an Observable that resolves to the value the engine resolves to.
+ *   4. Surface any rejection from the engine as an Observable error.
+ *
+ * <p><b>Ports, not module mocks.</b> This file used to `vi.mock('@tauri-apps/api/core')`,
+ * `vi.mock('tauri-plugin-secure-storage-api')` and `vi.mock('@tauri-apps/plugin-store')`, which pinned
+ * one host's IPC and one host's storage. `MlsService` now depends on three ports, each with a desktop
+ * and a browser adapter, so the fakes below assert the same 250 things about the same call sites while
+ * the assertions stay true of both hosts. The command names and argument objects are identical on
+ * either one - `MlsEngine` is a lookup table with no translation - which is exactly what makes that
+ * possible, and what the Rust tests `the_tauri_argument_names_match_the_typescript_call_sites` and
+ * `the_wasm_argument_names_match_the_tauri_commands` assert from the other side.</p>
  */
-// `isTauri` is stubbed true because these tests exercise the in-Tauri path. The fail-closed guard
-// that depends on it has its own tests - see "outside Tauri" at the end of this file.
-vi.mock('@tauri-apps/api/core', () => ({
-    invoke: vi.fn(),
-    isTauri: vi.fn(() => true),
-}));
-vi.mock('tauri-plugin-secure-storage-api', () => ({
-    secureStorage: {
-        getItem: vi.fn(async () => 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA='),
-        setItem: vi.fn(async () => undefined),
-        removeItem: vi.fn(async () => undefined),
-    },
-}));
-vi.mock('@tauri-apps/plugin-store', () => ({
-    LazyStore: class {
-        private readonly values = new Map<string, unknown>();
-        async get<T>(key: string) { return this.values.get(key) as T | undefined; }
-        async set(key: string, value: unknown) { this.values.set(key, value); }
-        async delete(key: string) { this.values.delete(key); }
-        async entries<T>() { return [...this.values.entries()] as [string, T][]; }
-        async clear() { this.values.clear(); }
-        async save() { }
-    },
-}));
-
 import {TestBed} from '@angular/core/testing';
 import {firstValueFrom} from 'rxjs';
-import {invoke, isTauri} from '@tauri-apps/api/core';
+import {MlsEngine} from '../platform/ports/mls-engine.port';
+import {MlsLocalStoreFactory} from '../platform/ports/mls-local-store.port';
+import {SecureStore} from '../platform/ports/secure-store.port';
+import {FakeMlsEngine} from '../platform/testing/fake-mls-engine';
+import {FakeMlsLocalStoreFactory} from '../platform/testing/fake-mls-local-store';
+import {FakeSecureStore} from '../platform/testing/fake-secure-store';
+import {DeviceIdentityService} from './device-identity.service';
 
 import {
     KeyPackageResult,
@@ -54,10 +44,47 @@ import {
 } from './mls.service';
 
 // ---------------------------------------------------------------------------
-// Module mock -must be a top-level call so Vitest hoists it before imports
+// The engine, as a provided fake
+//
+// A `vi.fn()` behind the port rather than in place of a module, so every existing assertion about
+// `invokeStub.mock.calls` - the command name at [0], the argument object at [1] - reads exactly as it
+// did, and `mockResolvedValue` / `mockRejectedValue` / `mockImplementation` all still apply.
 // ---------------------------------------------------------------------------
 
-const invokeStub = vi.mocked(invoke);
+const invokeStub = vi.fn<(command: string, args?: Record<string, unknown>) => Promise<unknown>>();
+const engine = new FakeMlsEngine();
+const secureStore = new FakeSecureStore();
+const localStores = new FakeMlsLocalStoreFactory();
+
+/** The three ports `MlsService` depends on, with `engine` driven by {@link invokeStub}. */
+function platformProviders() {
+    invokeStub.mockReset();
+    engine.reset();
+    engine.handler = invokeStub;
+    secureStore.getError = null;
+    secureStore.setError = null;
+    localStores.reset();
+
+    return [
+        {provide: MlsEngine, useValue: engine},
+        {provide: SecureStore, useValue: secureStore},
+        {provide: MlsLocalStoreFactory, useValue: localStores},
+        // Pinned, like the other MLS specs do. The real one resolves the account slot through
+        // `AccountRegistryService` and the settings store, none of which this file is about - and
+        // `DeviceIdentityService`'s own comment is that dragging its dependencies into a consumer's
+        // injector is how "250 tests of a pure Tauri adapter" broke once already.
+        {
+            provide: DeviceIdentityService,
+            useValue: {
+                deviceId: async () => DEVICE_ID,
+                ownsLegacyState: async () => false,
+                reset: async () => undefined,
+            },
+        },
+    ];
+}
+
+const DEVICE_ID = 'device-under-test';
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -197,8 +224,7 @@ describe('MlsService', () => {
     let service: MlsService;
 
     beforeEach(() => {
-        invokeStub.mockReset();
-        TestBed.configureTestingModule({providers: [MlsService]});
+        TestBed.configureTestingModule({providers: [MlsService, ...platformProviders()]});
         service = TestBed.inject(MlsService);
     });
 
@@ -2382,30 +2408,34 @@ describe('MlsService', () => {
          */
         it('answers null rather than throwing when there is no engine', async () => {
             await service.registerGroup(CTX, 2, 'Z3JvdXA=');
-            vi.mocked(isTauri).mockReturnValue(false);
+            // The engine, not the host: a browser has one now, and what makes these reads answer null
+            // is that loading it failed - see `MlsEngine.available`, which is deliberately not false
+            // merely because the module is still loading.
+            engine.available = false;
             try {
                 await expect(service.getEncryptionFloor(CTX)).resolves.toBeNull();
                 await expect(service.getKnownGeneration(CTX)).resolves.toBeNull();
                 await expect(service.getGroupId(CTX, 2)).resolves.toBeNull();
             } finally {
-                vi.mocked(isTauri).mockReturnValue(true);
+                engine.available = true;
             }
         });
     });
 
     // ─────────────────────────────────────────────────────────────────────────
-    // Fail-closed outside Tauri
+    // Fail-closed with no engine
     // ─────────────────────────────────────────────────────────────────────────
 
-    describe('outside Tauri', () => {
+    describe('with no engine', () => {
         const GID = 'Z3JvdXAxMjM=';
 
         it('refuses every engine call rather than reporting success', async () => {
-            vi.mocked(isTauri).mockReturnValue(false);
+            // Was "outside Tauri". The condition is now an engine that is not there - a WASM module
+            // that failed to load is the live case - and the reasoning is unchanged: 'it crashes
+            // earlier' is not an access control, and a build that got this far would report success
+            // for operations that never happened.
+            engine.available = false;
             try {
-                // The app happens not to boot in a browser today, so nothing here was ever reached
-                // from one - but 'it crashes earlier' is not an access control, and a build that
-                // got this far would report success for operations that never happened.
                 // Thrown where the call is made, not surfaced later as a rejected stream: a
                 // caller that never subscribes must not be able to believe the work was queued.
                 expect(() => service.getMembers(GID)).toThrow(/MLS is unavailable/);
@@ -2413,7 +2443,7 @@ describe('MlsService', () => {
                     .rejects.toThrow(/MLS is unavailable/);
                 expect(invokeStub).not.toHaveBeenCalled();
             } finally {
-                vi.mocked(isTauri).mockReturnValue(true);
+                engine.available = true;
             }
         });
     });
@@ -2436,9 +2466,7 @@ describe('MlsService when a command is missing from the build', () => {
         Promise.reject(`Command ${command} not found`);
 
     beforeEach(() => {
-        invokeStub.mockReset();
-        vi.mocked(isTauri).mockReturnValue(true);
-        TestBed.configureTestingModule({providers: [MlsService]});
+        TestBed.configureTestingModule({providers: [MlsService, ...platformProviders()]});
         service = TestBed.inject(MlsService);
     });
 

@@ -8,7 +8,7 @@
         <h2 class="mb-2 text-2xl font-bold text-white/90">{{ channel().name }}</h2>
         @if (participants().length > 0) {
             <p class="text-base text-white/55">
-                {{ 'CALL.LOBBY_IN_VOICE' | translate: {count: participants().length} }}
+                {{ 'CALL.PARTICIPANT_COUNT' | translate: {count: participants().length} }}
             </p>
         } @else {
             <p class="text-base text-white/40">{{ 'CALL.LOBBY_EMPTY' | translate }}</p>

@@ -1,6 +1,5 @@
-import {Injectable, signal} from '@angular/core';
-import {check, Update} from '@tauri-apps/plugin-updater';
-import {relaunch} from '@tauri-apps/plugin-process';
+import {inject, Injectable, signal} from '@angular/core';
+import {Updater} from '../platform/ports/updater.port';
 import {environment} from '../../environments/environment';
 
 export interface UpdateInfo {
@@ -9,7 +8,19 @@ export interface UpdateInfo {
     body: string | null;
 }
 
-export type CheckStatus = 'idle' | 'up-to-date' | 'error';
+/**
+ * How the last check ended.
+ *
+ * <p>`'unsupported'` is the host having no self-update at all - a web client updates by being reloaded.
+ * It exists because the alternatives are both lies: `'up-to-date'` would claim a check happened and
+ * found nothing, which is indistinguishable from success and would hide a stale client forever, and
+ * `'error'` would claim a check happened and broke. Nothing is wrong; there is simply nothing to
+ * check.</p>
+ *
+ * <p>Unlike `'up-to-date'` and `'error'` it does <b>not</b> decay back to `'idle'` after a few seconds,
+ * because it is not news about an attempt - it is a standing fact about the host.</p>
+ */
+export type CheckStatus = 'idle' | 'up-to-date' | 'error' | 'unsupported';
 
 @Injectable({providedIn: 'root'})
 export class UpdateService {
@@ -22,10 +33,36 @@ export class UpdateService {
     readonly updateInfo = signal<UpdateInfo | null>(null);
     readonly checkStatus = signal<CheckStatus>('idle');
 
-    private pendingUpdate: Update | null = null;
+    private readonly updater = inject(Updater);
+
+    /**
+     * Whether {@link checkForUpdates} found something the {@link Updater} is holding for us.
+     *
+     * <p>A boolean rather than the update itself: the plugin's `Update` object stays inside the Tauri
+     * adapter, which is what let this service stop importing the plugin. {@link openDebugDialog}
+     * deliberately does not set it, so the debug dialog can be shown without an install button that
+     * would reach for an update nobody checked for.</p>
+     */
+    private pendingUpdate = false;
     private statusTimer: ReturnType<typeof setTimeout> | null = null;
 
     async checkForUpdates(force = false): Promise<void> {
+        // Ahead of the production gate on purpose: whether this host can replace itself does not depend
+        // on the build configuration, and `force` must not be able to conjure a check that cannot
+        // happen. `force` is what the About page's button passes.
+        //
+        // TODO(i18n + UI): the About page should hide its updater section entirely when
+        // `PlatformCapabilities.selfUpdate` is false - the design spec's "hidden when its absence needs
+        // no explanation". Until then the button is present and reports this status, which renders as
+        // nothing rather than as a false "you are up to date". Proposed key if a line is wanted
+        // instead: SETTINGS.ABOUT.UPDATES_UNSUPPORTED.
+        if (!this.updater.supported) {
+            if (this.statusTimer) clearTimeout(this.statusTimer);
+            this.statusTimer = null;
+            this.checkStatus.set('unsupported');
+            return;
+        }
+
         if (!force && !environment.production) return;
         if (this.isChecking() || this.isDownloading() || this.dialogVisible()) return;
 
@@ -33,13 +70,13 @@ export class UpdateService {
         this.checkStatus.set('idle');
         this.isChecking.set(true);
         try {
-            const update = await check();
+            const update = await this.updater.check();
             if (update) {
-                this.pendingUpdate = update;
+                this.pendingUpdate = true;
                 this.updateInfo.set({
                     version: update.version,
                     currentVersion: update.currentVersion,
-                    body: update.body ?? null,
+                    body: update.body,
                 });
                 this.dialogVisible.set(true);
             } else {
@@ -72,22 +109,14 @@ export class UpdateService {
         this.downloadedBytes.set(0);
         this.totalBytes.set(null);
 
-        let downloaded = 0;
-
         try {
-            await this.pendingUpdate.downloadAndInstall((event) => {
-                if (event.event === 'Started') {
-                    this.totalBytes.set(event.data.contentLength ?? null);
-                } else if (event.event === 'Progress') {
-                    downloaded += event.data.chunkLength;
-                    this.downloadedBytes.set(downloaded);
-                    const total = this.totalBytes();
-                    if (total) {
-                        this.downloadProgress.set(Math.round((downloaded / total) * 100));
-                    }
-                }
+            // The adapter accumulates chunk lengths and carries the content length across from the
+            // plugin's separate `Started` event, so every callback here is a complete picture.
+            await this.updater.downloadAndInstall(({downloaded, total}) => {
+                this.downloadedBytes.set(downloaded);
+                this.totalBytes.set(total);
+                if (total) this.downloadProgress.set(Math.round((downloaded / total) * 100));
             });
-            await relaunch();
         } catch (error) {
             console.error('Update installation failed:', error);
             this.isDownloading.set(false);
@@ -97,7 +126,7 @@ export class UpdateService {
     close(): void {
         if (this.isDownloading()) return;
         this.dialogVisible.set(false);
-        this.pendingUpdate = null;
+        this.pendingUpdate = false;
         this.updateInfo.set(null);
     }
 }

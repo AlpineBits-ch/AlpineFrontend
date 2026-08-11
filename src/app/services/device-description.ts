@@ -1,4 +1,5 @@
 import {DeviceType} from '../dtos/response/user-device.dto';
+import {detectHost} from '../platform/host';
 
 /** The parts of this device's identity that are safe to derive without any I/O. */
 export interface DeviceDescription {
@@ -18,10 +19,12 @@ export interface DeviceDescription {
  * through DI - importing it from either would close an import cycle.
  */
 export function describeCurrentDevice(): DeviceDescription {
-    const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
     const os = detectOs();
 
-    if (isTauri) {
+    // `detectHost()` rather than a second read of `__TAURI_INTERNALS__`: this is a plain function with
+    // no injector, so the host module is reached directly, but the global itself stays read in exactly
+    // one place. The `typeof window` guard lives there too.
+    if (detectHost() === 'tauri') {
         return {deviceName: `Venta Desktop on ${os}`, deviceType: DeviceType.Desktop};
     }
     return {deviceName: `${detectBrowser()} on ${os}`, deviceType: DeviceType.Web};

@@ -2,8 +2,6 @@ import {Component, computed, inject, OnDestroy, OnInit, signal, ViewChild} from 
 import {NavigationEnd, Router} from '@angular/router';
 import {takeUntilDestroyed, toSignal} from '@angular/core/rxjs-interop';
 import {filter} from 'rxjs';
-import {getCurrentWindow} from '@tauri-apps/api/window';
-import type {UnlistenFn} from '@tauri-apps/api/event';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {Popover} from 'primeng/popover';
 import {Menu} from 'primeng/menu';
@@ -15,6 +13,7 @@ import {InboxPanelComponent} from './inbox-panel/inbox-panel.component';
 import {SettingsUiService} from '../services/settings-ui.service';
 import {ConversationUtilsService} from '../services/conversation-utils.service';
 import {ApiConfigService} from '../services/api-config.service';
+import {WindowChrome} from '../platform/ports/window-chrome.port';
 import {ChannelType} from '../dtos/response/guild.dto';
 
 /** What the centre of the titlebar names: where the user is, not what the app is called. */
@@ -42,6 +41,15 @@ interface TitlebarContext {
     styleUrl: './titlebar.component.css',
 })
 export class TitlebarComponent implements OnInit, OnDestroy {
+    /**
+     * Whether to draw a window frame at all.
+     *
+     * <p>Kept under the name it had - it is what the template's outermost `@if` reads, and what
+     * `titlebar.component.spec.ts` flips by hand to render the bar without standing up a host. It is
+     * now set from {@link WindowChrome.supported} rather than from the Tauri global, so it means "this
+     * host lets the app own its frame". Nothing else changed: on web it stays false and the bar is
+     * *hidden*, per the design spec's rule that a missing minimise button needs no explanation.</p>
+     */
     protected isTauri = signal(false);
     protected isMac = signal(false);
     protected isMaximized = signal(false);
@@ -66,6 +74,7 @@ export class TitlebarComponent implements OnInit, OnDestroy {
     private apiConfig = inject(ApiConfigService);
     private translate = inject(TranslateService);
     private router = inject(Router);
+    private chrome = inject(WindowChrome);
 
     /**
      * Menu labels, streamed rather than read.
@@ -148,7 +157,7 @@ export class TitlebarComponent implements OnInit, OnDestroy {
         return !!url && this.failedIcons().has(url);
     });
 
-    private unlisten?: UnlistenFn;
+    private unlisten?: () => void;
 
     /** `#`, `🔊` and friends, so a channel name in the titlebar reads like it does in the sidebar. */
     private static channelPrefix(type: ChannelType): string {
@@ -176,8 +185,10 @@ export class TitlebarComponent implements OnInit, OnDestroy {
     }
 
     async ngOnInit(): Promise<void> {
-        if (typeof window === 'undefined' || !('__TAURI_INTERNALS__' in window)) return;
+        if (!this.chrome.supported) return;
 
+        // Still a user-agent test, and still separate from the host question: a phone build runs in
+        // Tauri and does own its frame, it just has a system bar of its own and no room for ours.
         const ua = navigator.userAgent.toLowerCase();
         if (/android|iphone|ipad|ipod/.test(ua)) return;
 
@@ -188,10 +199,9 @@ export class TitlebarComponent implements OnInit, OnDestroy {
         // honours them; a titlebar arrow the user has to aim at is the fallback, not the path.
         window.addEventListener('mouseup', this.onMouseUp);
 
-        const win = getCurrentWindow();
-        this.isMaximized.set(await win.isMaximized());
-        this.unlisten = await win.onResized(async () => {
-            this.isMaximized.set(await win.isMaximized());
+        this.isMaximized.set(await this.chrome.isMaximized());
+        this.unlisten = await this.chrome.onResized(async () => {
+            this.isMaximized.set(await this.chrome.isMaximized());
         });
     }
 
@@ -201,11 +211,11 @@ export class TitlebarComponent implements OnInit, OnDestroy {
     }
 
     protected minimize(): void {
-        void getCurrentWindow().minimize();
+        this.chrome.minimize().catch(err => console.error('Could not minimize the window', err));
     }
 
     protected toggleMaximize(): void {
-        void getCurrentWindow().toggleMaximize();
+        this.chrome.toggleMaximize().catch(err => console.error('Could not maximize the window', err));
     }
 
     /**
@@ -223,7 +233,7 @@ export class TitlebarComponent implements OnInit, OnDestroy {
      * close-to-tray would hang off - so this reports failures rather than forcing a destroy.</p>
      */
     protected close(): void {
-        getCurrentWindow().close().catch(err => console.error('Could not close the window', err));
+        this.chrome.close().catch(err => console.error('Could not close the window', err));
     }
 
     protected onIconError(url: string): void {

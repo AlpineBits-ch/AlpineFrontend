@@ -1,5 +1,5 @@
-import {Injectable} from '@angular/core';
-import {invoke, isTauri} from '@tauri-apps/api/core';
+import {inject, Injectable} from '@angular/core';
+import {CryptoEngine} from '../platform/ports/crypto-engine.port';
 import {EncryptedMasterKey} from '../dtos/response/UserDto';
 
 /** Both wrappings of one master key, produced together so they provably seal the same bytes. */
@@ -74,22 +74,36 @@ function isCredentialRejection(err: unknown): boolean {
 @Injectable({providedIn: 'root'})
 export class MasterKeyService {
     /**
+     * The engine behind every method here. Same Rust code on both hosts - IPC on the desktop,
+     * wasm-bindgen in a browser - so a master key wrapped on one unwraps on the other.
+     *
+     * <p>That parity is asserted, not assumed: `parity_tests.rs` opens venta-mobile's golden wrappings
+     * on native and on `wasm32`, and the Argon2 parameters are part of the at-rest format and are
+     * identical by construction because it is one implementation.</p>
+     */
+    private readonly engine = inject(CryptoEngine);
+
+    /**
      * Whether this build can do any of the below at all.
      *
-     * <p>Every method on this service is a Tauri command. Outside Tauri there is no
-     * `__TAURI_INTERNALS__`, so `invoke` is a read off `undefined` and each of them rejects before
-     * a single byte of crypto happens - {@link generateRecoveryCode} included, which is the first
-     * irreversible step of setup and the one that makes the whole ceremony unfinishable in a
-     * browser.</p>
+     * <p><b>Now true everywhere.</b> It used to be `isTauri()`, because every method here was a Tauri
+     * command and outside Tauri each of them rejected before a single byte of crypto happened -
+     * {@link generateRecoveryCode} included, which is the first irreversible step of setup and the one
+     * that made the whole ceremony unfinishable in a browser. The `venta-crypto` WASM crate removes
+     * that: the browser runs the same engine, so the ceremony completes and its output is openable by
+     * the desktop.</p>
      *
-     * <p>Stated as a question callers may ask rather than left for them to discover by catching,
-     * because the two situations are not the same kind of thing: a command that failed is worth
-     * retrying and worth reporting, and a platform with no engine is neither. `MlsService` draws
-     * the same line with `MlsUnavailableError` - this is the non-throwing half of it, for the
-     * callers whose right answer is to not ask.</p>
+     * <p>Kept as a method rather than deleted, because its callers' judgement is still the right one to
+     * express and the answer could change again for a third host. `SocialKeyGateService` fails <i>open</i>
+     * on false - it must never show a ceremony that cannot be finished - and `true` here is what now
+     * makes it show the ceremony to web users, which is the point of the port.</p>
+     *
+     * <p>There is deliberately no `available` flag on {@link CryptoEngine} to forward to: an engine that
+     * cannot generate keys is a boot failure rather than a capability to branch on, so a load failure
+     * rejects per call instead of being reported here as "this platform does not do keys".</p>
      */
     isAvailable(): boolean {
-        return isTauri();
+        return true;
     }
 
     /**
@@ -104,7 +118,7 @@ export class MasterKeyService {
         recoveryCode: string,
         userEntropy: number[] = [],
     ): Promise<DualWrappedMasterKey> {
-        return invoke<DualWrappedMasterKey>('setup_master_key_dual', {
+        return this.engine.call<DualWrappedMasterKey>('setup_master_key_dual', {
             password,
             recoveryCode,
             userEntropy,
@@ -119,7 +133,7 @@ export class MasterKeyService {
      * ambiguous character.
      */
     async generateRecoveryCode(): Promise<string> {
-        return invoke<string>('generate_recovery_code');
+        return this.engine.call<string>('generate_recovery_code');
     }
 
     /**
@@ -149,7 +163,7 @@ export class MasterKeyService {
         toKind: CredentialKind,
     ): Promise<EncryptedMasterKey> {
         try {
-            return await invoke<EncryptedMasterKey>('rewrap_master_key', {
+            return await this.engine.call<EncryptedMasterKey>('rewrap_master_key', {
                 encrypted,
                 fromCredential,
                 fromKind,
@@ -173,7 +187,7 @@ export class MasterKeyService {
      */
     async normalizeRecoveryCode(code: string): Promise<string> {
         try {
-            return await invoke<string>('normalize_recovery_code_checked', {code});
+            return await this.engine.call<string>('normalize_recovery_code_checked', {code});
         } catch (err) {
             throw classify(err, 'normalize_recovery_code_checked', 'recoveryCode');
         }
@@ -184,7 +198,7 @@ export class MasterKeyService {
      * account one password reset away from losing everything it protects.
      */
     async setupMasterKey(password: string, userEntropy: number[] = []): Promise<EncryptedMasterKey> {
-        return invoke<EncryptedMasterKey>('setup_master_key', {password, userEntropy});
+        return this.engine.call<EncryptedMasterKey>('setup_master_key', {password, userEntropy});
     }
 
     /**
@@ -208,7 +222,7 @@ export class MasterKeyService {
         kind: CredentialKind = 'password',
     ): Promise<Uint8Array> {
         try {
-            const bytes = await invoke<number[]>('decrypt_master_key', {
+            const bytes = await this.engine.call<number[]>('decrypt_master_key', {
                 encrypted,
                 password: credential,
             });

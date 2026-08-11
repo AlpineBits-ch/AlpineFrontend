@@ -2,13 +2,24 @@ import {TestBed} from '@angular/core/testing';
 import {ScreenPickerService} from './screen-picker.service';
 import {RustMediaService} from './rust-media.service';
 import {installMemoryStorage} from '../testing/memory-storage';
+import {PlatformCapabilities, tauriCapabilities, webCapabilities} from '../platform/capabilities';
 
 const PRESET_KEY = 'alpine_stream_preset';
 
-function picker(): ScreenPickerService {
+/**
+ * The capabilities are <b>provided</b> rather than inferred from the environment.
+ *
+ * <p>`detectHost()` answers 'web' under the test runner, so without this every test here would exercise
+ * the host-picker path and the overlay would never open. Which picker is in play is the whole subject of
+ * the last describe below, so it has to be an input, not an accident of where the suite runs.</p>
+ */
+function picker(capabilities: PlatformCapabilities = tauriCapabilities()): ScreenPickerService {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
-        providers: [{provide: RustMediaService, useValue: {getScreenSources: () => Promise.resolve([])}}],
+        providers: [
+            {provide: RustMediaService, useValue: {getScreenSources: () => Promise.resolve([])}},
+            {provide: PlatformCapabilities, useValue: capabilities},
+        ],
     });
     return TestBed.inject(ScreenPickerService);
 }
@@ -72,5 +83,74 @@ describe('ScreenPickerService', () => {
     it('fills gaps in a partially stored preset', () => {
         localStorage.setItem(PRESET_KEY, JSON.stringify({resolution: '1440p'}));
         expect(picker().lastPreset()).toEqual({resolution: '1440p', framerate: 30});
+    });
+});
+
+/**
+ * Where the host owns the picker - a browser, where windows cannot be enumerated - this overlay is
+ * skipped entirely and `getDisplayMedia` prompts instead, inside the publish.
+ */
+describe('ScreenPickerService without an in-app picker', () => {
+    let restoreStorage: () => void;
+
+    beforeEach(() => restoreStorage = installMemoryStorage());
+    afterEach(() => restoreStorage());
+
+    it('resolves immediately without showing the overlay', async () => {
+        const svc = picker(webCapabilities());
+
+        const choice = await svc.show();
+
+        // Two pickers for one share is the failure here: this one must not appear at all.
+        expect(svc.visible()).toBe(false);
+        expect(choice).not.toBeNull();
+    });
+
+    /** No fabricated id: the publisher ignores it, and inventing one implies a source it could honour. */
+    it('carries no source id', async () => {
+        const choice = await picker(webCapabilities()).show();
+
+        expect(choice?.sourceId).toBe('');
+    });
+
+    /**
+     * The preset chooser still applies. Geometry is solved from it exactly as a desktop choice is, so a
+     * stored preset has to survive into this path - otherwise "1080p at 30" stops meaning the same thing
+     * across hosts.
+     */
+    it('uses the stored preset', async () => {
+        localStorage.setItem(PRESET_KEY, JSON.stringify({resolution: '720p', framerate: 15}));
+
+        const choice = await picker(webCapabilities()).show();
+
+        expect(choice?.preset).toEqual({resolution: '720p', framerate: 15});
+    });
+
+    /** A box to solve against, taken from the display - and in device pixels, not CSS ones. */
+    it('reports the primary display as the source dimensions', async () => {
+        const choice = await picker(webCapabilities()).show();
+
+        expect(choice?.sourceWidth).toBe(Math.round(window.screen.width * (window.devicePixelRatio || 1)));
+        expect(choice?.sourceHeight).toBe(Math.round(window.screen.height * (window.devicePixelRatio || 1)));
+    });
+
+    /**
+     * Requested, so the host picker puts its own "share audio" checkbox in front of the user. What was
+     * actually published is answered afterwards, by the publisher.
+     */
+    it('asks for audio and lets the host decide', async () => {
+        const choice = await picker(webCapabilities()).show();
+
+        expect(choice?.shareAudio).toBe(true);
+    });
+
+    /** An activity hint cannot be honoured without a source list, so it is dropped rather than kept. */
+    it('drops a source preference it cannot honour', async () => {
+        const svc = picker(webCapabilities());
+        svc.preferSourceFor('Some Game');
+
+        await svc.show();
+
+        expect(svc.preferredSourceId()).toBeNull();
     });
 });

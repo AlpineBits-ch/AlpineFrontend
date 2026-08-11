@@ -13,56 +13,42 @@
  * derived from it. These tests drive the seam from the store side; `device-identity.service.spec.ts`
  * drives it from the id side.</p>
  */
-vi.mock('@tauri-apps/api/core', () => ({
-    invoke: vi.fn(),
-    isTauri: vi.fn(() => true),
-}));
-vi.mock('tauri-plugin-secure-storage-api', () => ({
-    secureStorage: {
-        getItem: vi.fn(),
-        setItem: vi.fn(async () => undefined),
-        removeItem: vi.fn(async () => undefined),
-    },
-}));
-vi.mock('@tauri-apps/plugin-store', () => ({
-    // One backing map per filename, shared across constructions, so "did these two accounts read
-    // the same file" is a question this stub can actually answer.
-    LazyStore: class LazyStoreStub {
-        static readonly files = new Map<string, Map<string, unknown>>();
-        static readonly opened: string[] = [];
-
-        private readonly values: Map<string, unknown>;
-
-        constructor(file: string) {
-            LazyStoreStub.opened.push(file);
-            const existing = LazyStoreStub.files.get(file);
-            this.values = existing ?? new Map<string, unknown>();
-            LazyStoreStub.files.set(file, this.values);
-        }
-
-        async get<T>(key: string) { return this.values.get(key) as T | undefined; }
-        async set(key: string, value: unknown) { this.values.set(key, value); }
-        async delete(key: string) { this.values.delete(key); }
-        async entries<T>() { return [...this.values.entries()] as [string, T][]; }
-        async clear() { this.values.clear(); }
-        async save() { }
-    },
-}));
-
 import {TestBed} from '@angular/core/testing';
 import {firstValueFrom} from 'rxjs';
-import {invoke} from '@tauri-apps/api/core';
-import {LazyStore} from '@tauri-apps/plugin-store';
-import {secureStorage} from 'tauri-plugin-secure-storage-api';
+import {MlsEngine} from '../platform/ports/mls-engine.port';
+import {MlsLocalStoreFactory} from '../platform/ports/mls-local-store.port';
+import {SecureStore} from '../platform/ports/secure-store.port';
+import {FakeMlsEngine} from '../platform/testing/fake-mls-engine';
+import {FakeMlsLocalStoreFactory} from '../platform/testing/fake-mls-local-store';
 import {MlsService, MlsTypedError} from './mls.service';
 import {DeviceIdentityService} from './device-identity.service';
 
-const LazyStoreMock = LazyStore as unknown as {
-    files: Map<string, Map<string, unknown>>;
-    opened: string[];
-};
-const invokeStub = vi.mocked(invoke);
-const getItem = vi.mocked(secureStorage.getItem);
+/**
+ * The stores as a provided fake, in place of `vi.mock('@tauri-apps/plugin-store')`.
+ *
+ * <p>{@link FakeMlsLocalStoreFactory} keeps the one property these tests are built on - <b>one backing
+ * map per file name, shared across `open` calls</b> - so "did these two accounts read the same file" is
+ * still a question the harness can answer. It has to be the same factory instance across `build()`
+ * calls for that, which is why it lives here rather than being made per test.</p>
+ *
+ * <p>The seam is now host-independent, which matters for what this file asserts: two accounts in one
+ * <i>browser profile</i> are as real a case as two accounts on one machine, and on that host the same
+ * per-device-id file names are the whole of the isolation - the WASM engine cannot clear itself on a
+ * scope change the way the native one does, because there is no state path to compare.</p>
+ */
+const localStores = new FakeMlsLocalStoreFactory();
+const invokeStub = vi.fn<(command: string, args?: Record<string, unknown>) => Promise<unknown>>();
+const engine = new FakeMlsEngine();
+
+class StubSecureStore extends SecureStore {
+    readonly hardwareBacked = true;
+    getItem = vi.fn(async (_key: string): Promise<string | null> => null);
+    setItem = vi.fn(async (_key: string, _value: string): Promise<void> => undefined);
+    removeItem = vi.fn(async (_key: string): Promise<void> => undefined);
+}
+
+const secureStore = new StubSecureStore();
+const getItem = secureStore.getItem;
 
 const DEVICE_A = 'device-for-account-a';
 const DEVICE_B = 'device-for-account-b';
@@ -82,6 +68,11 @@ function build(deviceId: string): MlsService {
     TestBed.configureTestingModule({
         providers: [
             MlsService,
+            {provide: MlsEngine, useValue: engine},
+            {provide: SecureStore, useValue: secureStore},
+            // One factory across every build(), so a second account genuinely opens different files
+            // instead of getting a fresh set - which is the whole subject of this file.
+            {provide: MlsLocalStoreFactory, useValue: localStores},
             {provide: DeviceIdentityService, useValue: identity},
         ],
     });
@@ -103,9 +94,10 @@ function keychainPerDevice(): void {
 }
 
 beforeEach(() => {
-    LazyStoreMock.files.clear();
-    LazyStoreMock.opened.length = 0;
+    localStores.reset();
     invokeStub.mockReset();
+    engine.reset();
+    engine.handler = invokeStub;
     getItem.mockReset();
     keychainPerDevice();
 });
@@ -115,8 +107,8 @@ describe('per-account store naming', () => {
         const service = build(DEVICE_A);
         await service.registerGroup('ctx-1', 0, 'Z3JvdXA=');
 
-        expect(LazyStoreMock.opened).toContain(`mls-group-registry-${DEVICE_A}.json`);
-        expect(LazyStoreMock.opened).not.toContain('mls-group-registry.json');
+        expect(localStores.opened).toContain(`mls-group-registry-${DEVICE_A}.json`);
+        expect(localStores.opened).not.toContain('mls-group-registry.json');
     });
 
     it('passes this account scope to the engine, so the state file is its own', async () => {

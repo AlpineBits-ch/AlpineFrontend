@@ -1,19 +1,11 @@
-import {inject, Injectable} from '@angular/core';
+import {inject, Injectable, signal} from '@angular/core';
 import {Subject} from 'rxjs';
-import {
-    isPermissionGranted,
-    onAction,
-    registerActionTypes,
-    requestPermission,
-    sendNotification,
-} from '@choochmeque/tauri-plugin-notifications-api';
-import {invoke} from '@tauri-apps/api/core';
-import {listen} from '@tauri-apps/api/event';
-import {platform} from '@tauri-apps/plugin-os';
 import {UserSettingsService} from './user-settings.service';
 import {SoundSettingsService} from './sound-settings.service';
 import type {ProfileDto} from '../dtos/response/profile.dto';
-import {getCurrentWindow} from "@tauri-apps/api/window";
+import {PlatformCapabilities} from '../platform/capabilities';
+import {Notifier} from '../platform/ports/notifier.port';
+import {decodeNotificationTag, encodeNotificationTag} from '../platform/notification-tag';
 
 export enum NotificationSound {
     None,
@@ -27,22 +19,44 @@ export interface NotificationActionEvent {
     extra: Record<string, string>;
 }
 
+/**
+ * The app's notification policy: which events deserve a toast, which deserve a sound, and how often.
+ *
+ * <p>Everything host-specific moved behind the {@link Notifier} port - the three OS toast backends, the
+ * WinRT path, the avatar file:// copy, the activation plumbing. What is left here is the part that is
+ * the same on every host and that no adapter should be making decisions about: the user's category
+ * filters, the sound, and the cooldown.</p>
+ */
 @Injectable({providedIn: 'root'})
 export class NotificationService {
     readonly action$ = new Subject<NotificationActionEvent>();
     private userSettings = inject(UserSettingsService);
     private soundSettings = inject(SoundSettingsService);
-    private platformName: string | null = null;
+    private notifier = inject(Notifier);
+    private capabilities = inject(PlatformCapabilities);
     private readonly initPromise: Promise<void>;
     private lastNotificationTime = 0;
+    private readonly blocked = signal(false);
+
+    /**
+     * Whether the host has refused to show notifications, durably.
+     *
+     * <p><b>Exists so no screen can claim notifications are on while nothing is being shown.</b> In a
+     * browser a denied permission cannot be re-requested by the app - only the user, in browser
+     * settings, can undo it - so the notification settings toggle can read `enabled` as true, look
+     * entirely correct, and deliver nothing. That is the failure this flag names.</p>
+     *
+     * <p>Only latched on hosts without native toasts, from `PlatformCapabilities.nativeToasts`. A
+     * desktop refusal is not durable in the same way: the user can grant notifications in OS settings
+     * without the app ever seeing it, so the next attempt has to ask again rather than assume.</p>
+     *
+     * <p><b>Nothing reads this yet.</b> The notification settings page belongs to another track; the
+     * flag is here because the service is the only thing that can know it.</p>
+     */
+    readonly notificationsBlocked = this.blocked.asReadonly();
 
     constructor() {
         this.initPromise = this.init();
-
-        this.action$.subscribe(async () => {
-            const window = getCurrentWindow();
-            await window.requestUserAttention(null);
-        });
     }
 
     async createNotification(params: {
@@ -74,76 +88,53 @@ export class NotificationService {
             this.lastNotificationTime = now;
         }
 
+        // Awaited so the activation subscription is in place before the first notification can be
+        // clicked - and, on macOS, so the action type is registered before one is sent under it.
         await this.initPromise;
 
-        const actionTypeId = params.actionTypeId ?? 'message';
-        const extra = params.extra ?? {};
+        if (!await this.ensurePermission()) return;
 
-        if (this.platformName === 'windows') {
-            await invoke('send_windows_toast', {
-                title: params.title,
-                body: params.message,
-                iconUrl: params.profile?.avatarUrl ?? null,
-                extra: {...extra, actionTypeId},
-            });
-        } else {
-            if (!await this.ensurePermission()) return;
-
-            // macOS native backend requires a local file:// URI -download avatar to temp first
-            let icon: string | undefined = params.profile?.avatarUrl;
-            if (this.platformName === 'macos' && icon) {
-                const local = await invoke<string | null>('prepare_notification_icon', {url: icon}).catch(() => null);
-                icon = local ?? icon;
-            }
-
-            sendNotification({
-                title: params.title,
-                body: params.message,
-                icon,
-                silent: true,
-                actionTypeId,
-                extra,
-            });
-        }
-    }
-
-    private async init(): Promise<void> {
-        this.platformName = await platform();
-
-        if (this.platformName === 'windows') {
-            // Windows: native WinRT toasts handle activation in Rust, emit this event on click
-            await listen<Record<string, string>>('notification-action', event => {
-                this.action$.next({
-                    actionTypeId: event.payload['actionTypeId'] ?? 'message',
-                    extra: event.payload,
-                });
-            });
-        } else {
-            // macOS (native UNUserNotificationCenter) and mobile: action types are fully supported
-            // Linux (notify-rust): registerActionTypes fails silently, onAction may not fire
-            await this.setupActions();
-        }
-    }
-
-    private async setupActions(): Promise<void> {
-        try {
-            await registerActionTypes([
-                {id: 'message', actions: [{id: 'open', title: 'Open'}]},
-            ]);
-        } catch {
-            // notify-rust (Linux) doesn't support action types
-        }
-        await onAction(notification => {
-            this.action$.next({
-                actionTypeId: notification.actionTypeId ?? 'message',
-                extra: (notification.extra ?? {}) as Record<string, string>,
-            });
+        await this.notifier.notify({
+            title: params.title,
+            body: params.message,
+            iconUrl: params.profile?.avatarUrl,
+            // The routing payload travels as the tag, which is the only thing both hosts carry back
+            // through an activation. `main-page.component.ts` reads it off `action$` unchanged.
+            tag: encodeNotificationTag({
+                actionTypeId: params.actionTypeId ?? 'message',
+                extra: params.extra ?? {},
+            }),
         });
     }
 
+    private async init(): Promise<void> {
+        try {
+            await this.notifier.onActivated(tag => this.action$.next(decodeNotificationTag(tag)));
+        } catch (error) {
+            // A host that cannot report activations still shows notifications. Rethrowing would leave
+            // `initPromise` rejected and take every later `createNotification` down with it, trading
+            // "clicks do not route" for "no notifications at all".
+            console.error('Failed to subscribe to notification activations:', error);
+        }
+    }
+
+    /**
+     * Asks the host for permission, at most as often as it is worth asking.
+     *
+     * <p>Every host is asked, including the ones that have nothing to grant - the Tauri adapter answers
+     * true immediately on Windows, where the WinRT toast path has no plugin permission. That keeps the
+     * decision in one place instead of restoring a per-OS branch on this side of the port.</p>
+     */
     private async ensurePermission(): Promise<boolean> {
-        let granted = await isPermissionGranted();
-        if (!granted) granted = (await requestPermission()) === 'granted';
+        if (this.blocked()) return false;
+
+        const granted = await this.notifier.requestPermission();
+        if (!granted && !this.capabilities.nativeToasts) {
+            // See `notificationsBlocked`: a browser will not re-prompt, so asking again per message
+            // is a no-op that costs an await and hides the state from the UI.
+            this.blocked.set(true);
+        }
+
         return granted;
     }
 }

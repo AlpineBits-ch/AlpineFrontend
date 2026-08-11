@@ -76,6 +76,14 @@ html[data-window-flush] app-root {
   border-radius: 0;
 }
 
+/* In a browser there is no window for the radius to be the shape of. The corners round away from
+   the page background instead of the desktop, which reads as a floating card that has been clipped
+   rather than as a window. Set from main.ts before the first paint, so the corners are never
+   rounded and then squared. */
+html[data-host="web"] app-root {
+  border-radius: 0;
+}
+
 /* Prevent double-tap zoom on all interactive elements without disabling gestures */
 button, a, [role="button"], input, select, textarea, label {
   touch-action: manipulation;

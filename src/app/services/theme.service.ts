@@ -1,7 +1,6 @@
-import {computed, effect, Injectable, signal} from '@angular/core';
-import {save} from '@tauri-apps/plugin-dialog';
-import {writeTextFile} from '@tauri-apps/plugin-fs';
+import {computed, effect, inject, Injectable, signal} from '@angular/core';
 import {palette, updatePreset} from '@primeuix/themes';
+import {FileSaver} from '../platform/ports/file-saver.port';
 import {AppTheme, BUILT_IN_THEME_ID, DEFAULT_THEME, ThemeColors} from '../models/theme.model';
 
 const THEMES_KEY = 'alpine-themes';
@@ -11,6 +10,8 @@ const FONT_MAX = 20;
 
 @Injectable({providedIn: 'root'})
 export class ThemeService {
+    private readonly fileSaver = inject(FileSaver);
+
     readonly themes = signal<AppTheme[]>(this.loadThemes());
     readonly activeThemeId = signal<string>(this.loadActiveId());
 
@@ -73,15 +74,20 @@ export class ThemeService {
         this.saveThemes();
     }
 
+    /**
+     * Writes the theme out as JSON, wherever the host puts saved files.
+     *
+     * <p>Still resolves whether or not anything was written - a dismissed dialog was always silent
+     * here, and on web there is nothing to report. The `.json` in the suggested name is what the
+     * desktop save dialog derives its file-type filter from, so it is load-bearing rather than
+     * decorative.</p>
+     */
     async exportTheme(id: string): Promise<void> {
         const theme = this.themes().find(t => t.id === id);
         if (!theme) return;
         const json = JSON.stringify(theme, null, 2);
-        const path = await save({
-            filters: [{name: 'Alpine Theme', extensions: ['json']}],
-            defaultPath: `${theme.name.toLowerCase().replace(/\s+/g, '-')}.json`,
-        });
-        if (path) await writeTextFile(path, json);
+        const name = `${theme.name.toLowerCase().replace(/\s+/g, '-')}.json`;
+        await this.fileSaver.save(name, json, 'application/json');
     }
 
     importTheme(json: string): void {

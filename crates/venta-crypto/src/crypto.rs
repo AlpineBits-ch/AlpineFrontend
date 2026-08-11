@@ -1,3 +1,21 @@
+//! Account master-key wrapping, RSA key pairs and recovery codes.
+//!
+//! ## `#[cfg_attr(feature = "tauri", tauri::command)]`, not `#[cfg(feature = "tauri")]`
+//!
+//! The commands in this module **are** the implementations - `decrypt_master_key` is the function
+//! that derives the Argon2id key, not a wrapper over one. `crypto::mls` and `crypto::device_cert`
+//! are the other way round: their `#[tauri::command]`s are thin wrappers in their own section at the
+//! bottom, over engine functions that stay compiled whatever the feature flags say, so those can be
+//! `#[cfg]`-ed out wholesale.
+//!
+//! Doing that here would delete the entire master-key API from every non-Tauri build - the wasm
+//! target, the tests, and the parity vectors that prove wasm and desktop wrap identically. So the
+//! *attribute* is conditional and the function is not.
+//!
+//! `mls::integration_tests::with_command_attrs_normalized` exists because of this split: the tests
+//! that assert every command is registered in `lib.rs` scan for the attribute as source text, and
+//! there are now two spellings of it.
+
 use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
 use argon2::{Algorithm, Argon2, Params, Version};
 use base64::{engine::general_purpose::STANDARD as B64, Engine};
@@ -90,7 +108,7 @@ pub struct KeyPairEntry {
     private_key: String, // Base64-encoded PKCS8 DER
 }
 
-#[tauri::command]
+#[cfg_attr(feature = "tauri", tauri::command)]
 pub fn generate_key_pairs(count: u32) -> Result<Vec<KeyPairEntry>, String> {
     let mut rng = OsRng;
     let mut pairs = Vec::with_capacity(count as usize);
@@ -116,7 +134,7 @@ pub fn generate_key_pairs(count: u32) -> Result<Vec<KeyPairEntry>, String> {
     Ok(pairs)
 }
 
-#[tauri::command]
+#[cfg_attr(feature = "tauri", tauri::command)]
 pub fn generate_key() -> [u8; 32] {
     let mut key = [0u8; 32];
     getrandom::getrandom(&mut key).expect("OS Entropy failed!");
@@ -129,7 +147,7 @@ pub fn generate_key() -> [u8; 32] {
 /// leaves the account one password reset away from losing everything it protects: the reset changes
 /// a password the user has by definition forgotten, and nothing else opens the envelope. Kept for
 /// the accounts already in that state, which have to be able to re-upload their existing wrapping.
-#[tauri::command]
+#[cfg_attr(feature = "tauri", tauri::command)]
 pub fn setup_master_key(
     password: String,
     user_entropy: Option<Vec<u8>>,
@@ -158,7 +176,7 @@ pub struct DualWrappedMasterKey {
 /// another - a mistake that surfaces only at the point of recovery, where it cannot be repaired.
 ///
 /// The master key itself never crosses IPC.
-#[tauri::command]
+#[cfg_attr(feature = "tauri", tauri::command)]
 pub fn setup_master_key_dual(
     password: String,
     recovery_code: String,
@@ -213,7 +231,7 @@ impl CredentialKind {
 ///
 /// The master key is unchanged either way, so every blob sealed under it stays readable - which is
 /// the whole reason for re-wrapping rather than re-keying.
-#[tauri::command]
+#[cfg_attr(feature = "tauri", tauri::command)]
 pub fn rewrap_master_key(
     encrypted: EncryptedMasterKey,
     from_credential: String,
@@ -256,7 +274,7 @@ const RECOVERY_REJECT_AT: u8 = 248;
 /// is why the other client briefly added `*` as a 32nd symbol - punctuation in a string a human
 /// copies off paper under stress, and a character this client's validator rejected outright.
 /// Discarding 8 bytes in 256 costs nothing here and removes the bias without touching the alphabet.
-#[tauri::command]
+#[cfg_attr(feature = "tauri", tauri::command)]
 pub fn generate_recovery_code() -> Result<String, String> {
     let total = RECOVERY_GROUPS * RECOVERY_GROUP_LEN;
     let mut chars: Vec<char> = Vec::with_capacity(total);
@@ -339,7 +357,7 @@ fn normalize_recovery_code(input: &str) -> Result<String, String> {
 ///
 /// Exposed so the UI can validate as the user types, and so the TypeScript layer never has to keep
 /// a second copy of these rules that could drift from this one.
-#[tauri::command]
+#[cfg_attr(feature = "tauri", tauri::command)]
 pub fn normalize_recovery_code_checked(code: String) -> Result<String, String> {
     normalize_recovery_code(&code)
 }
@@ -419,7 +437,7 @@ fn check_master_key_kdf_parameters(
 /// The parameters come from the envelope, never from the constants above, so a wrapping written by
 /// an older build stays openable - but they are checked against a ceiling first, because the
 /// envelope arrives from the server and `argon2_memory` is a u32 of kibibytes.
-#[tauri::command]
+#[cfg_attr(feature = "tauri", tauri::command)]
 pub fn decrypt_master_key(
     encrypted: EncryptedMasterKey,
     password: String,
@@ -469,6 +487,11 @@ pub fn decrypt_master_key(
 // not destroy the master key. That holds only if the two wrappings seal the *same* bytes and the
 // recovery code can produce a new password wrapping without changing them.
 
+// Native-only: the cross-client fixture tests read `testdata/` off disk, and `std::fs` on
+// `wasm32-unknown-unknown` is a stub that returns `Unsupported`. The wasm-side coverage of this
+// module is `mls::parity_tests`, which embeds `recovery-code-alpine.json` with `include_str!` and
+// asserts the same envelope unwraps to the same master key on both targets.
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod master_key_tests {
     use super::{
@@ -812,7 +835,10 @@ mod master_key_tests {
     /// while expecting `recovery-code-alpine.json`. Three-way mismatch in directory, filename and
     /// shape, so neither side's check could ever fire in either direction.
     fn fixture_dir() -> std::path::PathBuf {
+        // Two levels: this crate is `crates/venta-crypto`, `testdata/` is at the repo root. It was
+        // one while the engine lived in `src-tauri`; the fixtures themselves did not move.
         std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
             .join("..")
             .join("testdata")
             .join("mls-golden")

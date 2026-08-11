@@ -1,6 +1,6 @@
-import {ChangeDetectionStrategy, Component, computed, input, output} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, inject, input, output} from '@angular/core';
 import {DatePipe} from '@angular/common';
-import {openUrl} from '@tauri-apps/plugin-opener';
+import {LinkOpener} from '../../../../../../platform/ports/link-opener.port';
 import {EmbedFlags, MessageEmbed, MessageEmbedMedia} from '../../../../../../dtos/response/message.dto';
 import {MarkdownPipe} from '../../../../../../pipes/markdown.pipe';
 import {EmbedMediaComponent} from './embed-media/embed-media.component';
@@ -30,7 +30,19 @@ export class EmbedCardComponent {
     /** Bubbles up so the message can open its lightbox - the card owns no overlay of its own. */
     openMedia = output<MessageEmbedMedia>();
 
-    protected readonly openUrl = openUrl;
+    private readonly links = inject(LinkOpener);
+
+    /**
+     * Opens a URL from the card - a provider, an author or the embed's own link.
+     *
+     * <p>A method forwarding to {@link LinkOpener} rather than the plugin function it used to alias.
+     * Every URL here came off a page the server fetched on someone's behalf, so it is a stranger's
+     * text: the web adapter is what refuses a scheme a browser must not follow and sets `noopener` on
+     * the tab it does open.</p>
+     */
+    protected openUrl(url: string): Promise<void> {
+        return this.links.open(url);
+    }
 
     protected readonly type = computed(() => this.embed().type ?? 'rich');
 

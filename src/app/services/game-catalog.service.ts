@@ -1,7 +1,7 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {HttpClient, HttpErrorResponse, HttpHeaders} from '@angular/common/http';
-import {invoke, isTauri} from '@tauri-apps/api/core';
 import {firstValueFrom} from 'rxjs';
+import {PresenceCatalog} from '../platform/ports/presence-catalog.port';
 import {ApiConfigService} from './api-config.service';
 import {PlatformService} from './platform.service';
 
@@ -54,6 +54,7 @@ export class GameCatalogService {
     private readonly http = inject(HttpClient);
     private readonly apiConfig = inject(ApiConfigService);
     private readonly platform = inject(PlatformService);
+    private readonly catalog = inject(PresenceCatalog);
 
     private readonly _state = signal<GameCatalogState | null>(null);
     /** What the matcher is working from, for diagnostics. Null until the first sync completes. */
@@ -71,11 +72,15 @@ export class GameCatalogService {
      * genuine awkwardness here.</p>
      */
     async sync(): Promise<void> {
-        if (!isTauri() || this.platform.isMobile || this.syncing) return;
+        // Two questions, not one, and both were here before the port layer as `!isTauri()` and
+        // `isMobile`: a host with no matcher has nothing to hold the catalog, and a Tauri phone build
+        // has `PresenceCatalog.supported === true` while still being unable to enumerate a process. A
+        // 12 MB download to feed a matcher that cannot run buys nothing either way.
+        if (!this.catalog.supported || this.platform.isMobile || this.syncing) return;
         this.syncing = true;
 
         try {
-            const state = await invoke<GameCatalogState>('presence_catalog_state');
+            const state = await this.catalog.state();
             this._state.set(state);
 
             const headers = state.etag
@@ -92,10 +97,7 @@ export class GameCatalogService {
             // The ETag goes down with the body it belongs to, never separately: Rust writes it only
             // after the catalog it describes, so a crash between the two cannot leave us claiming
             // to hold a version we do not have.
-            this._state.set(await invoke<GameCatalogState>('presence_load_catalog', {
-                json: response.body,
-                etag: response.headers.get('ETag'),
-            }));
+            this._state.set(await this.catalog.load(response.body, response.headers.get('ETag')));
         } catch (err) {
             // Unchanged since last time — the whole point of sending the ETag.
             if (err instanceof HttpErrorResponse && err.status === 304) return;

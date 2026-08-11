@@ -13,13 +13,9 @@
  * values* one layer up, and the error classification that turns an IPC fault into something other
  * than "your credential is wrong".</p>
  */
-vi.mock('@tauri-apps/api/core', () => ({
-    invoke: vi.fn(),
-    isTauri: vi.fn(() => true),
-}));
-
 import {TestBed} from '@angular/core/testing';
-import {invoke} from '@tauri-apps/api/core';
+import {CryptoEngine} from '../platform/ports/crypto-engine.port';
+import {FakeCryptoEngine} from '../platform/testing/fake-crypto-engine';
 import {
     CredentialRejectedError,
     MasterKeyEngineError,
@@ -27,7 +23,18 @@ import {
 } from './master-key.service';
 import {EncryptedMasterKey} from '../dtos/response/UserDto';
 
-const invokeStub = vi.mocked(invoke);
+/**
+ * The boundary, as a provided fake rather than as `vi.mock('@tauri-apps/api/core')`.
+ *
+ * <p>Same assertions, one layer lower: `MasterKeyService` now calls {@link CryptoEngine}, and both of
+ * its adapters pass `(command, args)` through untouched to the same Rust functions - Tauri's `invoke`
+ * on the desktop, wasm-bindgen in a browser. So pinning the argument names here pins them for both
+ * hosts, which a module mock of one host's IPC could not do.</p>
+ *
+ * <p>Driven by a `vi.fn()` so the recorded calls read exactly as they did before: `[command, args]`.</p>
+ */
+const invokeStub = vi.fn<(command: string, args?: Record<string, unknown>) => Promise<unknown>>();
+const engine = new FakeCryptoEngine();
 
 const WRAPPED: EncryptedMasterKey = {
     cipherText: 'Y3Q=',
@@ -49,7 +56,11 @@ describe('MasterKeyService', () => {
 
     beforeEach(() => {
         invokeStub.mockReset();
-        TestBed.configureTestingModule({providers: [MasterKeyService]});
+        engine.reset();
+        engine.handler = invokeStub;
+        TestBed.configureTestingModule({
+            providers: [MasterKeyService, {provide: CryptoEngine, useValue: engine}],
+        });
         service = TestBed.inject(MasterKeyService);
     });
 

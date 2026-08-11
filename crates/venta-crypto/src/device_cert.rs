@@ -566,6 +566,7 @@ pub fn verify_device_certificates(
 /// error about the batch, because a `Result::Err` here would collapse "Ben's certificate is
 /// malformed" into "the whole recipient list could not be checked" and invite a caller to fall back
 /// to sealing unverified.
+#[cfg(feature = "tauri")]
 #[tauri::command]
 pub fn device_cert_verify(
     claims: Vec<DeviceCertificateClaim>,
@@ -578,6 +579,10 @@ pub fn device_cert_verify(
 // Tests
 // ---------------------------------------------------------------------------
 
+// Native-only: `mobile_fixture()` reads `testdata/device-cert/v1/` off disk, and `std::fs` on
+// `wasm32-unknown-unknown` is a stub that returns `Unsupported`. Verification itself is pure and
+// takes `now_unix` from its caller, so there is nothing target-dependent left to cover here.
+#[cfg(not(target_arch = "wasm32"))]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1298,7 +1303,10 @@ mod tests {
     // ── Cross-client vectors ──────────────────────────────────────────────────
 
     fn mobile_fixture() -> serde_json::Value {
+        // Two levels: this crate is `crates/venta-crypto`, `testdata/` is at the repo root. It was
+        // one while the engine lived in `src-tauri`; the fixture itself did not move.
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("..")
             .join("..")
             .join("testdata")
             .join("device-cert")

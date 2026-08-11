@@ -1,5 +1,5 @@
 import {computed, effect, inject, Injectable, signal} from '@angular/core';
-import {Channel, invoke, isTauri} from '@tauri-apps/api/core';
+import {SILENCE_DBFS, VoiceProcessing, VoicePublisher} from '../platform/ports/voice-publisher.port';
 import {AudioSettings, AudioSettingsService} from './audio-settings.service';
 
 /** Which call surface the session belongs to. Mirrors the Rust `VoiceTarget`. */
@@ -104,17 +104,6 @@ export interface VoiceStats {
     publications: PublicationStats[];
 }
 
-interface VoiceEvent {
-    kind: 'speaking' | 'levels' | 'error';
-    speaking: boolean;
-    level: number;
-    /** Capture level in dBFS, and where the gate currently opens. Both on `kind: 'speaking'`. */
-    levelDb: number;
-    thresholdDb: number;
-    message?: string;
-    levels?: RemoteLevel[];
-}
-
 /**
  * A 0-100 slider position as a 0.0-1.0 gain.
  *
@@ -127,8 +116,14 @@ function asGain(percent: number): number {
     return Number.isFinite(percent) ? Math.min(1, Math.max(0, percent / 100)) : 1;
 }
 
-/** The bottom of the meter's scale, and what a level reads before any audio has arrived. */
-export const SILENCE_DBFS = -100;
+/**
+ * The bottom of the meter's scale, and what a level reads before any audio has arrived.
+ *
+ * <p>Re-exported rather than declared: it moved to the port, because both adapters need it and neither
+ * may import a value from this service - see the note on {@link SILENCE_DBFS} there. Kept on this path
+ * so `voice-video-settings.component.ts` and anything else reading it need no change.</p>
+ */
+export {SILENCE_DBFS};
 
 /**
  * A 0-100 cutoff slider position as the engine's 0.0-1.0 sensitivity, which runs the other way.
@@ -143,19 +138,28 @@ function asSensitivity(threshold: number): number {
 }
 
 /**
- * The Angular face of the Rust audio engine.
+ * The Angular face of the audio engine, whichever host is behind it.
  *
- * Every call service talks to this rather than calling `invoke` directly, so the fact that there is
- * exactly one microphone and one set of speakers is enforced in one place - however many calls are
- * running on top of them.
+ * Every call service talks to this rather than to the {@link VoicePublisher} port directly, so the
+ * fact that there is exactly one microphone and one set of speakers is enforced in one place -
+ * however many calls are running on top of them.
  *
  * The split between the methods that take a {@link VoiceSession} and those that do not is the whole
  * model: a session addresses one call, everything else addresses the hardware. Muting the
  * microphone is not something you do to a call.
+ *
+ * <p>Since the browser port this is a <b>delegate</b> over the port: the Rust engine on the desktop
+ * host, a `getUserMedia` + `RTCPeerConnection` publisher in a browser. The public surface is
+ * unchanged, deliberately - `call-webrtc.service.ts`, `voice-rtc.service.ts`, `voice-channel.service.ts`
+ * and `isle-voice-rtc.service.ts` all consume it, and holding it still is what let the port land
+ * without a cross-cutting rename. What is *not* delegated is everything below: the slot bookkeeping,
+ * the signals the UI reads, and the settings vocabulary. Those are the same on both hosts, so an
+ * adapter that had to reimplement them would be two chances to get them wrong.</p>
  */
 @Injectable({providedIn: 'root'})
 export class VoiceEngineService {
     private readonly audioSettings = inject(AudioSettingsService);
+    private readonly publisher = inject(VoicePublisher);
 
     /**
      * Whether the local user is currently transmitting.
@@ -177,10 +181,16 @@ export class VoiceEngineService {
     readonly levelDb = signal(SILENCE_DBFS);
     readonly thresholdDb = signal(SILENCE_DBFS);
 
-    /** Slots with a call running on them. */
-    private readonly runningSlots = signal<ReadonlySet<string>>(new Set());
+    /**
+     * Slots with a call running on them, and the session occupying each.
+     *
+     * The sessions are held rather than only their slot names because {@link stopAll} has to name
+     * each one: the port ends one publication at a time, and a slot string is not something a caller
+     * may construct - see {@link VoiceSession.slot}.
+     */
+    private readonly runningSessions = signal<ReadonlyMap<string, VoiceSession>>(new Map());
     /** Whether any call is running at all - the engine holds the devices open exactly this long. */
-    readonly active = computed(() => this.runningSlots().size > 0);
+    readonly active = computed(() => this.runningSessions().size > 0);
 
     /**
      * Source ids pulled onto each slot, so stopping one call clears its meters and leaves any
@@ -203,45 +213,59 @@ export class VoiceEngineService {
     readonly remoteLevels = this.remoteLevelsSignal.asReadonly();
 
     constructor() {
-        // Push settings changes into a running session. Without this the audio settings page would
-        // appear to work and change nothing until the next rejoin - and the input-mode switch in
-        // particular would be silently dead, because the gate that reads it now lives in Rust.
+        // Push settings changes at the publisher. Without this the audio settings page would appear
+        // to work and change nothing until the next rejoin - and the input-mode switch in particular
+        // would be silently dead, because the gate that reads it lives below this line.
         //
-        // The input and output *devices* are the exception: they are chosen when the engine opens
-        // them, so switching hardware takes effect once the last call ends and the engine restarts.
+        // Pushed whether or not a call is running, unlike before, because the adapter is now the one
+        // that knows what to do with settings it cannot apply yet: the Tauri adapter holds them for
+        // the `voice_start` that opens the devices with them, and the web adapter applies the ones
+        // that do not need a running capture. It also deduplicates, so an unchanged payload costs
+        // nothing - which matters, because pushing an unchanged config into a live Rust engine
+        // reopens or closes every publication according to the gate mode.
         effect(() => {
-            const payload = this.payloadFrom(this.audioSettings.settings());
-            if (!this.active() || !isTauri()) return;
-            void invoke('voice_set_processing', {settings: payload});
+            void this.publisher.setProcessing(this.payloadFrom(this.audioSettings.settings()));
         });
 
-        // A page reload does not unwind Rust. Without this the engine keeps capturing and
+        // A page reload does not unwind a native engine. Without this it keeps capturing and
         // publishing into the channel after the webview that started it is gone - audible to
         // everyone else, invisible here, and emitting events at a callback id that no longer
         // exists ("[TAURI] Couldn't find callback id ...").
-        if (isTauri()) {
-            window.addEventListener('beforeunload', () => {
-                if (this.active()) void this.stopAll();
-            });
-        }
-    }
-
-    /** Whether the Rust engine is available at all. */
-    available(): boolean {
-        return isTauri();
+        //
+        // Registered on both hosts. A browser tab tears its own peer connections down on unload, so
+        // this is belt and braces there - but it is also what closes the tracks *server-side*, which
+        // is the difference between the room being told we left and the room waiting for the sweep.
+        window.addEventListener('beforeunload', () => {
+            if (this.active()) void this.stopAll();
+        });
     }
 
     /**
-     * A snapshot of every counter in the Rust pipeline.
+     * Whether publishing a microphone is possible at all.
+     *
+     * True on both hosts now: this used to be `isTauri()`, because outside Tauri there was no engine
+     * and every command was a no-op. A browser has a real publisher, so a caller that skipped voice
+     * on the strength of this would be skipping a working feature.
+     */
+    available(): boolean {
+        return true;
+    }
+
+    /**
+     * A snapshot of every counter in the pipeline.
      *
      * For diagnosing the failure mode where the call signals correctly and carries no audio: each
      * stage reports success to the one above it, so the only way to find the break is to look at
      * what actually moved between them. Read two of these a second apart - the deltas are the
      * signal, the totals are not. See `__voiceStats()` in `debug.ts`.
+     *
+     * Still typed nullable, because callers already handle null and the port cannot make them stop.
+     * It no longer *returns* null: both adapters answer with `running: false` and zeroed counters
+     * when nothing is up, which is a different fact from "there is no engine on this host" and is
+     * the one a reader can act on.
      */
     async stats(): Promise<VoiceStats | null> {
-        if (!isTauri()) return null;
-        return await invoke<VoiceStats>('voice_stats');
+        return await this.publisher.stats();
     }
 
     /**
@@ -258,52 +282,43 @@ export class VoiceEngineService {
         token: string,
         deviceId: string,
     ): Promise<VoiceSession> {
-        const channel = new Channel<VoiceEvent>();
-        channel.onmessage = event => {
-            if (event.kind === 'error') {
-                console.error('[voice] engine error:', event.message);
-                return;
-            }
-            if (event.kind === 'levels') {
-                this.remoteLevelsSignal.set(new Map((event.levels ?? []).map(l => [l.id, l])));
-                return;
-            }
-            this.speaking.set(event.speaking);
-            this.level.set(event.level);
-            this.levelDb.set(event.levelDb ?? SILENCE_DBFS);
-            this.thresholdDb.set(event.thresholdDb ?? SILENCE_DBFS);
-        };
+        // Before the start, not inside it. The port's `start` carries no settings, and both adapters
+        // need them by then: `voice_start` opens the devices with them and chooses the gate mode that
+        // decides whether a fresh publication starts open, and the web adapter opens `getUserMedia`
+        // with the constraints they carry. Awaited so the push cannot land after the start it is for.
+        await this.publisher.setProcessing(this.settingsPayload());
 
-        const session = await invoke<VoiceSession>('voice_start', {
-            settings: this.settingsPayload(),
-            // None, deliberately. Cloudflare's SFU is publicly routable, so host candidates reach
-            // it and it answers to whatever source address it sees - which is why the DM call path
-            // has never passed any (`call-webrtc.service.ts`, `new RTCPeerConnection` with only
-            // bundlePolicy). Passing STUN servers here, copied from the screen publisher, bought
-            // nothing and added the one step in ICE gathering that can block on the network.
-            iceServers: [],
+        const session = await this.publisher.start({
+            target,
             apiBase,
             token,
             deviceId,
-            guildId: target.kind === 'guild' ? target.guildId : null,
-            channelId: target.kind === 'guild' ? target.channelId : null,
-            callId: target.kind === 'call' ? target.callId : null,
-            // Isle addresses no channel or call, so it is flagged rather than identified.
-            isle: target.kind === 'isle',
-            onEvent: channel,
+            onEvent: event => {
+                if (event.kind === 'error') {
+                    console.error('[voice] engine error:', event.message);
+                    return;
+                }
+                if (event.kind === 'levels') {
+                    this.remoteLevelsSignal.set(new Map((event.levels ?? []).map(l => [l.id, l])));
+                    return;
+                }
+                this.speaking.set(event.speaking);
+                this.level.set(event.level);
+                this.levelDb.set(event.levelDb ?? SILENCE_DBFS);
+                this.thresholdDb.set(event.thresholdDb ?? SILENCE_DBFS);
+            },
         });
 
-        // Rejoining the same slot replaces whatever was there, in Rust and here alike.
+        // Rejoining the same slot replaces whatever was there, in the adapter and here alike.
         this.subscribedBySlot.set(session.slot, new Set());
-        this.runningSlots.update(slots => new Set(slots).add(session.slot));
+        this.runningSessions.update(sessions => new Map(sessions).set(session.slot, session));
         return session;
     }
 
     /** End one call. Every other call, and the microphone itself, keeps running. */
     async stop(session: VoiceSession): Promise<void> {
         this.forgetSlot(session.slot);
-        if (!isTauri()) return;
-        await invoke('voice_stop', {slot: session.slot});
+        await this.publisher.stop(session);
     }
 
     /**
@@ -311,15 +326,20 @@ export class VoiceEngineService {
      *
      * For a page reload, where the webview that started them is gone and there is nobody left to
      * name them individually. Ordinary hang-ups use {@link stop}.
+     *
+     * One stop per publication rather than the slotless `voice_stop`, because the port addresses one
+     * session at a time. The end state is the same either way - the engine closes its devices once
+     * the last publication goes, in `stop_engine_if_idle` - and they are issued together rather than
+     * in sequence, because this runs during unload and each has to get onto the wire.
      */
     async stopAll(): Promise<void> {
+        const sessions = [...this.runningSessions().values()];
         this.subscribedBySlot.clear();
-        this.runningSlots.set(new Set());
+        this.runningSessions.set(new Map());
         this.speaking.set(false);
         this.level.set(0);
         this.remoteLevelsSignal.set(new Map());
-        if (!isTauri()) return;
-        await invoke('voice_stop', {slot: null});
+        await Promise.all(sessions.map(session => this.publisher.stop(session)));
     }
 
     /**
@@ -339,15 +359,13 @@ export class VoiceEngineService {
         trackName: string,
     ): Promise<void> {
         this.subscribedBySlot.get(session.slot)?.add(id);
-        if (!isTauri()) return;
-        await invoke('voice_subscribe', {slot: session.slot, id, mediaSessionId, trackName});
+        await this.publisher.subscribe(session, id, mediaSessionId, trackName);
     }
 
     async unsubscribe(session: VoiceSession, id: string): Promise<void> {
         this.subscribedBySlot.get(session.slot)?.delete(id);
         this.dropLevel(id);
-        if (!isTauri()) return;
-        await invoke('voice_unsubscribe', {slot: session.slot, id});
+        await this.publisher.unsubscribe(session, id);
     }
 
     /**
@@ -357,8 +375,7 @@ export class VoiceEngineService {
      * microphone is captured once and stays live while any call wants it; this decides who hears it.
      */
     async setPttOpen(session: VoiceSession, open: boolean): Promise<void> {
-        if (!isTauri()) return;
-        await invoke('voice_set_ptt_open', {slot: session.slot, open});
+        await this.publisher.setPttOpen(session, open);
     }
 
     /**
@@ -369,19 +386,16 @@ export class VoiceEngineService {
      * possible way to discover that calls are separate.
      */
     async setMute(muted: boolean): Promise<void> {
-        if (!isTauri()) return;
-        await invoke('voice_set_mute', {muted});
+        await this.publisher.setMute(muted);
     }
 
     /** Per-source volume, 0.0-1.0. */
     async setUserVolume(id: string, volume: number): Promise<void> {
-        if (!isTauri()) return;
-        await invoke('voice_set_user_volume', {id, volume});
+        await this.publisher.setUserVolume(id, volume);
     }
 
     async setDeafened(deafened: boolean): Promise<void> {
-        if (!isTauri()) return;
-        await invoke('voice_set_deafened', {deafened});
+        await this.publisher.setDeafened(deafened);
     }
 
     // ── Positional audio (Isle proximity voice) ───────────────────────────────
@@ -397,13 +411,7 @@ export class VoiceEngineService {
      * Rejects if the numbers would silence the mix, rather than half-applying them.
      */
     async setSpatialModel(model: SpatialModel): Promise<void> {
-        if (!isTauri()) return;
-        await invoke('voice_set_spatial_model', {
-            refDistance: model.refDistance,
-            rolloff: model.rolloff,
-            maxDistance: model.maxDistance,
-            intensity: model.intensity,
-        });
+        await this.publisher.setSpatialModel(model);
     }
 
     /**
@@ -419,27 +427,24 @@ export class VoiceEngineService {
      * centred at full volume, which is exactly what a guild participant wants.
      */
     async setPosition(id: string, position: VoicePosition | null): Promise<void> {
-        if (!isTauri()) return;
-        await invoke('voice_set_position', {
-            id,
-            x: position?.x ?? null,
-            y: position?.y ?? null,
-            z: position?.z ?? null,
-        });
+        // The spec's `setPosition` takes one argument and no participant id, which cannot address the
+        // per-source position table the mixer keeps - so the id travels inside it. This signature is
+        // the one every caller already has.
+        await this.publisher.setPosition({id, position});
     }
 
     /** Push the current settings to the engine. Safe to call when nothing is running. */
     async applySettings(): Promise<void> {
-        if (!isTauri()) return;
-        await invoke('voice_set_processing', {settings: this.settingsPayload()});
+        await this.publisher.setProcessing(this.settingsPayload());
     }
 
     /** Drop a slot's local bookkeeping, including the meters of everyone who was on it. */
     private forgetSlot(slot: string): void {
         for (const id of this.subscribedBySlot.get(slot) ?? []) this.dropLevel(id);
         this.subscribedBySlot.delete(slot);
-        this.runningSlots.update(slots => {
-            const next = new Set(slots);
+        this.runningSessions.update(sessions => {
+            if (!sessions.has(slot)) return sessions;
+            const next = new Map(sessions);
             next.delete(slot);
             return next;
         });
@@ -463,11 +468,16 @@ export class VoiceEngineService {
      * Field names here must match the Rust `VoiceSettings` exactly - it is deserialised by name, so
      * a mismatch is a setting that silently stops working rather than an error anyone sees.
      */
-    private settingsPayload() {
+    private settingsPayload(): VoiceProcessing {
         return this.payloadFrom(this.audioSettings.settings());
     }
 
-    private payloadFrom(s: AudioSettings) {
+    /**
+     * Typed as {@link VoiceProcessing} rather than left inferred, so a field renamed here is a
+     * compile error instead of a setting that silently stops working - which is what the Rust struct's
+     * name-based deserialisation makes of a mismatch.
+     */
+    private payloadFrom(s: AudioSettings): VoiceProcessing {
         return {
             deviceId: s.micId === 'default' ? null : s.micId,
             // Chosen when the engine opens the device, so like the microphone it takes effect once

@@ -1,9 +1,7 @@
 import {computed, effect, inject, Injectable, signal} from '@angular/core';
 import {catchError, debounceTime, of, Subject, switchMap} from 'rxjs';
 import {AuthService} from './auth.service';
-import {getCurrentWindow} from '@tauri-apps/api/window';
-import {isTauri} from '@tauri-apps/api/core';
-import {disable, enable} from '@tauri-apps/plugin-autostart';
+import {Autostart} from '../platform/ports/autostart.port';
 
 export interface NotificationSettings {
     enabled: boolean;
@@ -63,6 +61,7 @@ const DEFAULTS: SettingsPayload = {
 export class UserSettingsService {
     private static readonly FOCUS_COOLDOWN_MS = 30_000;
     private authService = inject(AuthService);
+    private readonly autostart = inject(Autostart);
     private _settings = signal<SettingsPayload>({
         notifications: {...DEFAULTS.notifications},
         autostart: DEFAULTS.autostart,
@@ -76,12 +75,17 @@ export class UserSettingsService {
 
     constructor() {
         this.fetch();
-        void this.setupFocusSync();
+        this.setupFocusSync();
 
+        // Gated on `supported`, not attempted-and-swallowed. The old `.catch(() => {})` was only
+        // harmless because of the `isTauri()` guard in front of it: on a host that cannot register a
+        // launch entry, `setEnabled` rejects deliberately, and catching that would turn "cannot" into
+        // "did" - the dead-toggle bug class the capability rules exist to prevent.
         effect(() => {
             const enabled = this._settings().autostart;
-            if (isTauri()) void (enabled ? enable() : disable()).catch(() => {
-            });
+            if (!this.autostart.supported) return;
+            void this.autostart.setEnabled(enabled).catch(err =>
+                console.warn('[UserSettings] could not apply the autostart setting', err));
         });
 
         this.save$.pipe(
@@ -133,11 +137,30 @@ export class UserSettingsService {
         });
     }
 
-    private async setupFocusSync(): Promise<void> {
-        await getCurrentWindow().onFocusChanged(({payload: focused}) => {
-            if (focused && Date.now() - this.lastFetch > UserSettingsService.FOCUS_COOLDOWN_MS) {
-                this.fetch();
-            }
+    /**
+     * Re-reads the settings blob when the user comes back to the app.
+     *
+     * <p><b>DOM events rather than the window's own focus event, on both hosts.</b> This used to be
+     * Tauri's `onFocusChanged`, which is not on the `WindowChrome` port - and it should not be, because
+     * this does not want to know about a window. It wants to know "has the user been away long enough
+     * that another device may have changed something", and `focus` plus `visibilitychange` answer that
+     * identically inside the Tauri webview and in a tab. `visibilitychange` is the one that carries a
+     * backgrounded tab, which has no `focus` to lose.</p>
+     *
+     * <p>Never unsubscribed, deliberately: this is a root singleton for the life of the process, and a
+     * teardown path that only ever runs at unload is a liability rather than hygiene. The
+     * {@link FOCUS_COOLDOWN_MS} throttle is what keeps a noisy source cheap.</p>
+     */
+    private setupFocusSync(): void {
+        if (typeof window === 'undefined') return;
+
+        const onReturn = (): void => {
+            if (Date.now() - this.lastFetch > UserSettingsService.FOCUS_COOLDOWN_MS) this.fetch();
+        };
+
+        window.addEventListener('focus', onReturn);
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) onReturn();
         });
     }
 
