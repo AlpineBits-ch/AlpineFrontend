@@ -15,6 +15,13 @@
  * go through it instead. The tests below pin the resulting contract in both directions - a failure
  * must not resolve, and a genuine absence must not reject - plus the reason the plugin is still
  * imported at all.</p>
+ *
+ * <p><b>And the assumption underneath all of it.</b> `keychain_read` keeps that promise only while it
+ * addresses the same credential the plugin writes; if it does not, `keyring` reports `NoEntry` for an
+ * entry that exists and the honest read hands `localStateKey` exactly the lie it was built to refuse -
+ * this time on every existing install at once. That derivation has never been read back at runtime, so
+ * an absence is cross-checked against the plugin before it is believed, and a disagreement rejects
+ * rather than resolving either way. The "absence cross-check" block below is that net.</p>
  */
 
 // vi.hoisted, because vi.mock is lifted above the imports and its factory therefore runs before any
@@ -41,9 +48,15 @@ vi.mock('tauri-plugin-secure-storage-api', () => ({
     },
 }));
 
-import {classifyMlsStorageFault} from '../../features/main-page/mls-storage-init';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import {
+    classifyMlsStorageFault,
+    MLS_STATE_KEY_UNAVAILABLE_MARKERS,
+    MLS_STATE_UNREADABLE_MARKERS,
+} from '../../features/main-page/mls-storage-init';
 import {createSecureStore} from '../secure-store-factory';
-import {TauriSecureStore} from './secure-store';
+import {KEYCHAIN_ABSENCE_UNCONFIRMED, KEYCHAIN_ADDRESS_MISMATCH, TauriSecureStore} from './secure-store';
 
 /** The command's "present" answer. */
 function present(data: string): unknown {
@@ -55,6 +68,47 @@ function absent(): unknown {
     return {absent: true, data: null};
 }
 
+/**
+ * `src-tauri/capabilities`, found by walking up to the directory holding `angular.json`.
+ *
+ * <p>Not `process.cwd()` and not a counted number of `..`: a runner may change the former, and the
+ * test builder bundles specs so `import.meta.url` need not sit at the source path. Same helper shape
+ * as `platform-boundary.spec.ts` and `mls-storage-init.spec.ts`, which had to solve this first - a
+ * check that silently located no files would pass while asserting nothing.</p>
+ */
+function capabilitiesDir(): string {
+    // `new URL(...).pathname` is `/C:/Users/...` on Windows; the drive letter has to come first for
+    // `path` to treat it as absolute, or every `existsSync` below quietly answers false.
+    const pathname = decodeURIComponent(new URL(import.meta.url).pathname);
+    let dir = path.dirname(pathname.replace(/^\/([A-Za-z]:)/, '$1'));
+
+    for (let i = 0; i < 12; i++) {
+        const capabilities = path.join(dir, 'src-tauri', 'capabilities');
+        if (fs.existsSync(path.join(dir, 'angular.json')) && fs.existsSync(capabilities)) {
+            return capabilities;
+        }
+
+        const parent = path.dirname(dir);
+        if (parent === dir) break;
+        dir = parent;
+    }
+
+    throw new Error(`Could not locate src-tauri/capabilities by walking up from ${pathname}`);
+}
+
+/**
+ * The `permissions` list of one capability file.
+ *
+ * <p>`secure-storage:default` is the plugin's own set - `allow-set-item`, `allow-get-item`,
+ * `allow-remove-item` (`tauri-plugin-secure-storage-1.5.0/permissions/default.toml`) - so either it or
+ * the explicit `allow-get-item` permits the read this adapter cross-checks through.</p>
+ */
+function permissionsIn(file: string): string[] {
+    const parsed: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
+    const permissions = (parsed as {permissions?: unknown} | null)?.permissions;
+    return Array.isArray(permissions) ? permissions.filter((p): p is string => typeof p === 'string') : [];
+}
+
 function setup(): TauriSecureStore {
     invoke.mockReset();
     setItem.mockReset();
@@ -62,7 +116,20 @@ function setup(): TauriSecureStore {
     pluginGetItem.mockReset();
     setItem.mockResolvedValue(undefined);
     removeItem.mockResolvedValue(undefined);
+    // The plugin's own answer for an entry it cannot see, stated rather than left as an unconfigured
+    // mock's `undefined`: the default here is "the two readers agree there is nothing there".
+    pluginGetItem.mockResolvedValue(null);
     return new TauriSecureStore();
+}
+
+/** The rejection `getItem` produced, or a failure if it resolved. */
+async function rejectionFrom(store: TauriSecureStore, key: string): Promise<unknown> {
+    return store.getItem(key).then(
+        value => {
+            throw new Error(`expected a rejection, got ${JSON.stringify(value)}`);
+        },
+        (cause: unknown) => cause,
+    );
 }
 
 describe('TauriSecureStore', () => {
@@ -130,20 +197,216 @@ describe('TauriSecureStore', () => {
     });
 
     /**
-     * The read path never touches the plugin any more, and this is the test that documents why.
+     * No value ever comes from the plugin, and this is the test that documents why.
      *
      * <p>The plugin's `getItem` cannot distinguish absence from failure - one line of `desktop.rs`,
-     * `Err(_) => Ok(GetItemResponse { data: None })` - so routing a read through it would silently
+     * `Err(_) => Ok(GetItemResponse { data: None })` - so sourcing a read from it would silently
      * restore the key-loss path regardless of how careful everything above it was. A reviewer moving
      * this back for symmetry with the writes should read `src-tauri/src/keychain.rs` first.</p>
+     *
+     * <p>Asserted on the <b>present</b> answer specifically. The plugin is consulted on the absent
+     * path - see the cross-check tests below - and only ever to contradict an absence, never to
+     * provide a value, so "the plugin is not read" is now precisely "the plugin is not read when the
+     * command answered".</p>
      */
-    it('never reads through the plugin, whose get_item cannot tell absence from failure', async () => {
+    it('never sources a value from the plugin, whose get_item cannot tell absence from failure', async () => {
+        const store = setup();
+        invoke.mockResolvedValue(present('c3RvcmVkLWtleQ=='));
+
+        expect(await store.getItem('alpine_mls_device-7_statekey')).toBe('c3RvcmVkLWtleQ==');
+
+        expect(pluginGetItem).not.toHaveBeenCalled();
+    });
+
+    // -----------------------------------------------------------------------------------------------
+    // The absence cross-check
+    // -----------------------------------------------------------------------------------------------
+
+    /**
+     * <b>The net under the one assumption this change cannot prove.</b>
+     *
+     * <p>`keychain_read` only keeps its promise if it addresses the credential the plugin has been
+     * writing. That derivation is argued four ways in `src-tauri/src/keychain.rs` and pinned literally
+     * by its tests, and it has <i>never been read back at runtime against an entry the shipped plugin
+     * wrote</i>. If it is wrong, `keyring` answers `NoEntry` for an entry that exists, which is a
+     * positive absence - so the adapter would report `null`, `localStateKey` would legitimately mint,
+     * the real sealed state would fail its AEAD, `classifyMlsStorageFault` would correctly call that
+     * corrupt, and every group key on the device would be wiped. On every existing install, on the
+     * first launch after the update, silently.</p>
+     *
+     * <p>Hence: an absence is confirmed against the plugin before it is believed. The tests below pin
+     * all three outcomes, because each of the three has a different catastrophe behind getting it
+     * wrong - mint over live keys, hide the defect forever, brick every fresh install.</p>
+     */
+    it('confirms a positive absence against the plugin before it is believed', async () => {
         const store = setup();
         invoke.mockResolvedValue(absent());
+        pluginGetItem.mockResolvedValue(null);
+
+        expect(await store.getItem('alpine_mls_device-7_statekey')).toBeNull();
+
+        // The unprefixed key, exactly as the read command got it - the plugin's JS applies
+        // `'tauri-storage_'` itself, and passing it pre-prefixed would compare two different entries
+        // and never disagree.
+        expect(pluginGetItem).toHaveBeenCalledWith('alpine_mls_device-7_statekey');
+    });
+
+    /**
+     * The disagreement. <b>Rejecting is the point</b>: `null` here is the wipe, and quietly returning
+     * the plugin's value would make the app work while leaving the addressing bug - and the entire
+     * honest-read path built on top of it - inert and invisible.
+     *
+     * <p>`''` is included because nothing in this app can write one (the plugin's `set_item` refuses
+     * empty data), so a value read back at the plugin's address is a credential existing where this
+     * adapter was told none does, whatever its length.</p>
+     */
+    it.each([
+        ['a stored state key', 'c3RvcmVkLWtleQ=='],
+        ['an empty string, which nothing here can have written', ''],
+    ])('rejects when the plugin can read an entry the command called absent (%s)', async (
+        _label,
+        pluginValue,
+    ) => {
+        const store = setup();
+        invoke.mockResolvedValue(absent());
+        pluginGetItem.mockResolvedValue(pluginValue);
+
+        await expect(store.getItem('alpine_mls_device-7_statekey'))
+            .rejects.toThrow(new RegExp(KEYCHAIN_ADDRESS_MISMATCH));
+    });
+
+    /** Neither `null` nor the plugin's value: the two failures this rejection exists instead of. */
+    it('neither mints over nor silently falls back to the entry the plugin can see', async () => {
+        const store = setup();
+        invoke.mockResolvedValue(absent());
+        pluginGetItem.mockResolvedValue('c3RvcmVkLWtleQ==');
+
+        const outcome = await store.getItem('alpine_mls_device-7_statekey').then(
+            value => ({resolved: true, value}),
+            () => ({resolved: false, value: undefined}),
+        );
+
+        expect(outcome).toEqual({resolved: false, value: undefined});
+    });
+
+    /**
+     * An absence that could not be corroborated is refused, not trusted.
+     *
+     * <p>The plugin's IPC failing is the only way to land here, and it breaks `setItem` identically -
+     * so a fresh device that reaches this branch could not have written the key it was about to mint
+     * either. It fails one line earlier, with a message that says which half is broken.</p>
+     */
+    it('rejects an absence the plugin could not be asked to confirm', async () => {
+        const store = setup();
+        invoke.mockResolvedValue(absent());
+        pluginGetItem.mockRejectedValue(new Error('secure-storage.get_item denied by capability'));
+
+        await expect(store.getItem('alpine_mls_device-7_statekey'))
+            .rejects.toThrow(new RegExp(KEYCHAIN_ABSENCE_UNCONFIRMED));
+    });
+
+    /**
+     * The cross-check is one IPC, and only on the path where nothing was there to read. A present
+     * entry - every launch after the first, for every key that matters - pays nothing.
+     */
+    it('costs nothing on the present path', async () => {
+        const store = setup();
+        invoke.mockResolvedValue(present('c3RvcmVkLWtleQ=='));
 
         await store.getItem('alpine_mls_device-7_statekey');
 
+        expect(invoke).toHaveBeenCalledTimes(1);
         expect(pluginGetItem).not.toHaveBeenCalled();
+    });
+
+    /**
+     * <b>Both cross-check messages, through the two matchers that decide what they mean.</b>
+     *
+     * <p>These messages are new prose written by this file, and prose that travels through substring
+     * matchers is prose that can be read as something it is not:</p>
+     *
+     * <ul>
+     *   <li>`classifyMlsStorageFault` - the real one, not a copy - must read them as `unknown`. A
+     *       message containing any `MLS_STATE_UNREADABLE_MARKERS` substring would classify as corrupt
+     *       stored state and license the wipe, which would move the catastrophe rather than remove it;
+     *       one containing a `MLS_STATE_KEY_UNAVAILABLE_MARKERS` substring would masquerade as the
+     *       engine's own refusal.</li>
+     *   <li>`MlsService`'s `isCommandNotFound` must not read them as an absent command, or a caller
+     *       going through `callOptional` degrades to silence - the one outcome worse than rejecting,
+     *       because it is the outcome that looks fine.</li>
+     * </ul>
+     */
+    it.each([
+        [
+            'the addressing disagreement',
+            KEYCHAIN_ADDRESS_MISMATCH,
+            () => pluginGetItem.mockResolvedValue('c3RvcmVkLWtleQ=='),
+        ],
+        [
+            'an absence the plugin could not confirm',
+            KEYCHAIN_ABSENCE_UNCONFIRMED,
+            // Worded as Tauri words a rejected permission, which is the realistic way to reach this
+            // branch and the reason the cause is attached rather than pasted into the message: it
+            // contains "not allowed", and that phrase must not reach `isCommandNotFound`.
+            () => pluginGetItem.mockRejectedValue(
+                new Error('secure-storage.get_item not allowed. Permissions associated with this '
+                    + 'command: secure-storage:allow-get-item'),
+            ),
+        ],
+    ])('classifies as transient and stays readable as itself (%s)', async (_label, token, arrange) => {
+        const store = setup();
+        invoke.mockResolvedValue(absent());
+        arrange();
+
+        const err = await rejectionFrom(store, 'alpine_mls_device-7_statekey');
+        const message = err instanceof Error ? err.message : String(err);
+
+        // Its own signal, distinct from a generic keychain failure, so a log or a telemetry counter can
+        // pick this condition out rather than averaging it into the pile.
+        expect(message).toContain(token);
+
+        const fault = classifyMlsStorageFault(err);
+        expect(fault.kind).toBe('unknown');
+        expect(fault.mayWipe).toBe(false);
+        expect(fault.retryable).toBe(true);
+
+        for (const marker of [...MLS_STATE_UNREADABLE_MARKERS, ...MLS_STATE_KEY_UNAVAILABLE_MARKERS]) {
+            expect(message).not.toContain(marker);
+        }
+        // Copied from `isCommandNotFound` in `mls.service.ts`, which pairs it with the command's own
+        // name. Matched here without that pairing, because the phrases are what must never appear.
+        expect(message).not.toMatch(/not\s+found|unknown command|not\s+allowed/i);
+    });
+
+    /**
+     * The cross-check reads through the plugin's `get_item`, so the capability that permits it has to
+     * stay granted - and it is now the <b>only</b> thing in the app that reads through the plugin,
+     * which makes `allow-get-item` look exactly like dead permission surface to anyone tidying up.
+     *
+     * <p>Pruning it would not present as a permission problem. Every absent read would reject, so
+     * existing installs (whose entries are present) would be unaffected and <b>every fresh install
+     * would fail to launch</b> - discovered in QA at best, in the wild at worst. Read off disk rather
+     * than trusted to a comment, on the same reasoning as `mls-storage-init.spec.ts`.</p>
+     */
+    it('keeps the capability its cross-check reads through', () => {
+        const dir = capabilitiesDir();
+        const granting = fs.readdirSync(dir)
+            .filter(name => name.endsWith('.json'))
+            .map(name => ({name, permissions: permissionsIn(path.join(dir, name))}))
+            .filter(({permissions}) => permissions.some(p => p.startsWith('secure-storage:')));
+
+        // The desktop windows all carry secure storage; a run that matched none would be a green test
+        // asserting nothing, which is the failure mode of every check that reads files off disk.
+        expect(granting.length).toBeGreaterThan(0);
+
+        for (const {name, permissions} of granting) {
+            expect(
+                permissions.includes('secure-storage:default')
+                || permissions.includes('secure-storage:allow-get-item'),
+                `${name} grants secure-storage without read access, which breaks the absence `
+                + 'cross-check in platform/tauri/secure-store.ts and with it every fresh install',
+            ).toBe(true);
+        }
     });
 
     /**

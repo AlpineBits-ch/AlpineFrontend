@@ -861,6 +861,14 @@ export class MlsService {
      * absence; `platform/tauri/secure-store.ts` turns every other variant into a rejection, which
      * lands in the branch above. Nothing here changed for it, which was the point of writing the
      * refusal as a property of this method rather than of one adapter.</p>
+     *
+     * <p>One thing worth knowing while reading the `null` branch below: that adapter does not take
+     * `keychain_read`'s absence on trust either. It asks `tauri-plugin-secure-storage` - the writer of
+     * every entry, hence the authority on where they are - for the same key, and rejects rather than
+     * answering `null` if the plugin can see a value the command called missing. Without that, an error
+     * in the command's `(service, user)` derivation would arrive here as a legitimate absence and mint
+     * over live keys on every existing install at once. See "Absence is cross-checked against the
+     * plugin" in `platform/tauri/secure-store.ts`; nothing about this method changes for it.</p>
      */
     private async localStateKey(): Promise<string> {
         const deviceId = await this.deviceIdentity.deviceId();
