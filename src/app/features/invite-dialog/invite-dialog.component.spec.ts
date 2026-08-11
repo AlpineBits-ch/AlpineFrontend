@@ -2,6 +2,7 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideTranslateService} from '@ngx-translate/core';
+import {provideFakePlatform} from '../../platform/testing/provide-fake-platform';
 import {InviteDialogComponent} from './invite-dialog.component';
 import {InviteDialogService} from './invite-dialog.service';
 import {ApiConfigService} from '../../services/api-config.service';
@@ -57,6 +58,9 @@ async function setup() {
             provideHttpClient(),
             provideHttpClientTesting(),
             provideTranslateService({defaultLanguage: 'en'}),
+            // Reached transitively: SocialKeyGateService -> UserService -> MlsService -> MlsEngine.
+            // Nothing on the join path encrypts anything, so inert fakes are the whole requirement.
+            provideFakePlatform(),
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test.example'}},
         ],
     });

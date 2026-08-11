@@ -7,109 +7,17 @@
  * they moved, saved, and changed nothing.</p>
  *
  * <p>No `vi.mock('@tauri-apps/api/core')` any more. This service no longer touches the IPC module at
- * all - it delegates to the {@link VoicePublisher} port - so the fake below is provided in TestBed
- * instead. That is the shape the design spec asks every one of these specs to move to, and it is
+ * all - it delegates to the {@link VoicePublisher} port - so {@link FakeVoicePublisher} is provided in
+ * TestBed instead. That is the shape the design spec asks every one of these specs to move to, and it is
  * strictly better here: the old mock forced `isTauri()` true to stop the service short-circuiting, which
  * meant these assertions only held on one host.</p>
  */
 import {signal} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
-import {
-    Position,
-    SpatialModel,
-    VoiceProcessing,
-    VoicePublisher,
-    VoicePublisherEvent,
-    VoiceSession,
-    VoiceStartOptions,
-    VoiceStats,
-} from '../platform/ports/voice-publisher.port';
+import {FakeVoicePublisher, idleVoiceStats} from '../platform/testing/fake-voice-publisher';
+import {VoiceProcessing, VoicePublisher, VoiceSession, VoiceTarget} from '../platform/ports/voice-publisher.port';
 import {AudioSettings, AudioSettingsService} from './audio-settings.service';
 import {SILENCE_DBFS, VoiceEngineService} from './voice-engine.service';
-
-/**
- * Stands in for either adapter, and records what reached the port.
- *
- * <p>Faithful about one thing that matters: `start` hands back the slot the target maps onto, because
- * the delegate's slot bookkeeping is what {@link VoiceEngineService.stopAll} and the `active` signal
- * are built on.</p>
- */
-class FakePublisher extends VoicePublisher {
-    readonly supportsVad = false;
-
-    readonly processing: VoiceProcessing[] = [];
-    readonly started: VoiceStartOptions[] = [];
-    readonly stopped: VoiceSession[] = [];
-    readonly positions: Position[] = [];
-    readonly models: SpatialModel[] = [];
-    readonly volumes: [string, number][] = [];
-    readonly ptt: [VoiceSession, boolean][] = [];
-    muted: boolean | null = null;
-    deafened: boolean | null = null;
-    /** The callback the service registered, so a test can drive the engine's events through it. */
-    onEvent: ((event: VoicePublisherEvent) => void) | undefined;
-
-    /**
-     * The settings this adapter was holding when `start` was called.
-     *
-     * <p>Recorded because "were the settings pushed first" cannot be answered from the call list: the
-     * service's own settings effect pushes the same payload of its own accord, so a test that merely
-     * looks for a push finds one either way and passes against a `start` that carries nothing. What
-     * distinguishes them is <b>which</b> payload was in the adapter's hands at that moment.</p>
-     */
-    processingAtStart: VoiceProcessing | null = null;
-
-    readonly subscribe = vi.fn().mockResolvedValue(undefined);
-    readonly unsubscribe = vi.fn().mockResolvedValue(undefined);
-
-    async start(o: VoiceStartOptions): Promise<VoiceSession> {
-        this.started.push(o);
-        this.processingAtStart = this.processing.at(-1) ?? null;
-        this.onEvent = o.onEvent;
-        const slot = o.target.kind === 'isle' ? 'isle' : 'primary';
-        return {slot, mediaSessionId: `sess-${slot}`, trackName: 'audio'};
-    }
-
-    async stop(s: VoiceSession): Promise<void> {
-        this.stopped.push(s);
-    }
-
-    async setPttOpen(s: VoiceSession, open: boolean): Promise<void> {
-        this.ptt.push([s, open]);
-    }
-
-    async setMute(muted: boolean): Promise<void> {
-        this.muted = muted;
-    }
-
-    async setDeafened(deafened: boolean): Promise<void> {
-        this.deafened = deafened;
-    }
-
-    async setUserVolume(userId: string, volume: number): Promise<void> {
-        this.volumes.push([userId, volume]);
-    }
-
-    async setProcessing(p: VoiceProcessing): Promise<void> {
-        this.processing.push(p);
-    }
-
-    async setSpatialModel(m: SpatialModel): Promise<void> {
-        this.models.push(m);
-    }
-
-    async setPosition(p: Position): Promise<void> {
-        this.positions.push(p);
-    }
-
-    async stats(): Promise<VoiceStats> {
-        return {
-            running: false, framesCaptured: 0, captureRms: 0, packetsEncoded: 0, muted: false,
-            gateOpen: false, playoutFrames: 0, mixRms: 0, deafened: false, masterVolume: 1,
-            sources: [], publications: [],
-        };
-    }
-}
 
 const settings = signal<AudioSettings>({} as AudioSettings);
 
@@ -130,23 +38,23 @@ function withSettings(overrides: Partial<AudioSettings>): void {
 }
 
 let engine: VoiceEngineService;
-let publisher: FakePublisher;
+let publisher: FakeVoicePublisher;
 
 /** The most recent payload to reach the port. */
 function lastPayload(): VoiceProcessing {
-    expect(publisher.processing.length, 'no settings reached the publisher').toBeGreaterThan(0);
-    return publisher.processing.at(-1)!;
+    expect(publisher.processing, 'no settings reached the publisher').not.toBeNull();
+    return publisher.processing!;
 }
 
-const GUILD = {kind: 'guild', guildId: 'g1', channelId: 'c1'} as const;
+const GUILD: VoiceTarget = {kind: 'guild', guildId: 'g1', channelId: 'c1'};
 
-async function start(target: VoiceStartOptions['target'] = GUILD): Promise<VoiceSession> {
+async function start(target: VoiceTarget = GUILD): Promise<VoiceSession> {
     return await engine.start(target, 'https://api.example.test', 'tok', 'dev-1');
 }
 
 beforeEach(() => {
     withSettings({});
-    publisher = new FakePublisher();
+    publisher = new FakeVoicePublisher();
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
         providers: [
@@ -259,24 +167,22 @@ describe('the settings payload', () => {
 });
 
 describe('starting a call', () => {
-    it('pushes the settings itself, rather than relying on the settings effect having run', async () => {
+    it('pushes the settings itself, immediately before the start', async () => {
         // The port's `start` carries no settings, and both adapters need them by then: one opens its
         // capture devices with them, the other its `getUserMedia` constraints.
         //
-        // The record is cleared once the effect has settled, so the start's own push is the only thing
-        // that can put anything back. Without that clear the assertion would be satisfied by the
-        // settings effect, which pushes the identical payload of its own accord - and the point here is
-        // that `start` does not depend on the effect having run. Mutated by deleting the push: both
-        // assertions below fail.
+        // Asserted as an *order*, and with the log cleared first, because the settings effect pushes the
+        // identical payload on its own schedule - so "a push carrying the current settings arrived" is
+        // true whether or not `start` does it, and a test shaped that way passes against a start that
+        // carries nothing. Mutated by deleting the push: the log reads `['start']`.
         withSettings({inputVolume: 50});
         TestBed.flushEffects();
-        publisher.processing.length = 0;
+        publisher.calls.length = 0;
 
         await start();
 
-        expect(publisher.processing).toHaveLength(1);
-        expect(publisher.processingAtStart?.inputVolume).toBe(0.5);
-        expect(publisher.started).toHaveLength(1);
+        expect(publisher.calls.map(call => call[0])).toEqual(['setProcessing', 'start']);
+        expect((publisher.callsTo('setProcessing')[0][0] as VoiceProcessing).inputVolume).toBe(0.5);
     });
 
     it('pushes a settings change at the adapter as it happens', async () => {
@@ -284,17 +190,17 @@ describe('starting a call', () => {
         // rejoin - and the input-mode switch in particular would be silently dead, because the gate
         // that reads it lives below this service.
         await start();
-        publisher.processing.length = 0;
+        publisher.calls.length = 0;
 
         withSettings({inputVolume: 10});
         TestBed.flushEffects();
 
-        expect(publisher.processing.at(-1)?.inputVolume).toBe(0.1);
+        expect((publisher.callsTo('setProcessing').at(-1)![0] as VoiceProcessing).inputVolume).toBe(0.1);
     });
 
     it('passes the target and the credentials through untouched', async () => {
         await start();
-        const options = publisher.started[0];
+        const options = publisher.startOptions[0];
         expect(options.target).toEqual(GUILD);
         expect(options.apiBase).toBe('https://api.example.test');
         expect(options.token).toBe('tok');
@@ -319,20 +225,20 @@ describe('starting a call', () => {
         // The slotless `voice_stop` has no equivalent on the port, so this has to name them - which is
         // why the delegate holds the sessions rather than only their slot names. Mutated by holding
         // slots alone: there is nothing to hand `stop`.
-        await start();
-        await start({kind: 'isle'});
+        const guild = await start();
+        const isle = await start({kind: 'isle'});
 
         await engine.stopAll();
 
-        expect(publisher.stopped.map(s => s.slot).sort()).toEqual(['isle', 'primary']);
+        expect(publisher.stopped.sort()).toEqual([guild.slot, isle.slot].sort());
         expect(engine.active()).toBe(false);
     });
 });
 
 describe('the engine events', () => {
     it('drive the local meter and the speaking indicator', async () => {
-        await start();
-        publisher.onEvent!({kind: 'speaking', speaking: true, level: 0.4, levelDb: -12, thresholdDb: -45});
+        const session = await start();
+        publisher.emit(session, {speaking: true, level: 0.4, levelDb: -12, thresholdDb: -45});
 
         expect(engine.speaking()).toBe(true);
         expect(engine.level()).toBe(0.4);
@@ -343,26 +249,19 @@ describe('the engine events', () => {
     it('drive every remote participant\'s meter', async () => {
         // The only remote speaking signal there is: playout happens below this line on both hosts, so
         // there are no elements left for the webview to analyse for itself.
-        await start();
-        publisher.onEvent!({
-            kind: 'levels', speaking: false, level: 0, levelDb: 0, thresholdDb: 0,
-            levels: [{id: 'user_a', level: 0.3, speaking: true}],
-        });
+        const session = await start();
+        publisher.emit(session, {kind: 'levels', levels: [{id: 'user_a', level: 0.3, speaking: true}]});
 
         expect(engine.remoteLevels().get('user_a')?.speaking).toBe(true);
     });
 
     it('clear a slot\'s meters when its call ends', async () => {
-        await start();
-        await engine.subscribe(
-            {slot: 'primary', mediaSessionId: 'sess-primary', trackName: 'audio'},
-            'user_a', 'their_sess', 'audio');
-        publisher.onEvent!({
-            kind: 'levels', speaking: false, level: 0, levelDb: 0, thresholdDb: 0,
-            levels: [{id: 'user_a', level: 0.3, speaking: true}],
-        });
+        const session = await start();
+        await engine.subscribe(session, 'user_a', 'their_sess', 'audio');
+        publisher.emit(session, {kind: 'levels', levels: [{id: 'user_a', level: 0.3, speaking: true}]});
+        publisher.emit(session, {speaking: true, level: 0.4});
 
-        await engine.stop({slot: 'primary', mediaSessionId: 'sess-primary', trackName: 'audio'});
+        await engine.stop(session);
 
         expect(engine.remoteLevels().has('user_a')).toBe(false);
         expect(engine.speaking()).toBe(false);
@@ -370,11 +269,9 @@ describe('the engine events', () => {
     });
 
     it('report an error without disturbing the meters', async () => {
-        await start();
-        publisher.onEvent!({kind: 'speaking', speaking: true, level: 0.4, levelDb: -12, thresholdDb: -45});
-        publisher.onEvent!({
-            kind: 'error', speaking: false, level: 0, levelDb: 0, thresholdDb: 0, message: 'device lost',
-        });
+        const session = await start();
+        publisher.emit(session, {speaking: true, level: 0.4});
+        publisher.emit(session, {kind: 'error', message: 'device lost'});
 
         expect(engine.speaking()).toBe(true);
     });
@@ -388,7 +285,7 @@ describe('the hardware controls', () => {
 
         expect(publisher.muted).toBe(true);
         expect(publisher.deafened).toBe(true);
-        expect(publisher.volumes).toEqual([['user_a', 0.25]]);
+        expect(publisher.userVolumes.get('user_a')).toBe(0.25);
     });
 
     it('carry a position inside the argument, with the id the caller passed', async () => {
@@ -397,10 +294,40 @@ describe('the hardware controls', () => {
         await engine.setPosition('user_a', {x: 1, y: 2, z: 3});
         await engine.setPosition('user_a', null);
 
-        expect(publisher.positions).toEqual([
-            {id: 'user_a', position: {x: 1, y: 2, z: 3}},
-            {id: 'user_a', position: null},
+        expect(publisher.callsTo('setPosition')).toEqual([
+            [{id: 'user_a', position: {x: 1, y: 2, z: 3}}],
+            [{id: 'user_a', position: null}],
         ]);
+    });
+
+    it('forward the spatial model as the mixer takes it', async () => {
+        const model = {refDistance: 2, rolloff: 1.6, maxDistance: 40, intensity: 0.8};
+        await engine.setSpatialModel(model);
+        expect(publisher.spatialModel).toEqual(model);
+    });
+
+    it('key one call without keying the other', async () => {
+        // Proximity push-to-talk must not also open the guild channel's microphone. The port is what
+        // keeps them apart, and this is the delegate not collapsing them on the way through.
+        const guild = await start();
+        const isle = await start({kind: 'isle'});
+
+        await engine.setPttOpen(isle, true);
+
+        expect(publisher.pttOpen.get(isle.slot)).toBe(true);
+        expect(publisher.pttOpen.get(guild.slot)).toBeUndefined();
+    });
+});
+
+describe('stats', () => {
+    it('hand back what the adapter reports, including an idle engine', async () => {
+        // No longer null outside Tauri: an adapter with nothing running answers zeroed counters and
+        // `running: false`, which is a fact a caller can render rather than one it has to special-case.
+        publisher.statsSnapshot = idleVoiceStats();
+        expect((await engine.stats())?.running).toBe(false);
+
+        publisher.statsSnapshot = idleVoiceStats({running: true, packetsEncoded: 42});
+        expect((await engine.stats())?.packetsEncoded).toBe(42);
     });
 });
 

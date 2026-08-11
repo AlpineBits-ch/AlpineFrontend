@@ -122,6 +122,22 @@ interface RemoteTrackPlan {
     trackId?: string;
 }
 
+/** Enough of an `RTCRtpSender` for the encoding helpers, which read and write its parameters. */
+class FakeSender {
+    parameters: RTCRtpSendParameters = {encodings: [{}]} as RTCRtpSendParameters;
+
+    constructor(readonly track: MediaStreamTrack) {
+    }
+
+    getParameters(): RTCRtpSendParameters {
+        return this.parameters;
+    }
+
+    setParameters = vi.fn(async (parameters: RTCRtpSendParameters) => {
+        this.parameters = parameters;
+    });
+}
+
 class FakePeerConnection {
     static instances: FakePeerConnection[] = [];
 
@@ -143,10 +159,13 @@ class FakePeerConnection {
         FakePeerConnection.instances.push(this);
     }
 
+    readonly senders: FakeSender[] = [];
+
     addTrack(track: MediaStreamTrack): RTCRtpSender {
-        const sender = {track} as unknown as RTCRtpSender;
+        const sender = new FakeSender(track);
+        this.senders.push(sender);
         this.transceivers.push({mid: '0', sender, stop: vi.fn()});
-        return sender;
+        return sender as unknown as RTCRtpSender;
     }
 
     addTransceiver(_kind: string, _init: RTCRtpTransceiverInit): RTCRtpTransceiver {
@@ -426,6 +445,15 @@ describe('start', () => {
         await start();
         expect(FakePeerConnection.instances[0].config.iceServers).toEqual([]);
         expect(FakePeerConnection.instances[0].config.bundlePolicy).toBe('max-bundle');
+    });
+
+    it('caps the microphone at the bitrate the desktop encoder uses', async () => {
+        // 64 kbps mono Opus is what `to_chain_config` gives the Rust encoder, and it is transparent for
+        // speech. Left to the browser's own default a web publisher would simply sound different, which
+        // is the kind of difference nobody attributes to a bitrate.
+        await start();
+        const sender = FakePeerConnection.instances[0].senders[0];
+        expect(sender.parameters.encodings?.[0].maxBitrate).toBe(64_000);
     });
 
     it('hands the capture stream to the voice-activity gate', async () => {

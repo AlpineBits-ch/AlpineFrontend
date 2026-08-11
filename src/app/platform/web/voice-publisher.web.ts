@@ -31,6 +31,10 @@ import {
     VoiceMixer,
 } from './voice-mixer';
 import {trackError, VOICE_TRACK_NAME, VoiceSignalling} from './voice-signalling';
+// The same helper and the same number the camera and screen senders use. `VOICE_AUDIO_KBPS` is 64,
+// which is what `VoiceSettings::to_chain_config` gives the Rust Opus encoder by default - so a browser
+// publisher sounds like a desktop one rather than like whatever the browser picked.
+import {applySimpleBitrate, VOICE_AUDIO_KBPS} from '../../services/webrtc-encoding';
 
 /**
  * A real WebRTC microphone publisher, for the browser.
@@ -304,6 +308,8 @@ export class WebVoicePublisher extends VoicePublisher {
             pc.ontrack = event => this.route(connected, event);
 
             if (response.requiresImmediateRenegotiation) await this.renegotiate(connected);
+            // After the answer, because the sender has no parameters to set until it is negotiated.
+            await applySimpleBitrate(sender, VOICE_AUDIO_KBPS);
 
             // Only now is the previous publication in this slot torn down. A rejoin that fails must
             // leave the existing call alone rather than dropping it on the way out - the same ordering
@@ -429,6 +435,11 @@ export class WebVoicePublisher extends VoicePublisher {
         this.vad.setThreshold(vadThresholdFor(p.sensitivity));
 
         if (!this.mic) return;
+
+        // The output device too, not only the input: both are chosen in the same settings page, and a
+        // speaker change that took effect only at the next join would be the "moved, saved, changed
+        // nothing" bug from the other side.
+        await this.applySinkId();
 
         const wanted = await this.deviceResolver.toWebDeviceId('audioinput', p.deviceId ?? 'default');
         if (wanted !== this.openedDeviceId) {

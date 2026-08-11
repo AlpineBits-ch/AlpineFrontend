@@ -8,6 +8,7 @@ import {MessageService} from 'primeng/api';
 import {provideTranslateService} from '@ngx-translate/core';
 import {Subject} from 'rxjs';
 
+import {provideFakePlatform} from '../../../../../platform/testing/provide-fake-platform';
 import {ComposerComponent} from './composer.component';
 import {ApiConfigService} from '../../../../../services/api-config.service';
 import {NotificationService} from '../../../../../services/notification.service';
@@ -57,6 +58,9 @@ describe('ComposerComponent', () => {
             providers: [
                 provideHttpClient(),
                 provideHttpClientTesting(),
+                // BotCommandService -> GuildWebsocketService -> MlsService -> MlsEngine. The composer
+                // never encrypts anything here, so inert fakes for every port are all this needs.
+                provideFakePlatform(),
                 {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test.example'}},
                 // Reached transitively: the composer injects BotCommandService and
                 // GuildWebsocketService, whose chain ends at AuthService -> OAuthService.

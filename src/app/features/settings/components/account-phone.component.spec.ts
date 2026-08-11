@@ -4,6 +4,7 @@ import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideTranslateService} from '@ngx-translate/core';
 import {MessageService} from 'primeng/api';
+import {provideFakePlatform} from '../../../platform/testing/provide-fake-platform';
 import {AccountPhoneComponent} from './account-phone.component';
 import {ApiConfigService} from '../../../services/api-config.service';
 import {SettingsUiService} from '../../../services/settings-ui.service';
@@ -54,6 +55,9 @@ function setup(self: UserDto | null) {
             provideHttpClientTesting(),
             provideTranslateService({defaultLanguage: 'en'}),
             MessageService,
+            // The real UserService is used deliberately (see below), and its chain reaches
+            // MlsService -> MlsEngine. Inert fakes, since nothing on the phone path encrypts.
+            provideFakePlatform(),
             {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
         ],
     });

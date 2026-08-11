@@ -4,6 +4,7 @@ import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideTranslateService} from '@ngx-translate/core';
 import {MessageService} from 'primeng/api';
 import {KeybindsService} from '../../../../../services/keybinds.service';
+import {provideFakePlatform} from '../../../../../platform/testing/provide-fake-platform';
 import {WikiArticleComponent} from './wiki-article.component';
 import {WikiAiService} from '../wiki-ai.service';
 import {ApiConfigService} from '../../../../../services/api-config.service';
@@ -47,6 +48,9 @@ describe('WikiArticleComponent AI entry points', () => {
                 provideHttpClient(),
                 provideHttpClientTesting(),
                 provideTranslateService({defaultLanguage: 'en'}),
+                // WikiStateService -> GuildWebsocketService -> MlsService -> MlsEngine. Nothing on
+                // the AI path encrypts anything, so inert fakes for every port are enough.
+                provideFakePlatform(),
                 // The article reaches WikiService -> ApiConfigService -> OAuthService. Nothing
                 // on the AI path makes a request, so the base URL is all that is needed.
                 {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test.example'}},

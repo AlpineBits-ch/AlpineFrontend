@@ -1,4 +1,4 @@
-import {inject, Injectable} from '@angular/core';
+import {inject, Injectable, Injector} from '@angular/core';
 import {CryptoEngine} from '../platform/ports/crypto-engine.port';
 import {EncryptedMasterKey} from '../dtos/response/UserDto';
 
@@ -73,6 +73,8 @@ function isCredentialRejection(err: unknown): boolean {
  */
 @Injectable({providedIn: 'root'})
 export class MasterKeyService {
+    private readonly injector = inject(Injector);
+
     /**
      * The engine behind every method here. Same Rust code on both hosts - IPC on the desktop,
      * wasm-bindgen in a browser - so a master key wrapped on one unwraps on the other.
@@ -80,8 +82,16 @@ export class MasterKeyService {
      * <p>That parity is asserted, not assumed: `parity_tests.rs` opens venta-mobile's golden wrappings
      * on native and on `wasm32`, and the Argon2 parameters are part of the at-rest format and are
      * identical by construction because it is one implementation.</p>
+     *
+     * <p>Resolved on demand rather than injected as a field, for the reason `DeviceIdentityService`
+     * documents: `SocialKeyGateService` holds this service and is read by components all over the app -
+     * `InviteDialogComponent` among them - almost none of which ever ask it for a key. As a field it
+     * made <i>constructing</i> those components require a `CryptoEngine` provider, which failed eight
+     * invite-dialog tests on a path that never touches crypto.</p>
      */
-    private readonly engine = inject(CryptoEngine);
+    private get engine(): CryptoEngine {
+        return this.injector.get(CryptoEngine);
+    }
 
     /**
      * Whether this build can do any of the below at all.

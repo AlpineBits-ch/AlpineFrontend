@@ -804,11 +804,18 @@ export class MlsService {
     }
 
     /**
-     * The 32-byte key the engine state and the message cache are both sealed under, held by the OS
-     * keychain and never written to disk beside what it protects.
+     * The 32-byte key the engine state and the message cache are both sealed under, held by
+     * {@link SecureStore} and never written beside what it protects.
      *
      * Minted on first use. A device that somehow loses it loses the local cache and has to
      * re-register, which is recoverable; leaving every private key in cleartext on disk is not.
+     *
+     * <p>On the desktop that store is the OS keychain, so this key sits somewhere the sealed state file
+     * does not. <b>On web it is IndexedDB, beside the blob it seals</b> - which means the seal is not a
+     * defence against anything with access to the origin, and is not claimed to be:
+     * `SecureStore.hardwareBacked` is false there and the key-backup UI says so. It is still the same
+     * key and the same format, which is what keeps a browser session's state file openable by the
+     * desktop build. See the Security posture section of the browser-only build design.</p>
      */
     private async localStateKey(): Promise<string> {
         const deviceId = await this.deviceIdentity.deviceId();

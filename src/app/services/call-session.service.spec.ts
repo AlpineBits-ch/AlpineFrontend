@@ -5,6 +5,7 @@
 import {TestBed} from '@angular/core/testing';
 import {of} from 'rxjs';
 import {OAuthService} from 'angular-oauth2-oidc';
+import {provideFakePlatform} from '../platform/testing/provide-fake-platform';
 import {CallSessionService} from './call-session.service';
 import {VoiceService} from './voice.service';
 import {ConversationStore} from '../stores/conversation.store';
@@ -24,6 +25,10 @@ function setup() {
     vi.clearAllMocks();
     TestBed.configureTestingModule({
         providers: [
+            // CallSessionService -> VoiceWebsocketService -> RealtimeConnectionService ->
+            // NotificationService -> UserSettingsService -> Autostart. None of that is what these
+            // tests are about; one line of inert fakes keeps the chain from being this spec's problem.
+            provideFakePlatform(),
             {provide: VoiceService, useValue: voiceService},
             {provide: ConversationStore, useValue: {entities: () => []}},
             {

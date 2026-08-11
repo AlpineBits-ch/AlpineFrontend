@@ -1,6 +1,7 @@
 import {TestBed} from '@angular/core/testing';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideHttpClient} from '@angular/common/http';
+import {provideFakePlatform} from '../platform/testing/provide-fake-platform';
 import {UserService} from './user.service';
 import {ApiConfigService} from './api-config.service';
 import {AccountStatus, UserDto, UserType} from '../dtos/response/UserDto';
@@ -10,6 +11,9 @@ function setup() {
         providers: [
             provideHttpClient(),
             provideHttpClientTesting(),
+            // UserService injects MlsService, which injects MlsEngine. Nothing here encrypts
+            // anything; the fakes are what keep this spec from having to know that chain exists.
+            provideFakePlatform(),
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test.example'}},
         ],
     });

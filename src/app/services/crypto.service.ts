@@ -1,4 +1,4 @@
-import {inject, Injectable} from '@angular/core';
+import {inject, Injectable, Injector} from '@angular/core';
 import {CryptoEngine} from '../platform/ports/crypto-engine.port';
 
 export interface KeyPairEntry {
@@ -13,6 +13,8 @@ const RSA_OAEP_PARAMS = {name: 'RSA-OAEP', hash: 'SHA-256'} as const;
 export class CryptoService {
     private readonly keyStore = new Map<string, CryptoKeyPair>();
 
+    private readonly injector = inject(Injector);
+
     /**
      * Key generation stays in Rust on both hosts.
      *
@@ -20,8 +22,14 @@ export class CryptoService {
      * the exact SPKI/PKCS8 encoding the server and every other client expect, and a second
      * implementation of that would be a second thing to keep byte-compatible. The keys are imported
      * into WebCrypto below on both hosts anyway, which is the half that has to be a browser API.</p>
+     *
+     * <p>Resolved on demand rather than as a field, like the other two services on this port: only
+     * {@link generateKeyPairs} needs it, while {@link encrypt} and {@link decrypt} are pure WebCrypto -
+     * so a consumer that only ever decrypts should not need a `CryptoEngine` provider to exist.</p>
      */
-    private readonly engine = inject(CryptoEngine);
+    private get engine(): CryptoEngine {
+        return this.injector.get(CryptoEngine);
+    }
 
     async generateKeyPairs(count: number): Promise<KeyPairEntry[]> {
         const entries = await this.engine.call<KeyPairEntry[]>('generate_key_pairs', {count});

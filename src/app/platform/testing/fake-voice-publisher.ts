@@ -98,7 +98,7 @@ export class FakeVoicePublisher extends VoicePublisher {
     readonly positions = new Map<string, VoicePosition | null>();
 
     /** What {@link stats} answers. Non-nullable, like the port: an idle engine reports zeroes. */
-    stats_: VoiceStats = idleVoiceStats();
+    statsSnapshot: VoiceStats = idleVoiceStats();
 
     /** Set to make {@link start} reject - no device, or an SFU that refused the publication. */
     startError: Error | null = null;
@@ -190,7 +190,7 @@ export class FakeVoicePublisher extends VoicePublisher {
 
     async stats(): Promise<VoiceStats> {
         this.calls.push(['stats']);
-        return this.stats_;
+        return this.statsSnapshot;
     }
 
     /**
