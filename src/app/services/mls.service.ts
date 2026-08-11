@@ -25,6 +25,27 @@ export type MlsErrorKind =
      * why the account scoping resolved to the wrong device id - not to destroy anything.</p>
      */
     | 'IdentityMismatch'
+    /**
+     * This device's signing-key entries are neither all there nor all missing.
+     *
+     * <p><b>The one answer that must never be `KeyNotFound`.</b> `autoUnlock` reads three entries -
+     * `pub`, `priv`, `identity` - and a device that holds some of them has been registered: the
+     * groups it belongs to know the public half of a key whose private half is sitting in the store
+     * right now. Registering mints a <i>fresh</i> keypair over it, which orphans this device from
+     * every group it is in and cannot be undone. "Some of the key is here" is evidence <i>for</i>
+     * registration having happened, so reading it as evidence against was the conflation exactly
+     * backwards.</p>
+     *
+     * <p>Reachable without any storage fault at all: `persistSigningKey` writes the three in one
+     * `Promise.all` with no atomicity, so an interrupted first run leaves two of three, and
+     * `clearStoredSigningKey` deletes five entries the same way. A stored empty string counts too -
+     * it cannot be a key under any encoding, and it is not absence either.</p>
+     *
+     * <p>Distinct from {@link 'MlsError'} because it does not lift on a retry: the reads succeeded
+     * and reported what is there. The recovery is a key backup restore or a deliberate
+     * re-registration, both of which are the user's call to make knowing what it costs.</p>
+     */
+    | 'KeyStoreIncomplete'
     | 'MlsError';
 
 export interface MlsTypedError {
@@ -263,6 +284,92 @@ export class MlsFeatureUnavailableError extends Error {
 function isCommandNotFound(err: unknown, command: string): boolean {
     const text = typeof err === 'string' ? err : err instanceof Error ? err.message : String(err);
     return text.includes(command) && /not\s+found|unknown command|not\s+allowed/i.test(text);
+}
+
+/**
+ * The readable half of a rejection, for a message that a human will read in `venta.log`.
+ *
+ * <p>Both hosts reject with a bare string in places and an `Error` in others - Tauri's `invoke`
+ * relays Rust's `Err(String)` verbatim, the adapters raise their own `Error`s - and a `String(err)`
+ * over an `Error` prints `Error: ...` while a `.message` over a string prints `undefined`. The
+ * failure this covers is a diagnostic that says nothing on exactly the host you are debugging.</p>
+ */
+function describeCause(err: unknown): string {
+    return typeof err === 'string' ? err : err instanceof Error ? err.message : String(err);
+}
+
+// ---------------------------------------------------------------------------
+// This device's signing identity, as it is spread across secure storage
+// ---------------------------------------------------------------------------
+
+/**
+ * The three entries `autoUnlock` needs, in the order it passes them to `mls_load_signing_key`.
+ *
+ * <p>Written down once because the *set* is what matters to the classification below: "all three
+ * absent" and "some of the three absent" are different events with opposite correct responses, and
+ * neither can be expressed by looking at one entry.</p>
+ */
+const SIGNING_FIELDS = ['pub', 'priv', 'identity'] as const;
+
+type SigningField = typeof SIGNING_FIELDS[number];
+
+/**
+ * What one signing entry turned out to be. <b>Four states, and the point is that there are four.</b>
+ *
+ * <p>The shipped bug was a three-way collapse into two: `!value` covered a genuine absence, a read
+ * that failed and an entry holding an empty string, and the single answer it produced routed to the
+ * registration modal - which mints a fresh keypair. Only one of the three is evidence that this
+ * device has no key.</p>
+ */
+type SigningEntryRead =
+    | {field: SigningField; state: 'present'; value: string}
+    /** The store was read and reported no such entry. The only state that can license a mint. */
+    | {field: SigningField; state: 'absent'}
+    /**
+     * The entry exists and holds `''`.
+     *
+     * <p>Not absence: something wrote it, or something is corrupting it. It cannot be a key under any
+     * encoding either, so it is not usable - which leaves "present but broken", and the response to
+     * that is never to replace the two entries beside it that are fine.</p>
+     */
+    | {field: SigningField; state: 'empty'}
+    /** The read did not happen. Says nothing at all about what is stored. */
+    | {field: SigningField; state: 'faulted'; detail: string};
+
+/**
+ * One settled read, named.
+ *
+ * <p>`undefined` is deliberately handled as a fault rather than as absence, exactly as
+ * {@link MlsService.localStateKey} handles it: {@link SecureStore.getItem} answers a string or
+ * `null`, so a resolved `undefined` is an adapter that did not read - and it is the one falsy value
+ * a truthiness test would silently turn into "this device was never registered".</p>
+ */
+function classifySigningEntry(
+    field: SigningField,
+    read: PromiseSettledResult<string | null>,
+): SigningEntryRead {
+    if (read.status === 'rejected') return {field, state: 'faulted', detail: describeCause(read.reason)};
+
+    const value: string | null | undefined = read.value;
+    if (value === undefined) {
+        return {
+            field,
+            state: 'faulted',
+            detail: 'the read resolved undefined, which SecureStore.getItem does not permit - so the '
+                + 'store did not answer, rather than answering that nothing is there',
+        };
+    }
+    if (value === null) return {field, state: 'absent'};
+    return value === '' ? {field, state: 'empty'} : {field, state: 'present', value};
+}
+
+/** Narrowing filters, so the union above survives a `filter` call. */
+function isFaulted(entry: SigningEntryRead): entry is SigningEntryRead & {state: 'faulted'} {
+    return entry.state === 'faulted';
+}
+
+function isPresent(entry: SigningEntryRead): entry is SigningEntryRead & {state: 'present'} {
+    return entry.state === 'present';
 }
 
 /**
@@ -1590,60 +1697,63 @@ export class MlsService {
      *        loud instead of silent, and silent is what it was: the stored identity has always
      *        been the user id, and nothing ever compared it to anything.
      *
-     * <h3>The remaining conflation, named rather than fixed</h3>
+     * <h3>Registering is licensed by three positive absences, and by nothing else</h3>
      *
-     * <p>The `catch` below covers a read that <b>rejected</b>, and since reads on desktop now go
-     * through `keychain_read` that finally includes a locked or corrupt keychain - see
-     * `platform/tauri/secure-store.ts`. What it does not cover is the `!pub || !priv || !identity`
-     * test underneath, which reads a resolved `null` as "this device has never registered" and routes
-     * to the registration modal. That modal mints a <i>fresh</i> signing keypair, which orphans this
-     * device from every group it belongs to - the same shape of irreversible loss `localStateKey`
-     * refuses, and arguably worse, because it is visible to the whole group rather than only to this
-     * machine.</p>
+     * <p>Every outcome of the three reads is now named, because each of them used to collapse into
+     * one answer whose consequence is irreversible. `KeyNotFound` routes to
+     * `DeviceRegistrationModalComponent`, which calls `generateKeyPackages` - a <i>fresh</i> Ed25519
+     * keypair - and then `persistSigningKey` over these very entries. A device that had a key and is
+     * given a new one is ejected from every MLS group it belongs to: the groups hold the old public
+     * key, the new one is a stranger, and the history sealed to the old ratchet is unreadable on this
+     * machine forever. That is worse than the wipe `localStateKey` refuses, because it is visible to
+     * the whole group rather than only here.</p>
      *
-     * <p><b>That `null` is now trustworthy on both hosts</b> - it means the store was read and reported
-     * no entry - so the conflation left here is a narrower one: a device that holds two of the three
-     * entries, or holds an empty string in one, is treated as unregistered. <b>What closing it would
-     * take</b>, deliberately not done here because the blast radius is a separate decision: distinguish
-     * "all three absent" (a genuinely fresh device - register) from "some present, some absent" (a
-     * partially written or partially deleted keychain, where minting destroys a key that exists), and
-     * give the second its own `MlsTypedError` kind alongside `IdentityMismatch` so it routes to a
-     * retry/repair path rather than to registration. `persistSigningKey` writes the three in one
-     * `Promise.all` with no atomicity, so the partial state is reachable by an interrupted first run,
-     * and `clearStoredSigningKey` deletes five entries the same way. Both would need looking at before
-     * the new error kind means anything - which is why it is one change and not a line here.</p>
+     * <ul>
+     *   <li><b>All three present</b> - load them, after the identity check.</li>
+     *   <li><b>All three positively absent</b> - `KeyNotFound`. The only licence to register, and it
+     *       is what a genuinely fresh device looks like on both hosts. See the caveat below: it is
+     *       still not proof that this device never registered, only the best evidence available
+     *       locally.</li>
+     *   <li><b>Any read faulted</b> - `MlsError`, which the launch answers with a retry banner and no
+     *       registration prompt. A locked keychain, a credential service that has not started, a
+     *       transient DBus or Credential Manager failure, an IndexedDB fault: none of them is
+     *       evidence about what is stored. {@link SecureStore.getItem} is specified to reject rather
+     *       than answer `null` when it could not read, which is what makes this branch reachable at
+     *       all - on desktop that guarantee arrived with `keychain_read`
+     *       (`platform/tauri/secure-store.ts`), and before it every locked keychain landed in the
+     *       branch above and minted.</li>
+     *   <li><b>Some present, some absent, or one holding an empty string</b> -
+     *       `KeyStoreIncomplete`. <b>Not</b> `KeyNotFound`: a device holding part of a keypair has
+     *       registered, so this is evidence for that, not against it. Reachable with no fault
+     *       anywhere - `persistSigningKey` writes three entries in one `Promise.all` and
+     *       `clearStoredSigningKey` deletes five the same way, neither atomically.</li>
+     *   <li><b>A read that resolved `undefined`</b> - `MlsError`. The port answers a string or
+     *       `null`, so this is an adapter that did not read, and it is the one falsy value that must
+     *       not be allowed to collapse into absence. Same guard, for the same reason, as
+     *       {@link localStateKey}.</li>
+     * </ul>
+     *
+     * <h3>Three positive absences are still not proof that this device never registered</h3>
+     *
+     * <p><b>Known-wrong and deliberately left, because closing it is a product decision rather than a
+     * line of code.</b> An OS credential store that was reset, a wiped user profile, an uninstall
+     * that took the keyring with it - all of those report a true `NoEntry` for all three entries on a
+     * device that was registered and is in groups. Registering there mints over nothing (the entries
+     * really are gone) but still orphans the device, and it does so <i>silently</i>, before the user
+     * has been offered the `.venta-keys` restore that could have recovered the ratchet state.</p>
+     *
+     * <p>The signal that would distinguish the two exists and is local: this device's group registry,
+     * `mls-group-registry-{deviceId}.json`. A non-empty one means this device has held an MLS group,
+     * which it cannot have done without being registered. `DeviceService.getMyDevices()` is the
+     * authoritative server-side version of the same question. Neither is consulted here, because the
+     * answer to "registered, and the key is gone" is not a different error kind - it is a flow that
+     * offers a backup restore first and asks the user to confirm that re-registering loses this
+     * device's history. Nothing today can say that, so this method reports the honest classification
+     * and leaves the last mile to whoever builds it.</p>
      */
     autoUnlock(deviceId: string, expectedUserId?: string): Observable<string> {
-        return from(
-            // A keychain that is momentarily unavailable - locked, service not started, a
-            // transient DBus or Credential Manager failure - is not the same thing as a device
-            // that has never registered. Collapsing the two sent every hiccup to the registration
-            // modal, which mints a *fresh* signing key and orphans the device from every group it
-            // belongs to. That is unrecoverable; waiting and retrying is not.
-            Promise.all([
-                this.secureStore.getItem(this.secureKey(deviceId, 'pub')),
-                this.secureStore.getItem(this.secureKey(deviceId, 'priv')),
-                this.secureStore.getItem(this.secureKey(deviceId, 'identity')),
-            ]).catch((cause: unknown) => {
-                const err: MlsTypedError = {
-                    kind: 'MlsError',
-                    message: `Secure storage is unavailable: ${cause instanceof Error ? cause.message : String(cause)}`,
-                };
-                throw err;
-            }),
-        ).pipe(
+        return from(this.readSigningEntries(deviceId)).pipe(
             switchMap(([pub, priv, identity]) => {
-                // Behaviour deliberately unchanged. A `null` here is now an honest "no entry" on
-                // desktop as well as on web, which is what makes this test defensible at all; what it
-                // still cannot tell is a fresh device from a keychain holding only some of the three.
-                // See the "remaining conflation" note in this method's doc comment.
-                if (!pub || !priv || !identity) {
-                    const err: MlsTypedError = {
-                        kind: 'KeyNotFound',
-                        message: 'No signing key in secure storage -device not registered'
-                    };
-                    throw err;
-                }
                 // Deliberately its own kind. `KeyNotFound` routes to the registration modal, which
                 // mints a fresh signing keypair and orphans this device from every group it
                 // belongs to - an irreversible answer to a situation where the right key exists
@@ -1662,6 +1772,68 @@ export class MlsService {
                 }));
             }),
         );
+    }
+
+    /**
+     * The three signing-key entries, or the typed refusal that says why they cannot be used.
+     *
+     * <p>Split out of {@link autoUnlock} because it is the whole of the classification, and the one
+     * thing it must never do - report "nothing is stored" for anything other than three positive
+     * absences - is easier to keep true of a function with one job than of a step in a pipeline.</p>
+     *
+     * <p><b>`allSettled`, not `all`.</b> `all` rejects on the first fault and discards what the other
+     * two reads answered, which is exactly the information needed to tell "the store is unavailable"
+     * from "this device holds part of a key". The distinction is not academic: one is a retry, the
+     * other must never reach the registration modal.</p>
+     *
+     * <p>Nothing here catches to fall through. Every branch either returns three usable strings or
+     * throws a kind, so there is no path on which an unreadable store becomes an answer about what is
+     * stored.</p>
+     */
+    private async readSigningEntries(deviceId: string): Promise<[string, string, string]> {
+        const reads = await Promise.allSettled(
+            SIGNING_FIELDS.map(field => this.secureStore.getItem(this.secureKey(deviceId, field))),
+        );
+        const entries = SIGNING_FIELDS.map((field, i) => classifySigningEntry(field, reads[i]!));
+
+        // A fault dominates every other reading, because a store that could not answer for one entry
+        // has told us nothing trustworthy about what it holds for the other two either.
+        const faulted = entries.filter(isFaulted);
+        if (faulted.length > 0) {
+            const err: MlsTypedError = {
+                kind: 'MlsError',
+                message: 'Secure storage is unavailable: '
+                    + faulted.map(entry => `${entry.field}: ${entry.detail}`).join('; '),
+            };
+            throw err;
+        }
+
+        // Three positive absences: a fresh device, and the only licence to register. See the caveat
+        // in `autoUnlock`'s doc comment - it is the best evidence available locally, not proof.
+        if (entries.every(entry => entry.state === 'absent')) {
+            const err: MlsTypedError = {
+                kind: 'KeyNotFound',
+                message: 'No signing key in secure storage -device not registered',
+            };
+            throw err;
+        }
+
+        const present = entries.filter(isPresent);
+        if (present.length < entries.length) {
+            const err: MlsTypedError = {
+                kind: 'KeyStoreIncomplete',
+                message: 'This device\'s signing key is only partly in secure storage ('
+                    + entries.map(entry => `${entry.field}: ${entry.state}`).join(', ')
+                    + '). Something is stored, so this device has registered - registering again '
+                    + 'would mint a fresh keypair over it and orphan this device from every group it '
+                    + 'belongs to, so it is deliberately not offered.',
+            };
+            throw err;
+        }
+
+        // Every entry is present by here and `filter` preserves order, so this is
+        // `[pub, priv, identity]` - the order `mls_load_signing_key` takes them in.
+        return present.map(entry => entry.value) as [string, string, string];
     }
 
     /**

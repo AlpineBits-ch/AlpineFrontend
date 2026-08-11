@@ -22,6 +22,7 @@
  */
 import {TestBed} from '@angular/core/testing';
 import {firstValueFrom} from 'rxjs';
+import {MlsLaunchOutcome, runMlsLaunch} from '../features/main-page/mls-launch';
 import {classifyMlsStorageFault, runMlsStorageInit} from '../features/main-page/mls-storage-init';
 import {MlsEngine} from '../platform/ports/mls-engine.port';
 import {MlsLocalStoreFactory} from '../platform/ports/mls-local-store.port';
@@ -41,6 +42,7 @@ import {
     MlsRejoinOut,
     MlsFeatureUnavailableError,
     MlsService,
+    MlsTypedError,
     parseMlsError,
 } from './mls.service';
 
@@ -63,6 +65,7 @@ function platformProviders() {
     engine.reset();
     engine.handler = invokeStub;
     secureStore.getError = null;
+    secureStore.getErrors.clear();
     secureStore.setError = null;
     localStores.reset();
 
@@ -2069,6 +2072,257 @@ describe('MlsService', () => {
             ));
             expect(fault.kind).toBe('unknown');
             expect(fault.mayWipe).toBe(false);
+        });
+    });
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // autoUnlock
+    //
+    // The other end of the same conflation, and the worse one. `KeyNotFound` routes to
+    // `DeviceRegistrationModalComponent`, which mints a *fresh* Ed25519 keypair and writes it over
+    // these entries - so a device that had a key and is told it did not is ejected from every MLS
+    // group it belongs to, visibly to the whole group, with its history sealed to a ratchet nothing
+    // on the machine can advance any more. `KeyNotFound` therefore has to mean "the store was read,
+    // three times, and reported that all three entries are missing", and nothing else.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    describe('autoUnlock', () => {
+        const PUB = `alpine_mls_${DEVICE_ID}_pub`;
+        const PRIV = `alpine_mls_${DEVICE_ID}_priv`;
+        const IDENTITY = `alpine_mls_${DEVICE_ID}_identity`;
+
+        beforeEach(async () => {
+            for (const key of secureStore.keys()) await secureStore.removeItem(key);
+        });
+
+        /** A device whose three entries are all where `persistSigningKey` left them. */
+        function registered(userId = 'user-1'): void {
+            secureStore.put(PUB, 'cHVia2V5');
+            secureStore.put(PRIV, 'cHJpdmtleQ==');
+            secureStore.put(IDENTITY, userId);
+        }
+
+        /** The rejection, or a failure if the unlock resolved. */
+        async function refusal(expectedUserId?: string): Promise<MlsTypedError> {
+            return firstValueFrom(service.autoUnlock(DEVICE_ID, expectedUserId)).then(
+                handle => {
+                    throw new Error(`expected a refusal, got the handle ${handle}`);
+                },
+                (err: MlsTypedError) => err,
+            );
+        }
+
+        it('loads the stored key and keeps the handle', async () => {
+            registered();
+            mockInvoke(KEY_HANDLE);
+
+            await expect(firstValueFrom(service.autoUnlock(DEVICE_ID, 'user-1')))
+                .resolves.toBe(KEY_HANDLE);
+            expect(callCmd()).toBe('mls_load_signing_key');
+            // The order matters: the three entries are read in parallel and handed over positionally.
+            // Swapping two of them loads a keypair whose halves do not match, which fails as a
+            // signature error somewhere far away from here.
+            expect(callArgs()).toEqual({
+                signingPublicKeyB64: 'cHVia2V5',
+                signingPrivateKeyB64: 'cHJpdmtleQ==',
+                identity: 'user-1',
+            });
+            expect(service.keyHandle()).toBe(KEY_HANDLE);
+        });
+
+        /**
+         * The fresh-device direction, and it matters as much as every refusal below: if this stopped
+         * answering `KeyNotFound`, no new device could ever set encryption up.
+         */
+        it('reports a device with all three entries absent as KeyNotFound', async () => {
+            expect(await refusal('user-1')).toMatchObject({kind: 'KeyNotFound'});
+        });
+
+        /**
+         * <b>The shipped bug.</b> Two entries are there and the third read *failed*. The old test -
+         * `!pub || !priv || !identity` - cannot tell that from a third entry that is absent, so it
+         * answered "this device is not registered" about a device whose private key is sitting in the
+         * store, and the launch offered to mint a new one over it.
+         *
+         * <p>Note what a single all-or-nothing read error could not have caught: with every read
+         * failing, the old code produced `MlsError` too, from its `Promise.all().catch()`. The fault
+         * has to be scoped to <i>one</i> entry for the two classifications to come apart at all,
+         * which is why `FakeSecureStore` grew {@link FakeSecureStore.failRead}.</p>
+         */
+        it('never says KeyNotFound when one of the three reads failed', async () => {
+            registered();
+            secureStore.failRead(IDENTITY, new Error('the OS keychain is locked'));
+
+            const err = await refusal('user-1');
+
+            expect(err.kind).not.toBe('KeyNotFound');
+            expect(err.kind).toBe('MlsError');
+            // Names the entry, because "secure storage is unavailable" with no subject is the log
+            // line this whole classification exists to stop being the only evidence.
+            expect(err.message).toContain('identity');
+            expect(err.message).toContain('locked');
+            // And nothing was loaded, so no session can believe it holds this device's key.
+            expect(invokeStub).not.toHaveBeenCalled();
+        });
+
+        it.each([
+            ['the public half', PUB],
+            ['the private half', PRIV],
+            ['the stored identity', IDENTITY],
+        ])('reports a failed read of %s as transient, not as an unregistered device', async (
+            _label,
+            key,
+        ) => {
+            registered();
+            secureStore.failRead(key, new Error('Couldn\'t access platform secure storage'));
+
+            expect((await refusal('user-1')).kind).toBe('MlsError');
+        });
+
+        /**
+         * A store that fails every read. The pre-existing behaviour, kept: the point of pinning it
+         * beside the scoped faults above is that both must land on the same kind, so nobody
+         * "simplifies" the scoped case away by observing that the total case already worked.
+         */
+        it('reports a store that cannot be read at all as transient', async () => {
+            registered();
+            secureStore.getError = new Error('the credential store is locked');
+
+            expect((await refusal('user-1')).kind).toBe('MlsError');
+        });
+
+        /**
+         * <b>The other half of the bug, and it needs no fault at all.</b> `persistSigningKey` writes
+         * the three entries in one `Promise.all` with no atomicity, and `clearStoredSigningKey`
+         * deletes five the same way, so an interrupted first run or an interrupted logout leaves
+         * exactly this. Every read here succeeded and answered honestly; what must not happen is
+         * concluding "not registered" from a partial answer, because the half that is present is the
+         * half registration would destroy.
+         */
+        it.each([
+            ['only the public half is gone', [PRIV, IDENTITY]],
+            ['only the private half is gone', [PUB, IDENTITY]],
+            ['only the identity is gone', [PUB, PRIV]],
+            ['just the private half survives', [PRIV]],
+        ])('refuses to call a partly-stored key KeyNotFound (%s)', async (_label, held) => {
+            registered();
+            for (const key of [PUB, PRIV, IDENTITY]) {
+                if (!held.includes(key)) await secureStore.removeItem(key);
+            }
+
+            const err = await refusal('user-1');
+
+            expect(err.kind).not.toBe('KeyNotFound');
+            expect(err.kind).toBe('KeyStoreIncomplete');
+            expect(invokeStub).not.toHaveBeenCalled();
+        });
+
+        /**
+         * An empty string is not absence. Nothing in the app can write one - the desktop plugin's
+         * `set_item` refuses empty data - so it is either corruption or something else writing to
+         * these names, and neither licenses replacing the two entries beside it that are fine.
+         *
+         * <p>Deliberately the opposite decision from `localStateKey`, which does mint over an empty
+         * state key. That key protects only local state and can be replaced at the cost of the local
+         * cache; this one is this device's identity inside every group it belongs to.</p>
+         */
+        it('treats an entry holding an empty string as present-but-broken, not absent', async () => {
+            registered();
+            secureStore.put(PRIV, '');
+
+            expect((await refusal('user-1')).kind).toBe('KeyStoreIncomplete');
+        });
+
+        /**
+         * All three empty, which is where "empty is not absence" stops being pedantic: fold `''` into
+         * absence and this device - which has three entries in its keychain - is reported as never
+         * having registered, and the launch offers to mint over them.
+         */
+        it('does not read three empty entries as a device that never registered', async () => {
+            for (const key of [PUB, PRIV, IDENTITY]) secureStore.put(key, '');
+
+            const err = await refusal('user-1');
+
+            expect(err.kind).not.toBe('KeyNotFound');
+            expect(err.kind).toBe('KeyStoreIncomplete');
+        });
+
+        /**
+         * `undefined` is not an answer the port permits, and it is what an adapter that did not read
+         * looks like. Same guard as `localStateKey`, for the same reason: it is the one falsy value a
+         * truthiness test turns silently into "this device was never registered".
+         */
+        it('treats a read that resolved undefined as a fault, not as absence', async () => {
+            registered();
+            const read = vi.spyOn(secureStore, 'getItem').mockImplementation(async key =>
+                key === PUB ? (undefined as unknown as string | null) : secureStore.peek(key));
+
+            try {
+                const err = await refusal('user-1');
+                expect(err.kind).not.toBe('KeyNotFound');
+                expect(err.kind).toBe('MlsError');
+                expect(err.message).toContain('undefined');
+            } finally {
+                read.mockRestore();
+            }
+        });
+
+        /**
+         * End to end, through the launch that actually decides. `runMlsLaunch` is what turns a kind
+         * into "show the registration modal", so a kind that is right and a launch that maps it
+         * wrongly is the same shipped bug. Both non-absence refusals must reach it as "something is
+         * wrong with the key store" and neither may set `needsRegistration`.
+         */
+        /** The launch, driven by the real `autoUnlock` over the fake store. */
+        function launch(): Promise<MlsLaunchOutcome> {
+            return runMlsLaunch({
+                unlock: () => firstValueFrom(service.autoUnlock(DEVICE_ID, 'user-1')),
+                replenish: async () => undefined,
+                checkMasterKey: () => undefined,
+                processWelcomes: async () => undefined,
+                sweepForAdmission: async () => undefined,
+            });
+        }
+
+        it('never reaches the registration modal on a scoped read fault', async () => {
+            registered();
+            secureStore.failRead(PRIV, new Error('the OS keychain is locked'));
+
+            const outcome = await launch();
+
+            expect(outcome.needsRegistration).toBe(false);
+            expect(outcome.keyStoreUnreachable).toBe(true);
+            expect(outcome.keyStoreIncomplete).toBe(false);
+            // Every entry that was there is still there. Nothing on this path writes.
+            expect(secureStore.peek(PUB)).toBe('cHVia2V5');
+            expect(secureStore.peek(PRIV)).toBe('cHJpdmtleQ==');
+        });
+
+        it('never reaches the registration modal on a partly-stored key', async () => {
+            registered();
+            await secureStore.removeItem(IDENTITY);
+
+            const outcome = await launch();
+
+            expect(outcome.needsRegistration).toBe(false);
+            expect(outcome.keyStoreIncomplete).toBe(true);
+            // Its own flag rather than the transient one, because "try again" is a lie for it: the
+            // reads succeeded and will answer the same thing next launch.
+            expect(outcome.keyStoreUnreachable).toBe(false);
+            expect(secureStore.peek(PUB)).toBe('cHVia2V5');
+            expect(secureStore.peek(PRIV)).toBe('cHJpdmtleQ==');
+        });
+
+        /**
+         * And the fresh device, through the same launch: this is the one that must still get the
+         * modal, or nobody can ever set encryption up on a new install.
+         */
+        it('does reach the registration modal on a genuinely empty store', async () => {
+            const outcome = await launch();
+
+            expect(outcome.needsRegistration).toBe(true);
+            expect(outcome.keyStoreUnreachable).toBe(false);
+            expect(outcome.keyStoreIncomplete).toBe(false);
         });
     });
 

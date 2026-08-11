@@ -36,6 +36,22 @@ export class FakeSecureStore extends SecureStore {
      */
     getError: Error | null = null;
 
+    /**
+     * Per-key read faults, for the case a single {@link getError} cannot express.
+     *
+     * <p><b>The third state this fake was missing.</b> With only an all-or-nothing read error, a
+     * store holding two of three entries and failing on the third is indistinguishable from one
+     * that answered "no entry" for the third - and those two are the ones a caller must never
+     * conflate: one is a retry, the other is evidence about what is stored. A test written against
+     * `getError` alone passes on the buggy code and the fixed code alike, because both classify
+     * "every read failed" the same way.</p>
+     *
+     * <p>Keyed by the exact entry name, and consulted before {@link entries}, so a fault can be set
+     * on a key that is also seeded with a value - which is the realistic shape: the credential is
+     * there, the read of it did not work.</p>
+     */
+    readonly getErrors = new Map<string, Error>();
+
     /** Set to make every {@link setItem} reject - a full disk, or storage that refuses to persist. */
     setError: Error | null = null;
 
@@ -59,9 +75,16 @@ export class FakeSecureStore extends SecureStore {
         return [...this.entries.keys()];
     }
 
+    /** Makes reads of exactly `key` reject, leaving every other key readable. */
+    failRead(key: string, error: Error): void {
+        this.getErrors.set(key, error);
+    }
+
     async getItem(key: string): Promise<string | null> {
         this.reads.push(key);
         if (this.getError) throw this.getError;
+        const scoped = this.getErrors.get(key);
+        if (scoped) throw scoped;
         return this.entries.get(key) ?? null;
     }
 

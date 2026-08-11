@@ -42,6 +42,7 @@ describe('runMlsLaunch', () => {
             handle: 'handle',
             needsRegistration: false,
             identityMismatch: false,
+            keyStoreIncomplete: false,
             keyStoreUnreachable: false,
             keyPackagesFailed: false,
             admissionSweepFailed: false,
@@ -201,6 +202,49 @@ describe('runMlsLaunch', () => {
         expect(outcome.keyStoreUnreachable).toBe(false);
         expect(outcome.handle).toBeNull();
         expect(calls).toEqual(['unlock']);
+    });
+
+    /**
+     * A key store holding part of this device's key. The entry that is present is the one
+     * registration would replace, so this must never be `needsRegistration` - and it is not
+     * `keyStoreUnreachable` either, because that state's answer is a retry and this one does not lift:
+     * the reads succeeded and reported what is there.
+     */
+    it('never asks for registration when only part of the signing key is stored', async () => {
+        const {calls, steps: s} = steps({
+            unlock: async () => {
+                calls.push('unlock');
+                throw {kind: 'KeyStoreIncomplete', message: 'pub: present, priv: present, identity: absent'};
+            },
+        });
+
+        const outcome = await runMlsLaunch(s);
+
+        expect(outcome.keyStoreIncomplete).toBe(true);
+        expect(outcome.needsRegistration).toBe(false);
+        expect(outcome.keyStoreUnreachable).toBe(false);
+        expect(outcome.identityMismatch).toBe(false);
+        expect(outcome.handle).toBeNull();
+        expect(calls).toEqual(['unlock']);
+    });
+
+    /**
+     * The catch-all direction. A kind nobody has thought of yet - a future refusal, a rejection that
+     * lost its `kind` in transit - has to land on the key-store state rather than on the prompt that
+     * mints a fresh keypair. This is the property that makes adding a kind safe.
+     */
+    it('sends an unrecognised kind to the key store state, never to registration', async () => {
+        const {steps: s} = steps({
+            unlock: async () => {
+                throw {kind: 'SomeKindNobodyHasWrittenYet', message: 'from the future'};
+            },
+        });
+
+        const outcome = await runMlsLaunch(s);
+
+        expect(outcome.needsRegistration).toBe(false);
+        expect(outcome.keyStoreIncomplete).toBe(false);
+        expect(outcome.keyStoreUnreachable).toBe(true);
     });
 
     it('reports no mismatch on a clean launch', async () => {

@@ -42,6 +42,17 @@ export interface MlsLaunchOutcome {
      */
     keyStoreUnreachable: boolean;
     /**
+     * Some of this device's signing-key entries are there and some are not.
+     *
+     * <p>Its own flag, and <b>not</b> {@link needsRegistration}: an entry that exists means this
+     * device registered, so registering again would mint a fresh keypair over a key that is still
+     * on the machine. Not {@link keyStoreUnreachable} either, because that one is answered with
+     * "try again" and this does not lift on a retry - the reads succeeded and reported what is
+     * there. The honest remedies are a `.venta-keys` restore or a deliberate re-registration whose
+     * cost the user has been told.</p>
+     */
+    keyStoreIncomplete: boolean;
+    /**
      * The stored signing key belongs to a different account than the one signed in.
      *
      * <p>Its own flag for the same reason {@link keyStoreUnreachable} is: registering would be an
@@ -85,10 +96,13 @@ export async function runMlsLaunch(steps: MlsLaunchSteps): Promise<MlsLaunchOutc
             handle: null,
             needsRegistration: kind === 'KeyNotFound',
             identityMismatch: kind === 'IdentityMismatch',
-            // Everything that is neither of the two named states. Kept as the catch-all so a new
+            keyStoreIncomplete: kind === 'KeyStoreIncomplete',
+            // Everything that is none of the three named states. Kept as the catch-all so a new
             // kind surfaces as "something is wrong with the key store" rather than as a prompt to
             // register, which is the one response that cannot be taken back.
-            keyStoreUnreachable: kind !== 'KeyNotFound' && kind !== 'IdentityMismatch',
+            keyStoreUnreachable: kind !== 'KeyNotFound'
+                && kind !== 'IdentityMismatch'
+                && kind !== 'KeyStoreIncomplete',
             keyPackagesFailed: false,
             admissionSweepFailed: false,
         };
@@ -117,6 +131,7 @@ export async function runMlsLaunch(steps: MlsLaunchSteps): Promise<MlsLaunchOutc
         handle,
         needsRegistration: false,
         identityMismatch: false,
+        keyStoreIncomplete: false,
         keyStoreUnreachable: false,
         keyPackagesFailed: !replenished,
         admissionSweepFailed: !swept,

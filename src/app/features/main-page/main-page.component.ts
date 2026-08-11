@@ -164,6 +164,16 @@ export class MainPageComponent implements OnDestroy {
      */
     protected keyUnlockFailed = signal(false);
     /**
+     * Part of this device's signing key is in the key store and part of it is not.
+     *
+     * <p>Shown through the same strip as {@link keyUnlockFailed} but with different copy, because the
+     * only two things a user can act on differ: that one lifts when the key store unlocks, and this
+     * one does not - the reads worked and reported what is there. Both refuse to offer registration,
+     * which would mint a fresh keypair over the part that still exists and orphan this device from
+     * every group it belongs to.</p>
+     */
+    protected keyStoreIncomplete = signal(false);
+    /**
      * MLS storage could not be initialised, and the local state was <i>kept</i>.
      *
      * <p>Its own state rather than folded into {@link keyUnlockFailed}, for the reason every other
@@ -523,11 +533,21 @@ export class MainPageComponent implements OnDestroy {
         // Surfaced through the same banner as an unreachable key store: both mean "encryption is
         // not available on this launch and registering is not the answer". They are separate
         // outcomes so the log says which, and so neither can be mistaken for `needsRegistration`.
-        this.keyUnlockFailed.set(outcome.keyStoreUnreachable || outcome.identityMismatch);
+        this.keyUnlockFailed.set(
+            outcome.keyStoreUnreachable || outcome.identityMismatch || outcome.keyStoreIncomplete,
+        );
+        this.keyStoreIncomplete.set(outcome.keyStoreIncomplete);
         if (outcome.identityMismatch) {
             console.error(
                 'The signing key stored for this device belongs to another account - the account '
                 + 'slot resolved to the wrong device id',
+            );
+        }
+        if (outcome.keyStoreIncomplete) {
+            console.error(
+                'This device\'s signing key is only partly in the key store - registration is '
+                + 'deliberately not offered, because minting a fresh keypair over the part that is '
+                + 'still there would orphan this device from every group it belongs to',
             );
         }
         this.keyPackagesFailed.set(outcome.keyPackagesFailed);
@@ -593,6 +613,7 @@ export class MainPageComponent implements OnDestroy {
     /** Retry after a transient key-store failure, without minting anything. */
     protected async retryUnlock(): Promise<void> {
         this.keyUnlockFailed.set(false);
+        this.keyStoreIncomplete.set(false);
         await this.initLaunchSequence();
     }
 
