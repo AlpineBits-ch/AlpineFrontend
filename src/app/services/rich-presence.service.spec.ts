@@ -31,7 +31,8 @@ import {FakeWindowChrome} from '../platform/testing/fake-window-chrome';
 import {RichPresenceService} from './rich-presence.service';
 import {ApiConfigService} from './api-config.service';
 import {GameCatalogService} from './game-catalog.service';
-import {PlatformService} from './platform.service';
+import {OsInfo} from '../platform/ports/os-info.port';
+import {FakeOsInfo} from '../platform/testing/fake-os-info';
 import {PrivacySettingsService} from './privacy-settings.service';
 import {UserSettingsService} from './user-settings.service';
 import {Activity} from '../models/activity.model';
@@ -49,7 +50,7 @@ function setup(): RichPresenceService {
             provideHttpClient(),
             provideHttpClientTesting(),
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test.example'}},
-            {provide: PlatformService, useValue: {isMobile: false}},
+            {provide: OsInfo, useValue: new FakeOsInfo('windows', false)},
             {provide: PrivacySettingsService, useValue: {settings: privacySettings}},
             {provide: UserSettingsService, useValue: {activitySettings}},
             {provide: Presence, useValue: presence},

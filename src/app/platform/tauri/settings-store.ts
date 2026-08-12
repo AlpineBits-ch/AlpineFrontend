@@ -3,7 +3,7 @@ import {SettingsStore, SettingsStoreFactory} from '../ports/settings-store.port'
 /**
  * {@link SettingsStoreFactory} over `@tauri-apps/plugin-store`.
  *
- * <p>Returns what `openSettingsStore()` has always returned on the desktop: one `LazyStore` per
+ * <p>Returns what the desktop path has always used: one `LazyStore` per
  * `open()` call, over the same file, making the same four calls. `LazyStore` is lazy by construction
  * so an unused one costs nothing, and keeping that lifetime identical is what makes the port a pure
  * indirection rather than an edit to the desktop path.</p>
@@ -35,8 +35,9 @@ function plugin(): Promise<StorePlugin> {
 /**
  * A `LazyStore` that is constructed on the first call rather than by `open()`.
  *
- * <p><b>Why this shim exists at all:</b> {@link SettingsStoreFactory.open} is synchronous - it has to
- * be, because `openSettingsStore()` is - while loading the plugin is not. So the store handed back is
+ * <p><b>Why this shim exists at all:</b> {@link SettingsStoreFactory.open} is synchronous - its
+ * callers open a store inline in the middle of an operation - while loading the plugin is not. So the
+ * store handed back is
  * a real `SettingsStore` immediately and the `import()` happens inside the first `get`/`set`, which is
  * the only place there is already an `await`.</p>
  *

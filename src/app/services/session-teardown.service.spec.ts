@@ -15,6 +15,7 @@ import {SessionTeardownService} from './session-teardown.service';
 import {MlsService} from './mls.service';
 import {DeviceService} from './device.service';
 import {MlsCoverageService} from './mls-coverage.service';
+import {provideFakePlatform} from '../platform/testing/provide-fake-platform';
 
 const DEVICE_ID = 'device-a';
 
@@ -58,6 +59,7 @@ function build(): SessionTeardownService {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
         providers: [
+            provideFakePlatform(),
             SessionTeardownService,
             {provide: MlsService, useValue: mlsStub()},
             {provide: DeviceService, useValue: deviceStub()},

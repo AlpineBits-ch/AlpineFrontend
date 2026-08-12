@@ -7,7 +7,7 @@ import {catchError, map} from 'rxjs/operators';
 import {UserService} from '../../../services/user.service';
 import {DeviceService} from '../../../services/device.service';
 import {MlsService} from '../../../services/mls.service';
-import {PlatformService} from '../../../services/platform.service';
+import {OsInfo} from '../../../platform/ports/os-info.port';
 import {DeviceType} from '../../../dtos/response/user-device.dto';
 import {TranslateModule} from '@ngx-translate/core';
 
@@ -32,7 +32,7 @@ export class DeviceRegistrationModalComponent {
     private userService = inject(UserService);
     private deviceService = inject(DeviceService);
     private mlsService = inject(MlsService);
-    private platformService = inject(PlatformService);
+    private os = inject(OsInfo);
 
     protected onDeviceNameInput(event: Event): void {
         this.deviceName.set((event.target as HTMLInputElement).value);
@@ -50,7 +50,7 @@ export class DeviceRegistrationModalComponent {
     }
 
     private register(deviceName: string): void {
-        const deviceType = this.platformService.isMobile ? DeviceType.Mobile : DeviceType.Desktop;
+        const deviceType = this.os.isMobile ? DeviceType.Mobile : DeviceType.Desktop;
 
         const attemptRegistration = () =>
             from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(

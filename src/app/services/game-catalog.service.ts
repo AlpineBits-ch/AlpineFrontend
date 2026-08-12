@@ -3,7 +3,7 @@ import {HttpClient, HttpErrorResponse, HttpHeaders} from '@angular/common/http';
 import {firstValueFrom} from 'rxjs';
 import {PresenceCatalog} from '../platform/ports/presence-catalog.port';
 import {ApiConfigService} from './api-config.service';
-import {PlatformService} from './platform.service';
+import {OsInfo} from '../platform/ports/os-info.port';
 
 /**
  * The Rust side's view of the catalog. Mirror of `presence::CatalogState`.
@@ -53,7 +53,7 @@ export interface GameCatalogState {
 export class GameCatalogService {
     private readonly http = inject(HttpClient);
     private readonly apiConfig = inject(ApiConfigService);
-    private readonly platform = inject(PlatformService);
+    private readonly os = inject(OsInfo);
     private readonly catalog = inject(PresenceCatalog);
 
     private readonly _state = signal<GameCatalogState | null>(null);
@@ -76,7 +76,7 @@ export class GameCatalogService {
         // `isMobile`: a host with no matcher has nothing to hold the catalog, and a Tauri phone build
         // has `PresenceCatalog.supported === true` while still being unable to enumerate a process. A
         // 12 MB download to feed a matcher that cannot run buys nothing either way.
-        if (!this.catalog.supported || this.platform.isMobile || this.syncing) return;
+        if (!this.catalog.supported || this.os.isMobile || this.syncing) return;
         this.syncing = true;
 
         try {

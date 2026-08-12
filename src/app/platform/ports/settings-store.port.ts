@@ -11,9 +11,14 @@ export type {SettingsStore};
 /**
  * Opens the app's settings file for whichever host this bundle is running in.
  *
- * <p>Replaces the free function `openSettingsStore()`, which had to decide the host itself. Same
+ * <p>Replaced the free function `openSettingsStore()`, which had to decide the host itself. Same
  * per-call lifetime: `LazyStore` is lazy by construction, so an unused one costs nothing, and
  * holding that lifetime identical is what keeps the desktop path unobservably the same.</p>
+ *
+ * <p>The file to open is the caller's argument, not a default any adapter applies - the settings
+ * readers all pass `SETTINGS_FILE` from `services/settings-store.ts`. The web adapter ignores the
+ * name (one flat `localStorage` namespace), so a caller that invented its own would be wrong only on
+ * the desktop, which is the harder half to notice.</p>
  */
 export abstract class SettingsStoreFactory {
     abstract open(file: string): SettingsStore;

@@ -9,6 +9,7 @@ import {ApiConfigService} from '../../../../services/api-config.service';
 import {GuildEmojiStore} from '../../../../stores/guild-emoji.store';
 import {ChannelType, GuildDto} from '../../../../dtos/response/guild.dto';
 import {OnboardingPromptType, OnboardingStatus} from '../../../../dtos/response/guild-safety.dto';
+import {provideFakePlatform} from '../../../../platform/testing/provide-fake-platform';
 
 const BASE = 'https://api.test.example/api/v1/guild';
 
@@ -49,6 +50,7 @@ async function setup(status: OnboardingStatus = statusFixture()) {
     TestBed.configureTestingModule({
         imports: [OnboardingGateComponent],
         providers: [
+            provideFakePlatform(),
             provideHttpClient(),
             provideHttpClientTesting(),
             provideTranslateService({defaultLanguage: 'en'}),

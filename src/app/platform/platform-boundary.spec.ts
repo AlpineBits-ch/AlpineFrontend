@@ -28,15 +28,20 @@ const NATIVE_PREFIXES = ['@tauri-apps/', 'tauri-plugin-', '@choochmeque/'] as co
 const PLATFORM_DIR = 'platform';
 
 /**
- * Suffixes exempt for now.
+ * Suffixes exempt for now. **Empty, and it stays empty.**
  *
- * <p><b>`*.spec.ts` is temporary.</b> Ten specs currently do `vi.mock('@tauri-apps/api/core', ...)`
- * to force `isTauri() === true`, which is a legitimate thing to have needed and is not what this
- * assertion is about. The design spec's plan is fake adapters provided in TestBed, and <b>the
- * exemption is removed per-file as each spec moves to one</b> - so this list shrinks to nothing
- * rather than staying as a permanent hole. Nothing else belongs here.</p>
+ * <p>It used to hold `*.spec.ts`, because ten specs did `vi.mock('@tauri-apps/api/core', ...)` or
+ * defined `__TAURI_INTERNALS__` on `globalThis` to force a host. That was a legitimate thing to have
+ * needed while services chose their own backends, and it is gone: every one of them now provides a
+ * fake or a real adapter through `provideFakePlatform()`, and the last five went when
+ * `AccountRegistryService`, `DeviceIdentityService` and `UserTokenService` began injecting
+ * `SettingsStoreFactory` instead of calling a free `openSettingsStore()`.</p>
+ *
+ * <p>A spec is not a lesser file for this purpose - a `vi.mock` of a plugin is exactly the thing that
+ * lets a service keep a host branch nobody notices. The one place a native module may be mocked is
+ * beside its adapter, under `src/app/platform/`, which the directory rule above already covers.</p>
  */
-const EXEMPT_SUFFIXES = ['.spec.ts'] as const;
+const EXEMPT_SUFFIXES = [] as const;
 
 /**
  * Matches the specifier of a static import, a re-export, or a dynamic `import()`.
@@ -108,26 +113,28 @@ function isExempt(relative: string): boolean {
  * Globals the Tauri runtime injects onto `window`.
  *
  * <p>Reading one of these is exactly as much of a boundary breach as importing a plugin, and the
- * import check above cannot see it - which is not hypothetical: `platform.service.ts` inlines
+ * import check above cannot see it - which was not hypothetical: `platform.service.ts` inlined
  * `window.__TAURI_OS_PLUGIN_INTERNALS__.os_type` (all that the plugin's `type()` does) and passed the
- * import check while doing it. An invariant whose value is that it cannot decay has to cover both
- * spellings, or the next migration just moves from one to the other.</p>
+ * import check while doing it. That file has since been deleted in favour of the `OsInfo` port, but
+ * the lesson stands: an invariant whose value is that it cannot decay has to cover both spellings, or
+ * the next migration just moves from one to the other.</p>
  */
 const NATIVE_GLOBAL_RE = /__TAURI[A-Z_]*__/g;
 
 /**
- * Files allowed to read a native global from outside `src/app/platform/`.
+ * Files allowed to read a native global from outside `src/app/platform/`. **Empty, and it stays
+ * empty.**
  *
- * <p><b>Exactly one, and it is documented rather than tolerated.</b> `PlatformService.isMobile` is
- * injected from *field initialisers* across the app - the hazard that file explains at length - so it
- * cannot take an `OsInfo` dependency yet. `isMobile` is now a memoised getter rather than a field, so
- * nothing runs during construction and the collapse onto `OsInfo` is a mechanical change whenever its
- * callers stop being field initialisers.</p>
+ * <p>It held exactly one entry, `services/platform.service.ts`, which inlined
+ * `window.__TAURI_OS_PLUGIN_INTERNALS__.os_type` because it was injected from *field initialisers*
+ * across the app and so could not take an `OsInfo` dependency. That service has been deleted and its
+ * seven callers inject {@link OsInfo} directly - which also fixed the answer, since `isMobile` is a
+ * form factor and a phone browser is one.</p>
  *
- * <p>The exit condition is that collapse. Nothing else goes on this list: a new entry means someone
- * reached around the ports, which is the thing this file exists to make impossible to do quietly.</p>
+ * <p>Nothing else goes on this list: an entry means someone reached around the ports, which is the
+ * thing this file exists to make impossible to do quietly.</p>
  */
-const GLOBAL_READ_ALLOWLIST = ['services/platform.service.ts'] as const;
+const GLOBAL_READ_ALLOWLIST = [] as const;
 
 function nativeGlobalsIn(source: string): string[] {
     const code = stripComments(source);

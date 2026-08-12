@@ -16,28 +16,9 @@
  * to be found" - rather than what any one module wrote. Reading the registry first, exactly as the
  * device-id interceptor does, is the point of the exercise and not incidental setup.</p>
  */
-vi.mock('@tauri-apps/plugin-store', () => ({
-    LazyStore: class LazyStoreStub {
-        static readonly files = new Map<string, Map<string, unknown>>();
-
-        private readonly values: Map<string, unknown>;
-
-        constructor(file: string) {
-            const existing = LazyStoreStub.files.get(file);
-            this.values = existing ?? new Map<string, unknown>();
-            LazyStoreStub.files.set(file, this.values);
-        }
-
-        async get<T>(key: string) { return this.values.get(key) as T | undefined; }
-        async set(key: string, value: unknown) { this.values.set(key, value); }
-        async delete(key: string) { this.values.delete(key); }
-        async clear() { this.values.clear(); }
-        async save() { }
-    },
-}));
-
 import {TestBed} from '@angular/core/testing';
-import {LazyStore} from '@tauri-apps/plugin-store';
+import {FakeSettingsStoreFactory} from '../platform/testing/fake-settings-store';
+import {provideFakePlatform} from '../platform/testing/provide-fake-platform';
 import {AccountRegistryService} from './account-registry.service';
 import {AccountSwitchService, ReentryTarget} from './account-switch.service';
 import {DeviceIdentityService} from './device-identity.service';
@@ -48,23 +29,21 @@ import {
     scopedOAuthKey,
 } from './scoped-oauth-storage';
 
-const LazyStoreMock = LazyStore as unknown as {files: Map<string, Map<string, unknown>>};
-
 /** This runner's global `localStorage` has no methods, so the mirror would be unobservable. */
 const store = new Map<string, string>();
 
 /**
- * The global the Tauri runtime injects, defined so `detectHost()` answers `'tauri'` and the registry
- * keeps resolving to the `LazyStore` stub above.
+ * The registry's backing store, held across simulated boots.
  *
- * <p>These tests are about the desktop path. Under the runner there is no Tauri host, and without
- * this the slot list would quietly move into `localStorage` - where `LazyStoreMock.files.clear()`
- * does not reach it, so state would leak from one simulated boot into the next.</p>
+ * <p>This file used to define `__TAURI_INTERNALS__` and mock `@tauri-apps/plugin-store` to keep the
+ * slot list off `localStorage`, where the per-test clear could not reach it and state leaked from one
+ * boot into the next. It is a provider now: `AccountRegistryService` injects
+ * {@link SettingsStoreFactory}, so a store that outlives a `TestBed.resetTestingModule()` is just a
+ * value this file holds - which is what a store file surviving a restart actually is.</p>
  */
-const TAURI_GLOBAL = '__TAURI_INTERNALS__';
+const settings = new FakeSettingsStoreFactory();
 
 beforeAll(() => {
-    (globalThis as Record<string, unknown>)[TAURI_GLOBAL] = {};
     Object.defineProperty(globalThis, 'localStorage', {
         configurable: true,
         value: {
@@ -76,22 +55,20 @@ beforeAll(() => {
     });
 });
 
-afterAll(() => {
-    delete (globalThis as Record<string, unknown>)[TAURI_GLOBAL];
-});
-
 let reentered: ReentryTarget[];
 
 /**
  * A fresh process against the same persisted state.
  *
- * <p>`localStorage` and the Tauri store survive; every service is rebuilt. That is what a switch or
- * an add actually does, and it is the only place the two records of the live slot can disagree.</p>
+ * <p>`localStorage` and the settings store survive; every service is rebuilt. That is what a switch
+ * or an add actually does, and it is the only place the two records of the live slot can
+ * disagree.</p>
  */
 function boot(): {registry: AccountRegistryService; switcher: AccountSwitchService} {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
         providers: [
+            provideFakePlatform({SettingsStoreFactory: settings}),
             AccountRegistryService,
             AccountSwitchService,
             {provide: DeviceIdentityService, useValue: {deviceId: async () => 'device-live'}},
@@ -122,7 +99,7 @@ function signInAs(): void {
 }
 
 beforeEach(() => {
-    LazyStoreMock.files.clear();
+    settings.reset();
     store.clear();
     reentered = [];
 });

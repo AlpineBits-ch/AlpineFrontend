@@ -7,7 +7,7 @@ import {HttpErrorResponse} from '@angular/common/http';
 import {UserService} from '../../../services/user.service';
 import {MasterKeyEngineError, MasterKeyService} from '../../../services/master-key.service';
 import {BackupService, toWrappingDto} from '../../../services/backup.service';
-import {PlatformService} from '../../../services/platform.service';
+import {OsInfo} from '../../../platform/ports/os-info.port';
 import {AppInfoService} from '../../../services/app-info.service';
 import {catchError, EMPTY, filter, from, switchMap, take, tap} from 'rxjs';
 import {TranslateModule} from '@ngx-translate/core';
@@ -64,12 +64,12 @@ export class KeySetupDialogComponent {
     private userService = inject(UserService);
     private masterKeyService = inject(MasterKeyService);
     private backupService = inject(BackupService);
-    private platformService = inject(PlatformService);
+    private os = inject(OsInfo);
     /** Entropy collected before the recovery-code steps, carried through to the upload. */
     private collectedEntropy: number[] = [];
 
     private readonly showEntropy =
-        !this.platformService.isMobile &&
+        !this.os.isMobile &&
         window.matchMedia('(pointer: fine)').matches;
 
     /**

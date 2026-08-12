@@ -24,7 +24,8 @@ import {MlsService} from '../../../../services/mls.service';
 import {MlsSyncService} from '../../../../services/mls-sync.service';
 import {ToastService} from '../../../../services/toast.service';
 import {NavigationService} from '../../../main-page/navigation.service';
-import {PlatformService} from '../../../../services/platform.service';
+import {OsInfo} from '../../../../platform/ports/os-info.port';
+import {FakeOsInfo} from '../../../../platform/testing/fake-os-info';
 
 beforeEach(() => {
     // jsdom implements no `matchMedia`, and PrimeNG's ContextMenu binds a listener to it in
@@ -84,7 +85,9 @@ function setup(options: {hasMore?: boolean; loading?: boolean} = {}) {
                 mainView: signal({type: 'home'}), tryRestoreConversationNav: vi.fn(),
                 showHome: vi.fn(),
             }},
-            {provide: PlatformService, useValue: {isMobile: true}},
+            // The paging sentinel is on the mobile branch of the template, so this list has to believe it
+            // is on a phone. `OsInfo` rather than the deleted `PlatformService` - see its port.
+            {provide: OsInfo, useValue: new FakeOsInfo('android', true)},
         ],
     });
 

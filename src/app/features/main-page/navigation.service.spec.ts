@@ -3,6 +3,7 @@ import {TestBed} from '@angular/core/testing';
 import {NavigationService} from './navigation.service';
 import {ChannelDto, ChannelType, GuildDto} from '../../dtos/response/guild.dto';
 import {ConversationDto} from '../../dtos/response/conversation.dto';
+import {provideFakePlatform} from '../../platform/testing/provide-fake-platform';
 
 /**
  * The service persists every navigation, and this runner's global localStorage has no methods,
@@ -49,7 +50,7 @@ const conversation = {id: 'c1', name: 'Chat', members: []} as unknown as Convers
 function setup(): NavigationService {
     store.clear();
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({});
+    TestBed.configureTestingModule({providers: [provideFakePlatform()]});
     return TestBed.inject(NavigationService);
 }
 

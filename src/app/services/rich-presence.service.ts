@@ -6,7 +6,7 @@ import {WindowChrome} from '../platform/ports/window-chrome.port';
 import {Activity, activitiesEqual, MAX_ACTIVITIES} from '../models/activity.model';
 import {ApiConfigService} from './api-config.service';
 import {GameCatalogService} from './game-catalog.service';
-import {PlatformService} from './platform.service';
+import {OsInfo} from '../platform/ports/os-info.port';
 import {PrivacySettingsService} from './privacy-settings.service';
 import {UserSettingsService} from './user-settings.service';
 
@@ -81,7 +81,7 @@ export interface PresenceRpcStatus {
 export class RichPresenceService {
     private readonly http = inject(HttpClient);
     private readonly apiConfig = inject(ApiConfigService);
-    private readonly platform = inject(PlatformService);
+    private readonly os = inject(OsInfo);
     private readonly presence = inject(Presence);
     /** Only for the close hook: clearing the presence has to happen before the webview is torn down. */
     private readonly windowChrome = inject(WindowChrome);
@@ -181,7 +181,7 @@ export class RichPresenceService {
     }
 
     start(): void {
-        if (this.started || !this.presence.supported || this.platform.isMobile) return;
+        if (this.started || !this.presence.supported || this.os.isMobile) return;
         this.started = true;
 
         void this.subscribe();
@@ -347,7 +347,7 @@ export class RichPresenceService {
      * defaults to it for any unrecognised value.</p>
      */
     private async applyRpcMode(enabled: boolean): Promise<void> {
-        if (!this.presence.supported || this.platform.isMobile) return;
+        if (!this.presence.supported || this.os.isMobile) return;
         if (this.rpcApplied === enabled) return;
         this.rpcApplied = enabled;
 

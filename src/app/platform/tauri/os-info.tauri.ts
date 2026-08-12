@@ -22,10 +22,10 @@ interface TauriOsPluginInternals {
 /**
  * What the desktop shell knows about itself.
  *
- * <p>Replaces `PlatformService`'s `isTauri() && (type() == 'ios' || type() == 'android')`. The
- * difference that matters is that nothing here can throw: `PlatformService` documents at length how a
- * `TypeError` from a field initialiser took route activation down with it, and the fix is that a
- * missing global is a value rather than an exception.</p>
+ * <p>Replaced `PlatformService`'s `isTauri() && (type() == 'ios' || type() == 'android')`, and that
+ * service is now gone. The difference that matters is that nothing here can throw: a `TypeError` from
+ * its field initialiser took route activation down with it, and the fix is that a missing global is a
+ * value rather than an exception.</p>
  */
 export class TauriOsInfo extends OsInfo {
     override readonly kind: OsInfo['kind'];

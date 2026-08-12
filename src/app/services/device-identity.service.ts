@@ -4,7 +4,8 @@ import {SecureStore} from '../platform/ports/secure-store.port';
 import {DeviceService} from './device.service';
 import {describeCurrentDevice} from './device-description';
 import {AccountRegistryService, BOOTSTRAP_SLOT_ID} from './account-registry.service';
-import {openSettingsStore, SettingsStore} from './settings-store';
+import {SETTINGS_FILE} from './settings-store';
+import {SettingsStore, SettingsStoreFactory} from '../platform/ports/settings-store.port';
 
 /** Pre-slot single id. Read for migration, and still written for the bootstrap slot. */
 const LEGACY_DEVICE_ID_KEY = 'mls_device_id';
@@ -32,6 +33,16 @@ type StoredId = {value: string};
 export class DeviceIdentityService {
     private readonly injector = inject(Injector);
     private readonly registry = inject(AccountRegistryService);
+
+    /**
+     * The settings backend.
+     *
+     * <p>A field injection, unlike {@link devices} and {@link secureStore}: this one is what *every*
+     * caller of this service ends up needing, so deferring it would buy nothing, and neither adapter
+     * does any work while being constructed. It replaces a free `openSettingsStore()` that asked
+     * `detectHost()` per call.</p>
+     */
+    private readonly settings = inject(SettingsStoreFactory);
 
     /** Keyed by slot, because the live slot can change without the service being rebuilt. */
     private readonly cached = new Map<string, Promise<string>>();
@@ -94,8 +105,7 @@ export class DeviceIdentityService {
      * group state and moving the wrong one would hand it to the wrong account.</p>
      */
     async ownsLegacyState(): Promise<boolean> {
-        const store = openSettingsStore();
-        const legacy = await store.get<StoredId>(LEGACY_DEVICE_ID_KEY);
+        const legacy = await this.store().get<StoredId>(LEGACY_DEVICE_ID_KEY);
         if (!legacy?.value) return false;
         return (await this.deviceId()) === legacy.value;
     }
@@ -105,7 +115,7 @@ export class DeviceIdentityService {
         const slotId = await this.registry.activeSlotId();
         this.cached.delete(slotId);
 
-        const store = openSettingsStore();
+        const store = this.store();
         const map = (await store.get<Record<string, string>>(DEVICE_IDS_KEY)) ?? {};
         delete map[slotId];
         await store.set(DEVICE_IDS_KEY, map);
@@ -166,8 +176,13 @@ export class DeviceIdentityService {
         return pending;
     }
 
+    /** A handle on the shared settings file, opened per use. See {@link SettingsStoreFactory}. */
+    private store(): SettingsStore {
+        return this.settings.open(SETTINGS_FILE);
+    }
+
     private async resolve(slotId: string): Promise<string> {
-        const store = openSettingsStore();
+        const store = this.store();
         const map = (await store.get<Record<string, string>>(DEVICE_IDS_KEY)) ?? {};
 
         const existing = map[slotId];
@@ -212,7 +227,7 @@ export class DeviceIdentityService {
     private async write(
         slotId: string,
         deviceId: string,
-        store = openSettingsStore(),
+        store: SettingsStore = this.store(),
         map?: Record<string, string>,
     ): Promise<void> {
         const current = map ?? (await store.get<Record<string, string>>(DEVICE_IDS_KEY)) ?? {};

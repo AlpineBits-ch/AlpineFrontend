@@ -1,7 +1,7 @@
 import {environment} from '../../environments/environment';
 import {bitrateFor, StreamPreset} from '../models/stream-preset';
 import {solveGeometry} from '../models/capture-geometry';
-import {detectHost} from '../platform/host';
+import {detectHost, PlatformHost} from '../platform/host';
 import {ScreenPickerChoice} from './screen-picker.service';
 import {IceServerConfig, ScreenPublishOptions} from './rust-media.service';
 
@@ -18,9 +18,15 @@ import {IceServerConfig, ScreenPublishOptions} from './rust-media.service';
  * roll back to, so tying the web publisher to the Rust rollback switch would repurpose a flag whose whole
  * value is that it means one thing. The web publisher captures with `getDisplayMedia` and publishes the
  * track directly, which supersedes the canvas pipeline outright rather than falling back to it.</p>
+ *
+ * @param host defaults to {@link detectHost}, and every caller leaves it out. It is a parameter only so
+ *        the decision can be exercised without a spec having to define `__TAURI_INTERNALS__` on
+ *        `globalThis` - which `platform-boundary.spec.ts` counts as reaching around the ports, and which
+ *        would in any case have been testing `detectHost()` rather than this rule. A free function
+ *        rather than a port because two of its three callers are services this track may not edit.
  */
-export function useRustPublisher(): boolean {
-    return detectHost() === 'web' || environment.rustPublisher;
+export function useRustPublisher(host: PlatformHost = detectHost()): boolean {
+    return host === 'web' || environment.rustPublisher;
 }
 
 /**

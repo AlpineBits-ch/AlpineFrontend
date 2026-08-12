@@ -5,28 +5,9 @@
  * for why. That makes the ordering the whole correctness argument: everything deciding who the app
  * comes back as has to be committed <i>before</i> the reload, because nothing after it runs.</p>
  */
-vi.mock('@tauri-apps/plugin-store', () => ({
-    LazyStore: class LazyStoreStub {
-        static readonly files = new Map<string, Map<string, unknown>>();
-
-        private readonly values: Map<string, unknown>;
-
-        constructor(file: string) {
-            const existing = LazyStoreStub.files.get(file);
-            this.values = existing ?? new Map<string, unknown>();
-            LazyStoreStub.files.set(file, this.values);
-        }
-
-        async get<T>(key: string) { return this.values.get(key) as T | undefined; }
-        async set(key: string, value: unknown) { this.values.set(key, value); }
-        async delete(key: string) { this.values.delete(key); }
-        async clear() { this.values.clear(); }
-        async save() { }
-    },
-}));
-
 import {TestBed} from '@angular/core/testing';
-import {LazyStore} from '@tauri-apps/plugin-store';
+import {FakeSettingsStoreFactory} from '../platform/testing/fake-settings-store';
+import {provideFakePlatform} from '../platform/testing/provide-fake-platform';
 import {AccountSwitchService, ReentryTarget, reentryUrl} from './account-switch.service';
 import {AccountRegistryService} from './account-registry.service';
 import {DeviceIdentityService} from './device-identity.service';
@@ -39,7 +20,15 @@ import {
     setActiveSlotId,
 } from './scoped-oauth-storage';
 
-const LazyStoreMock = LazyStore as unknown as {files: Map<string, Map<string, unknown>>};
+/**
+ * The registry's backing store, held across rebuilds.
+ *
+ * <p>This file used to define `__TAURI_INTERNALS__` and mock `@tauri-apps/plugin-store` to get the
+ * registry onto an in-memory file rather than into `localStorage`, where the per-test clear could not
+ * reach it. `AccountRegistryService` injects {@link SettingsStoreFactory} now, so the same isolation
+ * comes from a provider - and the store is reset explicitly instead of by choosing a host.</p>
+ */
+const settings = new FakeSettingsStoreFactory();
 
 let calls: string[];
 let reentered: ReentryTarget[];
@@ -55,6 +44,7 @@ function build(): void {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
         providers: [
+            provideFakePlatform({SettingsStoreFactory: settings}),
             AccountSwitchService,
             AccountRegistryService,
             {
@@ -94,18 +84,7 @@ function build(): void {
  */
 const store = new Map<string, string>();
 
-/**
- * The global the Tauri runtime injects, defined so `detectHost()` answers `'tauri'` and the registry
- * keeps resolving to the `LazyStore` stub above.
- *
- * <p>These tests are about the desktop path. Under the runner there is no Tauri host, and without
- * this the slot list would quietly move into `localStorage` - where `LazyStoreMock.files.clear()`
- * does not reach it, so state would leak from one test into the next.</p>
- */
-const TAURI_GLOBAL = '__TAURI_INTERNALS__';
-
 beforeAll(() => {
-    (globalThis as Record<string, unknown>)[TAURI_GLOBAL] = {};
     Object.defineProperty(globalThis, 'localStorage', {
         configurable: true,
         value: {
@@ -117,10 +96,6 @@ beforeAll(() => {
     });
 });
 
-afterAll(() => {
-    delete (globalThis as Record<string, unknown>)[TAURI_GLOBAL];
-});
-
 function trackedSet(key: string, value: string): void {
     localStorage.setItem(key, value);
 }
@@ -130,7 +105,7 @@ function resetStorage(): void {
 }
 
 beforeEach(() => {
-    LazyStoreMock.files.clear();
+    settings.reset();
     resetStorage();
     calls = [];
     reentered = [];

@@ -11,6 +11,7 @@ import {VoiceChannelService} from '../../../../services/voice-channel.service';
 import {ToastService} from '../../../../services/toast.service';
 import {MinuteClockService} from '../../../../services/minute-clock.service';
 import {ScheduledEventDto, ScheduledEventStatus} from '../../../../dtos/response/scheduled-event.dto';
+import {provideFakePlatform} from '../../../../platform/testing/provide-fake-platform';
 
 // Local-time components, not a UTC string: the day grouping compares local calendar days.
 const NOW = new Date(2026, 7, 1, 12, 0, 0).getTime();
@@ -59,6 +60,7 @@ function setup(events: ScheduledEventDto[], memberPermissions = '') {
     TestBed.configureTestingModule({
         imports: [EventsPanelComponent],
         providers: [
+            provideFakePlatform(),
             provideTranslateService({defaultLanguage: 'en'}),
             MessageService,
             {provide: ScheduledEventService, useValue: api},

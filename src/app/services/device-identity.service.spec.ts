@@ -12,28 +12,28 @@
  * of adopting that one would address all of it to a slot nothing looks up, which presents as this
  * device being silently ejected from every group it belongs to.</p>
  */
-// The desktop settings backend is chosen by `detectHost()`, which reads the Tauri global - so the
-// host is entered by defining it (see `enterTauri`) rather than by mocking a function. Only the
-// store plugin still has to be mocked: `openSettingsStore()` reaches it through the Tauri adapter's
-// lazy `import()`, and the real one would attempt IPC.
-vi.mock('@tauri-apps/plugin-store');
-
 import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
-import {LazyStore} from '@tauri-apps/plugin-store';
 import {SecureStore} from '../platform/ports/secure-store.port';
+import {SettingsStore, SettingsStoreFactory} from '../platform/ports/settings-store.port';
 import {FakeSecureStore} from '../platform/testing/fake-secure-store';
+import {provideFakePlatform} from '../platform/testing/provide-fake-platform';
+import {WebSettingsStoreFactory} from '../platform/web/settings-store';
 import {ApiConfigService} from './api-config.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {AccountRegistryService, BOOTSTRAP_SLOT_ID} from './account-registry.service';
 
 /**
- * Stateful, and shared across every `new LazyStore(...)` in a test.
+ * Stateful, and shared across every `open()` in a test.
  *
  * <p>The service re-opens the store per write, and the migration is entirely about what one call
  * leaves behind for the next - a stub that answered a fixed value per key could not express
  * "the legacy id has already been claimed".</p>
+ *
+ * <p>Hand-rolled rather than `FakeSettingsStoreFactory` for one reason: {@link failNextGet}. These
+ * tests need a read that rejects once, which is how "a transient store error must not be cached
+ * for the session" is asserted at all, and the shared fake has no such switch.</p>
  */
 const values = new Map<string, unknown>();
 let failNextGet = false;
@@ -52,23 +52,26 @@ const store = {
 };
 
 /**
- * Which host the bundle believes it is in.
+ * The settings backend, provided rather than detected.
  *
- * <p>Entered by defining the global the Tauri runtime injects, because that is what `detectHost()`
- * reads and therefore what decides which `SettingsStore` adapter `openSettingsStore()` hands back.
- * Re-entered in `beforeEach` for the same reason the old `isTauri` mock was re-stubbed there:
- * everything outside the "outside Tauri" block is about the desktop path and would otherwise
- * silently start asserting against `localStorage`.</p>
+ * <p>This file used to define `__TAURI_INTERNALS__` on `globalThis` and mock
+ * `@tauri-apps/plugin-store`, because the service reached its backend through a free function that
+ * asked `detectHost()`. It injects {@link SettingsStoreFactory} now, so the backend is a provider and
+ * the host is not a question this spec has to answer.</p>
+ *
+ * <p>Records what it was asked to open, which is what makes the seam observable: a service that had
+ * found its own store would leave {@link opened} empty.</p>
  */
-const TAURI_GLOBAL = '__TAURI_INTERNALS__';
+class StubSettingsStoreFactory extends SettingsStoreFactory {
+    readonly opened: string[] = [];
 
-function enterTauri(): void {
-    (globalThis as Record<string, unknown>)[TAURI_GLOBAL] = {};
+    open(file: string): SettingsStore {
+        this.opened.push(file);
+        return store as unknown as SettingsStore;
+    }
 }
 
-function leaveTauri(): void {
-    delete (globalThis as Record<string, unknown>)[TAURI_GLOBAL];
-}
+const settings = new StubSettingsStoreFactory();
 
 /** The keychain, as a provided port rather than a mocked module. See {@link FakeSecureStore}. */
 let secure: FakeSecureStore;
@@ -101,39 +104,49 @@ beforeAll(() => {
     });
 });
 
-afterAll(() => {
-    leaveTauri();
-});
-
 beforeEach(() => {
     vi.clearAllMocks();
-    enterTauri();
     secure = new FakeSecureStore();
     values.clear();
+    settings.opened.length = 0;
     localStorage.clear();
     failNextGet = false;
     registry = new RegistryStub();
-    // A regular function, not an arrow: the service calls `new LazyStore(...)`, and arrow
-    // functions are not constructors.
-    vi.mocked(LazyStore).mockImplementation(function () {
-        return store as unknown as LazyStore;
-    });
 });
 
-function setup(slotId = BOOTSTRAP_SLOT_ID): DeviceIdentityService {
+function setup(
+    slotId = BOOTSTRAP_SLOT_ID,
+    backend: SettingsStoreFactory = settings,
+): DeviceIdentityService {
     registry.slotId = slotId;
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
         providers: [
             provideHttpClient(),
             provideHttpClientTesting(),
+            provideFakePlatform({SecureStore: secure, SettingsStoreFactory: backend}),
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.venta.gg'}},
             {provide: AccountRegistryService, useValue: registry},
-            {provide: SecureStore, useValue: secure},
         ],
     });
     return TestBed.inject(DeviceIdentityService);
 }
+
+// ---------------------------------------------------------------------------
+// The DI seam
+// ---------------------------------------------------------------------------
+
+it('opens the shared settings file through the injected factory', async () => {
+    // Would fail with the free function still wired up: the service would have built its own
+    // backend from `detectHost()` and this factory would never have been asked for anything.
+    const only = new StubSettingsStoreFactory();
+    const service = setup('slot-a', only);
+
+    await service.deviceId();
+
+    expect(only.opened).toContain('settings.json');
+    expect(settings.opened).toEqual([]);
+});
 
 // ---------------------------------------------------------------------------
 // Resolution
@@ -407,6 +420,10 @@ describe('registration', () => {
  * the other backend. The logic above the store is a single implementation, so the value of these
  * is that it is provably backend-blind: mint, persist, isolate per slot, and adopt the pre-slot id
  * exactly once.</p>
+ *
+ * <p><b>The real `WebSettingsStoreFactory`, provided</b> - not a host faked by deleting a global. The
+ * prefix and the JSON encoding these assert are properties of that adapter, so a fake here would have
+ * pinned them against nothing.</p>
  */
 describe('outside Tauri', () => {
     /**
@@ -419,9 +436,12 @@ describe('outside Tauri', () => {
      */
     const PREFIX = 'alpine_settings::';
 
-    beforeEach(() => {
-        leaveTauri();
-    });
+    const web = new WebSettingsStoreFactory();
+
+    /** Same arrangement as {@link setup}, over the browser adapter. */
+    function browser(slotId = BOOTSTRAP_SLOT_ID): DeviceIdentityService {
+        return setup(slotId, web);
+    }
 
     function stored<T>(key: string): T | undefined {
         const raw = localStorage.getItem(PREFIX + key);
@@ -429,26 +449,27 @@ describe('outside Tauri', () => {
     }
 
     it('mints and persists an id without ever opening the Tauri store', async () => {
-        const service = setup('slot-a');
+        const service = browser('slot-a');
 
         const id = await service.deviceId();
 
         expect(id).toMatch(/^[0-9a-f-]{36}$/);
         expect(stored('mls_device_ids')).toEqual({'slot-a': id});
-        // The gate is the whole guarantee: no IPC is attempted, so there is nothing to reject.
-        expect(LazyStore).not.toHaveBeenCalled();
+        // The gate is now structural rather than asserted: the service is handed a backend and has
+        // no branch that could reach for the other one.
+        expect(settings.opened).toEqual([]);
         expect(store.get).not.toHaveBeenCalled();
         expect(store.set).not.toHaveBeenCalled();
     });
 
     it('returns the persisted id on a second boot rather than minting again', async () => {
-        const minted = await setup('slot-a').deviceId();
+        const minted = await browser('slot-a').deviceId();
 
-        await expect(setup('slot-a').deviceId()).resolves.toBe(minted);
+        await expect(browser('slot-a').deviceId()).resolves.toBe(minted);
     });
 
     it('keeps one slot stable across repeated calls', async () => {
-        const service = setup('slot-a');
+        const service = browser('slot-a');
 
         const [a, b] = await Promise.all([service.deviceId(), service.deviceId()]);
 
@@ -456,7 +477,7 @@ describe('outside Tauri', () => {
     });
 
     it('gives two accounts two different ids - the whole of the isolation', async () => {
-        const service = setup('slot-a');
+        const service = browser('slot-a');
         const a = await service.deviceId();
 
         registry.slotId = 'slot-b';
@@ -468,14 +489,14 @@ describe('outside Tauri', () => {
 
     it('adopts the legacy installation id for the first slot rather than re-minting', async () => {
         localStorage.setItem(`${PREFIX}mls_device_id`, JSON.stringify({value: 'legacy-device'}));
-        const service = setup('slot-a');
+        const service = browser('slot-a');
 
         await expect(service.deviceId()).resolves.toBe('legacy-device');
     });
 
     it('hands the legacy id to one slot only - a second account gets a fresh one', async () => {
         localStorage.setItem(`${PREFIX}mls_device_id`, JSON.stringify({value: 'legacy-device'}));
-        const service = setup('slot-a');
+        const service = browser('slot-a');
         await expect(service.deviceId()).resolves.toBe('legacy-device');
 
         registry.slotId = 'slot-b';
@@ -487,16 +508,16 @@ describe('outside Tauri', () => {
 
     it('keeps the legacy id for the bootstrap slot, and mirrors a minted one back', async () => {
         localStorage.setItem(`${PREFIX}mls_device_id`, JSON.stringify({value: 'legacy-device'}));
-        await expect(setup(BOOTSTRAP_SLOT_ID).deviceId()).resolves.toBe('legacy-device');
+        await expect(browser(BOOTSTRAP_SLOT_ID).deviceId()).resolves.toBe('legacy-device');
 
         localStorage.clear();
-        const minted = await setup(BOOTSTRAP_SLOT_ID).deviceId();
+        const minted = await browser(BOOTSTRAP_SLOT_ID).deviceId();
 
         expect(stored('mls_device_id')).toEqual({value: minted});
     });
 
     it('persists the same shape the Tauri store holds, so neither backend is a fork', async () => {
-        const service = setup(BOOTSTRAP_SLOT_ID);
+        const service = browser(BOOTSTRAP_SLOT_ID);
         const id = await service.deviceId();
 
         // Byte for byte what `values` ends up holding on the desktop path above, only JSON encoded
@@ -508,7 +529,7 @@ describe('outside Tauri', () => {
     });
 
     it('reset drops the live slot and the legacy mirror, and the next read mints anew', async () => {
-        const service = setup(BOOTSTRAP_SLOT_ID);
+        const service = browser(BOOTSTRAP_SLOT_ID);
         const first = await service.deviceId();
 
         await service.reset();
@@ -520,7 +541,7 @@ describe('outside Tauri', () => {
 
     it('mints rather than throwing when the stored value is corrupt', async () => {
         localStorage.setItem(`${PREFIX}mls_device_ids`, 'not json');
-        const service = setup('slot-a');
+        const service = browser('slot-a');
 
         // Boot survivability is the point. A value nothing can parse is a value nothing can act
         // on, and stranding the launch on it is the exact failure this backend exists to remove.

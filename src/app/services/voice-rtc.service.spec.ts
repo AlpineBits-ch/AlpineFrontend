@@ -7,18 +7,11 @@
  * These tests pin the recovery: retry across that window, do not retry into a participant who has
  * left, and never subscribe twice for a session already being pulled.
  */
-// A spy rather than a fixed arrow, and set below per test: several spec files mock this module and
-// only one registration wins per run, so anything relying on this file's value held or not
-// depending on file ordering. See the same note in voice-engine.service.spec.ts.
-vi.mock('@tauri-apps/api/core', () => ({
-    invoke: vi.fn().mockResolvedValue(undefined),
-    isTauri: vi.fn(() => false),
-    Channel: class {
-    },
-}));
-
+// No `vi.mock('@tauri-apps/api/core')`. Nothing this file's injector graph reaches imports it any
+// more - the host branches it used to stand in for went to `ScreenPublisher` and the other ports -
+// and the mock was doing real harm while it stayed: several spec files register one and only one
+// wins per run, so what any of them saw depended on file ordering.
 import {TestBed} from '@angular/core/testing';
-import {isTauri} from '@tauri-apps/api/core';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {OAuthService} from 'angular-oauth2-oidc';
@@ -62,8 +55,6 @@ const target = (userId = 'user_a', mediaSessionId = 'sess_1') => ({
 
 beforeEach(() => {
     vi.useFakeTimers();
-    // The engine is faked here, so nothing should be reaching Rust directly.
-    vi.mocked(isTauri).mockReturnValue(false);
     engine = new FakeEngine();
 
     TestBed.configureTestingModule({
@@ -467,7 +458,6 @@ describe('rebuilding a share at a new resolution', () => {
         const rustMedia = TestBed.inject(RustMediaService) as unknown as Record<string, unknown>;
         rustMedia['stopScreenPublish'] = vi.fn(async () => undefined);
         rustMedia['startScreenPublish'] = vi.fn();
-        vi.mocked(isTauri).mockReturnValue(true);
         // `publishOptions` reads this; the shared stub only carries the method other tests need.
         (TestBed.inject(DeviceIdentityService) as unknown as Record<string, unknown>)['deviceId'] =
             vi.fn(async () => 'device');

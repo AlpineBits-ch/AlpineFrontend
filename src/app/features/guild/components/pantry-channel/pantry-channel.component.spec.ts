@@ -13,6 +13,7 @@ import {RealtimeConnectionService} from '../../../../services/realtime-connectio
 import {ChannelDto, ChannelType, GuildDto} from '../../../../dtos/response/guild.dto';
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {PantryConfig, PantryItem} from '../../../../dtos/response/pantry.dto';
+import {provideFakePlatform} from '../../../../platform/testing/provide-fake-platform';
 
 const BASE = 'https://api.test.example';
 const GUILD_URL = `${BASE}/api/v1/guild`;
@@ -95,6 +96,7 @@ function setup(opts: {
     TestBed.configureTestingModule({
         imports: [PantryChannelComponent],
         providers: [
+            provideFakePlatform(),
             provideHttpClient(),
             provideHttpClientTesting(),
             provideTranslateService({defaultLanguage: 'en'}),
