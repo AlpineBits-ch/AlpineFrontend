@@ -28,6 +28,7 @@ import {providePlatform} from './platform/provide-platform';
 import {provideTranslateService} from '@ngx-translate/core';
 import {provideTranslateHttpLoader} from '@ngx-translate/http-loader';
 import {AlpinePreset} from './theme/alpine-preset';
+import {cspNonce} from './csp-nonce';
 import * as Sentry from "@sentry/angular";
 import {ApiConfigService} from "./services/api-config.service";
 import {authConfig} from './auth.config';
@@ -120,6 +121,9 @@ export const appConfig: ApplicationConfig = {
         provideZoneChangeDetection({eventCoalescing: true}),
         provideRouter(routes),
         providePrimeNG({
+            // Without this every `<style>` PrimeNG injects for the compiled preset is refused by
+            // the web image's `style-src`, and the app renders as Tailwind-only. See cspNonce().
+            csp: {nonce: cspNonce()},
             // PrimeNG 21 changed the default from `body` to `self`, so every overlay - select
             // panels, date pickers, popovers, menus - now renders inside its own container. Inside
             // a `p-dialog` that container is a scroll box with `overflow: auto`, and the panel is
