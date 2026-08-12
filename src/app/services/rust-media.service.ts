@@ -180,11 +180,13 @@ export class RustMediaService {
      * The publisher's share ended without being asked to.
      *
      * <p>Fires when a web user stops the share from the browser's own capture bar - the primary way a
-     * share ends in a browser, and one that does not go through the app at all. <b>Nothing subscribes to
-     * this yet:</b> the services that own the "sharing" UI state are `voice-rtc.service.ts` and
-     * `call-session.service.ts`, and both belong to other work in flight. Until one of them forwards it
-     * into its own `screenEnded$`, a web share stopped from the browser bar leaves the button lit while
-     * the publish is genuinely gone.</p>
+     * share ends in a browser, and one that does not go through the app at all.</p>
+     *
+     * <p>This is a singleton, so it fires for whichever publish ended rather than for any one caller's.
+     * A subscriber that owns "am I sharing" UI state must therefore check that the running publish is
+     * <i>its own</i> before acting - see `VoiceRTCService`, which gates the forward on `rustPublishing`.
+     * <b>`call-session.service.ts` does not forward this yet:</b> a 1:1 call share stopped from the
+     * browser bar still leaves that button lit while the publish is gone.</p>
      */
     readonly publishEnded$ = this.publishEndedSignal.asObservable();
 
