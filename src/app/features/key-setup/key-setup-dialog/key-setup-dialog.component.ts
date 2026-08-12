@@ -68,6 +68,16 @@ export class KeySetupDialogComponent {
     /** Entropy collected before the recovery-code steps, carried through to the upload. */
     private collectedEntropy: number[] = [];
 
+    /**
+     * Whether to collect mouse-movement entropy before minting the recovery code.
+     *
+     * <p>Both halves are form-factor questions, which is why moving `isMobile` from the old
+     * `PlatformService` (false for anything outside Tauri) to {@link OsInfo} (a true form factor)
+     * changes nothing here in any direction: a phone browser now answers `isMobile` true, and it was
+     * already excluded by `pointer: fine`. Desktop browser and desktop shell are unaffected either
+     * way. This is <b>not</b> a host check and must not become one - there is nothing about a
+     * mouse-driven browser that makes it unable to wiggle a pointer.</p>
+     */
     private readonly showEntropy =
         !this.os.isMobile &&
         window.matchMedia('(pointer: fine)').matches;

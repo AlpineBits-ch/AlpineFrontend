@@ -1,5 +1,5 @@
 import {DeviceType} from '../dtos/response/user-device.dto';
-import {detectHost} from '../platform/host';
+import {detectHost, PlatformHost} from '../platform/host';
 
 /** The parts of this device's identity that are safe to derive without any I/O. */
 export interface DeviceDescription {
@@ -15,16 +15,32 @@ export interface DeviceDescription {
  * phone approving an anonymous "unknown device".
  *
  * Lives in its own module rather than beside its first caller: `DeviceIdentityService`,
- * `QrLoginService` and `AuthService` all need it, and the first two also depend on each other
- * through DI - importing it from either would close an import cycle.
+ * `QrLoginService`, `AuthService` and `DeviceRegistrationModalComponent` all need it, and the first
+ * two also depend on each other through DI - importing it from either would close an import cycle.
+ *
+ * <p><b>This is the only place a `DeviceType` is decided, and that is load-bearing rather than
+ * tidy.</b> The registration modal used to compute its own as
+ * `isMobile ? Mobile : Desktop`, which never returned {@link DeviceType.Web} at all - so a browser
+ * registered as Desktop, and once `isMobile` became a true form-factor read a *phone browser*
+ * registered as Mobile. The backend picks a push transport off this field, so that second one would
+ * have routed mobile web at FCM/APNs instead of Web Push and dropped every notification silently.</p>
+ *
+ * <p><b>The host decides first, and form factor plays no part.</b> Any browser is
+ * {@link DeviceType.Web} whatever it is running on. {@link DeviceType.Mobile} is <b>never</b> produced
+ * here, because it is not this client's to send: Tauri mobile is not built from this crate - see the
+ * `crate-type = ["rlib"]` note in `src-tauri/Cargo.toml` - and the phone app is a separate Flutter
+ * client that reports `Mobile` for itself. If a Tauri mobile target ever comes back, the form-factor
+ * branch belongs *here*, where all four callers pick it up together, and not in one of them.</p>
+ *
+ * @param host defaults to {@link detectHost}, and every caller leaves it out. It is a parameter only
+ *        so a spec can exercise both branches without defining `__TAURI_INTERNALS__` on `globalThis`,
+ *        which `platform-boundary.spec.ts` counts as reaching around the ports. Passing it also keeps
+ *        the global read in exactly one place - the `typeof window` guard lives there too.
  */
-export function describeCurrentDevice(): DeviceDescription {
+export function describeCurrentDevice(host: PlatformHost = detectHost()): DeviceDescription {
     const os = detectOs();
 
-    // `detectHost()` rather than a second read of `__TAURI_INTERNALS__`: this is a plain function with
-    // no injector, so the host module is reached directly, but the global itself stays read in exactly
-    // one place. The `typeof window` guard lives there too.
-    if (detectHost() === 'tauri') {
+    if (host === 'tauri') {
         return {deviceName: `Venta Desktop on ${os}`, deviceType: DeviceType.Desktop};
     }
     return {deviceName: `${detectBrowser()} on ${os}`, deviceType: DeviceType.Web};
