@@ -1,4 +1,4 @@
-@if (isTauri()) {
+@if (showChrome()) {
     <!-- No `(dblclick)` handler here on purpose. Tauri's injected drag script already invokes
          `internal_toggle_maximize` on the mousedown of a double click over a drag region, so a
          binding on top of it toggled twice - the window snapped out of maximized and straight back

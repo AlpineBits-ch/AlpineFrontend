@@ -44,13 +44,16 @@ export class TitlebarComponent implements OnInit, OnDestroy {
     /**
      * Whether to draw a window frame at all.
      *
-     * <p>Kept under the name it had - it is what the template's outermost `@if` reads, and what
-     * `titlebar.component.spec.ts` flips by hand to render the bar without standing up a host. It is
-     * now set from {@link WindowChrome.supported} rather than from the Tauri global, so it means "this
-     * host lets the app own its frame". Nothing else changed: on web it stays false and the bar is
-     * *hidden*, per the design spec's rule that a missing minimise button needs no explanation.</p>
+     * <p>Was `isTauri`, which is no longer what it means: it is set from {@link WindowChrome.supported}
+     * and then narrowed by a user-agent test, so a Tauri phone build has it false while being every bit
+     * as much a Tauri host. "Does this host let the app own its frame, and is there room for one" is the
+     * question, and the name now asks it. It is what the template's outermost `@if` reads, and what
+     * `titlebar.component.spec.ts` flips by hand to render the bar without standing up a host.</p>
+     *
+     * <p>On web it stays false and the bar is *hidden*, per the design spec's rule that a missing
+     * minimise button needs no explanation.</p>
      */
-    protected isTauri = signal(false);
+    protected showChrome = signal(false);
     protected isMac = signal(false);
     protected isMaximized = signal(false);
     protected macHover = false;
@@ -192,7 +195,7 @@ export class TitlebarComponent implements OnInit, OnDestroy {
         const ua = navigator.userAgent.toLowerCase();
         if (/android|iphone|ipad|ipod/.test(ua)) return;
 
-        this.isTauri.set(true);
+        this.showChrome.set(true);
         this.isMac.set(ua.includes('mac os') || ua.includes('macos'));
 
         // Mice have had these two buttons for twenty years and every app that has a history

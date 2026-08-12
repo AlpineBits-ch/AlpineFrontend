@@ -106,8 +106,9 @@ export function providePlatform(): EnvironmentProviders {
 
         // ── SettingsStoreFactory ──────────────────────────────────────────────
         // Tauri: one `LazyStore` per open, plugin imported on first call. Web: `localStorage`.
-        // `openSettingsStore()` in services/settings-store.ts calls the same factory function, so
-        // the two entry points cannot disagree about the host while its other callers migrate.
+        // The only entry point now: the free `openSettingsStore()` that used to call the same factory
+        // is gone, and its three readers - the account registry, the device ids and the push token -
+        // inject this port.
         {provide: SettingsStoreFactory, useFactory: () => createSettingsStoreFactory(host)},
 
         // ── FileSaver ─────────────────────────────────────────────────────────
@@ -130,9 +131,10 @@ export function providePlatform(): EnvironmentProviders {
 
         // ── OsInfo ────────────────────────────────────────────────────────────
         // tauri: the OS plugin's injected global + api/app over IPC, web: navigator + package.json.
-        // Safe to inject from a field initialiser, which `PlatformService` was not: neither adapter
-        // can throw while being constructed, which is the failure `PlatformService` documents at
-        // length - a `TypeError` there took route activation for `/overview` down with it.
+        // Safe to inject from a field initialiser, which the deleted `PlatformService` was not:
+        // neither adapter can throw while being constructed, and that is the whole difference - a
+        // `TypeError` from that service's field took route activation for `/overview` down with it.
+        // Every former caller of `PlatformService.isMobile` now injects this port directly.
         {
             provide: OsInfo,
             useFactory: (): OsInfo => (host === 'tauri' ? new TauriOsInfo() : new WebOsInfo()),

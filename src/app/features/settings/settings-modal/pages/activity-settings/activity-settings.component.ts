@@ -8,7 +8,7 @@ import {UserSettingsService} from '../../../../../services/user-settings.service
 import {RichPresenceService} from '../../../../../services/rich-presence.service';
 import {ToastService} from '../../../../../services/toast.service';
 import {PlatformCapabilities} from '../../../../../platform/capabilities';
-import {PlatformService} from '../../../../../services/platform.service';
+import {OsInfo} from '../../../../../platform/ports/os-info.port';
 
 /** One row in the per-game list. */
 interface GameRow {
@@ -40,7 +40,7 @@ export class ActivitySettingsComponent implements OnInit {
     protected readonly privacy = inject(PrivacySettingsService);
     private readonly userSettings = inject(UserSettingsService);
     private readonly richPresence = inject(RichPresenceService);
-    private readonly platform = inject(PlatformService);
+    private readonly os = inject(OsInfo);
     private readonly capabilities = inject(PlatformCapabilities);
     private readonly toast = inject(ToastService);
     private readonly translate = inject(TranslateService);
@@ -73,7 +73,7 @@ export class ActivitySettingsComponent implements OnInit {
      * disabled with no reason line at all.</p>
      */
     protected readonly canDetect = computed(() =>
-        this.capabilities.gameDetection && !this.platform.isMobile);
+        this.capabilities.gameDetection && !this.os.isMobile);
 
     protected readonly discordIntegration = computed(() =>
         this.userSettings.activitySettings().discordIntegration

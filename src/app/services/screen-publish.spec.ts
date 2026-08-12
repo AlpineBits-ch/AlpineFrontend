@@ -37,23 +37,30 @@ describe('useRustPublisher', () => {
 
     afterEach(() => {
         environment.rustPublisher = original;
-        delete (window as {__TAURI_INTERNALS__?: unknown}).__TAURI_INTERNALS__;
     });
 
+    // The host is passed rather than faked by defining `__TAURI_INTERNALS__` on `window`. That trick
+    // tested `detectHost()`, which has its own home in `src/app/platform/`, and reaching around the
+    // ports to do it is what `platform-boundary.spec.ts` exists to catch.
     it('is true in a browser even with the Rust rollback engaged', () => {
         environment.rustPublisher = false;
 
-        expect(useRustPublisher()).toBe(true);
+        expect(useRustPublisher('web')).toBe(true);
     });
 
     it('follows the rollback flag on the desktop host', () => {
-        (window as {__TAURI_INTERNALS__?: unknown}).__TAURI_INTERNALS__ = {};
-
         environment.rustPublisher = true;
-        expect(useRustPublisher()).toBe(true);
+        expect(useRustPublisher('tauri')).toBe(true);
 
         environment.rustPublisher = false;
-        expect(useRustPublisher()).toBe(false);
+        expect(useRustPublisher('tauri')).toBe(false);
+    });
+
+    it('asks the host itself when the caller does not say, which is what every caller does', () => {
+        // Under the runner there is no Tauri global, so the default is the browser answer. The
+        // parameter existing must not change what a bare call means.
+        environment.rustPublisher = false;
+        expect(useRustPublisher()).toBe(useRustPublisher('web'));
     });
 });
 

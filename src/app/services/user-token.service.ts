@@ -3,8 +3,9 @@ import {firstValueFrom} from 'rxjs';
 import {HttpClient, HttpParams} from '@angular/common/http';
 import {ApiConfigService} from './api-config.service';
 import {DeviceIdentityService} from './device-identity.service';
-import {openSettingsStore} from './settings-store';
+import {SETTINGS_FILE} from './settings-store';
 import {Notifier, PushTokenKind} from '../platform/ports/notifier.port';
+import {SettingsStore, SettingsStoreFactory} from '../platform/ports/settings-store.port';
 
 /**
  * Where the push token is kept.
@@ -49,6 +50,7 @@ export class UserTokenService {
     private apiConfig = inject(ApiConfigService);
     private deviceIdentity = inject(DeviceIdentityService);
     private notifier = inject(Notifier);
+    private settings = inject(SettingsStoreFactory);
 
     public async ensureTokenRegistered(): Promise<void> {
         // Asked for the prompt, not as a gate. This has never gated registration - the permission
@@ -128,19 +130,23 @@ export class UserTokenService {
         return `${this.apiConfig.baseUrl()}/api/v1/identity/users/self/push-token`;
     }
 
+    /** A handle on the shared settings file, opened per use. See {@link SettingsStoreFactory}. */
+    private store(): SettingsStore {
+        return this.settings.open(SETTINGS_FILE);
+    }
+
     private async storedToken(): Promise<StoredPushToken | null> {
-        const store = openSettingsStore();
-        return (await store.get<StoredPushToken>(PUSH_TOKEN_KEY)) ?? null;
+        return (await this.store().get<StoredPushToken>(PUSH_TOKEN_KEY)) ?? null;
     }
 
     private async rememberToken(value: StoredPushToken): Promise<void> {
-        const store = openSettingsStore();
+        const store = this.store();
         await store.set(PUSH_TOKEN_KEY, value);
         await store.save();
     }
 
     private async forgetToken(): Promise<void> {
-        const store = openSettingsStore();
+        const store = this.store();
         await store.delete(PUSH_TOKEN_KEY);
         await store.save();
     }

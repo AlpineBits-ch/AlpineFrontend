@@ -1,10 +1,11 @@
-import {Injectable, signal} from '@angular/core';
+import {inject, Injectable, signal} from '@angular/core';
+import {SettingsStore, SettingsStoreFactory} from '../platform/ports/settings-store.port';
 import {
     activeSlotId as liveSlotId,
     BOOTSTRAP_SLOT_ID,
     setActiveSlotId,
 } from './scoped-oauth-storage';
-import {openSettingsStore} from './settings-store';
+import {SETTINGS_FILE} from './settings-store';
 
 // Re-exported from where it is defined, so the many callers that reach for it alongside the slot
 // list keep one import and the two modules keep a one-way dependency.
@@ -88,6 +89,18 @@ export interface AccountProfilePatch {
  */
 @Injectable({providedIn: 'root'})
 export class AccountRegistryService {
+    /**
+     * The settings backend, injected rather than chosen.
+     *
+     * <p>This service is reached early - a route guard and the device-id interceptor both get here
+     * before most of the app exists - which is why it used to call a free `openSettingsStore()` that
+     * asked `detectHost()` itself. A field injection is safe at that point regardless: the provider
+     * is on the environment injector from `providePlatform()`, and neither adapter does any work
+     * while being constructed. What it buys is that "which host is this" is no longer a question
+     * this file can answer, so a spec supplies a store instead of defining a global.</p>
+     */
+    private readonly settings = inject(SettingsStoreFactory);
+
     private readonly _slots = signal<AccountSlot[]>([]);
     private readonly _activeSlotId = signal<string | null>(null);
 
@@ -247,10 +260,10 @@ export class AccountRegistryService {
      *
      * <p>This is the first store read the app performs at all - `DeviceIdentityService.deviceId()`
      * goes through {@link activeSlotId}, which awaits this - so it is also the first thing that
-     * breaks when there is no IPC host. See {@link openSettingsStore}.</p>
+     * breaks when there is no IPC host. See {@link SettingsStoreFactory}.</p>
      */
     private async read(): Promise<RegistryFile> {
-        const store = openSettingsStore();
+        const store = this.store();
         const raw = await store.get<{slots?: AccountSlot[]}>(REGISTRY_KEY);
         const file: RegistryFile = {
             slots: Array.isArray(raw?.slots) ? raw.slots : [],
@@ -266,7 +279,7 @@ export class AccountRegistryService {
         const current = await this.load();
         const {result, live, ...next} = change(current);
 
-        const store = openSettingsStore();
+        const store = this.store();
         await store.set(REGISTRY_KEY, next);
         await store.save();
 
@@ -276,6 +289,18 @@ export class AccountRegistryService {
         this.loaded = Promise.resolve(next);
         this.publish(next);
         return result;
+    }
+
+    /**
+     * A handle on the settings file, opened per use.
+     *
+     * <p>Per call rather than held, because that is what the readers already did: a
+     * `new LazyStore(...)` at every read and every write. `LazyStore` is lazy by construction, so an
+     * unused one costs nothing, and keeping the lifetime identical is what made moving off the free
+     * function invisible to the desktop path.</p>
+     */
+    private store(): SettingsStore {
+        return this.settings.open(SETTINGS_FILE);
     }
 
     /** Refreshes the synchronous views. Never writes anything - see {@link read}. */

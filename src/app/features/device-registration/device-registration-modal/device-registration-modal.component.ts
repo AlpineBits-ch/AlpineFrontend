@@ -7,8 +7,7 @@ import {catchError, map} from 'rxjs/operators';
 import {UserService} from '../../../services/user.service';
 import {DeviceService} from '../../../services/device.service';
 import {MlsService} from '../../../services/mls.service';
-import {PlatformService} from '../../../services/platform.service';
-import {DeviceType} from '../../../dtos/response/user-device.dto';
+import {describeCurrentDevice} from '../../../services/device-description';
 import {TranslateModule} from '@ngx-translate/core';
 
 type Step = 'input' | 'processing' | 'done';
@@ -32,7 +31,6 @@ export class DeviceRegistrationModalComponent {
     private userService = inject(UserService);
     private deviceService = inject(DeviceService);
     private mlsService = inject(MlsService);
-    private platformService = inject(PlatformService);
 
     protected onDeviceNameInput(event: Event): void {
         this.deviceName.set((event.target as HTMLInputElement).value);
@@ -50,7 +48,15 @@ export class DeviceRegistrationModalComponent {
     }
 
     private register(deviceName: string): void {
-        const deviceType = this.platformService.isMobile ? DeviceType.Mobile : DeviceType.Desktop;
+        // Only the type: the name is the one the user just typed, not a derived label.
+        //
+        // Deliberately the shared decision rather than a form-factor read of its own. This line used
+        // to be `isMobile ? Mobile : Desktop`, which could not return `Web` at all - so a browser
+        // registered as Desktop, and once `isMobile` started answering the real form factor a phone
+        // browser registered as Mobile. The backend picks a push transport off this field, so that
+        // would have aimed mobile web at FCM/APNs rather than Web Push. See `describeCurrentDevice`,
+        // which decides the host first and explains why `Mobile` is never this client's to send.
+        const {deviceType} = describeCurrentDevice();
 
         const attemptRegistration = () =>
             from(this.mlsService.getOrCreateDeviceIdentifier()).pipe(

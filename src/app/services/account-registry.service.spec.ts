@@ -5,42 +5,13 @@
  * a rename must not strand the account's device id, MLS state and message history behind a slot
  * nothing looks up any more.</p>
  */
-// Only the store plugin is mocked. Which backend `openSettingsStore()` returns is decided by
-// `detectHost()`, which reads the Tauri global - so the host is entered by defining it (see
-// `enterTauri`) rather than by stubbing a function.
-vi.mock('@tauri-apps/plugin-store', () => ({
-    // Named, and self-referencing: the factory is hoisted above every module-level binding, so a
-    // reference to anything declared below it is a ReferenceError at construction time.
-    LazyStore: class LazyStoreStub {
-        // Static, so two `new LazyStore('settings.json')` calls see one file - which is what the
-        // real plugin does and what the service relies on when it re-opens the store per write.
-        static readonly files = new Map<string, Map<string, unknown>>();
-
-        private readonly values: Map<string, unknown>;
-
-        constructor(file: string) {
-            const existing = LazyStoreStub.files.get(file);
-            this.values = existing ?? new Map<string, unknown>();
-            LazyStoreStub.files.set(file, this.values);
-        }
-
-        async get<T>(key: string) { return this.values.get(key) as T | undefined; }
-        async set(key: string, value: unknown) { this.values.set(key, value); }
-        async delete(key: string) { this.values.delete(key); }
-        async entries<T>() { return [...this.values.entries()] as [string, T][]; }
-        async clear() { this.values.clear(); }
-        async save() { }
-    },
-}));
-
 import {TestBed} from '@angular/core/testing';
-import {LazyStore} from '@tauri-apps/plugin-store';
+import {SettingsStoreFactory} from '../platform/ports/settings-store.port';
+import {FakeSettingsStoreFactory} from '../platform/testing/fake-settings-store';
+import {provideFakePlatform} from '../platform/testing/provide-fake-platform';
+import {WebSettingsStoreFactory} from '../platform/web/settings-store';
 import {AccountRegistryService, BOOTSTRAP_SLOT_ID} from './account-registry.service';
 import {setActiveSlotId} from './scoped-oauth-storage';
-
-const LazyStoreMock = LazyStore as unknown as {
-    files: Map<string, Map<string, unknown>>;
-};
 
 /**
  * Which slot is live lives in `localStorage`, not in the registry file - see `RegistryFile`. This
@@ -50,26 +21,18 @@ const LazyStoreMock = LazyStore as unknown as {
 const localStore = new Map<string, string>();
 
 /**
- * Which host the bundle believes it is in.
+ * The settings backend, provided rather than detected.
  *
- * <p>Entered by defining the global the Tauri runtime injects, because that is what `detectHost()`
- * reads and so what decides which `SettingsStore` the registry gets. Re-entered in `beforeEach`
- * because the "outside Tauri" block below deletes it, and a leak in either direction would have the
- * desktop tests silently asserting against `localStorage`.</p>
+ * <p>This file used to define `__TAURI_INTERNALS__` on `globalThis` and mock
+ * `@tauri-apps/plugin-store`, because the service reached the backend through a free function that
+ * asked `detectHost()`. It injects {@link SettingsStoreFactory} now, so the backend is a provider -
+ * which is the point of the seam and not merely tidier: the global trick chose a *host*, and every
+ * spec doing it fought over one module-mock registration per run.</p>
+ *
+ * <p>Held at module scope and reset per test, so it survives the `TestBed.resetTestingModule()` in
+ * {@link freshService} the way a real store file survives a restart.</p>
  */
-const TAURI_GLOBAL = '__TAURI_INTERNALS__';
-
-function enterTauri(): void {
-    (globalThis as Record<string, unknown>)[TAURI_GLOBAL] = {};
-}
-
-function leaveTauri(): void {
-    delete (globalThis as Record<string, unknown>)[TAURI_GLOBAL];
-}
-
-afterAll(() => {
-    leaveTauri();
-});
+const settings = new FakeSettingsStoreFactory();
 
 beforeAll(() => {
     Object.defineProperty(globalThis, 'localStorage', {
@@ -83,9 +46,17 @@ beforeAll(() => {
     });
 });
 
-function freshService(): AccountRegistryService {
+/**
+ * A restart: every service rebuilt against the same persisted state.
+ *
+ * <p>Takes the backend as an argument so the "outside Tauri" block below can hand over the real
+ * `localStorage` adapter. Defaults to {@link settings}, which is the shared in-memory one.</p>
+ */
+function freshService(backend: SettingsStoreFactory = settings): AccountRegistryService {
     TestBed.resetTestingModule();
-    TestBed.configureTestingModule({providers: [AccountRegistryService]});
+    TestBed.configureTestingModule({
+        providers: [provideFakePlatform({SettingsStoreFactory: backend}), AccountRegistryService],
+    });
     return TestBed.inject(AccountRegistryService);
 }
 
@@ -93,10 +64,25 @@ describe('AccountRegistryService', () => {
     let service: AccountRegistryService;
 
     beforeEach(() => {
-        enterTauri();
-        LazyStoreMock.files.clear();
+        settings.reset();
         localStore.clear();
         service = freshService();
+    });
+
+    it('reads and writes through the injected factory, not a backend of its own choosing', async () => {
+        // The seam itself. A store nothing provided would answer nothing, so this would fail with the
+        // free function still wired up: the registry would have found its own backend and this
+        // factory would never have been opened.
+        const only = new FakeSettingsStoreFactory();
+        const isolated = freshService(only);
+
+        const slot = await isolated.ensureSlot({userId: 'user-1', serverUrl: 'https://a.example'});
+
+        expect(only.opened).toContain('settings.json');
+        expect(only.peek<{slots: {id: string}[]}>('settings.json', 'accounts')?.slots)
+            .toEqual([expect.objectContaining({id: slot.id})]);
+        // And nothing leaked to the backend this test did not provide.
+        expect(settings.opened).toEqual([]);
     });
 
     it('reports the bootstrap slot before anyone has signed in', async () => {
@@ -241,7 +227,7 @@ describe('AccountRegistryService', () => {
     });
 
     it('reads a store that has never been written as empty rather than throwing', async () => {
-        LazyStoreMock.files.set('settings.json', new Map([['accounts', {} as unknown]]));
+        settings.put('settings.json', 'accounts', {});
         const bare = freshService();
 
         expect(await bare.list()).toEqual([]);
@@ -261,6 +247,10 @@ describe('AccountRegistryService', () => {
      * <p>The assertions are the same ones the desktop path is held to, restated against the other
      * backend: the logic above the store is one implementation, so the value here is that it is
      * provably backend-blind.</p>
+     *
+     * <p><b>The real `WebSettingsStoreFactory`, provided</b> - not a host faked by deleting a global.
+     * The prefix and the JSON shape below are properties of that adapter, so a fake here would have
+     * asserted them against nothing.</p>
      */
     describe('outside Tauri', () => {
         /**
@@ -270,43 +260,45 @@ describe('AccountRegistryService', () => {
          */
         const PREFIX = 'alpine_settings::';
 
-        beforeEach(() => {
-            leaveTauri();
-        });
+        const web = new WebSettingsStoreFactory();
+
+        function browser(): AccountRegistryService {
+            return freshService(web);
+        }
 
         it('reads an empty registry without ever opening the Tauri store', async () => {
-            const bare = freshService();
+            const bare = browser();
 
             expect(await bare.list()).toEqual([]);
             expect(await bare.activeSlotId()).toBe(BOOTSTRAP_SLOT_ID);
-            // The gate is the whole guarantee: no `LazyStore` was constructed, so there was no IPC
-            // to reject. A constructed one would have registered its file here.
-            expect(LazyStoreMock.files.size).toBe(0);
+            // The gate is now structural rather than asserted: this service is handed a backend and
+            // has no branch that could reach for another one.
+            expect(settings.opened).toEqual([]);
         });
 
         it('creates a slot on first sign-in and makes it live', async () => {
-            const bare = freshService();
+            const bare = browser();
 
             const slot = await bare.ensureSlot({userId: 'user-1', serverUrl: 'https://a.example'});
 
             expect(await bare.activeSlotId()).toBe(slot.id);
             expect(await bare.list()).toHaveLength(1);
-            expect(LazyStoreMock.files.size).toBe(0);
+            expect(settings.opened).toEqual([]);
         });
 
         it('survives a restart, so the slot keeps its device id and MLS state', async () => {
-            const slot = await freshService().ensureSlot({
+            const slot = await browser().ensureSlot({
                 userId: 'user-1', serverUrl: 'https://a.example', username: 'ada',
             });
 
-            const restarted = freshService();
+            const restarted = browser();
 
             expect(await restarted.activeSlotId()).toBe(slot.id);
             expect((await restarted.list())[0].username).toBe('ada');
         });
 
         it('persists under the shared settings prefix, in the shape the Tauri store holds', async () => {
-            const bare = freshService();
+            const bare = browser();
             const slot = await bare.ensureSlot({userId: 'user-1', serverUrl: 'https://a.example'});
 
             // Same key, same nesting as the store file. Anything flatter here would fork the read
@@ -316,11 +308,11 @@ describe('AccountRegistryService', () => {
         });
 
         it('does not move the live slot merely by being read', async () => {
-            await freshService().ensureSlot({userId: 'user-1', serverUrl: 'https://a.example'});
+            await browser().ensureSlot({userId: 'user-1', serverUrl: 'https://a.example'});
             // What "Add Account" does: sets the live slot aside without removing any slot.
             setActiveSlotId(BOOTSTRAP_SLOT_ID);
 
-            const restarted = freshService();
+            const restarted = browser();
             await restarted.list();
             await restarted.activeSlot();
 
@@ -330,7 +322,7 @@ describe('AccountRegistryService', () => {
         it('reads a corrupt registry as empty rather than stranding the launch', async () => {
             localStore.set(`${PREFIX}accounts`, 'not json');
 
-            const bare = freshService();
+            const bare = browser();
 
             // Boot survivability is the point, and it is the same rule the device id follows: a
             // value nothing can parse is a value nothing can act on.
@@ -339,7 +331,7 @@ describe('AccountRegistryService', () => {
         });
 
         it('removes the live slot and falls back to the most recently used survivor', async () => {
-            const bare = freshService();
+            const bare = browser();
             const a = await bare.ensureSlot({userId: 'user-1', serverUrl: 'https://a.example'});
             const b = await bare.ensureSlot({userId: 'user-2', serverUrl: 'https://a.example'});
             await bare.activate(a.id);

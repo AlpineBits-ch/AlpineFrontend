@@ -75,8 +75,8 @@ export class DataExportService {
      *
      * <p>Off the desktop shell the caller has no choice but {@link download}, CORS and all.</p>
      *
-     * <p>The same gate as before, asked of {@link OsInfo} instead of `isTauri()` and
-     * `PlatformService`: a desktop host (`kind` is a real OS, not `'web'`) that is not a phone. Both
+     * <p>The same gate as before, asked of {@link OsInfo} instead of `isTauri()` and the since
+     * deleted `PlatformService`: a desktop host (`kind` is a real OS, not `'web'`) that is not a phone. Both
      * halves still matter - the Rust command exists in the mobile shell too, but a phone has no file
      * picker worth showing.</p>
      */

@@ -1,4 +1,4 @@
-@if (platformService.isMobile) {
+@if (os.isMobile) {
     @if (sortedConversations().length === 0) {
         <app-empty-state icon="pi-inbox" message="No messages yet"/>
     }

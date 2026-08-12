@@ -8,6 +8,7 @@ import {GuildReadStateService} from './guild-read-state.service';
 import {GuildWebsocketService} from './guild-websocket.service';
 import {ApiConfigService} from './api-config.service';
 import {ProfileService} from './profile.service';
+import {provideFakePlatform} from '../platform/testing/provide-fake-platform';
 
 const BASE = 'https://api.test.example';
 const UNREAD = `${BASE}/api/v1/guild/inbox/unread?limit=25`;
@@ -16,6 +17,7 @@ function setup() {
     const ws = {messageObservable: new Subject<any>()};
     TestBed.configureTestingModule({
         providers: [
+            provideFakePlatform(),
             provideHttpClient(),
             provideHttpClientTesting(),
             {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},

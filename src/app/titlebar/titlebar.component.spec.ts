@@ -12,6 +12,7 @@ import {ConversationUtilsService} from '../services/conversation-utils.service';
 import {ApiConfigService} from '../services/api-config.service';
 import {WindowChrome} from '../platform/ports/window-chrome.port';
 import {FakeWindowChrome} from '../platform/testing/fake-window-chrome';
+import {provideFakePlatform} from '../platform/testing/provide-fake-platform';
 
 const GERMAN = {'TITLEBAR.HELP_KEYBINDS': 'Tastenkürzel', 'TITLEBAR.HELP_ABOUT': 'Über Venta'};
 
@@ -95,8 +96,8 @@ function inboxStub(): InboxSurface {
  * A host with no window frame - which is what a bare TestBed is, and what a browser is.
  *
  * <p>`supported = false` is what `ngOnInit` reads, so this keeps the bar undrawn by default exactly as
- * the `__TAURI_INTERNALS__` check did. The one describe that needs the chrome rendered flips the signal
- * by hand instead of flipping this - see {@link chrome} below.</p>
+ * the old Tauri-global check did. The one describe that needs the chrome rendered flips the
+ * `showChrome` signal by hand instead of flipping this - see {@link chrome} below.</p>
  */
 let windowChrome: FakeWindowChrome;
 
@@ -109,6 +110,7 @@ function setup() {
     TestBed.configureTestingModule({
         imports: [TitlebarComponent],
         providers: [
+            provideFakePlatform(),
             // Mirrors app.config.ts. `fallbackLang` rather than the deprecated `defaultLanguage`,
             // and deliberately no `lang`: nothing in this app calls `use()`, so the fallback load
             // is the only one that ever runs and `onLangChange` never fires on its own.
@@ -185,10 +187,10 @@ describe('TitlebarComponent help menu labels', () => {
 function chrome() {
     const {fixture} = setup();
     const instance = fixture.componentInstance as never as {
-        isTauri: {set(value: boolean): void};
+        showChrome: {set(value: boolean): void};
         toggleMaximize(): void;
     };
-    instance.isTauri.set(true);
+    instance.showChrome.set(true);
     fixture.detectChanges();
     const bar = (fixture.nativeElement as HTMLElement).querySelector('.titlebar') as HTMLElement;
     return {fixture, instance, bar};

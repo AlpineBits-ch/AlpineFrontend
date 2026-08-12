@@ -40,7 +40,7 @@ import {MessageStore} from '../../../../stores/message.store';
 
 import {ToastService} from '../../../../services/toast.service';
 import {NavigationService} from '../../../main-page/navigation.service';
-import {PlatformService} from "../../../../services/platform.service";
+import {OsInfo} from '../../../../platform/ports/os-info.port';
 import {TranslateModule} from '@ngx-translate/core';
 import {decodeBody, UNDECRYPTABLE_SHORT} from '../../../../helpers/message-content.helper';
 
@@ -78,7 +78,7 @@ const PREVIEW_SIZE = 30;
 })
 export class ConversationListComponent {
     public conversationSelected = output<ConversationDto>();
-    public platformService = inject(PlatformService)
+    public os = inject(OsInfo);
     readonly sortKey = computed(() => this.sortedConversations().map(c => c.id).join(','));
     // whenever the open conversation loads its full message history.
     previewMessages = signal<Map<string, MessageDto[]>>(new Map());

@@ -20,7 +20,8 @@ import {PresenceCatalog} from '../platform/ports/presence-catalog.port';
 import {emptyCatalogState as state, FakePresenceCatalog} from '../platform/testing/fake-presence-catalog';
 import {GameCatalogService} from './game-catalog.service';
 import {ApiConfigService} from './api-config.service';
-import {PlatformService} from './platform.service';
+import {OsInfo} from '../platform/ports/os-info.port';
+import {FakeOsInfo} from '../platform/testing/fake-os-info';
 
 const BASE = 'https://venta.example';
 const URL = `${BASE}/api/v1/social/games/catalog`;
@@ -49,7 +50,7 @@ function setup(isMobile = false) {
             provideHttpClient(),
             provideHttpClientTesting(),
             {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
-            {provide: PlatformService, useValue: {isMobile}},
+            {provide: OsInfo, useValue: new FakeOsInfo(isMobile ? 'android' : 'windows', isMobile)},
             {provide: PresenceCatalog, useValue: catalog},
         ],
     });

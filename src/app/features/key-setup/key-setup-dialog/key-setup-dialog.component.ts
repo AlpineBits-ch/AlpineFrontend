@@ -7,7 +7,7 @@ import {HttpErrorResponse} from '@angular/common/http';
 import {UserService} from '../../../services/user.service';
 import {MasterKeyEngineError, MasterKeyService} from '../../../services/master-key.service';
 import {BackupService, toWrappingDto} from '../../../services/backup.service';
-import {PlatformService} from '../../../services/platform.service';
+import {OsInfo} from '../../../platform/ports/os-info.port';
 import {AppInfoService} from '../../../services/app-info.service';
 import {catchError, EMPTY, filter, from, switchMap, take, tap} from 'rxjs';
 import {TranslateModule} from '@ngx-translate/core';
@@ -64,12 +64,22 @@ export class KeySetupDialogComponent {
     private userService = inject(UserService);
     private masterKeyService = inject(MasterKeyService);
     private backupService = inject(BackupService);
-    private platformService = inject(PlatformService);
+    private os = inject(OsInfo);
     /** Entropy collected before the recovery-code steps, carried through to the upload. */
     private collectedEntropy: number[] = [];
 
+    /**
+     * Whether to collect mouse-movement entropy before minting the recovery code.
+     *
+     * <p>Both halves are form-factor questions, which is why moving `isMobile` from the old
+     * `PlatformService` (false for anything outside Tauri) to {@link OsInfo} (a true form factor)
+     * changes nothing here in any direction: a phone browser now answers `isMobile` true, and it was
+     * already excluded by `pointer: fine`. Desktop browser and desktop shell are unaffected either
+     * way. This is <b>not</b> a host check and must not become one - there is nothing about a
+     * mouse-driven browser that makes it unable to wiggle a pointer.</p>
+     */
     private readonly showEntropy =
-        !this.platformService.isMobile &&
+        !this.os.isMobile &&
         window.matchMedia('(pointer: fine)').matches;
 
     /**

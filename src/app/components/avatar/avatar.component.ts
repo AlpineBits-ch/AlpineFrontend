@@ -2,13 +2,13 @@ import {Component, computed, effect, inject, input, signal} from '@angular/core'
 import {Avatar} from 'primeng/avatar';
 import {takeUntilDestroyed, toObservable} from '@angular/core/rxjs-interop';
 import {ProfileService} from '../../services/profile.service';
-import {PlatformService} from '../../services/platform.service';
+import {OsInfo} from '../../platform/ports/os-info.port';
 
 @Component({
     selector: 'app-avatar',
     imports: [Avatar],
     template: `
-    @if (platformService.isMobile) {
+    @if (os.isMobile) {
       <!--
         Was an <ion-avatar>, which is a block element with a 50% radius, hidden overflow and an
         img forced to cover. All four are one Tailwind class each, so the element carried no
@@ -47,7 +47,14 @@ export class AppAvatarComponent {
     label = input<string | undefined>(undefined);
     size = input<'normal' | 'large' | 'xlarge' | undefined>(undefined);
     styleClass = input<string | undefined>(undefined);
-    public platformService = inject(PlatformService);
+    /**
+     * The form factor, from the port rather than from `PlatformService`.
+     *
+     * <p>Public because the template above reads it. The answer now differs on one host: a phone
+     * browser reports `isMobile` true, where the old service answered false for everything outside
+     * Tauri - which is the point of the collapse, not a side effect of it.</p>
+     */
+    public os = inject(OsInfo);
     /**
      * The mobile avatar's box, in the same three sizes PrimeNG's `size` names.
      *

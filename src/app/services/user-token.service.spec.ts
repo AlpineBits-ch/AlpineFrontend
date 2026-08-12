@@ -7,18 +7,14 @@
  * makes the browser paths testable at all - a module mock of the desktop plugin cannot express "this
  * host mints no token", which is the case that must not break sign-in.</p>
  */
-// The last remaining native mock, and not this track's to remove. `openSettingsStore()` is still a
-// free function over the storage track's `SettingsStoreFactory`, whose desktop adapter builds a
-// `LazyStore`; when `UserTokenService` injects that port directly this goes too, and with it this
-// file's `.spec.ts` boundary exemption.
-vi.mock('@tauri-apps/plugin-store');
-
 import {TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
-import {LazyStore} from '@tauri-apps/plugin-store';
 import {Notifier} from '../platform/ports/notifier.port';
+import {SettingsStore, SettingsStoreFactory} from '../platform/ports/settings-store.port';
 import {FakeNotifier} from '../platform/testing/fake-notifier';
+import {provideFakePlatform} from '../platform/testing/provide-fake-platform';
+import {WebSettingsStoreFactory} from '../platform/web/settings-store';
 import {ApiConfigService} from './api-config.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {UserTokenService} from './user-token.service';
@@ -27,6 +23,25 @@ const BASE = 'https://api.venta.gg';
 const PUSH_URL = `${BASE}/api/v1/identity/users/self/push-token`;
 
 const store = {get: vi.fn(), set: vi.fn(), delete: vi.fn(), save: vi.fn()};
+
+/**
+ * The settings backend, provided rather than detected.
+ *
+ * <p>The `vi.mock('@tauri-apps/plugin-store')` and the `__TAURI_INTERNALS__` global this file used to
+ * carry are both gone: `UserTokenService` injects {@link SettingsStoreFactory}, so the backend is a
+ * provider. The mock was the last native one here, and its removal is what took this file off the
+ * boundary spec's spec-file exemption.</p>
+ */
+class StubSettingsStoreFactory extends SettingsStoreFactory {
+    readonly opened: string[] = [];
+
+    open(file: string): SettingsStore {
+        this.opened.push(file);
+        return store as unknown as SettingsStore;
+    }
+}
+
+const settings = new StubSettingsStoreFactory();
 
 /**
  * This runner's global `localStorage` exists but has no methods on it, so every read and write in
@@ -47,39 +62,20 @@ beforeAll(() => {
     });
 });
 
-/**
- * The Tauri global, which is what `detectHost()` reads and so what decides the settings backend.
- *
- * <p>Set here and cleared in the "outside Tauri" block below. Everything else in this file is about
- * the desktop path and would otherwise silently start asserting against `localStorage`.</p>
- */
-function enterTauri(): void {
-    Object.defineProperty(globalThis, '__TAURI_INTERNALS__', {configurable: true, value: {}});
-}
-
-function leaveTauri(): void {
-    delete (globalThis as Record<string, unknown>)['__TAURI_INTERNALS__'];
-}
-
 beforeEach(() => {
     vi.clearAllMocks();
-    enterTauri();
+    settings.opened.length = 0;
     localStorage.clear();
     store.get.mockResolvedValue(null);
     store.set.mockResolvedValue(undefined);
     store.delete.mockResolvedValue(undefined);
     store.save.mockResolvedValue(undefined);
-    // A regular function, not an arrow: the store adapter calls `new LazyStore(...)`.
-    vi.mocked(LazyStore).mockImplementation(function () {
-        return store as unknown as LazyStore;
-    });
 });
 
-afterEach(() => {
-    leaveTauri();
-});
-
-function setup(configure?: (notifier: FakeNotifier) => void) {
+function setup(
+    configure?: (notifier: FakeNotifier) => void,
+    backend: SettingsStoreFactory = settings,
+) {
     const notifier = new FakeNotifier();
     configure?.(notifier);
 
@@ -87,9 +83,9 @@ function setup(configure?: (notifier: FakeNotifier) => void) {
         providers: [
             provideHttpClient(),
             provideHttpClientTesting(),
+            provideFakePlatform({Notifier: notifier, SettingsStoreFactory: backend}),
             {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
             {provide: DeviceIdentityService, useValue: {deviceId: async () => 'device-abc'}},
-            {provide: Notifier, useValue: notifier},
         ],
     });
     return {
@@ -98,6 +94,23 @@ function setup(configure?: (notifier: FakeNotifier) => void) {
         notifier,
     };
 }
+
+it('persists the token through the injected factory, not a backend of its own choosing', async () => {
+    // Would pass with the free function still wired up only if this factory were the one it built,
+    // which it cannot be: a service that chose its own would leave `opened` empty and write nowhere
+    // this test can see.
+    const only = new StubSettingsStoreFactory();
+    const {service, ctrl} = setup(undefined, only);
+
+    void service.ensureTokenRegistered();
+    await tick();
+    ctrl.expectOne(PUSH_URL).flush({});
+    await tick();
+
+    expect(only.opened).toContain('settings.json');
+    expect(store.set).toHaveBeenCalledWith('push_token', {token: 'push-token-xyz', kind: 'Fcm'});
+    expect(settings.opened).toEqual([]);
+});
 
 function tick() {
     return new Promise<void>(r => setTimeout(r, 0));
@@ -283,23 +296,29 @@ describe('when the host mints no push token', () => {
  *
  * <p>These pin the *storage* half: that it no longer rejects outside Tauri, and that deregistration
  * can still find and clear a token.</p>
+ *
+ * <p><b>The real `WebSettingsStoreFactory`, provided</b> - not a host faked by deleting a global. The
+ * prefix and the JSON encoding below belong to that adapter, so a fake here would pin nothing.</p>
  */
 describe('outside Tauri', () => {
     /** Pinned as a literal, so renaming the shared prefix has to be a deliberate edit here too. */
     const PREFIX = 'alpine_settings::';
 
-    beforeEach(() => {
-        leaveTauri();
-    });
+    const web = new WebSettingsStoreFactory();
+
+    function browser(configure?: (notifier: FakeNotifier) => void) {
+        return setup(configure, web);
+    }
 
     it('reports no stored token, without ever opening the Tauri store', async () => {
-        const {service, ctrl} = setup();
+        const {service, ctrl} = browser();
 
         await service.deregisterToken();
 
         ctrl.expectNone(() => true);
-        // The gate is the whole guarantee: no IPC is attempted, so there is nothing to reject.
-        expect(LazyStore).not.toHaveBeenCalled();
+        // The gate is now structural rather than asserted: the service is handed a backend and has
+        // no branch that could reach for the other one.
+        expect(settings.opened).toEqual([]);
         expect(store.get).not.toHaveBeenCalled();
     });
 
@@ -308,7 +327,7 @@ describe('outside Tauri', () => {
             `${PREFIX}push_token`,
             JSON.stringify({token: 'push-token-xyz', kind: 'Fcm'}),
         );
-        const {service, ctrl} = setup();
+        const {service, ctrl} = browser();
 
         void service.deregisterToken();
         await tick();
@@ -326,7 +345,7 @@ describe('outside Tauri', () => {
     it('leaves the token in place when the delete request fails', async () => {
         const stored = JSON.stringify({token: 'push-token-xyz', kind: 'Fcm'});
         localStorage.setItem(`${PREFIX}push_token`, stored);
-        const {service, ctrl} = setup();
+        const {service, ctrl} = browser();
 
         const done = service.deregisterToken();
         await tick();
@@ -341,7 +360,7 @@ describe('outside Tauri', () => {
 
     it('reads a corrupt stored token as absent rather than throwing', async () => {
         localStorage.setItem(`${PREFIX}push_token`, 'not json');
-        const {service, ctrl} = setup();
+        const {service, ctrl} = browser();
 
         await expect(service.deregisterToken()).resolves.toBeUndefined();
 

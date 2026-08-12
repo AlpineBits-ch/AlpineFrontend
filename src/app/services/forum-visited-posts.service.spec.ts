@@ -3,6 +3,7 @@ import {TestBed} from '@angular/core/testing';
 import {ForumVisitedPostsService, VISITED_POSTS_PER_FORUM} from './forum-visited-posts.service';
 import {NavigationService} from '../features/main-page/navigation.service';
 import {ChannelDto, ChannelType, GuildDto} from '../dtos/response/guild.dto';
+import {provideFakePlatform} from '../platform/testing/provide-fake-platform';
 
 const STORAGE_KEY = 'alpine.forum.visitedPosts';
 
@@ -49,7 +50,7 @@ const posts = Array.from({length: 8}, (_, i) =>
     chan({id: `p${i}`, type: ChannelType.Thread, parentChannelId: 'f1'}));
 
 function setup() {
-    TestBed.configureTestingModule({});
+    TestBed.configureTestingModule({providers: [provideFakePlatform()]});
     const nav = TestBed.inject(NavigationService);
     nav.workspace.set({
         type: 'server',
