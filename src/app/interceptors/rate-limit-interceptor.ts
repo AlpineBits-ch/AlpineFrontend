@@ -11,13 +11,16 @@ const MAX_WAIT_MS = 30_000;
 const FALLBACK_WAIT_MS = 1_000;
 
 /**
- * Spread added to every wait.
+ * Smallest spread applied to a wait, for the case where the wait itself is tiny or zero.
  *
  * <p>The bucket is global, so a 429 typically rejects a burst of requests at once and they would
  * otherwise all resume on the same millisecond and re-trigger it. The jitter is per request, which
  * is the point - a shared deadline with no spread is just a slower version of the same burst.</p>
  */
-const JITTER_MS = 250;
+const MIN_SPREAD_MS = 250;
+
+/** Ceiling on the spread, so a long wait is not doubled by the jitter on top of it. */
+const MAX_SPREAD_MS = 2_000;
 
 /**
  * When the shared bucket is expected to have room again. Module-level because the server enforces
@@ -76,8 +79,26 @@ function clampWait(ms: number): number {
     return Math.min(Math.max(ms, 0), MAX_WAIT_MS);
 }
 
-function jittered(ms: number): number {
-    return ms + Math.random() * JITTER_MS;
+/**
+ * A wait, plus a spread scaled to that wait rather than a fixed tail.
+ *
+ * <p>A fixed 250ms spread was the wrong shape. The waits this handles are the ones the gateway
+ * hands out when a whole first paint arrives at once, and a hundred parked requests released
+ * inside a 250ms tail is 400 requests per second against a 50 per second bucket - the same burst
+ * that earned the 429, one round later. Widening the landing zone to the length of the wait drops
+ * that by the same factor the wait grows.</p>
+ *
+ * <p>Capped, because the spread is added on top of a wait that is already clamped to
+ * {@link MAX_WAIT_MS}: without the cap a 30s gate could hold a request for a minute.</p>
+ */
+export function jittered(ms: number): number {
+    const spread = Math.min(Math.max(ms, MIN_SPREAD_MS), MAX_SPREAD_MS);
+    return ms + Math.random() * spread;
+}
+
+/** Backoff for the nth retry, so attempt three is not paced like attempt one. */
+function backoff(wait: number, attempt: number): number {
+    return clampWait(wait * 2 ** attempt);
 }
 
 /**
@@ -93,8 +114,8 @@ function jittered(ms: number): number {
  * spurious timeout.</p>
  */
 export const rateLimitInterceptor: HttpInterceptorFn = (req, next) => {
-    const attempt = (n: number): Observable<HttpEvent<unknown>> =>
-        waitForGate().pipe(
+    const attempt = (n: number, notBefore: number): Observable<HttpEvent<unknown>> =>
+        waitUntil(notBefore).pipe(
             switchMap(() => next(req)),
             catchError((err: unknown) => {
                 if (!(err instanceof HttpErrorResponse)) return throwError(() => err);
@@ -102,21 +123,38 @@ export const rateLimitInterceptor: HttpInterceptorFn = (req, next) => {
                 const wait = parseRetryAfter(err);
                 if (wait === null) return throwError(() => err);
 
+                // Each further attempt backs off harder. Retrying a 429 at the same cadence turns
+                // one logical request into MAX_ATTEMPTS real ones inside the same second, which is
+                // amplification of the storm rather than relief from it.
+                const delay = backoff(wait, n);
+
                 if (isGlobal(err)) {
                     // Never move the gate earlier: a later 429 with a shorter hint would otherwise
                     // release requests that an earlier, longer one had correctly parked.
-                    gateOpensAt = Math.max(gateOpensAt, Date.now() + wait);
+                    gateOpensAt = Math.max(gateOpensAt, Date.now() + delay);
                 }
 
                 if (n + 1 >= MAX_ATTEMPTS) return throwError(() => err);
-                return timer(jittered(wait)).pipe(switchMap(() => attempt(n + 1)));
+                return attempt(n + 1, Date.now() + delay);
             }),
         );
 
-    return attempt(0);
+    return attempt(0, 0);
 };
 
-function waitForGate(): Observable<unknown> {
-    const remaining = gateOpensAt - Date.now();
-    return remaining > 0 ? timer(jittered(remaining)) : of(null);
+/**
+ * Holds until both the shared gate and this request's own resume time have passed.
+ *
+ * <p>Re-checked after every wait, which is the point. The old single check read the gate once and
+ * committed to that deadline, so a request parked behind a 1s wait went out on schedule even if a
+ * 429 arriving meanwhile had pushed the gate five seconds further out - the requests most likely
+ * to be parked were exactly the ones released into a bucket that was known to be empty.</p>
+ */
+function waitUntil(notBefore: number): Observable<unknown> {
+    const step = (): Observable<unknown> => {
+        const remaining = Math.max(gateOpensAt, notBefore) - Date.now();
+        if (remaining <= 0) return of(null);
+        return timer(jittered(remaining)).pipe(switchMap(step));
+    };
+    return step();
 }

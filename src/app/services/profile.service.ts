@@ -1,6 +1,6 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
-import {catchError, EMPTY, Observable, of, switchMap, tap} from 'rxjs';
+import {catchError, EMPTY, finalize, Observable, of, shareReplay, switchMap, tap} from 'rxjs';
 import {environment} from '../../environments/environment';
 import {OnlineStatus, ProfileDto, ProfileFont} from '../dtos/response/profile.dto';
 import {ApiConfigService} from "./api-config.service";
@@ -40,6 +40,24 @@ export class ProfileService {
     // Two indexes into the same profiles -whichever key you have, you can look up
     private byProfileId = signal<Record<string, ProfileDto>>({});
     private byUserId = signal<Record<string, ProfileDto>>({});
+
+    /**
+     * The fetch already on the wire for each id, so the second caller joins it instead of starting
+     * a second one.
+     *
+     * <p><b>This is the whole reason the cache above was not enough.</b> The cache is only written
+     * when a response lands, and on first paint every avatar, every DM row, every message header
+     * and the friends list all ask for the same handful of user ids inside one change-detection
+     * pass - before any response exists. Each of them looked at an empty cache, agreed there was
+     * nothing there and issued its own GET, so a screen showing one person ten times fetched that
+     * person ten times. Against a 50 rps bucket that is what produced the 429 storm.</p>
+     *
+     * <p>Entries are removed when the request settles, so this is a coalescing window and not a
+     * second cache: a later {@link fetchByUserId} still refetches, which is what its callers
+     * (settings tables that want fresh rows) rely on.</p>
+     */
+    private inFlightByProfileId = new Map<string, Observable<ProfileDto>>();
+    private inFlightByUserId = new Map<string, Observable<ProfileDto>>();
 
     private apiConfig = inject(ApiConfigService);
     private brokenImages = inject(BrokenImageService);
@@ -86,7 +104,7 @@ export class ProfileService {
     }
 
     public fetchById(profileId: string): Observable<ProfileDto> {
-        return this.protect(
+        return this.coalesce(this.inFlightByProfileId, profileId, () =>
             this.httpClient
                 .get<ProfileDto>(this.apiConfig.baseUrl() + `/api/v1/social/profiles/${profileId}`)
                 .pipe(tap(p => this.store(p))),
@@ -96,7 +114,7 @@ export class ProfileService {
     // ── Own profile ──────────────────────────────────────────────────────────
 
     public fetchByUserId(userId: string): Observable<ProfileDto> {
-        return this.protect(
+        return this.coalesce(this.inFlightByUserId, userId, () =>
             this.httpClient
                 .get<ProfileDto>(this.apiConfig.baseUrl() + `/api/v1/social/profiles/by-user/${userId}`)
                 .pipe(tap(p => this.store(p))),
@@ -223,6 +241,40 @@ export class ProfileService {
             this.openedAt = Date.now();
             console.warn('[ProfileService] Circuit breaker tripped -returning fallback profiles');
         }
+    }
+
+    /**
+     * Hands every caller asking for the same id the one request, until that request settles.
+     *
+     * <p>The map is written <b>before</b> anything is subscribed, which is the part that matters:
+     * callers arrive synchronously within a single change-detection pass, so a window that only
+     * opened once the first response came back would never catch any of them.</p>
+     *
+     * <p>`shareReplay` with `refCount: false` is deliberate. With ref counting, a caller that
+     * unsubscribes before the response lands - an avatar for a row that scrolled away, say - would
+     * tear the shared request down and leave the next caller to start a fresh one, which is the
+     * duplicate this exists to prevent. The subscription is bounded anyway: an HTTP observable
+     * completes after one response.</p>
+     *
+     * <p>`finalize` runs on the source, so the entry is dropped as soon as the response (or error)
+     * arrives rather than being held for the lifetime of the app. A failed fetch therefore leaves
+     * nothing behind and the next caller may retry - the circuit breaker, not this map, is what
+     * stops a persistently failing id from being asked for forever.</p>
+     */
+    private coalesce(
+        inFlight: Map<string, Observable<ProfileDto>>,
+        key: string,
+        request: () => Observable<ProfileDto>,
+    ): Observable<ProfileDto> {
+        const existing = inFlight.get(key);
+        if (existing) return existing;
+
+        const shared = this.protect(request()).pipe(
+            finalize(() => inFlight.delete(key)),
+            shareReplay({bufferSize: 1, refCount: false}),
+        );
+        inFlight.set(key, shared);
+        return shared;
     }
 
     /** Wraps an HTTP call with circuit breaker logic */
