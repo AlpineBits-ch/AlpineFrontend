@@ -22,7 +22,7 @@ import {isTauri} from '@tauri-apps/api/core';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {OAuthService} from 'angular-oauth2-oidc';
-import {of, throwError} from 'rxjs';
+import {of, Subject, throwError} from 'rxjs';
 import {GuildVoiceService} from './guild-voice.service';
 import {SUBSCRIBE_RETRY_DELAYS_MS, VoiceRTCService} from './voice-rtc.service';
 import {STALE_SUBSCRIPTION} from '../models/voice-room';
@@ -52,6 +52,8 @@ const SESSION = {slot: 'primary', mediaSessionId: 'rust_sess', trackName: 'audio
 
 let engine: FakeEngine;
 let service: VoiceRTCService;
+/** Stands in for `RustMediaService.publishEnded$` - the publisher saying its share stopped. */
+let publishEnded: Subject<void>;
 
 /** The failure Cloudflare returns while the publisher is still connecting. */
 const notFound = () => new Error('not_found_track_error');
@@ -65,6 +67,7 @@ beforeEach(() => {
     // The engine is faked here, so nothing should be reaching Rust directly.
     vi.mocked(isTauri).mockReturnValue(false);
     engine = new FakeEngine();
+    publishEnded = new Subject<void>();
 
     TestBed.configureTestingModule({
         providers: [
@@ -75,7 +78,9 @@ beforeEach(() => {
             // no use for and jsdom does not provide here.
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://example.test'}},
             {provide: AudioSettingsService, useValue: {settings: () => ({})}},
-            {provide: RustMediaService, useValue: {}},
+            // `publishEnded$` is not optional garnish: the service subscribes it at construction,
+            // so a bare `{}` here is a stub that could not stand the real service up.
+            {provide: RustMediaService, useValue: {publishEnded$: publishEnded}},
             {provide: ScreenPickerService, useValue: {}},
             {provide: DeviceIdentityService, useValue: {get: vi.fn().mockResolvedValue('device')}},
             {provide: OAuthService, useValue: {getAccessToken: () => 'token'}},
@@ -504,5 +509,43 @@ describe('rebuilding a share at a new resolution', () => {
         expect(restart).not.toBeNull();
         expect(restart?.oldShareId).toBe('old-share');
         expect(restart?.newShareId).toBeNull();
+    });
+});
+
+/**
+ * In a browser the share does not end because the app asked. It ends because the user pressed the
+ * browser's own "Stop sharing" bar, and the first this side hears of it is the publisher saying so
+ * afterwards. Nothing on this peer connection can see it - a publisher-owned share puts no track in
+ * the webview, so there is no `onended` to hang it on - which is why it has to be forwarded.
+ */
+describe('a share the publisher ended by itself', () => {
+    /** The single consumer of `screenEnded$` is `VoiceChannelService`, which stops the share. */
+    function watchScreenEnded(): ReturnType<typeof vi.fn> {
+        const spy = vi.fn();
+        service.screenEnded$.subscribe(spy);
+        return spy;
+    }
+
+    it('unlights the button when the browser tore down our own publish', () => {
+        (service as unknown as Record<string, unknown>)['rustPublishing'] = true;
+        const spy = watchScreenEnded();
+
+        publishEnded.next();
+
+        expect(spy).toHaveBeenCalledTimes(1);
+    });
+
+    /**
+     * `RustMediaService` is a singleton shared with the 1:1 call path, so this fires for whichever
+     * publish ended. Without the guard, a call's share stopping would announce that this channel's
+     * share had stopped - to a service that never started one.
+     */
+    it('ignores a publish this service never started', () => {
+        (service as unknown as Record<string, unknown>)['rustPublishing'] = false;
+        const spy = watchScreenEnded();
+
+        publishEnded.next();
+
+        expect(spy).not.toHaveBeenCalled();
     });
 });

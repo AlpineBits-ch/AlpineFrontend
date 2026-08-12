@@ -49,6 +49,13 @@ interface HandleRow {
  * <p><b>No wallet probing.</b> The order is the user's stored preference, not a guess about what is
  * installed: `canOpenURL` is deprecated on iOS 27 with the scheme cap cut to twenty-five, and it
  * never answered the question for `https` links anyway.</p>
+ *
+ * <p><b>Three of those four need a keychain and one does not.</b> The QR-bill, the provider links
+ * and the raw details all come out of a blob unwrapped with this device's Ed25519 seed, so they are
+ * gated on {@link available} and a browser is told where they can be read instead. The TWINT assist
+ * is a plaintext number out of the same directory read, and no key is involved in showing or copying
+ * it - so it is rendered outside that gate, and outside the sealed-state switch. It used to sit
+ * inside both, which hid the one route on this sheet a browser can actually complete.</p>
  */
 @Component({
     selector: 'app-pay-sheet',
@@ -65,32 +72,41 @@ interface HandleRow {
                 </p>
             </div>
 
-            @if (!available()) {
-                <!--
-                  Checked before every other state. Without this, the browser build falls through
-                  to the "no handles" branch and states that a housemate has added no payment
-                  details - which is not true and not something the user can act on. What is true
-                  is that this device has no key to open anything with.
-                -->
-                <p class="m-0 text-[0.8125rem] text-text-muted" data-testid="unavailable">
-                    {{ 'PAY.EDITOR.DESKTOP_ONLY' | translate }}
-                </p>
-            } @else {
+            <!--
+              The sealed half, and only the sealed half.
+
+              Everything in here came out of a blob this device unwrapped with its own Ed25519 seed:
+              the QR-bill, the provider links, the copyable account numbers, and the four sentences
+              explaining why one of them is missing. None of it can exist without a keychain, so on a
+              browser it is replaced by a line saying where it can be read.
+
+              The phone-number card below is outside this on purpose - see its own comment.
+            -->
+            @if (available()) {
             @switch (state().status) {
                 @case ('not-shared') {
                     <!--
                       A state, not an error. Only the owner's device holds the content key, so a
                       person who joined after the last write simply has no wrap. It fixes itself the
                       next time they open their own settings.
+
+                      Withheld when a number is on screen, because with one there it is false: this
+                      sentence and "no payment details" both say there is nothing here to pay with,
+                      and a number below them is a thing to pay with. The unreadable case below is
+                      not withheld - that one reports a fault, and a fault stays worth saying.
                     -->
-                    <p class="m-0 text-[0.8125rem] text-text-muted" data-testid="not-shared">
-                        {{ 'PAY.SHEET.NOT_SHARED' | translate: {name: payeeName()} }}
-                    </p>
+                    @if (!phoneNumber()) {
+                        <p class="m-0 text-[0.8125rem] text-text-muted" data-testid="not-shared">
+                            {{ 'PAY.SHEET.NOT_SHARED' | translate: {name: payeeName()} }}
+                        </p>
+                    }
                 }
                 @case ('none') {
-                    <p class="m-0 text-[0.8125rem] text-text-muted" data-testid="no-handles">
-                        {{ 'PAY.SHEET.NO_HANDLES' | translate: {name: payeeName()} }}
-                    </p>
+                    @if (!phoneNumber()) {
+                        <p class="m-0 text-[0.8125rem] text-text-muted" data-testid="no-handles">
+                            {{ 'PAY.SHEET.NO_HANDLES' | translate: {name: payeeName()} }}
+                        </p>
+                    }
                 }
                 @case ('unreadable') {
                     <p class="m-0 text-[0.8125rem] text-amber-300" data-testid="unreadable">
@@ -164,62 +180,80 @@ interface HandleRow {
                             }
                         </div>
                     }
-
-                    <!--
-                      Rendered as its own card, deliberately unlike the sealed handles above it. A
-                      number is plaintext the server read and could log; a handle is ciphertext the
-                      server cannot open. Merging them into one "payment details" list is the
-                      obvious tidy-up and the wrong one, because after it nothing on screen can tell
-                      the viewer which protection applies to what they are looking at.
-
-                      Absent, it renders nothing at all. "Anna hasn't shared her number" would
-                      assert that Anna has one, and the server deliberately cannot tell us.
-                    -->
-                    @if (phoneNumber(); as number) {
-                        <div class="rounded-xl border border-amber-500/25 bg-amber-500/[0.04] p-3
-                                    flex flex-col gap-2" data-testid="phone-assist">
-                            <p class="m-0 text-[0.8125rem] font-medium text-text-primary">
-                                {{ (twintApplies() ? 'PAY.SHEET.TWINT_TITLE' : 'PAY.SHEET.PHONE_TITLE')
-                                    | translate }}
-                            </p>
-
-                            <!--
-                              Large and copyable, and for TWINT that is the whole feature. TWINT
-                              cannot be deep-linked or prefilled by anybody outside a merchant
-                              contract, and storing a user's TWINT QR is forbidden by its own terms.
-                            -->
-                            <p class="m-0 font-mono text-lg text-text-primary"
-                               data-testid="phone-number">{{ number }}</p>
-
-                            <div class="flex gap-1">
-                                <p-button (onClick)="copyText(number)" [text]="true" size="small"
-                                          icon="pi pi-copy"
-                                          [label]="'PAY.SHEET.COPY' | translate"/>
-                            </div>
-
-                            @if (twintApplies()) {
-                                <!-- The only real check that exists, and it is TWINT's, not ours. -->
-                                <p class="m-0 text-xs text-text-muted">{{ twintAdvice }}</p>
-                            } @else {
-                                <p class="m-0 text-xs text-text-muted">
-                                    {{ 'PAY.SHEET.PHONE_NOT_SWISS' | translate }}
-                                </p>
-                            }
-
-                            <p class="m-0 text-xs text-text-muted">
-                                {{ 'PAY.SHEET.PHONE_PLAINTEXT' | translate }}
-                            </p>
-
-                            @if (phoneUpdatedAt(); as entered) {
-                                <p class="m-0 text-xs text-text-muted" data-testid="phone-updated">
-                                    {{ 'PAY.SHEET.PHONE_ENTERED' | translate:
-                                        {name: payeeName(), date: entered} }}
-                                </p>
-                            }
-                        </div>
-                    }
                 }
             }
+            } @else {
+                <!--
+                  Checked before every sealed state. Without this, the browser build falls through
+                  to the "no handles" branch and states that a housemate has added no payment
+                  details - which is not true and not something the user can act on. What is true
+                  is that this device has no key to open anything with.
+                -->
+                <p class="m-0 text-[0.8125rem] text-text-muted" data-testid="unavailable">
+                    {{ 'PAY.EDITOR.DESKTOP_ONLY' | translate }}
+                </p>
+            }
+
+            <!--
+              Its own card, deliberately unlike the sealed handles above it. A number is plaintext
+              the server read and could log; a handle is ciphertext the server cannot open. Merging
+              them into one "payment details" list is the obvious tidy-up and the wrong one, because
+              after it nothing on screen can tell the viewer which protection applies to what they
+              are looking at.
+
+              Outside the gate above, and outside the switch, for the same reason it is drawn
+              differently: no key opens it. It arrives in the plaintext half of the directory read
+              that every host performs, so a browser has it in hand - and TWINT is the one route on
+              this sheet that a browser can complete, because it is a number and a copy button
+              rather than anything cryptographic. Nested inside the sealed states it was hidden
+              wherever they were, which meant hidden on web entirely, and hidden on the desktop for
+              a housemate who shared a number and no bank details.
+
+              Absent, it renders nothing at all. "Anna hasn't shared her number" would assert that
+              Anna has one, and the server deliberately cannot tell us.
+            -->
+            @if (phoneNumber(); as number) {
+                <div class="rounded-xl border border-amber-500/25 bg-amber-500/[0.04] p-3
+                            flex flex-col gap-2" data-testid="phone-assist">
+                    <p class="m-0 text-[0.8125rem] font-medium text-text-primary">
+                        {{ (twintApplies() ? 'PAY.SHEET.TWINT_TITLE' : 'PAY.SHEET.PHONE_TITLE')
+                            | translate }}
+                    </p>
+
+                    <!--
+                      Large and copyable, and for TWINT that is the whole feature. TWINT cannot be
+                      deep-linked or prefilled by anybody outside a merchant contract, and storing a
+                      user's TWINT QR is forbidden by its own terms.
+                    -->
+                    <p class="m-0 font-mono text-lg text-text-primary"
+                       data-testid="phone-number">{{ number }}</p>
+
+                    <div class="flex gap-1">
+                        <p-button (onClick)="copyText(number)" [text]="true" size="small"
+                                  icon="pi pi-copy"
+                                  [label]="'PAY.SHEET.COPY' | translate"/>
+                    </div>
+
+                    @if (twintApplies()) {
+                        <!-- The only real check that exists, and it is TWINT's, not ours. -->
+                        <p class="m-0 text-xs text-text-muted">{{ twintAdvice }}</p>
+                    } @else {
+                        <p class="m-0 text-xs text-text-muted">
+                            {{ 'PAY.SHEET.PHONE_NOT_SWISS' | translate }}
+                        </p>
+                    }
+
+                    <p class="m-0 text-xs text-text-muted">
+                        {{ 'PAY.SHEET.PHONE_PLAINTEXT' | translate }}
+                    </p>
+
+                    @if (phoneUpdatedAt(); as entered) {
+                        <p class="m-0 text-xs text-text-muted" data-testid="phone-updated">
+                            {{ 'PAY.SHEET.PHONE_ENTERED' | translate:
+                                {name: payeeName(), date: entered} }}
+                        </p>
+                    }
+                </div>
             }
 
             <!--
@@ -269,6 +303,13 @@ export class PaySheetComponent {
 
     protected readonly twintAdvice = TWINT_CONFIRM_NAME_ADVICE;
 
+    /**
+     * Whether the <b>sealed</b> half of this sheet can exist here.
+     *
+     * <p>Not "can this sheet be shown". The phone assist and the "I have paid this" button are both
+     * outside it, because neither needs a key - and a blanket gate over the whole component is what
+     * hid a housemate's TWINT number from every browser.</p>
+     */
     protected readonly available = computed(() => this.handles.isAvailable());
 
     protected readonly state = computed(() =>

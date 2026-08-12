@@ -91,11 +91,19 @@ const EMPTY: GuildPaymentState = {
  * attestation state is read and acted on, keys are pinned on first use, and the fingerprint shown
  * is the same string the MLS review screens print for the same key.</p>
  *
- * <p><b>Desktop only, and deliberately still so on web.</b> Opening a blob needs this device's
- * Ed25519 seed, which on desktop lives in the OS keychain. {@link isAvailable} is false wherever that
- * keychain is absent, so the UI renders nothing rather than an empty list - the same line
- * `MasterKeyService` draws, and for the same reason: a platform with no engine is not a failure worth
- * retrying.</p>
+ * <p><b>The sealed half is desktop only, and deliberately still so on web.</b> Opening a blob needs
+ * this device's Ed25519 seed, which on desktop lives in the OS keychain. {@link isAvailable} is false
+ * wherever that keychain is absent, so the UI renders nothing rather than an empty list - the same
+ * line `MasterKeyService` draws, and for the same reason: a platform with no engine is not a failure
+ * worth retrying.</p>
+ *
+ * <p><b>The phone-number opt-in is not part of that half and is not gated with it.</b> A shared
+ * number is plaintext the server read out of the account and hands to the household; no key opens it,
+ * so no keychain is needed to consent to it, to withdraw that consent, or to see the numbers other
+ * members consented to. {@link isAvailable} once gated {@link load} outright, which meant a browser
+ * never learned its own opt-in state and the card rendered dead - a working control hidden, which is
+ * the opposite of the rule the capability pass exists to enforce. So the directory is now read on
+ * every host and only the <i>unsealing</i> is gated. See {@link absorb}.</p>
  *
  * <p><b>Why the browser stays gated off even though a `SecureStore` now exists there.</b> The web
  * adapter is IndexedDB, which is origin-scoped and readable by any script on the origin - that is a
@@ -182,11 +190,15 @@ export class PaymentHandleService {
     }
 
     /**
-     * False wherever this device's seed would not be behind an OS keychain.
+     * Whether <b>sealed</b> handles can be read or written here. False wherever this device's seed
+     * would not be behind an OS keychain.
      *
      * <p>The capability, not the host: the question this feature has is "are these keys
      * OS-protected", and it stays answerable if a third host appears. See the class comment for why
-     * that answer gates the whole feature rather than only the write path.</p>
+     * that answer gates reading as well as writing.</p>
+     *
+     * <p><b>Not a gate on the whole feature.</b> The phone-number opt-in below shares no key material
+     * and answers on every host; a caller that gates it on this is hiding a control that works.</p>
      */
     isAvailable(): boolean {
         return this.capabilities.hardwareBackedKeys;
@@ -247,13 +259,16 @@ export class PaymentHandleService {
     }
 
     /**
-     * Loads and opens every blob this device can read.
+     * Loads the directory and opens every blob this device can read.
+     *
+     * <p>Runs on every host. It used to bail where {@link isAvailable} was false, which took the
+     * phone-number half down with the sealed half: the caller's own opt-in arrives in this response
+     * and nothing else fetches it, so a browser could render the switch but never learn its
+     * position. Only the unsealing depends on a keychain - see {@link absorb}.</p>
      *
      * @param force re-reads even when the directory is already loaded. Used by the realtime hook.
      */
     async load(guildId: string, force = false): Promise<void> {
-        if (!this.isAvailable()) return;
-
         const current = this.stateFor(guildId);
         if (current.loading || (current.loaded && !force)) return;
 
@@ -372,6 +387,30 @@ export class PaymentHandleService {
     }
 
     private async absorb(guildId: string, directory: PaymentHandleDirectory): Promise<void> {
+        // No keychain, so nothing here is opened - not even attempted. The device's seed may well
+        // exist in the browser's `SecureStore`, and reaching for it is exactly what must not happen:
+        // what these blobs hold is other people's bank details, sealed on the understanding that a
+        // key readable by any script on the origin would never be among the recipients. So the
+        // response's ciphertext is dropped on the floor and only the plaintext half is kept.
+        //
+        // `members` is left empty rather than filled with `unreadable`. Nothing on this host renders
+        // it - `PaySheetComponent` gates on `isAvailable()` too - and "we could not open Anna's blob"
+        // is a different and wrong statement from "we did not try".
+        if (!this.isAvailable()) {
+            this.patch(guildId, {
+                loading: false,
+                loaded: true,
+                forbidden: false,
+                failed: false,
+                rosterVersion: directory.memberRosterVersion,
+                members: {},
+                ownRosterVersion: null,
+                phoneNumbers: phoneNumbersOf(directory),
+                sharingPhoneNumber: directory.sharingPhoneNumber ?? false,
+            });
+            return;
+        }
+
         const ownUserId = this.ownUserId();
         const ownDeviceId = await this.deviceIdentity.deviceId();
 
@@ -431,8 +470,7 @@ export class PaymentHandleService {
                 .find(m => m.userId === ownUserId)?.memberRosterVersion ?? null,
             // Kept in their own map rather than attached to the member states above. See
             // `GuildPaymentState.phoneNumbers` for why merging the two would be the wrong tidy-up.
-            phoneNumbers: Object.fromEntries(
-                (directory.phoneNumbers ?? []).map(entry => [entry.userId, entry])),
+            phoneNumbers: phoneNumbersOf(directory),
             sharingPhoneNumber: directory.sharingPhoneNumber ?? false,
         });
     }
@@ -472,6 +510,11 @@ export class PaymentHandleService {
             [guildId]: {...(all[guildId] ?? EMPTY), ...partial},
         }));
     }
+}
+
+/** The plaintext half of a directory read, keyed by user id. Needs no key and no host. */
+function phoneNumbersOf(directory: PaymentHandleDirectory): Record<string, SharedPhoneNumber> {
+    return Object.fromEntries((directory.phoneNumbers ?? []).map(entry => [entry.userId, entry]));
 }
 
 /** Convenience for a template that only needs "is there anything to show". */

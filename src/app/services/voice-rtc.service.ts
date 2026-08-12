@@ -1,4 +1,5 @@
 import {computed, inject, Injectable, signal} from '@angular/core';
+import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {firstValueFrom, Subject} from 'rxjs';
 import {GuildVoiceService} from './guild-voice.service';
 import {AudioSettingsService} from './audio-settings.service';
@@ -228,6 +229,30 @@ export class VoiceRTCService {
      */
     private rustAudioTrackName: string | null = null;
     private readonly oauth = inject(OAuthService);
+
+    constructor() {
+        // A share can end without anything in the app asking it to. In a browser that is the
+        // *ordinary* way it ends: the publish runs on `getDisplayMedia`, and Chrome's own "Stop
+        // sharing" bar tears the track down and tells us afterwards. Nothing else on this side
+        // hears it - `localScreenTrack.onended` only covers a share published on this peer
+        // connection, and a publisher-owned share has no track here to hang that on. Until this
+        // was forwarded, the button stayed lit over a publish that was genuinely gone, and the
+        // room was never told the track had stopped.
+        //
+        // Forwarded into the same subject the desktop `onended` path uses, so the one consumer -
+        // `VoiceChannelService`, which calls `toggleScreenShare()` - unwinds it exactly as it would
+        // a user-pressed stop: the server is told, and the local state clears.
+        //
+        // Guarded on `rustPublishing`, and that guard is load-bearing. `RustMediaService` is a
+        // singleton shared with the 1:1 call path, so its `publishEnded$` fires for whichever
+        // publish ended, not for ours. Unguarded, a call's share ending would raise "your guild
+        // share ended" on a service that never started one.
+        this.rustMedia.publishEnded$
+            .pipe(takeUntilDestroyed())
+            .subscribe(() => {
+                if (this.rustPublishing) this.screenEnded$.next();
+            });
+    }
 
     // ── Connection setup / teardown ────────────────────────────────────────────
 
