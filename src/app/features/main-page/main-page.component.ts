@@ -70,6 +70,7 @@ import {AppReadyService} from '../../services/app-ready.service';
 import {GuildService} from '../../services/guild.service';
 import {runMlsLaunch} from './mls-launch';
 import {runMlsStorageInit} from './mls-storage-init';
+import {relaunchOnSessionTakeover} from './mls-takeover';
 import {runSignOut} from './sign-out';
 import {MlsJoinRequestService} from '../../services/mls-join-request.service';
 import {ConversationEncryption} from '../../enums/conversation-encryption.enum';
@@ -250,6 +251,16 @@ export class MainPageComponent implements OnDestroy {
         // next launch, and reloading was the only way to make the app act on the choice.
         this.actionSub.add(
             this.onboarding.pickerCompleted.subscribe(() => void this.runDeviceLaunch()));
+
+        // A browser tab that booted while another tab of this account owned the encryption engine was
+        // refused every MLS command, so the launch above finished having unlocked nothing, processed no
+        // pending Welcome and uploaded no key packages. The other tab closing hands this one the engine
+        // and repairs none of that by itself. See {@link relaunchOnSessionTakeover}, which is where the
+        // reasoning and the test for it live; never fires on the desktop.
+        this.actionSub.add(relaunchOnSessionTakeover({
+            takeovers: () => this.mlsService.sessionTakeovers(),
+            relaunch: () => this.runDeviceLaunch(),
+        }));
 
         // Proactively refresh the token before expiry using the same deduplicated
         // ensureValidToken() that the WS accessTokenFactories and interceptor use.

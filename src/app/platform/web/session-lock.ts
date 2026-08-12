@@ -45,7 +45,10 @@ export type SessionClaim =
 export type SessionState = SessionClaim | 'unclaimed';
 
 /** Namespace for every lock this app takes, so nothing collides with a library's. */
-const SESSION_LOCK_PREFIX = 'venta:mls-session';
+const LOCK_PREFIX = 'venta';
+
+/** The session guard's own namespace, one name per account scope. */
+const SESSION_LOCK_PREFIX = `${LOCK_PREFIX}:mls-session`;
 
 /**
  * The lock name for one account scope.
@@ -55,6 +58,69 @@ const SESSION_LOCK_PREFIX = 'venta:mls-session';
  */
 export function sessionLockName(scope: string | undefined): string {
     return `${SESSION_LOCK_PREFIX}::${scope ?? 'unscoped'}`;
+}
+
+/**
+ * The lock name for one cross-tab critical section, in the same namespace as the session lock.
+ *
+ * <p><b>Why the storage adapters take locks at all, when the session guard already exists.</b> That
+ * guard owns the <i>engine</i>: one live `MlsState` per scope, one writer of `state::${scope}`. It says
+ * nothing about the two IndexedDB databases beside it - the secure store and the MLS local stores - and
+ * both are still written by every tab. Per-key writes there survive that, because a browser serialises
+ * overlapping IndexedDB `readwrite` transactions and each key is written whole. What does not survive is
+ * a <b>read-modify-write</b>: two tabs read the same value, both decide from it, and the second write
+ * lands on a state the first has already moved. Two of those are live and neither is cosmetic:</p>
+ * <ul>
+ *   <li>`MlsService.raiseEncryptionFloor` reads `ctx#floor`, compares, writes. Interleaved, the lower
+ *       generation wins and <b>the floor goes backwards</b> - which is the one thing it exists to make
+ *       impossible, because a floor below a generation this device has encrypted at is what licenses
+ *       `ChannelComponent.send` to compose cleartext into an encrypted conversation (§L.9).</li>
+ *   <li>`MlsService.localStateKey` reads the sealing key and mints one if it is absent. Two tabs booting
+ *       together both read absence and both mint, and the loser's key is overwritten - so the engine
+ *       blob that tab sealed can never be opened again, which presents as `MlsStateUnreadableError` and
+ *       is answered by wiping the device's group state.</li>
+ * </ul>
+ *
+ * <p>Deliberately a <i>different</i> name from {@link sessionLockName}. These sections are held for one
+ * operation, the session lock is held for the tab's life, and sharing a name would mean the first
+ * registry read in a blocked tab waited for the other tab to close.</p>
+ *
+ * @param area    the subsystem, so two adapters cannot collide on one subject name.
+ * @param subject the thing being guarded: a store file, or one entry's key.
+ */
+export function criticalSectionName(area: string, subject: string): string {
+    return `${LOCK_PREFIX}:${area}::${subject}`;
+}
+
+/**
+ * Runs `body` with `name` held exclusively across every tab of this profile.
+ *
+ * <p>Unlike {@link SessionLock.claim} this <b>waits</b>, and that is the right choice here for the
+ * reason it is the wrong one there: a session lock is held for a tab's whole life, so waiting on it is
+ * waiting for a person to close a window, while one of these is held for a single read-modify-write and
+ * is always released - by the callback settling, or by the browser when the holding tab goes away.</p>
+ *
+ * <p><b>Never nest two of these on one name</b>, in either direction: the Web Locks API has no
+ * re-entrancy and a nested request queues behind the outer holder, which is a deadlock with no timeout.
+ * Every caller here takes the lock once, at the top of a public method, and the helpers below it take
+ * none.</p>
+ *
+ * <p><b>No lock manager means the body still runs.</b> That is not the fail-closed posture
+ * {@link MlsSessionGuardUnavailableError} takes and the difference is deliberate: on such a host the
+ * engine refuses every command, so no group is created, no floor is ever raised and there is no
+ * read-modify-write left to lose. Refusing here would instead take down the reads that report the
+ * refusal and the wipe that a sign-out performs, which is a real cost for no protection.</p>
+ */
+export async function withWebLock<T>(
+    name: string,
+    body: () => Promise<T>,
+    locks: LockManager | undefined = detectLockManager(),
+): Promise<T> {
+    if (locks === undefined) return await body();
+    // The generic is left to inference on purpose. `LockGrantedCallback<T>` is typed as returning `T`
+    // rather than `T | PromiseLike<T>`, so pinning `T` here would reject the async callback the API is
+    // actually specified to await; inferred, `T` becomes `Promise<T>` and the `await` unwraps both.
+    return await locks.request(name, {mode: 'exclusive'}, () => body());
 }
 
 /**
@@ -101,6 +167,18 @@ export interface SessionLock {
 
     /** What this lock last established, without attempting anything. For the UI and the log. */
     readonly state: SessionState;
+
+    /**
+     * Called when a <b>queued</b> request is granted, which is the takeover and nothing else.
+     *
+     * <p>Deliberately not called for the `ifAvailable` grant on the boot path. That one is the ordinary
+     * first claim, and a listener that could not tell the two apart would run the whole launch sequence
+     * a second time on every cold start.</p>
+     *
+     * <p>Listeners run in a microtask rather than inside the browser's lock callback, so a listener is
+     * free to take another lock without deadlocking against the frame that granted this one.</p>
+     */
+    onGranted(listener: () => void): void;
 
     /**
      * Gives up this scope: releases the lock if it is held, and drops the request if it is queued.
@@ -156,6 +234,9 @@ export class WebLocksSessionLock implements SessionLock {
 
     private established: SessionState = 'unclaimed';
 
+    /** Notified when a queued request is granted. See {@link SessionLock.onGranted}. */
+    private readonly granted = new Set<() => void>();
+
     constructor(readonly name: string, locks: LockManager | undefined = detectLockManager()) {
         this.locks = locks;
     }
@@ -181,6 +262,10 @@ export class WebLocksSessionLock implements SessionLock {
         // Shared, so two commands issued at once do not both probe - the second probe would find the
         // lock taken by the first and report this tab blocked by itself.
         return await (this.pending ??= this.attempt());
+    }
+
+    onGranted(listener: () => void): void {
+        this.granted.add(listener);
     }
 
     release(): void {
@@ -259,12 +344,17 @@ export class WebLocksSessionLock implements SessionLock {
                         answer(false);
                         return undefined;
                     }
+                    // Read before it is cleared: a grant that was waiting in the queue is a takeover -
+                    // the other tab is gone - and an `ifAvailable` grant is an ordinary first claim.
+                    // Only the first has a launch sequence owing to it.
+                    const takeover = this.queued;
                     this.owned = true;
                     this.queued = false;
                     // Granted, so there is nothing queued left to abort.
                     this.dropQueued = undefined;
                     this.established = 'held';
                     answer(true);
+                    if (takeover) this.announce();
                     return new Promise<void>(release => {
                         this.releaseHeld = release;
                     });
@@ -286,6 +376,27 @@ export class WebLocksSessionLock implements SessionLock {
                 },
             );
         });
+    }
+
+    /**
+     * Tells the listeners the takeover happened, out of the lock callback's own frame.
+     *
+     * <p>A microtask rather than a direct call for two reasons. The obvious one is deadlock: this runs
+     * inside `navigator.locks.request`'s callback, and a listener that took any lock from there would
+     * be queuing behind a frame that has not returned. The other is that a listener throwing must not
+     * reject the request that granted the lock - that would release the lock this tab has just been
+     * given, which is the takeover undoing itself.</p>
+     */
+    private announce(): void {
+        for (const listener of [...this.granted]) {
+            queueMicrotask(() => {
+                try {
+                    listener();
+                } catch (err) {
+                    console.error('A session-takeover listener threw', err);
+                }
+            });
+        }
     }
 
     private forget(): void {

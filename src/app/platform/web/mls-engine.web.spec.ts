@@ -663,6 +663,125 @@ describe('WebMlsEngine with two tabs in one browser profile', () => {
         expect(await blob()).toBe(before);
     });
 
+    /**
+     * The other half of a takeover: the launch sequence, which nothing else will run again.
+     *
+     * <p>Restoring the engine is not enough on its own. The blocked tab's launch already ran, at boot,
+     * against an engine that refused everything - no signing key loaded, no pending Welcome processed,
+     * no key package uploaded - and there is no later moment at which any of that is retried. Without a
+     * report the tab keeps showing "encryption unavailable" over a working engine until it is reloaded,
+     * which is precisely what the queued lock request exists to make unnecessary.</p>
+     */
+    describe('reporting the takeover', () => {
+        it('tells a listener when the scope is handed over', async () => {
+            await second.engine.call('mls_init_storage', initArgs());
+            let handovers = 0;
+            second.engine.onSessionTakeover(() => handovers++);
+
+            first.close();
+            await settle();
+
+            expect(handovers).toBe(1);
+        });
+
+        it('says nothing on a first claim, which is not a takeover', async () => {
+            // A listener that could not tell the two apart would run the whole launch sequence a second
+            // time on every cold start, in every tab, including the one that was never blocked.
+            const fresh = openTab();
+            let handovers = 0;
+            fresh.engine.onSessionTakeover(() => handovers++);
+
+            await fresh.engine.call('mls_init_storage', initArgs('device-c'));
+            await settle();
+
+            expect(handovers).toBe(0);
+            expect(fresh.engine.sessionState()).toBe('held');
+        });
+
+        it('says nothing while the other tab is still there', async () => {
+            let handovers = 0;
+            second.engine.onSessionTakeover(() => handovers++);
+
+            await second.engine.call('mls_init_storage', initArgs());
+            await settle();
+
+            expect(handovers).toBe(0);
+        });
+
+        it('hands the listener an engine a relaunch can actually use', async () => {
+            // The assertion that matters: a listener that re-runs the launch must find the group the
+            // other tab left, not an empty engine it would then persist over the top of.
+            await second.engine.call('mls_init_storage', initArgs());
+            let relaunched: Promise<boolean> | undefined;
+            second.engine.onSessionTakeover(() => {
+                relaunched = second.engine.call<boolean>('mls_init_storage', initArgs());
+            });
+
+            first.close();
+            await settle();
+
+            // `true` is "state was restored". A listener that found `false` would be relaunching onto
+            // an empty engine and would then persist it over the other tab's blob.
+            await expect(relaunched).resolves.toBe(true);
+            await expect(second.engine.call('mls_get_group_info', {groupIdB64: GROUP}))
+                .resolves.toBeTruthy();
+        });
+
+        it('stops calling a listener that has been removed', async () => {
+            await second.engine.call('mls_init_storage', initArgs());
+            let handovers = 0;
+            const off = second.engine.onSessionTakeover(() => handovers++);
+            off();
+
+            first.close();
+            await settle();
+
+            expect(handovers).toBe(0);
+        });
+
+        it('keeps calling the rest when one listener throws', async () => {
+            await second.engine.call('mls_init_storage', initArgs());
+            const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+            let reached = false;
+            second.engine.onSessionTakeover(() => {
+                throw new Error('the launch sequence blew up');
+            });
+            second.engine.onSessionTakeover(() => (reached = true));
+
+            try {
+                first.close();
+                await settle();
+
+                // They are independent consumers of one fact, and dropping the rest would leave the tab
+                // half-recovered - the state this whole mechanism exists to get out of.
+                expect(reached).toBe(true);
+            } finally {
+                error.mockRestore();
+            }
+        });
+
+        it('does not lose the lock when a listener throws', async () => {
+            await second.engine.call('mls_init_storage', initArgs());
+            const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+            second.engine.onSessionTakeover(() => {
+                throw new Error('the launch sequence blew up');
+            });
+
+            try {
+                first.close();
+                await settle();
+
+                // A throw that escaped into `navigator.locks.request`'s callback would settle it, which
+                // releases the lock this tab has just been granted - the takeover undoing itself.
+                expect(second.engine.sessionState()).toBe('held');
+                await expect(second.engine.call('mls_get_group_info', {groupIdB64: GROUP}))
+                    .resolves.toBeTruthy();
+            } finally {
+                error.mockRestore();
+            }
+        });
+    });
+
     /** The sealed blob for `DEVICE_A`, read outside both engines. The only durable state there is. */
     async function blob(): Promise<string | undefined> {
         const store = await open();

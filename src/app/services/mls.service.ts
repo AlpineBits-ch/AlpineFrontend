@@ -1,6 +1,7 @@
 import {inject, Injectable, Injector, signal} from '@angular/core';
 import {firstValueFrom, from, Observable} from 'rxjs';
 import {map, switchMap} from 'rxjs/operators';
+import {asMlsSessionTakeover} from '../platform/mls-session';
 import {MlsEngine} from '../platform/ports/mls-engine.port';
 import {MlsLocalStore, MlsLocalStoreFactory} from '../platform/ports/mls-local-store.port';
 import {SecureStore} from '../platform/ports/secure-store.port';
@@ -689,11 +690,28 @@ export class MlsService {
         return this.readRegistry<number>(MlsService.encryptionFloorKey(contextId));
     }
 
-    /** Raises the floor. Monotonic - a lower generation is ignored rather than written. */
+    /**
+     * Raises the floor. Monotonic - a lower generation is ignored rather than written.
+     *
+     * <p><b>One store operation, not a read followed by a write.</b> A browser runs one of these stores
+     * per tab, so "read the floor, compare, write it back" is a read-modify-write with two writers: both
+     * tabs read the same floor, both decide from it, and the second write lands on a value the first has
+     * already raised. The lower generation wins and the floor goes <i>backwards</i> - which is the one
+     * thing it exists to make impossible, because a floor below a generation this device has encrypted
+     * at is what licenses `ChannelComponent.send` to compose cleartext into an encrypted conversation.
+     * {@link MlsLocalStore.update} is where the atomicity lives; on web that is a Web Lock held across
+     * the read and the write, on desktop a queue.</p>
+     *
+     * <p>Deliberately not routed through {@link getEncryptionFloor}, and not only for atomicity. That
+     * read answers `null` when the engine is unavailable, which is the truthful answer to "has this
+     * device encrypted here" and a <i>false</i> one to "what is stored" - and used as the base of a
+     * comparison it would let an unavailable engine write a floor lower than the one on disk.</p>
+     */
     private async raiseEncryptionFloor(contextId: string, generation: number): Promise<void> {
-        const current = await this.getEncryptionFloor(contextId);
-        if (current !== null && current >= generation) return;
-        await (await this.registry()).set(MlsService.encryptionFloorKey(contextId), generation);
+        await (await this.registry()).update<number>(
+            MlsService.encryptionFloorKey(contextId),
+            current => (current !== undefined && current >= generation ? current : generation),
+        );
     }
 
     /**
@@ -981,28 +999,47 @@ export class MlsService {
         const deviceId = await this.deviceIdentity.deviceId();
         const name = `alpine_mls_${deviceId}_statekey`;
 
-        // Typed wider than the port promises, deliberately. `undefined` is what a read that faulted
-        // half-way looks like, and it is the one falsy value that must not be read as "absent": the
-        // compiler is made to keep the case rather than let it collapse into a truthiness test.
-        const existing: string | null | undefined = await this.secureStore.getItem(name);
-        if (existing === undefined) {
-            // Not phrased with any marker from `MLS_STATE_UNREADABLE_MARKERS`, so it classifies as
-            // `unknown` - transient, no wipe. That is the whole point of refusing here.
+        // Read and mint as one operation, and not for tidiness. As a `getItem` followed by a `setItem`
+        // this is a read-modify-write, and in a browser the two writers are two tabs: both read absence
+        // on a first launch, both mint a *different* 32-byte key, and the loser's engine blob is now
+        // sealed under a key nothing will ever produce again. That surfaces a launch later as
+        // `MlsStateUnreadableError`, which the boot path answers by wiping this device's group state -
+        // so the race does not lose a write, it loses the groups. `SecureStore.update` holds the entry
+        // against every other tab across both halves.
+        const stored = await this.secureStore.update(
+            name,
+            // Typed wider than the port promises, deliberately. `undefined` is what a read that faulted
+            // half-way looks like, and it is the one falsy value that must not be read as "absent": the
+            // compiler is made to keep the case rather than let it collapse into a truthiness test.
+            (existing: string | null | undefined) => {
+                if (existing === undefined) {
+                    // Not phrased with any marker from `MLS_STATE_UNREADABLE_MARKERS`, so it classifies
+                    // as `unknown` - transient, no wipe. That is the whole point of refusing here.
+                    throw new Error(
+                        `SecureStore.getItem("${name}") resolved undefined. The port answers a string `
+                        + `or null, so this is a store that could not read, not a device with no entry `
+                        + `- and minting a fresh state key over an entry that may still be there is `
+                        + `what makes a recoverable fault into permanent loss of this device's group `
+                        + `keys.`,
+                    );
+                }
+                // Absent, or holding an empty string. Only the first is a fresh device; the second
+                // cannot be a 32-byte base64 key under any encoding, so nothing recoverable is
+                // overwritten by minting - whereas refusing would leave the device permanently unable
+                // to launch with no way back.
+                if (existing !== null && existing !== '') return existing;
+                return toB64(crypto.getRandomValues(new Uint8Array(32)));
+            },
+        );
+        if (stored === null || stored === '') {
+            // Unreachable: the callback above returns a minted key for both of these. Asserted rather
+            // than cast, because the alternative is handing the engine an empty sealing key.
             throw new Error(
-                `SecureStore.getItem("${name}") resolved undefined. The port answers a string or `
-                + `null, so this is a store that could not read, not a device with no entry - and `
-                + `minting a fresh state key over an entry that may still be there is what makes a `
-                + `recoverable fault into permanent loss of this device's group keys.`,
+                `SecureStore.update("${name}") resolved without a state key, so the MLS engine state `
+                + `cannot be sealed. Nothing has been written over.`,
             );
         }
-        // Absent, or holding an empty string. Only the first is a fresh device; the second cannot be
-        // a 32-byte base64 key under any encoding, so nothing recoverable is overwritten by minting -
-        // whereas refusing would leave the device permanently unable to launch with no way back.
-        if (existing !== null && existing !== '') return existing;
-
-        const minted = toB64(crypto.getRandomValues(new Uint8Array(32)));
-        await this.secureStore.setItem(name, minted);
-        return minted;
+        return stored;
     }
 
     /**
@@ -1371,6 +1408,34 @@ export class MlsService {
             ]);
             return this.call<boolean>('mls_init_storage', {stateKeyB64, scope, adoptLegacy});
         })());
+    }
+
+    /**
+     * Emits when this tab is handed an account's engine that another tab was holding.
+     *
+     * <p><b>Never emits on the desktop, and never on a first launch.</b> It exists for one host and one
+     * transition: a browser tab that booted while another tab of the same account owned the engine was
+     * refused every MLS command, so its launch sequence completed having unlocked nothing, processed no
+     * pending Welcome and uploaded no key package. When the other tab closes, `WebMlsEngine` is granted
+     * the scope and is ready again - but nothing in the launch sequence is, and the tab keeps reporting
+     * that encryption is unavailable until the page is reloaded. Whoever owns that sequence subscribes
+     * here and runs it again.</p>
+     *
+     * <p>The engine is resolved on subscribe rather than in a field, which is not incidental: this
+     * service is reached transitively from a dozen places that never touch an engine, and requiring an
+     * `MlsEngine` provider to construct it is what took seven unrelated spec files down before. A host
+     * whose adapter cannot report a takeover - every desktop one - yields an observable that completes
+     * without emitting, which is the honest shape of "this cannot happen here".</p>
+     */
+    sessionTakeovers(): Observable<void> {
+        return new Observable<void>(subscriber => {
+            const takeover = asMlsSessionTakeover(this.engine);
+            if (takeover === null) {
+                subscriber.complete();
+                return undefined;
+            }
+            return takeover.onSessionTakeover(() => subscriber.next());
+        });
     }
 
     // -------------------------------------------------------------------------
