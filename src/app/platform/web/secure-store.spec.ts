@@ -1,6 +1,7 @@
 import {IDBFactory as FakeIdbFactory} from 'fake-indexeddb';
 import {afterEach, beforeEach, describe, expect, it} from 'vitest';
 
+import {FakeLockManager} from '../testing/fake-lock-manager';
 import {IdbStore, IdbUnavailableError, openStore} from './idb';
 import {WebSecureStore} from './secure-store';
 
@@ -14,9 +15,11 @@ import {WebSecureStore} from './secure-store';
  * absent IndexedDB rejects, and that nothing lands in `localStorage` when it does.</p>
  *
  * <p>Driven by <b>fake-indexeddb</b> for the same reason `idb.spec.ts` is: jsdom ships no IndexedDB.
- * The adapter deliberately has no injection seam for the factory - it reads `globalThis.indexedDB`,
- * which is what a browser gives it - so these tests install and remove that global instead, which
- * exercises the real resolution path.</p>
+ * Almost everything here constructs the adapter with no arguments and installs or removes
+ * `globalThis.indexedDB` around it, which exercises the real resolution path. The two constructor
+ * parameters exist for the last section only: {@link SecureStore.update} is a cross-tab guarantee, and
+ * jsdom has neither a `navigator.locks` to contend on nor a way to stall one tab's write from outside
+ * it, so that section hands in a {@link FakeLockManager} and a store it can block.</p>
  */
 
 const DB_NAME = 'alpine-secure-store';
@@ -193,5 +196,145 @@ describe('WebSecureStore', () => {
 
         expect(await store.getItem('alpine_mls_device-a_priv')).toBe('seed-bytes');
         await expect(store.setItem('k', 'v')).resolves.toBeUndefined();
+    });
+});
+
+/**
+ * `update`, which is the only operation here whose correctness depends on the other tab.
+ *
+ * <p><b>The entry this is about is the MLS state key.</b> `MlsService.localStateKey` reads it and mints
+ * one when there is none, and as a `getItem` followed by a `setItem` that is a read-modify-write with a
+ * writer per tab. Two tabs of one account booting together both read absence, both mint a
+ * <i>different</i> 32-byte key, and the loser's key is overwritten - so the engine blob that tab sealed
+ * can never be opened again. That does not surface as a storage bug: it surfaces a launch later as
+ * `MlsStateUnreadableError`, which the boot path answers by wiping the device's group state.</p>
+ *
+ * <p>So both tabs share one {@link FakeLockManager}, which stands for one browser profile, and the
+ * assertion is that they end up holding <b>the same key</b> - not that a lock was requested.</p>
+ */
+describe('WebSecureStore.update across two tabs of one profile', () => {
+    const STATE_KEY = 'alpine_mls_device-a_statekey';
+
+    let profile: FakeLockManager;
+
+    beforeEach(() => {
+        profile = new FakeLockManager();
+    });
+
+    /** A store whose operations are the real ones, with some replaced. */
+    async function storeWith(hook?: (real: IdbStore) => Partial<IdbStore>): Promise<IdbStore> {
+        const real = await openStore(DB_NAME, STORE_NAME);
+        siblings.push(real);
+        return {
+            dbName: real.dbName,
+            storeName: real.storeName,
+            get: key => real.get(key),
+            set: (key, value) => real.set(key, value),
+            delete: key => real.delete(key),
+            keys: () => real.keys(),
+            clear: () => real.clear(),
+            close: () => real.close(),
+            ...(hook?.(real) ?? {}),
+        };
+    }
+
+    /**
+     * A tab whose first write stalls until released, reporting when it gets there.
+     *
+     * <p>The stall is what makes the overlap certain. Two `update`s started at the same instant may or
+     * may not interleave, so a test written that way passes on the broken code whenever the runtime
+     * happens to serialise them - which on one thread it usually does.</p>
+     */
+    function blockedOnFirstWrite(): {store: WebSecureStore; deciding: Promise<void>; release: () => void} {
+        let arrive!: () => void;
+        let release!: () => void;
+        const deciding = new Promise<void>(resolve => {
+            arrive = resolve;
+        });
+        const held = new Promise<void>(resolve => {
+            release = resolve;
+        });
+
+        let stalled = false;
+        const store = new WebSecureStore(profile, () => storeWith(real => ({
+            set: async (key, value) => {
+                if (!stalled) {
+                    stalled = true;
+                    arrive();
+                    await held;
+                }
+                await real.set(key, value);
+            },
+        })));
+        return {store, deciding, release};
+    }
+
+    /** Real time, because `fake-indexeddb` schedules across tasks and not only microtasks. */
+    const tick = (ms = 50) => new Promise<void>(resolve => setTimeout(resolve, ms));
+
+    /** What `localStateKey` does: keep what is there, mint only for absence or an empty string. */
+    const mintIfAbsent = (minted: string) => (existing: string | null) =>
+        existing !== null && existing !== '' ? existing : minted;
+
+    it('mints one state key when two tabs both find none', async () => {
+        const first = blockedOnFirstWrite();
+        const second = new WebSecureStore(profile, () => storeWith());
+
+        // The first tab reads absence, mints, and stalls before the write lands.
+        const firstKey = first.store.update(STATE_KEY, mintIfAbsent('AAAA'));
+        await first.deciding;
+        // Unserialised, the second tab reads the same absence and mints a key of its own.
+        const secondKey = second.update(STATE_KEY, mintIfAbsent('BBBB'));
+        await tick();
+        first.release();
+
+        // One key, held by both, and it is the one in the store. Two different answers here means one
+        // tab's engine blob is sealed under a key nothing will produce again.
+        expect(await firstKey).toBe('AAAA');
+        expect(await secondKey).toBe('AAAA');
+        expect(await new WebSecureStore(profile, () => storeWith()).getItem(STATE_KEY)).toBe('AAAA');
+    });
+
+    it('keeps an existing key rather than minting over it', async () => {
+        const store = new WebSecureStore(profile, () => storeWith());
+        await store.setItem(STATE_KEY, 'already-here');
+
+        await expect(store.update(STATE_KEY, mintIfAbsent('fresh'))).resolves.toBe('already-here');
+    });
+
+    it('removes the entry when the callback answers null', async () => {
+        const store = new WebSecureStore(profile, () => storeWith());
+        await store.setItem(STATE_KEY, 'seed');
+
+        await expect(store.update(STATE_KEY, () => null)).resolves.toBeNull();
+
+        expect(await store.getItem(STATE_KEY)).toBeNull();
+    });
+
+    it('leaves the entry alone when the callback throws, and releases the entry', async () => {
+        const store = new WebSecureStore(profile, () => storeWith());
+        await store.setItem(STATE_KEY, 'seed');
+
+        await expect(store.update(STATE_KEY, () => {
+            throw new Error('the key store could not be read');
+        })).rejects.toThrow(/could not be read/);
+
+        // A critical section that leaked on the error path would lock every tab out of this entry for
+        // as long as the page stays open, which for the state key is a launch that never completes.
+        expect(await store.getItem(STATE_KEY)).toBe('seed');
+        await expect(store.update(STATE_KEY, mintIfAbsent('fresh'))).resolves.toBe('seed');
+    });
+
+    it('does not hold up a different entry while one is being written', async () => {
+        const stalled = blockedOnFirstWrite();
+        const other = new WebSecureStore(profile, () => storeWith());
+        const write = stalled.store.update(STATE_KEY, mintIfAbsent('AAAA'));
+        await stalled.deciding;
+
+        // Named per entry, not per store: minting the state key must not hold up a signing-key write.
+        await expect(other.update('alpine_mls_device-a_pub', mintIfAbsent('pub'))).resolves.toBe('pub');
+
+        stalled.release();
+        await write;
     });
 });

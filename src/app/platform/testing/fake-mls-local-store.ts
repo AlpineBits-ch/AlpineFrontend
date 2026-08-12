@@ -48,6 +48,22 @@ class FakeMlsLocalStore implements MlsLocalStore {
         return this.values.delete(key);
     }
 
+    /**
+     * Synchronous between the read and the write, which is the point of it here.
+     *
+     * <p>A fake that awaited in between would let a spec's other "tab" interleave and would then be
+     * modelling the bug rather than the port. The real adapters buy this with a Web Lock (web) and a
+     * queue (desktop); nothing in this process can get between these two lines.</p>
+     */
+    async update<T>(key: string, next: (current: T | undefined) => T | undefined): Promise<T | undefined> {
+        const current = this.values.get(key) as T | undefined;
+        const value = next(current);
+        if (value === current) return current;
+        if (value === undefined) this.values.delete(key);
+        else this.values.set(key, value);
+        return value;
+    }
+
     async entries<T>(): Promise<[string, T][]> {
         return [...this.values.entries()] as [string, T][];
     }

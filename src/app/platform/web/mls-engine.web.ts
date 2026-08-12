@@ -1,3 +1,4 @@
+import {MlsSessionTakeover} from '../mls-session';
 import {MlsEngine} from '../ports/mls-engine.port';
 import {IdbStore, IdbStoreClosedError, openStore} from './idb';
 import {
@@ -241,6 +242,14 @@ export class MlsStateUnreadableError extends Error {
  * and proceeds. No reload, and no window in which two engines are live: the lock is granted only after
  * the first is gone.</p>
  *
+ * <p><b>And it is announced, because restoring the engine is only half of it.</b> The blocked tab's
+ * launch sequence already ran, at boot, and every MLS step in it was refused: no signing key was loaded,
+ * no pending Welcome was processed, no key package was uploaded. An engine that is silently ready
+ * underneath a UI still reporting "encryption unavailable" is not a takeover, it is a reload waiting to
+ * be asked for - so {@link onSessionTakeover} reports the grant and `MainPageComponent` runs the device
+ * launch again. See `platform/mls-session.ts`, which is where the extension is declared and why it is
+ * not on the port.</p>
+ *
  * <p><b>A takeover is not offered while the other tab is alive.</b> `navigator.locks` can steal a lock,
  * and it is deliberately not used: stealing releases the other tab's lock immediately, but an operation
  * already dispatched there can still land its `mls_export_state` write afterwards - so the stealing tab
@@ -249,7 +258,7 @@ export class MlsStateUnreadableError extends Error {
  * across dispatch-and-persist as a write barrier, which is worth doing only if a "use it here instead"
  * button is worth it; closing the other tab is one action and needs none of it.</p>
  */
-export class WebMlsEngine extends MlsEngine {
+export class WebMlsEngine extends MlsEngine implements MlsSessionTakeover {
     /**
      * Whether this host has a working MLS engine.
      *
@@ -294,6 +303,9 @@ export class WebMlsEngine extends MlsEngine {
      */
     private restoreDeferred = false;
 
+    /** Told when a scope this tab was refused is granted to it. See {@link onSessionTakeover}. */
+    private readonly takeoverListeners = new Set<() => void>();
+
     /**
      * @param load  the wasm module loader. Injectable so a spec can drive a fake engine.
      * @param open  opens the blob store. Injectable so a spec can hand in a `fake-indexeddb` factory.
@@ -328,6 +340,23 @@ export class WebMlsEngine extends MlsEngine {
      */
     sessionState(): SessionState {
         return this.lease?.state ?? 'unclaimed';
+    }
+
+    /**
+     * Registers a listener for the moment this tab is handed a scope it was refused.
+     *
+     * <p>The engine is not restored yet when this fires, and deliberately so: the restore is owed to the
+     * next command and {@link requireSession} performs it there, so a listener that re-runs the launch
+     * sequence gets a restored engine on its first call without this method having to guess which of the
+     * two orders a caller wants. What the listener must not assume is that anything has already been
+     * read back.</p>
+     *
+     * @returns a function that stops the listener being called. Registering the same function twice
+     *     registers it once, and the returned function removes it either way.
+     */
+    onSessionTakeover(listener: () => void): () => void {
+        this.takeoverListeners.add(listener);
+        return () => this.takeoverListeners.delete(listener);
     }
 
     async call<T>(command: string, args?: Record<string, unknown>): Promise<T> {
@@ -390,8 +419,32 @@ export class WebMlsEngine extends MlsEngine {
             this.lease.release();
             this.lease = undefined;
         }
-        this.lease ??= this.newLock(name);
+        if (this.lease === undefined) {
+            const lease = this.newLock(name);
+            // Registered on creation rather than on the first blocked claim, because the grant this is
+            // waiting for is delivered by the queued request the lock itself makes - there is no later
+            // point at which this adapter is called and could subscribe.
+            lease.onGranted(() => this.announceTakeover());
+            this.lease = lease;
+        }
         return this.lease;
+    }
+
+    /**
+     * Tells the listeners this tab now owns the scope.
+     *
+     * <p>Each is isolated: one that throws must not stop the next, because they are independent
+     * consumers of the same fact and dropping the rest would leave the tab half-recovered - which is the
+     * state this whole mechanism exists to get out of.</p>
+     */
+    private announceTakeover(): void {
+        for (const listener of [...this.takeoverListeners]) {
+            try {
+                listener();
+            } catch (err) {
+                console.error('An MLS session-takeover listener threw', err);
+            }
+        }
     }
 
     /**

@@ -22,6 +22,31 @@ export interface MlsLocalStore {
 
     delete(key: string): Promise<boolean>;
 
+    /**
+     * Replaces one entry with a value computed from what is stored <i>right now</i>, with nothing else
+     * allowed to write this file in between.
+     *
+     * <p><b>Why this is a store operation and not a `get` followed by a `set`.</b> A browser runs one of
+     * these stores per tab, and the two writers that matter here are two tabs of one account. Between a
+     * `get` and its `set` the other tab can complete a whole read-modify-write of its own, so the second
+     * write lands on a value the first has already moved past and the first tab's decision is silently
+     * undone. The path that turns that into a security failure is `MlsService.raiseEncryptionFloor`:
+     * interleaved, the lower generation wins, `ctx#floor` goes <b>backwards</b>, and a floor below a
+     * generation this device has encrypted at is exactly what licenses composing cleartext into an
+     * encrypted conversation (§L.9). The floor is monotonic by construction or it is not monotonic at
+     * all.</p>
+     *
+     * <p>The read inside is a read of storage, not of any cache the adapter keeps, which is the second
+     * half of the same guarantee: the web adapter mirrors the file in memory for `entries()`, and a
+     * mirror populated before the other tab's write would make the comparison here decide from a value
+     * that is no longer there.</p>
+     *
+     * @param next given the stored value, or `undefined` when there is none; returning `undefined`
+     *     deletes the entry, and returning the value it was given writes nothing at all.
+     * @returns what is stored when the call resolves.
+     */
+    update<T>(key: string, next: (current: T | undefined) => T | undefined): Promise<T | undefined>;
+
     /** Every entry, in no guaranteed order. */
     entries<T>(): Promise<[string, T][]>;
 
