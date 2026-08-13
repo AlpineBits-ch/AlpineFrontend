@@ -1,5 +1,16 @@
 {
   "Endpoint": "https://swn.codesigning.azure.net",
   "CodeSigningAccountName": "venta",
-  "CertificateProfileName": "ventarelease"
+  "CertificateProfileName": "ventarelease",
+  "ExcludeCredentials": [
+    "EnvironmentCredential",
+    "ManagedIdentityCredential",
+    "WorkloadIdentityCredential",
+    "SharedTokenCacheCredential",
+    "VisualStudioCredential",
+    "VisualStudioCodeCredential",
+    "AzurePowerShellCredential",
+    "AzureDeveloperCliCredential",
+    "InteractiveBrowserCredential"
+  ]
 }

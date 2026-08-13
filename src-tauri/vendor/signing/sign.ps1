@@ -13,6 +13,13 @@
 # which is OIDC-federated - there is no client secret anywhere in this repo or
 # in GitHub secrets. Locally, `az login` is enough.
 #
+# metadata.json pins that chain to AzureCliCredential alone via ExcludeCredentials,
+# and that is not tidiness. Left unpinned, the chain walks past the CLI credential
+# to InteractiveBrowserCredential, which launches Edge to ask a human to log in.
+# On a headless runner nothing answers, so signing does not fail - it blocks
+# forever. That cost a 39 minute hang on the first signed release, visible only as
+# three orphan msedge processes in the job cleanup.
+#
 # Neither signtool nor the dlib lives at a stable path, so both are discovered
 # rather than hard-coded: a wrong hard-coded path fails at the end of a 20 minute
 # Windows build, and only on the machine that does not have it.
@@ -20,7 +27,12 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true, Position = 0)]
-    [string]$Path
+    [string]$Path,
+
+    # A signing call is one network round trip plus a timestamp fetch - seconds, not
+    # minutes. The ceiling exists so that a credential or network stall dies here
+    # instead of sitting on a runner until the six hour job timeout.
+    [int]$TimeoutSeconds = 300
 )
 
 $ErrorActionPreference = 'Stop'
@@ -83,16 +95,35 @@ Write-Host "  dlib:     $dlib"
 # Artifact Signing certificates are valid for three days, so an untrusted
 # timestamp is the difference between a signature that keeps verifying and one
 # that expires the same week it shipped. /td must match /fd.
-& $signtool sign `
-    /v `
-    /debug `
-    /fd SHA256 `
-    /tr 'http://timestamp.acs.microsoft.com' `
-    /td SHA256 `
-    /dlib $dlib `
-    /dmdf $metadata `
-    $Path
+#
+# Start-Process rather than the call operator, purely so the call can be given a
+# deadline - see $TimeoutSeconds. Every path is quoted explicitly because the SDK
+# and dlib both live under "Program Files (x86)".
+$signtoolArgs = @(
+    'sign'
+    '/v'
+    '/debug'
+    '/fd', 'SHA256'
+    '/tr', 'http://timestamp.acs.microsoft.com'
+    '/td', 'SHA256'
+    '/dlib', "`"$dlib`""
+    '/dmdf', "`"$metadata`""
+    "`"$Path`""
+)
 
-if ($LASTEXITCODE -ne 0) {
-    throw "signtool failed with exit code $LASTEXITCODE while signing $Path"
+$proc = Start-Process -FilePath $signtool -ArgumentList $signtoolArgs -NoNewWindow -PassThru
+
+if (-not $proc.WaitForExit($TimeoutSeconds * 1000)) {
+    try { $proc.Kill() } catch { }
+    throw @"
+signtool did not finish within $TimeoutSeconds seconds while signing $Path, so it was killed.
+
+This is almost always credential resolution, not signing. If Edge or another browser
+was launched, DefaultAzureCredential fell through to InteractiveBrowserCredential and
+is waiting for a human - check the ExcludeCredentials list in metadata.json.
+"@
+}
+
+if ($proc.ExitCode -ne 0) {
+    throw "signtool failed with exit code $($proc.ExitCode) while signing $Path"
 }
