@@ -92,6 +92,10 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+      # Lets the job mint a GitHub OIDC token, which is the whole mechanism behind
+      # azure/login below. Without it the login step fails with a token request error
+      # rather than an auth error, which reads like an Azure problem and is not one.
+      id-token: write
 
     steps:
       - uses: actions/checkout@v4
@@ -150,6 +154,41 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      # Authenticode signing, via Azure Artifact Signing. Everything below feeds
+      # bundle.windows.signCommand in tauri.conf.json - see src-tauri/vendor/signing/sign.ps1
+      # for why signing has to happen inside the bundler rather than after it.
+      #
+      # These three ids are identifiers, not credentials, and are deliberately literals
+      # rather than secrets: there is no secret in this pipeline to leak or rotate. The
+      # app registration can only sign because a federated credential trusts
+      # `repo:AlpineBits-ch/AlpineFrontend:environment:build` specifically, and because it
+      # holds the Artifact Signing Certificate Profile Signer role on the `venta` account.
+      # Both halves are required, so a leaked client id on its own grants nothing.
+      #
+      # Note the environment name above is load-bearing: the federated credential is scoped
+      # to `environment:build`. Renaming or removing `environment: build` on this job breaks
+      # signing with an opaque AADSTS70021 no-matching-federated-identity error.
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: e80a4993-ac35-4875-bc65-3d3bac21896b
+          tenant-id: 2d977209-9059-4da8-a971-b12c78dd9122
+          subscription-id: a72ab284-5262-49fc-9947-a4fd6c70ccd2
+
+      # The dlib is what teaches signtool to talk to Artifact Signing. It ships only as a
+      # NuGet package - there is an MSI, but it needs an elevated interactive install and
+      # puts things somewhere sign.ps1 would have to guess at. Extracting it here gives an
+      # exact path, which is what ARTIFACT_SIGNING_DLIB carries into the build.
+      - name: Install the Artifact Signing dlib
+        shell: pwsh
+        run: |
+          nuget install Microsoft.ArtifactSigning.Client -x -OutputDirectory "${{ runner.temp }}\dlib"
+          $dll = Get-ChildItem -Path "${{ runner.temp }}\dlib" -Filter 'Azure.CodeSigning.Dlib.dll' -Recurse |
+            Where-Object { $_.FullName -match '\\x64\\' } |
+            Select-Object -First 1
+          if (-not $dll) { throw 'Azure.CodeSigning.Dlib.dll (x64) not found in the extracted NuGet package.' }
+          "ARTIFACT_SIGNING_DLIB=$($dll.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Build Tauri (Windows)
         env:

@@ -1,0 +1,5 @@
+{
+  "Endpoint": "https://swn.codesigning.azure.net",
+  "CodeSigningAccountName": "venta",
+  "CertificateProfileName": "ventarelease"
+}

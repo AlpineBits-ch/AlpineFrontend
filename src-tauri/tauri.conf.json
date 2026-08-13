@@ -41,6 +41,17 @@
       }
     },
     "windows": {
+      "signCommand": {
+        "cmd": "powershell",
+        "args": [
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "vendor/signing/sign.ps1",
+          "%1"
+        ]
+      },
       "nsis": {
         "installMode": "currentUser",
         "template": "vendor/nsis/installer.nsi",
