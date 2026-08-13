@@ -1,5 +1,7 @@
 import {inject, Injectable, signal} from '@angular/core';
+import {merge} from 'rxjs';
 import {GuildWebsocketService} from './guild-websocket.service';
+import {GuildService} from './guild.service';
 import {ProfileService} from './profile.service';
 
 /**
@@ -22,7 +24,9 @@ import {ProfileService} from './profile.service';
  *
  * <p>Separate from `GuildService` on purpose. That service is injected by specs that provide only
  * an HTTP client, and pulling the realtime connection (and through it the OAuth client) into its
- * constructor would make every one of them fail to construct it.</p>
+ * constructor would make every one of them fail to construct it. The dependency therefore runs
+ * this way round - this service knows about `GuildService`, never the reverse - which is also why
+ * cache invalidation is a plain method there that this calls, rather than a listener there.</p>
  */
 @Injectable({providedIn: 'root'})
 export class OwnMemberRevisionService {
@@ -30,6 +34,7 @@ export class OwnMemberRevisionService {
 
     private readonly guildWs = inject(GuildWebsocketService);
     private readonly profiles = inject(ProfileService);
+    private readonly guilds = inject(GuildService);
 
     constructor() {
         // Only our own row moves a permission gate. Someone else's promotion changes what the
@@ -38,7 +43,32 @@ export class OwnMemberRevisionService {
         // guild for no change at all.
         this.guildWs.memberUpdatedObservable.subscribe(event => {
             if (event.userId !== this.profiles.ownProfile()?.userId) return;
+            // Invalidate first, bump second. The bump is the instruction to re-read, and the hosts
+            // that obey it call `getOwnMember` - which is cached now. Left populated, that cache
+            // would answer every one of those re-reads with the row from before the change, so the
+            // demotion this service exists to deliver would go through the motions and change
+            // nothing. Ordering it this way needs no argument about when effects run.
+            this.guilds.invalidateOwnMember(event.guildId);
             this._revision.update(n => n + 1);
+        });
+
+        // Removal and rejoin: the cached row is wrong afterwards either way - a removal ends the
+        // membership it describes, and a rejoin starts a fresh one with default roles - and a
+        // rejoin inside the cache's lifetime would otherwise be handed the roles the old
+        // membership had.
+        //
+        // Deliberately no revision bump. The bump asks every mounted host to re-read, and after a
+        // removal every one of those reads is a 404; the guild view is being torn down anyway.
+        // Dropping the entry is enough: whatever reads next reads the truth.
+        merge(
+            this.guildWs.memberKickedObservable,
+            this.guildWs.memberBannedObservable,
+            this.guildWs.memberLeftObservable,
+            this.guildWs.memberMovedOutObservable,
+            this.guildWs.memberJoinedObservable,
+        ).subscribe(event => {
+            if (event.userId !== this.profiles.ownProfile()?.userId) return;
+            this.guilds.invalidateOwnMember(event.guildId);
         });
     }
 

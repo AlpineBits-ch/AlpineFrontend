@@ -17,6 +17,7 @@ function steps(overrides: Partial<SignOutSteps> = {}) {
         },
         clearActivity: () => { calls.push('clearActivity'); },
         wipeAccount: async id => { calls.push(`wipeAccount:${id}`); },
+        clearGuildCache: () => { calls.push('clearGuildCache'); },
         dropTokens: () => { calls.push('dropTokens'); },
         goToLogin: () => { calls.push('goToLogin'); },
     };
@@ -31,8 +32,34 @@ it('wipes this device key material before leaving', async () => {
 
     const outcome = await runSignOut(s);
 
-    expect(calls).toEqual(['clearActivity', 'deviceId', 'wipeAccount:device-a', 'dropTokens', 'goToLogin']);
+    expect(calls).toEqual([
+        'clearActivity', 'deviceId', 'wipeAccount:device-a', 'clearGuildCache', 'dropTokens', 'goToLogin',
+    ]);
     expect(outcome.wiped).toBe(true);
+});
+
+/**
+ * The cached guild layout is a list of the servers this account belongs to and the channels inside
+ * them. It is the same class of residue as the MLS state the first test guards, and it is on disk
+ * in plain `localStorage`, so it has to go when the session does.
+ */
+it('forgets the cached guild layout on the way out', async () => {
+    const {calls, steps: s} = steps();
+
+    await runSignOut(s);
+
+    expect(calls).toContain('clearGuildCache');
+});
+
+it('forgets the cached guild layout even when the MLS wipe throws', async () => {
+    const {calls, steps: s} = steps({
+        wipeAccount: async () => { throw new Error('keychain locked'); },
+    });
+
+    await runSignOut(s);
+
+    expect(calls).toContain('clearGuildCache');
+    expect(calls.indexOf('clearGuildCache')).toBeLessThan(calls.indexOf('goToLogin'));
 });
 
 it('clears rich presence before dropping the tokens that write needs', async () => {

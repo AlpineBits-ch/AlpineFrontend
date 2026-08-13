@@ -172,9 +172,15 @@ export class Login {
     protected returnableAccounts = signal<AccountSlot[]>([]);
 
     constructor() {
-        this.authService.isLoggedIn().then(r => {
-            if (r) this.router.navigate(['/overview']);
-        });
+        // No "am I already signed in, take me back" check here any more, and it must not come
+        // back. Asking from the constructor meant this whole screen was built and painted first
+        // and only then found out it was the wrong one, which is the second of launch that
+        // returning users spent reading a sign-in form. {@link hasSession} now answers that before
+        // any screen is matched at all.
+        //
+        // It also could not tell the two ways of arriving here apart. Reaching this screen through
+        // "Add Account" leaves the previous account signed in on purpose, and a redirect on "a
+        // session exists" is exactly what turns that feature into a page reload that does nothing.
 
         void this.accounts.list().then(slots => this.returnableAccounts.set(slots));
 

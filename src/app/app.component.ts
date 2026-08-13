@@ -2,6 +2,7 @@ import {Component, DestroyRef, HostListener, inject, OnDestroy, OnInit} from "@a
 import {takeUntilDestroyed} from '@angular/core/rxjs-interop';
 import {NavigationEnd, Router, RouterOutlet} from "@angular/router";
 import {ProfileService} from "./services/profile.service";
+import {AuthService} from "./services/auth.service";
 import {CallOverlayComponent} from "./features/call/call-overlay/call-overlay.component";
 import {TitlebarComponent} from "./titlebar/titlebar.component";
 import {ResizeHandlesComponent} from "./titlebar/resize-handles.component";
@@ -19,7 +20,7 @@ import {InviteDialogService} from './features/invite-dialog/invite-dialog.servic
 import {environment} from "../environments/environment";
 import {AppReadyService} from './services/app-ready.service';
 import {WindowChromeService} from './services/window-chrome.service';
-import {filter, take} from 'rxjs';
+import {filter} from 'rxjs';
 import {DeepLinks} from './platform/ports/deep-links.port';
 import {SteamService} from './services/steam.service';
 import {IsleProximityBarComponent} from './features/isle-proximity/isle-proximity-bar.component';
@@ -45,6 +46,7 @@ import {PlatformStatusService} from './services/platform-status.service';
 export class AppComponent implements OnInit, OnDestroy {
     protected readonly isPopup = window.location.pathname === '/toast-popup';
     private profileService = inject(ProfileService);
+    private authService = inject(AuthService);
     private callWebRtc = inject(CallWebRtcService);
     private callHotkey = inject(CallHotkeyService);
     private updateService = inject(UpdateService);
@@ -113,8 +115,19 @@ export class AppComponent implements OnInit, OnDestroy {
         window.visualViewport?.addEventListener('scroll', this.viewportHandler);
         this.viewportHandler();
 
-        this.profileService.getSelf().subscribe((profile) => {
-            console.log('Profile:', profile);
+        // Warms ProfileService.ownProfile(), which a dozen components read synchronously to answer
+        // "is this me" - and which MainPageComponent only fills in on the launch path where
+        // `resolveAccountGates` runs to completion, so it can legitimately still be unset.
+        //
+        // Gated on the session because on the login route it is a guaranteed 401 on every single
+        // launch. Signed out there is no refresh token, so `isLoggedIn` answers false without
+        // reaching the network at all; signed in it shares the guard's in-flight refresh rather
+        // than starting a second one.
+        void this.authService.isLoggedIn().then(signedIn => {
+            if (!signedIn) return;
+            this.profileService.getSelf().subscribe({
+                error: err => console.error('Could not preload own profile', err),
+            });
         });
 
         // No check on launch: update_gate.rs already ran one before this window
@@ -124,18 +137,10 @@ export class AppComponent implements OnInit, OnDestroy {
             void this.updateService.checkForUpdates();
         }, 10 * 60 * 1000);
 
-        // Fallback: hide loading screen when navigation lands on a non-main route
-        // (e.g. /authentication). For /overview, MainPageComponent calls markReady().
-        this.router.events.pipe(
-            filter(e => e instanceof NavigationEnd),
-            take(1),
-        ).subscribe(() => {
-            if (!this.router.url.startsWith('/overview')) {
-                setTimeout(() => this.appReady.markReady(), 300);
-            }
-            // Absolute safety net: never leave the splash up indefinitely
-            setTimeout(() => this.appReady.markReady(), 8000);
-        });
+        // Keeps the splash up until routing has settled - which now includes answering whether
+        // there is a session at all - and takes it down anywhere but /overview, where
+        // MainPageComponent owns the moment. Safety net included. See revealWhenRouted().
+        this.appReady.revealWhenRouted();
     }
 
     private handleDeepLink(url: string): void {

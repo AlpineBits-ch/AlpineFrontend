@@ -82,7 +82,13 @@ export class NavigationService {
         this.pushHistory();
     }
 
-    tryRestoreGuildNav(guilds: GuildDto[]): boolean {
+    /**
+     * Puts the app back where it was, given the guilds it can choose from.
+     *
+     * <p>Takes a `readonly` list because the one it is handed on a warm start is the cached layout
+     * `GuildService` hydrated itself with, and that list is shared with every other consumer.</p>
+     */
+    tryRestoreGuildNav(guilds: readonly GuildDto[]): boolean {
         try {
             const raw = localStorage.getItem(this.navKey());
             if (!raw) return false;
@@ -147,11 +153,36 @@ export class NavigationService {
         this.saveNav();
     }
 
+    /**
+     * Re-points the open workspace at a newer object for the same guild.
+     *
+     * <p><b>Returns early when the object is the one already held.</b> That is not a micro
+     * optimisation: `workspace` is an input to the member list, the channel list and the channel
+     * view, and every one of them treats a new reference as "this is a different guild now" and
+     * refetches. `GuildService` reconciles fetches so an unchanged guild keeps its identity - this
+     * is the other half of that, because wrapping the same guild in a fresh `{type, guild}` object
+     * would hand them a change anyway. The websocket `guildUpdated` handler refetches and calls
+     * this on every event, including the ones where nothing moved.</p>
+     *
+     * <p>The open channel is re-pointed with it. The one in {@link mainView} came out of the
+     * previous guild object, so leaving it behind shows the pre-edit name and topic until the user
+     * clicks something else - visible on a warm start, where the guild it came from was the cached
+     * snapshot. Unchanged channels keep their identity through the same reconciliation, so this
+     * fires only when the channel on screen genuinely changed.</p>
+     */
     updateCurrentGuild(guild: GuildDto): void {
         const current = this.workspace();
-        if (current.type === 'server' && current.guild.id === guild.id) {
-            this.workspace.set({type: 'server', guild});
-        }
+        if (current.type !== 'server' || current.guild.id !== guild.id) return;
+        if (current.guild === guild) return;
+
+        this.workspace.set({type: 'server', guild});
+
+        const view = this.mainView();
+        if (view.type !== 'channel') return;
+        const channel = guild.channels.find(c => c.id === view.channel.id);
+        // A channel that has since been deleted is left alone rather than closed: the websocket
+        // channel-deleted handler owns that decision and knows what to move to.
+        if (channel && channel !== view.channel) this.mainView.set({type: 'channel', channel});
     }
 
     showHome(): void {

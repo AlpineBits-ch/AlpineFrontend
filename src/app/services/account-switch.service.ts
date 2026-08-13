@@ -8,6 +8,7 @@ import {
     clearScopedOAuthKeys,
     setActiveSlotId,
 } from './scoped-oauth-storage';
+import {clearGuildLayoutCache} from './guild-layout-cache';
 
 /** Where a re-entry lands. A bare reload would keep the current route, which is the whole problem. */
 export type ReentryTarget = 'overview' | 'authentication';
@@ -167,6 +168,11 @@ export class AccountSwitchService {
         }
 
         clearScopedOAuthKeys(slotId);
+        // Next to the tokens, and addressed by slot for the same reason they are: this may be a
+        // background account, whose cached guild layout is reachable here and nowhere else. Leaving
+        // it behind would keep one account's server and channel names on disk under a slot id that
+        // the next `ensureSlot` for the same `{serverUrl, userId}` would hand straight back.
+        clearGuildLayoutCache(slotId);
         await this.accounts.remove(slotId);
 
         if (!wasActive) return;

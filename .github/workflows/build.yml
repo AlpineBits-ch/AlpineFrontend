@@ -111,6 +111,31 @@ jobs:
       # Tauri target/ directory on every run - paying the upload cost each time while rarely
       # getting a hit. sccache's per-object entries are far smaller and survive the budget.
       - uses: mozilla-actions/sccache-action@v0.0.10
+
+      # sccache caches compiled *objects*; this caches the crate *sources* they are compiled from,
+      # and the two are unrelated. Without it every run re-resolves the crates.io index and
+      # re-downloads all ~650 crate archives - 40s on this job, measured between cargo starting and
+      # the first `Compiling` line of run 31732217786.
+      #
+      # `ci.yml` has had this on all three of its jobs since the workspace split; the release jobs
+      # were simply never given it. Same paths and the same key expression, so `cargo-Linux-` is
+      # shared with those jobs and whichever runs first warms the rest. `cargo-Windows-` has no such
+      # donor - nothing in `ci.yml` runs on Windows - so this job is both the only writer and the
+      # only reader of its own key, and the first run after this lands is still a miss.
+      #
+      # Deliberately excludes ~/.cargo/registry/src, which is just the unpacked form of the .crate
+      # files in ~/.cargo/registry/cache - caching both doubles the size for nothing. See the same
+      # note in ci.yml.
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
       - name: Force HTTPS for Submodules
         run: |
           git config --global url."https://github.com/".insteadOf "git@github-alpine:"
@@ -281,6 +306,20 @@ jobs:
 
       # See the note in release-windows: sccache alone, not alongside rust-cache.
       - uses: mozilla-actions/sccache-action@v0.0.10
+
+      # See the note in release-windows. This half of the pair does have a donor: the key matches
+      # ci.yml's three jobs, which run on every push to main, so `cargo-Linux-` is normally warm
+      # before this job ever starts.
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: cargo-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-${{ runner.os }}-
+
       - name: Force HTTPS for Submodules
         run: |
           git config --global url."https://github.com/".insteadOf "git@github-alpine:"

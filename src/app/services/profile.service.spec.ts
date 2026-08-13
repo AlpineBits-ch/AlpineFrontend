@@ -1,3 +1,4 @@
+import {effect} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {HttpTestingController, provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideHttpClient} from '@angular/common/http';
@@ -21,6 +22,25 @@ function setup() {
 
 const USER = 'user_3HOx0QEFRmtVe4s3719mX1y95WQ';
 const BY_USER = `https://api.test.example/api/v1/social/profiles/by-user/${USER}`;
+const ME = 'https://api.test.example/api/v1/social/profiles/me';
+const byUser = (userId: string) => `https://api.test.example/api/v1/social/profiles/by-user/${userId}`;
+
+/**
+ * Drains and resets even when `verify()` throws.
+ *
+ * <p>Without the reset, one failing expectation leaves the TestBed instantiated and every later
+ * test in the file dies with "Cannot configure the test module", which buries the one assertion
+ * that actually failed.</p>
+ */
+function drainAndReset(): void {
+    const ctrl = TestBed.inject(HttpTestingController);
+    try {
+        ctrl.verify();
+    } finally {
+        ctrl.match(() => true).forEach(r => r.flush({}));
+        TestBed.resetTestingModule();
+    }
+}
 
 function profileFor(userId: string) {
     return {
@@ -40,22 +60,7 @@ function profileFor(userId: string) {
  * yet, and each issued its own GET.</p>
  */
 describe('ProfileService request coalescing', () => {
-    /**
-     * Drains and resets even when `verify()` throws.
-     *
-     * <p>Without the reset, one failing expectation in this suite leaves the TestBed instantiated
-     * and every later test in the file dies with "Cannot configure the test module", which buries
-     * the one assertion that actually failed.</p>
-     */
-    afterEach(() => {
-        const ctrl = TestBed.inject(HttpTestingController);
-        try {
-            ctrl.verify();
-        } finally {
-            ctrl.match(() => true).forEach(r => r.flush({}));
-            TestBed.resetTestingModule();
-        }
-    });
+    afterEach(drainAndReset);
 
     it('issues one request for ten concurrent resolutions of the same user id', () => {
         const {service, ctrl} = setup();
@@ -127,14 +132,16 @@ describe('ProfileService request coalescing', () => {
         ctrl.expectOne(BY_USER).flush(profileFor(USER));
     });
 
-    // A failed fetch must leave nothing behind, or the id becomes permanently unfetchable.
+    // A failed fetch must leave nothing behind in the *coalescing* map, or the id becomes
+    // permanently unfetchable. (The negative cache below deliberately does hold a failed id back,
+    // but only on the `resolve*` path - `fetchByUserId` is the escape hatch and must still work.)
     it('clears the in-flight entry when the request fails', () => {
         const {service, ctrl} = setup();
 
-        service.resolveByUserId(USER);
+        service.fetchByUserId(USER).subscribe();
         ctrl.expectOne(BY_USER).flush({}, {status: 429, statusText: 'Too Many Requests'});
 
-        service.resolveByUserId(USER);
+        service.fetchByUserId(USER).subscribe();
         ctrl.expectOne(BY_USER).flush(profileFor(USER));
     });
 
@@ -145,6 +152,261 @@ describe('ProfileService request coalescing', () => {
         for (let i = 0; i < 10; i++) service.resolveById('p1');
 
         expect(ctrl.match(url).length).toBe(1);
+    });
+});
+
+/**
+ * The sequential half of the storm, which coalescing cannot reach.
+ *
+ * <p>Coalescing only merges callers that arrive while a request is on the wire. An id that
+ * <b>failed</b> left the cache exactly as empty as before it was asked for, so the next paint asked
+ * again, and the next, forever - and since every profile that lands re-runs every avatar effect on
+ * screen, "the next paint" happens once per profile in the batch. Ten profiles arriving meant the
+ * one deleted user was fetched ten times, one request at a time, each one settling before the next
+ * began.</p>
+ */
+describe('ProfileService negative caching', () => {
+    afterEach(() => {
+        try {
+            drainAndReset();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
+    it('does not re-request a user id whose fetch failed', () => {
+        const {service, ctrl} = setup();
+
+        service.resolveByUserId(USER);
+        ctrl.expectOne(BY_USER).flush({}, {status: 404, statusText: 'Not Found'});
+
+        // Every subsequent profile landing on this screen re-runs the avatar effect behind this id.
+        for (let i = 0; i < 10; i++) service.resolveByUserId(USER);
+
+        ctrl.expectNone(BY_USER);
+    });
+
+    it('does not re-request a profile id whose fetch failed', () => {
+        const {service, ctrl} = setup();
+        const url = 'https://api.test.example/api/v1/social/profiles/p_gone';
+
+        service.resolveById('p_gone');
+        ctrl.expectOne(url).flush({}, {status: 404, statusText: 'Not Found'});
+
+        for (let i = 0; i < 10; i++) service.resolveById('p_gone');
+
+        ctrl.expectNone(url);
+    });
+
+    // A cooldown, not a tombstone: a 429 or a blip must not cost the profile for the whole session.
+    it('lets the id be resolved again once the cooldown has elapsed', () => {
+        vi.useFakeTimers();
+        const {service, ctrl} = setup();
+
+        service.resolveByUserId(USER);
+        ctrl.expectOne(BY_USER).flush({}, {status: 429, statusText: 'Too Many Requests'});
+
+        vi.advanceTimersByTime(59_000);
+        service.resolveByUserId(USER);
+        ctrl.expectNone(BY_USER);
+
+        vi.advanceTimersByTime(2_000);
+        service.resolveByUserId(USER);
+        ctrl.expectOne(BY_USER).flush(profileFor(USER));
+    });
+
+    // The settings tables ask explicitly because they want a fresh row; the negative cache gates
+    // the fire-and-forget path only.
+    it('does not block an explicit fetch', () => {
+        const {service, ctrl} = setup();
+
+        service.resolveByUserId(USER);
+        ctrl.expectOne(BY_USER).flush({}, {status: 404, statusText: 'Not Found'});
+
+        service.fetchByUserId(USER).subscribe();
+        ctrl.expectOne(BY_USER).flush(profileFor(USER));
+    });
+
+    it('forgets the failure once the id resolves', () => {
+        vi.useFakeTimers();
+        const {service, ctrl} = setup();
+
+        service.resolveByUserId(USER);
+        ctrl.expectOne(BY_USER).flush({}, {status: 404, statusText: 'Not Found'});
+
+        // An explicit fetch succeeds - a user that had been deleted was restored, or the 404 was a
+        // routing blip. The id must not stay marked, or it would go dark again the moment the
+        // profile is evicted for any other reason.
+        service.fetchByUserId(USER).subscribe();
+        ctrl.expectOne(BY_USER).flush(profileFor(USER));
+
+        const marked = (service as unknown as { negativeByUserId: Map<string, number> }).negativeByUserId;
+        expect(marked.has(USER)).toBe(false);
+    });
+
+    it('holds back only the id that failed', () => {
+        const {service, ctrl} = setup();
+
+        service.resolveByUserId('user_a');
+        ctrl.expectOne(byUser('user_a')).flush({}, {status: 404, statusText: 'Not Found'});
+
+        service.resolveByUserId('user_a');
+        service.resolveByUserId('user_b');
+
+        ctrl.expectNone(byUser('user_a'));
+        ctrl.expectOne(byUser('user_b')).flush(profileFor('user_b'));
+    });
+
+    /**
+     * The circuit breaker and the negative cache answer different questions - "is the profile
+     * service up" versus "does this id resolve" - and feeding one from the other breaks both. A
+     * 30-second outage would otherwise mark every id that happened to be on screen and keep them
+     * dark for a further minute after the service came back.
+     */
+    it('does not mark ids that were never requested because the circuit was open', () => {
+        vi.useFakeTimers();
+        const {service, ctrl} = setup();
+
+        // Trip the breaker on ids nobody will ask about again.
+        for (const id of ['trip_a', 'trip_b', 'trip_c']) {
+            service.fetchByUserId(id).subscribe();
+            ctrl.expectOne(byUser(id)).flush({}, {status: 503, statusText: 'Service Unavailable'});
+        }
+
+        // Open: this never reaches the wire, so it is not evidence about `USER`.
+        service.resolveByUserId(USER);
+        ctrl.expectNone(BY_USER);
+
+        // Recovery window elapses, the breaker half-opens, and `USER` gets its first real try.
+        vi.advanceTimersByTime(31_000);
+        service.resolveByUserId(USER);
+        ctrl.expectOne(BY_USER).flush(profileFor(USER));
+    });
+});
+
+/**
+ * Why `resolve*` reads the cache untracked.
+ *
+ * <p>`avatar.component`, `message.component` and `system-message.component` all call a resolver from
+ * inside an `effect`. Reading the profile map there made every one of those effects a subscriber to
+ * <b>the whole map</b>, and `store` replaces the map object on every profile that lands - so one
+ * profile arriving re-ran every avatar and message effect on screen, and each re-run re-asked for
+ * any id the cache still lacked. That is the multiplier that turned one unresolvable id into ten
+ * requests.</p>
+ */
+describe('ProfileService resolver reactivity', () => {
+    afterEach(drainAndReset);
+
+    /** Caps its own re-entry so a regression fails the assertion instead of hanging the run. */
+    function countEffectRuns(body: () => void): () => number {
+        let runs = 0;
+        TestBed.runInInjectionContext(() => {
+            effect(() => {
+                runs++;
+                if (runs > 20) return;
+                body();
+            });
+        });
+        TestBed.tick();
+        return () => runs;
+    }
+
+    it('does not re-run a caller effect when an unrelated profile is stored', () => {
+        const {service, ctrl} = setup();
+        const runs = countEffectRuns(() => service.resolveByUserId('user_a'));
+        expect(runs()).toBe(1);
+
+        ctrl.expectOne(byUser('user_a')).flush(profileFor('user_a'));
+        service.resolveByUserId('user_b');
+        ctrl.expectOne(byUser('user_b')).flush(profileFor('user_b'));
+        TestBed.tick();
+
+        expect(runs()).toBe(1);
+    });
+
+    it('does not re-run a caller effect resolving by profile id either', () => {
+        const {service, ctrl} = setup();
+        const runs = countEffectRuns(() => service.resolveById('p_a'));
+        expect(runs()).toBe(1);
+
+        ctrl.expectOne('https://api.test.example/api/v1/social/profiles/p_a').flush(profileFor('a'));
+        service.resolveByUserId('user_b');
+        ctrl.expectOne(byUser('user_b')).flush(profileFor('user_b'));
+        TestBed.tick();
+
+        expect(runs()).toBe(1);
+    });
+});
+
+/**
+ * `getSelf` is called from the app shell, the main page and quick settings, all within a few frames
+ * of launch, and it had no coalescing at all.
+ *
+ * <p>Coalescing only, deliberately: quick settings and the settings pages call this <b>because</b>
+ * they want a fresh row, so a cache-first version would quietly stop them ever seeing a change made
+ * on another device.</p>
+ */
+describe('ProfileService.getSelf coalescing', () => {
+    afterEach(drainAndReset);
+
+    it('shares one request between concurrent callers and answers all of them', () => {
+        const {service, ctrl} = setup();
+        const seen: string[] = [];
+
+        service.getSelf().subscribe(p => seen.push(p.userName));
+        service.getSelf().subscribe(p => seen.push(p.userName));
+        service.getSelf().subscribe(p => seen.push(p.userName));
+
+        const requests = ctrl.match(ME);
+        expect(requests.length).toBe(1);
+
+        requests[0].flush(profileFor('u1'));
+        expect(seen).toEqual(['Ada', 'Ada', 'Ada']);
+    });
+
+    it('refetches for a caller that arrives after the first request settled', () => {
+        const {service, ctrl} = setup();
+
+        service.getSelf().subscribe();
+        ctrl.expectOne(ME).flush(profileFor('u1'));
+
+        // The settings page reopening, quick settings being opened again: these want the live row.
+        service.getSelf().subscribe();
+        ctrl.expectOne(ME).flush(profileFor('u1'));
+    });
+
+    it('clears the window when the request fails, so the next caller retries', () => {
+        const {service, ctrl} = setup();
+
+        service.getSelf().subscribe({error: () => void 0});
+        ctrl.expectOne(ME).flush({}, {status: 500, statusText: 'Server Error'});
+
+        service.getSelf().subscribe();
+        ctrl.expectOne(ME).flush(profileFor('u1'));
+    });
+
+    /**
+     * The read-after-write case. An avatar upload refetches because the PATCH returns no body, and
+     * joining a `me` request that was already on the wire would answer it with the profile as it
+     * was before the upload - the new avatar missing until something else happened to refetch.
+     */
+    it('does not let an avatar upload join a request that predates it', () => {
+        const {service, ctrl} = setup();
+        service['ownProfile'].set(profileFor('u1'));
+
+        service.getSelf().subscribe();
+        const stale = ctrl.expectOne(ME);
+
+        service.uploadAvatar(new File(['x'], 'a.png', {type: 'image/png'})).subscribe();
+        ctrl.expectOne('https://api.test.example/api/v1/social/profiles/p_u1/avatar').flush('');
+
+        const refetch = ctrl.match(ME);
+        expect(refetch.length).toBe(1);
+
+        stale.flush(profileFor('u1'));
+        refetch[0].flush({...profileFor('u1'), avatarUrl: 'https://cdn.example/new.png'});
+
+        expect(service.ownProfile()?.avatarUrl).toBe('https://cdn.example/new.png');
     });
 });
 

@@ -3,7 +3,7 @@ import {HttpClient} from '@angular/common/http';
 import {CategoryDto, ChannelDto, ChannelPermission, GuildDto, GuildKind, RoleDto,} from '../dtos/response/guild.dto';
 import {GuildVerificationLevel} from '../dtos/response/guild-safety.dto';
 import {environment} from '../../environments/environment';
-import {catchError, map, Observable, of, Subject, tap, throwError} from 'rxjs';
+import {catchError, finalize, map, Observable, of, shareReplay, Subject, tap, throwError} from 'rxjs';
 import {GuildMemberDto, RoleMemberDto, SelfGuildMemberDto} from '../dtos/response/member.dto';
 import {InviteDto} from "../dtos/response/invite.dto";
 import {CreateInviteDto} from "../dtos/request/create-invite.dto";
@@ -14,6 +14,13 @@ import {AuditLogEntryDto} from "../dtos/response/audit-log-entry.dto";
 import {ReorderRolesDto} from "../dtos/request/reorder-roles.dto";
 import {CreateThreadDto} from "../dtos/request/create-thread.dto";
 import {MoveOutSummary} from "../dtos/response/move-out.dto";
+import {
+    clearGuildLayoutCache,
+    readGuildLayoutCache,
+    reviveGuildDates,
+    writeGuildLayoutCache,
+} from "./guild-layout-cache";
+import {reconcileGuilds} from "./guild-reconcile";
 
 export interface UpdateGuildDto {
     name?: string;
@@ -89,23 +96,78 @@ export interface GuildMemberWithProfileDto extends GuildMemberDto {
     avatarUrl?: string;
 }
 
+/**
+ * How long a cached own-member row is served before it is read again.
+ *
+ * <p>Not a performance knob - it is the self-healing property the old uncached code had for free.
+ * Every change we are *told* about invalidates explicitly (see {@link GuildService.invalidateOwnMember}),
+ * so this only covers changes nobody told us about: a `guild.MemberUpdated` that landed while the
+ * realtime socket was reconnecting is simply never delivered, and without an expiry the row it
+ * described would stay wrong for the rest of the session. Before the cache, reopening the guild
+ * fixed that; with an unbounded cache, nothing would. Half a minute keeps the guild-open burst
+ * collapsed to one request while bounding how long a missed demotion can show controls that
+ * 403.</p>
+ */
+const OWN_MEMBER_TTL_MS = 30_000;
+
+interface CachedOwnMember {
+    row: SelfGuildMemberDto;
+    /** `Date.now()` when the response landed, for the {@link OWN_MEMBER_TTL_MS} comparison. */
+    at: number;
+}
+
 @Injectable({providedIn: 'root'})
 export class GuildService {
     readonly guildJoined$ = new Subject<void>();
     readonly guildUpdated$ = new Subject<GuildDto>();
 
     /**
-     * The last guild list this client fetched, for consumers that need every guild rather than
-     * the one on screen - the titlebar inbox has to count mentions across all of them, and it has
-     * no business issuing its own request for a list the server rail already asked for.
+     * <b>The</b> guild list. Every consumer reads this one - the server rail, the titlebar inbox
+     * that counts mentions across all of them, the household boards, the wiki, the composer.
      *
-     * <p>Empty until the first {@link getGuilds} resolves; it is a cache, not a loader.</p>
+     * <p>`ServerTaskbarComponent` used to keep a second copy and mutate it locally for websocket
+     * events while ten other places read this one, which is how the rail and everything else could
+     * disagree about what guilds exist. The websocket handlers now call {@link upsertGuild} and
+     * {@link removeGuild} instead, so there is one list and one place that writes it.</p>
+     *
+     * <p><b>Populated before the first request is issued</b>, from the layout this account left on
+     * disk last time - see `guild-layout-cache`. Empty means a genuinely cold profile, a cache this
+     * account has not written yet, or storage that would not answer; all three fall back to what
+     * shipped before, which is waiting for {@link getGuilds}.</p>
      */
-    readonly guilds = signal<readonly GuildDto[]>([]);
+    readonly guilds = signal<readonly GuildDto[]>(readGuildLayoutCache());
 
     private apiConfig = inject(ApiConfigService);
     private http = inject(HttpClient);
     private base = this.apiConfig.baseUrl() + '/api/v1/guild';
+
+    /** The last own-member row read for each guild, until it is invalidated or ages out. */
+    private ownMemberCache = new Map<string, CachedOwnMember>();
+
+    /**
+     * The `/me` read already on the wire for each guild, so callers that arrive together join it.
+     *
+     * <p><b>This, not the cache, is what fixes the guild-open burst.</b> A cache is only written
+     * when a response lands, and opening a guild mounts the channel list, the channel view, the
+     * member list and whichever household board is on screen inside a single change-detection
+     * pass - all of them looked at an empty cache, agreed there was nothing there, and issued
+     * their own GET for the same row. Three to five identical requests, every open.</p>
+     *
+     * <p>Entries are dropped when the request settles, so this is a coalescing window rather than
+     * a second cache: a failure leaves nothing behind and the next caller may retry.</p>
+     */
+    private ownMemberInFlight = new Map<string, Observable<SelfGuildMemberDto>>();
+
+    /**
+     * Bumped per guild by {@link invalidateOwnMember}, so a response that was computed before an
+     * invalidation cannot be written to the cache after it.
+     *
+     * <p>Without this the narrowest race loses the demotion outright: the first read is still on
+     * the wire when `guild.MemberUpdated` arrives, the invalidation clears an empty cache, and the
+     * pre-change response then lands and installs itself as the fresh row - which every host that
+     * the revision bump just told to re-read is then handed.</p>
+     */
+    private ownMemberEpoch = new Map<string, number>();
 
     // ── Guilds ──────────────────────────────────────────────────────────────
     /**
@@ -122,12 +184,80 @@ export class GuildService {
         });
     }
 
+    /**
+     * Refreshes the guild list.
+     *
+     * <p><b>Emits the reconciled list, not the raw response.</b> Subscribers have to end up holding
+     * the same objects {@link guilds} holds: `ServerTaskbarComponent` passes what it receives here
+     * straight to `NavigationService.tryRestoreGuildNav`, and a second identity for the same guild
+     * landing in `workspace` is exactly the cascade {@link reconcileGuilds} exists to prevent.</p>
+     */
     getGuilds(): Observable<GuildDto[]> {
-        return this.http.get<GuildDto[]>(`${this.base}/guilds`).pipe(tap(g => this.guilds.set(g)));
+        return this.http.get<GuildDto[]>(`${this.base}/guilds`).pipe(
+            map(fresh => this.publish(reconcileGuilds(this.guilds(), fresh.map(reviveGuildDates)))),
+        );
     }
 
     getGuild(id: string): Observable<GuildDto> {
         return this.http.get<GuildDto>(`${this.base}/guilds/${id}`);
+    }
+
+    /**
+     * Puts one guild into {@link guilds}, replacing the entry with the same id or appending it.
+     *
+     * <p>For the paths that learn about a single guild rather than the whole list: a guild created
+     * here or on another device, a `guildUpdated` refetch, a settings save. Keyed on id rather than
+     * appended, because SignalR redelivers after a reconnect and an append would double the rail.</p>
+     *
+     * <p>Goes through {@link reconcileGuilds} like everything else, so republishing a guild that has
+     * not actually changed - which the `guildUpdated` handler does routinely - costs nothing.</p>
+     */
+    upsertGuild(guild: GuildDto): void {
+        const fresh = reviveGuildDates(guild);
+        const current = this.guilds();
+        const next = current.some(g => g.id === fresh.id)
+            ? current.map(g => g.id === fresh.id ? fresh : g)
+            : [...current, fresh];
+        this.publish(reconcileGuilds(current, next));
+    }
+
+    /** Drops a guild that was deleted, or that this account left. A no-op if it was never there. */
+    removeGuild(guildId: string): void {
+        const current = this.guilds();
+        const next = current.filter(g => g.id !== guildId);
+        if (next.length === current.length) return;
+        this.publish(next);
+    }
+
+    /**
+     * Forgets the list and the copy of it on disk.
+     *
+     * <p>For the end of a session. The list names servers this account is a member of and the
+     * channels inside them, so it has to go with the tokens rather than linger for whoever signs in
+     * next - see `runSignOut`, which is the ordered description of that.</p>
+     */
+    forgetCachedGuilds(): void {
+        this.guilds.set([]);
+        clearGuildLayoutCache();
+    }
+
+    /**
+     * The one place {@link guilds} is written, so the on-disk copy cannot drift from the in-memory
+     * one.
+     *
+     * <p>The identity check is not an optimisation of the write - it is what makes a reconcile that
+     * found nothing new genuinely free. {@link reconcileGuilds} returns the *same array* in that
+     * case, `set` with it notifies nobody under Angular's default equality, and there is nothing to
+     * re-serialize either.</p>
+     */
+    private publish(next: readonly GuildDto[]): GuildDto[] {
+        if (next !== this.guilds()) {
+            this.guilds.set(next);
+            writeGuildLayoutCache(next);
+        }
+        // The list is treated as immutable everywhere; the cast only drops a `readonly` the public
+        // observable's signature predates.
+        return this.guilds() as GuildDto[];
     }
 
 
@@ -136,11 +266,15 @@ export class GuildService {
     }
 
     updateGuild(id: string, dto: UpdateGuildDto): Observable<GuildDto> {
-        return this.http.patch<GuildDto>(`${this.base}/guilds/${id}`, dto);
+        // `kind`/`features` re-seed the module set, and the resolved permission mask is clamped to
+        // enabled modules - so this can strip bits from a member row whose roles never moved.
+        return this.http.patch<GuildDto>(`${this.base}/guilds/${id}`, dto)
+            .pipe(tap(() => this.invalidateOwnMember(id)));
     }
 
     deleteGuild(id: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/guilds/${id}`);
+        return this.http.delete<void>(`${this.base}/guilds/${id}`)
+            .pipe(tap(() => this.invalidateOwnMember(id)));
     }
 
     uploadGuildIcon(id: string, file: File): Observable<GuildDto> {
@@ -156,16 +290,24 @@ export class GuildService {
     // ── Members ─────────────────────────────────────────────────────────────
 
 
+    /**
+     * The member id is somebody else's in every screen that calls this today, but the route does
+     * not stop it being ours and the cached row would keep the old mask if it were. Dropping it
+     * costs one refetch; not dropping it costs a permission gate that disagrees with the server.
+     */
     updateMemberPermissions(guildId: string, memberId: string, permissions: string): Observable<GuildMemberDto> {
-        return this.http.patch<GuildMemberDto>(`${this.base}/guild/${guildId}/member/${memberId}`, {permissions});
+        return this.http.patch<GuildMemberDto>(`${this.base}/guild/${guildId}/member/${memberId}`, {permissions})
+            .pipe(tap(() => this.invalidateOwnMember(guildId)));
     }
 
     kickMember(guildId: string, memberId: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/${memberId}`);
+        return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/${memberId}`)
+            .pipe(tap(() => this.invalidateOwnMember(guildId)));
     }
 
     kickMemberByUserId(guildId: string, userId: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/by-user/${userId}`);
+        return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/by-user/${userId}`)
+            .pipe(tap(() => this.invalidateOwnMember(guildId)));
     }
 
     banMember(guildId: string, dto: {userId: string; reason?: string}): Observable<void> {
@@ -188,8 +330,14 @@ export class GuildService {
         return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/${memberId}/mute`);
     }
 
+    /**
+     * The row is gone the moment this succeeds, and keeping it would survive a rejoin: redeeming
+     * an invite to the same guild inside the TTL would be answered with the roles the membership
+     * that just ended had.
+     */
     leaveGuild(guildId: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/me`);
+        return this.http.delete<void>(`${this.base}/guilds/${guildId}/members/me`)
+            .pipe(tap(() => this.invalidateOwnMember(guildId)));
     }
 
     /**
@@ -209,7 +357,7 @@ export class GuildService {
         return this.http.post<MoveOutSummary>(
             `${this.base}/guilds/${guildId}/members/${userId}/move-out`,
             {writeOffBalances},
-        );
+        ).pipe(tap(() => this.invalidateOwnMember(guildId)));
     }
 
     // ── Roles ────────────────────────────────────────────────────────────────
@@ -217,16 +365,24 @@ export class GuildService {
         return this.http.post<RoleDto>(`${this.base}/guilds/${dto.guildId}/roles`, dto);
     }
 
+    /**
+     * Role routes are addressed by role id and name no guild, so the whole cache goes rather than
+     * one entry. At most one refetch per guild whose row is warm, for an action nobody performs in
+     * a loop - and the alternative is a role edit that leaves our own resolved permissions stale.
+     */
     updateRole(id: string, dto: UpdateRoleDto): Observable<void> {
-        return this.http.patch<void>(`${this.base}/roles/${id}`, dto);
+        return this.http.patch<void>(`${this.base}/roles/${id}`, dto)
+            .pipe(tap(() => this.invalidateOwnMember()));
     }
 
     deleteRole(id: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/roles/${id}`);
+        return this.http.delete<void>(`${this.base}/roles/${id}`)
+            .pipe(tap(() => this.invalidateOwnMember()));
     }
 
     assignRoleToMember(roleId: string, memberId: string): Observable<void> {
-        return this.http.put<void>(`${this.base}/roles/${roleId}/members/${memberId}`, {});
+        return this.http.put<void>(`${this.base}/roles/${roleId}/members/${memberId}`, {})
+            .pipe(tap(() => this.invalidateOwnMember()));
     }
 
     getRoleMembers(roleId: string, skip: number, take: number): Observable<RoleMemberDto[]> {
@@ -240,7 +396,8 @@ export class GuildService {
     }
 
     removeRoleFromMember(roleId: string, memberId: string): Observable<void> {
-        return this.http.delete<void>(`${this.base}/roles/${roleId}/members/${memberId}`);
+        return this.http.delete<void>(`${this.base}/roles/${roleId}/members/${memberId}`)
+            .pipe(tap(() => this.invalidateOwnMember()));
     }
 
     // ── Channels ─────────────────────────────────────────────────────────────
@@ -349,8 +506,102 @@ export class GuildService {
         );
     }
 
+    /**
+     * The signed-in user's member row for a guild - cached, and coalesced while in flight.
+     *
+     * <p>Callers do not have to know any of that: this still answers with the row, and every one
+     * of the ~18 call sites that reads it inside an `effect` is unchanged. What changed is that
+     * opening a guild costs one request rather than one per host.</p>
+     *
+     * <p><b>Everything that could make the cached row wrong invalidates it</b> - see
+     * {@link invalidateOwnMember} for the list and for why `OwnMemberRevisionService`, not this
+     * service, is what connects `guild.MemberUpdated` to it.</p>
+     *
+     * <p>A cache hit emits synchronously. Nothing depends on the old asynchrony: every call site
+     * only writes signals from its `next`, none of them reads a signal it writes, so no effect can
+     * re-enter itself through the shorter path.</p>
+     */
     getOwnMember(guildId: string): Observable<SelfGuildMemberDto> {
-        return this.http.get<SelfGuildMemberDto>(`${this.base}/guilds/${guildId}/me`);
+        const cached = this.ownMemberCache.get(guildId);
+        if (cached && Date.now() - cached.at < OWN_MEMBER_TTL_MS) return of(cached.row);
+
+        const existing = this.ownMemberInFlight.get(guildId);
+        if (existing) return existing;
+
+        const epoch = this.ownMemberEpoch.get(guildId) ?? 0;
+        const shared: Observable<SelfGuildMemberDto> = this.http
+            .get<SelfGuildMemberDto>(`${this.base}/guilds/${guildId}/me`)
+            .pipe(
+                tap(row => {
+                    // Answers a question that has since been re-asked. Dropping it costs one
+                    // refetch; storing it costs the caller a permission set the server has
+                    // already stopped honouring.
+                    if ((this.ownMemberEpoch.get(guildId) ?? 0) !== epoch) return;
+                    this.ownMemberCache.set(guildId, {row, at: Date.now()});
+                }),
+                // Identity-checked: an invalidation may already have replaced this entry with a
+                // newer request, and this one settling must not take that one down with it.
+                finalize(() => {
+                    if (this.ownMemberInFlight.get(guildId) === shared) this.ownMemberInFlight.delete(guildId);
+                }),
+                // `refCount: false` on purpose. With ref counting, a host that is destroyed before
+                // the response lands - switching guilds quickly does exactly that - would tear the
+                // shared request down and leave its siblings to start fresh ones, which is the
+                // duplicate this exists to prevent. The subscription is bounded anyway: an HTTP
+                // observable completes after one response.
+                shareReplay({bufferSize: 1, refCount: false}),
+            );
+        this.ownMemberInFlight.set(guildId, shared);
+        return shared;
+    }
+
+    /**
+     * Forgets the cached own-member row so the next {@link getOwnMember} reads it again.
+     *
+     * <p><b>Called with no id it drops every guild</b>, which is what the role routes need: they
+     * are addressed by role id and carry no guild, so there is nothing to narrow the invalidation
+     * to. That over-invalidates by at most one refetch per guild whose row is cached, and role
+     * edits are rare - guessing wrong in the other direction leaves a user holding a permission
+     * the server has revoked.</p>
+     *
+     * <p><b>What invalidates, and why:</b></p>
+     * <ul>
+     *   <li>{@link updateMemberPermissions}, {@link kickMember}, {@link kickMemberByUserId},
+     *   {@link moveOutMember}, {@link leaveGuild} - each names a member who may be us. A removal
+     *   matters even though the UI leaves the guild: rejoining within the TTL would otherwise be
+     *   served the roles the removed membership had.</li>
+     *   <li>{@link assignRoleToMember}, {@link removeRoleFromMember}, {@link updateRole},
+     *   {@link deleteRole} - a role we hold, or now hold, changes what `effectivePermissions`
+     *   resolves to.</li>
+     *   <li>{@link updateGuild} - `kind` and `features` re-seed the module set, and the resolved
+     *   permission mask is clamped to enabled modules, so turning a module off strips bits from a
+     *   row whose roles never changed.</li>
+     *   <li>{@link deleteGuild} - housekeeping; the row cannot be re-read, but nothing should keep
+     *   answering for a guild that is gone.</li>
+     *   <li>`guild.MemberUpdated` for our own user, and the events that remove us from a guild or
+     *   put us back in one. Those arrive over the realtime socket, which this service deliberately
+     *   does not inject - specs provide it an `HttpClient` and nothing else, and pulling the OAuth
+     *   client in through the connection would stop every one of them constructing it. So
+     *   `OwnMemberRevisionService` listens and calls this; the dependency points that way and must
+     *   keep pointing that way.</li>
+     * </ul>
+     *
+     * <p><b>What deliberately does not:</b> {@link createRole} (a role created empty grants nobody
+     * anything until somebody is assigned to it, which invalidates in its own right); the channel
+     * and category permission overwrites (`effectivePermissions` on this row is the guild-level
+     * mask - overwrites are resolved per channel, from data this row does not carry); and a
+     * mutation that failed, since the invalidation rides on the response rather than the call.</p>
+     */
+    invalidateOwnMember(guildId?: string): void {
+        if (guildId === undefined) {
+            for (const id of new Set([...this.ownMemberCache.keys(), ...this.ownMemberInFlight.keys()])) {
+                this.invalidateOwnMember(id);
+            }
+            return;
+        }
+        this.ownMemberCache.delete(guildId);
+        this.ownMemberInFlight.delete(guildId);
+        this.ownMemberEpoch.set(guildId, (this.ownMemberEpoch.get(guildId) ?? 0) + 1);
     }
 
     // ── Audit log ────────────────────────────────────────────────────────────

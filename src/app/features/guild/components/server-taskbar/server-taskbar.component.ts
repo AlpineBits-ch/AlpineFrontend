@@ -41,7 +41,6 @@ import {memberCanManageGuild} from '../../guild-permissions';
 })
 export class ServerTaskbarComponent implements OnInit {
     protected navService = inject(NavigationService);
-    protected guilds = signal<GuildDto[]>([]);
     protected showCreateModal = signal(false);
     protected contextGuild = signal<GuildDto | null>(null);
     protected showGuildSettings = signal(false);
@@ -51,6 +50,15 @@ export class ServerTaskbarComponent implements OnInit {
     private memberRequests = new Set<string>();
     protected isDMsActive = computed(() => this.navService.workspace().type === 'dms');
     private guildService = inject(GuildService);
+    /**
+     * The rail reads the service's list rather than keeping one of its own.
+     *
+     * <p>It used to hold a private `signal<GuildDto[]>` that it mutated for every websocket event
+     * while roughly ten other places read `GuildService.guilds`. Two sources of truth for the same
+     * thing is why they could disagree about which servers exist, and it is why warming a cache
+     * would only ever have warmed one of them.</p>
+     */
+    protected guilds = this.guildService.guilds;
     private profileService = inject(ProfileService);
     private readStateService = inject(GuildReadStateService);
     private voiceActivity = inject(GuildVoiceActivityService);
@@ -87,21 +95,29 @@ export class ServerTaskbarComponent implements OnInit {
     @ViewChild('guildContextMenu') private guildContextMenu!: ContextMenu;
 
     ngOnInit(): void {
+        // Before anything touches the network. `GuildService` hydrates its list from this account's
+        // last known layout while it is being constructed, so on a warm start the rail, the channel
+        // list and the channel are all on screen by the time the request below is even issued -
+        // which is the whole point. A cold profile answers with an empty list and nothing happens
+        // here, exactly as before.
+        let restored = this.navService.tryRestoreGuildNav(this.guilds());
+
         this.guildService.getGuilds().subscribe(guilds => {
-            this.guilds.set(guilds);
-            this.navService.tryRestoreGuildNav(guilds);
+            if (!restored) {
+                restored = this.navService.tryRestoreGuildNav(guilds);
+                return;
+            }
+            this.reconcileRestoredWorkspace(guilds);
         });
 
         this.guildService.guildJoined$.pipe(
             takeUntilDestroyed(this.destroyRef),
             switchMap(() => this.guildService.getGuilds()),
-        ).subscribe(guilds => this.guilds.set(guilds));
+        ).subscribe();
 
         this.guildService.guildUpdated$.pipe(
             takeUntilDestroyed(this.destroyRef),
-        ).subscribe(updated => {
-            this.guilds.update(gs => gs.map(g => g.id === updated.id ? updated : g));
-        });
+        ).subscribe(updated => this.guildService.upsertGuild(updated));
 
         // A guild appeared for this account without this window doing anything: created on another
         // device, or an invite accepted there. `guildJoined$` only fires for a join this client
@@ -112,13 +128,10 @@ export class ServerTaskbarComponent implements OnInit {
         // something is the opposite of what it means here.
         this.guildWsService.guildCreatedObservable
             .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe(guild => {
-                // The payload is the whole guild, so no round trip - but it is also replayable, and
-                // SignalR redelivers after a reconnect. Keyed on id rather than appended blindly.
-                this.guilds.update(gs => gs.some(g => g.id === guild.id)
-                    ? gs.map(g => g.id === guild.id ? guild : g)
-                    : [...gs, guild]);
-            });
+            // The payload is the whole guild, so no round trip - but it is also replayable, and
+            // SignalR redelivers after a reconnect. `upsertGuild` keys on id rather than appending
+            // blindly, so a redelivery is a no-op rather than a duplicate in the rail.
+            .subscribe(guild => this.guildService.upsertGuild(guild));
 
         this.guildWsService.guildDeletedObservable
             .pipe(takeUntilDestroyed(this.destroyRef))
@@ -128,13 +141,35 @@ export class ServerTaskbarComponent implements OnInit {
             .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe(e => {
                 this.guildService.getGuild(e.guildId).subscribe(updated => {
-                    this.guilds.update(gs => gs.map(g => g.id === updated.id ? updated : g));
-                    const ws = this.navService.workspace();
-                    if (ws.type === 'server' && ws.guild.id === updated.id) {
-                        this.navService.updateCurrentGuild(updated);
-                    }
+                    // Through the service so the reconciliation runs: this event fires for changes
+                    // nothing on screen cares about, and republishing a fresh object for each one
+                    // used to make the member list refetch its whole roster.
+                    this.guildService.upsertGuild(updated);
+                    const current = this.guildService.guilds().find(g => g.id === e.guildId);
+                    if (current) this.navService.updateCurrentGuild(current);
                 });
             });
+    }
+
+    /**
+     * Settles the difference between the cached layout the app painted with and the one the server
+     * just described.
+     *
+     * <p>Only reachable on a warm start, and only for the guild that is open. Reconciliation means
+     * the common case - nothing changed - resolves to the same object and
+     * {@link NavigationService.updateCurrentGuild} returns without touching a signal.</p>
+     *
+     * <p>The guild being gone is the case worth having: the cache can name a server this account
+     * left on another device, and restoring into it would strand the user in a workspace whose
+     * every request answers 403.</p>
+     */
+    private reconcileRestoredWorkspace(guilds: readonly GuildDto[]): void {
+        const ws = this.navService.workspace();
+        if (ws.type !== 'server') return;
+
+        const current = guilds.find(g => g.id === ws.guild.id);
+        if (current) this.navService.updateCurrentGuild(current);
+        else this.navService.selectDMs();
     }
 
     protected getPillHeight(server: ServerData): string {
@@ -150,7 +185,7 @@ export class ServerTaskbarComponent implements OnInit {
     }
 
     protected onGuildCreated(guild: GuildDto): void {
-        this.guilds.update(gs => [...gs, guild]);
+        this.guildService.upsertGuild(guild);
         this.navService.selectServer(guild);
     }
 
@@ -182,12 +217,12 @@ export class ServerTaskbarComponent implements OnInit {
     }
 
     protected onGuildSettingsUpdated(updated: GuildDto): void {
-        this.guilds.update(gs => gs.map(g => g.id === updated.id ? updated : g));
+        this.guildService.upsertGuild(updated);
     }
 
     protected onGuildDeleted(guildId: string): void {
         this.showGuildSettings.set(false);
-        this.guilds.update(gs => gs.filter(g => g.id !== guildId));
+        this.guildService.removeGuild(guildId);
         const ws = this.navService.workspace();
         if (ws.type === 'server' && ws.guild.id === guildId) {
             this.navService.selectDMs();
@@ -342,7 +377,7 @@ export class ServerTaskbarComponent implements OnInit {
     private leaveServer(guild: GuildDto): void {
         this.guildService.leaveGuild(guild.id).subscribe({
             next: () => {
-                this.guilds.update(gs => gs.filter(g => g.id !== guild.id));
+                this.guildService.removeGuild(guild.id);
                 const ws = this.navService.workspace();
                 if (ws.type === 'server' && ws.guild.id === guild.id) {
                     this.navService.selectDMs();

@@ -28,6 +28,22 @@ export interface SignOutSteps {
     clearActivity: () => void;
     /** Destroys this device's key material for the account. */
     wipeAccount: (deviceId: string) => Promise<unknown>;
+    /**
+     * Forgets this account's cached guild layout.
+     *
+     * <p>Belongs here rather than in {@link SessionTeardownService.wipeAccount} for one concrete
+     * reason: the layout cache is keyed by <b>account slot</b> and the teardown service is addressed
+     * by <b>device id</b>. It has no slot in hand, and it is also called from paths that are not the
+     * end of a session - `wipeEngineState`'s corruption recovery keeps the account signed in, and
+     * throwing away its layout there would cost a cold start for no reason. This function, by
+     * contrast, is the ordered description of a session ending, which is exactly when a list naming
+     * the servers this account belongs to must stop being readable by whoever signs in next.</p>
+     *
+     * <p>The sibling case - removing one account while others stay signed in - runs through
+     * `AccountSwitchService.signOutOf`, which never reaches here and clears the slot's cache next to
+     * its tokens.</p>
+     */
+    clearGuildCache: () => void;
     /** Discards the OAuth tokens. */
     dropTokens: () => void;
     /** Leaves for the login screen. */
@@ -62,8 +78,13 @@ export async function runSignOut(steps: SignOutSteps): Promise<SignOutOutcome> {
         console.error('Could not fully wipe local MLS state on sign-out', err);
     }
 
-    // Both run whatever happened above. Leaving someone signed in because a local store would not
-    // clear is a worse answer than leaving residue behind and saying so.
+    // All three run whatever happened above. Leaving someone signed in because a local store would
+    // not clear is a worse answer than leaving residue behind and saying so.
+    //
+    // The cache goes with the tokens, and outside the try for the same reason `clearActivity` is:
+    // it is a local call that cannot reject, and a failed MLS wipe must not be what leaves one
+    // account's server list on screen for the next.
+    steps.clearGuildCache();
     steps.dropTokens();
     steps.goToLogin();
     return {wiped};

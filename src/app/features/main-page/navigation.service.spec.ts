@@ -4,6 +4,11 @@ import {NavigationService} from './navigation.service';
 import {ChannelDto, ChannelType, GuildDto} from '../../dtos/response/guild.dto';
 import {ConversationDto} from '../../dtos/response/conversation.dto';
 import {provideFakePlatform} from '../../platform/testing/provide-fake-platform';
+import {
+    clearGuildLayoutCache,
+    readGuildLayoutCache,
+    writeGuildLayoutCache,
+} from '../../services/guild-layout-cache';
 
 /**
  * The service persists every navigation, and this runner's global localStorage has no methods,
@@ -44,7 +49,9 @@ function chan(id: string, type: ChannelType = ChannelType.Text): ChannelDto {
 
 const general = chan('general');
 const random = chan('random');
-const guild = {id: 'g1', name: 'Guild One', channels: [general, random], categories: []} as unknown as GuildDto;
+const guild = {
+    id: 'g1', name: 'Guild One', channels: [general, random], categories: [], roles: [],
+} as unknown as GuildDto;
 const conversation = {id: 'c1', name: 'Chat', members: []} as unknown as ConversationDto;
 
 function setup(): NavigationService {
@@ -53,6 +60,129 @@ function setup(): NavigationService {
     TestBed.configureTestingModule({providers: [provideFakePlatform()]});
     return TestBed.inject(NavigationService);
 }
+
+/** A second launch against the same storage: everything on disk survives, the service does not. */
+function relaunch(): NavigationService {
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({providers: [provideFakePlatform()]});
+    return TestBed.inject(NavigationService);
+}
+
+describe('NavigationService restoring from the cached layout', () => {
+    /**
+     * The cold-start path end to end. `GuildService` hydrates itself from the layout on disk before
+     * it issues a request, and the rail hands that list straight to here - so this has to succeed
+     * against a list that came out of `localStorage` rather than off the wire, or the first paint
+     * still waits for the network.
+     */
+    it('restores the last channel from a list read back out of the cache', () => {
+        const nav = setup();
+        nav.selectServer(guild);
+        nav.openChannel(random);
+        writeGuildLayoutCache([guild]);
+
+        const cold = relaunch();
+        expect(cold.tryRestoreGuildNav(readGuildLayoutCache())).toBe(true);
+
+        const view = cold.mainView();
+        expect(view.type === 'channel' && view.channel.id).toBe('random');
+        expect(cold.workspace().type).toBe('server');
+    });
+
+    it('restores against the revived list, whose dates are Dates rather than strings', () => {
+        const nav = setup();
+        nav.selectServer(guild);
+        nav.openChannel(random);
+        writeGuildLayoutCache([guild]);
+
+        const restored = readGuildLayoutCache();
+        expect(restored[0].channels[0].createdAt).toBeInstanceOf(Date);
+        expect(relaunch().tryRestoreGuildNav(restored)).toBe(true);
+    });
+
+    it('reports failure when the cache holds nothing, leaving the caller to wait for the network', () => {
+        const nav = setup();
+        nav.selectServer(guild);
+        clearGuildLayoutCache();
+
+        expect(relaunch().tryRestoreGuildNav(readGuildLayoutCache())).toBe(false);
+    });
+
+    /** A guild left on another device is in the cache and not in the response. */
+    it('reports failure when the list no longer contains the guild it points at', () => {
+        const nav = setup();
+        nav.selectServer(guild);
+        nav.openChannel(random);
+
+        expect(relaunch().tryRestoreGuildNav([])).toBe(false);
+    });
+});
+
+describe('NavigationService.updateCurrentGuild', () => {
+    /**
+     * The identity guard. `workspace` feeds the member list, the channel list and the channel view,
+     * and all three read a new reference as "different guild, start over". The websocket
+     * `guildUpdated` handler calls this on every event it receives.
+     */
+    it('does nothing at all when handed the object it already holds', () => {
+        const nav = setup();
+        nav.selectServer(guild);
+        const before = nav.workspace();
+
+        nav.updateCurrentGuild(guild);
+
+        expect(nav.workspace()).toBe(before);
+    });
+
+    it('re-points the workspace at a genuinely newer object', () => {
+        const nav = setup();
+        nav.selectServer(guild);
+        const renamed = {...guild, name: 'Guild One Renamed'} as GuildDto;
+
+        nav.updateCurrentGuild(renamed);
+
+        const ws = nav.workspace();
+        expect(ws.type === 'server' && ws.guild.name).toBe('Guild One Renamed');
+    });
+
+    it('ignores a guild that is not the one on screen', () => {
+        const nav = setup();
+        nav.selectServer(guild);
+        const before = nav.workspace();
+
+        nav.updateCurrentGuild({...guild, id: 'other'} as GuildDto);
+
+        expect(nav.workspace()).toBe(before);
+    });
+
+    /**
+     * The channel in `mainView` came out of the previous guild object, so a rename would otherwise
+     * keep showing the old name until the user clicked elsewhere - which is exactly what a warm
+     * start would look like when the cached snapshot is out of date.
+     */
+    it('re-points the open channel when that channel changed', () => {
+        const nav = setup();
+        nav.selectServer(guild);
+        nav.openChannel(general);
+
+        const renamedChannel = {...general, name: 'announcements'} as ChannelDto;
+        nav.updateCurrentGuild({...guild, channels: [renamedChannel, random]} as GuildDto);
+
+        const view = nav.mainView();
+        expect(view.type === 'channel' && view.channel.name).toBe('announcements');
+    });
+
+    it('leaves the open channel alone when only some other channel changed', () => {
+        const nav = setup();
+        nav.selectServer(guild);
+        nav.openChannel(general);
+        const before = nav.mainView();
+
+        nav.updateCurrentGuild({...guild, name: 'Renamed'} as GuildDto);
+
+        expect(nav.mainView()).toBe(before);
+    });
+});
 
 describe('NavigationService history', () => {
     it('starts with nowhere to go', () => {

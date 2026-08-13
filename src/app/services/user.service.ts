@@ -1,7 +1,7 @@
 import {inject, Injectable, signal} from '@angular/core';
 import {HttpClient, HttpErrorResponse} from '@angular/common/http';
 import {environment} from '../../environments/environment';
-import {catchError, firstValueFrom, from, map, Observable, of, tap} from 'rxjs';
+import {catchError, finalize, firstValueFrom, from, map, Observable, of, shareReplay, tap} from 'rxjs';
 import {EncryptedMasterKey, UserDto} from '../dtos/response/UserDto';
 import {MlsService} from "./mls.service";
 import {switchMap} from "rxjs/operators";
@@ -15,10 +15,52 @@ export class UserService {
 
     readonly self = signal<UserDto | null>(null);
 
+    /**
+     * The `self` request already on the wire, shared by whoever asks while it is.
+     *
+     * <p>Written before anything subscribes and cleared when the request settles, so this is a
+     * coalescing window rather than a second cache.</p>
+     */
+    private inFlightSelf: Observable<UserDto> | null = null;
+
+    /**
+     * The authenticated account, always from the server.
+     *
+     * <p>Called from roughly eight places, several of which run during the same launch - the main
+     * page asks twice on its own - and this is the largest payload identity serves, carrying the
+     * master-key envelope and the device list. Concurrent callers therefore share one request.</p>
+     *
+     * <p><b>Coalescing only, deliberately not cache-first.</b> The settings screens call this
+     * precisely because they want the live row, so answering a later caller from {@link self} would
+     * silently stop them ever showing a change made on another device, and would defeat the
+     * `deleteAccount` / `cancelDeletion` refetches that exist to pick up the new status. Callers
+     * that overlap share; a caller that arrives after the request settled gets a real refetch.</p>
+     */
     getSelf(): Observable<UserDto> {
-        return this.httpClient.get<UserDto>(`${this.apiConfig.baseUrl()}/api/v1/identity/users/self`).pipe(
-            tap(user => this.self.set(user))
+        const existing = this.inFlightSelf;
+        if (existing) return existing;
+
+        const shared = this.requestSelf().pipe(
+            finalize(() => this.inFlightSelf = null),
+            shareReplay({bufferSize: 1, refCount: false}),
         );
+        this.inFlightSelf = shared;
+        return shared;
+    }
+
+    /**
+     * One uncoalesced `self` request.
+     *
+     * <p>Used by the read-after-write callers. `deleteAccount` and `cancelDeletion` refetch because
+     * their own responses carry no user body, and joining a request that was already on the wire
+     * before the write landed would hand them the previous status - the account still shown as
+     * Active immediately after the user asked to delete it, which is the one moment that screen has
+     * to be right.</p>
+     */
+    private requestSelf(): Observable<UserDto> {
+        return this.httpClient
+            .get<UserDto>(`${this.apiConfig.baseUrl()}/api/v1/identity/users/self`)
+            .pipe(tap(user => this.self.set(user)));
     }
 
     /**
@@ -128,7 +170,7 @@ export class UserService {
         return this.httpClient.delete<{ purgeScheduledAt: string }>(
             `${this.apiConfig.baseUrl()}/api/v1/identity/users/self`
         ).pipe(
-            switchMap(() => this.getSelf())
+            switchMap(() => this.requestSelf())
         );
     }
 
@@ -137,7 +179,7 @@ export class UserService {
             `${this.apiConfig.baseUrl()}/api/v1/identity/users/self/cancel-deletion`,
             {}
         ).pipe(
-            switchMap(() => this.getSelf())
+            switchMap(() => this.requestSelf())
         );
     }
 

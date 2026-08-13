@@ -402,6 +402,7 @@ export class MainPageComponent implements OnDestroy {
             deviceId: () => this.mlsService.getOrCreateDeviceIdentifier(),
             clearActivity: () => this.richPresenceService.stop(),
             wipeAccount: id => this.teardown.wipeAccount(id),
+            clearGuildCache: () => this.guildService.forgetCachedGuilds(),
             dropTokens: () => this.authService.logout(),
             goToLogin: () => void this.router.navigate(['/authentication']),
         });
