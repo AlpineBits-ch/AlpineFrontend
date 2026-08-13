@@ -143,7 +143,7 @@ Arun Raghavan <arun.raghavan@collabora.co.uk>
 
 ## Rust crates
 
-Compiled into the application binary. 904 packages, 446 distinct notices.
+Compiled into the application binary. 910 packages, 449 distinct notices.
 
 ### adler2 2.0.1
 
@@ -4317,6 +4317,17 @@ Copyright (c) 2014-2026 Alex Crichton
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### fluvio-wasm-timer 0.2.5
+
+**Licence:** MIT
+**Source:** https://github.com/tomaka/wasm-timer
+
+```text
+Copyright 2019 Pierre Krieger
+Copyright (c) 2019 Tokio Contributors
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### fnv 1.0.7
 
 **Licence:** Apache-2.0 / MIT
@@ -5485,6 +5496,42 @@ Copyright (c) 2022 Artyom Pavlov
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### instant 0.1.13
+
+**Licence:** BSD-3-Clause
+**Source:** https://github.com/sebcrozet/instant
+
+<!-- LICENSE -->
+```text
+Copyright (c) 2019, Sébastien Crozet
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the author nor the names of its contributors may be used
+   to endorse or promote products derived from this software without specific
+   prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```
+
 ### ipnet 2.12.0
 
 **Licence:** MIT OR Apache-2.0
@@ -6477,9 +6524,9 @@ the License, but only in their entirety and only with respect to the Combined
 Software.
 ```
 
-### lock_api 0.4.14, parking_lot 0.12.5, parking_lot_core 0.9.12, rustc_version 0.4.1
+### lock_api 0.4.14, parking_lot 0.11.2, parking_lot 0.12.5, parking_lot_core 0.8.6, parking_lot_core 0.9.12, rustc_version 0.4.1
 
-**Licence:** MIT OR Apache-2.0
+**Licence:** MIT OR Apache-2.0 / Apache-2.0/MIT
 **Source:** https://github.com/Amanieu/parking_lot
 
 Distributed under the [Apache-2.0 licence](#licence-apache-2-0), reproduced in full below.
@@ -8785,7 +8832,7 @@ Copyright (c) the realfft authors — HEnquist <henrik.enquist@gmail.com>
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
-### redox_syscall 0.5.18, redox_syscall 0.7.5
+### redox_syscall 0.2.16, redox_syscall 0.5.18, redox_syscall 0.7.5
 
 **Licence:** MIT
 **Source:** https://gitlab.redox-os.org/redox-os/syscall
@@ -10368,6 +10415,15 @@ Copyright (c) 2017 Jim McGrath
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
+### venta-crypto 3.0.195
+
+**Licence:** MIT
+
+```text
+Copyright (c) the venta-crypto authors — venta-crypto
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
 ### version_check 0.9.5
 
 **Licence:** MIT/Apache-2.0
@@ -10914,7 +10970,7 @@ Distributed under the [Zlib licence](#licence-zlib), reproduced in full below.
 
 ## npm packages
 
-Bundled into the application frontend. 353 packages, 182 distinct notices.
+Bundled into the application frontend. 355 packages, 183 distinct notices.
 
 ### @alloc/quick-lru 5.2.0, ansi-regex 5.0.1, ansi-styles 4.3.0, camelcase 5.3.1, find-up 4.1.0, is-fullwidth-code-point 3.0.0, locate-path 5.0.0, p-limit 2.3.0, p-locate 4.1.0, p-retry 4.6.2, p-try 2.2.0, path-exists 4.0.0, string-width 4.2.3, strip-ansi 6.0.1, wrap-ansi 6.2.0
 
@@ -11646,6 +11702,17 @@ Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 ```text
 Copyright (c) 2018 Olivier Combe
 Copyright (c) 2024 Andreas Löw / CodeAndWeb GmbH
+```
+Distributed under the [MIT licence](#licence-mit), reproduced in full below.
+
+### @noble/curves 2.3.0, @noble/hashes 2.3.0
+
+**Licence:** MIT
+**Source:** git+https://github.com/paulmillr/noble-curves.git
+
+```text
+The MIT License (MIT)
+Copyright (c) 2022 Paul Miller (https://paulmillr.com)
 ```
 Distributed under the [MIT licence](#licence-mit), reproduced in full below.
 
