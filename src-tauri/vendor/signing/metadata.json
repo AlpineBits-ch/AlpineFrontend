@@ -3,7 +3,6 @@
   "CodeSigningAccountName": "venta",
   "CertificateProfileName": "ventarelease",
   "ExcludeCredentials": [
-    "EnvironmentCredential",
     "ManagedIdentityCredential",
     "WorkloadIdentityCredential",
     "SharedTokenCacheCredential",

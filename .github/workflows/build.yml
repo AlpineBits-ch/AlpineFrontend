@@ -199,6 +199,11 @@ jobs:
           if (-not $dll) { throw 'Azure.CodeSigning.Dlib.dll (x64) not found in the extracted NuGet package.' }
           "ARTIFACT_SIGNING_DLIB=$($dll.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
+          # The dlib is a .NET 8 component. If the runner image ever drops that runtime it
+          # loads no signer at all, and signtool fails in seconds with nothing useful said.
+          Write-Host '--- installed .NET runtimes ---'
+          dotnet --list-runtimes
+
       - name: Build Tauri (Windows)
         env:
           RUSTC_WRAPPER: sccache
@@ -227,6 +232,17 @@ jobs:
         #
         # Not building it is what makes that unreachable.
         run: bun run tauri build --bundles nsis
+
+      # tauri-bundler captures the sign command's output and reports only
+      # "failed to run powershell", so without this a signing failure says nothing at all
+      # about why. Runs on success too - a signed build that took a suspicious path is
+      # worth seeing before it ships, not after.
+      - name: Signing log
+        if: always()
+        shell: pwsh
+        run: |
+          $log = Join-Path $env:RUNNER_TEMP 'signing.log'
+          if (Test-Path $log) { Get-Content $log } else { Write-Host 'No signing log was written - the sign command never ran.' }
 
       - name: Upload Windows artifacts
         uses: softprops/action-gh-release@v2

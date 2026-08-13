@@ -32,10 +32,34 @@ param(
     # A signing call is one network round trip plus a timestamp fetch - seconds, not
     # minutes. The ceiling exists so that a credential or network stall dies here
     # instead of sitting on a runner until the six hour job timeout.
-    [int]$TimeoutSeconds = 300
+    [int]$TimeoutSeconds = 300,
+
+    # Appended to, never truncated: one build signs several binaries and the failure
+    # is not always the first one.
+    [string]$LogPath = $(
+        if ($env:SIGNING_LOG) { $env:SIGNING_LOG }
+        elseif ($env:RUNNER_TEMP) { Join-Path $env:RUNNER_TEMP 'signing.log' }
+        else { Join-Path $env:TEMP 'venta-signing.log' }
+    )
 )
 
 $ErrorActionPreference = 'Stop'
+
+$stdoutLog = "$LogPath.out"
+$stderrLog = "$LogPath.err"
+
+function Write-SigningLog {
+    foreach ($stream in @(@{ f = $stdoutLog; l = 'stdout' }, @{ f = $stderrLog; l = 'stderr' })) {
+        if (Test-Path $stream.f) {
+            $content = Get-Content -Path $stream.f -Raw
+            if ($content -and $content.Trim()) {
+                Add-Content -Path $LogPath -Value "--- signtool $($stream.l) ---"
+                Add-Content -Path $LogPath -Value $content.TrimEnd()
+            }
+            Remove-Item $stream.f -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
 
 # The dlib ships as a NuGet package with no installer, so CI extracts it and
 # points here. Fall back to the paths the MSI installer uses for a dev machine.
@@ -88,9 +112,13 @@ if (-not (Test-Path $metadata)) {
     throw "Missing $metadata - it carries the Artifact Signing endpoint, account and certificate profile."
 }
 
-Write-Host "Signing $Path"
-Write-Host "  signtool: $signtool"
-Write-Host "  dlib:     $dlib"
+Add-Content -Path $LogPath -Value @"
+
+=== $(Get-Date -Format 'HH:mm:ss') signing $Path ===
+signtool: $signtool
+dlib:     $dlib
+metadata: $metadata
+"@
 
 # Artifact Signing certificates are valid for three days, so an untrusted
 # timestamp is the difference between a signature that keeps verifying and one
@@ -111,10 +139,21 @@ $signtoolArgs = @(
     "`"$Path`""
 )
 
-$proc = Start-Process -FilePath $signtool -ArgumentList $signtoolArgs -NoNewWindow -PassThru
+# signtool's output is redirected to a file rather than left on the console, because
+# tauri-bundler captures the sign command's stdout and stderr and prints none of it -
+# every failure in here surfaces as the bare string "failed to run powershell". The
+# log is the only way to find out what actually happened; build.yml prints it.
+$proc = Start-Process -FilePath $signtool `
+    -ArgumentList $signtoolArgs `
+    -NoNewWindow `
+    -PassThru `
+    -RedirectStandardOutput $stdoutLog `
+    -RedirectStandardError $stderrLog
 
 if (-not $proc.WaitForExit($TimeoutSeconds * 1000)) {
     try { $proc.Kill() } catch { }
+    Add-Content -Path $LogPath -Value "TIMEOUT after $TimeoutSeconds seconds - killed"
+    Write-SigningLog
     throw @"
 signtool did not finish within $TimeoutSeconds seconds while signing $Path, so it was killed.
 
@@ -124,6 +163,8 @@ is waiting for a human - check the ExcludeCredentials list in metadata.json.
 "@
 }
 
+Write-SigningLog
+
 if ($proc.ExitCode -ne 0) {
-    throw "signtool failed with exit code $($proc.ExitCode) while signing $Path"
+    throw "signtool failed with exit code $($proc.ExitCode) while signing $Path - see $LogPath"
 }
