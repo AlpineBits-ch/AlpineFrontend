@@ -4,7 +4,6 @@
   "CertificateProfileName": "ventarelease",
   "ExcludeCredentials": [
     "ManagedIdentityCredential",
-    "WorkloadIdentityCredential",
     "SharedTokenCacheCredential",
     "VisualStudioCredential",
     "VisualStudioCodeCredential",

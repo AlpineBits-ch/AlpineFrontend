@@ -178,6 +178,12 @@ jobs:
       # failed with AADSTS700213. `github-actions-build-legacy-subject` carries the name-based
       # subject and is the one that actually matches today; the immutable one is left in place
       # for whenever the org does opt in.
+      #
+      # This step no longer authenticates the signing itself, and cannot: the OIDC
+      # assertion it redeems expires five minutes later, while signing happens at the end
+      # of a twenty minute build. sign.ps1 mints its own assertion at the moment it signs
+      # - see the note there. What this is now is a fail-fast check on the federated
+      # credential and the role assignment, one minute in rather than seventeen.
       - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
@@ -210,6 +216,12 @@ jobs:
           SCCACHE_GHA_ENABLED: "true"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # What sign.ps1 redeems its freshly minted OIDC assertion against, via
+          # WorkloadIdentityCredential. Same two ids as the login step above and they have to
+          # stay that way - they identify the app registration the federated credential and
+          # the signer role both hang off. Neither is a secret; see the note up there.
+          AZURE_CLIENT_ID: e80a4993-ac35-4875-bc65-3d3bac21896b
+          AZURE_TENANT_ID: 2d977209-9059-4da8-a971-b12c78dd9122
           # No SENTRY_AUTH_TOKEN here, deliberately. `bun run build` uploads frontend sourcemaps, and
           # both release jobs build the identical frontend - so passing the token on both uploaded
           # the same maps to the same Sentry release twice, the second upload being pure duplicate
