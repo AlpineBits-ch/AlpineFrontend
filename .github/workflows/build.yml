@@ -168,7 +168,16 @@ jobs:
       #
       # Note the environment name above is load-bearing: the federated credential is scoped
       # to `environment:build`. Renaming or removing `environment: build` on this job breaks
-      # signing with an opaque AADSTS70021 no-matching-federated-identity error.
+      # signing with an opaque AADSTS700213 no-matching-federated-identity error.
+      #
+      # There are deliberately two federated credentials on the app registration. The Entra
+      # portal now builds the subject in its immutable-id form
+      # (repo:AlpineBits-ch@253154267/AlpineFrontend@1213677612:environment:build) and gives
+      # no hint that GitHub only emits that form if the org opts in - by default it sends the
+      # name-based subject, so the immutable-only credential matched nothing and every login
+      # failed with AADSTS700213. `github-actions-build-legacy-subject` carries the name-based
+      # subject and is the one that actually matches today; the immutable one is left in place
+      # for whenever the org does opt in.
       - name: Azure login (OIDC)
         uses: azure/login@v2
         with:
