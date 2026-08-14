@@ -458,6 +458,26 @@ describe('CallScreenLayoutComponent participants strip', () => {
         expect(fixture.nativeElement.querySelectorAll('app-avatar').length).toBe(0);
     });
 
+    it('still shows a live camera in the strip while a share is maximised', () => {
+        // The one state where a camera-on participant is back in this row: maximised means the stage
+        // is shares only, so nobody is on stage as a person and stripParticipants filters nothing
+        // out. Rendering them as a static avatar here would make turning your camera on invisible
+        // the moment anyone maximised a stream - the exact bug the strip's camera circle fixed.
+        const {fixture, layout} = setup([share('a'), share('b')], {
+            participants: [participant('cam', {isCameraOn: true, videoStream: {} as MediaStream})],
+        });
+        expect(layout.stripParticipants()).toEqual([]);
+
+        layout.maximizedId.set('a');
+        fixture.detectChanges();
+
+        expect(layout.stripParticipants().map(p => p.userId)).toEqual(['cam']);
+        // The grid holds the one maximised share tile, so any <video> in the strip is the camera's.
+        expect(fixture.nativeElement.querySelectorAll('app-call-participant-tile').length).toBe(0);
+        expect(fixture.nativeElement.querySelector('video')).not.toBeNull();
+        expect(fixture.nativeElement.querySelectorAll('app-avatar').length).toBe(0);
+    });
+
     it('takes a camera owner back once they turn it off', () => {
         const {fixture, layout} = setup([share('a')], {
             participants: [participant('cam', {isCameraOn: true})],

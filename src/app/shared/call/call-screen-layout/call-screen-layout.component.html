@@ -137,14 +137,27 @@
                         [class]="'flex min-w-[5.25rem] shrink-0 flex-col items-center gap-1.5 rounded-xl border bg-card '
                                  + 'px-3 py-2.5 ' + (p.isSpeaking ? 'border-online/60' : 'border-border-subtle')">
                     <span class="relative">
-                        <!-- Always the avatar. The strip used to inline a 32px camera circle, because
-                             beside a screen share that was the only place a face could appear at
-                             all. A camera now gets a full tile on the stage above and its owner is
-                             filtered out of this row (see stripParticipants), so anybody still here
-                             has their camera off by definition. -->
-                        <app-avatar [label]="p.avatarLabel"
-                                    [styleClass]="p.isSpeaking ? 'speaking-ring' : undefined"
-                                    [userId]="p.userId"/>
+                        <!-- A camera, when there is one. In the grid this branch is unreachable -
+                             a camera earns a full tile up there and stripParticipants drops its
+                             owner from this row - but maximised is the exception that makes it
+                             load-bearing: displayedTiles() is shares only while something is
+                             maximised, so nobody is on stage as a person and every camera-on
+                             participant lands back here. Delete this and turning your camera on
+                             becomes invisible again the moment anyone maximises a stream, which is
+                             the exact bug the strip's camera circle was added to fix. -->
+                        @if (p.isCameraOn && p.videoStream) {
+                            <video [class.-scale-x-100]="p.isLocal"
+                                   [class.speaking-ring]="p.isSpeaking"
+                                   [muted]="p.isLocal"
+                                   [streamSrc]="p.videoStream"
+                                   autoplay
+                                   class="size-8 rounded-full border border-brand/30 object-cover"
+                                   playsinline></video>
+                        } @else {
+                            <app-avatar [label]="p.avatarLabel"
+                                        [styleClass]="p.isSpeaking ? 'speaking-ring' : undefined"
+                                        [userId]="p.userId"/>
+                        }
                         @if (p.isMuted) {
                             <span [attr.aria-label]="'CALL.MUTED' | translate"
                                   class="absolute -bottom-0.5 -right-0.5 flex size-4 items-center justify-center

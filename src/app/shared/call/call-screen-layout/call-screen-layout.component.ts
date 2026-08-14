@@ -146,9 +146,15 @@ export class CallScreenLayoutComponent implements OnDestroy {
      * showing them twice.</p>
      *
      * <p>A share tile is <em>not</em>, and a sharer with their camera off therefore keeps their seat
-     * here. It shows a screen, not a person: none of the audio-wait badge, the participant context
-     * menu or the per-person stream mute exist on it, and dropping a sharer from the strip would take
-     * all three away with nothing offering them instead.</p>
+     * here. It shows a screen, not a person: neither the audio-wait badge nor the participant context
+     * menu exists on it, and dropping a sharer from the strip would take both away with nothing
+     * offering them instead. (Its stream mute is not one of those - `call-share-tile` renders that
+     * itself, un-gated by hover.)</p>
+     *
+     * <p><b>Maximised returns everybody.</b> {@link displayedTiles} is shares only while something is
+     * maximised, so no camera is on stage and nothing is filtered out - camera-on participants land
+     * back in this row. That is why the strip still carries its own inline camera circle: it is
+     * unreachable in the grid and the only thing showing a face in the maximised state.</p>
      */
     protected readonly stripParticipants = computed(() => {
         const onStage = new Set(this.displayedTiles()
