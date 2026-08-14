@@ -22,6 +22,7 @@ import {CallStatusBarComponent} from '../../../../shared/call/call-status-bar/ca
 import {CallParticipant, CallParticipantMenuData, CallScreenShare} from '../../../../shared/call/call.types';
 import {WatchScope, scopeKey} from '../../../../services/share-watch.service';
 import {CallFocusService} from '../../../../services/call-focus.service';
+import {guildCallParticipants, guildScreenShares} from '../../../../shared/call/call-projection';
 import {trackAudioWait} from '../../../../shared/call/audio-wait';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
@@ -51,52 +52,17 @@ export class VoiceChannelComponent {
     protected participants = computed(() =>
         this.voiceSvc.channelParticipants().get(this.channel().id) ?? [],
     );
-    /**
-     * The roster, with each participant's camera track attached.
-     *
-     * <p>Resolved here rather than left to the tiles: the screen-share layout renders the roster as
-     * a strip beside the streams, and without the track those tiles could only ever show avatars -
-     * so turning on a camera did nothing visible the moment anybody shared a screen.</p>
-     */
-    protected callParticipants = computed((): CallParticipant[] => this.participants().map(p => ({
-        ...p,
-        videoStream: p.isLocal ? this.voiceSvc.localVideoStream() : this.voiceSvc.getVideoStream(p.userId),
-    })));
+    /** See {@link guildCallParticipants} - the mapping is shared with the app-level mini-player. */
+    protected callParticipants = computed((): CallParticipant[] =>
+        guildCallParticipants(this.voiceSvc, this.participants()),
+    );
     protected audio = trackAudioWait(this.callParticipants, this.voiceSvc.participantsWithAudio);
 
-    // ── Permission check ───────────────────────────────────────────────────────
-    protected screenSharers = computed(() => {
-        const all = this.participants();
-        const sharers = all.filter(p => p.isScreenSharing);
-        if (this.voiceSvc.localState().isScreenSharing && !sharers.some(p => p.isLocal)) {
-            const local = all.find(p => p.isLocal);
-            if (local) return [...sharers, {...local, isScreenSharing: true}];
-        }
-        return sharers;
-    });
+    /** See {@link guildScreenShares} - the mapping is shared with the app-level mini-player. */
     protected callScreenShares = computed((): CallScreenShare[] =>
-        this.screenSharers().map(p => ({
-            shareId: p.mediaSessionId ?? p.userId,
-            userId: p.userId,
-            displayName: p.displayName,
-            avatarLabel: p.avatarLabel,
-            isLocal: p.isLocal,
-            stream: (p.isLocal
-                ? this.voiceSvc.localScreenStream()
-                : this.voiceSvc.getScreenStream(p.userId)) ?? undefined,
-            previewSrc: p.isLocal ? this.rustMedia.publishPreview() : null,
-            hasAudio: p.isLocal ? this.voiceSvc.localScreenHasAudio() : true,
-            isAudioMuted: p.isLocal
-                ? this.voiceSvc.localScreenAudioMuted()
-                : this.voiceSvc.isScreenAudioMuted(p.userId),
-            renderedFps: p.isLocal ? this.rustMedia.renderedFps() : null,
-            // Local: the Rust capture pipeline's own count. Remote: read off the inbound-rtp video
-            // stat for that user's screen track - see VoiceRTCService.inboundVideoFps. Left at null
-            // rather than 0 when the stat has not arrived yet, so a stream that just started and one
-            // that has stalled do not look the same (CallScreenShare.inboundFps).
-            inboundFps: p.isLocal ? this.rustMedia.inboundFps() : (this.voiceSvc.inboundVideoFps()[p.userId] ?? null),
-        }))
+        guildScreenShares(this.voiceSvc, this.rustMedia, this.participants()),
     );
+
     /**
      * Whether this client's own share asked for audio and got none.
      *
@@ -149,6 +115,8 @@ export class VoiceChannelComponent {
     private guildVoice = inject(GuildVoiceService);
     private callFocus = inject(CallFocusService);
     private ownMember = signal<GuildMemberDto | null>(null);
+
+    // ── Permission checks ──────────────────────────────────────────────────────
     protected isSuperadmin = computed(() => {
         const m = this.ownMember();
         if (!m) return false;

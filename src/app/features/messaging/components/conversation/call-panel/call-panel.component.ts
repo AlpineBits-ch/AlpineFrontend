@@ -15,6 +15,7 @@ import {CallStatusBarComponent} from '../../../../../shared/call/call-status-bar
 import {CallStatsPopoverComponent} from '../../../../../shared/call/call-stats-popover/call-stats-popover.component';
 import {formatAloneDeadline} from './alone-countdown';
 import {WatchScope} from '../../../../../services/share-watch.service';
+import {dmScreenShares} from '../../../../../shared/call/call-projection';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 
 const MIN_HEIGHT = 200;
@@ -64,34 +65,10 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     private callWebRtc = inject(CallWebRtcService);
     private translate = inject(TranslateService);
     protected callParticipants = computed((): CallParticipant[] => this.session()?.participants ?? []);
-    protected callScreenShares = computed((): CallScreenShare[] =>
-        (this.session()?.screenShares ?? []).map(sh => ({
-            shareId: sh.shareId,
-            userId: sh.userId,
-            displayName: sh.displayName,
-            avatarLabel: sh.displayName[0]?.toUpperCase() ?? '?',
-            isLocal: sh.isLocal,
-            stream: sh.stream,
-            previewSrc: sh.isLocal ? this.rustMedia.publishPreview() : null,
-            // Own share: what the publisher actually opened, since a machine with no usable loopback
-            // device shares video only. Remote share: assumed present, exactly as the guild tiles
-            // do - the mute is a preference about that person's stream and is harmless to offer for
-            // one that turns out to be silent.
-            hasAudio: sh.isLocal ? this.callSession.localScreenHasAudio() : true,
-            isAudioMuted: sh.isLocal
-                ? this.callSession.localScreenAudioMuted()
-                : this.callWebRtc.isScreenAudioMuted(sh.userId),
-            // Read off the inbound-rtp video stat for this share's own track - see
-            // CallWebRtcService.inboundVideoFpsByShare. Keyed by share id, not user id:
-            // CallSessionService.onScreenShareStarted dedupes incoming shares by shareId alone, so a
-            // stale share can briefly sit in the model alongside its replacement under the same
-            // userId (a rapid stop/restart race) - keying by user would make one silently report the
-            // other's number. Left at null rather than 0 when the stat has not arrived yet, so a
-            // stream that just started and one that has stalled do not look the same
-            // (CallScreenShare.inboundFps).
-            inboundFps: sh.isLocal ? null : (this.callWebRtc.inboundVideoFpsByShare()[sh.shareId] ?? null),
-        }))
-    );
+    /** See {@link dmScreenShares} - the mapping is shared with the app-level mini-player. */
+    protected callScreenShares = computed((): CallScreenShare[] => dmScreenShares(
+        this.callSession, this.callWebRtc, this.rustMedia, this.session()?.screenShares ?? [],
+    ));
     protected session = this.callSession.session;
     /** Where these shares live, so watching them can be announced - see ShareWatchService. */
     protected watchScope = computed((): WatchScope | null => {
@@ -130,7 +107,6 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     }
 
 
-    // ── Shared-type projections ────────────────────────────────────────────────
     private resizeStartY = 0;
     private resizeStartHeight = 0;
 
