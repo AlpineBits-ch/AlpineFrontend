@@ -4,6 +4,7 @@ import {CallScreenShare} from '../call.types';
 import {StreamSrcDirective} from '../../../directives/stream-src.directive';
 import {CallLiveBadgeComponent} from '../call-live-badge/call-live-badge.component';
 import {CallTileActionComponent} from '../call-tile-action/call-tile-action.component';
+import {anyPipSupported, documentPipSupported} from '../pip-support';
 
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.25;
@@ -52,6 +53,17 @@ export class CallShareTileComponent {
         const s = this.share();
         return {name: s.displayName};
     });
+
+    /**
+     * Whether the PiP button can do anything at all.
+     *
+     * <p>A local share with no `MediaStream` (the Rust-published desktop path, see
+     * `CallScreenShare.previewSrc`) has nothing a `<video>`-only PiP request can act on; document PiP
+     * can still pop the `<img>` preview out, so that alone is enough to show the button. Read lazily
+     * through pip-support.ts rather than cached, so a capability that only appears later - or a test
+     * stub - is picked up on the next read instead of the first one.</p>
+     */
+    protected readonly canPip = computed(() => anyPipSupported() && (!!this.share().stream || documentPipSupported()));
 
     private dragging: {startX: number; startY: number; originX: number; originY: number} | null = null;
 

@@ -1,4 +1,4 @@
-import {ChangeDetectionStrategy, Component, ElementRef, input, output, viewChild} from '@angular/core';
+import {ChangeDetectionStrategy, Component, computed, ElementRef, input, output, viewChild} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {CallParticipant} from '../call.types';
 import {AppAvatarComponent} from '../../../components/avatar/avatar.component';
@@ -7,6 +7,7 @@ import {AudioState} from '../audio-wait';
 import {CallAudioStatusComponent} from '../call-audio-status/call-audio-status.component';
 import {CallLiveBadgeComponent} from '../call-live-badge/call-live-badge.component';
 import {CallTileActionComponent} from '../call-tile-action/call-tile-action.component';
+import {anyPipSupported} from '../pip-support';
 
 @Component({
     selector: 'app-call-participant-tile',
@@ -30,6 +31,13 @@ export class CallParticipantTileComponent {
 
     protected readonly root = viewChild.required<ElementRef<HTMLElement>>('root');
     protected readonly video = viewChild<ElementRef<HTMLVideoElement>>('video');
+
+    /**
+     * The camera tile only renders its PiP button once a `MediaStream` already exists - see the
+     * `@if (p.isCameraOn && videoStream())` guard in the template - so the only thing left to gate
+     * is whether the environment can pop anything out at all.
+     */
+    protected readonly canPip = computed(() => anyPipSupported());
 
     protected togglePip(): void {
         const video = this.video()?.nativeElement;

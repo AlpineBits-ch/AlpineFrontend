@@ -46,11 +46,13 @@
     @if (p.isCameraOn && videoStream()) {
         <div class="absolute left-3 top-3 z-20 flex items-center gap-1.5 opacity-0 transition-opacity
                     group-hover:opacity-100 focus-within:opacity-100">
-            <app-call-tile-action
-                    (action)="togglePip()"
-                    [label]="'CALL.PICTURE_IN_PICTURE' | translate"
-                    icon="pi-external-link"
-                    size="sm"/>
+            @if (canPip()) {
+                <app-call-tile-action
+                        (action)="togglePip()"
+                        [label]="'CALL.PICTURE_IN_PICTURE' | translate"
+                        icon="pi-external-link"
+                        size="sm"/>
+            }
             <app-call-tile-action
                     (action)="toggleFullscreen()"
                     [label]="'CALL.FULLSCREEN' | translate"
