@@ -41,6 +41,7 @@ function setup(options: {
     joinedChannelId?: string | null;
     ownProfileLoaded?: boolean;
     guilds?: unknown[];
+    cacheMiss?: boolean;
 } = {}) {
     const streamerWentLive$ = new Subject<StreamerWentLive>();
     const created: { title: string; message: string; actionTypeId?: string; extra?: Record<string, string> }[] = [];
@@ -52,7 +53,8 @@ function setup(options: {
             {
                 provide: ProfileService, useValue: {
                     ownProfile: signal(options.ownProfileLoaded === false ? undefined : {userId: OWN_USER_ID}),
-                    getCachedByUserId: (userId: string) => ({userName: userId === STREAMER_ID ? 'Streamer' : userId}),
+                    getCachedByUserId: (userId: string) =>
+                        options.cacheMiss ? undefined : {userName: userId === STREAMER_ID ? 'Streamer' : userId},
                 },
             },
             {provide: GuildService, useValue: {guilds: signal(options.guilds ?? [guild()])}},
@@ -171,6 +173,20 @@ describe('GoLiveNotificationService', () => {
         streamerWentLive$.next(live());
 
         expect(created).toEqual([]);
+    });
+
+    it('falls back to the translated placeholder, never the raw user id, when the streamer is not cached', () => {
+        // The exact defect a parallel worktree already fixed for the DM/voice-channel viewer lists
+        // (`CALL.UNKNOWN_VIEWER`) - this is the notification-title instance of the same bug. The
+        // uncached case is the common one here: the whole point of this service is notifying about
+        // guilds the user has not opened this session, so its member cache is often cold.
+        const {streamerWentLive$, created} = setup({goLiveGuildIds: [GUILD], cacheMiss: true});
+
+        streamerWentLive$.next(live());
+
+        expect(created.length).toBe(1);
+        expect(created[0].title).toContain('CALL.UNKNOWN_VIEWER');
+        expect(created[0].title).not.toContain(STREAMER_ID);
     });
 
     it('does nothing when the own profile has not loaded yet', () => {

@@ -58,7 +58,12 @@ export class GoLiveNotificationService {
         if (!guild) return;
 
         const channel = guild.channels.find(c => c.id === channelId);
-        const streamerName = this.profileService.getCachedByUserId(userId)?.userName ?? userId;
+        // Falls back to the translated placeholder, never the raw id: this notification exists
+        // precisely for guilds not open this session, so an uncached streamer is the common case,
+        // not the exotic one - the same call already made for the DM/voice-channel viewer lists
+        // (see `CALL.UNKNOWN_VIEWER` in call-panel.component.ts / voice-channel.component.ts).
+        const streamerName = this.profileService.getCachedByUserId(userId)?.userName
+            ?? this.translate.instant('CALL.UNKNOWN_VIEWER');
 
         void this.notifications.createNotification({
             title: this.translate.instant('CALL.WENT_LIVE_TITLE', {name: streamerName}),
