@@ -10,8 +10,14 @@
             border border-border-subtle bg-black/70">
 
     <!-- Zoomable, pannable content. The tile clips the overflow, so zooming past 100% would hide
-         the edges with no way to reach them; this wrapper is the drag surface that pans them in. -->
-    <div (mousedown)="startPan($event)"
+         the edges with no way to reach them; this wrapper is the drag surface that pans them in.
+
+         This is also the subtree the pop-out moves into its own OS window - see popOut(). It is
+         `absolute inset-0` against the tile root here and against the pop-out viewport there, so it
+         fills either without a second set of classes, and zoom and pan keep working in both because
+         the element carrying them is the one that travelled. -->
+    <div #surface
+         (mousedown)="startPan($event)"
          (mouseleave)="endPan()"
          (mousemove)="movePan($event)"
          (mouseup)="endPan()"
@@ -99,10 +105,14 @@
         <div (dblclick)="$event.stopPropagation()"
              class="flex items-center gap-1.5 opacity-0 transition-opacity
                     group-hover/tile:opacity-100 focus-within:opacity-100">
+            <!-- One control, two routes: an OS window of its own where document PiP exists, the
+                 browser's video overlay where only that does. Rendered only when one of them can
+                 actually run - see pipRoute(). -->
             @if (canPip()) {
                 <app-call-tile-action
                         (action)="togglePip()"
-                        [label]="'CALL.PICTURE_IN_PICTURE' | translate"
+                        [label]="pipLabelKey() | translate"
+                        [pressed]="pipPressed()"
                         icon="pi-external-link"/>
             }
             <app-call-tile-action
