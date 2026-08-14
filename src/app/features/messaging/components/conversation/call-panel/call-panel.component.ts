@@ -70,6 +70,11 @@ export class CallPanelComponent implements OnInit, OnDestroy {
             isAudioMuted: sh.isLocal
                 ? this.callSession.localScreenAudioMuted()
                 : this.callWebRtc.isScreenAudioMuted(sh.userId),
+            // Read off the inbound-rtp video stat for this user's screen track - see
+            // CallWebRtcService.inboundVideoFps. Left at null rather than 0 when the stat has not
+            // arrived yet, so a stream that just started and one that has stalled do not look the
+            // same (CallScreenShare.inboundFps).
+            inboundFps: sh.isLocal ? null : (this.callWebRtc.inboundVideoFps()[sh.userId] ?? null),
         }))
     );
     protected session = this.callSession.session;
@@ -78,6 +83,16 @@ export class CallPanelComponent implements OnInit, OnDestroy {
         const callId = this.session()?.callId;
         return callId ? {kind: 'call', callId} : null;
     });
+
+    /**
+     * Resolves a viewer count popover's user ids against this call's own roster - see
+     * CallScreenLayoutComponent.nameOf for why the layout takes this as an input rather than
+     * reaching for a call-participant lookup itself. Only someone in the call can watch a share in
+     * it, so this roster is enough; the id fallback is only ever seen for a viewer whose join has
+     * not reached this client yet.
+     */
+    protected readonly resolveParticipantName = (userId: string): string =>
+        this.callParticipants().find(p => p.userId === userId)?.displayName ?? userId;
     protected screenPreset = this.callSession.screenPreset;
     /** Set only while the local user is the last one in the call. */
     protected aloneUntil = computed(() => formatAloneDeadline(this.callSession.aloneDeadline()));

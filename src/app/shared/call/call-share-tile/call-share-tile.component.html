@@ -48,11 +48,32 @@
              stream whose audience we have not heard about look the same from here, and the second
              is the more likely of the two. -->
         @if (viewers(); as count) {
-            <span [attr.title]="'CALL.WATCHING' | translate: {count}"
-                  class="flex select-none items-center gap-1 rounded bg-black/50 px-2 py-0.5 text-xs text-white/70
-                         backdrop-blur-sm">
-                <i class="pi pi-eye text-[0.625rem] text-white/45"></i>{{ count }}
-            </span>
+            <!-- The names popover is an enhancement to a count that is already showing, never a
+                 reason to start showing one at zero - see the @if above. dblclick is stopped here for
+                 the same reason it is stopped on the action cluster below: this sits in the top-left
+                 guarded region, and hovering to read a name must not also toggle maximise. -->
+            <div (dblclick)="$event.stopPropagation()" class="group/viewers relative">
+                <span [attr.title]="viewerNames().length ? null : ('CALL.WATCHING' | translate: {count})"
+                      class="flex select-none items-center gap-1 rounded bg-black/50 px-2 py-0.5 text-xs text-white/70
+                             backdrop-blur-sm">
+                    <i class="pi pi-eye text-[0.625rem] text-white/45"></i>{{ count }}
+                </span>
+                @if (viewerNames().length) {
+                    <!-- Not pointer-events-none: it sits right below the pill, overlapping the tile
+                         content behind it, so the cursor crosses straight into it on the way down
+                         from the pill. Hit-testing it is what keeps it part of the hover chain that
+                         group-hover/viewers is watching - pointer-events-none would drop it out of
+                         that chain and the popover would vanish the moment it was reached. -->
+                    <div class="absolute left-0 top-full z-20 mt-1 hidden min-w-[8rem]
+                                max-w-[12rem] flex-col gap-0.5 rounded-lg border border-border-subtle bg-card
+                                px-2.5 py-2 text-[0.6875rem] text-white/80 shadow-[0_8px_28px_rgba(0,0,0,0.55)]
+                                group-hover/viewers:flex">
+                        @for (name of viewerNames(); track name) {
+                            <span class="truncate">{{ name }}</span>
+                        }
+                    </div>
+                }
+            </div>
         }
 
         <div (dblclick)="$event.stopPropagation()"
@@ -107,6 +128,15 @@
             <span class="select-none rounded bg-black/50 px-2 py-1 text-[0.6875rem] tabular-nums text-white/55
                          backdrop-blur-sm">
                 {{ 'CALL.FPS_OUT' | translate: {fps: s.renderedFps} }}
+            </span>
+        }
+        <!-- Remote only: null (not 0) until the inbound-rtp stat has actually reported a frame rate,
+             so a stream that just started and one that has stalled do not read the same - see
+             CallScreenShare.inboundFps. -->
+        @if (!s.isLocal && s.inboundFps != null) {
+            <span class="select-none rounded bg-black/50 px-2 py-1 text-[0.6875rem] tabular-nums text-white/55
+                         backdrop-blur-sm">
+                {{ 'CALL.FPS_IN' | translate: {fps: s.inboundFps} }}
             </span>
         }
         <div class="flex items-center gap-0.5 rounded bg-black/50 px-1.5 py-1 backdrop-blur-sm">

@@ -15,7 +15,13 @@ function share(shareId: string, isLocal = false): CallScreenShare {
     };
 }
 
-function setup(shares: CallScreenShare[]) {
+/** viewersOf() implementations the tests below plug in - default is the empty-scope case. */
+function setup(
+    shares: CallScreenShare[],
+    watchScope: WatchScope | null = null,
+    viewersOf: (scope: WatchScope, shareId: string) => string[] = () => [],
+    nameOf?: (userId: string) => string,
+) {
     TestBed.configureTestingModule({
         // The layout renders translated tiles now, so it needs a TranslateService to resolve them.
         imports: [CallScreenLayoutComponent, TranslateModule.forRoot()],
@@ -27,7 +33,7 @@ function setup(shares: CallScreenShare[]) {
                     refresh: vi.fn(),
                     clear: vi.fn(),
                     viewerCount: () => 0,
-                    viewersOf: () => [],
+                    viewersOf,
                 },
             },
         ],
@@ -37,6 +43,8 @@ function setup(shares: CallScreenShare[]) {
     fixture.componentRef.setInput('screenShares', shares);
     fixture.componentRef.setInput('participants', []);
     fixture.componentRef.setInput('participantsWithAudio', new Set<string>());
+    if (watchScope) fixture.componentRef.setInput('watchScope', watchScope);
+    if (nameOf) fixture.componentRef.setInput('nameOf', nameOf);
     fixture.detectChanges();
 
     // Reaching into protected members: they are the whole behaviour of this component, and the
@@ -47,6 +55,7 @@ function setup(shares: CallScreenShare[]) {
         gridClass: () => string;
         maximizedId: {(): string | null; set: (id: string | null) => void};
         toggleGridFocus: () => void;
+        viewerNames: (shareId: string) => string[];
     };
 }
 
@@ -194,5 +203,37 @@ describe('CallScreenLayoutComponent focus requests', () => {
         const layout = createLayout([share('a'), share('b')]);
 
         expect(layout.displayedShares().map(s => s.shareId)).toEqual(['a', 'b']);
+    });
+});
+
+describe('CallScreenLayoutComponent viewer names', () => {
+    const scope: WatchScope = {kind: 'call', callId: 'call-1'};
+    const roster: Record<string, string> = {'user-x': 'Xena', 'user-y': 'Yara'};
+
+    beforeEach(() => TestBed.resetTestingModule());
+
+    it('maps viewer ids through the given name resolver', () => {
+        const layout = setup(
+            [share('a')],
+            scope,
+            (_, shareId) => shareId === 'a' ? ['user-x', 'user-y'] : [],
+            id => roster[id] ?? id,
+        );
+
+        expect(layout.viewerNames('a')).toEqual(['Xena', 'Yara']);
+    });
+
+    it('falls back to echoing the id when no resolver is wired', () => {
+        // The default a host that forgets to pass nameOf gets - see the nameOf doc comment. Real
+        // hosts always wire one; this only proves the fallback does not throw or silently drop ids.
+        const layout = setup([share('a')], scope, (_, shareId) => shareId === 'a' ? ['user-x'] : []);
+
+        expect(layout.viewerNames('a')).toEqual(['user-x']);
+    });
+
+    it('returns no names without a watch scope, regardless of what viewersOf would say', () => {
+        const layout = setup([share('a')], null, () => ['user-x']);
+
+        expect(layout.viewerNames('a')).toEqual([]);
     });
 });

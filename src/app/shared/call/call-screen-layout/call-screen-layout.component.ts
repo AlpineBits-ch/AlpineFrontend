@@ -34,6 +34,16 @@ export class CallScreenLayoutComponent implements OnDestroy {
      * viewer-count feature for this instance rather than guessing a scope.
      */
     watchScope = input<WatchScope | null>(null);
+    /**
+     * Resolves a viewer's user id to a display name for the popover on the viewer count.
+     *
+     * <p>Taken as an input rather than injected, because this component is shared between the DM
+     * call panel and the guild voice channel, and the two draw names from completely different
+     * places - guild members on one side, call participants on the other. Injecting either service
+     * here would break the surface that does not use it. Defaults to echoing the id back, which is
+     * only ever seen if a host forgets to wire this - not something a real caller should rely on.</p>
+     */
+    nameOf = input<(userId: string) => string>(id => id);
 
     protected readonly audio = trackAudioWait(this.participants, this.participantsWithAudio);
     private readonly shareWatch = inject(ShareWatchService);
@@ -126,6 +136,13 @@ export class CallScreenLayoutComponent implements OnDestroy {
     protected viewerCount(shareId: string): number {
         const scope = this.watchScope();
         return scope ? this.shareWatch.viewerCount(scope, shareId) : 0;
+    }
+
+    /** Who is watching this share, as display names - see {@link nameOf}. */
+    protected viewerNames(shareId: string): string[] {
+        const scope = this.watchScope();
+        if (!scope) return [];
+        return this.shareWatch.viewersOf(scope, shareId).map(this.nameOf());
     }
 
     protected getShareForUser(userId: string): CallScreenShare | undefined {

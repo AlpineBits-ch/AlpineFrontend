@@ -32,6 +32,12 @@ export class CallShareTileComponent {
     share = input.required<CallScreenShare>();
     /** People watching this stream, this client included. Zero renders nothing - see the template. */
     viewers = input(0);
+    /**
+     * Who those viewers are, already resolved to display names. Empty is not the same as "unknown" -
+     * it just means the layout has not been given a way to resolve names, or the names are still
+     * loading - so the template falls back to the plain count tooltip rather than an empty popover.
+     */
+    viewerNames = input<string[]>([]);
     /** Whether this tile is currently the only one the layout is showing. */
     maximized = input(false);
 

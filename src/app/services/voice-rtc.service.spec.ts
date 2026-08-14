@@ -539,3 +539,70 @@ describe('a share the publisher ended by itself', () => {
         expect(spy).not.toHaveBeenCalled();
     });
 });
+
+/**
+ * The guild-side twin of `CallWebRtcService`'s inbound fps test: `pollStats` reads
+ * `CallScreenShare.inboundFps` off `getStats()`, routed through the mid → {userId, kind} map
+ * `subscribeVideo` writes. Reached into as private state rather than driven through a full
+ * subscribe, for the same reason as the DM side - the stub `RTCPeerConnection` above hands out a
+ * fixed mid, which cannot stand up two shares side by side.
+ */
+describe('inbound screen-share fps', () => {
+    function internals(s: VoiceRTCService) {
+        return s as unknown as {
+            pc: {getStats(): Promise<Map<string, unknown>>} | null;
+            midMeta: Map<string, {userId: string; kind: 'video' | 'screen'}>;
+            pollStats(): Promise<void>;
+        };
+    }
+
+    function inboundRtpVideo(mid: string, framesPerSecond?: number) {
+        return {type: 'inbound-rtp', kind: 'video', mid, framesPerSecond};
+    }
+
+    it('reports a remote share fps keyed by user id once a stat carries one', async () => {
+        const internal = internals(service);
+        internal.midMeta.set('m1', {userId: 'user_a', kind: 'screen'});
+        internal.pc = {getStats: async () => new Map([['s1', inboundRtpVideo('m1', 24)]])};
+
+        await internal.pollStats();
+
+        expect(service.inboundVideoFps()).toEqual({user_a: 24});
+    });
+
+    it('gives two concurrent remote shares two independent fps numbers', async () => {
+        const internal = internals(service);
+        internal.midMeta.set('m1', {userId: 'user_a', kind: 'screen'});
+        internal.midMeta.set('m2', {userId: 'user_b', kind: 'screen'});
+        internal.pc = {
+            getStats: async () => new Map([
+                ['s1', inboundRtpVideo('m1', 30)],
+                ['s2', inboundRtpVideo('m2', 12)],
+            ]),
+        };
+
+        await internal.pollStats();
+
+        expect(service.inboundVideoFps()).toEqual({user_a: 30, user_b: 12});
+    });
+
+    it('leaves a share out rather than reporting 0 while its stat has not arrived yet', async () => {
+        const internal = internals(service);
+        internal.midMeta.set('m1', {userId: 'user_a', kind: 'screen'});
+        internal.pc = {getStats: async () => new Map([['s1', inboundRtpVideo('m1', undefined)]])};
+
+        await internal.pollStats();
+
+        expect(service.inboundVideoFps()).toEqual({});
+    });
+
+    it('ignores a camera track riding the same connection - this is a screen-share readout only', async () => {
+        const internal = internals(service);
+        internal.midMeta.set('m1', {userId: 'user_a', kind: 'video'});
+        internal.pc = {getStats: async () => new Map([['s1', inboundRtpVideo('m1', 30)]])};
+
+        await internal.pollStats();
+
+        expect(service.inboundVideoFps()).toEqual({});
+    });
+});

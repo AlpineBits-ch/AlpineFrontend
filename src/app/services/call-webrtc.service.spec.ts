@@ -342,3 +342,78 @@ describe('screen-share audio', () => {
         expect(engineVolume).toHaveBeenCalledWith('screen-audio-second', 0);
     });
 });
+
+/**
+ * `pollStats` reads `CallScreenShare.inboundFps` off the same `getStats()` call that already feeds
+ * the connection-quality popover, routed through the mid → {userId, kind, shareId} map subscribing a
+ * track writes (see `subscribeToTrack`). These reach into both as private state - the alternative is
+ * driving a full subscribe through a stub RTCPeerConnection whose `addTransceiver` always returns the
+ * same mid, which would not let two shares exist at once. Reaching in directly is what makes the
+ * "two shares, two numbers" case possible to state at all.
+ */
+describe('inbound screen-share fps', () => {
+    function internals(service: CallWebRtcService) {
+        return service as unknown as {
+            pc: {getStats(): Promise<Map<string, unknown>>} | null;
+            midMap: Map<string, {userId: string; kind: 'audio' | 'video' | 'screen'; shareId?: string}>;
+            pollStats(): Promise<void>;
+        };
+    }
+
+    function inboundRtpVideo(mid: string, framesPerSecond?: number) {
+        return {type: 'inbound-rtp', kind: 'video', mid, framesPerSecond};
+    }
+
+    it('reports a remote share fps keyed by user id once a stat carries one', async () => {
+        const {service} = setup();
+        const internal = internals(service);
+        internal.midMap.set('m1', {userId: 'them', kind: 'screen', shareId: 'share-1'});
+        internal.pc = {getStats: async () => new Map([['s1', inboundRtpVideo('m1', 24)]])};
+
+        await internal.pollStats();
+
+        expect(service.inboundVideoFps()).toEqual({them: 24});
+    });
+
+    it('gives two concurrent remote shares two independent fps numbers', async () => {
+        const {service} = setup();
+        const internal = internals(service);
+        internal.midMap.set('m1', {userId: 'them-a', kind: 'screen', shareId: 'share-a'});
+        internal.midMap.set('m2', {userId: 'them-b', kind: 'screen', shareId: 'share-b'});
+        internal.pc = {
+            getStats: async () => new Map([
+                ['s1', inboundRtpVideo('m1', 30)],
+                ['s2', inboundRtpVideo('m2', 12)],
+            ]),
+        };
+
+        await internal.pollStats();
+
+        expect(service.inboundVideoFps()).toEqual({'them-a': 30, 'them-b': 12});
+    });
+
+    it('leaves a share out rather than reporting 0 while its stat has not arrived yet', async () => {
+        const {service} = setup();
+        const internal = internals(service);
+        internal.midMap.set('m1', {userId: 'them', kind: 'screen', shareId: 'share-1'});
+        internal.pc = {getStats: async () => new Map([['s1', inboundRtpVideo('m1', undefined)]])};
+
+        await internal.pollStats();
+
+        expect(service.inboundVideoFps()).toEqual({});
+    });
+
+    it('clears a share that stops appearing in the report, rather than keeping its last number', async () => {
+        const {service} = setup();
+        const internal = internals(service);
+        internal.midMap.set('m1', {userId: 'them', kind: 'screen', shareId: 'share-1'});
+        internal.pc = {getStats: async () => new Map([['s1', inboundRtpVideo('m1', 24)]])};
+        await internal.pollStats();
+        expect(service.inboundVideoFps()).toEqual({them: 24});
+
+        internal.pc = {getStats: async () => new Map()};
+        await internal.pollStats();
+
+        expect(service.inboundVideoFps()).toEqual({});
+    });
+});

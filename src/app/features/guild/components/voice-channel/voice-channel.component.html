@@ -53,6 +53,7 @@
                             (localAudioToggle)="toggleLocalScreenAudio()"
                             (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
                             (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
+                            [nameOf]="resolveMemberName"
                             [participants]="callParticipants()"
                             [participantsWithAudio]="voiceSvc.participantsWithAudio()"
                             [screenShares]="callScreenShares()"

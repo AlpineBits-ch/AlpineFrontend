@@ -25,6 +25,7 @@
                     (maximizeToggle)="toggleMaximize(share.shareId)"
                     [maximized]="maximizedId() === share.shareId"
                     [share]="share"
+                    [viewerNames]="viewerNames(share.shareId)"
                     [viewers]="viewerCount(share.shareId)"/>
         }
     </div>

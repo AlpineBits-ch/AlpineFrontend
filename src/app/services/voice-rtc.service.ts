@@ -23,6 +23,7 @@ import {
     STREAM_AUDIO_KBPS,
     withStartBitrate,
 } from './webrtc-encoding';
+import {inboundScreenFpsByUser} from '../shared/call/inbound-fps';
 
 export interface VoiceSpeakingChange {
     userId: string;
@@ -140,6 +141,16 @@ export class VoiceRTCService {
 
     // Maps a remote transceiver MID → { userId, kind }. Video only: audio no longer arrives here.
     private midMeta = new Map<string, { userId: string; kind: 'video' | 'screen' }>();
+
+    /**
+     * Remote screen shares' arriving frame rate, by user id - the guild-side twin of
+     * `CallWebRtcService.inboundVideoFps`. Polled the same way, off the same `getStats()` mechanism
+     * this connection never used to run at all: nothing here read stats before this existed, since
+     * nothing downstream needed a number until `CallScreenShare.inboundFps` did.
+     */
+    private readonly inboundVideoFpsSignal = signal<Record<string, number>>({});
+    readonly inboundVideoFps = this.inboundVideoFpsSignal.asReadonly();
+    private statsInterval?: ReturnType<typeof setInterval>;
 
     // Track local senders so bitrate can be changed on the fly
     private readonly localSenders = new Map<string, RTCRtpSender>();
@@ -325,12 +336,32 @@ export class VoiceRTCService {
                 this.guildVoiceSvc.createSession(guildId, channelId, false));
             this.pc = pc;
             this.mediaSessionId = mediaSessionId;
+            this.startStatsPolling();
             return true;
         } catch (e) {
             pc.close();
             console.error('[voice] could not open the receive session', e);
             return false;
         }
+    }
+
+    // ── Stats polling ────────────────────────────────────────────────────────
+
+    private startStatsPolling(): void {
+        this.stopStatsPolling();
+        this.statsInterval = setInterval(() => void this.pollStats(), 2000);
+    }
+
+    private stopStatsPolling(): void {
+        clearInterval(this.statsInterval);
+        this.statsInterval = undefined;
+        this.inboundVideoFpsSignal.set({});
+    }
+
+    private async pollStats(): Promise<void> {
+        if (!this.pc) return;
+        const report = await this.pc.getStats();
+        this.inboundVideoFpsSignal.set(inboundScreenFpsByUser(report, this.midMeta));
     }
 
     /**
@@ -366,6 +397,7 @@ export class VoiceRTCService {
             this.screenPreset.set(null);
         }
         this.localSenders.clear();
+        this.stopStatsPolling();
         this.pc?.close();
         this.pc = null;
         this.mediaSessionId = null;
@@ -444,6 +476,7 @@ export class VoiceRTCService {
         this.screenSourceSize = null;
         this.screenPreset.set(null);
 
+        this.stopStatsPolling();
         this.pc?.close();
         this.pcState.set('new');
         this.participantsWithAudio.set(new Set());

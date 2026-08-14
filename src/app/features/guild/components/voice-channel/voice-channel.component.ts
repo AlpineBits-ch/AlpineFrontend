@@ -89,7 +89,11 @@ export class VoiceChannelComponent {
                 ? this.voiceSvc.localScreenAudioMuted()
                 : this.voiceSvc.isScreenAudioMuted(p.userId),
             renderedFps: p.isLocal ? this.rustMedia.renderedFps() : null,
-            inboundFps: p.isLocal ? this.rustMedia.inboundFps() : null,
+            // Local: the Rust capture pipeline's own count. Remote: read off the inbound-rtp video
+            // stat for that user's screen track - see VoiceRTCService.inboundVideoFps. Left at null
+            // rather than 0 when the stat has not arrived yet, so a stream that just started and one
+            // that has stalled do not look the same (CallScreenShare.inboundFps).
+            inboundFps: p.isLocal ? this.rustMedia.inboundFps() : (this.voiceSvc.inboundVideoFps()[p.userId] ?? null),
         }))
     );
     /**
@@ -113,6 +117,17 @@ export class VoiceChannelComponent {
     protected watchScope = computed((): WatchScope | null => this.isJoined()
         ? {kind: 'channel', guildId: this.channel().guildId, channelId: this.channel().id}
         : null);
+
+    /**
+     * Resolves a viewer count popover's user ids against this channel's own roster - see
+     * CallScreenLayoutComponent.nameOf for why the layout takes this as an input rather than
+     * reaching for a guild member lookup itself. A viewer of a share in this channel is, by
+     * construction, someone `setWatching` could only have been called for while in the channel, so
+     * the roster this component already computes for the participant strip is enough; falling back
+     * to the id is only ever seen for a viewer whose join notification has not landed yet.
+     */
+    protected readonly resolveMemberName = (userId: string): string =>
+        this.participants().find(p => p.userId === userId)?.displayName ?? userId;
 
     // ── Computed helpers ───────────────────────────────────────────────────────
     protected participantGridClass = computed(() => {

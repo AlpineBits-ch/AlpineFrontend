@@ -110,6 +110,7 @@ export class VoiceChannelService {
     readonly videoStreams = this.rtc.videoStreams;
     readonly screenStreams = this.rtc.screenStreams;
     readonly screenAudioMuted = this.rtc.screenAudioMuted;
+    readonly inboundVideoFps = this.rtc.inboundVideoFps;
     private profileService = inject(ProfileService);
     private guildVoiceSvc = inject(GuildVoiceService);
     private guildWsSvc = inject(GuildWebsocketService);

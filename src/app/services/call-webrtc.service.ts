@@ -33,6 +33,7 @@ import {
     preferVideoCodecs,
 } from './webrtc-encoding';
 import {SUBSCRIBE_RETRY_DELAYS_MS} from './voice-rtc.service';
+import {inboundScreenFpsByUser} from '../shared/call/inbound-fps';
 
 export interface CallStats {
     inboundKbps: number;
@@ -62,6 +63,14 @@ export interface CallStats {
 export class CallWebRtcService {
     // ── Stats polling ────────────────────────────────────────────────────────
     readonly stats = signal<CallStats | null>(null);
+    /**
+     * Remote screen shares' arriving frame rate, by user id - see `inboundScreenFpsByUser` for how
+     * this is read off the same `getStats()` report {@link stats} comes from, and
+     * `CallScreenShare.inboundFps` for why a share missing from this map must render as "no data"
+     * rather than 0.
+     */
+    private readonly inboundVideoFpsSignal = signal<Record<string, number>>({});
+    readonly inboundVideoFps = this.inboundVideoFpsSignal.asReadonly();
     // ── Connection state ──────────────────────────────────────────────────────
     private readonly pcState = signal<RTCPeerConnectionState>('new');
     private readonly engineUp = signal(false);
@@ -816,6 +825,7 @@ export class CallWebRtcService {
         clearInterval(this.statsInterval);
         this.statsInterval = undefined;
         this.stats.set(null);
+        this.inboundVideoFpsSignal.set({});
         this.prevStatsTs = 0;
     }
 
@@ -823,6 +833,11 @@ export class CallWebRtcService {
         if (!this.pc) return;
         const report = await this.pc.getStats();
         const now = Date.now();
+
+        // Independent of the kbps accounting below, which needs two samples to produce a rate -
+        // framesPerSecond arrives from the browser pre-computed, so there is no reason to wait for a
+        // second poll before showing it.
+        this.inboundVideoFpsSignal.set(inboundScreenFpsByUser(report, this.midMap));
 
         let inAudio = 0, inVideo = 0, outAudio = 0, outVideo = 0, packetsLost = 0;
         report.forEach((stat: RTCStats) => {
