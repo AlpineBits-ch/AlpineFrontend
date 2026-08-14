@@ -190,7 +190,10 @@ export class CallMiniPlayerComponent {
             untracked(() => this.position.set(null));
         });
 
-        inject(DestroyRef).onDestroy(() => this.applyClaim(null, null));
+        inject(DestroyRef).onDestroy(() => {
+            this.applyClaim(null, null);
+            this.onDragEnd();
+        });
     }
 
     // ── Watch claim ────────────────────────────────────────────────────────────
@@ -225,6 +228,13 @@ export class CallMiniPlayerComponent {
      * Grabs the tile by its header. The first drag is also what turns the CSS-anchored default
      * corner into real coordinates, which is why it seeds `position` from the measured rectangle
      * rather than from the cursor.
+     *
+     * <p>The document listeners are attached here and dropped on mouse-up rather than declared with
+     * `@HostListener`. This component is mounted for the entire life of the app, and a permanent
+     * `document:mousemove` binding would run change detection on every pixel the mouse travels
+     * anywhere in Alpine, in service of a drag that is not happening. The docked call panel can
+     * afford a standing binding because it only exists while a call is open on screen; this cannot.
+     * </p>
      */
     protected onDragStart(event: MouseEvent): void {
         if (event.button !== 0) return;
@@ -233,20 +243,22 @@ export class CallMiniPlayerComponent {
 
         this.dragOffset = {x: event.clientX - rect.left, y: event.clientY - rect.top};
         this.position.set(this.clamp(rect.left, rect.top));
+        document.addEventListener('mousemove', this.onDragMove);
+        document.addEventListener('mouseup', this.onDragEnd);
         event.preventDefault();
     }
 
-    @HostListener('document:mousemove', ['$event'])
-    protected onDragMove(event: MouseEvent): void {
+    private readonly onDragMove = (event: MouseEvent): void => {
         const offset = this.dragOffset;
         if (!offset) return;
         this.position.set(this.clamp(event.clientX - offset.x, event.clientY - offset.y));
-    }
+    };
 
-    @HostListener('document:mouseup')
-    protected onDragEnd(): void {
+    private readonly onDragEnd = (): void => {
         this.dragOffset = null;
-    }
+        document.removeEventListener('mousemove', this.onDragMove);
+        document.removeEventListener('mouseup', this.onDragEnd);
+    };
 
     /**
      * A window that shrinks under a tile parked at the right or bottom edge would otherwise leave it
