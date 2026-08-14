@@ -32,6 +32,49 @@ export interface CallScreenShare {
     inboundFps?: number | null;
 }
 
+/**
+ * One seat on the call stage - a screen share or somebody's camera, laid out in the same grid at the
+ * same size.
+ *
+ * <p><b>Why a union and not two lists.</b> The stage used to switch wholesale: the moment any share
+ * existed, shares took the grid and every camera collapsed to a 32px circle in the participants
+ * strip. A face-cam beside a game stream was not expressible, which is the one arrangement people
+ * actually want. Ordering the two kinds against each other only means anything if they are in one
+ * list, and a list of "either" is a union.</p>
+ *
+ * <p>The tile is a thin wrapper rather than a flattened shape with optional members: the two kinds
+ * are rendered by two different components (`app-call-share-tile` and `app-call-participant-tile`)
+ * that want the original view models, and flattening would only mean rebuilding them at the
+ * template.</p>
+ */
+export type CallStageTile =
+    | {kind: 'share'; id: string; share: CallScreenShare}
+    | {kind: 'camera'; id: string; participant: CallParticipant};
+
+/**
+ * Tile id for a share - see {@link cameraTile} for why it is prefixed rather than the bare share id.
+ */
+export function shareTile(share: CallScreenShare): CallStageTile {
+    return {kind: 'share', id: `share:${share.shareId}`, share};
+}
+
+/**
+ * Tile id for a camera.
+ *
+ * <p>Both ids carry their kind as a prefix because the two id spaces genuinely overlap: guild voice
+ * has one share per participant and falls back to the user id when the server has issued no media
+ * session id (see `guildScreenShares`), so a person sharing their screen with their camera on
+ * produces two tiles under the identical raw id. Without the prefix that is a duplicate `@for` track
+ * key, and Angular's answer to a duplicate key is to throw.</p>
+ *
+ * <p>This is the id the grid tracks by, and deliberately not the one `maximizedId` holds - maximise
+ * remains a share-only idea, because only the share tile offers the control. See the doc on
+ * `CallScreenLayoutComponent.displayedTiles`.</p>
+ */
+export function cameraTile(participant: CallParticipant): CallStageTile {
+    return {kind: 'camera', id: `camera:${participant.userId}`, participant};
+}
+
 export interface CallParticipantMenuData {
     x: number;
     y: number;
