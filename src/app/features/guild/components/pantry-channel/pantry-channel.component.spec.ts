@@ -64,8 +64,10 @@ function guild(overrides: Partial<GuildDto> = {}): GuildDto {
     } as GuildDto;
 }
 
+// Handed to both masks: each parser keeps only the names its own space defines, so one list
+// reaches whichever of the two actually owns the permission.
 function member(permissions: string): SelfGuildMemberDto {
-    return {permissions, roleMembers: []} as unknown as SelfGuildMemberDto;
+    return {permissions, modulePermissions: permissions, roleMembers: []} as unknown as SelfGuildMemberDto;
 }
 
 function item(overrides: Partial<PantryItem> = {}): PantryItem {

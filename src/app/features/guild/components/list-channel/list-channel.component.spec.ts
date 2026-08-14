@@ -100,8 +100,10 @@ function setup(opts: {
                 provide: GuildService,
                 useValue: {
                     getOwnMember: () => of({
-                        permissions: '',
-                        roleMembers: [{role: {permissions: opts.rolePermissions ?? 'ViewChannel'}}],
+                        permissions: opts.rolePermissions ?? 'ViewChannel',
+                        // Both masks get the same names; each parser keeps only the ones it defines.
+                        modulePermissions: opts.rolePermissions ?? 'ViewChannel',
+                        roleMembers: [],
                     }),
                 },
             },

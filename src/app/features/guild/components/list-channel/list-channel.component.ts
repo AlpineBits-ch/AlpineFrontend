@@ -22,8 +22,8 @@ import {GuildService} from '../../../../services/guild.service';
 import {ListService} from '../../../../services/list.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {NavigationService} from '../../../main-page/navigation.service';
-import {effectiveGuildPermissions} from '../../guild-permissions';
-import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
+import {guildAbilities} from '../../guild-permissions';
+import {ModulePermissions} from '../../../../enums/module-permissions.enum';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {channelIcon} from '../../channel-types';
 
@@ -150,29 +150,21 @@ export class ListChannelComponent {
     /** A refusal that survives the module check - so it really is about this member's roles. */
     protected forbidden = computed(() => this.moduleEnabled() && this.state().forbidden);
 
-    private permissions = computed(() => effectiveGuildPermissions(this.ownMember()));
     private ownUserId = computed(() => this.profileService.ownProfile()?.userId ?? null);
 
-    /** Owner first: `SelfGuildMemberDto.permissions` does not reliably carry Superadmin for them. */
-    private isOwner = computed(() => {
-        const guild = this.guild();
-        const ownUserId = this.ownUserId();
-        return !!guild && !!ownUserId && ownUserId === guild.ownerId;
-    });
+    private abilities = computed(() => guildAbilities(this.ownMember(), this.guild(), this.ownUserId()));
 
-    private can = (permission: bigint): boolean => this.isOwner()
-        || hasPermission(this.permissions(), Permissions.Superadmin)
-        || hasPermission(this.permissions(), permission);
+    private can = (permission: bigint): boolean => this.abilities().canModule(permission);
 
     /** `AddListItems` - and the same bit is what lets someone edit or delete their own row. */
-    protected canAdd = computed(() => this.can(Permissions.AddListItems));
+    protected canAdd = computed(() => this.can(ModulePermissions.AddListItems));
     /** `ManageLists` - clear the list, and edit or delete anyone's row. */
-    protected canManage = computed(() => this.can(Permissions.ManageLists));
+    protected canManage = computed(() => this.can(ModulePermissions.ManageLists));
     /**
      * `CheckOffListItems`. Separate from adding on purpose: ticking is the collaborative part, and
      * a household can hand it to people it would not hand the list itself to.
      */
-    protected canCheck = computed(() => this.can(Permissions.CheckOffListItems));
+    protected canCheck = computed(() => this.can(ModulePermissions.CheckOffListItems));
 
     constructor() {
         effect(() => {

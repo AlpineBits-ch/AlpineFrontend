@@ -6,7 +6,8 @@ import {GuildWebsocketService} from '../../../../services/guild-websocket.servic
 import {WikiContentCacheService} from './wiki-content-cache.service';
 import {WikiDraftsService} from './wiki-drafts.service';
 import {wikiAbilities, WikiAbilities} from './wiki-permissions';
-import {effectiveGuildPermissions} from '../../guild-permissions';
+import {guildAbilities} from '../../guild-permissions';
+import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {GuildService} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
 
@@ -29,35 +30,27 @@ export class WikiStateService {
     private readonly guildService = inject(GuildService);
     private readonly profileService = inject(ProfileService);
 
-    /** What the member fetch reported. Zero until it answers, so permissions fail closed. */
-    private readonly memberPermissions = signal<bigint>(0n);
+    /** What the member fetch reported. Null until it answers, so permissions fail closed. */
+    private readonly ownMember = signal<SelfGuildMemberDto | null>(null);
     /** The id the member fetch reported, as a fallback before the profile has loaded. */
     private readonly memberUserId = signal<string | null>(null);
+
+    private readonly guild = computed(() =>
+        this.guildService.guilds().find(g => g.id === this.guildId()) ?? null);
 
     readonly ownUserId = computed(() =>
         this.profileService.ownProfile()?.userId ?? this.memberUserId());
 
     /**
-     * Derived, not snapshotted.
-     *
-     * This used to be read once, synchronously, at the moment the wiki mounted - and both of its
-     * inputs arrive asynchronously. Opening a wiki before the profile or the guild list had landed
-     * therefore decided you were not the owner, and since abilities were only reloaded when the
-     * *guild id* changed, nothing ever revisited it: the owner of a guild would intermittently see
-     * no Edit and no New Page at all. As a computed it simply corrects itself when the data lands.
-     */
-    private readonly isOwner = computed(() => {
-        const ownUserId = this.ownUserId();
-        if (!ownUserId) return false;
-        return this.guildService.guilds().find(g => g.id === this.guildId())?.ownerId === ownUserId;
-    });
-
-    /**
      * What this member may do here. Starts at nothing and stays there until the fetch answers,
      * so a control is never briefly offered to somebody who turns out not to hold the permission.
+     *
+     * Derived, not snapshotted. Ownership and the member row both arrive asynchronously; reading
+     * them once at mount decided the owner of a guild was not its owner, and nothing revisited it
+     * unless the guild id changed - so the owner intermittently saw no Edit and no New Page.
      */
     readonly abilities: Signal<WikiAbilities> = computed(() =>
-        wikiAbilities(this.memberPermissions(), this.isOwner()));
+        wikiAbilities(guildAbilities(this.ownMember(), this.guild(), this.ownUserId())));
     private suppressNextPageRefresh = false;
 
     constructor() {
@@ -279,16 +272,16 @@ export class WikiStateService {
      * and for the whole session if that request fails. Same guard the events panel uses.
      */
     private loadAbilities(guildId: string): void {
-        this.memberPermissions.set(0n);
+        this.ownMember.set(null);
         this.memberUserId.set(null);
         this.guildService.getOwnMember(guildId).subscribe({
             next: member => {
-                this.memberPermissions.set(effectiveGuildPermissions(member));
+                this.ownMember.set(member);
                 this.memberUserId.set(member.userId ?? null);
             },
             // Ownership is decided separately and reactively, so an owner keeps their abilities
             // even when this fetch fails - denying them would lock them out of their own wiki.
-            error: () => this.memberPermissions.set(0n),
+            error: () => this.ownMember.set(null),
         });
     }
 

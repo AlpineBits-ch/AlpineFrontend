@@ -16,7 +16,14 @@ import {GuildWebsocketService} from '../../../../../../services/guild-websocket.
 import {ProfileService} from '../../../../../../services/profile.service';
 import {BrokenImageService} from '../../../../../../services/broken-image.service';
 import {ToastService} from '../../../../../../services/toast.service';
-import {parsePermissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
+import {parsePermissionCarrier, stringifyPermissionCarrier} from '../../../../../../enums/permissions.enum';
+import {
+    MODULE_PERM_CATALOG,
+    MODULE_PERM_GROUPS,
+    parseModulePermissionCarrier,
+    stringifyModulePermissionCarrier,
+} from '../../../../../../enums/module-permissions.enum';
+import {EMPTY_CARRIER, FlagCarrier} from '../../../../../../enums/flag-mask';
 import {PermissionToggleComponent} from '../../../../shared/permission-toggle/permission-toggle.component';
 import {TranslateModule, TranslateService} from '@ngx-translate/core';
 import {guildFeatures} from '../../../../guild-features';
@@ -47,7 +54,15 @@ export class RolesSettingsComponent implements OnInit {
     editName = signal('');
     editDescription = signal('');
     editColor = signal('#4B5BC4');
-    editPermMask = signal(0n);
+    /**
+     * Carriers, not bare masks. A role can hold permissions this build has no name for, and
+     * editing one bit must not drop the rest on the way back out.
+     */
+    editPerms = signal<FlagCarrier>(EMPTY_CARRIER);
+    editModulePerms = signal<FlagCarrier>(EMPTY_CARRIER);
+    editPermMask = computed(() => this.editPerms().value);
+    editModuleMask = computed(() => this.editModulePerms().value);
+    permQuery = signal('');
     editSaving = signal(false);
     editDirty = signal(false);
     // Create role dialog
@@ -104,6 +119,14 @@ export class RolesSettingsComponent implements OnInit {
 
     /** Module set for this guild: permission groups whose module is off aren't offered. */
     protected features = computed(() => guildFeatures(this.guild()));
+
+    protected readonly moduleCatalog = MODULE_PERM_CATALOG;
+
+    /** No module on means no second grid at all, rather than an empty heading. */
+    protected hasModuleGroups = computed(() => {
+        const features = this.features();
+        return MODULE_PERM_GROUPS.some(group => !group.feature || features.has(group.feature));
+    });
 
     constructor() {
         effect(() => this.dirtyChange.emit(this.editDirty()));
@@ -174,7 +197,9 @@ export class RolesSettingsComponent implements OnInit {
         this.editName.set(role.name);
         this.editDescription.set(role.description ?? '');
         this.editColor.set(role.color ?? '#4B5BC4');
-        this.editPermMask.set(parsePermissions(role.permissions));
+        this.editPerms.set(parsePermissionCarrier(role.permissions));
+        this.editModulePerms.set(parseModulePermissionCarrier(role.modulePermissions));
+        this.permQuery.set('');
         this.editDirty.set(false);
         this.activeTab.set('settings');
         this.resetMembersTab();
@@ -194,14 +219,20 @@ export class RolesSettingsComponent implements OnInit {
             this.editName() !== r.name ||
             this.editDescription() !== (r.description ?? '') ||
             this.editColor() !== (r.color ?? '#4B5BC4') ||
-            this.editPermMask() !== parsePermissions(r.permissions)
+            this.editPermMask() !== parsePermissionCarrier(r.permissions).value ||
+            this.editModuleMask() !== parseModulePermissionCarrier(r.modulePermissions).value
         );
     }
 
     // ── Settings tab ───────────────────────────────────────────────────────────
 
     onPermChange(mask: bigint): void {
-        this.editPermMask.set(mask);
+        this.editPerms.update(carrier => ({...carrier, value: mask}));
+        this.onEditField();
+    }
+
+    onModulePermChange(mask: bigint): void {
+        this.editModulePerms.update(carrier => ({...carrier, value: mask}));
         this.onEditField();
     }
 
@@ -209,11 +240,14 @@ export class RolesSettingsComponent implements OnInit {
         const role = this.selectedRole();
         if (!role || this.editSaving() || this.colorInvalid()) return;
         this.editSaving.set(true);
+        // Every field goes on every save, and an emptied one is sent as '' rather than dropped:
+        // PATCH leaves an omitted field alone now, so omission no longer clears anything.
         const dto: UpdateRoleDto = {
             name: this.editName(),
             description: this.editDescription(),
             color: this.editColor().trim(),
-            permissions: stringifyPermissions(this.editPermMask()),
+            permissions: stringifyPermissionCarrier(this.editPerms()),
+            modulePermissions: stringifyModulePermissionCarrier(this.editModulePerms()),
         };
         this.guildService.updateRole(role.id, dto).subscribe({
             next: () => {
@@ -242,7 +276,8 @@ export class RolesSettingsComponent implements OnInit {
             guildId: this.guild().id,
             name: this.createName().trim(),
             color: this.createColor(),
-            permissions: '0',
+            permissions: 'None',
+            modulePermissions: 'None',
         };
         this.guildService.createRole(dto).subscribe({
             next: role => {

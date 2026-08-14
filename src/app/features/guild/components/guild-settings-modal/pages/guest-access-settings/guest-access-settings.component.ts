@@ -13,8 +13,8 @@ import {GuildService} from '../../../../../../services/guild.service';
 import {GuestAccessApiService} from '../../../../../../services/guest-access-api.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {ToastService} from '../../../../../../services/toast.service';
-import {hasPermission, Permissions} from '../../../../../../enums/permissions.enum';
-import {effectiveGuildPermissions} from '../../../../guild-permissions';
+import {ModulePermissions} from '../../../../../../enums/module-permissions.enum';
+import {guildAbilities} from '../../../../guild-permissions';
 import {GUEST_DURATIONS, grantState, guestExpiryFromNow} from '../../../../guest-access';
 
 interface GrantRow {
@@ -123,11 +123,8 @@ export class GuestAccessSettingsComponent implements OnInit {
     ngOnInit(): void {
         this.guildService.getOwnMember(this.guild().id).subscribe({
             next: member => {
-                const perms = effectiveGuildPermissions(member);
-                this.canManage.set(
-                    hasPermission(perms, Permissions.ManageGuests)
-                    || hasPermission(perms, Permissions.Superadmin)
-                    || member.userId === this.guild().ownerId);
+                const abilities = guildAbilities(member, this.guild(), member.userId);
+                this.canManage.set(abilities.canModule(ModulePermissions.ManageGuests));
                 this.permsLoaded.set(true);
             },
             // Failing closed: an unproven permission must not render grant controls.

@@ -118,8 +118,10 @@ function setup(opts: {
                 useValue: {
                     guilds: signal([guild]),
                     getOwnMember: () => of({
-                        permissions: '',
-                        roleMembers: [{role: {permissions: opts.rolePermissions ?? 'ViewChannel,ManageChores,CompleteChores'}}],
+                        permissions: opts.rolePermissions ?? 'ViewChannel,ManageChores,CompleteChores',
+                        // Both masks get the same names; each parser keeps only the ones it defines.
+                        modulePermissions: opts.rolePermissions ?? 'ViewChannel,ManageChores,CompleteChores',
+                        roleMembers: [],
                     }),
                     getMembers: () => of([
                         {userId: 'user_anna', nickname: 'Anna', profile: {userName: 'anna'}},

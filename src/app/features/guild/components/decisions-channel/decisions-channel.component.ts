@@ -41,8 +41,8 @@ import {ToastService} from '../../../../services/toast.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {AppAvatarComponent} from '../../../../components/avatar/avatar.component';
 import {RelativeTimePipe} from '../../../../pipes/relative-time.pipe';
-import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
-import {effectiveGuildPermissions} from '../../guild-permissions';
+import {ModulePermissions} from '../../../../enums/module-permissions.enum';
+import {guildAbilities} from '../../guild-permissions';
 import {channelIcon} from '../../channel-types';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {
@@ -146,23 +146,17 @@ export class DecisionsChannelComponent implements OnDestroy {
 
     // ── Permissions ─────────────────────────────────────────────────────────
 
-    private permissions = computed(() => effectiveGuildPermissions(this.ownMember()));
 
-    private isOwner = computed(() => {
-        const ownUserId = this.profileService.ownProfile()?.userId;
-        const guild = this.guild();
-        return !!guild && !!ownUserId && guild.ownerId === ownUserId;
-    });
+    private ownUserId = computed(() => this.profileService.ownProfile()?.userId ?? null);
 
-    /** Owner first: SelfGuildMemberDto.permissions does not reliably carry Superadmin for them. */
-    private can = (permission: bigint) => this.isOwner()
-        || hasPermission(this.permissions(), Permissions.Superadmin)
-        || hasPermission(this.permissions(), permission);
+    private abilities = computed(() => guildAbilities(this.ownMember(), this.guild(), this.ownUserId()));
+
+    private can = (permission: bigint): boolean => this.abilities().canModule(permission);
 
     /** Opening a decision, and closing or cancelling one. */
-    protected canCreate = computed(() => this.can(Permissions.CreateDecisions));
+    protected canCreate = computed(() => this.can(ModulePermissions.CreateDecisions));
     /** Support, abstain, block. Distinct from CreateDecisions: most of the house votes, few open. */
-    protected canVote = computed(() => this.can(Permissions.VoteDecisions));
+    protected canVote = computed(() => this.can(ModulePermissions.VoteDecisions));
 
     // ── Create dialog ───────────────────────────────────────────────────────
     protected showCreate = signal(false);

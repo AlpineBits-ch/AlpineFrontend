@@ -22,7 +22,7 @@ import {BillsPanelComponent} from './bills-panel.component';
 import {LedgerSummaryComponent} from './ledger-summary.component';
 import {ReceiptGalleryComponent} from './receipt-gallery.component';
 import {PaymentHandlesEditorComponent, PaySheetComponent} from '../../../payments';
-import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
+import {ModulePermissions} from '../../../../enums/module-permissions.enum';
 import {formatMinor, minorToInputString, parseMinor} from '../../../../helpers/money.helper';
 import {GuildService} from '../../../../services/guild.service';
 import {LedgerService} from '../../../../services/ledger.service';
@@ -31,7 +31,7 @@ import {ToastService} from '../../../../services/toast.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {channelIcon} from '../../channel-types';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
-import {effectiveGuildPermissions} from '../../guild-permissions';
+import {guildAbilities} from '../../guild-permissions';
 
 /** One page of members is plenty for a household, and the picker is unusable past it anyway. */
 const MEMBER_PAGE_SIZE = 200;
@@ -146,23 +146,16 @@ export class LedgerChannelComponent {
     });
 
     // ── Permissions (§2) ─────────────────────────────────────────────────────
-    private permissions = computed(() => effectiveGuildPermissions(this.ownMember()));
-
-    private isOwner = computed(() => {
-        const guild = this.guild();
-        const ownUserId = this.ownUserId();
-        return !!guild && !!ownUserId && guild.ownerId === ownUserId;
-    });
 
     /** Owner first: SelfGuildMemberDto.permissions doesn't reliably carry Superadmin for them. */
-    private can = (permission: bigint) => this.isOwner()
-        || hasPermission(this.permissions(), Permissions.Superadmin)
-        || hasPermission(this.permissions(), permission);
+    private abilities = computed(() => guildAbilities(this.ownMember(), this.guild(), this.ownUserId()));
+
+    private can = (permission: bigint): boolean => this.abilities().canModule(permission);
 
     /** Edit anyone's expense, record a settlement between two other people, set the currency. */
-    protected canManageLedger = computed(() => this.can(Permissions.ManageLedger));
+    protected canManageLedger = computed(() => this.can(ModulePermissions.ManageLedger));
     /** Add an expense you paid, and edit or delete the ones you entered. */
-    protected canAddExpense = computed(() => this.can(Permissions.AddExpenses) || this.canManageLedger());
+    protected canAddExpense = computed(() => this.can(ModulePermissions.AddExpenses) || this.canManageLedger());
     /** Naming someone else as the payer is a third-party write, so it needs the manage bit. */
     protected canNamePayer = computed(() => this.canManageLedger());
 
@@ -598,7 +591,7 @@ export class LedgerChannelComponent {
         if (this.canManageLedger()) return true;
         // "Your own" is the one you entered. An expense someone else typed in on your behalf is
         // theirs to correct, and the server would refuse anyway.
-        return this.can(Permissions.AddExpenses) && expense.createdByUserId === this.ownUserId();
+        return this.can(ModulePermissions.AddExpenses) && expense.createdByUserId === this.ownUserId();
     }
 
     // ── Settling ─────────────────────────────────────────────────────────────

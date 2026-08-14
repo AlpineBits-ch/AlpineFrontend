@@ -8,7 +8,7 @@ import {MultiSelect} from 'primeng/multiselect';
 import {ToggleSwitch} from 'primeng/toggleswitch';
 import {Dialog} from 'primeng/dialog';
 import {PrimeTemplate} from 'primeng/api';
-import {ChannelType, GuildDto, RoleType} from '../../../../../../dtos/response/guild.dto';
+import {ChannelType, GuildDto, RoleDto, RoleType} from '../../../../../../dtos/response/guild.dto';
 import {
     ONBOARDING_LIMITS,
     OnboardingPrompt,
@@ -16,6 +16,7 @@ import {
     OnboardingPromptType,
 } from '../../../../../../dtos/response/guild-safety.dto';
 import {hasPermission, parsePermissions, PermissionValue, Permissions} from '../../../../../../enums/permissions.enum';
+import {ModulePermissions, ModulePermissionValue, parseModulePermissions} from '../../../../../../enums/module-permissions.enum';
 
 /**
  * Roles the server refuses in a prompt option, because picking one is unmoderated
@@ -28,15 +29,21 @@ import {hasPermission, parsePermissions, PermissionValue, Permissions} from '../
 const PRIVILEGED_MASK: PermissionValue =
     Permissions.Superadmin
     | Permissions.ManageGuild | Permissions.ManageChannel | Permissions.ManagePermissions
+    | Permissions.ManageRoles | Permissions.ManageWebhooks
     | Permissions.KickMembers | Permissions.BanMembers | Permissions.ModerateMembers
-    | Permissions.ViewAuditLog | Permissions.ManageEmojis
+    | Permissions.ViewAuditLog | Permissions.ManageEmojis | Permissions.ManageExpressions
     | Permissions.EditAnyMessage | Permissions.DeleteAnyMessage | Permissions.PinMessages
-    | Permissions.ManageAnyThread
-    | Permissions.EditAnyWikiPage | Permissions.DeleteWikiPages | Permissions.ManageWikiRevisions
-    | Permissions.ManageWikiStructure | Permissions.ModerateWikiComments | Permissions.PublishWikiPublicly;
+    | Permissions.ManageAnyThread;
 
-export function isPrivilegedRolePermissions(permissions: string | null | undefined): boolean {
-    return (parsePermissions(permissions) & PRIVILEGED_MASK) !== 0n;
+/** The wiki half, now that those bits live in their own space. */
+const PRIVILEGED_MODULE_MASK: ModulePermissionValue =
+    ModulePermissions.EditAnyWikiPage | ModulePermissions.DeleteWikiPages
+    | ModulePermissions.ManageWikiRevisions | ModulePermissions.ManageWikiStructure
+    | ModulePermissions.ModerateWikiComments | ModulePermissions.PublishWikiPublicly;
+
+export function isPrivilegedRole(role: Pick<RoleDto, 'permissions' | 'modulePermissions'>): boolean {
+    return (parsePermissions(role.permissions) & PRIVILEGED_MASK) !== 0n
+        || (parseModulePermissions(role.modulePermissions) & PRIVILEGED_MODULE_MASK) !== 0n;
 }
 
 /**
@@ -81,7 +88,7 @@ export class OnboardingPromptEditorComponent {
             .filter(r => r.type !== RoleType.Everyone)
             .sort((a, b) => b.position - a.position)
             .map(r => {
-                const privileged = isPrivilegedRolePermissions(r.permissions);
+                const privileged = isPrivilegedRole(r);
                 return {
                     label: privileged
                         ? `${r.name} - ${this.translate.instant('ONBOARDING_EDIT.ROLE_PRIVILEGED')}`

@@ -1,4 +1,17 @@
-﻿// Define the TypeScript equivalent of your ulong enum (using number or bigint)
+import {createFlagCodec, FlagCatalog, FlagGroup, SerializedFlags} from './flag-mask';
+
+/**
+ * The core permission mask: what every guild has, whichever modules it switched on.
+ *
+ * <p>Bit positions are a storage format on the server - persisted, cached and mirrored into
+ * external contracts - so a member is added at a free bit and never moved.</p>
+ *
+ * <p>Bits 23-31 and 39-41 used to hold the wiki and household permissions. Those moved to
+ * {@link ModulePermissions}, and the Discord-parity bits below then took the vacated positions.
+ * That is safe only because the migration cleared the old bits from every stored mask in the same
+ * transaction - which is also why nothing here may keep an alias for a moved name. An alias
+ * compiles and reads the wrong bit.</p>
+ */
 export const Permissions = {
     None: 0n,
 
@@ -29,6 +42,7 @@ export const Permissions = {
     MoveMembers: 1n << 15n,
 
     // ── Thread permissions ───────────────────────────────────────────────────
+    /** Discord's CREATE_PUBLIC_THREADS, under its original name - bit 16 is set in stored masks. */
     CreateThreads: 1n << 16n,
     SendMessagesInThreads: 1n << 17n,
     ManageOwnThreads: 1n << 18n,
@@ -38,79 +52,53 @@ export const Permissions = {
     ManageChannel: 1n << 20n,
     ManagePermissions: 1n << 21n,
 
-    // ── Invite permissions ────────────────────────────────────────────────────
+    // ── General ──────────────────────────────────────────────────────────────
     CreateInvite: 1n << 22n,
 
-    // ── Wiki permissions ──────────────────────────────────────────────────────
-    ViewWiki: 1n << 23n,
-    CreateWikiPages: 1n << 24n,
-    EditOwnWikiPages: 1n << 25n,
-    EditAnyWikiPage: 1n << 26n,
-    DeleteWikiPages: 1n << 27n,
-    ManageWikiRevisions: 1n << 28n,
-    ManageWikiStructure: 1n << 29n,
-    ModerateWikiComments: 1n << 30n,
-    PublishWikiPublicly: 1n << 31n,
+    // ── Discord parity: reading, posting, expressions ────────────────────────
+    /**
+     * Read the backlog. Distinct from {@link ViewChannel}, which only decides whether the channel
+     * is listed and joinable - splitting them is what makes "you can talk here from now on, but
+     * the history is not yours" expressible.
+     */
+    ReadMessageHistory: 1n << 23n,
+    SendVoiceMessages: 1n << 24n,
+    SendPolls: 1n << 25n,
+    UseExternalEmojis: 1n << 26n,
+    UseExternalStickers: 1n << 27n,
+    CreatePrivateThreads: 1n << 28n,
+    UseApplicationCommands: 1n << 29n,
+    /** Upload your own emoji or sticker. The contribute half; {@link ManageExpressions} curates. */
+    CreateExpressions: 1n << 30n,
+    ManageExpressions: 1n << 31n,
 
-    // ── Guild moderation permissions ─────────────────────────────────────────
+    // ── Moderation (members) ─────────────────────────────────────────────────
     KickMembers: 1n << 32n,
     BanMembers: 1n << 33n,
     ModerateMembers: 1n << 34n,
     ManageGuild: 1n << 35n,
     ViewAuditLog: 1n << 36n,
 
-    // ── Emoji permissions ─────────────────────────────────────────────────────
+    // ── Customization ────────────────────────────────────────────────────────
+    /** The narrow, original grant that {@link ManageExpressions} supersets. Both are enforced. */
     ManageEmojis: 1n << 37n,
-
-    // ── Event permissions ─────────────────────────────────────────────────────
     ManageEvents: 1n << 38n,
 
-    // ── Household: lists ──────────────────────────────────────────────────────
-    ManageLists: 1n << 39n,
-    AddListItems: 1n << 40n,
-    CheckOffListItems: 1n << 41n,
+    // ── Discord parity: voice ────────────────────────────────────────────────
+    PrioritySpeaker: 1n << 39n,
+    RequestToSpeak: 1n << 40n,
+    UseVoiceActivity: 1n << 41n,
 
-    // ── Household: chores ─────────────────────────────────────────────────────
-    ManageChores: 1n << 42n,
-    CompleteChores: 1n << 43n,
-
-    // ── Household: ledger ─────────────────────────────────────────────────────
-    ManageLedger: 1n << 44n,
-    AddExpenses: 1n << 45n,
-
-    // ── Household: pantry ─────────────────────────────────────────────────────
-    ManagePantry: 1n << 46n,
-
-    // ── Household: decisions ──────────────────────────────────────────────────
-    CreateDecisions: 1n << 47n,
-    VoteDecisions: 1n << 48n,
-
-    // ── Household: guest access ───────────────────────────────────────────────
-    ManageGuests: 1n << 49n,
-
-    // ── Mentions ──────────────────────────────────────────────────────────────
+    // ── Mentions ─────────────────────────────────────────────────────────────
     MentionEveryone: 1n << 50n,
 
     // ── Moderation (split out of coarser bits) ───────────────────────────────
     ManageRoles: 1n << 51n,
     ManageWebhooks: 1n << 52n,
 
-    // ── Nicknames ─────────────────────────────────────────────────────────────
+    // ── Nicknames ────────────────────────────────────────────────────────────
     ChangeNickname: 1n << 53n,
     ManageNicknames: 1n << 54n,
-
-    // ── Household: meals ──────────────────────────────────────────────────────
-    PlanMeals: 1n << 55n,
-    ManageMeals: 1n << 56n,
-
-    // ── Household: maintenance ────────────────────────────────────────────────
-    /**
-     * Log a repair, and **mark something broken**. Deliberately the participation bit rather
-     * than the manage one: whoever discovers the washing machine is dead is whoever tried to
-     * use it, not whoever administers the house.
-     */
-    LogMaintenance: 1n << 57n,
-    ManageMaintenance: 1n << 58n,
 
     // ── Catch-all ────────────────────────────────────────────────────────────
     Superadmin: 1n << 63n,
@@ -119,37 +107,42 @@ export const Permissions = {
 export type PermissionKey = keyof typeof Permissions;
 export type PermissionValue = bigint;
 
-export interface PermGroup {
-    /** Untranslated identifier for the group - stable across locales, handy in tests. */
-    label: string;
-    /** The `PERM_GROUP.*` key the UI actually renders. */
-    labelKey: string;
-    perms: PermissionKey[];
-    /**
-     * The `GuildFeatures` module name gating this group. A plain string rather than the
-     * `GuildFeature` union so this file needs no feature-layer import - and the values
-     * are the flag names anyway, which is exactly what `GuildFeatureSet` holds.
-     *
-     * Absent means ungated: the group renders in every guild.
-     */
-    feature?: string;
-}
+/**
+ * Bits the server stores and round-trips but does not act on, because Echo has no feature behind
+ * them: no polls, stickers, voice messages, private threads or stage channels.
+ *
+ * <p>Nothing may gate an affordance on one of these. They are kept out of {@link PERM_GROUPS} so
+ * the editor does not offer a switch that changes nothing, and they survive a save regardless -
+ * a named bit that is set is re-emitted whether or not the UI ever drew it.</p>
+ */
+export const INERT_PERMISSIONS: ReadonlySet<PermissionKey> = new Set<PermissionKey>([
+    'SendVoiceMessages',
+    'SendPolls',
+    'UseExternalStickers',
+    'CreatePrivateThreads',
+    'PrioritySpeaker',
+    'RequestToSpeak',
+    'UseVoiceActivity',
+]);
+
+export type PermGroup = FlagGroup<PermissionKey>;
 
 export const PERM_GROUPS: PermGroup[] = [
     {
         label: 'General',
         labelKey: 'PERM_GROUP.GENERAL',
-        perms: ['ViewChannel', 'CreateInvite', 'ChangeNickname'],
+        perms: ['ViewChannel', 'CreateInvite', 'ChangeNickname', 'UseApplicationCommands'],
     },
     {
         label: 'Messages',
         labelKey: 'PERM_GROUP.MESSAGES',
-        perms: ['SendMessages', 'EditOwnMessages', 'EditAnyMessage', 'DeleteOwnMessages', 'DeleteAnyMessage', 'PinMessages', 'MentionEveryone'],
+        perms: ['SendMessages', 'ReadMessageHistory', 'EditOwnMessages', 'EditAnyMessage',
+            'DeleteOwnMessages', 'DeleteAnyMessage', 'PinMessages', 'MentionEveryone'],
     },
     {
         label: 'Attachments & Embeds',
         labelKey: 'PERM_GROUP.ATTACHMENTS',
-        perms: ['AttachFiles', 'EmbedLinks', 'AddReactions'],
+        perms: ['AttachFiles', 'EmbedLinks', 'AddReactions', 'UseExternalEmojis'],
     },
     {
         label: 'Voice',
@@ -164,70 +157,18 @@ export const PERM_GROUPS: PermGroup[] = [
     {
         label: 'Moderation',
         labelKey: 'PERM_GROUP.MODERATION',
-        perms: ['ManageChannel', 'ManagePermissions', 'ManageRoles', 'ManageWebhooks', 'ManageGuild', 'KickMembers', 'BanMembers', 'ModerateMembers', 'ManageNicknames', 'ViewAuditLog'],
+        perms: ['ManageChannel', 'ManagePermissions', 'ManageRoles', 'ManageWebhooks', 'ManageGuild',
+            'KickMembers', 'BanMembers', 'ModerateMembers', 'ManageNicknames', 'ViewAuditLog'],
     },
     {
         label: 'Emojis',
         labelKey: 'PERM_GROUP.EMOJIS',
-        perms: ['ManageEmojis'],
+        perms: ['ManageEmojis', 'CreateExpressions', 'ManageExpressions'],
     },
     {
         label: 'Events',
         labelKey: 'PERM_GROUP.EVENTS',
         perms: ['ManageEvents'],
-    },
-    {
-        label: 'Wiki',
-        labelKey: 'PERM_GROUP.WIKI',
-        perms: ['ViewWiki', 'CreateWikiPages', 'EditOwnWikiPages', 'EditAnyWikiPage', 'DeleteWikiPages', 'ManageWikiRevisions', 'ManageWikiStructure', 'ModerateWikiComments', 'PublishWikiPublicly'],
-    },
-    {
-        label: 'Lists',
-        labelKey: 'PERM_GROUP.LISTS',
-        feature: 'Lists',
-        perms: ['ManageLists', 'AddListItems', 'CheckOffListItems'],
-    },
-    {
-        label: 'Chores',
-        labelKey: 'PERM_GROUP.CHORES',
-        feature: 'Chores',
-        perms: ['ManageChores', 'CompleteChores'],
-    },
-    {
-        label: 'Ledger',
-        labelKey: 'PERM_GROUP.LEDGER',
-        feature: 'Ledger',
-        perms: ['ManageLedger', 'AddExpenses'],
-    },
-    {
-        label: 'Pantry',
-        labelKey: 'PERM_GROUP.PANTRY',
-        feature: 'Pantry',
-        perms: ['ManagePantry'],
-    },
-    {
-        label: 'Decisions',
-        labelKey: 'PERM_GROUP.DECISIONS',
-        feature: 'Decisions',
-        perms: ['CreateDecisions', 'VoteDecisions'],
-    },
-    {
-        label: 'Guests',
-        labelKey: 'PERM_GROUP.GUESTS',
-        feature: 'GuestAccess',
-        perms: ['ManageGuests'],
-    },
-    {
-        label: 'Meals',
-        labelKey: 'PERM_GROUP.MEALS',
-        feature: 'Meals',
-        perms: ['PlanMeals', 'ManageMeals'],
-    },
-    {
-        label: 'Maintenance',
-        labelKey: 'PERM_GROUP.MAINTENANCE',
-        feature: 'Maintenance',
-        perms: ['LogMaintenance', 'ManageMaintenance'],
     },
     {
         label: 'Admin',
@@ -236,101 +177,64 @@ export const PERM_GROUPS: PermGroup[] = [
     },
 ];
 
+export const CORE_PERM_CATALOG: FlagCatalog<PermissionKey> = {
+    table: Permissions,
+    groups: PERM_GROUPS,
+};
+
+/**
+ * The subset a per-channel overwrite can express.
+ *
+ * <p>Guild-scoped authority is left out on purpose - kicking, banning, audit log, emoji, events,
+ * role management and Superadmin are not properties of one channel, and offering them here would
+ * suggest a grant the server would not honour.</p>
+ */
+export const CHANNEL_PERM_GROUPS: PermGroup[] = [
+    {
+        label: 'General',
+        labelKey: 'PERM_GROUP.GENERAL',
+        perms: ['ViewChannel', 'CreateInvite', 'UseApplicationCommands'],
+    },
+    {
+        label: 'Messages',
+        labelKey: 'PERM_GROUP.MESSAGES',
+        perms: ['SendMessages', 'ReadMessageHistory', 'EditOwnMessages', 'EditAnyMessage',
+            'DeleteOwnMessages', 'DeleteAnyMessage', 'PinMessages', 'MentionEveryone'],
+    },
+    {
+        label: 'Attachments & Embeds',
+        labelKey: 'PERM_GROUP.ATTACHMENTS',
+        perms: ['AttachFiles', 'EmbedLinks', 'AddReactions', 'UseExternalEmojis'],
+    },
+    {
+        label: 'Voice',
+        labelKey: 'PERM_GROUP.VOICE',
+        perms: ['Connect', 'Speak', 'Stream', 'MuteMembers', 'DeafenMembers', 'MoveMembers'],
+    },
+    {
+        label: 'Threads',
+        labelKey: 'PERM_GROUP.THREADS',
+        perms: ['CreateThreads', 'SendMessagesInThreads', 'ManageOwnThreads', 'ManageAnyThread'],
+    },
+    {
+        label: 'Moderation',
+        labelKey: 'PERM_GROUP.MODERATION',
+        perms: ['ManageChannel', 'ManagePermissions', 'ManageWebhooks'],
+    },
+];
+
+const codec = createFlagCodec(Permissions);
+
+/** @see SerializedFlags - the declared `string` on the DTOs is a hope, not a guarantee. */
+export type SerializedPermissions = SerializedFlags;
+
+export const parsePermissions: (serialized: SerializedPermissions) => PermissionValue = codec.parse;
+export const parsePermissionCarrier = codec.parseCarrier;
+export const stringifyPermissions: (mask: PermissionValue) => string = codec.stringify;
+export const stringifyPermissionCarrier = codec.stringifyCarrier;
+export const hasPermission: (mask: PermissionValue, permission: PermissionValue) => boolean = codec.has;
+export const diffPermissions: (requested: PermissionValue, grantable: PermissionValue) => PermissionKey[] = codec.diff;
+
 export function permissionLabel(key: PermissionKey): string {
-    return key.replace(/([A-Z])/g, ' $1').trim();
-}
-
-/** Keys present in `requested` but absent from `grantable`. */
-export function diffPermissions(requested: PermissionValue, grantable: PermissionValue): PermissionKey[] {
-    return (Object.keys(Permissions) as PermissionKey[]).filter(key => {
-        if (key === 'None') return false;
-        const val = Permissions[key];
-        return (requested & val) === val && (grantable & val) !== val;
-    });
-}
-
-/**
- * Every shape the server has been seen to send a permission mask in.
- *
- * <p>The DTOs all type these fields `string`, and that is what .NET emits for a `[Flags]` enum it
- * can name completely. It emits a bare JSON <b>number</b> instead as soon as the value carries a
- * bit with no name - a permission the deployed server knows and this build does not - so the
- * declared type is a hope, not a guarantee, and the parser has to survive both.</p>
- */
-export type SerializedPermissions = string | number | bigint | null | undefined;
-
-/**
- * Parses the text-serialized Permissions string (from C# .NET) into a bigint bitmask.
- *
- * <p>Anything it cannot make sense of parses as no permissions rather than throwing: this runs
- * inside permission-gated computed signals, where an exception takes the whole component down
- * instead of merely hiding a control.</p>
- */
-export function parsePermissions(serialized: SerializedPermissions): PermissionValue {
-    if (!serialized) {
-        return 0n;
-    }
-
-    // 1. Handle a mask that arrived as a number rather than a name list. Note that a JSON number
-    //    cannot carry this enum faithfully past 2^53 - Superadmin sits at bit 63 - so a numeric
-    //    payload with high bits set is already rounded by the time JSON.parse hands it over.
-    //    Nothing the client can recover; the server has to send names or a string for those.
-    if (typeof serialized === 'bigint') {
-        return serialized;
-    }
-    if (typeof serialized === 'number') {
-        return Number.isInteger(serialized) ? BigInt(serialized) : 0n;
-    }
-
-    // 2. Handle direct numeric representation (e.g., if .NET falls back to a number string)
-    if (/^\d+n?$/.test(serialized)) {
-        return BigInt(serialized.replace('n', ''));
-    }
-
-    // 3. Handle comma-separated string flags (e.g., "ViewChannel, SendMessages")
-    const parts = serialized.split(',');
-    let result: PermissionValue = 0n;
-
-    for (const part of parts) {
-        const trimmedKey = part.trim() as PermissionKey;
-
-        if (Permissions[trimmedKey] !== undefined) {
-            result |= Permissions[trimmedKey];
-        } else {
-            // Optional: Handle unknown keys or throw an error based on your strictness needs
-            console.warn(`Unknown permission key: ${trimmedKey}`);
-        }
-    }
-
-    return result;
-}
-
-/**
- * Checks if the bitmask includes a specific permission.
- */
-export function hasPermission(mask: PermissionValue, permission: PermissionValue): boolean {
-    return (mask & permission) === permission;
-}
-
-export function stringifyPermissions(mask: PermissionValue): string {
-    // 1. Handle the Zero / None case
-    if (mask === 0n) {
-        return "None";
-    }
-
-    const matchedParts: string[] = [];
-
-    // 2. Iterate over all defined permissions and check bits
-    for (const [key, value] of Object.entries(Permissions)) {
-        // Skip the "None" key when checking active flags
-        if (key === "None") continue;
-
-        // Use bitwise AND to check if the flag is present in the mask
-        if ((mask & (value as PermissionValue)) === (value as PermissionValue)) {
-            matchedParts.push(key);
-        }
-    }
-
-    // 3. Return as a comma-separated string, or "None" if no flags matched
-    return matchedParts.length > 0 ? matchedParts.join(", ") : "None";
+    return codec.label(key);
 }

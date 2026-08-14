@@ -130,15 +130,40 @@
                             }
                         </div>
 
-                        <div class="border-t border-white/[0.10]"></div>
+                        <div class="border-t border-border-subtle"></div>
 
-                        <!-- Permissions -->
                         <div>
-                            <p class="text-xs font-semibold text-white/40 uppercase tracking-widest mb-3">{{ 'GUILD_SETTINGS.ROLES.PERMISSIONS' | translate }}</p>
+                            <div class="flex items-center justify-between gap-3 mb-3">
+                                <p class="text-xs font-semibold text-text-muted uppercase tracking-widest">{{ 'GUILD_SETTINGS.ROLES.PERMISSIONS' | translate }}</p>
+                                <input
+                                        (ngModelChange)="permQuery.set($event)"
+                                        [ngModel]="permQuery()"
+                                        [placeholder]="'PERM_TOGGLE.SEARCH' | translate"
+                                        class="w-48 text-xs" pInputText type="search"/>
+                            </div>
                             <app-permission-toggle (maskChange)="onPermChange($event)"
                                                    [features]="features()"
-                                                   [mask]="editPermMask()"/>
+                                                   [mask]="editPermMask()"
+                                                   [query]="permQuery()"/>
                         </div>
+
+                        <!--
+                          The second mask. Kept visibly apart from the core one because the two
+                          spaces overlap numerically and mean different things, and because these
+                          bits stop existing entirely when their module is switched off.
+                        -->
+                        @if (hasModuleGroups()) {
+                            <div class="border-t border-border-subtle"></div>
+                            <div>
+                                <p class="text-xs font-semibold text-text-muted uppercase tracking-widest">{{ 'PERM_TOGGLE.MODULE_HEADING' | translate }}</p>
+                                <p class="text-[0.6875rem] text-text-muted mt-1 mb-3">{{ 'PERM_TOGGLE.MODULE_HINT' | translate }}</p>
+                                <app-permission-toggle (maskChange)="onModulePermChange($event)"
+                                                       [catalog]="moduleCatalog"
+                                                       [features]="features()"
+                                                       [mask]="editModuleMask()"
+                                                       [query]="permQuery()"/>
+                            </div>
+                        }
 
                         <!-- Save -->
                         @if (editDirty()) {

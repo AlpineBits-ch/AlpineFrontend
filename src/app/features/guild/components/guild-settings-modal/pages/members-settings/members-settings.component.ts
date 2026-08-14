@@ -11,7 +11,8 @@ import {GuildService} from '../../../../../../services/guild.service';
 import {ProfileService} from '../../../../../../services/profile.service';
 import {BrokenImageService} from '../../../../../../services/broken-image.service';
 import {ProfileDto} from '../../../../../../dtos/response/profile.dto';
-import {parsePermissions, Permissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
+import {parsePermissionCarrier, Permissions, stringifyPermissionCarrier} from '../../../../../../enums/permissions.enum';
+import {EMPTY_CARRIER, FlagCarrier} from '../../../../../../enums/flag-mask';
 import {PermissionToggleComponent} from '../../../../shared/permission-toggle/permission-toggle.component';
 import {guildFeatures} from '../../../../guild-features';
 import {PrimeTemplate} from "primeng/api";
@@ -39,7 +40,9 @@ export class MembersSettingsComponent implements OnInit {
     filter = signal('');
     editMember = signal<MemberRow | null>(null);
     showEditDialog = signal(false);
-    editPermMask = signal(0n);
+    /** A carrier so a member's unrecognised bits survive an edit to the ones we can name. */
+    editPerms = signal<FlagCarrier>(EMPTY_CARRIER);
+    editPermMask = computed(() => this.editPerms().value);
     editSaving = signal(false);
     confirmKickMember = signal<MemberRow | null>(null);
     showKickDialog = signal(false);
@@ -106,19 +109,19 @@ export class MembersSettingsComponent implements OnInit {
 
     openEditPermissions(row: MemberRow): void {
         this.editMember.set(row);
-        this.editPermMask.set(parsePermissions(row.member.permissions));
+        this.editPerms.set(parsePermissionCarrier(row.member.permissions));
         this.showEditDialog.set(true);
     }
 
     onPermissionChange(mask: bigint): void {
-        this.editPermMask.set(mask);
+        this.editPerms.update(carrier => ({...carrier, value: mask}));
     }
 
     savePermissions(): void {
         const row = this.editMember();
         if (!row || this.editSaving()) return;
         this.editSaving.set(true);
-        const perm = stringifyPermissions(this.editPermMask());
+        const perm = stringifyPermissionCarrier(this.editPerms());
         this.guildService.updateMemberPermissions(this.guild().id, row.member.id, perm).subscribe({
             next: updated => {
                 this.members.update(list =>

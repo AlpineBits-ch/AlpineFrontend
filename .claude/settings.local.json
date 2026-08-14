@@ -118,7 +118,12 @@
       "Bash(awk '/^```html$/{f=1;next}/^```$/{if\\(f==1\\){f=0}}f' .superpowers/sdd/2026-07-27-permission-overrides-redesign/task-1-brief.md)",
       "Bash(bash \"C:\\\\Users\\\\Domin\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\6.2.0\\\\skills\\\\subagent-driven-development\\\\scripts\\\\task-brief\" docs/superpowers/plans/2026-07-27-permission-overrides-redesign.md 2)",
       "Bash(bash \"C:\\\\Users\\\\Domin\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\6.2.0\\\\skills\\\\subagent-driven-development\\\\scripts\\\\review-package\" docs/superpowers/plans/2026-07-27-permission-overrides-redesign.md 01ee9e12a29293cc85e1510323b1de9219fc78fe HEAD)",
-      "Bash(bash \"C:\\\\Users\\\\Domin\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\6.2.0\\\\skills\\\\subagent-driven-development\\\\scripts\\\\task-brief\" docs/superpowers/plans/2026-07-27-permission-overrides-redesign.md 3)"
+      "Bash(bash \"C:\\\\Users\\\\Domin\\\\.claude\\\\plugins\\\\cache\\\\claude-plugins-official\\\\superpowers\\\\6.2.0\\\\skills\\\\subagent-driven-development\\\\scripts\\\\task-brief\" docs/superpowers/plans/2026-07-27-permission-overrides-redesign.md 3)",
+      "Bash(cp src/app/shared/call/call-share-tile/call-share-tile.component.ts /c/Users/Domin/AppData/Local/Temp/claude/C--Users-Domin-WebstormProjects-Alpine/1b2b7932-32d9-4041-bc48-e8585472a10f/scratchpad/orig.ts)",
+      "Bash(cp /c/Users/Domin/AppData/Local/Temp/claude/C--Users-Domin-WebstormProjects-Alpine/1b2b7932-32d9-4041-bc48-e8585472a10f/scratchpad/orig.ts src/app/shared/call/call-share-tile/call-share-tile.component.ts)",
+      "Bash(cp src/app/shared/call/call-share-tile/call-share-tile.component.ts /c/Users/Domin/AppData/Local/Temp/claude/C--Users-Domin-WebstormProjects-Alpine/1b2b7932-32d9-4041-bc48-e8585472a10f/scratchpad/orig2.ts)",
+      "Bash(cp /c/Users/Domin/AppData/Local/Temp/claude/C--Users-Domin-WebstormProjects-Alpine/1b2b7932-32d9-4041-bc48-e8585472a10f/scratchpad/orig2.ts src/app/shared/call/call-share-tile/call-share-tile.component.ts)",
+      "Bash(node node_modules/@angular/cli/bin/ng.js test --include=\"src/app/shared/call/**/*.spec.ts\" --watch=false)"
     ]
   },
   "enabledPlugins": {

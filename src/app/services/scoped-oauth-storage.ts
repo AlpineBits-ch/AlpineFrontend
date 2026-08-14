@@ -1,4 +1,8 @@
-import {OAuthStorage} from 'angular-oauth2-oidc';
+// Type-only on purpose. `OAuthStorage` is an interface and nothing here calls into the library, so
+// a value import would put the whole of `angular-oauth2-oidc` into the module graph of every file
+// that only wants `activeSlotId()` - which is now the guild layout cache, and through it
+// `GuildService` and most of the guild UI.
+import type {OAuthStorage} from 'angular-oauth2-oidc';
 
 /**
  * The bootstrap slot: what the live slot is before anyone has signed in.

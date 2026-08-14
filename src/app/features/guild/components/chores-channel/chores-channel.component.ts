@@ -45,9 +45,9 @@ import {ToastService} from '../../../../services/toast.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {channelIcon} from '../../channel-types';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
-import {effectiveGuildPermissions} from '../../guild-permissions';
+import {guildAbilities} from '../../guild-permissions';
 import {defaultRotationRoleId} from '../../household-roles';
-import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
+import {ModulePermissions} from '../../../../enums/module-permissions.enum';
 
 /** Which of the two mutually exclusive assignment fields the editor is filling in. */
 type AssignmentMode = 'rotation' | 'fixed';
@@ -108,15 +108,8 @@ export class ChoresChannelComponent {
 
     // ── Permissions ─────────────────────────────────────────────────────────
 
-    private permissions = computed(() => effectiveGuildPermissions(this.ownMember()));
 
     protected ownUserId = computed(() => this.profileService.ownProfile()?.userId ?? null);
-
-    private isOwner = computed(() => {
-        const ownUserId = this.ownUserId();
-        const ownerId = this.guild()?.ownerId;
-        return !!ownUserId && !!ownerId && ownUserId === ownerId;
-    });
 
     /**
      * Server-corrected now, ticking every half minute.
@@ -134,14 +127,14 @@ export class ChoresChannelComponent {
      * an owner of a house without the Chores module has no escape hatch, and there is no point
      * building one into the client.
      */
-    private can = (permission: bigint): boolean => this.isOwner()
-        || hasPermission(this.permissions(), Permissions.Superadmin)
-        || hasPermission(this.permissions(), permission);
+    private abilities = computed(() => guildAbilities(this.ownMember(), this.guild(), this.ownUserId()));
+
+    private can = (permission: bigint): boolean => this.abilities().canModule(permission);
 
     /** Create/edit/delete chores and set effort weights. */
-    protected canManage = computed(() => this.moduleEnabled() && this.can(Permissions.ManageChores));
+    protected canManage = computed(() => this.moduleEnabled() && this.can(ModulePermissions.ManageChores));
     /** Complete, skip and swap an occurrence - the collaborative half. */
-    protected canComplete = computed(() => this.moduleEnabled() && this.can(Permissions.CompleteChores));
+    protected canComplete = computed(() => this.moduleEnabled() && this.can(ModulePermissions.CompleteChores));
 
     // ── Board ───────────────────────────────────────────────────────────────
 

@@ -44,13 +44,26 @@ export interface CreateRoleDto {
     description?: string;
     color?: string;
     permissions?: string;
+    modulePermissions?: string;
+    hoist?: boolean;
+    mentionable?: boolean;
 }
 
+/**
+ * A real PATCH: an omitted field is left alone, where it used to be written as null.
+ *
+ * <p>The consequence for callers is that clearing a value is only expressible as an empty string.
+ * Dropping `description` no longer erases it.</p>
+ */
 export interface UpdateRoleDto {
     name?: string;
     description?: string;
     color?: string;
     permissions?: string;
+    modulePermissions?: string;
+    hoist?: boolean;
+    mentionable?: boolean;
+    unicodeEmoji?: string | null;
 }
 
 export interface CreateChannelDto {
@@ -84,6 +97,14 @@ export interface UpdateCategoryDto {
     description?: string;
 }
 
+/**
+ * Core mask only, deliberately.
+ *
+ * <p>`ChannelPermission` also stores an allow/deny pair of {@link ModulePermissions}, and the
+ * server resolves them, but `SetPermissionOverwriteDto` has no field to carry them - so a module
+ * overwrite can be enforced and read, never written. Until the server grows the pair, the editor
+ * shows those bits read-only rather than offering a control that saves nothing.</p>
+ */
 export interface OverridePermissionsDto {
     allowPermissions: string;
     denyPermissions: string;

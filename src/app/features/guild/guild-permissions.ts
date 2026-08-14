@@ -1,5 +1,12 @@
 import {GuildMemberDto, SelfGuildMemberDto} from '../../dtos/response/member.dto';
+import {GuildDto} from '../../dtos/response/guild.dto';
 import {hasPermission, parsePermissions, PermissionValue, Permissions} from '../../enums/permissions.enum';
+import {
+    modulePermissionFeatures,
+    ModulePermissionValue,
+    parseModulePermissions,
+} from '../../enums/module-permissions.enum';
+import {guildFeatures} from './guild-features';
 
 /**
  * What a member may actually do in this guild.
@@ -43,6 +50,92 @@ export function unionMemberPermissions(member: GuildMemberDto | null | undefined
         (acc, {role}) => acc | parsePermissions(role.permissions),
         parsePermissions(member.permissions),
     );
+}
+
+/** What a member may do here, across both permission spaces. */
+export interface GuildAbilities {
+    readonly core: PermissionValue;
+    readonly module: ModulePermissionValue;
+    readonly isOwner: boolean;
+    /** Owner, or Superadmin in the core mask. Satisfies any core or module check. */
+    readonly isSuperadmin: boolean;
+
+    can(permission: PermissionValue): boolean;
+
+    canModule(permission: ModulePermissionValue): boolean;
+}
+
+/** Denies everything - what a caller holds before the member row arrives. */
+export const NO_ABILITIES: GuildAbilities = {
+    core: 0n,
+    module: 0n,
+    isOwner: false,
+    isSuperadmin: false,
+    can: () => false,
+    canModule: () => false,
+};
+
+type AbilityGuild = Pick<GuildDto, 'ownerId' | 'features' | 'roles'>;
+
+/**
+ * Resolves one member's permissions against one guild.
+ *
+ * <p>Replaces the owner/Superadmin/`can` triple that seven household components each hand-rolled,
+ * and is the only place module bits are resolved: the server sends no `effectiveModulePermissions`
+ * to prefer, so that half is unioned here and inherits the ownership blind spot described on
+ * {@link unionMemberPermissions} - which is why `isOwner` is folded in explicitly.</p>
+ */
+export function guildAbilities(
+    member: GuildMemberDto | null | undefined,
+    guild: AbilityGuild | null | undefined,
+    ownUserId: string | null | undefined,
+): GuildAbilities {
+    if (!member && !guild) return NO_ABILITIES;
+
+    const core = effectiveGuildPermissions(member);
+    const module = unionModulePermissions(member, guild);
+    const isOwner = !!ownUserId && !!guild?.ownerId && ownUserId === guild.ownerId;
+    const isSuperadmin = isOwner || hasPermission(core, Permissions.Superadmin);
+
+    // A guild we were not given is "no context" rather than "no modules", matching how the
+    // household components treat a missing guild today.
+    const enabled = guild ? guildFeatures(guild) : null;
+
+    return {
+        core,
+        module,
+        isOwner,
+        isSuperadmin,
+        can: permission => isSuperadmin || hasPermission(core, permission),
+
+        // The module clamp comes first on purpose: a disabled module resolves as unset for
+        // everybody, owner and Superadmin included.
+        canModule: permission => {
+            if (enabled && !modulePermissionFeatures(permission).every(f => enabled.has(f))) return false;
+            return isSuperadmin || (module & permission) === permission;
+        },
+    };
+}
+
+/**
+ * The member's module bits unioned with every role they hold.
+ *
+ * <p>Roles are resolved out of `guild.roles` rather than read off `roleMembers[].role`: that
+ * nested shape carries the core mask only, so unioning it directly would find no module bits at
+ * all.</p>
+ */
+export function unionModulePermissions(
+    member: GuildMemberDto | null | undefined,
+    guild: AbilityGuild | null | undefined,
+): ModulePermissionValue {
+    if (!member) return 0n;
+
+    const byId = new Map((guild?.roles ?? []).map(role => [role.id, role]));
+
+    return (member.roleMembers ?? []).reduce((acc, {role}) => {
+        const full = byId.get(role?.id) ?? role;
+        return acc | parseModulePermissions(full?.modulePermissions);
+    }, parseModulePermissions(member.modulePermissions));
 }
 
 /**

@@ -1,44 +1,68 @@
 <div class="space-y-4">
-    @for (group of groups(); track group.label) {
+    @for (group of groups; track group.label) {
         <div>
-            <p class="text-[10px] font-semibold text-white/30 uppercase tracking-widest mb-2">{{ group.labelKey | translate }}</p>
+            <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-2">{{ group.labelKey | translate }}</p>
             <div class="space-y-1">
                 @for (key of group.perms; track key) {
-                    <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.05] transition-colors">
-                        <span class="text-sm text-white/70">{{ label(key) }}</span>
-                        <div class="flex items-center gap-1">
-                            <!-- Allow -->
-                            <button
-                                    (click)="setState(key, getState(key) === 'allow' ? 'inherit' : 'allow')"
-                                    [ngClass]="getState(key) === 'allow'
-                  ? 'bg-emerald-500/20 text-emerald-400'
-                  : 'bg-white/[0.05] text-white/25 hover:bg-emerald-500/10 hover:text-emerald-400/60'"
-                                    class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
-                                    title="Allow">
-                                <i class="pi pi-check"></i>
-                            </button>
-                            <!-- Inherit (neutral) -->
-                            <button
-                                    (click)="setState(key, 'inherit')"
-                                    [ngClass]="getState(key) === 'inherit'
-                  ? 'bg-white/[0.12] text-white/60'
-                  : 'bg-white/[0.05] text-white/20 hover:bg-white/[0.1] hover:text-white/50'"
-                                    class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
-                                    title="Inherit">
-                                <i class="pi pi-minus"></i>
-                            </button>
-                            <!-- Deny -->
+                    <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-card/60 hover:bg-hover transition-colors">
+                        <span class="text-sm text-text-secondary truncate">{{ label(key) }}</span>
+                        <!-- Deny, neutral, allow: worst to best, left to right, the way Discord reads. -->
+                        <div class="flex items-center gap-1 shrink-0" role="group">
                             <button
                                     (click)="setState(key, getState(key) === 'deny' ? 'inherit' : 'deny')"
+                                    [attr.aria-label]="'PERM_OVERRIDE.DENY' | translate"
+                                    [attr.aria-pressed]="getState(key) === 'deny'"
                                     [ngClass]="getState(key) === 'deny'
-                  ? 'bg-rose-500/20 text-rose-400'
-                  : 'bg-white/[0.05] text-white/25 hover:bg-rose-500/10 hover:text-rose-400/60'"
+                                        ? 'bg-offline/20 text-offline'
+                                        : 'bg-hover text-text-muted hover:bg-offline/10 hover:text-offline/70'"
+                                    [pTooltip]="'PERM_OVERRIDE.DENY' | translate"
                                     class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
-                                    title="Deny">
+                                    tooltipPosition="top">
                                 <i class="pi pi-times"></i>
+                            </button>
+                            <button
+                                    (click)="setState(key, 'inherit')"
+                                    [attr.aria-label]="'PERM_OVERRIDE.INHERIT' | translate"
+                                    [attr.aria-pressed]="getState(key) === 'inherit'"
+                                    [ngClass]="getState(key) === 'inherit'
+                                        ? 'bg-hover text-text-secondary'
+                                        : 'bg-card text-text-muted hover:bg-hover hover:text-text-secondary'"
+                                    [pTooltip]="'PERM_OVERRIDE.INHERIT' | translate"
+                                    class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
+                                    tooltipPosition="top">
+                                <i class="pi pi-minus"></i>
+                            </button>
+                            <button
+                                    (click)="setState(key, getState(key) === 'allow' ? 'inherit' : 'allow')"
+                                    [attr.aria-label]="'PERM_OVERRIDE.ALLOW' | translate"
+                                    [attr.aria-pressed]="getState(key) === 'allow'"
+                                    [ngClass]="getState(key) === 'allow'
+                                        ? 'bg-online/20 text-online'
+                                        : 'bg-hover text-text-muted hover:bg-online/10 hover:text-online/70'"
+                                    [pTooltip]="'PERM_OVERRIDE.ALLOW' | translate"
+                                    class="w-7 h-7 rounded-lg flex items-center justify-center transition-all cursor-pointer border-0 text-xs"
+                                    tooltipPosition="top">
+                                <i class="pi pi-check"></i>
                             </button>
                         </div>
                     </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!--
+      Module permissions are read-only here: the server stores and enforces a per-channel module
+      overwrite, but the upsert body has no field to carry one back. Rendering toggles would look
+      like a grant and save nothing.
+    -->
+    @if (moduleGroup(); as group) {
+        <div>
+            <p class="text-[0.625rem] font-semibold text-text-muted uppercase tracking-widest mb-2">{{ group.labelKey | translate }}</p>
+            <div class="rounded-xl border border-border-subtle bg-card/40 px-3 py-2.5 space-y-1.5">
+                <p class="text-xs text-text-muted">{{ 'PERM_OVERRIDE.MODULE_READONLY' | translate }}</p>
+                @if (moduleSummary(); as summary) {
+                    <p class="text-xs text-text-secondary font-mono break-words">{{ summary }}</p>
                 }
             </div>
         </div>

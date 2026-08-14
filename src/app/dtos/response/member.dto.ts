@@ -9,6 +9,8 @@ export interface GuildMemberDto {
     userId: string;
     inviteId: string;
     permissions: string;
+    /** The member's own module bits, in the separate {@link ModulePermissions} space. */
+    modulePermissions?: string;
     status: OnlineStatus;
     type: MemberType;
     nickname: string | null;
@@ -48,6 +50,11 @@ export interface SelfGuildMemberDto extends GuildMemberDto {
      * bare number when it cannot - a resolved mask routinely carries bits this build has no name
      * for, so the numeric form is the common one, not the edge case. Always read it through
      * `parsePermissions`; nothing may treat it as a string.</p>
+     *
+     * <p><b>Core mask only.</b> There is no resolved counterpart for module permissions, so those
+     * are unioned client-side by `guildAbilities` and carry exactly the ownership blind spot this
+     * field exists to remove. The roles reachable from `roleMembers` here are a flat shape without
+     * `modulePermissions` either, so that union resolves each role out of `guild.roles`.</p>
      */
     effectivePermissions?: string | number
 }

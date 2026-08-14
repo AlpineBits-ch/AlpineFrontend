@@ -46,8 +46,8 @@ import {ProfileService} from '../../../../services/profile.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {channelIcon} from '../../channel-types';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
-import {effectiveGuildPermissions} from '../../guild-permissions';
-import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
+import {guildAbilities} from '../../guild-permissions';
+import {ModulePermissions} from '../../../../enums/module-permissions.enum';
 import {PantryScanComponent} from './pantry-scan.component';
 
 /**
@@ -126,25 +126,19 @@ export class PantryChannelComponent implements OnDestroy {
 
     // ── Permissions ──────────────────────────────────────────────────────────
 
-    private permissions = computed(() => effectiveGuildPermissions(this.ownMember()));
 
-    private isOwner = computed(() => {
-        const ownUserId = this.profileService.ownProfile()?.userId;
-        const ownerId = this.guild()?.ownerId;
-        return !!ownUserId && !!ownerId && ownUserId === ownerId;
-    });
+    private ownUserId = computed(() => this.profileService.ownProfile()?.userId ?? null);
 
-    /** Owner first: SelfGuildMemberDto.permissions doesn't reliably carry Superadmin for them. */
-    private can = (permission: bigint) => this.isOwner()
-        || hasPermission(this.permissions(), Permissions.Superadmin)
-        || hasPermission(this.permissions(), permission);
+    private abilities = computed(() => guildAbilities(this.ownMember(), this.guild(), this.ownUserId()));
+
+    private can = (permission: bigint): boolean => this.abilities().canModule(permission);
 
     /**
      * Add/edit/delete stock and thresholds, and the restock wiring. Reading needs only
      * `ViewChannel`, which the user demonstrably has by being able to open the channel at
      * all - so there is no separate read gate here.
      */
-    protected canManage = computed(() => this.can(Permissions.ManagePantry));
+    protected canManage = computed(() => this.can(ModulePermissions.ManagePantry));
 
     // ── Stock ────────────────────────────────────────────────────────────────
 

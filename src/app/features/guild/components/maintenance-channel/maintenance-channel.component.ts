@@ -20,7 +20,7 @@ import {
     MaintenanceRecord,
     primaryReason,
 } from '../../../../dtos/response/maintenance.dto';
-import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
+import {ModulePermissions} from '../../../../enums/module-permissions.enum';
 import {formatMinor, parseMinor} from '../../../../helpers/money.helper';
 import {GuildService} from '../../../../services/guild.service';
 import {MaintenanceService} from '../../../../services/maintenance.service';
@@ -29,7 +29,7 @@ import {ToastService} from '../../../../services/toast.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {channelIcon} from '../../channel-types';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
-import {effectiveGuildPermissions} from '../../guild-permissions';
+import {guildAbilities} from '../../guild-permissions';
 
 const MEMBER_PAGE_SIZE = 200;
 
@@ -130,26 +130,19 @@ export class MaintenanceChannelComponent {
     });
 
     // ── Permissions ──────────────────────────────────────────────────────────
-    private permissions = computed(() => effectiveGuildPermissions(this.ownMember()));
-
-    private isOwner = computed(() => {
-        const guild = this.guild();
-        const ownUserId = this.ownUserId();
-        return !!guild && !!ownUserId && guild.ownerId === ownUserId;
-    });
 
     /** Owner first: SelfGuildMemberDto.permissions doesn't reliably carry Superadmin for them. */
-    private can = (permission: bigint) => this.isOwner()
-        || hasPermission(this.permissions(), Permissions.Superadmin)
-        || hasPermission(this.permissions(), permission);
+    private abilities = computed(() => guildAbilities(this.ownMember(), this.guild(), this.ownUserId()));
+
+    private can = (permission: bigint): boolean => this.abilities().canModule(permission);
 
     /**
      * Report a status and log a repair. The participation bit, held by everyone in `@everyone` -
      * which is what makes "mark broken" available to whoever found it broken.
      */
-    protected canLog = computed(() => this.can(Permissions.LogMaintenance));
+    protected canLog = computed(() => this.can(ModulePermissions.LogMaintenance));
     /** Catalogue an asset, edit anyone's record. Administration rather than discovery. */
-    protected canManage = computed(() => this.can(Permissions.ManageMaintenance));
+    protected canManage = computed(() => this.can(ModulePermissions.ManageMaintenance));
 
     // ── Rows ─────────────────────────────────────────────────────────────────
 

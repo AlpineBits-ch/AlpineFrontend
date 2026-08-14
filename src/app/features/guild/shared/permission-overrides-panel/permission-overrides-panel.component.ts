@@ -3,6 +3,7 @@ import {NgClass} from '@angular/common';
 import {Popover} from 'primeng/popover';
 import {Button} from 'primeng/button';
 import {Tooltip} from 'primeng/tooltip';
+import {TranslateModule} from '@ngx-translate/core';
 import {
     PermissionOverrideEditorComponent,
     PermOverride,
@@ -24,7 +25,7 @@ export interface OverrideEntry {
 
 @Component({
     selector: 'app-permission-overrides-panel',
-    imports: [NgClass, Popover, Button, Tooltip, PermissionOverrideEditorComponent],
+    imports: [NgClass, Popover, Button, Tooltip, TranslateModule, PermissionOverrideEditorComponent],
     templateUrl: './permission-overrides-panel.component.html',
     styleUrl: './permission-overrides-panel.component.css',
 })

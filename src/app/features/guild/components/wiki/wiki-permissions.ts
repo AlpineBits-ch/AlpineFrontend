@@ -1,4 +1,5 @@
-import {hasPermission, Permissions, PermissionValue} from '../../../../enums/permissions.enum';
+import {ModulePermissions} from '../../../../enums/module-permissions.enum';
+import {GuildAbilities} from '../../guild-permissions';
 
 /**
  * What the current member may do in this wiki.
@@ -16,21 +17,18 @@ export interface WikiAbilities {
 }
 
 /**
- * `isOwner` is a separate argument rather than something derived from `perms` because the guild
- * owner's own member record does not reliably carry Superadmin - the same caveat
- * `memberCanManageGuild` documents. Without it the owner of a guild whose roles happen not to
- * name the wiki bits gets a wiki they can read and never edit.
+ * Reads the module mask rather than the core one: the wiki bits live in their own space now, and
+ * `canModule` already folds in ownership, Superadmin and the clamp for a guild with the wiki
+ * module switched off.
  */
-export function wikiAbilities(perms: PermissionValue, isOwner = false): WikiAbilities {
-    const superadmin = isOwner || hasPermission(perms, Permissions.Superadmin);
-    const granted = (permission: PermissionValue) => superadmin || hasPermission(perms, permission);
+export function wikiAbilities(abilities: GuildAbilities): WikiAbilities {
     return {
-        canCreate: granted(Permissions.CreateWikiPages),
-        canEditAny: granted(Permissions.EditAnyWikiPage),
-        canEditOwn: granted(Permissions.EditOwnWikiPages),
-        canDelete: granted(Permissions.DeleteWikiPages),
-        canManageStructure: granted(Permissions.ManageWikiStructure),
-        canManageRevisions: granted(Permissions.ManageWikiRevisions),
+        canCreate: abilities.canModule(ModulePermissions.CreateWikiPages),
+        canEditAny: abilities.canModule(ModulePermissions.EditAnyWikiPage),
+        canEditOwn: abilities.canModule(ModulePermissions.EditOwnWikiPages),
+        canDelete: abilities.canModule(ModulePermissions.DeleteWikiPages),
+        canManageStructure: abilities.canModule(ModulePermissions.ManageWikiStructure),
+        canManageRevisions: abilities.canModule(ModulePermissions.ManageWikiRevisions),
     };
 }
 

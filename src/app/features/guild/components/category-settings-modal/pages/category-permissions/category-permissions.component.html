@@ -1,22 +1,23 @@
 <div class="space-y-4">
 
-    <p class="text-xs text-white/35">
-        Permissions set here apply to all channels within this category, unless overridden per channel.
-    </p>
+    <p class="text-xs text-text-muted max-w-prose">{{ 'PERM_OVERRIDE.INTRO_CATEGORY' | translate }}</p>
 
-    <!-- Tabs -->
-    <div class="flex gap-1 p-1 bg-white/[0.04] rounded-xl w-fit">
+    <div class="flex gap-1 p-1 bg-card rounded-xl w-fit" role="tablist">
         <button
                 (click)="switchTab('roles')"
-                [ngClass]="activeTab() === 'roles' ? 'bg-white/[0.08] text-white/85' : 'text-white/40'"
-                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border-0">
-            Roles
+                [attr.aria-selected]="activeTab() === 'roles'"
+                [ngClass]="activeTab() === 'roles' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border-0"
+                role="tab">
+            {{ 'PERM_OVERRIDE.ROLES' | translate }}
         </button>
         <button
                 (click)="switchTab('members')"
-                [ngClass]="activeTab() === 'members' ? 'bg-white/[0.08] text-white/85' : 'text-white/40'"
-                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border-0">
-            Members
+                [attr.aria-selected]="activeTab() === 'members'"
+                [ngClass]="activeTab() === 'members' ? 'bg-hover text-text-primary' : 'text-text-muted hover:text-text-secondary'"
+                class="px-4 py-1.5 rounded-lg text-sm font-medium transition-all cursor-pointer border-0"
+                role="tab">
+            {{ 'PERM_OVERRIDE.MEMBERS' | translate }}
         </button>
     </div>
 

@@ -1,9 +1,25 @@
-import {effectiveGuildPermissions, memberCanManageGuild} from './guild-permissions';
+import {effectiveGuildPermissions, guildAbilities, memberCanManageGuild, NO_ABILITIES} from './guild-permissions';
 import {GuildMemberDto} from '../../dtos/response/member.dto';
+import {GuildDto, RoleDto} from '../../dtos/response/guild.dto';
 import {Permissions} from '../../enums/permissions.enum';
+import {ModulePermissions} from '../../enums/module-permissions.enum';
 
 const OWNER = 'user-owner';
 const SOMEONE = 'user-someone';
+
+type AbilityGuild = Pick<GuildDto, 'ownerId' | 'features' | 'roles'>;
+
+function guild(roles: Partial<RoleDto>[], features = 'Wiki, Lists, Ledger'): AbilityGuild {
+    return {ownerId: OWNER, features, roles: roles as RoleDto[]};
+}
+
+/** A member holding one role, in the shape the server actually sends: the nested role is flat. */
+function memberWithRole(role: Partial<RoleDto>, own = ''): GuildMemberDto {
+    return {
+        permissions: own,
+        roleMembers: [{role: {id: role.id, permissions: role.permissions ?? 'None'} as RoleDto}],
+    } as GuildMemberDto;
+}
 
 function member(basePermissions: string, rolePermissions: string[] = []): GuildMemberDto {
     return {
@@ -86,6 +102,106 @@ describe('effectiveGuildPermissions', () => {
 
         expect(effectiveGuildPermissions(legacy) & Permissions.ManageGuild)
             .toBe(Permissions.ManageGuild);
+    });
+});
+
+describe('guildAbilities module resolution', () => {
+    const role = {id: 'role-1', permissions: 'ViewChannel', modulePermissions: 'AddListItems, ViewWiki'};
+
+    // The flat role nested under roleMembers carries the core mask only, so the module half has
+    // to come from guild.roles or it is silently zero everywhere.
+    it('resolves module bits through guild.roles, not the nested role', () => {
+        const abilities = guildAbilities(memberWithRole(role), guild([role]), SOMEONE);
+
+        expect(abilities.canModule(ModulePermissions.AddListItems)).toBe(true);
+        expect(abilities.canModule(ModulePermissions.ViewWiki)).toBe(true);
+    });
+
+    it('withholds a module bit the member does not hold', () => {
+        const abilities = guildAbilities(memberWithRole(role), guild([role]), SOMEONE);
+
+        expect(abilities.canModule(ModulePermissions.ManageLedger)).toBe(false);
+    });
+
+    it('unions the member own module bits with their roles', () => {
+        const member = {
+            permissions: 'None',
+            modulePermissions: 'ManageLedger',
+            roleMembers: [{role: {id: role.id, permissions: 'None'} as RoleDto}],
+        } as GuildMemberDto;
+        const abilities = guildAbilities(member, guild([role]), SOMEONE);
+
+        expect(abilities.canModule(ModulePermissions.ManageLedger)).toBe(true);
+        expect(abilities.canModule(ModulePermissions.AddListItems)).toBe(true);
+    });
+
+    it('grants module bits to Superadmin, which has no bit of its own over here', () => {
+        const admin = {permissions: 'Superadmin', roleMembers: []} as unknown as GuildMemberDto;
+
+        expect(guildAbilities(admin, guild([]), SOMEONE).canModule(ModulePermissions.ManageLedger)).toBe(true);
+    });
+
+    it('grants module bits to the owner, whose member row carries nothing', () => {
+        const bare = {permissions: 'None', roleMembers: []} as unknown as GuildMemberDto;
+
+        expect(guildAbilities(bare, guild([]), OWNER).canModule(ModulePermissions.ManageLedger)).toBe(true);
+    });
+
+    // A module switched off is clamped out for everyone. "This house doesn't do money" is not a
+    // permission problem and Superadmin is not an answer to it.
+    it('clamps a disabled module even for Superadmin', () => {
+        const admin = {permissions: 'Superadmin', roleMembers: []} as unknown as GuildMemberDto;
+        const noLedger = guild([], 'Wiki, Lists');
+
+        expect(guildAbilities(admin, noLedger, SOMEONE).canModule(ModulePermissions.ManageLedger)).toBe(false);
+    });
+
+    it('clamps a disabled module even for the owner', () => {
+        const bare = {permissions: 'None', roleMembers: []} as unknown as GuildMemberDto;
+        const noLedger = guild([], 'Wiki, Lists');
+
+        expect(guildAbilities(bare, noLedger, OWNER).canModule(ModulePermissions.ManageLedger)).toBe(false);
+    });
+
+    it('does not clamp when no guild was supplied', () => {
+        const solo = {permissions: 'None', modulePermissions: 'ManageLedger', roleMembers: []} as unknown as GuildMemberDto;
+
+        expect(guildAbilities(solo, null, SOMEONE).canModule(ModulePermissions.ManageLedger)).toBe(true);
+    });
+});
+
+describe('guildAbilities core', () => {
+    it('answers core checks off the resolved mask', () => {
+        const abilities = guildAbilities(member('ViewChannel', ['ManageGuild']), guild([]), SOMEONE);
+
+        expect(abilities.can(Permissions.ManageGuild)).toBe(true);
+        expect(abilities.can(Permissions.BanMembers)).toBe(false);
+    });
+
+    it('lets Superadmin satisfy any core check', () => {
+        const abilities = guildAbilities(member('Superadmin'), guild([]), SOMEONE);
+
+        expect(abilities.can(Permissions.BanMembers)).toBe(true);
+    });
+
+    it('reports the owner as such even with an empty member row', () => {
+        const abilities = guildAbilities(member('None'), guild([]), OWNER);
+
+        expect(abilities.isOwner).toBe(true);
+        expect(abilities.isSuperadmin).toBe(true);
+    });
+
+    it('fails closed before anything has loaded', () => {
+        const abilities = guildAbilities(null, null, SOMEONE);
+
+        expect(abilities.can(Permissions.ViewChannel)).toBe(false);
+        expect(abilities.canModule(ModulePermissions.ViewWiki)).toBe(false);
+    });
+
+    it('denies everything through NO_ABILITIES', () => {
+        expect(NO_ABILITIES.can(Permissions.ViewChannel)).toBe(false);
+        expect(NO_ABILITIES.canModule(ModulePermissions.ViewWiki)).toBe(false);
+        expect(NO_ABILITIES.isSuperadmin).toBe(false);
     });
 });
 

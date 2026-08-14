@@ -23,7 +23,7 @@ import {
     toPlanDate,
 } from '../../../../dtos/response/meal.dto';
 import {RecipeIngredientInputDto} from '../../../../dtos/request/meal.dto';
-import {hasPermission, Permissions} from '../../../../enums/permissions.enum';
+import {ModulePermissions} from '../../../../enums/module-permissions.enum';
 import {GuildService} from '../../../../services/guild.service';
 import {MealService} from '../../../../services/meal.service';
 import {ProfileService} from '../../../../services/profile.service';
@@ -31,7 +31,7 @@ import {ToastService} from '../../../../services/toast.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {channelIcon} from '../../channel-types';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
-import {effectiveGuildPermissions} from '../../guild-permissions';
+import {guildAbilities} from '../../guild-permissions';
 
 const MEMBER_PAGE_SIZE = 200;
 
@@ -127,23 +127,16 @@ export class MealsChannelComponent {
     });
 
     // ── Permissions ──────────────────────────────────────────────────────────
-    private permissions = computed(() => effectiveGuildPermissions(this.ownMember()));
-
-    private isOwner = computed(() => {
-        const guild = this.guild();
-        const ownUserId = this.ownUserId();
-        return !!guild && !!ownUserId && guild.ownerId === ownUserId;
-    });
 
     /** Owner first: SelfGuildMemberDto.permissions doesn't reliably carry Superadmin for them. */
-    private can = (permission: bigint) => this.isOwner()
-        || hasPermission(this.permissions(), Permissions.Superadmin)
-        || hasPermission(this.permissions(), permission);
+    private abilities = computed(() => guildAbilities(this.ownMember(), this.guild(), this.ownUserId()));
+
+    private can = (permission: bigint): boolean => this.abilities().canModule(permission);
 
     /** Add recipes and plan entries, and run the shopping-list button. */
-    protected canPlan = computed(() => this.can(Permissions.PlanMeals));
+    protected canPlan = computed(() => this.can(ModulePermissions.PlanMeals));
     /** Edit anyone's recipe or entry, and set the channel's config. */
-    protected canManageMeals = computed(() => this.can(Permissions.ManageMeals));
+    protected canManageMeals = computed(() => this.can(ModulePermissions.ManageMeals));
 
     // ── The week ─────────────────────────────────────────────────────────────
 

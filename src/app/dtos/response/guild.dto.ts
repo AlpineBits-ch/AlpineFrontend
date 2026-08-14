@@ -67,6 +67,12 @@ export interface ChannelPermission {
     categoryId: string | undefined;
     allowPermissions: string;
     denyPermissions: string;
+    /**
+     * The module half of the overwrite. Absent on the flat shape nested in guild payloads, which
+     * is why these are optional - and unwritable either way, see `OverridePermissionsDto`.
+     */
+    allowModulePermissions?: string;
+    denyModulePermissions?: string;
 }
 
 export interface RoleDto {
@@ -81,6 +87,33 @@ export interface RoleDto {
     permissions: string;
     type: RoleType;
     position: number;
+
+    /**
+     * Wiki and household bits, in their own 64-bit space. Never OR this with `permissions`: bit 0
+     * is `ViewChannel` there and `ViewWiki` here.
+     *
+     * <p>Absent on the flat role shape reached through `SelfGuildMemberDto.roleMembers`, so a
+     * union over module bits has to resolve the role out of `guild.roles` instead.</p>
+     */
+    modulePermissions?: string;
+
+    /** Show this role's members as their own section of the member list. */
+    hoist?: boolean;
+
+    /**
+     * Whether anyone may ping this role. **Absent means true** - the server's default - and
+     * reading an absent field as false silently makes every role unmentionable.
+     */
+    mentionable?: boolean;
+
+    /** Role badge. Mutually exclusive with {@link unicodeEmoji}. */
+    iconUrl?: string | null;
+    unicodeEmoji?: string | null;
+
+    /** Owned by a bot or integration: the server refuses every edit and delete with a 400. */
+    isManaged?: boolean;
+    botUserId?: string | null;
+    integrationId?: string | null;
 }
 
 export interface CategoryDto {

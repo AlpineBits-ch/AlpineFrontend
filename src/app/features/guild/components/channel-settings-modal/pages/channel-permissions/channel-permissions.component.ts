@@ -9,8 +9,9 @@ import {
     OverrideEntry,
     PermissionOverridesPanelComponent,
 } from '../../../../shared/permission-overrides-panel/permission-overrides-panel.component';
-import {PermOverride} from '../../../../shared/permission-override-editor/permission-override-editor.component';
+import {EMPTY_OVERRIDE, PermOverride} from '../../../../shared/permission-override-editor/permission-override-editor.component';
 import {parsePermissions, stringifyPermissions} from '../../../../../../enums/permissions.enum';
+import {parseModulePermissions} from '../../../../../../enums/module-permissions.enum';
 import {TranslateModule} from '@ngx-translate/core';
 
 interface RoleOverride {
@@ -42,7 +43,7 @@ export class ChannelPermissionsComponent implements OnInit {
     roleOverrides = signal<RoleOverride[]>([]);
     memberOverrides = signal<MemberOverride[]>([]);
     membersLoading = signal(false);
-    readonly emptyOverride: PermOverride = {allow: 0n, deny: 0n};
+    readonly emptyOverride: PermOverride = EMPTY_OVERRIDE;
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
 
@@ -125,7 +126,7 @@ export class ChannelPermissionsComponent implements OnInit {
             next: () => {
                 this.roleOverrides.update(list =>
                     list.map(r => r.role.id === roleId
-                        ? {...r, perm: null, override: {allow: 0n, deny: 0n}, dirty: false}
+                        ? {...r, perm: null, override: EMPTY_OVERRIDE, dirty: false}
                         : r
                     )
                 );
@@ -172,7 +173,7 @@ export class ChannelPermissionsComponent implements OnInit {
             next: () => {
                 this.memberOverrides.update(list =>
                     list.map(r => r.member.id === memberId
-                        ? {...r, perm: null, override: {allow: 0n, deny: 0n}, dirty: false}
+                        ? {...r, perm: null, override: EMPTY_OVERRIDE, dirty: false}
                         : r
                     )
                 );
@@ -223,6 +224,8 @@ export class ChannelPermissionsComponent implements OnInit {
                 override: {
                     allow: perm ? parsePermissions(perm.allowPermissions) : 0n,
                     deny: perm ? parsePermissions(perm.denyPermissions) : 0n,
+                    allowModule: parseModulePermissions(perm?.allowModulePermissions),
+                    denyModule: parseModulePermissions(perm?.denyModulePermissions),
                 },
                 dirty: false,
                 saving: false,
@@ -245,6 +248,8 @@ export class ChannelPermissionsComponent implements OnInit {
                         override: {
                             allow: perm ? parsePermissions(perm.allowPermissions) : 0n,
                             deny: perm ? parsePermissions(perm.denyPermissions) : 0n,
+                            allowModule: parseModulePermissions(perm?.allowModulePermissions),
+                            denyModule: parseModulePermissions(perm?.denyModulePermissions),
                         },
                         dirty: false,
                         saving: false,

@@ -16,9 +16,9 @@
 import {Component} from '@angular/core';
 import {TestBed} from '@angular/core/testing';
 import {provideLocationMocks} from '@angular/common/testing';
-import {provideRouter, Route, Router, Routes} from '@angular/router';
+import {provideRouter, Router} from '@angular/router';
 import {RouterTestingHarness} from '@angular/router/testing';
-import {routes} from './app.routes';
+import {appRoutes} from './app.routes.table';
 import {AuthService} from './services/auth.service';
 
 /** Which screens were actually constructed, in order. */
@@ -40,25 +40,16 @@ class OverviewStub {
 }
 
 /**
- * The real table, with the two heavyweight screens swapped for stubs that record being painted.
- *
- * <p>Swapped by path rather than by class so the spec does not have to construct `Login` or
- * `MainPageComponent`, both of which reach for a dozen services and the network the moment they
- * exist. Everything that decides routing - the paths, the guards, the order of the entries - is the
- * production table.</p>
+ * The production table, standing in for the two screens - which is exactly what {@link appRoutes}
+ * takes them as parameters for. Everything that decides routing here (the paths, the guard, the
+ * order of the entries) is the real thing; only what gets drawn at the end of it is not.
  */
-function stubbedRoutes(): Routes {
-    return routes.map((route: Route) => route.component
-        ? {...route, component: route.path === 'authentication' ? LoginStub : OverviewStub}
-        : route);
-}
-
 function setup(isLoggedIn: () => Promise<boolean>): Router {
     painted.length = 0;
     TestBed.configureTestingModule({
         providers: [
             provideLocationMocks(),
-            provideRouter(stubbedRoutes()),
+            provideRouter(appRoutes(LoginStub, OverviewStub)),
             {provide: AuthService, useValue: {isLoggedIn}},
         ],
     });
