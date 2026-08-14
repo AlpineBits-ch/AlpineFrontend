@@ -55,6 +55,16 @@ export class CallScreenLayoutComponent implements OnDestroy {
 
     protected readonly maximizedId = signal<string | null>(null);
 
+    /**
+     * Shares a viewer has explicitly dropped, by id - see {@link displayedShares}.
+     *
+     * <p>Only ever populated for remote shares (the tile gates its hide control to `!isLocal` - see
+     * call-share-tile.component.html), and pruned in the constructor the moment a hidden share
+     * disappears from {@link screenShares}, so a stream that stops and restarts under the same id
+     * is not hidden the second time for a reason nobody chose.</p>
+     */
+    protected readonly hiddenIds = signal<ReadonlySet<string>>(new Set());
+
     private readonly remoteShares = computed(() => this.screenShares().filter(s => !s.isLocal));
     private readonly localShare = computed(() => this.screenShares().find(s => s.isLocal) ?? null);
 
@@ -65,13 +75,27 @@ export class CallScreenLayoutComponent implements OnDestroy {
      * thumbnail of something already on your own screen, and at full tile size it read as a broken
      * stream while taking half the room from the streams you opened the channel to watch. It moves
      * to the self-card instead, which is where a monitor of your own output belongs.</p>
+     *
+     * <p>Hidden shares are dropped from the grid pool the same way - see {@link hiddenIds}. Not
+     * applied while a share is maximised: {@link hideShare} always clears maximizedId for the share
+     * it hides, so the maximised branch below never has to reconcile the two on its own.</p>
      */
     protected displayedShares = computed(() => {
         const id = this.maximizedId();
         if (id !== null) return this.screenShares().filter(s => s.shareId === id);
 
-        const remote = this.remoteShares();
-        return remote.length > 0 ? remote : this.screenShares();
+        const hidden = this.hiddenIds();
+        const remote = this.remoteShares().filter(s => !hidden.has(s.shareId));
+        return remote.length > 0 ? remote : this.screenShares().filter(s => !hidden.has(s.shareId));
+    });
+
+    /** The hidden shares still live in {@link screenShares}, for the restore-chip row - see the
+     *  template. Deriving from `screenShares()` rather than trusting `hiddenIds` alone is what keeps
+     *  a chip from naming a streamer who already left: a share that ends drops out of `screenShares`
+     *  immediately, before the constructor's pruning effect even runs. */
+    protected readonly hiddenShares = computed(() => {
+        const hidden = this.hiddenIds();
+        return hidden.size === 0 ? [] : this.screenShares().filter(s => hidden.has(s.shareId));
     });
 
     /** The local share when it is not in the grid - see {@link displayedShares}. */
@@ -125,6 +149,18 @@ export class CallScreenLayoutComponent implements OnDestroy {
                 ?? (target.userId ? this.getShareForUser(target.userId)?.shareId : undefined);
             if (shareId) this.maximizedId.set(shareId);
         }, {allowSignalWrites: true});
+
+        // A hidden id is only meaningful while the share it names still exists. Without this, a
+        // share that stops and restarts under the same id - the same user re-sharing to the same
+        // slot - would come back hidden for a reason nobody chose this time.
+        effect(() => {
+            const liveIds = new Set(this.screenShares().map(s => s.shareId));
+            this.hiddenIds.update(hidden => {
+                if (hidden.size === 0) return hidden;
+                const next = new Set([...hidden].filter(id => liveIds.has(id)));
+                return next.size === hidden.size ? hidden : next;
+            });
+        });
     }
 
     ngOnDestroy(): void {
@@ -156,6 +192,30 @@ export class CallScreenLayoutComponent implements OnDestroy {
 
     protected toggleMaximize(shareId: string): void {
         this.maximizedId.update(id => id === shareId ? null : shareId);
+    }
+
+    /**
+     * Drops a share out of {@link displayedShares} - the watch-claim effect follows automatically,
+     * since it is driven by what is displayed, not by what is subscribed.
+     *
+     * <p>If this share is the one currently maximised, unmaximising first is what keeps the grid
+     * from rendering empty: maximised mode shows exactly one share, and hiding that one share with
+     * nothing to fall back on would otherwise leave nothing on screen at all, even with other shares
+     * available in the grid behind it.</p>
+     */
+    protected hideShare(shareId: string): void {
+        if (this.maximizedId() === shareId) this.maximizedId.set(null);
+        this.hiddenIds.update(ids => new Set(ids).add(shareId));
+    }
+
+    /** The inverse of {@link hideShare}, reached from a restore chip - see the template. */
+    protected showShare(shareId: string): void {
+        this.hiddenIds.update(ids => {
+            if (!ids.has(shareId)) return ids;
+            const next = new Set(ids);
+            next.delete(shareId);
+            return next;
+        });
     }
 
     /**

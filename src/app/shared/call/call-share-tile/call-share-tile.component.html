@@ -94,6 +94,13 @@
                     [label]="(maximized() ? 'CALL.SHOW_OTHER_STREAMS' : 'CALL.HIDE_OTHER_STREAMS') | translate"
                     [icon]="maximized() ? 'pi-window-minimize' : 'pi-window-maximize'"
                     [pressed]="maximized()"/>
+            <!-- Drops this stream from the layout, not the local one - see the `hide` output doc. -->
+            @if (!s.isLocal) {
+                <app-call-tile-action
+                        (action)="hide.emit()"
+                        [label]="'CALL.STOP_WATCHING' | translate"
+                        icon="pi-eye-slash"/>
+            }
         </div>
     </div>
 

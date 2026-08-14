@@ -22,6 +22,7 @@
         @for (share of displayedShares(); track share.shareId) {
             <app-call-share-tile
                     (audioToggle)="onShareAudioToggle(share)"
+                    (hide)="hideShare(share.shareId)"
                     (maximizeToggle)="toggleMaximize(share.shareId)"
                     [maximized]="maximizedId() === share.shareId"
                     [share]="share"
@@ -29,6 +30,27 @@
                     [viewers]="viewerCount(share.shareId)"/>
         }
     </div>
+
+    <!-- Restore row for shares dropped via the tile's "stop watching" action. Only rendered while
+         there is something to restore - see hiddenShares, which drops a chip the instant its share
+         ends rather than waiting for anyone to click it away. -->
+    @if (hiddenShares().length > 0) {
+        <div [attr.aria-label]="'CALL.HIDDEN_STREAMS' | translate"
+             class="thin-scrollbar flex shrink-0 items-center gap-2 overflow-x-auto pb-1" role="group">
+            @for (share of hiddenShares(); track share.shareId) {
+                <button (click)="showShare(share.shareId)"
+                        [attr.aria-label]="'CALL.SHOW_STREAM' | translate: {name: share.displayName}"
+                        [attr.title]="'CALL.SHOW_STREAM' | translate: {name: share.displayName}"
+                        class="call-focusable flex shrink-0 cursor-pointer items-center gap-1.5 rounded-full
+                               border border-border-subtle bg-card px-3 py-1 text-[0.6875rem] text-white/70
+                               transition-colors hover:bg-hover hover:text-white/90"
+                        type="button">
+                    <i class="pi pi-eye text-[0.625rem] text-brand-dim"></i>
+                    {{ share.displayName }}
+                </button>
+            }
+        </div>
+    }
 
     <!-- Your own stream, while somebody else's has the grid.
 

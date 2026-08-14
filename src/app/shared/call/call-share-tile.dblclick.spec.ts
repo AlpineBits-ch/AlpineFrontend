@@ -109,4 +109,18 @@ describe('CallShareTileComponent double-click focus', () => {
 
         expect(emitted).not.toHaveBeenCalled();
     });
+
+    it('does not maximize on a double-click on the hide action', () => {
+        // The newest member of the top-left guarded cluster - same requirement as its neighbours
+        // above: reading its name must not also toggle maximise.
+        const fixture = setup();
+        const emitted = vi.fn();
+        fixture.componentInstance.maximizeToggle.subscribe(emitted);
+
+        const hideButton = (fixture.nativeElement as HTMLElement)
+            .querySelector('[aria-label="CALL.STOP_WATCHING"]')!;
+        doubleClick(hideButton);
+
+        expect(emitted).not.toHaveBeenCalled();
+    });
 });

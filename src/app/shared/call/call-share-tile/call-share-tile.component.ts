@@ -43,6 +43,11 @@ export class CallShareTileComponent {
 
     maximizeToggle = output<void>();
     audioToggle = output<void>();
+    /** Drop this share from the layout - see the doc on `CallScreenLayoutComponent.hideShare`. Not
+     *  offered for the local share: the watch claim it would shrink never counted the local share in
+     *  the first place, so "stop watching" would be asking to hide your own output, not to drop
+     *  someone else's stream. */
+    hide = output<void>();
 
     protected readonly root = viewChild.required<ElementRef<HTMLElement>>('root');
     protected readonly video = viewChild<ElementRef<HTMLVideoElement>>('video');
