@@ -5,6 +5,13 @@ import {CallScreenLayoutComponent} from './call-screen-layout.component';
 import {CallScreenShare} from '../call.types';
 import {ShareWatchService, WatchScope, scopeKey} from '../../../services/share-watch.service';
 import {CallFocusService} from '../../../services/call-focus.service';
+import {RustMediaService} from '../../../services/rust-media.service';
+
+/** A stand-in that never claims - CallScreenLayoutComponent injects RustMediaService for Task 10's
+ *  idle pause, and none of these specs are about that behaviour. */
+function fakeRustMedia() {
+    return {previewPaused: () => false, claimPreviewRender: vi.fn(), releasePreviewRender: vi.fn(), resumePreview: vi.fn()};
+}
 
 function share(shareId: string, isLocal = false): CallScreenShare {
     return {
@@ -36,6 +43,7 @@ function setup(
                     viewersOf,
                 },
             },
+            {provide: RustMediaService, useValue: fakeRustMedia()},
         ],
     });
 
@@ -164,6 +172,7 @@ describe('CallScreenLayoutComponent focus requests', () => {
                         viewersOf: () => [],
                     },
                 },
+                {provide: RustMediaService, useValue: fakeRustMedia()},
             ],
         });
     });

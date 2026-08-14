@@ -75,6 +75,10 @@ function render(joinChannel: ReturnType<typeof vi.fn>): ComponentFixture<VoiceCh
                     publishPreview: signal(null),
                     renderedFps: signal(0),
                     inboundFps: signal(0),
+                    previewPaused: signal(false),
+                    claimPreviewRender: () => void 0,
+                    releasePreviewRender: () => void 0,
+                    resumePreview: () => void 0,
                 },
             },
             {

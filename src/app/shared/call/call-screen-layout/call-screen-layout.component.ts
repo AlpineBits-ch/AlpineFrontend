@@ -9,6 +9,7 @@ import {CallShareTileComponent} from '../call-share-tile/call-share-tile.compone
 import {CallTileActionComponent} from '../call-tile-action/call-tile-action.component';
 import {ShareWatchService, WatchScope, scopeKey} from '../../../services/share-watch.service';
 import {CallFocusService} from '../../../services/call-focus.service';
+import {RustMediaService} from '../../../services/rust-media.service';
 
 @Component({
     selector: 'app-call-screen-layout',
@@ -48,6 +49,7 @@ export class CallScreenLayoutComponent implements OnDestroy {
     protected readonly audio = trackAudioWait(this.participants, this.participantsWithAudio);
     private readonly shareWatch = inject(ShareWatchService);
     private readonly callFocus = inject(CallFocusService);
+    protected readonly rustMedia = inject(RustMediaService);
 
     participantContextMenu = output<CallScreenLayoutContextMenuEvent>();
     localAudioToggle = output<void>();
@@ -105,6 +107,17 @@ export class CallScreenLayoutComponent implements OnDestroy {
         return this.displayedShares().some(s => s.shareId === local.shareId) ? null : local;
     });
 
+    /**
+     * Whether the self-card is the thing putting the local preview image on screen right now - see
+     * RustMediaService.claimPreviewRender. Scoped to the `previewSrc` branch specifically: a
+     * browser session's self-card shows a real `MediaStream` instead (see the class doc on
+     * `CallScreenShare.previewSrc`), and Task 10's idle pause has nothing to apply to there.
+     */
+    protected readonly claimingPreview = computed(() => {
+        const self = this.selfCard();
+        return !!self && !self.stream && !!self.previewSrc;
+    });
+
     /** Columns for the count actually on screen. Two was the only answer before, so three streams
      *  left a lone tile stranded on its own row at half width. */
     protected gridClass = computed(() => {
@@ -160,6 +173,16 @@ export class CallScreenLayoutComponent implements OnDestroy {
                 const next = new Set([...hidden].filter(id => liveIds.has(id)));
                 return next.size === hidden.size ? hidden : next;
             });
+        });
+
+        // Claims "somebody is rendering the preview" for Task 10's idle pause. onCleanup releases
+        // it the moment claimingPreview goes false - the self-card going null because somebody
+        // stopped sharing, or this component being destroyed outright - so the idle timer never
+        // stays blocked by a claim nobody is actually looking at any more.
+        effect(onCleanup => {
+            if (!this.claimingPreview()) return;
+            this.rustMedia.claimPreviewRender(this);
+            onCleanup(() => this.rustMedia.releasePreviewRender(this));
         });
     }
 
@@ -237,5 +260,19 @@ export class CallScreenLayoutComponent implements OnDestroy {
     /** Promotes the self-card into the grid, so a streamer can check their own output. */
     protected maximizeSelf(shareId: string): void {
         this.maximizedId.set(shareId);
+    }
+
+    /**
+     * The self-card's single click handler. While paused it resumes the preview instead of
+     * maximising - maximising a frozen frame is not useful, and "any interaction with the preview
+     * resumes it" is the whole point of the paused card being the button rather than growing a
+     * second one nested inside it.
+     */
+    protected onSelfCardClick(shareId: string, previewPaused: boolean): void {
+        if (previewPaused) {
+            this.rustMedia.resumePreview();
+            return;
+        }
+        this.maximizeSelf(shareId);
     }
 }

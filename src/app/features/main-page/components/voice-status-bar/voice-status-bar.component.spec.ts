@@ -53,6 +53,10 @@ interface Fakes {
     end: ReturnType<typeof vi.fn>;
     dmToggleScreenShare: ReturnType<typeof vi.fn>;
     publishPreview: WritableSignal<string | null>;
+    previewPaused: WritableSignal<boolean>;
+    claimPreviewRender: ReturnType<typeof vi.fn>;
+    releasePreviewRender: ReturnType<typeof vi.fn>;
+    resumePreview: ReturnType<typeof vi.fn>;
     workspace: WritableSignal<WorkspaceContext>;
     openChannel: ReturnType<typeof vi.fn>;
     openConversation: ReturnType<typeof vi.fn>;
@@ -74,6 +78,10 @@ function setup(): {fixture: ComponentFixture<VoiceStatusBarComponent>; component
         end: vi.fn(),
         dmToggleScreenShare: vi.fn().mockResolvedValue(undefined),
         publishPreview: signal<string | null>(null),
+        previewPaused: signal(false),
+        claimPreviewRender: vi.fn(),
+        releasePreviewRender: vi.fn(),
+        resumePreview: vi.fn(),
         workspace: signal<WorkspaceContext>({type: 'dms'}),
         openChannel: vi.fn(),
         openConversation: vi.fn(),
@@ -106,7 +114,16 @@ function setup(): {fixture: ComponentFixture<VoiceStatusBarComponent>; component
                 },
             },
             {provide: CallWebRtcService, useValue: {rtcState: fakes.dmRtcState}},
-            {provide: RustMediaService, useValue: {publishPreview: fakes.publishPreview}},
+            {
+                provide: RustMediaService,
+                useValue: {
+                    publishPreview: fakes.publishPreview,
+                    previewPaused: fakes.previewPaused,
+                    claimPreviewRender: fakes.claimPreviewRender,
+                    releasePreviewRender: fakes.releasePreviewRender,
+                    resumePreview: fakes.resumePreview,
+                },
+            },
             {
                 provide: ConversationStore,
                 useValue: {entities: fakes.entities},
@@ -352,5 +369,88 @@ describe('VoiceStatusBarComponent live sharing state', () => {
 
         expect(fixture.nativeElement.querySelector('img')).toBeNull();
         expect(fixture.nativeElement.querySelector('.pi-desktop')).not.toBeNull();
+    });
+});
+
+describe('VoiceStatusBarComponent preview claim', () => {
+    beforeEach(() => TestBed.resetTestingModule());
+
+    it('claims the preview render while the live row is actually showing a frame', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fakes.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: true});
+        fakes.publishPreview.set('data:image/jpeg;base64,abc');
+        fixture.detectChanges();
+
+        expect(fakes.claimPreviewRender).toHaveBeenCalledTimes(1);
+    });
+
+    it('claims nothing before the first frame arrives', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fakes.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: true});
+        fixture.detectChanges();
+
+        expect(fakes.claimPreviewRender).not.toHaveBeenCalled();
+    });
+
+    it('releases the claim once sharing stops', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fakes.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: true});
+        fakes.publishPreview.set('data:image/jpeg;base64,abc');
+        fixture.detectChanges();
+        expect(fakes.claimPreviewRender).toHaveBeenCalledTimes(1);
+
+        fakes.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false});
+        fixture.detectChanges();
+
+        expect(fakes.releasePreviewRender).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('VoiceStatusBarComponent paused preview card', () => {
+    beforeEach(() => TestBed.resetTestingModule());
+
+    function setSharing(fakes: Fakes): void {
+        fakes.isInVoice.set(true);
+        fakes.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: true});
+        fakes.publishPreview.set('data:image/jpeg;base64,abc');
+    }
+
+    it('swaps the thumbnail and live badge for the paused card, keeping the still-running wording', () => {
+        const {fixture, fakes} = setup();
+        setSharing(fakes);
+        fixture.detectChanges();
+
+        fakes.previewPaused.set(true);
+        fixture.detectChanges();
+
+        const text = fixture.nativeElement.textContent as string;
+        expect(text).toContain('CALL.PREVIEW_PAUSED');
+        expect(text).not.toContain('CALL.YOU_ARE_LIVE');
+        expect(fixture.nativeElement.querySelector('img')).toBeNull();
+        expect(fixture.nativeElement.querySelector('app-call-live-badge')).toBeNull();
+    });
+
+    it('resumes on interacting with the paused thumbnail', () => {
+        const {fixture, fakes} = setup();
+        setSharing(fakes);
+        fixture.detectChanges();
+        fakes.previewPaused.set(true);
+        fixture.detectChanges();
+
+        (fixture.nativeElement.querySelector('[aria-label="CALL.RESUME_PREVIEW"]') as HTMLButtonElement).click();
+
+        expect(fakes.resumePreview).toHaveBeenCalledTimes(1);
+    });
+
+    it('never shows the paused card while not sharing, even if the flag is somehow true', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fakes.previewPaused.set(true);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.textContent).not.toContain('CALL.PREVIEW_PAUSED');
     });
 });

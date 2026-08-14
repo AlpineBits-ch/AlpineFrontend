@@ -93,7 +93,16 @@ function render(): ComponentFixture<FullViewHostComponent> {
                     inboundVideoFpsByShare: signal({}),
                 },
             },
-            {provide: RustMediaService, useValue: {publishPreview: () => null}},
+            {
+                provide: RustMediaService,
+                useValue: {
+                    publishPreview: () => null,
+                    previewPaused: () => false,
+                    claimPreviewRender: () => void 0,
+                    releasePreviewRender: () => void 0,
+                    resumePreview: () => void 0,
+                },
+            },
         ],
     });
 

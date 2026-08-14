@@ -3,6 +3,7 @@ import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {TranslateModule} from '@ngx-translate/core';
 import {CallShareTileComponent} from './call-share-tile/call-share-tile.component';
 import {CallScreenShare} from './call.types';
+import {RustMediaService} from '../../services/rust-media.service';
 
 function share(overrides: Partial<CallScreenShare> = {}): CallScreenShare {
     return {
@@ -17,6 +18,12 @@ function share(overrides: Partial<CallScreenShare> = {}): CallScreenShare {
 function setup(s: CallScreenShare): ComponentFixture<CallShareTileComponent> {
     TestBed.configureTestingModule({
         imports: [CallShareTileComponent, TranslateModule.forRoot()],
+        providers: [
+            {
+                provide: RustMediaService,
+                useValue: {previewPaused: () => false, claimPreviewRender: vi.fn(), releasePreviewRender: vi.fn(), resumePreview: vi.fn()},
+            },
+        ],
     });
 
     const fixture = TestBed.createComponent(CallShareTileComponent);

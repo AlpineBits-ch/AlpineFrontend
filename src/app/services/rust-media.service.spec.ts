@@ -21,7 +21,7 @@ import {
     SourceThumbnail,
 } from '../platform/ports/screen-publisher.port';
 import {ScreenPublisherHost} from '../platform/screen-publisher-host';
-import {RustMediaService} from './rust-media.service';
+import {PREVIEW_IDLE_MS, RustMediaService} from './rust-media.service';
 
 /**
  * A publisher that records what it was asked to do.
@@ -363,5 +363,175 @@ describe('RustMediaService: the sharer own preview', () => {
         expect(service.screenAudioOutcome()).toBe('off');
         await service.stopScreenPublish();
         expect(fake.stopped).toEqual([]);
+    });
+});
+
+/**
+ * Task 10: the idle pause. `fakeAsync` does not work in this repo (no ProxyZone), so every test
+ * here drives the clock with `vi.useFakeTimers()` / `vi.advanceTimersByTime` instead.
+ *
+ * <p>The point of most of these is that a frame delivered <i>after</i> pausing genuinely stops
+ * landing in {@link RustMediaService.publishPreview} - not just that {@link
+ * RustMediaService.previewPaused} flipped a boolean. A test that only checked the flag would still
+ * pass with the frame-gating in the `onPreviewFrame` handler deleted.</p>
+ */
+describe('RustMediaService: idle preview pause', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        delete (document as unknown as Record<string, unknown>)['hidden'];
+    });
+
+    /** jsdom's `document.hidden` is a real getter on the prototype; shadow it with an own property,
+     *  exactly as the hotkeys suite does for `visibilityState`, and delete it in afterEach to fall
+     *  back to the real one. */
+    function setHidden(hidden: boolean): void {
+        Object.defineProperty(document, 'hidden', {configurable: true, get: () => hidden});
+    }
+
+    it('keeps applying frames indefinitely while claimed and visible', async () => {
+        setHidden(false);
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+        await service.startScreenPublish(options());
+        service.claimPreviewRender({});
+        fake.previewSink?.('data:image/jpeg;base64,AAAA');
+
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS * 3);
+        fake.previewSink?.('data:image/jpeg;base64,BBBB');
+
+        expect(service.previewPaused()).toBe(false);
+        expect(service.publishPreview()).toBe('data:image/jpeg;base64,BBBB');
+    });
+
+    it('stops applying frames once the idle window elapses with nothing claiming the preview', async () => {
+        setHidden(false);
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+        await service.startScreenPublish(options());
+        fake.previewSink?.('data:image/jpeg;base64,AAAA');
+
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS);
+        expect(service.previewPaused()).toBe(true);
+
+        // The real assertion: a frame that arrives after pausing must not land.
+        fake.previewSink?.('data:image/jpeg;base64,BBBB');
+        expect(service.publishPreview()).toBe('data:image/jpeg;base64,AAAA');
+    });
+
+    it('stops applying frames once the idle window elapses with the window hidden, even while claimed', async () => {
+        setHidden(false);
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+        await service.startScreenPublish(options());
+        service.claimPreviewRender({});
+        fake.previewSink?.('data:image/jpeg;base64,AAAA');
+
+        setHidden(true);
+        document.dispatchEvent(new Event('visibilitychange'));
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS);
+
+        expect(service.previewPaused()).toBe(true);
+        fake.previewSink?.('data:image/jpeg;base64,BBBB');
+        expect(service.publishPreview()).toBe('data:image/jpeg;base64,AAAA');
+    });
+
+    it('does not pause a visible, claimed preview just because it once went idle and came back', async () => {
+        // Claiming again before the window elapses must cancel the countdown, not merely delay it.
+        setHidden(false);
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+        await service.startScreenPublish(options());
+        fake.previewSink?.('data:image/jpeg;base64,AAAA');
+
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS - 1000);
+        const token = {};
+        service.claimPreviewRender(token);
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS);
+
+        expect(service.previewPaused()).toBe(false);
+    });
+
+    it('resumes applying frames once resumePreview is called', async () => {
+        setHidden(false);
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+        await service.startScreenPublish(options());
+        fake.previewSink?.('data:image/jpeg;base64,AAAA');
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS);
+        expect(service.previewPaused()).toBe(true);
+
+        service.resumePreview();
+
+        expect(service.previewPaused()).toBe(false);
+        fake.previewSink?.('data:image/jpeg;base64,CCCC');
+        expect(service.publishPreview()).toBe('data:image/jpeg;base64,CCCC');
+    });
+
+    it('never pauses while nothing is being shared at all, no matter how long it runs hidden', async () => {
+        setHidden(true);
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS * 3);
+
+        expect(service.previewPaused()).toBe(false);
+    });
+
+    it('leaves the running stream untouched across a full pause/resume cycle', async () => {
+        setHidden(false);
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+        await service.startScreenPublish(options({shareId: 'live'}));
+        fake.previewSink?.('data:image/jpeg;base64,AAAA');
+
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS);
+        expect(service.previewPaused()).toBe(true);
+        service.resumePreview();
+
+        // No stop, no fps change, no mute - pausing and resuming the local render never reached the
+        // publisher, and the share id the service holds is exactly what it started with.
+        expect(fake.stopped).toEqual([]);
+        expect(fake.fps).toEqual([]);
+        expect(fake.muted).toEqual([]);
+        await service.setPublishFps(24);
+        expect(fake.fps).toEqual([{shareId: 'live', fps: 24}]);
+    });
+
+    it('clears the pause when the share stops, so the next share starts unpaused', async () => {
+        setHidden(false);
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+        await service.startScreenPublish(options());
+        fake.previewSink?.('data:image/jpeg;base64,AAAA');
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS);
+        expect(service.previewPaused()).toBe(true);
+
+        await service.stopScreenPublish();
+
+        expect(service.previewPaused()).toBe(false);
+    });
+
+    it('starts a fresh idle countdown once the only claim is released, even while visible', async () => {
+        setHidden(false);
+        const fake = new FakePublisher();
+        const {service} = setup(fake);
+        await service.startScreenPublish(options());
+        const token = {};
+        service.claimPreviewRender(token);
+        fake.previewSink?.('data:image/jpeg;base64,AAAA');
+
+        // Claimed and visible - the countdown startScreenPublish began on its own must have been
+        // cancelled by the claim.
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS);
+        expect(service.previewPaused()).toBe(false);
+
+        service.releasePreviewRender(token);
+        vi.advanceTimersByTime(PREVIEW_IDLE_MS);
+
+        expect(service.previewPaused()).toBe(true);
     });
 });

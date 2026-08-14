@@ -134,6 +134,22 @@ export class CallMiniPlayerComponent {
      */
     protected readonly focusedShare = computed(() => this.shares().find(share => !share.isLocal) ?? null);
 
+    /**
+     * Whether this tile is the thing putting the local preview image on screen right now - see
+     * RustMediaService.claimPreviewRender for Task 10's idle pause.
+     *
+     * <p>Always false today: {@link focusedShare} deliberately never picks the local share (see its
+     * own doc comment above), so there is nothing here for the preview pause to apply to - a
+     * dismissed tile is one case of that, not a special one. Wired the same way as the other three
+     * renderers anyway, rather than assumed, so the invariant "a dismissed - or otherwise
+     * non-rendering - mini-player claims nothing" is enforced and tested instead of relied on by
+     * omission.</p>
+     */
+    private readonly showingLocalPreview = computed(() => {
+        const share = this.focusedShare();
+        return this.visible() && !!share && share.isLocal && !share.stream && !!share.previewSrc;
+    });
+
     private readonly participants = computed((): CallParticipant[] => this.isGuildVoice()
         ? guildCallParticipants(this.voiceSvc, this.guildRoster())
         : this.callSession.session()?.participants ?? []);
@@ -208,6 +224,15 @@ export class CallMiniPlayerComponent {
         inject(DestroyRef).onDestroy(() => {
             this.applyClaim(null, null);
             this.onDragEnd();
+        });
+
+        // Task 10's preview-render claim - see showingLocalPreview's doc comment for why this never
+        // actually fires today. onCleanup releases it exactly as the watch claim above is released,
+        // so nothing here can leak past this tile going invisible, dismissed, or destroyed.
+        effect(onCleanup => {
+            if (!this.showingLocalPreview()) return;
+            this.rustMedia.claimPreviewRender(this);
+            onCleanup(() => this.rustMedia.releasePreviewRender(this));
         });
     }
 

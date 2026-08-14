@@ -1,10 +1,22 @@
-import {ChangeDetectionStrategy, Component, computed, ElementRef, input, output, signal, viewChild} from '@angular/core';
+import {
+    ChangeDetectionStrategy,
+    Component,
+    computed,
+    effect,
+    ElementRef,
+    inject,
+    input,
+    output,
+    signal,
+    viewChild,
+} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {CallScreenShare} from '../call.types';
 import {StreamSrcDirective} from '../../../directives/stream-src.directive';
 import {CallLiveBadgeComponent} from '../call-live-badge/call-live-badge.component';
 import {CallTileActionComponent} from '../call-tile-action/call-tile-action.component';
 import {videoPipSupported} from '../pip-support';
+import {RustMediaService} from '../../../services/rust-media.service';
 
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.25;
@@ -52,6 +64,24 @@ export class CallShareTileComponent {
     protected readonly root = viewChild.required<ElementRef<HTMLElement>>('root');
     protected readonly video = viewChild<ElementRef<HTMLVideoElement>>('video');
 
+    private readonly rustMedia = inject(RustMediaService);
+
+    /**
+     * Whether this tile is the thing putting the local preview image on screen right now.
+     *
+     * <p>Scoped to the `previewSrc` branch specifically - see the template - because a browser
+     * session's local tile shows a real `MediaStream` instead (the `s.stream` branch), and Task
+     * 10's idle pause has nothing to apply to there: `RustMediaService.publishPreview` never has
+     * anything in it on that path.</p>
+     */
+    protected readonly showingLocalPreview = computed(() => {
+        const s = this.share();
+        return s.isLocal && !s.stream && !!s.previewSrc;
+    });
+
+    /** Paused only means anything while this tile is the one actually showing the preview. */
+    protected readonly previewPaused = computed(() => this.showingLocalPreview() && this.rustMedia.previewPaused());
+
     protected readonly zoom = signal(1);
     protected readonly pan = signal({x: 0, y: 0});
 
@@ -81,6 +111,24 @@ export class CallShareTileComponent {
     protected readonly canPip = computed(() => videoPipSupported() && !!this.share().stream);
 
     private dragging: {startX: number; startY: number; originX: number; originY: number} | null = null;
+
+    constructor() {
+        // Claims "somebody is rendering the preview" for Task 10's idle pause - see
+        // RustMediaService.claimPreviewRender. onCleanup releases it the moment showingLocalPreview
+        // goes false, whether that is because this tile stopped being the local one, the share
+        // ended, or the component was destroyed outright - all three have to release, or the idle
+        // timer would never start while nobody could actually see the frames it is burning.
+        effect(onCleanup => {
+            if (!this.showingLocalPreview()) return;
+            this.rustMedia.claimPreviewRender(this);
+            onCleanup(() => this.rustMedia.releasePreviewRender(this));
+        });
+    }
+
+    /** The resume button on the paused card, and any other interaction with it. */
+    protected resumePreview(): void {
+        this.rustMedia.resumePreview();
+    }
 
     protected zoomIn(): void {
         this.zoom.update(z => z < MAX_ZOOM ? +(z + ZOOM_STEP).toFixed(2) : z);

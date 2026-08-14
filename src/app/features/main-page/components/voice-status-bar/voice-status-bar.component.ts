@@ -1,4 +1,4 @@
-import {Component, computed, inject} from '@angular/core';
+import {Component, computed, effect, inject} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {VoiceChannelService} from '../../../../services/voice-channel.service';
 import {CallSessionService} from '../../../../services/call-session.service';
@@ -81,6 +81,21 @@ export class VoiceStatusBarComponent {
     protected readonly isSharing = computed(() => this.isGuildVoice()
         ? this.voiceSvc.localState().isScreenSharing
         : (this.callSession.session()?.local.isSharing ?? false));
+
+    /** Whether the live row below is actually the thing putting the preview image on screen right
+     *  now - see RustMediaService.claimPreviewRender for Task 10's idle pause. */
+    protected readonly showingPreview = computed(() => this.isSharing() && !!this.rustMedia.publishPreview());
+
+    constructor() {
+        // Claims "somebody is rendering the preview". onCleanup releases it the moment
+        // showingPreview goes false - sharing stopped, or this bar is not currently on screen for
+        // either surface - so the idle timer never stays blocked by a claim nobody can see.
+        effect(onCleanup => {
+            if (!this.showingPreview()) return;
+            this.rustMedia.claimPreviewRender(this);
+            onCleanup(() => this.rustMedia.releasePreviewRender(this));
+        });
+    }
 
     /**
      * The other participant(s) in a DM call - the label a guild channel gets for free from its own

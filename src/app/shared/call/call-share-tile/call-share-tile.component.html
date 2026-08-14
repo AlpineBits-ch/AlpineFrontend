@@ -23,6 +23,26 @@
             @if (s.stream; as stream) {
                 <video #video [streamSrc]="stream" autoplay class="h-full w-full object-contain" muted
                        playsinline></video>
+            } @else if (previewPaused()) {
+                <!-- Task 10: idle-paused. The stream itself is still going out - only this local
+                     render stopped, see RustMediaService.previewPaused - so the copy here has to say
+                     that plainly rather than reading like the share ended. -->
+                <div (click)="resumePreview()" (dblclick)="$event.stopPropagation()"
+                     class="flex cursor-pointer select-none flex-col items-center gap-3 px-6 text-center">
+                    <i class="pi pi-pause-circle text-4xl text-white/30"></i>
+                    <div>
+                        <p class="text-sm font-semibold text-white/70">{{ 'CALL.PREVIEW_PAUSED' | translate }}</p>
+                        <p class="mt-1 text-xs text-white/40">{{ 'CALL.PREVIEW_PAUSED_HINT' | translate }}</p>
+                    </div>
+                    <!-- No own click handler: it bubbles to the paused card's, which is what the
+                         "any interaction resumes it" requirement is for - a second handler here
+                         would just double the call. -->
+                    <button class="call-focusable cursor-pointer rounded-lg border-0 bg-brand/15 px-3 py-1.5
+                                   text-xs font-semibold text-brand-dim transition-colors hover:bg-brand/25"
+                            type="button">
+                        {{ 'CALL.RESUME_PREVIEW' | translate }}
+                    </button>
+                </div>
             } @else if (s.previewSrc) {
                 <img [alt]="'CALL.YOUR_SCREEN' | translate" [src]="s.previewSrc"
                      class="h-full w-full object-contain"/>

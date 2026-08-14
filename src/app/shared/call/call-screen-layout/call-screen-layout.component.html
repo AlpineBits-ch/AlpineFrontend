@@ -59,8 +59,9 @@
          was costing half the layout to say something the viewer already knows. Here it is a monitor:
          big enough to confirm the right window is going out, small enough to ignore. -->
     @if (selfCard(); as self) {
-        <button (click)="maximizeSelf(self.shareId)"
-                [attr.title]="'CALL.SHOW_MY_STREAM' | translate"
+        @let paused = claimingPreview() && rustMedia.previewPaused();
+        <button (click)="onSelfCardClick(self.shareId, paused)"
+                [attr.title]="(paused ? 'CALL.RESUME_PREVIEW' : 'CALL.SHOW_MY_STREAM') | translate"
                 class="call-focusable flex shrink-0 cursor-pointer items-center gap-3 self-end rounded-xl border
                        border-border bg-card px-3 py-2 text-left transition-colors hover:bg-hover"
                 type="button">
@@ -68,6 +69,10 @@
                 @if (self.stream) {
                     <video [streamSrc]="self.stream" autoplay class="h-full w-full object-contain" muted
                            playsinline></video>
+                } @else if (paused) {
+                    <span class="flex h-full w-full items-center justify-center">
+                        <i class="pi pi-play-circle text-lg text-white/40"></i>
+                    </span>
                 } @else if (self.previewSrc) {
                     <img [alt]="'CALL.YOUR_SCREEN' | translate" [src]="self.previewSrc"
                          class="h-full w-full object-contain"/>
@@ -78,16 +83,29 @@
                 }
             </span>
             <span class="min-w-0">
-                <span class="flex items-center gap-1.5">
-                    <span class="size-1.5 shrink-0 rounded-full bg-live status-pulse"></span>
-                    <span class="text-xs font-semibold text-white/85">{{ 'CALL.YOU_ARE_LIVE' | translate }}</span>
-                </span>
-                <span class="mt-0.5 block text-[0.6875rem] text-white/40">
-                    {{ 'CALL.OTHERS_SEE_FULL_STREAM' | translate }}
-                    @if (self.renderedFps != null) {
-                        · {{ 'CALL.FPS_OUT' | translate: {fps: self.renderedFps} }}
-                    }
-                </span>
+                <!-- Task 10: idle-paused. The stream itself is still going out - only this local
+                     render stopped, see RustMediaService.previewPaused - so the copy says that
+                     plainly rather than reading like the share ended. -->
+                @if (paused) {
+                    <span class="flex items-center gap-1.5">
+                        <i class="pi pi-pause-circle text-[0.625rem] text-white/40"></i>
+                        <span class="text-xs font-semibold text-white/85">{{ 'CALL.PREVIEW_PAUSED' | translate }}</span>
+                    </span>
+                    <span class="mt-0.5 block text-[0.6875rem] text-white/40">
+                        {{ 'CALL.PREVIEW_PAUSED_HINT' | translate }}
+                    </span>
+                } @else {
+                    <span class="flex items-center gap-1.5">
+                        <span class="size-1.5 shrink-0 rounded-full bg-live status-pulse"></span>
+                        <span class="text-xs font-semibold text-white/85">{{ 'CALL.YOU_ARE_LIVE' | translate }}</span>
+                    </span>
+                    <span class="mt-0.5 block text-[0.6875rem] text-white/40">
+                        {{ 'CALL.OTHERS_SEE_FULL_STREAM' | translate }}
+                        @if (self.renderedFps != null) {
+                            · {{ 'CALL.FPS_OUT' | translate: {fps: self.renderedFps} }}
+                        }
+                    </span>
+                }
             </span>
         </button>
     }

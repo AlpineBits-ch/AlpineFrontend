@@ -88,6 +88,8 @@ interface Fakes {
     openConversation: ReturnType<typeof vi.fn>;
     /** Every `setWatching` the component made, in order - the point of the watch-claim suite. */
     watchCalls: Array<{scope: WatchScope; shareIds: readonly string[]}>;
+    claimPreviewRender: ReturnType<typeof vi.fn>;
+    releasePreviewRender: ReturnType<typeof vi.fn>;
 }
 
 interface Harness {
@@ -114,6 +116,8 @@ function setup(): Harness {
         openChannel: vi.fn(),
         openConversation: vi.fn(),
         watchCalls: [],
+        claimPreviewRender: vi.fn(),
+        releasePreviewRender: vi.fn(),
     };
 
     TestBed.configureTestingModule({
@@ -162,7 +166,15 @@ function setup(): Harness {
             },
             {
                 provide: RustMediaService,
-                useValue: {publishPreview: signal(null), renderedFps: signal(0), inboundFps: signal(0)},
+                useValue: {
+                    publishPreview: signal(null),
+                    renderedFps: signal(0),
+                    inboundFps: signal(0),
+                    previewPaused: signal(false),
+                    claimPreviewRender: fakes.claimPreviewRender,
+                    releasePreviewRender: fakes.releasePreviewRender,
+                    resumePreview: vi.fn(),
+                },
             },
             {provide: GuildService, useValue: {guilds: signal<readonly GuildDto[]>([])}},
             {provide: ConversationStore, useValue: {entities: signal<ConversationDto[]>([])}},
@@ -411,6 +423,37 @@ describe('CallMiniPlayerComponent watch claim', () => {
         fixture.detectChanges();
 
         expect(fakes.watchCalls).toEqual([{scope: CHANNEL_SCOPE, shareIds: ['share-1']}]);
+    });
+});
+
+/**
+ * Task 10's other claim: `RustMediaService.claimPreviewRender`, for the idle preview pause. The
+ * tile never picks the local share for `focusedShare` (see its own doc comment), so there is
+ * structurally nothing here for the preview claim to ever fire on - but the requirement is that a
+ * dismissed tile specifically claims nothing, and this pins that rather than trusting the "it never
+ * renders the local preview" reasoning to hold forever on its own.
+ */
+describe('CallMiniPlayerComponent preview claim', () => {
+    beforeEach(() => TestBed.resetTestingModule());
+
+    it('never claims the preview while visible and sharing remotely', () => {
+        const {fixture, fakes} = setup();
+        joinGuildVoice(fakes, true);
+        fixture.detectChanges();
+
+        expect(fakes.claimPreviewRender).not.toHaveBeenCalled();
+    });
+
+    it('never claims the preview once dismissed', () => {
+        const {fixture, fakes} = setup();
+        joinGuildVoice(fakes, true);
+        fixture.detectChanges();
+
+        closeButton(fixture).click();
+        fixture.detectChanges();
+
+        expect(fakes.claimPreviewRender).not.toHaveBeenCalled();
+        expect(fakes.releasePreviewRender).not.toHaveBeenCalled();
     });
 });
 

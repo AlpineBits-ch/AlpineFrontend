@@ -4,6 +4,7 @@ import {TranslateModule} from '@ngx-translate/core';
 import {CallScreenLayoutComponent} from './call-screen-layout.component';
 import {CallScreenShare} from '../call.types';
 import {ShareWatchService, WatchScope} from '../../../services/share-watch.service';
+import {RustMediaService} from '../../../services/rust-media.service';
 
 function share(shareId: string, isLocal = false): CallScreenShare {
     return {
@@ -41,6 +42,10 @@ function setup(shares: CallScreenShare[], scope: WatchScope, setWatching = vi.fn
                     viewerCount: () => 0,
                     viewersOf: () => [],
                 },
+            },
+            {
+                provide: RustMediaService,
+                useValue: {previewPaused: () => false, claimPreviewRender: vi.fn(), releasePreviewRender: vi.fn(), resumePreview: vi.fn()},
             },
         ],
     });

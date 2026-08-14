@@ -79,6 +79,16 @@ export interface ScreenPublishOptions {
     preset?: StreamPreset;
 }
 
+/**
+ * How long the local preview goes unclaimed - nobody rendering it, or the window hidden - before
+ * frames stop being applied. See {@link RustMediaService.previewPaused}.
+ *
+ * <p>Matches Discord's own resource-saving pause: the stream keeps going, only the local render
+ * stops, and there is a way back. Exported so a spec can advance fake timers by exactly this much
+ * rather than a magic number that could silently drift from the real constant.</p>
+ */
+export const PREVIEW_IDLE_MS = 30_000;
+
 export interface ScreenPublishResult {
     mediaSessionId: string;
     trackName: string;
@@ -150,6 +160,20 @@ export class RustMediaService {
      * local tile renders this instead: a low-rate thumbnail rather than the stream itself.
      */
     readonly publishPreview = this._publishPreview.asReadonly();
+    private readonly _previewPaused = signal(false);
+    /**
+     * True once idle pausing has kicked in - see {@link PREVIEW_IDLE_MS}.
+     *
+     * <p>{@link publishPreview} is left holding whatever frame it last had rather than being reset
+     * to null, so a consumer can tell "paused" from "no share at all" and render the two
+     * completely differently - a paused card only makes sense over a frozen frame, never floating
+     * in a call nobody is sharing in. Frames keep crossing the IPC boundary from Rust exactly as
+     * before; only whether the webview applies them changes - see {@link claimPreviewRender}.</p>
+     */
+    readonly previewPaused = this._previewPaused.asReadonly();
+    /** Renderers currently claiming "I am showing the preview" - see {@link claimPreviewRender}. */
+    private readonly previewClaimants = new Set<object>();
+    private previewIdleTimer: ReturnType<typeof setTimeout> | null = null;
     private readonly _inboundFps = signal(0);
     /** Frames received from the native pipeline per second. Stays 0 where frames never enter the webview. */
     readonly inboundFps = this._inboundFps.asReadonly();
@@ -191,13 +215,25 @@ export class RustMediaService {
     readonly publishEnded$ = this.publishEndedSignal.asObservable();
 
     constructor() {
-        this.host?.onPreviewFrame(dataUrl => this._publishPreview.set(dataUrl));
+        this.host?.onPreviewFrame(dataUrl => {
+            // Paused means "stop applying" specifically. The frame still crossed the IPC boundary
+            // from Rust - that side is untouched, see the class doc on previewPaused - only the
+            // webview declines to do anything with it.
+            if (this._previewPaused()) return;
+            this._publishPreview.set(dataUrl);
+        });
         this.host?.onPublishEnded(() => {
             this._publishPreview.set(null);
             this.activeShareId = null;
             this._screenAudioOutcome.set('off');
+            this.resetPreviewPause();
             this.publishEndedSignal.next();
         });
+
+        // The other half of what drives the idle pause, alongside the render claims - see
+        // reconsiderPreviewIdle. A permanent listener on a root singleton, never removed: this
+        // service lives for the app's whole lifetime.
+        document.addEventListener('visibilitychange', () => this.reconsiderPreviewIdle());
     }
 
     /**
@@ -314,12 +350,50 @@ export class RustMediaService {
         this._screenAudioOutcome.set(
             !options.shareAudio ? 'off' : result.audioTrackName === null ? 'unavailable' : 'published',
         );
+        // A fresh share starts the idle clock immediately if nobody has claimed the preview yet -
+        // reconsiderPreviewIdle is otherwise only driven by a claim changing or the window's
+        // visibility changing, neither of which necessarily happens the moment sharing starts.
+        this.reconsiderPreviewIdle();
         return result;
+    }
+
+    /**
+     * Resumes the preview after an idle pause - the button on the paused card, or any other
+     * interaction with it.
+     *
+     * <p>Clears the paused flag only. Whether the feed goes straight back to landing frames or has
+     * to wait out another idle window before it can pause again depends on the render claims and
+     * window visibility exactly as it did before pausing - see {@link reconsiderPreviewIdle}.</p>
+     */
+    resumePreview(): void {
+        this._previewPaused.set(false);
+        this.reconsiderPreviewIdle();
+    }
+
+    /**
+     * Declares that `token` is (or is no longer) rendering {@link publishPreview} on screen.
+     *
+     * <p>Idempotent, and meant to be driven from a signal effect - see the self-card, the share
+     * tile and the sidebar live row, each of which owns one token for its own lifetime and calls
+     * this from an `effect(onCleanup => ...)` so a renderer that stops showing the preview -
+     * unmounts, or the thing it renders goes null - releases automatically rather than leaking a
+     * claim that keeps the idle timer from ever starting.</p>
+     */
+    claimPreviewRender(token: object): void {
+        this.previewClaimants.add(token);
+        this.reconsiderPreviewIdle();
+    }
+
+    /** The inverse of {@link claimPreviewRender}. */
+    releasePreviewRender(token: object): void {
+        this.previewClaimants.delete(token);
+        this.reconsiderPreviewIdle();
     }
 
     async stopScreenPublish(): Promise<void> {
         this._publishPreview.set(null);
         this._screenAudioOutcome.set('off');
+        this.resetPreviewPause();
         const shareId = this.activeShareId;
         this.activeShareId = null;
         if (shareId === null) return;
@@ -483,6 +557,51 @@ export class RustMediaService {
         });
         this.displayCapture = {stream: capture.stream, video: capture.video, audio: capture.audio};
         return capture.video;
+    }
+
+    // ── Idle preview pause ───────────────────────────────────────────────────
+
+    private isPreviewActive(): boolean {
+        return !document.hidden && this.previewClaimants.size > 0;
+    }
+
+    /**
+     * Re-evaluates the idle timer against the current render claims and window visibility.
+     *
+     * <p>Only ever schedules a pause while a share is actually publishing - {@link activeShareId}
+     * null means there is nothing to pause, and letting the timer run anyway would eventually flip
+     * {@link previewPaused} true with no share behind it, which no consumer could render sanely
+     * (they all gate the paused card on {@link publishPreview} already being non-null, but the flag
+     * itself would still be a lie).</p>
+     */
+    private reconsiderPreviewIdle(): void {
+        if (this.activeShareId === null) return;
+
+        if (this.isPreviewActive()) {
+            this.clearPreviewIdleTimer();
+            return;
+        }
+        // Already paused, or already counting down to it - either way there is nothing new to
+        // schedule. Resuming while still inactive (resumePreview called from somewhere that is not
+        // actually visible/claimed) falls through here too, and correctly starts the next countdown.
+        if (this._previewPaused() || this.previewIdleTimer !== null) return;
+        this.previewIdleTimer = setTimeout(() => {
+            this.previewIdleTimer = null;
+            this._previewPaused.set(true);
+        }, PREVIEW_IDLE_MS);
+    }
+
+    private clearPreviewIdleTimer(): void {
+        if (this.previewIdleTimer === null) return;
+        clearTimeout(this.previewIdleTimer);
+        this.previewIdleTimer = null;
+    }
+
+    /** A share starting or ending gets a clean slate - a pause from the last one must not survive
+     *  into the next. */
+    private resetPreviewPause(): void {
+        this._previewPaused.set(false);
+        this.clearPreviewIdleTimer();
     }
 
     // pick up the latest frame when it finishes instead of dropping it.
