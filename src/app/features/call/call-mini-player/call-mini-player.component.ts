@@ -20,11 +20,13 @@ import {GuildService} from '../../../services/guild.service';
 import {ConversationStore} from '../../../stores/conversation.store';
 import {NavigationService} from '../../main-page/navigation.service';
 import {CallStagePresenceService} from '../../../services/call-stage-presence.service';
+import {CallMiniPlayerService} from '../../../services/call-mini-player.service';
 import {CallFocusService} from '../../../services/call-focus.service';
 import {scopeKey, ShareWatchService, WatchScope} from '../../../services/share-watch.service';
 import {CallParticipant, CallScreenShare} from '../../../shared/call/call.types';
 import {guildCallParticipants, guildScreenShares, dmScreenShares} from '../../../shared/call/call-projection';
 import {CallLiveBadgeComponent} from '../../../shared/call/call-live-badge/call-live-badge.component';
+import {CallTileActionComponent} from '../../../shared/call/call-tile-action/call-tile-action.component';
 import {StreamSrcDirective} from '../../../directives/stream-src.directive';
 
 /** How many faces the participant miniature shows before it stops. Four fits a 2x2 at this size. */
@@ -46,7 +48,7 @@ const MINIATURE_LIMIT = 4;
  */
 @Component({
     selector: 'app-call-mini-player',
-    imports: [TranslateModule, CallLiveBadgeComponent, StreamSrcDirective],
+    imports: [TranslateModule, CallLiveBadgeComponent, CallTileActionComponent, StreamSrcDirective],
     templateUrl: './call-mini-player.component.html',
     styleUrl: './call-mini-player.component.css',
     changeDetection: ChangeDetectionStrategy.OnPush,
@@ -62,6 +64,7 @@ export class CallMiniPlayerComponent {
     private readonly presence = inject(CallStagePresenceService);
     private readonly callFocus = inject(CallFocusService);
     private readonly shareWatch = inject(ShareWatchService);
+    private readonly miniPlayer = inject(CallMiniPlayerService);
 
     private readonly tile = viewChild<ElementRef<HTMLElement>>('tile');
 
@@ -89,14 +92,20 @@ export class CallMiniPlayerComponent {
     });
 
     /**
-     * A session is running and its own stage is not on screen.
+     * A session is running, its own stage is not on screen, and the user has not sent the tile away.
      *
      * <p>"Not on screen" comes from the stage itself (see `CallStagePresenceService`), never from
      * inspecting the route: the two stages live in different feature areas, and a route-shaped
      * answer would have to know where both of them are.</p>
+     *
+     * <p>The dismissal matters most for a session nobody is sharing in. Without it, sitting in a
+     * voice channel meant a 256px panel parked over every view in the app for as long as you stayed
+     * in the call, and dragging it only moved the obstruction. It is offered for the sharing case
+     * too - not wanting the video to follow you around is a reasonable thing to want.</p>
      */
-    protected readonly visible = computed(() =>
-        this.stageKey() !== null && !this.presence.isMounted(this.stageKey()));
+    protected readonly visible = computed(() => this.stageKey() !== null
+        && !this.presence.isMounted(this.stageKey())
+        && this.miniPlayer.dismissedKey() !== this.stageKey());
 
     private readonly guildRoster = computed(() => {
         const channelId = this.voiceSvc.joinedChannelId();
@@ -182,12 +191,18 @@ export class CallMiniPlayerComponent {
         });
 
         // A new session gets a fresh tile. This component is mounted once for the whole app and is
-        // never torn down, so a position left over from a call three hours ago would otherwise be
-        // where the next one appears - which is the "persisted position" the brief rules out, just
-        // arrived at by accident rather than on purpose.
+        // never torn down, so both of these would otherwise leak from one call into the next: a
+        // position left over from a call three hours ago (the "persisted position" the brief rules
+        // out, arrived at by accident), and - much worse - a dismissal, which would leave the next
+        // call with no tile and nothing on screen to explain why. `restore()` rather than a keyed
+        // comparison, so the sidebar's "show the mini player" affordance stops offering to restore
+        // a tile that is already back.
         effect(() => {
             this.stageKey();
-            untracked(() => this.position.set(null));
+            untracked(() => {
+                this.position.set(null);
+                this.miniPlayer.restore();
+            });
         });
 
         inject(DestroyRef).onDestroy(() => {
@@ -238,6 +253,11 @@ export class CallMiniPlayerComponent {
      */
     protected onDragStart(event: MouseEvent): void {
         if (event.button !== 0) return;
+        // The close button sits in the header, and `CallTileActionComponent` only stops the *click*
+        // from reaching the tile beneath it. Without this, pressing close would also begin a drag
+        // and, on the way out, plant the tile at coordinates the user never chose.
+        if ((event.target as HTMLElement).closest('button')) return;
+
         const rect = this.tile()?.nativeElement.getBoundingClientRect();
         if (!rect) return;
 
@@ -291,6 +311,15 @@ export class CallMiniPlayerComponent {
         return active
             ? `${base} bg-offline/15 text-offline hover:bg-offline/25`
             : `${base} bg-white/[0.06] text-white/70 hover:bg-white/[0.12]`;
+    }
+
+    /**
+     * Sends the tile away for this session. The way back is the sidebar voice bar, which is already
+     * the always-present call indicator - see `CallMiniPlayerService` for why the state does not
+     * live in this component.
+     */
+    protected dismiss(): void {
+        this.miniPlayer.dismiss(this.stageKey());
     }
 
     protected toggleMute(): void {

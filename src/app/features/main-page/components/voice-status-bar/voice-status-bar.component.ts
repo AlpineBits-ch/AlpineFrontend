@@ -8,6 +8,7 @@ import {ConversationStore} from '../../../../stores/conversation.store';
 import {NavigationService} from '../../navigation.service';
 import {CallStatus, resolveCallStatus} from '../../../../shared/call/call-status';
 import {CallLiveBadgeComponent} from '../../../../shared/call/call-live-badge/call-live-badge.component';
+import {CallMiniPlayerService} from '../../../../services/call-mini-player.service';
 
 @Component({
     selector: 'app-voice-status-bar',
@@ -135,5 +136,20 @@ export class VoiceStatusBarComponent {
     protected stopSharing(): void {
         if (this.isGuildVoice()) void this.voiceSvc.toggleScreenShare();
         else void this.callSession.toggleScreenShare();
+    }
+
+    /**
+     * Whether the floating call tile has been sent away, so this bar can offer it back.
+     *
+     * <p>The restore belongs here rather than on a surface of its own: the tile's own close button
+     * cannot bring it back, and this bar is already the one thing that is on screen for the whole
+     * length of a call no matter where the user has navigated to. A second indicator competing with
+     * it would be the same mistake as a second stop-sharing control.</p>
+     */
+    private miniPlayer = inject(CallMiniPlayerService);
+    protected readonly isMiniPlayerDismissed = this.miniPlayer.isDismissed;
+
+    protected showMiniPlayer(): void {
+        this.miniPlayer.restore();
     }
 }

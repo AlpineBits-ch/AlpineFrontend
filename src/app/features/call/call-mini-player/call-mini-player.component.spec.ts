@@ -22,6 +22,7 @@ import {GuildService} from '../../../services/guild.service';
 import {ConversationStore} from '../../../stores/conversation.store';
 import {NavigationService, WorkspaceContext} from '../../main-page/navigation.service';
 import {CallStagePresenceService} from '../../../services/call-stage-presence.service';
+import {CallMiniPlayerService} from '../../../services/call-mini-player.service';
 import {ShareWatchService, WatchScope} from '../../../services/share-watch.service';
 import {ActiveCallSession, CallParticipantUi, ScreenShareUi} from '../../../services/call-session.types';
 import {ConversationDto} from '../../../dtos/response/conversation.dto';
@@ -211,6 +212,10 @@ function tile(fixture: ComponentFixture<CallMiniPlayerComponent>): HTMLElement |
     return fixture.nativeElement.querySelector('section');
 }
 
+function closeButton(fixture: ComponentFixture<CallMiniPlayerComponent>): HTMLButtonElement {
+    return fixture.nativeElement.querySelector('[aria-label="CALL.HIDE_MINI_PLAYER"]') as HTMLButtonElement;
+}
+
 describe('CallMiniPlayerComponent visibility', () => {
     beforeEach(() => TestBed.resetTestingModule());
 
@@ -257,6 +262,50 @@ describe('CallMiniPlayerComponent visibility', () => {
         const {fixture, fakes, presence} = setup();
         joinGuildVoice(fakes);
         presence.register('channel:chan-2');
+        fixture.detectChanges();
+
+        expect(tile(fixture)).not.toBeNull();
+    });
+
+    it('goes away when the header close control is used', () => {
+        // Without this the tile is inescapable: a voice channel nobody is sharing in parks a panel
+        // over every view in the app until you hang up.
+        const {fixture, fakes} = setup();
+        joinGuildVoice(fakes);
+        fixture.detectChanges();
+
+        closeButton(fixture).click();
+        fixture.detectChanges();
+
+        expect(tile(fixture)).toBeNull();
+    });
+
+    it('dismisses one session only, so the next call still gets a tile', () => {
+        // The part most likely to be got wrong: a bare boolean would leave the next call with no
+        // tile and nothing on screen to explain why.
+        const {fixture, fakes} = setup();
+        joinGuildVoice(fakes);
+        fixture.detectChanges();
+        closeButton(fixture).click();
+        fixture.detectChanges();
+        expect(tile(fixture)).toBeNull();
+
+        fakes.joinedChannelId.set('chan-2');
+        fixture.detectChanges();
+
+        expect(tile(fixture)).not.toBeNull();
+        // And the sidebar stops offering to restore a tile that is already back.
+        expect(TestBed.inject(CallMiniPlayerService).isDismissed()).toBe(false);
+    });
+
+    it('comes back when the sidebar voice bar asks for it', () => {
+        const {fixture, fakes} = setup();
+        joinGuildVoice(fakes);
+        fixture.detectChanges();
+        closeButton(fixture).click();
+        fixture.detectChanges();
+
+        TestBed.inject(CallMiniPlayerService).restore();
         fixture.detectChanges();
 
         expect(tile(fixture)).not.toBeNull();
@@ -335,6 +384,22 @@ describe('CallMiniPlayerComponent watch claim', () => {
         ]);
     });
 
+    it('releases the claim when the tile is closed', () => {
+        // Claims are driven by what renders. A dismissed tile renders nothing, so continuing to
+        // claim would inflate the streamer's viewer count with someone who closed the video.
+        const {fixture, fakes} = setup();
+        joinGuildVoice(fakes, true);
+        fixture.detectChanges();
+
+        closeButton(fixture).click();
+        fixture.detectChanges();
+
+        expect(fakes.watchCalls).toEqual([
+            {scope: CHANNEL_SCOPE, shareIds: ['share-1']},
+            {scope: CHANNEL_SCOPE, shareIds: []},
+        ]);
+    });
+
     it('leaves the claim alone when the stage takes the screen back', () => {
         // setWatching declares the *complete* set for a scope, and the stage declares its own the
         // moment it mounts. Clearing ours on the way out would wipe theirs.
@@ -385,12 +450,28 @@ describe('CallMiniPlayerComponent dragging', () => {
     }
 
     it('moves the tile to where it was dragged', () => {
+        // Asserted on the rendered element, not only on the signal: the clamping maths below is
+        // well covered, but every one of those tests would still pass with the [style.left.px]
+        // binding deleted and the tile pinned to its default corner forever.
         setViewport(1200, 900);
         const {fixture} = shown();
 
         dragTo(fixture, 300, 200);
 
+        const element = tile(fixture)!;
+        expect(element.style.left).toBe('300px');
+        expect(element.style.top).toBe('200px');
         expect(fixture.componentInstance['position']()).toEqual({x: 300, y: 200});
+    });
+
+    it('leaves the corner anchoring in place until it has been dragged', () => {
+        setViewport(1200, 900);
+        const {fixture} = shown();
+
+        const element = tile(fixture)!;
+        expect(element.style.left).toBe('');
+        expect(element.classList).toContain('bottom-4');
+        expect(element.classList).toContain('right-4');
     });
 
     it('clamps a drag past the right and bottom edges', () => {

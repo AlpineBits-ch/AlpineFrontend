@@ -149,9 +149,9 @@ export class VoiceRTCService {
      * existed, since nothing downstream needed a number until `CallScreenShare.inboundFps` did.
      *
      * <p>Keyed by user, not share, unlike the DM side: `midMeta` carries no per-share id at all, and
-     * `voice-channel.component.ts` builds its `CallScreenShare[]` one row per participant
-     * (`screenSharers()`), so a userId can never collide here the way it can on the DM surface - see
-     * `inbound-fps.ts`'s module doc for the full reasoning.</p>
+     * `call-projection.ts`'s `guildScreenShares` builds the guild `CallScreenShare[]` one row per
+     * participant (`guildScreenSharers`), so a userId can never collide here the way it can on the
+     * DM surface - see `inbound-fps.ts`'s module doc for the full reasoning.</p>
      */
     private readonly inboundVideoFpsSignal = signal<Record<string, number>>({});
     readonly inboundVideoFps = this.inboundVideoFpsSignal.asReadonly();

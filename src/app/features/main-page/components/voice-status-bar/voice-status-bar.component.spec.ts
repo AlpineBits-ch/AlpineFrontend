@@ -9,6 +9,7 @@ import {CallWebRtcService} from '../../../../services/call-webrtc.service';
 import {RustMediaService} from '../../../../services/rust-media.service';
 import {ConversationStore} from '../../../../stores/conversation.store';
 import {NavigationService, WorkspaceContext} from '../../navigation.service';
+import {CallMiniPlayerService} from '../../../../services/call-mini-player.service';
 import {ActiveCallSession, CallParticipantUi} from '../../../../services/call-session.types';
 import {ConversationDto} from '../../../../dtos/response/conversation.dto';
 
@@ -233,6 +234,56 @@ describe('VoiceStatusBarComponent ordinary state', () => {
 
         expect(fixture.nativeElement.querySelector('[aria-label="CALL.DISCONNECT"]')).not.toBeNull();
         expect(fixture.nativeElement.querySelector('[aria-label="VOICE_BAR.DISCONNECT"]')).toBeNull();
+    });
+});
+
+describe('VoiceStatusBarComponent mini player restore', () => {
+    // The floating call tile's own close button cannot bring it back, so the way back lives here -
+    // this bar is already the one thing on screen for the whole length of a call, wherever the user
+    // has navigated to. See CallMiniPlayerService.
+    beforeEach(() => TestBed.resetTestingModule());
+
+    it('offers nothing while the tile is where it should be', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.SHOW_MINI_PLAYER"]')).toBeNull();
+    });
+
+    it('offers the tile back once it has been dismissed', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        TestBed.inject(CallMiniPlayerService).dismiss('channel:chan-1');
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.SHOW_MINI_PLAYER"]')).not.toBeNull();
+    });
+
+    it('restores the tile and stops offering to', () => {
+        const {fixture, fakes} = setup();
+        const miniPlayer = TestBed.inject(CallMiniPlayerService);
+        fakes.isInVoice.set(true);
+        miniPlayer.dismiss('channel:chan-1');
+        fixture.detectChanges();
+
+        (fixture.nativeElement.querySelector('[aria-label="CALL.SHOW_MINI_PLAYER"]') as HTMLButtonElement).click();
+        fixture.detectChanges();
+
+        expect(miniPlayer.isDismissed()).toBe(false);
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.SHOW_MINI_PLAYER"]')).toBeNull();
+    });
+
+    it('leaves the stop-sharing control alone', () => {
+        // The restore sits beside the canonical stop-sharing button; it must not displace it.
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fakes.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: true});
+        TestBed.inject(CallMiniPlayerService).dismiss('channel:chan-1');
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.SHOW_MINI_PLAYER"]')).not.toBeNull();
     });
 });
 

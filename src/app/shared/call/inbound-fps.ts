@@ -15,7 +15,7 @@
  * <p>Two keying schemes, not one, because the two services' track-owner maps carry different
  * information. `VoiceRTCService`'s `midMeta` has no per-share id at all - the guild side has always
  * identified a screen stream by its owner - and a guild `CallScreenShare[]` is built one row per
- * participant (`voice-channel.component.ts`'s `screenSharers()`), so a userId can never collide
+ * participant (`call-projection.ts`'s `guildScreenSharers`), so a userId can never collide
  * there. `CallWebRtcService`'s `midMap` does carry a `shareId`, and on the DM surface a userId *can*
  * collide: `CallSessionService.onScreenShareStarted` dedupes incoming shares by `shareId` alone, so
  * a stale share lingering across a rapid stop/restart race can sit in the model alongside its

@@ -22,6 +22,15 @@
             <span class="min-w-0 flex-1 truncate text-[0.6875rem] font-semibold text-white/85">
                 {{ title() }}
             </span>
+
+            <!-- Sends the tile away for this session. Without it a voice call nobody is sharing in
+                 parks a panel over every view in the app until you hang up, and dragging only moves
+                 the obstruction. The way back is in the sidebar voice bar - see dismiss(). -->
+            <app-call-tile-action
+                    (action)="dismiss()"
+                    [label]="'CALL.HIDE_MINI_PLAYER' | translate"
+                    icon="pi-times"
+                    size="sm"/>
         </header>
 
         @if (focusedShare(); as share) {

@@ -29,6 +29,21 @@
                 </p>
             </button>
 
+            <!-- Brings back the floating call tile after it has been closed. Only while it is
+                 actually dismissed, so this bar does not grow a permanent button that mostly does
+                 nothing - see CallMiniPlayerService. -->
+            @if (isMiniPlayerDismissed()) {
+                <button
+                        (click)="showMiniPlayer()"
+                        [attr.aria-label]="'CALL.SHOW_MINI_PLAYER' | translate"
+                        [attr.title]="'CALL.SHOW_MINI_PLAYER' | translate"
+                        class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg
+                               border-0 bg-white/[0.06] text-white/70 transition-colors hover:bg-white/[0.12]"
+                        type="button">
+                    <i class="pi pi-window-minimize text-xs"></i>
+                </button>
+            }
+
             <!-- Stop sharing. Only while this client's own screen is going out - see isSharing().
                  The self-card inside the call stage goes null the moment nobody else is sharing,
                  and disappears entirely once the call view is navigated away from, so this is the
