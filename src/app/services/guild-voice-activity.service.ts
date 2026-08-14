@@ -1,8 +1,16 @@
 import {computed, effect, inject, Injectable, signal, untracked} from '@angular/core';
+import {Subject} from 'rxjs';
 import {GuildVoiceActivityDto} from '../dtos/response/guild-voice-activity.dto';
 import {GuildVoiceService} from './guild-voice.service';
 import {GuildWebsocketService} from './guild-websocket.service';
 import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
+
+/** Who just started streaming, and where - the source event for a "X is live" notification. */
+export interface StreamerWentLive {
+    guildId: string;
+    channelId: string;
+    userId: string;
+}
 
 /** What the rail needs to know about one guild: how many people are in voice, and is anyone live. */
 export interface GuildVoicePresence {
@@ -32,6 +40,28 @@ export class GuildVoiceActivityService {
      *  or a leave for somebody already gone cannot drift a tally nothing would ever correct. */
     private readonly members = signal<Record<string, Record<string, string[]>>>({});
     private readonly streamers = signal<Record<string, Record<string, string[]>>>({});
+
+    /**
+     * shareId -> who is publishing it and where.
+     *
+     * <p>`WsVoiceScreenShareStopped` carries only a `shareId`, never a `userId` - the stop event
+     * names the share, not the sharer. This is what turns "this share ended" back into "this
+     * person is no longer streaming" without touching anyone else's entry in the channel. Filled
+     * in by the matching start event; nothing repopulates it from a snapshot, because the snapshot
+     * DTO does not carry share ids at all - see `replaceAll`.</p>
+     */
+    private readonly shareOwners = new Map<string, {guildId: string; channelId: string; userId: string}>();
+
+    private readonly wentLive = new Subject<StreamerWentLive>();
+
+    /**
+     * Fires once per person who starts streaming - never for a stream already live when a
+     * snapshot is read (`replaceAll` does not touch this), and never twice for the same start
+     * event redelivered on reconnect (`addStreamer` only emits when the id was not already in the
+     * channel's list). That is exactly the "a stream just started" moment a go-live notification
+     * wants, and nothing else.
+     */
+    readonly streamerWentLive$ = this.wentLive.asObservable();
 
     readonly presence = computed<Record<string, GuildVoicePresence>>(() => {
         const members = this.members();
@@ -70,10 +100,36 @@ export class GuildVoiceActivityService {
         // the marker means anything: a stream in a channel we have no roster for is a stream we
         // are not counting anybody in.
         this.guildWs.voiceScreenShareStartedObservable.subscribe(e =>
-            this.setStreaming(e.channelId, e.userId, true));
+            this.addStreamer(e.channelId, e.userId, e.shareId));
 
         this.guildWs.voiceScreenShareStoppedObservable.subscribe(e =>
-            this.setStreaming(e.channelId, undefined, false));
+            this.removeStreamerByShare(e.channelId, e.shareId));
+    }
+
+    /** Anyone currently streaming in one channel. */
+    streamersIn(guildId: string, channelId: string): string[] {
+        return this.streamers()[guildId]?.[channelId] ?? [];
+    }
+
+    /** Whether this user is streaming anywhere this client has a roster for. */
+    isStreaming(userId: string): boolean {
+        return Object.values(this.streamers()).some(channels =>
+            Object.values(channels).some(ids => ids.includes(userId)));
+    }
+
+    /**
+     * Which channel of a guild this user is streaming in, or undefined.
+     *
+     * <p>`isStreaming` alone cannot say where - and "where" is exactly what a caller needs to turn
+     * a LIVE badge in the member list into a watch target.</p>
+     */
+    streamingChannelId(guildId: string, userId: string): string | undefined {
+        const channels = this.streamers()[guildId];
+        if (!channels) return undefined;
+        for (const [channelId, userIds] of Object.entries(channels)) {
+            if (userIds.includes(userId)) return channelId;
+        }
+        return undefined;
     }
 
     /** Re-reads the whole rail. Cheap - one request - and the only thing that can correct drift. */
@@ -132,27 +188,67 @@ export class GuildVoiceActivityService {
                 [guildId]: {...channels, [channelId]: existing.filter(id => id !== userId)},
             };
         });
+
+        // Hygiene, not correctness: `removeStreamerByShare` never resolves through this map by
+        // guild/channel/user, only by shareId, so a stale entry here could not misattribute a
+        // future stop - it would just sit unread. Cleared anyway so the map does not grow for the
+        // lifetime of the session.
+        for (const [shareId, owner] of this.shareOwners) {
+            if (owner.guildId === guildId && owner.channelId === channelId && owner.userId === userId) {
+                this.shareOwners.delete(shareId);
+            }
+        }
     }
 
     /**
-     * Marks (or clears) a live stream in a channel.
+     * Records a share starting, and lights the channel's live marker for its owner.
      *
-     * <p>A stop event names the share, not the sharer, so it clears the channel's streamers
-     * wholesale. Overcorrecting by one person is a marker that goes dark a moment early on the rare
-     * two-streamer channel; the snapshot puts it back. Undercorrecting would leave a "live" dot lit
-     * for a stream that ended, which is the failure worth avoiding.</p>
+     * <p>`streamerWentLive$` fires only when this genuinely adds someone - not for a start event
+     * redelivered on reconnect for a person already marked live.</p>
      */
-    private setStreaming(channelId: string, userId: string | undefined, streaming: boolean): void {
+    private addStreamer(channelId: string, userId: string, shareId: string): void {
         const guildId = this.guildOf(channelId);
         if (!guildId) return;
 
+        this.shareOwners.set(shareId, {guildId, channelId, userId});
+
+        let added = false;
         this.streamers.update(state => {
             const channels = state[guildId] ?? {};
-            if (!streaming) return {...state, [guildId]: {...channels, [channelId]: []}};
-            if (!userId) return state;
             const existing = channels[channelId] ?? [];
             if (existing.includes(userId)) return state;
+            added = true;
             return {...state, [guildId]: {...channels, [channelId]: [...existing, userId]}};
+        });
+
+        if (added) this.wentLive.next({guildId, channelId, userId});
+    }
+
+    /**
+     * Clears one streamer, resolved from the share that just stopped rather than guessed from the
+     * channel.
+     *
+     * <p>The previous version of this cleared the whole channel's streamer list on every stop,
+     * because `WsVoiceScreenShareStopped` carries no `userId` to remove precisely. That is wrong
+     * whenever two people are streaming in the same channel: one of them stopping would dark the
+     * marker for both, including the one still going. `shareOwners`, filled in by the matching
+     * start event, is what makes the precise removal possible - see its own comment.</p>
+     *
+     * <p>A stop for a share this client never saw start (joined mid-share, or missed the event) is
+     * a no-op here; `removeMember` is the fallback that catches a streamer disappearing without a
+     * stop at all, e.g. the app closing mid-share.</p>
+     */
+    private removeStreamerByShare(channelId: string, shareId: string): void {
+        const owner = this.shareOwners.get(shareId);
+        this.shareOwners.delete(shareId);
+        if (!owner) return;
+
+        const {guildId, userId} = owner;
+        this.streamers.update(state => {
+            const channels = state[guildId] ?? {};
+            const existing = channels[channelId] ?? [];
+            if (!existing.includes(userId)) return state;
+            return {...state, [guildId]: {...channels, [channelId]: existing.filter(id => id !== userId)}};
         });
     }
 

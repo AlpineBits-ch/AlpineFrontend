@@ -46,6 +46,12 @@
                             {{ 'HOUSEHOLD.GUEST' | translate }}
                         </span>
                     }
+                    @if (isStreaming(member)) {
+                        <button (click)="watchStream(member, $event)"
+                                class="shrink-0 border-0 bg-transparent p-0 cursor-pointer">
+                            <app-call-live-badge size="sm" variant="soft"/>
+                        </button>
+                    }
                 </div>
                 @if (activityFor(member); as activity) {
                     <app-activity-line [activity]="activity" size="sm"/>
