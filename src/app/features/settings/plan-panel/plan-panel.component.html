@@ -45,14 +45,23 @@
         }
     </section>
 
+    <!-- The subscription behind the plan above, where there is one: what it costs, when it renews,
+         and the cancel, resume and change-plan paths. Absent entirely for a subject with no
+         subscription - the plans below are the whole answer there. -->
+    <app-subscription-card [subject]="subject()"/>
+
     <!-- What is for sale, and the buy path. It draws its own gates: no publishable key or a
          catalogue that says nothing is enabled means a comparison with nothing to press. -->
     <app-plan-picker [subject]="subject()"/>
 
     <!-- Cards are an account's, so this is absent on a guild's plan page rather than showing the
          payer's cards to every admin who can open it. -->
+    <!-- Receipts are an account's for the same reason the cards are: the invoices endpoint answers
+         for whoever is asking, not for the guild being looked at, so a guild plan page would list
+         the reader's own receipts under somebody else's server. -->
     @if (isOwnAccount()) {
         <app-payment-methods/>
+        <app-invoice-list/>
     }
 
     <!-- Guild only, and only when the plan is actually withholding something. -->

@@ -1,0 +1,89 @@
+<section class="flex flex-col gap-4">
+
+    <h2 class="text-xs font-semibold text-white/30 uppercase tracking-widest border-b border-white/[0.10] pb-3">
+        {{ 'BILLING.INVOICES.SECTION' | translate }}
+    </h2>
+
+    @if (loading()) {
+        <!-- Rows at the height the real ones land at. A list about money that jumps when it loads
+             reads as a list that is still deciding what it says. -->
+        <ul aria-hidden="true"
+            class="flex flex-col divide-y divide-white/[0.06] bg-white/[0.03] border border-white/[0.10] rounded-xl m-0 p-0 list-none">
+            @for (row of skeletonRows; track row) {
+                <li class="flex items-center gap-3 px-4 py-3">
+                    <span class="flex flex-col gap-1.5 flex-1">
+                        <span class="block h-3.5 w-28 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                        <span class="block h-2.5 w-36 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                    </span>
+                    <span class="block h-3.5 w-16 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                </li>
+            }
+        </ul>
+        <span class="sr-only">{{ 'BILLING.INVOICES.LOADING' | translate }}</span>
+    } @else if (loadFailed()) {
+        <!-- Not an empty list. Somebody hunting for a receipt they have already been charged for
+             should not be told there is nothing to find. -->
+        <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
+            <p class="text-sm text-text-secondary m-0 leading-relaxed">
+                {{ 'BILLING.INVOICES.LOAD_FAILED' | translate }}
+            </p>
+            <button
+                    (click)="load()"
+                    class="self-start text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white transition-colors duration-[var(--duration-fast)]"
+                    type="button">
+                {{ 'BILLING.INVOICES.RETRY' | translate }}
+            </button>
+        </div>
+    } @else if (rows().length === 0) {
+        <p class="text-xs text-text-muted m-0 leading-relaxed">{{ 'BILLING.INVOICES.NONE' | translate }}</p>
+    } @else {
+        <ul class="flex flex-col divide-y divide-white/[0.06] bg-white/[0.03] border border-white/[0.10] rounded-xl m-0 p-0 list-none">
+            @for (row of rows(); track row.invoice.id) {
+                <li class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3">
+
+                    <div class="flex flex-col gap-0.5 min-w-0 flex-1">
+                        <p class="text-sm text-text-primary m-0 truncate">
+                            <!-- A draft has no number yet. Naming the date instead is honest, where
+                                 a blank cell reads as a rendering fault. -->
+                            @if (row.number; as number) {
+                                {{ number }}
+                            } @else {
+                                {{ 'BILLING.INVOICE.NO_NUMBER' | translate }}
+                            }
+                        </p>
+                        <p class="text-xs text-text-muted m-0">
+                            @if (row.date; as date) {
+                                {{ date }} &middot;
+                            }
+                            {{ row.statusKey | translate }}
+                        </p>
+                    </div>
+
+                    <p class="text-sm text-text-primary m-0 whitespace-nowrap tabular-nums">{{ row.amount }}</p>
+
+                    <div class="flex items-center gap-3">
+                        <!-- Opened outside the app on both hosts. Inside the desktop webview a plain
+                             link would replace the running application with Stripe's page. -->
+                        @if (row.hostedUrl; as url) {
+                            <button
+                                    (click)="open(url)"
+                                    class="text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white transition-colors duration-[var(--duration-fast)]"
+                                    type="button">
+                                {{ 'BILLING.INVOICE.VIEW' | translate }}
+                            </button>
+                        }
+                        @if (row.pdfUrl; as url) {
+                            <button
+                                    (click)="open(url)"
+                                    class="text-xs font-semibold text-text-muted hover:text-text-primary transition-colors duration-[var(--duration-fast)]"
+                                    type="button">
+                                {{ 'BILLING.INVOICE.PDF' | translate }}
+                            </button>
+                        }
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+
+</section>

@@ -13,6 +13,9 @@ import {provideTranslateService} from '@ngx-translate/core';
 import {describe, expect, it} from 'vitest';
 import {PlanPanelComponent} from './plan-panel.component';
 import {ApiConfigService} from '../../../services/api-config.service';
+import {ProfileService} from '../../../services/profile.service';
+import {LinkOpener} from '../../../platform/ports/link-opener.port';
+import {FakeLinkOpener} from '../../../platform/testing/fake-link-opener';
 import {EntitlementStore, EntitlementSubjectRef, MY_ENTITLEMENTS} from '../../../stores/entitlement.store';
 import {EntitlementPlanDto, EntitlementSnapshotDto, GuildFeatureResolutionDto} from '../../../dtos/response/entitlement.dto';
 
@@ -58,6 +61,11 @@ function setup(opts: {
             // Stubbed rather than real: the real one reaches for OAuthService, and none of this
             // file is about which instance the requests would have gone to.
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test.example'}},
+            // The subscription card resolves a user subject to a real account id, and the invoice
+            // list opens Stripe's pages through the platform opener. Both are stubbed for the same
+            // reason as above: this file is about what the panel says, not about either of them.
+            {provide: ProfileService, useValue: {ownProfile: () => ({userId: 'user-1'})}},
+            {provide: LinkOpener, useValue: new FakeLinkOpener()},
             {
                 provide: EntitlementStore,
                 useValue: {

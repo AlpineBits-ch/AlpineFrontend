@@ -5,6 +5,8 @@ import {entitlementRemedyCopy} from '../../../core/entitlement-message';
 import {guildFeatureLabelKey} from '../../guild/guild-features';
 import {PlanPickerComponent} from '../../billing/plan-picker/plan-picker.component';
 import {PaymentMethodsComponent} from '../../billing/payment-methods/payment-methods.component';
+import {SubscriptionCardComponent} from '../../billing/subscription-card/subscription-card.component';
+import {InvoiceListComponent} from '../../billing/invoice-list/invoice-list.component';
 
 /**
  * What plan a subject is on, for the one screen where they would change it.
@@ -24,7 +26,13 @@ import {PaymentMethodsComponent} from '../../billing/payment-methods/payment-met
  */
 @Component({
     selector: 'app-plan-panel',
-    imports: [TranslateModule, PlanPickerComponent, PaymentMethodsComponent],
+    imports: [
+        TranslateModule,
+        PlanPickerComponent,
+        PaymentMethodsComponent,
+        SubscriptionCardComponent,
+        InvoiceListComponent,
+    ],
     templateUrl: './plan-panel.component.html',
 })
 export class PlanPanelComponent {
