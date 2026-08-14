@@ -44,6 +44,26 @@
                 </button>
             }
 
+            <!-- Start sharing. Only while a session is live and this client is not already sharing
+                 - the mirror image of the stop button below. Task 15: previously a share could only
+                 be started from inside the call view, so reading another channel while on a call
+                 left no way to begin one. Goes through startSharing(), the same toggleScreenShare()
+                 path the in-call controls bar uses, so the screen picker opens exactly as it does
+                 there - this bar does not own any part of that flow, only the entry point into it.
+                 Sits in the same slot the stop button occupies, so the two never appear together and
+                 this row never has to make room for a fifth control. -->
+            @if (!isSharing()) {
+                <button
+                        (click)="startSharing()"
+                        [attr.aria-label]="'CALL.SHARE_SCREEN' | translate"
+                        [attr.title]="'CALL.SHARE_SCREEN' | translate"
+                        class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg
+                               border-0 bg-white/[0.06] text-white/70 transition-colors hover:bg-white/[0.12]"
+                        type="button">
+                    <i class="pi pi-desktop text-xs"></i>
+                </button>
+            }
+
             <!-- Stop sharing. Only while this client's own screen is going out - see isSharing().
                  The self-card inside the call stage goes null the moment nobody else is sharing,
                  and disappears entirely once the call view is navigated away from, so this is the

@@ -349,6 +349,56 @@ describe('VoiceStatusBarComponent live sharing state', () => {
         expect(fakes.guildToggleScreenShare).not.toHaveBeenCalled();
     });
 
+    it('shows the start-sharing control instead of stop while not sharing on guild voice', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.SHARE_SCREEN"]')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]')).toBeNull();
+    });
+
+    it('starts a guild voice share through VoiceChannelService.toggleScreenShare, the controls-bar path', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fixture.detectChanges();
+
+        (fixture.nativeElement.querySelector('[aria-label="CALL.SHARE_SCREEN"]') as HTMLButtonElement).click();
+
+        expect(fakes.guildToggleScreenShare).toHaveBeenCalledTimes(1);
+        expect(fakes.dmToggleScreenShare).not.toHaveBeenCalled();
+    });
+
+    it('shows the start-sharing control instead of stop while not sharing on a DM call', () => {
+        const {fixture, fakes} = setup();
+        fakes.session.set(dmSession());
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.SHARE_SCREEN"]')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]')).toBeNull();
+    });
+
+    it('starts a DM call share through CallSessionService.toggleScreenShare, not the guild path', () => {
+        const {fixture, fakes} = setup();
+        fakes.session.set(dmSession());
+        fixture.detectChanges();
+
+        (fixture.nativeElement.querySelector('[aria-label="CALL.SHARE_SCREEN"]') as HTMLButtonElement).click();
+
+        expect(fakes.dmToggleScreenShare).toHaveBeenCalledTimes(1);
+        expect(fakes.guildToggleScreenShare).not.toHaveBeenCalled();
+    });
+
+    it('hides the start-sharing control once sharing begins, on either surface', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fakes.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: true});
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.SHARE_SCREEN"]')).toBeNull();
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]')).not.toBeNull();
+    });
+
     it('renders the preview thumbnail once RustMediaService has one', () => {
         const {fixture, fakes} = setup();
         fakes.isInVoice.set(true);

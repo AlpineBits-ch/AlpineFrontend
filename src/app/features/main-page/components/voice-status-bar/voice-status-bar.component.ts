@@ -154,6 +154,17 @@ export class VoiceStatusBarComponent {
     }
 
     /**
+     * Starts a screen share from wherever the user is, not only from inside the call view - see
+     * Task 15. Goes through the exact same `toggleScreenShare` the in-call controls bar and
+     * `stopSharing()` above call: it is one toggle in each service, so this bar never opens the
+     * screen picker itself, it only reaches the entry point that does.
+     */
+    protected startSharing(): void {
+        if (this.isGuildVoice()) void this.voiceSvc.toggleScreenShare();
+        else void this.callSession.toggleScreenShare();
+    }
+
+    /**
      * Whether the floating call tile has been sent away, so this bar can offer it back.
      *
      * <p>The restore belongs here rather than on a surface of its own: the tile's own close button
