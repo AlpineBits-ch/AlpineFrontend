@@ -119,6 +119,15 @@ export class VoiceStatusBarComponent {
     }
 
     /**
+     * `VOICE_BAR.DISCONNECT` says "Disconnect from voice **channel**" in German and French, not just
+     * in English. Correct for guild voice, which has a channel; wrong for a DM call, which does not
+     * - a DM user told to disconnect from a channel is being told about something that is not in
+     * their UI. `CALL.DISCONNECT` is the existing, locale-neutral "Disconnect" for that branch.
+     */
+    protected readonly disconnectLabelKey = computed(() =>
+        this.isGuildVoice() ? 'VOICE_BAR.DISCONNECT' : 'CALL.DISCONNECT');
+
+    /**
      * Stops the local screen share through the same path the in-call controls bar uses. There is
      * exactly one stop-sharing control in the whole app now, this button included - Task 8's
      * mini-player must not grow a second one.

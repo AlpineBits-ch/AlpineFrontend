@@ -45,11 +45,14 @@
                 </button>
             }
 
-            <!-- Disconnect -->
+            <!-- Disconnect. Label differs by surface - see disconnectLabelKey(): guild voice gets
+                 the channel-specific wording, a DM call gets the locale-neutral one, because the
+                 channel-specific key is not just guild-flavoured but factually wrong in German and
+                 French for a call that has no channel. -->
             <button
                     (click)="disconnect()"
-                    [attr.aria-label]="'VOICE_BAR.DISCONNECT' | translate"
-                    [attr.title]="'VOICE_BAR.DISCONNECT' | translate"
+                    [attr.aria-label]="disconnectLabelKey() | translate"
+                    [attr.title]="disconnectLabelKey() | translate"
                     class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg
                            border-0 bg-offline/15 text-offline transition-colors hover:bg-offline/25"
                     type="button">

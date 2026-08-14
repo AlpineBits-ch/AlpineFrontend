@@ -206,10 +206,33 @@ describe('VoiceStatusBarComponent ordinary state', () => {
         fakes.session.set(dmSession());
         fixture.detectChanges();
 
-        (fixture.nativeElement.querySelector('[aria-label="VOICE_BAR.DISCONNECT"]') as HTMLButtonElement).click();
+        (fixture.nativeElement.querySelector('[aria-label="CALL.DISCONNECT"]') as HTMLButtonElement).click();
 
         expect(fakes.end).toHaveBeenCalledTimes(1);
         expect(fakes.leaveChannel).not.toHaveBeenCalled();
+    });
+
+    it('labels the disconnect button with the channel-specific key for guild voice', () => {
+        // VOICE_BAR.DISCONNECT reads "Disconnect from voice channel" in German and French - correct
+        // for guild voice, which has a channel to name.
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[aria-label="VOICE_BAR.DISCONNECT"]')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.DISCONNECT"]')).toBeNull();
+    });
+
+    it('labels the disconnect button with the locale-neutral key for a DM call', () => {
+        // A DM call has no channel, so the channel-specific VOICE_BAR.DISCONNECT wording is not just
+        // guild-flavoured but factually wrong in German ("Vom Sprachkanal trennen") and French
+        // ("Se déconnecter du canal vocal") - CALL.DISCONNECT is the neutral "Disconnect" instead.
+        const {fixture, fakes} = setup();
+        fakes.session.set(dmSession());
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.DISCONNECT"]')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('[aria-label="VOICE_BAR.DISCONNECT"]')).toBeNull();
     });
 });
 
