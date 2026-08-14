@@ -55,9 +55,8 @@ describe('CallShareTileComponent PiP gating', () => {
         delete (window as {documentPictureInPicture?: unknown}).documentPictureInPicture;
     });
 
-    it('hides the button when there is nothing poppable: no stream and no document PiP', () => {
-        // The Rust-published local share (previewSrc only, no MediaStream) has no <video> to pop, and
-        // with no documentPictureInPicture either there is no way to pop the <img> preview instead.
+    it('hides the button when there is no stream, even though video PiP is supported', () => {
+        // The Rust-published local share (previewSrc only, no MediaStream) has no <video> to pop.
         setPipEnvironment(true, false);
 
         const fixture = setup(share({previewSrc: 'data:image/png;base64,xx'}));
@@ -73,12 +72,16 @@ describe('CallShareTileComponent PiP gating', () => {
         expect(pipButton(fixture)).not.toBeNull();
     });
 
-    it('shows the button for a stream-less local share when document PiP can carry the preview', () => {
+    it('hides the button when a stream exists but only document PiP is supported', () => {
+        // togglePip() only ever performs video-element PiP - document PiP dispatch is Task 9's to add
+        // - so claiming this state is poppable would reproduce the exact dead button this task exists
+        // to remove, just under a different capability skew. This is the WebView2-shaped case: video
+        // PiP unverified/false, document PiP present.
         setPipEnvironment(false, true);
 
-        const fixture = setup(share({previewSrc: 'data:image/png;base64,xx'}));
+        const fixture = setup(share({stream: {} as MediaStream}));
 
-        expect(pipButton(fixture)).not.toBeNull();
+        expect(pipButton(fixture)).toBeNull();
     });
 
     it('hides the button when PiP is unsupported entirely, even with a stream', () => {

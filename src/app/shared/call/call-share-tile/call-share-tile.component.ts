@@ -4,7 +4,7 @@ import {CallScreenShare} from '../call.types';
 import {StreamSrcDirective} from '../../../directives/stream-src.directive';
 import {CallLiveBadgeComponent} from '../call-live-badge/call-live-badge.component';
 import {CallTileActionComponent} from '../call-tile-action/call-tile-action.component';
-import {anyPipSupported, documentPipSupported} from '../pip-support';
+import {videoPipSupported} from '../pip-support';
 
 const MAX_ZOOM = 3;
 const ZOOM_STEP = 0.25;
@@ -57,13 +57,17 @@ export class CallShareTileComponent {
     /**
      * Whether the PiP button can do anything at all.
      *
-     * <p>A local share with no `MediaStream` (the Rust-published desktop path, see
-     * `CallScreenShare.previewSrc`) has nothing a `<video>`-only PiP request can act on; document PiP
-     * can still pop the `<img>` preview out, so that alone is enough to show the button. Read lazily
-     * through pip-support.ts rather than cached, so a capability that only appears later - or a test
-     * stub - is picked up on the next read instead of the first one.</p>
+     * <p>`togglePip()` only ever does video-element PiP, so that is all this may claim: a real
+     * `MediaStream` to bind a `<video>` to, and the environment actually supporting video PiP. A
+     * local share with no stream (the Rust-published desktop path, see `CallScreenShare.previewSrc`)
+     * has nothing to hand it regardless of what else the environment can do - document PiP could
+     * carry the `<img>` preview instead, but nothing here dispatches that yet, so advertising it
+     * would be the same dead button this task exists to remove. That is Task 9's to add, alongside
+     * widening this check. Read lazily through pip-support.ts rather than cached, so a capability
+     * that only appears later - or a test stub - is picked up on the next read instead of the
+     * first one.</p>
      */
-    protected readonly canPip = computed(() => anyPipSupported() && (!!this.share().stream || documentPipSupported()));
+    protected readonly canPip = computed(() => videoPipSupported() && !!this.share().stream);
 
     private dragging: {startX: number; startY: number; originX: number; originY: number} | null = null;
 
@@ -118,7 +122,7 @@ export class CallShareTileComponent {
 
     protected togglePip(): void {
         const video = this.video()?.nativeElement;
-        if (!video || !document.pictureInPictureEnabled) return;
+        if (!video || !videoPipSupported()) return;
         if (document.pictureInPictureElement === video) void document.exitPictureInPicture().catch(() => void 0);
         else void video.requestPictureInPicture().catch(() => void 0);
     }
