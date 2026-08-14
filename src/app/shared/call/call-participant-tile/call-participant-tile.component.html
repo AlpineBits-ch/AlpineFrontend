@@ -61,11 +61,15 @@
         </div>
     }
 
-    <!-- Name + muted icon. Over the video when there is one, so it reads at any tile size. -->
-    <div [class]="'z-20 flex items-center justify-center gap-1.5 '
-                  + (p.isCameraOn
-                      ? 'absolute bottom-2 left-2 max-w-[calc(100%-1rem)] rounded-lg bg-black/50 px-2 py-1 backdrop-blur-sm'
-                      : 'mt-3 max-w-full px-2')">
+    <!-- Name + muted icon: a pill in the bottom-left corner, camera on or off.
+
+         It used to be `mt-3` centred text under the avatar with the camera off, sharing the tile's
+         flex column with it - so the two formed a stack pushed above true centre by half the name's
+         height, and a one-person tile read as off-balance rather than centred. Absolute positioning
+         unconditionally takes the name out of that column: the avatar is then the column's only
+         child, and `items-center justify-center` on the root centres it on its own. -->
+    <div class="absolute bottom-2 left-2 z-20 flex max-w-[calc(100%-1rem)] items-center justify-center gap-1.5
+                rounded-lg bg-black/50 px-2 py-1 backdrop-blur-sm">
         @if (p.isMuted) {
             <!-- Drawn slash - PrimeIcons has no slashed microphone, see .icon-slashed. -->
             <span [attr.aria-label]="'CALL.MUTED' | translate"

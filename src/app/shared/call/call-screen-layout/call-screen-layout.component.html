@@ -19,8 +19,13 @@
 
     <!-- The stage: screen shares and cameras, one grid, comparable size. A face-cam beside a game
          stream used to be inexpressible - any share at all sent every camera to a 32px circle in the
-         strip below. See displayedTiles for the ordering and for why maximise drops the cameras. -->
-    <div [class]="'grid min-h-0 flex-1 gap-3 ' + gridClass()">
+         strip below. See displayedTiles for the ordering and for why maximise drops the cameras.
+
+         Forced to two columns while the invite card is showing, rather than trusting gridClass():
+         gridClass() counts displayedTiles() alone, which is deliberately unaware of the card (see
+         showInviteCard), so a lone tile still gets 'grid-cols-1' from that computed - correct for
+         gridClass() itself, wrong for what this div needs to render two tiles side by side. -->
+    <div [class]="'grid min-h-0 flex-1 gap-3 ' + (showInviteCard() ? 'grid-cols-2' : gridClass())">
         @for (tile of displayedTiles(); track tile.id) {
             @if (tile.kind === 'share') {
                 @let share = tile.share;
@@ -43,6 +48,14 @@
                         [videoStream]="tile.participant.videoStream ?? null"
                         class="min-h-0"/>
             }
+        }
+
+        <!-- Fills the empty half of a one-tile stage. Not a tile in displayedTiles() - it is not a
+             share and not a participant, so it must never reach displayedShares() or the watch-claim
+             effect above, and it carries no (invite) handler because the invite mechanic itself does
+             not exist yet (see app-call-invite-card's class doc). -->
+        @if (showInviteCard()) {
+            <app-call-invite-card class="min-h-0"/>
         }
     </div>
 

@@ -5,9 +5,6 @@ import {RustMediaService} from '../../../../../services/rust-media.service';
 import {StreamPreset} from '../../../../../models/stream-preset';
 import {CallParticipant, CallParticipantMenuData, CallScreenShare} from '../../../../../shared/call/call.types';
 import {trackAudioWait} from '../../../../../shared/call/audio-wait';
-import {
-  CallParticipantTileComponent
-} from '../../../../../shared/call/call-participant-tile/call-participant-tile.component';
 import {CallControlsBarComponent} from '../../../../../shared/call/call-controls-bar/call-controls-bar.component';
 import {AutoHideCallControlsDirective} from '../../../../../shared/call/auto-hide-call-controls.directive';
 import {CallScreenLayoutComponent} from '../../../../../shared/call/call-screen-layout/call-screen-layout.component';
@@ -32,7 +29,6 @@ const CHIP_BASE = 'call-focusable flex size-[1.375rem] shrink-0 cursor-pointer i
     templateUrl: './call-panel.component.html',
     styleUrl: './call-panel.component.css',
     imports: [
-        CallParticipantTileComponent,
         CallControlsBarComponent,
         CallScreenLayoutComponent,
         CallContextMenuComponent,

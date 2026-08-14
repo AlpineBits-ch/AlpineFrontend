@@ -50,33 +50,23 @@
             <div appAutoHideCallControls
                  #autoHide="appAutoHideCallControls"
                  class="relative min-h-0 flex-1">
-                @if (callScreenShares().length > 0) {
-                    <app-call-screen-layout
-                            (localAudioToggle)="toggleLocalScreenAudio()"
-                            (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
-                            (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
-                            [nameOf]="resolveMemberName"
-                            [participants]="callParticipants()"
-                            [participantsWithAudio]="voiceSvc.participantsWithAudio()"
-                            [screenShares]="callScreenShares()"
-                            [watchScope]="watchScope()"
-                            class="h-full w-full"
-                    />
-                } @else {
-                    <div class="thin-scrollbar flex h-full w-full items-center justify-center overflow-y-auto
-                                bg-stage p-6 pb-call-controls">
-                        <div [class]="'grid w-full justify-center gap-6 ' + participantGridClass()">
-                            @for (p of participants(); track p.userId) {
-                                <app-call-participant-tile
-                                        (contextMenu)="onParticipantContextMenu($event, p)"
-                                        [audioState]="audio.stateOf(p.userId)"
-                                        [participant]="p"
-                                        [videoStream]="p.isLocal ? voiceSvc.localVideoStream() : voiceSvc.getVideoStream(p.userId)"
-                                />
-                            }
-                        </div>
-                    </div>
-                }
+                <!-- Always the shared stage now, sharing or not - a plain voice channel used to
+                     render its own smaller grid here (see git history), which is how the invite card
+                     and this component's unified tile rules never reached a channel with nobody
+                     sharing their screen. See CallScreenLayoutComponent.cameraTiles for the no-share
+                     widening that keeps a share-less stage looking the same as that old grid did:
+                     every participant as a full seat, not a strip of avatars. -->
+                <app-call-screen-layout
+                        (localAudioToggle)="toggleLocalScreenAudio()"
+                        (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
+                        (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
+                        [nameOf]="resolveMemberName"
+                        [participants]="callParticipants()"
+                        [participantsWithAudio]="voiceSvc.participantsWithAudio()"
+                        [screenShares]="callScreenShares()"
+                        [watchScope]="watchScope()"
+                        class="h-full w-full"
+                />
 
                 <!--
                   Screen audio was asked for and could not be had.

@@ -22,12 +22,13 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideTranslateService} from '@ngx-translate/core';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 import {CallPanelComponent} from './call-panel/call-panel.component';
 import {CallSessionService} from '../../../../services/call-session.service';
 import {CallWebRtcService} from '../../../../services/call-webrtc.service';
 import {RustMediaService} from '../../../../services/rust-media.service';
 import {ApiConfigService} from '../../../../services/api-config.service';
+import {ShareWatchService} from '../../../../services/share-watch.service';
 import {provideFakePlatform} from '../../../../platform/testing/provide-fake-platform';
 
 @Component({
@@ -62,6 +63,16 @@ function render(): ComponentFixture<FullViewHostComponent> {
             provideHttpClient(),
             provideHttpClientTesting(),
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test'}},
+            // app-call-panel now always routes through app-call-screen-layout, sharing or not - see
+            // call-panel.component.html - which injects the real ShareWatchService unless overridden.
+            // That service's own dependency chain runs to GuildWebsocketService/VoiceWebsocketService
+            // -> RealtimeConnectionService -> AuthService -> OAuthService, none of which this test's
+            // module provides, and none of which this behaviour (a viewChild + `?? false` fallback)
+            // has anything to do with.
+            {
+                provide: ShareWatchService,
+                useValue: {setWatching: vi.fn(), refresh: vi.fn(), clear: vi.fn(), viewerCount: () => 0, viewersOf: () => []},
+            },
             {
                 provide: CallSessionService,
                 useValue: {

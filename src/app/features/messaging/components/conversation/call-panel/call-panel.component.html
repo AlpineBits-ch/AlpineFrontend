@@ -60,34 +60,23 @@
         <div appAutoHideCallControls
              #autoHide="appAutoHideCallControls"
              class="relative flex min-h-0 flex-1 flex-col bg-stage">
-            @if (callScreenShares().length > 0) {
-
-                <app-call-screen-layout
-                        (localAudioToggle)="toggleLocalScreenAudio()"
-                        (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
-                        (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
-                        [nameOf]="resolveParticipantName"
-                        [participants]="callParticipants()"
-                        [participantsWithAudio]="participantsWithAudio()"
-                        [screenShares]="callScreenShares()"
-                        [watchScope]="watchScope()"
-                        class="min-h-0 flex-1"
-                />
-
-            } @else {
-
-                <div [attr.data-count]="s.participants.length" class="participants thin-scrollbar">
-                    @for (p of callParticipants(); track p.userId) {
-                        <app-call-participant-tile
-                                (contextMenu)="onParticipantContextMenu($event, p)"
-                                [audioState]="audio.stateOf(p.userId)"
-                                [participant]="p"
-                                [videoStream]="p.videoStream ?? null"
-                        />
-                    }
-                </div>
-
-            }
+            <!-- Always the shared stage now, sharing or not - a DM call used to render its own
+                 `.participants` grid here (see call-panel.component.css) when nobody was sharing,
+                 which is how this surface and the guild voice channel drifted into two different
+                 no-share layouts. See CallScreenLayoutComponent.cameraTiles for the no-share
+                 widening that keeps a share-less stage looking the same as that old grid did: every
+                 participant as a full seat, not a strip of avatars. -->
+            <app-call-screen-layout
+                    (localAudioToggle)="toggleLocalScreenAudio()"
+                    (participantContextMenu)="onParticipantContextMenu($event.event, $event.participant)"
+                    (remoteAudioToggle)="toggleRemoteScreenAudio($event)"
+                    [nameOf]="resolveParticipantName"
+                    [participants]="callParticipants()"
+                    [participantsWithAudio]="participantsWithAudio()"
+                    [screenShares]="callScreenShares()"
+                    [watchScope]="watchScope()"
+                    class="min-h-0 flex-1"
+            />
 
             <!-- ── Floating controls bar ─────────────────────────────────────────
                  Hidden state is opacity + pointer-events, never display/visibility, so Tab still

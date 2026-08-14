@@ -61,29 +61,6 @@
     width: 56px;
 }
 
-/* ── Participants grid ───────────────────────────────────────────────────── */
-
-.participants {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 8px;
-    /* The bottom pad clears the floating control bar. It was a bare `114px` here and absent
-       altogether from the screen-share layout, which is why the bar sat on the participant strip
-       over there; both now read the same token. */
-    padding: 10px 12px var(--spacing-call-controls);
-    overflow-y: auto;
-    flex: 1;
-    min-height: 0;
-}
-
-/* Fewer participants → larger tiles */
-.participants[data-count="1"] {
-    grid-template-columns: repeat(1, minmax(0, 260px));
-    justify-content: center;
-}
-
-.participants[data-count="2"],
-.participants[data-count="3"],
-.participants[data-count="4"] {
-    grid-template-columns: repeat(2, 1fr);
-}
+/* The participants grid that used to live here rendered a share-less call directly, bypassing
+   app-call-screen-layout - see call-panel.component.html. The stage now always routes through that
+   component, camera-less callers included, so there is nothing left in this file to style. */

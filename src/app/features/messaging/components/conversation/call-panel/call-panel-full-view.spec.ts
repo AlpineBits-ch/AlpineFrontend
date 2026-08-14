@@ -12,12 +12,13 @@ import {signal} from '@angular/core';
 import {provideHttpClient} from '@angular/common/http';
 import {provideHttpClientTesting} from '@angular/common/http/testing';
 import {provideTranslateService} from '@ngx-translate/core';
-import {beforeEach, describe, expect, it} from 'vitest';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {CallPanelComponent} from './call-panel.component';
 import {CallSessionService} from '../../../../../services/call-session.service';
 import {CallWebRtcService} from '../../../../../services/call-webrtc.service';
 import {RustMediaService} from '../../../../../services/rust-media.service';
 import {ApiConfigService} from '../../../../../services/api-config.service';
+import {ShareWatchService} from '../../../../../services/share-watch.service';
 import {provideFakePlatform} from '../../../../../platform/testing/provide-fake-platform';
 
 /** The handful of `protected` members these tests need to drive directly, the same
@@ -51,6 +52,15 @@ function render(): ComponentFixture<CallPanelComponent> {
             provideHttpClient(),
             provideHttpClientTesting(),
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test'}},
+            // The panel now always routes through app-call-screen-layout, sharing or not - see
+            // call-panel.component.html - which injects the real ShareWatchService unless overridden.
+            // Its dependency chain runs to GuildWebsocketService/VoiceWebsocketService ->
+            // RealtimeConnectionService -> AuthService -> OAuthService, none of which this test's
+            // module provides and none of which the resize/full-view behaviour under test touches.
+            {
+                provide: ShareWatchService,
+                useValue: {setWatching: vi.fn(), refresh: vi.fn(), clear: vi.fn(), viewerCount: () => 0, viewersOf: () => []},
+            },
             {
                 provide: CallSessionService,
                 useValue: {

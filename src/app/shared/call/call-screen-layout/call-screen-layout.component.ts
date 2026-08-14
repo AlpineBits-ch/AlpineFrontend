@@ -12,6 +12,7 @@ import {AppAvatarComponent} from '../../../components/avatar/avatar.component';
 import {StreamSrcDirective} from '../../../directives/stream-src.directive';
 import {trackAudioWait} from '../audio-wait';
 import {CallAudioStatusComponent} from '../call-audio-status/call-audio-status.component';
+import {CallInviteCardComponent} from '../call-invite-card/call-invite-card.component';
 import {CallParticipantTileComponent} from '../call-participant-tile/call-participant-tile.component';
 import {CallShareTileComponent} from '../call-share-tile/call-share-tile.component';
 import {CallTileActionComponent} from '../call-tile-action/call-tile-action.component';
@@ -26,6 +27,7 @@ import {RustMediaService} from '../../../services/rust-media.service';
         AppAvatarComponent,
         StreamSrcDirective,
         CallAudioStatusComponent,
+        CallInviteCardComponent,
         CallParticipantTileComponent,
         CallShareTileComponent,
         CallTileActionComponent,
@@ -101,14 +103,30 @@ export class CallScreenLayoutComponent implements OnDestroy {
     });
 
     /**
-     * Everyone whose camera earns a full tile on the stage.
+     * Everyone who earns a full tile on the stage as themselves, rather than a row entry below it.
      *
-     * <p>Gated on `isCameraOn` alone rather than on a stream having arrived, because
-     * `app-call-participant-tile` draws the "camera on, track still negotiating" state itself. Waiting
-     * for the track would mean the seat appearing a beat late and the whole grid reflowing under the
-     * other tiles the moment it did.</p>
+     * <p>Two different rules, chosen by whether anything is being shared. <b>With a share on
+     * stage</b>, only a camera earns a tile - gated on `isCameraOn` alone rather than on a stream
+     * having arrived, because `app-call-participant-tile` draws the "camera on, track still
+     * negotiating" state itself, and waiting for the track would mean the seat appearing a beat late
+     * and the whole grid reflowing under the other tiles the moment it did.</p>
+     *
+     * <p><b>With nothing being shared</b>, every participant gets a tile, camera on or off. Both
+     * call hosts used to bypass this component entirely for that case, rendering their own smaller
+     * grid of `app-call-participant-tile`s instead - which is how a plain voice channel with one
+     * person in it ended up with no invite card and two divergent layouts between the guild and DM
+     * surfaces. Now that both hosts always route through here, a share-less stage has to look the
+     * same as it did before: everybody as a full seat, not a strip of avatars under an empty grid.
+     * `app-call-participant-tile` already draws a complete seat for someone with no camera - a
+     * centred avatar with the name pill - so there is nothing extra to build for this case, only
+     * this pool to widen.</p>
      */
-    private readonly cameraTiles = computed(() => this.participants().filter(p => p.isCameraOn).map(cameraTile));
+    private readonly cameraTiles = computed(() => {
+        const pool = this.displayedShares().length > 0
+            ? this.participants().filter(p => p.isCameraOn)
+            : this.participants();
+        return pool.map(cameraTile);
+    });
 
     /**
      * The one stage: screen shares and cameras as tiles in the same grid, at the same size.
@@ -143,7 +161,11 @@ export class CallScreenLayoutComponent implements OnDestroy {
      * <p>A camera tile is a complete replacement for a strip entry - it carries the name, the muted
      * glyph, the speaking ring, the audio-wait badge and the context menu (see
      * call-participant-tile.component.html), so leaving the same person in the strip below would be
-     * showing them twice.</p>
+     * showing them twice. The `'camera'` kind is a misnomer once {@link cameraTiles} widens to
+     * everybody on a share-less stage - it can hold a participant with no camera at all - but the
+     * tile still carries everything a strip entry does, so the replacement argument holds regardless.
+     * With no share on stage, every participant lands here, which is what empties this row down to
+     * nothing while a lone caller sees a full seat on the grid instead of a 32px avatar underneath it.</p>
      *
      * <p>A share tile is <em>not</em>, and a sharer with their camera off therefore keeps their seat
      * here. It shows a screen, not a person: neither the audio-wait badge nor the participant context
@@ -206,6 +228,21 @@ export class CallScreenLayoutComponent implements OnDestroy {
         if (count <= 9) return 'grid-cols-3';
         return 'grid-cols-4';
     });
+
+    /**
+     * Whether `app-call-invite-card` fills the stage beside a lone tile - see that component's own
+     * class doc for what it is and is not (layout only, no invite mechanic wired to it yet).
+     *
+     * <p>Gated on the stage holding exactly one tile: with two or more there is already something
+     * worth looking at and the card would be competing with it for room, and with none there is
+     * nobody on the stage to be beside. Deliberately reading {@link displayedTiles} rather than
+     * being folded into it - the card is not a share and not a participant, so it must never reach
+     * {@link displayedShares} or the watch-claim effect in the constructor, both of which are keyed
+     * off the tile list. The template compensates for the card's extra slot at the render layer
+     * (forcing two columns) rather than here, so {@link gridClass}'s own count and thresholds stay
+     * exactly what the existing specs pin them to.</p>
+     */
+    protected readonly showInviteCard = computed(() => this.displayedTiles().length === 1);
 
     /**
      * Whether to offer the persistent grid/focus control - see {@link toggleGridFocus}.

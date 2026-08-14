@@ -65,6 +65,7 @@ interface ProtectedSurface {
     canToggleFocus: () => boolean;
     selfCard: () => CallScreenShare | null;
     gridClass: () => string;
+    showInviteCard: () => boolean;
     maximizedId: {(): string | null; set: (id: string | null) => void};
     toggleGridFocus: () => void;
     viewerNames: (shareId: string) => string[];
@@ -530,5 +531,110 @@ describe('CallScreenLayoutComponent watch claim beside cameras', () => {
         fixture.detectChanges();
 
         expect(lastWatched(setWatching)).toEqual(['a']);
+    });
+});
+
+describe('CallScreenLayoutComponent share-less stage (Task 18)', () => {
+    beforeEach(() => {
+        TestBed.resetTestingModule();
+        HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve());
+        HTMLMediaElement.prototype.pause = vi.fn();
+    });
+
+    it('gives every participant a full tile when nothing is being shared, camera or not', () => {
+        // Both call hosts used to render their own smaller grid for exactly this case, bypassing
+        // this component entirely - see voice-channel.component.html / call-panel.component.html.
+        // Now that they always route through here, a share-less stage has to seat everybody, not
+        // just the camera-on ones.
+        const {layout} = setup([], {
+            participants: [participant('a'), participant('b', {isCameraOn: true})],
+        });
+
+        expect(layout.displayedTiles().map(t => t.id)).toEqual(['camera:a', 'camera:b']);
+        expect(layout.stripParticipants()).toEqual([]);
+    });
+
+    it('keeps the old camera-only rule the moment anything is shared', () => {
+        // The widening is specifically for the share-less case - with a share on stage, a
+        // camera-off participant still belongs in the strip, unchanged from before this task.
+        const {layout} = setup([share('a')], {
+            participants: [participant('cam-on', {isCameraOn: true}), participant('cam-off')],
+        });
+
+        expect(layout.displayedTiles().map(t => t.id)).toEqual(['share:a', 'camera:cam-on']);
+        expect(layout.stripParticipants().map(p => p.userId)).toEqual(['cam-off']);
+    });
+
+    it('keeps gridClass()\'s thresholds intact against the larger share-less pool', () => {
+        // Not a new threshold - the same <=1/<=4/<=9 boundaries, now fed by a bigger count. Nine
+        // share-less participants still fits three columns, exactly like nine cameras already did
+        // (see the "one stage" describe block above).
+        const nine = Array.from({length: 9}, (_, i) => participant(`p-${i}`));
+
+        expect(setup([], {participants: nine}).layout.gridClass()).toBe('grid-cols-3');
+    });
+
+    it('claims nothing for a share-less stage full of participants', () => {
+        // The recording-stub pattern from the "watch claim beside cameras" block above: participant
+        // tiles are not shares, so widening displayedTiles() to include them must not put anything
+        // into the claim this client announces to ShareWatchService.
+        const scope: WatchScope = {kind: 'call', callId: 'call-1'};
+        const {setWatching} = setup([], {
+            watchScope: scope,
+            participants: [participant('a'), participant('b', {isCameraOn: true})],
+        });
+
+        expect(lastWatched(setWatching)).toEqual([]);
+    });
+});
+
+describe('CallScreenLayoutComponent invite card (Task 18)', () => {
+    beforeEach(() => {
+        TestBed.resetTestingModule();
+        HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve());
+        HTMLMediaElement.prototype.pause = vi.fn();
+    });
+
+    it('shows the invite card beside a lone tile', () => {
+        const {fixture, layout} = setup([], {participants: [participant('solo')]});
+
+        expect(layout.showInviteCard()).toBe(true);
+        expect(fixture.nativeElement.querySelectorAll('app-call-invite-card').length).toBe(1);
+    });
+
+    it('does not show the card once a second tile exists', () => {
+        const {fixture, layout} = setup([], {
+            participants: [participant('a'), participant('b')],
+        });
+
+        expect(layout.showInviteCard()).toBe(false);
+        expect(fixture.nativeElement.querySelectorAll('app-call-invite-card').length).toBe(0);
+    });
+
+    it('does not show the card on an empty stage', () => {
+        const {layout} = setup([], {participants: []});
+
+        expect(layout.showInviteCard()).toBe(false);
+    });
+
+    it('forces two grid columns for the card without changing what gridClass() itself reports', () => {
+        // gridClass() stays pinned at 'grid-cols-1' for a one-tile count - existing specs assert
+        // that directly. The template compensates at the render layer instead (see
+        // call-screen-layout.component.html), which is what this asserts against the actual DOM.
+        const {fixture, layout} = setup([], {participants: [participant('solo')]});
+
+        expect(layout.gridClass()).toBe('grid-cols-1');
+        const grid: HTMLElement = fixture.nativeElement.querySelector('.grid');
+        expect(grid.className).toContain('grid-cols-2');
+        expect(grid.className).not.toContain('grid-cols-1');
+    });
+
+    it('never lets the card reach displayedShares() or the watch claim', () => {
+        const scope: WatchScope = {kind: 'call', callId: 'call-1'};
+        const {layout, setWatching} = setup([], {watchScope: scope, participants: [participant('solo')]});
+
+        expect(layout.showInviteCard()).toBe(true);
+        expect(layout.displayedShares()).toEqual([]);
+        expect(lastWatched(setWatching)).toEqual([]);
     });
 });

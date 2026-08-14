@@ -12,9 +12,6 @@ import {RustMediaService} from '../../../../services/rust-media.service';
 import {StreamPreset} from '../../../../models/stream-preset';
 import {VoiceChannelLobbyComponent} from './voice-channel-lobby.component';
 import {CallContextMenuComponent} from '../../../../shared/call/call-context-menu/call-context-menu.component';
-import {
-  CallParticipantTileComponent
-} from '../../../../shared/call/call-participant-tile/call-participant-tile.component';
 import {CallControlsBarComponent} from '../../../../shared/call/call-controls-bar/call-controls-bar.component';
 import {AutoHideCallControlsDirective} from '../../../../shared/call/auto-hide-call-controls.directive';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
@@ -33,7 +30,6 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
     imports: [
         VoiceChannelLobbyComponent,
         CallContextMenuComponent,
-        CallParticipantTileComponent,
         CallControlsBarComponent,
         CallScreenLayoutComponent,
         CallStatusBarComponent,
@@ -103,15 +99,6 @@ export class VoiceChannelComponent {
         ?? this.translate.instant('CALL.UNKNOWN_VIEWER');
 
     // ── Computed helpers ───────────────────────────────────────────────────────
-    protected participantGridClass = computed(() => {
-        const n = this.participants().length;
-        if (n === 1) return 'grid-cols-1 max-w-[240px]';
-        if (n === 2) return 'grid-cols-2 max-w-[480px]';
-        if (n <= 4) return 'grid-cols-2 max-w-[480px]';
-        if (n <= 6) return 'grid-cols-3 max-w-[720px]';
-        if (n <= 12) return 'grid-cols-4 max-w-[960px]';
-        return 'grid-cols-6';
-    });
     protected participantMenu = signal<CallParticipantMenuData | null>(null);
     private guildSvc = inject(GuildService);
     private ownMemberRevision = inject(OwnMemberRevisionService);

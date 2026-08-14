@@ -19,7 +19,7 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {signal, WritableSignal} from '@angular/core';
 import {of} from 'rxjs';
 import {provideTranslateService} from '@ngx-translate/core';
-import {describe, expect, it} from 'vitest';
+import {describe, expect, it, vi} from 'vitest';
 import {VoiceChannelComponent} from './voice-channel.component';
 import {VoiceChannelService} from '../../../../services/voice-channel.service';
 import {RustMediaService} from '../../../../services/rust-media.service';
@@ -28,6 +28,7 @@ import {GuildService} from '../../../../services/guild.service';
 import {GuildVoiceService} from '../../../../services/guild-voice.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {OwnMemberRevisionService} from '../../../../services/own-member-revision.service';
+import {ShareWatchService} from '../../../../services/share-watch.service';
 import {ChannelDto, ChannelType} from '../../../../dtos/response/guild.dto';
 
 const CHANNEL = {
@@ -93,6 +94,15 @@ function render(options: Options = {}): ComponentFixture<VoiceChannelComponent> 
             {provide: GuildService, useValue: {getOwnMember: () => of(null)}},
             {provide: OwnMemberRevisionService, useValue: {revision: signal(0)}},
             {provide: GuildVoiceService, useValue: {}},
+            // The joined view now always routes through app-call-screen-layout, sharing or not - see
+            // voice-channel.component.html - which injects the real ShareWatchService unless
+            // overridden. Its dependency chain runs to GuildWebsocketService/VoiceWebsocketService ->
+            // RealtimeConnectionService -> AuthService -> OAuthService, none of which this test's
+            // module provides and none of which the screen-audio notice touches.
+            {
+                provide: ShareWatchService,
+                useValue: {setWatching: vi.fn(), refresh: vi.fn(), clear: vi.fn(), viewerCount: () => 0, viewersOf: () => []},
+            },
         ],
     });
 
