@@ -37,9 +37,16 @@ describe('AutoHideCallControlsDirective', () => {
         TestBed.resetTestingModule();
         vi.useFakeTimers();
         fixture = TestBed.createComponent(HostComponent);
+        // Real, connected to the document - not just constructed - so that `button().focus()` below
+        // is genuine keyboard-reachability, not a synthetic event dispatched at a detached node.
+        // jsdom only moves `document.activeElement` for elements that are actually in the document.
+        document.body.appendChild(fixture.nativeElement);
     });
 
-    afterEach(() => vi.useRealTimers());
+    afterEach(() => {
+        vi.useRealTimers();
+        fixture.nativeElement.remove();
+    });
 
     function stage(): HTMLElement {
         return fixture.nativeElement.querySelector('.stage');
@@ -47,6 +54,10 @@ describe('AutoHideCallControlsDirective', () => {
 
     function bar(): HTMLElement {
         return fixture.nativeElement.querySelector('.bar');
+    }
+
+    function button(): HTMLButtonElement {
+        return fixture.nativeElement.querySelector('.bar button');
     }
 
     /** Real DOM state, not the directive's internal signal - see file header. */
@@ -105,8 +116,15 @@ describe('AutoHideCallControlsDirective', () => {
         fixture.componentInstance.hasVideo = true;
         tick();
 
-        bar().dispatchEvent(new Event('focusin', {bubbles: true}));
+        // A real focus, not a synthetic `focusin` dispatched at the wrapper - this must fail if the
+        // button ever became genuinely unfocusable (`disabled`, `inert`, or the hidden state
+        // regressing to `display`/`visibility`), not just if the directive's own bookkeeping broke.
+        // (A stray `tabindex="-1"` would not trip this: it only drops an element from *sequential*
+        // Tab order, which `.focus()` does not exercise - jsdom has no Tab-key traversal to test
+        // that against, so it stays an accessibility-review concern, not a unit-test one.)
+        button().focus();
         tick();
+        expect(document.activeElement).toBe(button());
 
         vi.advanceTimersByTime(CONTROLS_IDLE_MS * 5);
         tick();
@@ -123,9 +141,12 @@ describe('AutoHideCallControlsDirective', () => {
         expect(isHidden()).toBe(true);
 
         // Tabbing to a control inside the (invisible but still focusable) bar must bring it back.
-        bar().dispatchEvent(new Event('focusin', {bubbles: true}));
+        // `.focus()` proves the button is genuinely still reachable while faded out - `display:none`
+        // or `visibility:hidden` would make this a no-op, and the assertion below would catch it.
+        button().focus();
         tick();
 
+        expect(document.activeElement).toBe(button());
         expect(isHidden()).toBe(false);
     });
 });
