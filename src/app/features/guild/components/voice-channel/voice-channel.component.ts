@@ -16,6 +16,7 @@ import {
   CallParticipantTileComponent
 } from '../../../../shared/call/call-participant-tile/call-participant-tile.component';
 import {CallControlsBarComponent} from '../../../../shared/call/call-controls-bar/call-controls-bar.component';
+import {AutoHideCallControlsDirective} from '../../../../shared/call/auto-hide-call-controls.directive';
 import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {CallScreenLayoutComponent} from '../../../../shared/call/call-screen-layout/call-screen-layout.component';
 import {CallStatusBarComponent} from '../../../../shared/call/call-status-bar/call-status-bar.component';
@@ -36,6 +37,7 @@ import {TranslateModule, TranslateService} from '@ngx-translate/core';
         CallControlsBarComponent,
         CallScreenLayoutComponent,
         CallStatusBarComponent,
+        AutoHideCallControlsDirective,
         TranslateModule,
     ],
     templateUrl: './voice-channel.component.html',
@@ -80,6 +82,14 @@ export class VoiceChannelComponent {
     );
     protected isJoined = computed(() =>
         this.voiceSvc.joinedChannelId() === this.channel().id,
+    );
+    /**
+     * Gates the controls-bar auto-hide (see `AutoHideCallControlsDirective`). With neither a share
+     * nor a camera on the stage, the participant grid is the content, and hiding the controls over
+     * it would only remove function for no gain.
+     */
+    protected hasStageVideo = computed(() =>
+        this.callScreenShares().length > 0 || this.participants().some(p => p.isCameraOn),
     );
     /** Null until joined: watching is a claim only a participant of the channel may make. */
     protected watchScope = computed((): WatchScope | null => this.isJoined()

@@ -9,6 +9,7 @@ import {
   CallParticipantTileComponent
 } from '../../../../../shared/call/call-participant-tile/call-participant-tile.component';
 import {CallControlsBarComponent} from '../../../../../shared/call/call-controls-bar/call-controls-bar.component';
+import {AutoHideCallControlsDirective} from '../../../../../shared/call/auto-hide-call-controls.directive';
 import {CallScreenLayoutComponent} from '../../../../../shared/call/call-screen-layout/call-screen-layout.component';
 import {CallContextMenuComponent} from '../../../../../shared/call/call-context-menu/call-context-menu.component';
 import {CallStatusBarComponent} from '../../../../../shared/call/call-status-bar/call-status-bar.component';
@@ -37,6 +38,7 @@ const CHIP_BASE = 'call-focusable flex size-[1.375rem] shrink-0 cursor-pointer i
         CallContextMenuComponent,
         CallStatusBarComponent,
         CallStatsPopoverComponent,
+        AutoHideCallControlsDirective,
         TranslateModule,
     ],
 })
@@ -88,6 +90,14 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     protected readonly resolveParticipantName = (userId: string): string =>
         this.callParticipants().find(p => p.userId === userId)?.displayName
         ?? this.translate.instant('CALL.UNKNOWN_VIEWER');
+    /**
+     * Gates the controls-bar auto-hide (see `AutoHideCallControlsDirective`). With neither a share
+     * nor a camera on the stage, the participant grid is the content, and hiding the controls over
+     * it would only remove function for no gain.
+     */
+    protected hasStageVideo = computed(() =>
+        this.callScreenShares().length > 0 || this.callParticipants().some(p => p.isCameraOn),
+    );
     protected screenPreset = this.callSession.screenPreset;
     /** Set only while the local user is the last one in the call. */
     protected aloneUntil = computed(() => formatAloneDeadline(this.callSession.aloneDeadline()));

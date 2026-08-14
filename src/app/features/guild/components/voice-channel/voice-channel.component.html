@@ -47,7 +47,9 @@
                     [rtcState]="voiceSvc.rtcState()"
                     [stalledAudio]="audio.anyStalled()"/>
 
-            <div class="relative min-h-0 flex-1">
+            <div [appAutoHideCallControls]="hasStageVideo()"
+                 #autoHide="appAutoHideCallControls"
+                 class="relative min-h-0 flex-1">
                 @if (callScreenShares().length > 0) {
                     <app-call-screen-layout
                             (localAudioToggle)="toggleLocalScreenAudio()"
@@ -93,7 +95,9 @@
                     </div>
                 }
 
-                <!-- Floating controls bar -->
+                <!-- Floating controls bar. Hidden state is opacity + pointer-events, never
+                     display/visibility, so Tab still reaches it and reaching it by Tab reveals it -
+                     see AutoHideCallControlsDirective on the stage container above. -->
                 <div class="pointer-events-none absolute bottom-8 left-0 right-0 z-20 flex justify-center">
                     <app-call-controls-bar
                             (cameraToggle)="toggleCamera()"
@@ -103,6 +107,13 @@
                             (presetChange)="setScreenPreset($event)"
                             (screenAudioToggle)="toggleLocalScreenAudio()"
                             (screenShareToggle)="toggleScreenShare()"
+                            (focusin)="autoHide.onControlsFocusIn()"
+                            (focusout)="autoHide.onControlsFocusOut()"
+                            (pointerenter)="autoHide.onControlsPointerEnter()"
+                            (pointerleave)="autoHide.onControlsPointerLeave()"
+                            [class.opacity-0]="!autoHide.revealed()"
+                            [class.pointer-events-auto]="autoHide.revealed()"
+                            [class.pointer-events-none]="!autoHide.revealed()"
                             [disconnectLabel]="'CALL.DISCONNECT' | translate"
                             [isCameraOn]="voiceSvc.localState().isCameraOn"
                             [isDeafened]="voiceSvc.localState().isDeafened"
@@ -111,7 +122,7 @@
                             [preset]="voiceSvc.rtc.screenPreset()"
                             [screenAudioMuted]="voiceSvc.localScreenAudioMuted()"
                             [screenHasAudio]="voiceSvc.localScreenHasAudio()"
-                            class="pointer-events-auto"
+                            class="transition-opacity duration-150 motion-reduce:transition-none"
                     />
                 </div>
             </div>
