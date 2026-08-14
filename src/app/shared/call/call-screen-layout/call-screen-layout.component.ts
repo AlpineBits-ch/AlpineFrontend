@@ -6,7 +6,9 @@ import {StreamSrcDirective} from '../../../directives/stream-src.directive';
 import {trackAudioWait} from '../audio-wait';
 import {CallAudioStatusComponent} from '../call-audio-status/call-audio-status.component';
 import {CallShareTileComponent} from '../call-share-tile/call-share-tile.component';
-import {ShareWatchService, WatchScope} from '../../../services/share-watch.service';
+import {CallTileActionComponent} from '../call-tile-action/call-tile-action.component';
+import {ShareWatchService, WatchScope, scopeKey} from '../../../services/share-watch.service';
+import {CallFocusService} from '../../../services/call-focus.service';
 
 @Component({
     selector: 'app-call-screen-layout',
@@ -16,6 +18,7 @@ import {ShareWatchService, WatchScope} from '../../../services/share-watch.servi
         StreamSrcDirective,
         CallAudioStatusComponent,
         CallShareTileComponent,
+        CallTileActionComponent,
     ],
     templateUrl: './call-screen-layout.component.html',
     host: {
@@ -34,6 +37,7 @@ export class CallScreenLayoutComponent implements OnDestroy {
 
     protected readonly audio = trackAudioWait(this.participants, this.participantsWithAudio);
     private readonly shareWatch = inject(ShareWatchService);
+    private readonly callFocus = inject(CallFocusService);
 
     participantContextMenu = output<CallScreenLayoutContextMenuEvent>();
     localAudioToggle = output<void>();
@@ -95,6 +99,22 @@ export class CallScreenLayoutComponent implements OnDestroy {
             const scope = this.watchScope();
             if (scope) this.shareWatch.refresh(scope);
         });
+
+        // The door an external caller uses to say "focus this share" - a notification action,
+        // click-to-watch, the mini-player - without reaching into maximizedId, which stays private.
+        // CallFocusService.consume() reads its own signal, so calling it here is what makes this
+        // effect re-run on the next request; consuming it is what makes the request one-shot.
+        effect(() => {
+            const scope = this.watchScope();
+            if (!scope) return;
+
+            const target = this.callFocus.consume(scopeKey(scope));
+            if (!target) return;
+
+            const shareId = target.shareId
+                ?? (target.userId ? this.getShareForUser(target.userId)?.shareId : undefined);
+            if (shareId) this.maximizedId.set(shareId);
+        }, {allowSignalWrites: true});
     }
 
     ngOnDestroy(): void {
@@ -119,6 +139,22 @@ export class CallScreenLayoutComponent implements OnDestroy {
 
     protected toggleMaximize(shareId: string): void {
         this.maximizedId.update(id => id === shareId ? null : shareId);
+    }
+
+    /**
+     * The persistent grid/focus control, for when nobody has hovered a specific tile to reach its
+     * own maximise button. Maximised clears back to the grid - the honest inverse of the state it is
+     * in. In the grid, there is no single "the" share to focus without a specific tile having been
+     * picked, so it focuses the first one displayed; a double-click on a particular tile (see
+     * call-share-tile.component.html) is the precise way to choose which.
+     */
+    protected toggleGridFocus(): void {
+        if (this.maximizedId() !== null) {
+            this.maximizedId.set(null);
+            return;
+        }
+        const first = this.displayedShares()[0];
+        if (first) this.maximizedId.set(first.shareId);
     }
 
     /** Promotes the self-card into the grid, so a streamer can check their own output. */

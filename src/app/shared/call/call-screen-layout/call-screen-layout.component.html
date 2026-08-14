@@ -1,5 +1,22 @@
 <div class="flex min-h-0 flex-1 flex-col gap-3 bg-stage p-4 pb-call-controls">
 
+    <!-- Grid/focus toggle. Reachable without hovering any particular tile - the per-tile maximise
+         button (see call-share-tile.component.html) needs a hover to appear at all, which is no use
+         to whatever set maximizedId from outside the stage (CallFocusService) and now wants a way
+         back to the grid without knowing which tile is showing. Hidden when there is only one share
+         and nothing maximised: with a single stream, grid and focus are the same view, so a toggle
+         between them would have nothing to do. -->
+    @if (displayedShares().length > 1 || maximizedId() !== null) {
+        <div class="flex justify-end">
+            <app-call-tile-action
+                    (action)="toggleGridFocus()"
+                    [label]="(maximizedId() ? 'CALL.SHOW_OTHER_STREAMS' : 'CALL.HIDE_OTHER_STREAMS') | translate"
+                    [icon]="maximizedId() ? 'pi-window-minimize' : 'pi-window-maximize'"
+                    [pressed]="maximizedId() !== null"
+                    size="sm"/>
+        </div>
+    }
+
     <!-- Stream tiles -->
     <div [class]="'grid min-h-0 flex-1 gap-3 ' + gridClass()">
         @for (share of displayedShares(); track share.shareId) {

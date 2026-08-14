@@ -1,6 +1,11 @@
 @let s = share();
 
+<!-- Double-click anywhere on the tile maximises it - the same toggle the hover-only button below
+     offers, reachable without hovering first. The buttons and the zoom controls stop this event
+     reaching here (see their own (dblclick) bindings below), so double-clicking "zoom in" cannot
+     also maximise the tile out from under the click. -->
 <div #root
+     (dblclick)="maximizeToggle.emit()"
      class="group/tile relative flex min-h-0 items-center justify-center overflow-hidden rounded-xl
             border border-border-subtle bg-black/70">
 
@@ -50,7 +55,8 @@
             </span>
         }
 
-        <div class="flex items-center gap-1.5 opacity-0 transition-opacity
+        <div (dblclick)="$event.stopPropagation()"
+             class="flex items-center gap-1.5 opacity-0 transition-opacity
                     group-hover/tile:opacity-100 focus-within:opacity-100">
             @if (canPip()) {
                 <app-call-tile-action
@@ -75,6 +81,7 @@
     @if (!s.isLocal || s.hasAudio) {
         <app-call-tile-action
                 (action)="audioToggle.emit()"
+                (dblclick)="$event.stopPropagation()"
                 [icon]="s.isAudioMuted ? 'pi-volume-off' : 'pi-volume-up'"
                 [label]="(s.isAudioMuted ? 'CALL.UNMUTE_STREAM_AUDIO' : 'CALL.MUTE_STREAM_AUDIO') | translate"
                 [pressed]="!!s.isAudioMuted"
@@ -93,7 +100,8 @@
     </div>
 
     <!-- Bottom-right: throughput, then zoom. Hover-only - zoom is a tool, not a readout. -->
-    <div class="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 opacity-0 transition-opacity
+    <div (dblclick)="$event.stopPropagation()"
+         class="absolute bottom-3 right-3 z-10 flex items-center gap-1.5 opacity-0 transition-opacity
                 group-hover/tile:opacity-100 focus-within:opacity-100">
         @if (s.isLocal && s.renderedFps != null) {
             <span class="select-none rounded bg-black/50 px-2 py-1 text-[0.6875rem] tabular-nums text-white/55
