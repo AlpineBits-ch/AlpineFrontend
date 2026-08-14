@@ -158,9 +158,14 @@ export class VoiceChannelComponent {
         event.preventDefault();
         event.stopPropagation();
         const volume = Math.round(this.voiceSvc.getUserVolume(p.userId) * 100);
+        // Left undefined when not sharing - that is what the menu template reads to decide whether
+        // the second slider has anything to control.
+        const streamVolume = p.isScreenSharing
+            ? Math.round(this.voiceSvc.getScreenVolume(p.userId) * 100)
+            : undefined;
         const x = Math.min(event.clientX, window.innerWidth - 236);
         const y = Math.min(event.clientY, window.innerHeight - 200);
-        this.participantMenu.set({x: Math.max(0, x), y: Math.max(0, y), participant: p, volume});
+        this.participantMenu.set({x: Math.max(0, x), y: Math.max(0, y), participant: p, volume, streamVolume});
     }
 
     protected onVolumeChange(value: number): void {
@@ -168,6 +173,13 @@ export class VoiceChannelComponent {
         if (!menu) return;
         this.participantMenu.set({...menu, volume: value});
         this.voiceSvc.setUserVolume(menu.participant.userId, value / 100);
+    }
+
+    protected onStreamVolumeChange(value: number): void {
+        const menu = this.participantMenu();
+        if (!menu) return;
+        this.participantMenu.set({...menu, streamVolume: value});
+        this.voiceSvc.setScreenVolume(menu.participant.userId, value / 100);
     }
 
     protected async kickParticipant(): Promise<void> {

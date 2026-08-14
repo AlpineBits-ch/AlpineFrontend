@@ -148,6 +148,12 @@ export class CallWebRtcService {
     private prevConnState: ConnectionState | null = null;
     // Per-user volume overrides (0–1.0), persisted for the call duration
     private readonly userVolumes = new Map<string, number>();
+    // Per-share volume overrides (0–1.0), persisted for the call duration.
+    //
+    // Deliberately its own map rather than reusing userVolumes: a stream's audio is a different
+    // mixer source than its author's voice (see remoteScreenAudioIds), and the two have to be
+    // adjustable independently - the same reason mute is keyed on the track rather than the user.
+    private readonly screenVolumes = new Map<string, number>();
     // ontrack events that arrived before their midMap entry was written -replayed after subscribe completes
     private readonly pendingTracks: RTCTrackEvent[] = [];
 
@@ -289,6 +295,27 @@ export class CallWebRtcService {
         return this.userVolumes.get(userId) ?? 1;
     }
 
+    /**
+     * Set one participant's *stream* volume, independent of their voice - the gap Discord parity
+     * task 6 closes. Mirrors {@link setUserVolume} exactly, applied to the share's mixer source
+     * instead of the participant's.
+     *
+     * <p>Mute is layered on top of this, not folded into it: if the stream is currently muted the
+     * new level is only remembered, not applied, so it does not audibly un-mute the stream out from
+     * under the user. {@link toggleScreenAudioMute} reads it back on unmute.</p>
+     */
+    setScreenVolume(userId: string, volume: number): void {
+        const clamped = Math.max(0, Math.min(1, volume));
+        this.screenVolumes.set(userId, clamped);
+        if (this.screenAudioMutedSignal().has(userId)) return;
+        const sourceId = this.remoteScreenAudioIds.get(userId);
+        if (sourceId) void this.voiceEngine.setUserVolume(sourceId, clamped);
+    }
+
+    getScreenVolume(userId: string): number {
+        return this.screenVolumes.get(userId) ?? 1;
+    }
+
     // ── SDP offer/answer cycle ────────────────────────────────────────────────
 
     // Serialise all SDP exchanges through a promise chain so concurrent publish
@@ -393,6 +420,12 @@ export class CallWebRtcService {
             // it, and a restarted share would otherwise come back at full volume.
             if (this.screenAudioMutedSignal().has(userId)) {
                 await this.voiceEngine.setUserVolume(trackName, 0);
+            } else {
+                // Re-apply the stored slider position, exactly as the audio branch does for voice:
+                // Rust starts every source at unity, and a volume set before this share existed (or
+                // before it restarted at a new track name) would otherwise be silently lost.
+                const volume = this.screenVolumes.get(userId);
+                if (volume !== undefined) await this.voiceEngine.setUserVolume(trackName, volume);
             }
         } catch (e) {
             if (isStaleSubscription(e)) {
@@ -432,7 +465,9 @@ export class CallWebRtcService {
     toggleScreenAudioMute(userId: string): void {
         const willMute = !this.screenAudioMutedSignal().has(userId);
         const sourceId = this.remoteScreenAudioIds.get(userId);
-        if (sourceId) void this.voiceEngine.setUserVolume(sourceId, willMute ? 0 : 1);
+        // Unmuting restores whatever volume was set, not unity - mute must not clobber the stored
+        // level. See getScreenVolume/setScreenVolume.
+        if (sourceId) void this.voiceEngine.setUserVolume(sourceId, willMute ? 0 : this.getScreenVolume(userId));
         this.screenAudioMutedSignal.update(s => {
             const n = new Set(s);
             if (willMute) n.add(userId);
@@ -499,6 +534,7 @@ export class CallWebRtcService {
         this.screenShareId = null;
         this.midMap.clear();
         this.userVolumes.clear();
+        this.screenVolumes.clear();
         this.subscribedAudioUserIds.clear();
         this.subscribedVideoTracks.clear();
         this.remoteScreenAudioIds.clear();

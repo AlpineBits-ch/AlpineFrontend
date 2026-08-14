@@ -165,6 +165,7 @@
             (close)="participantMenu.set(null)"
             (kick)="kickParticipant()"
             (serverDeafen)="toggleParticipantServerDeafen()"
+            (streamVolumeChange)="onParticipantStreamVolumeChange($event)"
             (volumeChange)="onParticipantVolumeChange($event)"
             [isSuperadmin]="isSuperadmin()"
             [menu]="menu"

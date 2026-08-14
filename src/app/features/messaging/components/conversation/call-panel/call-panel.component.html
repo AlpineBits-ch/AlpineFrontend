@@ -114,10 +114,11 @@
 
     </div>
 
-    <!-- ── Participant context menu (volume only for DM calls) ──────────────── -->
+    <!-- ── Participant context menu (volume, and stream volume when sharing, for DM calls) ──── -->
     @if (participantMenu(); as menu) {
         <app-call-context-menu
                 (close)="participantMenu.set(null)"
+                (streamVolumeChange)="onStreamVolumeChange($event)"
                 (volumeChange)="onVolumeChange($event)"
                 [isSuperadmin]="false"
                 [menu]="menu"

@@ -42,6 +42,32 @@
                type="range"/>
     </div>
 
+    <!-- Stream volume -only when this participant is actually sharing; there is nothing to attach
+         the slider to otherwise. Separate from the voice slider above: muting or turning down a
+         loud game must not touch how audible the person talking over it is. -->
+    @if (menu().streamVolume !== undefined) {
+        <div class="px-2 pb-1.5 pt-1">
+            <label class="mb-2 flex items-center gap-[0.3125rem] text-[0.6875rem] font-semibold uppercase
+                          tracking-wide text-white/40"
+                   for="call-stream-volume">
+                <svg aria-hidden="true" fill="currentColor" height="11" viewBox="0 0 24 24" width="11">
+                    <path d="M21 2H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h7v2H8v2h8v-2h-2v-2h7c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H3V4h18v12z"/>
+                </svg>
+                {{ 'CALL.STREAM_VOLUME' | translate }}
+                <span class="ml-auto font-normal normal-case tabular-nums tracking-normal text-white/60">
+                    {{ menu().streamVolume }}%
+                </span>
+            </label>
+            <input (input)="onStreamVolumeInput($event)"
+                   [value]="menu().streamVolume"
+                   class="vc-volume-slider call-focusable w-full"
+                   id="call-stream-volume"
+                   max="100"
+                   min="0"
+                   type="range"/>
+        </div>
+    }
+
     <!-- Admin actions (superadmin only) -->
     @if (isSuperadmin()) {
         <div aria-hidden="true" class="my-1 h-px bg-border-subtle"></div>

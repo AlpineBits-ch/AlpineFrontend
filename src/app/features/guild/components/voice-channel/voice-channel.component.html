@@ -127,6 +127,7 @@
             (close)="participantMenu.set(null)"
             (kick)="kickParticipant()"
             (serverDeafen)="toggleServerDeafen()"
+            (streamVolumeChange)="onStreamVolumeChange($event)"
             (volumeChange)="onVolumeChange($event)"
             [isSuperadmin]="isSuperadmin()"
             [menu]="menu"

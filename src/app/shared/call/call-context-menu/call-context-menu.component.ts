@@ -20,6 +20,7 @@ export class CallContextMenuComponent {
 
     close = output<void>();
     volumeChange = output<number>();
+    streamVolumeChange = output<number>();
     kick = output<void>();
     ban = output<void>();
     serverDeafen = output<void>();
@@ -36,5 +37,9 @@ export class CallContextMenuComponent {
 
     onVolumeInput(event: Event): void {
         this.volumeChange.emit(parseInt((event.target as HTMLInputElement).value, 10));
+    }
+
+    onStreamVolumeInput(event: Event): void {
+        this.streamVolumeChange.emit(parseInt((event.target as HTMLInputElement).value, 10));
     }
 }
