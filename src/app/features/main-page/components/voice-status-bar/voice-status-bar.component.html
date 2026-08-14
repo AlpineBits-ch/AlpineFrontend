@@ -1,4 +1,4 @@
-@if (voiceSvc.isInVoice()) {
+@if (isActive()) {
     @let status = callStatus();
 
     <div class="shrink-0 select-none border-t border-border-subtle bg-sidebar px-3 py-2">
@@ -9,27 +9,50 @@
                  uses, so the sidebar cannot disagree with the call about how it is going. -->
             <span [class]="dotClass()"></span>
 
-            <!-- Channel info (clickable) -->
+            <!-- Channel/peer info (clickable) -->
             <button
-                    (click)="navigateToChannel()"
+                    (click)="navigate()"
                     class="call-focusable min-w-0 flex-1 cursor-pointer border-0 bg-transparent p-0 text-left"
                     type="button">
                 <p [class]="'text-xs font-semibold leading-tight ' + labelClass()">
                     {{ status.labelKey | translate }}
                 </p>
                 <p class="mt-0.5 truncate text-[0.6875rem] leading-tight text-white/55">
-                    {{ voiceSvc.joinedChannelName() }}
-                    @if (voiceSvc.joinedGuildName()) {
-                        <span class="text-white/35"> · {{ voiceSvc.joinedGuildName() }}</span>
+                    @if (isGuildVoice()) {
+                        {{ voiceSvc.joinedChannelName() }}
+                        @if (voiceSvc.joinedGuildName()) {
+                            <span class="text-white/35"> · {{ voiceSvc.joinedGuildName() }}</span>
+                        }
+                    } @else {
+                        {{ dmPeerName() }}
                     }
                 </p>
             </button>
 
-            <!-- Disconnect -->
+            <!-- Stop sharing. Only while this client's own screen is going out - see isSharing().
+                 The self-card inside the call stage goes null the moment nobody else is sharing,
+                 and disappears entirely once the call view is navigated away from, so this is the
+                 one control left that can turn a share off from anywhere in the app. -->
+            @if (isSharing()) {
+                <button
+                        (click)="stopSharing()"
+                        [attr.aria-label]="'CALL.STOP_SHARING' | translate"
+                        [attr.title]="'CALL.STOP_SHARING' | translate"
+                        class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg
+                               border-0 bg-live/15 text-live transition-colors hover:bg-live/25"
+                        type="button">
+                    <i class="pi pi-desktop text-xs"></i>
+                </button>
+            }
+
+            <!-- Disconnect. Label differs by surface - see disconnectLabelKey(): guild voice gets
+                 the channel-specific wording, a DM call gets the locale-neutral one, because the
+                 channel-specific key is not just guild-flavoured but factually wrong in German and
+                 French for a call that has no channel. -->
             <button
-                    (click)="voiceSvc.leaveChannel()"
-                    [attr.aria-label]="'VOICE_BAR.DISCONNECT' | translate"
-                    [attr.title]="'VOICE_BAR.DISCONNECT' | translate"
+                    (click)="disconnect()"
+                    [attr.aria-label]="disconnectLabelKey() | translate"
+                    [attr.title]="disconnectLabelKey() | translate"
                     class="call-focusable flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-lg
                            border-0 bg-offline/15 text-offline transition-colors hover:bg-offline/25"
                     type="button">
@@ -37,5 +60,30 @@
             </button>
 
         </div>
+
+        <!-- Live row: a thumbnail of what is actually going out (or a desktop glyph before the
+             first frame arrives), plus the shared LIVE marker. Screen-share publishing runs
+             through Rust, so there is no MediaStream to bind here on desktop - only the low-rate
+             preview `RustMediaService` exposes for exactly this purpose. -->
+        @if (isSharing()) {
+            <div class="mt-2 flex items-center gap-2 rounded-lg border border-border-subtle bg-card px-2 py-1.5">
+                <span class="relative aspect-video w-10 shrink-0 overflow-hidden rounded bg-black">
+                    @if (rustMedia.publishPreview(); as preview) {
+                        <img [alt]="'CALL.YOUR_SCREEN' | translate" [src]="preview"
+                             class="h-full w-full object-contain"/>
+                    } @else {
+                        <span class="flex h-full w-full items-center justify-center">
+                            <i class="pi pi-desktop text-xs text-white/20"></i>
+                        </span>
+                    }
+                </span>
+                <span class="min-w-0">
+                    <app-call-live-badge [dot]="true" size="sm" variant="soft"/>
+                    <span class="mt-0.5 block truncate text-[0.6875rem] text-white/55">
+                        {{ 'CALL.YOU_ARE_LIVE' | translate }}
+                    </span>
+                </span>
+            </div>
+        }
     </div>
 }

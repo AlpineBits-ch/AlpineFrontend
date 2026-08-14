@@ -1,0 +1,305 @@
+import {ComponentFixture, TestBed} from '@angular/core/testing';
+import {signal, WritableSignal} from '@angular/core';
+import {provideTranslateService} from '@ngx-translate/core';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
+import {VoiceStatusBarComponent} from './voice-status-bar.component';
+import {VoiceChannelService, VoiceLocalState} from '../../../../services/voice-channel.service';
+import {CallSessionService} from '../../../../services/call-session.service';
+import {CallWebRtcService} from '../../../../services/call-webrtc.service';
+import {RustMediaService} from '../../../../services/rust-media.service';
+import {ConversationStore} from '../../../../stores/conversation.store';
+import {NavigationService, WorkspaceContext} from '../../navigation.service';
+import {ActiveCallSession, CallParticipantUi} from '../../../../services/call-session.types';
+import {ConversationDto} from '../../../../dtos/response/conversation.dto';
+
+function participant(userId: string, displayName: string, isLocal: boolean): CallParticipantUi {
+    return {
+        userId,
+        displayName,
+        avatarLabel: displayName[0]?.toUpperCase() ?? '?',
+        avatarUrl: undefined,
+        isLocal,
+        isMuted: false,
+        isSpeaking: false,
+        isCameraOn: false,
+        videoStream: undefined,
+    };
+}
+
+function dmSession(overrides: Partial<ActiveCallSession> = {}): ActiveCallSession {
+    return {
+        callId: 'call-1',
+        conversationId: 'conv-1',
+        participants: [participant('me', 'You', true), participant('them', 'Bob Testuser', false)],
+        screenShares: [],
+        local: {isMuted: false, isDeafened: false, isCameraOn: false, isSharing: false},
+        startedAt: new Date(),
+        ...overrides,
+    };
+}
+
+interface Fakes {
+    isInVoice: WritableSignal<boolean>;
+    localState: WritableSignal<VoiceLocalState>;
+    voiceRtcState: WritableSignal<string>;
+    joinedChannelName: WritableSignal<string | null>;
+    joinedGuildName: WritableSignal<string | null>;
+    joinedChannelId: WritableSignal<string | null>;
+    leaveChannel: ReturnType<typeof vi.fn>;
+    guildToggleScreenShare: ReturnType<typeof vi.fn>;
+    session: WritableSignal<ActiveCallSession | null>;
+    dmRtcState: WritableSignal<string>;
+    end: ReturnType<typeof vi.fn>;
+    dmToggleScreenShare: ReturnType<typeof vi.fn>;
+    publishPreview: WritableSignal<string | null>;
+    workspace: WritableSignal<WorkspaceContext>;
+    openChannel: ReturnType<typeof vi.fn>;
+    openConversation: ReturnType<typeof vi.fn>;
+    entities: WritableSignal<ConversationDto[]>;
+}
+
+function setup(): {fixture: ComponentFixture<VoiceStatusBarComponent>; component: VoiceStatusBarComponent; fakes: Fakes} {
+    const fakes: Fakes = {
+        isInVoice: signal(false),
+        localState: signal<VoiceLocalState>({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: false}),
+        voiceRtcState: signal('connected'),
+        joinedChannelName: signal<string | null>(null),
+        joinedGuildName: signal<string | null>(null),
+        joinedChannelId: signal<string | null>(null),
+        leaveChannel: vi.fn().mockResolvedValue(undefined),
+        guildToggleScreenShare: vi.fn().mockResolvedValue(undefined),
+        session: signal<ActiveCallSession | null>(null),
+        dmRtcState: signal('connected'),
+        end: vi.fn(),
+        dmToggleScreenShare: vi.fn().mockResolvedValue(undefined),
+        publishPreview: signal<string | null>(null),
+        workspace: signal<WorkspaceContext>({type: 'dms'}),
+        openChannel: vi.fn(),
+        openConversation: vi.fn(),
+        entities: signal<ConversationDto[]>([]),
+    };
+
+    TestBed.configureTestingModule({
+        imports: [VoiceStatusBarComponent],
+        providers: [
+            provideTranslateService({defaultLanguage: 'en'}),
+            {
+                provide: VoiceChannelService,
+                useValue: {
+                    isInVoice: fakes.isInVoice,
+                    localState: fakes.localState,
+                    rtcState: fakes.voiceRtcState,
+                    joinedChannelName: fakes.joinedChannelName,
+                    joinedGuildName: fakes.joinedGuildName,
+                    joinedChannelId: fakes.joinedChannelId,
+                    leaveChannel: fakes.leaveChannel,
+                    toggleScreenShare: fakes.guildToggleScreenShare,
+                },
+            },
+            {
+                provide: CallSessionService,
+                useValue: {
+                    session: fakes.session,
+                    end: fakes.end,
+                    toggleScreenShare: fakes.dmToggleScreenShare,
+                },
+            },
+            {provide: CallWebRtcService, useValue: {rtcState: fakes.dmRtcState}},
+            {provide: RustMediaService, useValue: {publishPreview: fakes.publishPreview}},
+            {
+                provide: ConversationStore,
+                useValue: {entities: fakes.entities},
+            },
+            {
+                provide: NavigationService,
+                useValue: {
+                    workspace: fakes.workspace,
+                    openChannel: fakes.openChannel,
+                    openConversation: fakes.openConversation,
+                },
+            },
+        ],
+    });
+
+    const fixture: ComponentFixture<VoiceStatusBarComponent> = TestBed.createComponent(VoiceStatusBarComponent);
+    fixture.detectChanges();
+
+    return {fixture, component: fixture.componentInstance, fakes};
+}
+
+describe('VoiceStatusBarComponent visibility', () => {
+    beforeEach(() => TestBed.resetTestingModule());
+
+    it('renders nothing on neither surface', () => {
+        const {fixture} = setup();
+        expect(fixture.nativeElement.querySelector('div')).toBeNull();
+    });
+
+    it('renders for guild voice', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('div')).not.toBeNull();
+    });
+
+    it('renders for a DM call with no guild voice session', () => {
+        const {fixture, fakes} = setup();
+        fakes.session.set(dmSession());
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('div')).not.toBeNull();
+    });
+
+    it('prefers guild voice when somehow both are present', () => {
+        const {component, fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fakes.session.set(dmSession());
+        fixture.detectChanges();
+
+        expect(component['isGuildVoice']()).toBe(true);
+        expect(component['isDmCall']()).toBe(false);
+    });
+});
+
+describe('VoiceStatusBarComponent ordinary state', () => {
+    beforeEach(() => TestBed.resetTestingModule());
+
+    it('shows the channel and guild name for guild voice, and no live row', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fakes.joinedChannelName.set('general');
+        fakes.joinedGuildName.set('Alpine HQ');
+        fixture.detectChanges();
+
+        const text = fixture.nativeElement.textContent as string;
+        expect(text).toContain('general');
+        expect(text).toContain('Alpine HQ');
+        expect(fixture.nativeElement.querySelector('app-call-live-badge')).toBeNull();
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]')).toBeNull();
+    });
+
+    it('shows the peer name for a DM call, and no live row', () => {
+        const {fixture, fakes} = setup();
+        fakes.session.set(dmSession());
+        fixture.detectChanges();
+
+        const text = fixture.nativeElement.textContent as string;
+        expect(text).toContain('Bob Testuser');
+        expect(fixture.nativeElement.querySelector('app-call-live-badge')).toBeNull();
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]')).toBeNull();
+    });
+
+    it('disconnects guild voice through leaveChannel', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fixture.detectChanges();
+
+        (fixture.nativeElement.querySelector('[aria-label="VOICE_BAR.DISCONNECT"]') as HTMLButtonElement).click();
+
+        expect(fakes.leaveChannel).toHaveBeenCalledTimes(1);
+        expect(fakes.end).not.toHaveBeenCalled();
+    });
+
+    it('ends a DM call through CallSessionService.end, not leaveChannel', () => {
+        const {fixture, fakes} = setup();
+        fakes.session.set(dmSession());
+        fixture.detectChanges();
+
+        (fixture.nativeElement.querySelector('[aria-label="CALL.DISCONNECT"]') as HTMLButtonElement).click();
+
+        expect(fakes.end).toHaveBeenCalledTimes(1);
+        expect(fakes.leaveChannel).not.toHaveBeenCalled();
+    });
+
+    it('labels the disconnect button with the channel-specific key for guild voice', () => {
+        // VOICE_BAR.DISCONNECT reads "Disconnect from voice channel" in German and French - correct
+        // for guild voice, which has a channel to name.
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[aria-label="VOICE_BAR.DISCONNECT"]')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.DISCONNECT"]')).toBeNull();
+    });
+
+    it('labels the disconnect button with the locale-neutral key for a DM call', () => {
+        // A DM call has no channel, so the channel-specific VOICE_BAR.DISCONNECT wording is not just
+        // guild-flavoured but factually wrong in German ("Vom Sprachkanal trennen") and French
+        // ("Se déconnecter du canal vocal") - CALL.DISCONNECT is the neutral "Disconnect" instead.
+        const {fixture, fakes} = setup();
+        fakes.session.set(dmSession());
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.DISCONNECT"]')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('[aria-label="VOICE_BAR.DISCONNECT"]')).toBeNull();
+    });
+});
+
+describe('VoiceStatusBarComponent live sharing state', () => {
+    beforeEach(() => TestBed.resetTestingModule());
+
+    it('shows the live badge and stop button while sharing on guild voice', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fakes.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: true});
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('app-call-live-badge')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]')).not.toBeNull();
+    });
+
+    it('stops a guild voice share through VoiceChannelService.toggleScreenShare, the controls-bar path', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fakes.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: true});
+        fixture.detectChanges();
+
+        (fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]') as HTMLButtonElement).click();
+
+        expect(fakes.guildToggleScreenShare).toHaveBeenCalledTimes(1);
+        expect(fakes.dmToggleScreenShare).not.toHaveBeenCalled();
+    });
+
+    it('shows the live badge and stop button while sharing on a DM call', () => {
+        const {fixture, fakes} = setup();
+        fakes.session.set(dmSession({local: {isMuted: false, isDeafened: false, isCameraOn: false, isSharing: true}}));
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('app-call-live-badge')).not.toBeNull();
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]')).not.toBeNull();
+    });
+
+    it('stops a DM call share through CallSessionService.toggleScreenShare, not the guild path', () => {
+        const {fixture, fakes} = setup();
+        fakes.session.set(dmSession({local: {isMuted: false, isDeafened: false, isCameraOn: false, isSharing: true}}));
+        fixture.detectChanges();
+
+        (fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]') as HTMLButtonElement).click();
+
+        expect(fakes.dmToggleScreenShare).toHaveBeenCalledTimes(1);
+        expect(fakes.guildToggleScreenShare).not.toHaveBeenCalled();
+    });
+
+    it('renders the preview thumbnail once RustMediaService has one', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fakes.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: true});
+        fakes.publishPreview.set('data:image/jpeg;base64,abc');
+        fixture.detectChanges();
+
+        const img = fixture.nativeElement.querySelector('img') as HTMLImageElement;
+        expect(img).not.toBeNull();
+        expect(img.src).toContain('data:image/jpeg;base64,abc');
+    });
+
+    it('falls back to a desktop glyph before the first preview frame arrives', () => {
+        const {fixture, fakes} = setup();
+        fakes.isInVoice.set(true);
+        fakes.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: true});
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('img')).toBeNull();
+        expect(fixture.nativeElement.querySelector('.pi-desktop')).not.toBeNull();
+    });
+});
