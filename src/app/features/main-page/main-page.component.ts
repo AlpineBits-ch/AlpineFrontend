@@ -86,6 +86,7 @@ import {ProfileService} from '../../services/profile.service';
 import {ReportDialogComponent} from '../../components/report-dialog/report-dialog.component';
 import {GoLiveNotificationService, STREAM_LIVE_ACTION_TYPE} from '../../services/go-live-notification.service';
 import {CallFocusService} from '../../services/call-focus.service';
+import {VoiceChannelService} from '../../services/voice-channel.service';
 import {scopeKey} from '../../services/share-watch.service';
 
 @Component({
@@ -222,6 +223,7 @@ export class MainPageComponent implements OnDestroy {
      */
     private goLiveNotifications = inject(GoLiveNotificationService);
     private callFocus = inject(CallFocusService);
+    private voiceChannelSvc = inject(VoiceChannelService);
     private conversationStore = inject(ConversationStore);
     private userTokenService = inject(UserTokenService);
     private userService = inject(UserService);
@@ -394,15 +396,15 @@ export class MainPageComponent implements OnDestroy {
      *
      * <p>The focus request is armed here, at click time, rather than trusting one that might have
      * been armed when the notification was first posted - `CallFocusService` requests expire after
-     * 30 seconds, and a notification can sit unread far longer than that. Arriving late is not a
-     * bug; re-arming on arrival is what makes it work anyway.</p>
+     * `REQUEST_TTL_MS`, and a notification can sit unread far longer than that. Arriving late is not
+     * a bug; re-arming on arrival is what makes it work anyway.</p>
      *
-     * <p>Does not join voice, matching the channel list's own click-to-watch (Task 3): opening the
-     * channel and pre-arming the request is enough, and joining stays the user's own next action.
-     * If they are already in the channel the stage is already mounted and consumes the request on
-     * the next tick; if not, it consumes it the moment they do join.</p>
+     * <p>Joins voice, matching the channel list's own click-to-watch: the row it sits beside already
+     * joins, so a watch entry point that only opened the channel gave strictly less than clicking
+     * beside it. If they are already in the channel the stage is already mounted and consumes the
+     * request on the next tick; otherwise it consumes it once the join lands.</p>
      */
-    private openStreamTarget(extra: Record<string, string>): void {
+    private async openStreamTarget(extra: Record<string, string>): Promise<void> {
         const guild = this.guildService.guilds().find(g => g.id === extra['guildId']);
         if (!guild) return;
         this.navService.selectServer(guild);
@@ -410,6 +412,9 @@ export class MainPageComponent implements OnDestroy {
         const channel = guild.channels.find(c => c.id === extra['channelId']);
         if (!channel) return;
         this.navService.openChannel(channel);
+        if (this.voiceChannelSvc.joinedChannelId() !== channel.id) {
+            await this.voiceChannelSvc.joinChannel(channel, guild.name);
+        }
 
         this.callFocus.request(
             scopeKey({kind: 'channel', guildId: guild.id, channelId: channel.id}),

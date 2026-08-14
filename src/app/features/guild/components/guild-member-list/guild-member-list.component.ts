@@ -49,6 +49,7 @@ import {ActivityLineComponent} from '../../../../components/activity-line/activi
 import {UserActivityService} from '../../../../services/user-activity.service';
 import {Activity} from '../../../../models/activity.model';
 import {GuildVoiceActivityService} from '../../../../services/guild-voice-activity.service';
+import {VoiceChannelService} from '../../../../services/voice-channel.service';
 import {CallFocusService} from '../../../../services/call-focus.service';
 import {scopeKey} from '../../../../services/share-watch.service';
 import {NavigationService} from '../../../main-page/navigation.service';
@@ -98,6 +99,7 @@ export class GuildMemberListComponent implements OnChanges {
     private brokenImages = inject(BrokenImageService);
     private userActivity = inject(UserActivityService);
     private guildVoiceActivity = inject(GuildVoiceActivityService);
+    private voiceChannelSvc = inject(VoiceChannelService);
     private callFocus = inject(CallFocusService);
     private navService = inject(NavigationService);
     // Deliberately not `environment.apiUrl`: that constant is the venta.gg address baked in at
@@ -242,15 +244,13 @@ export class GuildMemberListComponent implements OnChanges {
     }
 
     /**
-     * Opens the channel a streaming member is live in and arms a watch request for their stream -
-     * the same click-to-watch pattern the channel list's own LIVE badge uses. Does not join voice:
-     * opening the channel and pre-arming the request is enough, and joining stays the user's next
-     * action if they want it.
+     * Opens the channel a streaming member is live in, joins voice, and arms a watch request for
+     * their stream - the same join-and-watch pattern the channel list's own LIVE badge uses.
      *
      * <p>`stopPropagation` because the badge sits inside a row whose own click opens the profile
      * dialog - the two actions must not both fire from one press.</p>
      */
-    protected watchStream(member: GuildMemberDto, event: MouseEvent): void {
+    protected async watchStream(member: GuildMemberDto, event: MouseEvent): Promise<void> {
         event.stopPropagation();
 
         const guildId = this.guild().id;
@@ -259,6 +259,9 @@ export class GuildMemberListComponent implements OnChanges {
         if (!channel) return;
 
         this.navService.openChannel(channel);
+        if (this.voiceChannelSvc.joinedChannelId() !== channel.id) {
+            await this.voiceChannelSvc.joinChannel(channel, this.guild().name);
+        }
         this.callFocus.request(
             scopeKey({kind: 'channel', guildId, channelId: channel.id}),
             {userId: member.userId},

@@ -466,13 +466,17 @@ export class ChannelListComponent {
     }
 
     /**
-     * Opens the channel exactly as a plain row click would, then arms a focus request for that
-     * user's stream. It does not join voice - joining someone's microphone into a room because they
-     * clicked a badge would be presumptuous. If they join right after, `CallScreenLayoutComponent`
-     * consumes the request when the stage mounts; if they never do, it lapses on its own TTL.
+     * Opens the channel and joins voice exactly as a plain row click would, then arms a focus
+     * request for that user's stream. The badge sits inside a row that already joins on click, so a
+     * badge click that only opened the channel gave strictly less than clicking beside it - matching
+     * the row is what `CALL.JOIN_AND_WATCH` already implies. `CallScreenLayoutComponent` consumes the
+     * request once the stage mounts; if it is not consumed in time it lapses on its own TTL.
      */
-    protected onWatchStream(event: {channel: ChannelDto; userId: string}): void {
+    protected async onWatchStream(event: {channel: ChannelDto; userId: string}): Promise<void> {
         this.navService.openChannel(event.channel);
+        if (this.voiceChannelSvc.joinedChannelId() !== event.channel.id) {
+            await this.voiceChannelSvc.joinChannel(event.channel, this.guild().name);
+        }
         this.callFocus.request(
             scopeKey({kind: 'channel', guildId: event.channel.guildId, channelId: event.channel.id}),
             {userId: event.userId},

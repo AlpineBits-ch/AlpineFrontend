@@ -2,7 +2,7 @@ import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {signal} from '@angular/core';
 import {provideTranslateService} from '@ngx-translate/core';
 import {of, Subject} from 'rxjs';
-import {beforeEach, describe, expect, it} from 'vitest';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
 import {GuildMemberListComponent} from './guild-member-list.component';
 import {GuildService} from '../../../../services/guild.service';
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
@@ -14,6 +14,7 @@ import {ApiConfigService} from '../../../../services/api-config.service';
 import {ReportDialogService} from '../../../../services/report-dialog.service';
 import {ProfileDialogService} from '../../../../services/profile-dialog.service';
 import {GuildVoiceActivityService} from '../../../../services/guild-voice-activity.service';
+import {VoiceChannelService} from '../../../../services/voice-channel.service';
 import {CallFocusService} from '../../../../services/call-focus.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {HomeStatusService} from '../../../../services/home-status.service';
@@ -88,6 +89,10 @@ function setup(opts: { streamingUserId?: string | null } = {}) {
     const liveUserId = opts.streamingUserId === undefined ? STREAMER_ID : opts.streamingUserId;
     const navService = {openChannel: (_: unknown) => undefined};
     const callFocus = {request: (_scopeKey: string, _target: unknown) => undefined};
+    const voiceChannel = {
+        joinedChannelId: signal<string | null>(null),
+        joinChannel: (_channel: unknown, _guildName: string) => Promise.resolve(),
+    };
     const guildVoiceActivity = {
         isStreaming: (userId: string) => userId === liveUserId,
         streamingChannelId: (_guildId: string, userId: string) =>
@@ -111,6 +116,7 @@ function setup(opts: { streamingUserId?: string | null } = {}) {
             {provide: ReportDialogService, useValue: {open: () => undefined}},
             {provide: ProfileDialogService, useValue: {open: () => undefined}},
             {provide: GuildVoiceActivityService, useValue: guildVoiceActivity},
+            {provide: VoiceChannelService, useValue: voiceChannel},
             {provide: CallFocusService, useValue: callFocus},
             {provide: NavigationService, useValue: navService},
             // Short-circuits the home-status board's own dependency chain (RealtimeConnectionService
@@ -125,7 +131,7 @@ function setup(opts: { streamingUserId?: string | null } = {}) {
     const fixture: ComponentFixture<GuildMemberListComponent> = TestBed.createComponent(GuildMemberListComponent);
     fixture.componentRef.setInput('guild', guildFixture());
     fixture.detectChanges();
-    return {fixture, navService, callFocus};
+    return {fixture, navService, callFocus, voiceChannel};
 }
 
 describe('GuildMemberListComponent - streaming badge', () => {
@@ -147,13 +153,43 @@ describe('GuildMemberListComponent - streaming badge', () => {
         expect(fixture.nativeElement.querySelectorAll('app-call-live-badge').length).toBe(0);
     });
 
-    it('opens the channel and arms a focus request when the badge is clicked', () => {
-        const {fixture, navService, callFocus} = setup();
+    it('opens the channel, joins voice, and arms a focus request when the badge is clicked', async () => {
+        const {fixture, navService, callFocus, voiceChannel} = setup();
         let openedChannelId: string | undefined;
         let requested: {key: string; target: unknown} | undefined;
+        let joinedWith: {channelId: string; guildName: string} | undefined;
         navService.openChannel = (c: any) => {
             openedChannelId = c.id;
         };
+        callFocus.request = (key: string, target: unknown) => {
+            requested = {key, target};
+        };
+        voiceChannel.joinChannel = (channel: any, guildName: string) => {
+            joinedWith = {channelId: channel.id, guildName};
+            return Promise.resolve();
+        };
+
+        const button: HTMLButtonElement = fixture.nativeElement.querySelector('button:has(app-call-live-badge)')
+            ?? fixture.nativeElement.querySelector('app-call-live-badge').closest('button');
+        button.click();
+        // watchStream now joins before arming the request (matching the row it sits inside), so the
+        // request lands after the joinChannel() promise settles rather than synchronously.
+        await vi.waitFor(() => expect(requested).toBeDefined());
+
+        expect(openedChannelId).toBe(VOICE_CHANNEL_ID);
+        expect(joinedWith).toEqual({channelId: VOICE_CHANNEL_ID, guildName: 'Test Guild'});
+        expect(requested).toEqual({key: `channel:${VOICE_CHANNEL_ID}`, target: {userId: STREAMER_ID}});
+    });
+
+    it('does not re-join voice when already in the streaming member\'s channel', async () => {
+        const {fixture, callFocus, voiceChannel} = setup();
+        voiceChannel.joinedChannelId = signal(VOICE_CHANNEL_ID);
+        let joinCalled = false;
+        voiceChannel.joinChannel = (_channel: any, _guildName: string) => {
+            joinCalled = true;
+            return Promise.resolve();
+        };
+        let requested: unknown;
         callFocus.request = (key: string, target: unknown) => {
             requested = {key, target};
         };
@@ -161,9 +197,9 @@ describe('GuildMemberListComponent - streaming badge', () => {
         const button: HTMLButtonElement = fixture.nativeElement.querySelector('button:has(app-call-live-badge)')
             ?? fixture.nativeElement.querySelector('app-call-live-badge').closest('button');
         button.click();
+        await vi.waitFor(() => expect(requested).toBeDefined());
 
-        expect(openedChannelId).toBe(VOICE_CHANNEL_ID);
-        expect(requested).toEqual({key: `channel:${VOICE_CHANNEL_ID}`, target: {userId: STREAMER_ID}});
+        expect(joinCalled).toBe(false);
     });
 
     it('does not also open the profile dialog when the badge is clicked', () => {

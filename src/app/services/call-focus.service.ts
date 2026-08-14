@@ -3,14 +3,15 @@ import {Injectable, signal} from '@angular/core';
 /**
  * How long an unrequested focus stays live.
  *
- * <p>A request can be armed well before the layout that would consume it even exists - Task 3 arms
- * one when a LIVE badge is clicked, which only opens the channel, not the call. If the user never
- * joins, an unconsumed request must not sit around to ambush them minutes or hours later when they
- * eventually join voice for an unrelated reason. Thirty seconds is comfortably longer than "click
- * the badge, then join" takes, and short enough that a stale request is gone well before anyone
- * would call it a bug.</p>
+ * <p>Every watch entry point (a LIVE badge click, a go-live notification, join-and-watch from the
+ * lobby) now joins voice before arming the request, so the common path consumes it well within a
+ * second. This TTL exists for the slow path: join negotiation can stall, and a request that lapses
+ * mid-negotiation is a silent failure - the user lands on the stage unfocused with no error. 120
+ * seconds is comfortably longer than any realistic join takes, while still being short enough that a
+ * request nobody ever consumes (the join itself failed, or the user navigated away) does not sit
+ * around to ambush an unrelated later join.</p>
  */
-const REQUEST_TTL_MS = 30_000;
+const REQUEST_TTL_MS = 120_000;
 
 /**
  * Lets a caller outside the call stage say "focus this share" - a notification action, a

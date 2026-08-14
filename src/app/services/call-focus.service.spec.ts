@@ -35,11 +35,10 @@ describe('CallFocusService', () => {
         const focus = setup();
 
         focus.request('call:c1', {userId: 'user-a'});
-        vi.advanceTimersByTime(30_001);
+        vi.advanceTimersByTime(120_001);
 
         // Consuming late must behave exactly like never having requested at all - a request armed
-        // before the user joins voice (Task 3's click-to-watch) must not ambush them by firing on an
-        // unrelated join minutes or hours later.
+        // before a slow join negotiation finishes must not ambush an unrelated later join.
         expect(focus.consume('call:c1')).toBeNull();
     });
 
@@ -48,7 +47,7 @@ describe('CallFocusService', () => {
         const focus = setup();
 
         focus.request('call:c1', {userId: 'user-a'});
-        vi.advanceTimersByTime(29_999);
+        vi.advanceTimersByTime(119_999);
 
         expect(focus.consume('call:c1')).toEqual({shareId: undefined, userId: 'user-a'});
     });
