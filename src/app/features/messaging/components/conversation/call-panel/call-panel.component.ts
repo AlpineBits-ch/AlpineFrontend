@@ -90,14 +90,6 @@ export class CallPanelComponent implements OnInit, OnDestroy {
     protected readonly resolveParticipantName = (userId: string): string =>
         this.callParticipants().find(p => p.userId === userId)?.displayName
         ?? this.translate.instant('CALL.UNKNOWN_VIEWER');
-    /**
-     * Gates the controls-bar auto-hide (see `AutoHideCallControlsDirective`). With neither a share
-     * nor a camera on the stage, the participant grid is the content, and hiding the controls over
-     * it would only remove function for no gain.
-     */
-    protected hasStageVideo = computed(() =>
-        this.callScreenShares().length > 0 || this.callParticipants().some(p => p.isCameraOn),
-    );
     protected screenPreset = this.callSession.screenPreset;
     /** Set only while the local user is the last one in the call. */
     protected aloneUntil = computed(() => formatAloneDeadline(this.callSession.aloneDeadline()));

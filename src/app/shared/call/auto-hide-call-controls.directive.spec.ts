@@ -1,9 +1,9 @@
 /**
- * The floating call-controls bar hides itself after an idle pointer, Discord-style, so it does not
- * sit permanently over whatever is being watched. These specs render the exact binding pattern the
- * two call surfaces use (`opacity-0` / `pointer-events-*` classes driven by `revealed()`) rather than
- * asserting on the directive's internal signal, so a test would fail if the template binding were
- * ever deleted - not just if the directive's own bookkeeping broke.
+ * The floating call-controls bar hides itself by default and after an idle pointer, Discord-style,
+ * so it does not sit permanently over whatever is being watched. These specs render the exact
+ * binding pattern the two call surfaces use (`opacity-0` / `pointer-events-*` classes driven by
+ * `revealed()`) rather than asserting on the directive's internal signal, so a test would fail if
+ * the template binding were ever deleted - not just if the directive's own bookkeeping broke.
  */
 import {Component} from '@angular/core';
 import {ComponentFixture, TestBed} from '@angular/core/testing';
@@ -12,7 +12,7 @@ import {AutoHideCallControlsDirective, CONTROLS_IDLE_MS} from './auto-hide-call-
 @Component({
     imports: [AutoHideCallControlsDirective],
     template: `
-        <div [appAutoHideCallControls]="hasVideo" #autoHide="appAutoHideCallControls" class="stage">
+        <div appAutoHideCallControls #autoHide="appAutoHideCallControls" class="stage">
             <div class="bar"
                  (focusin)="autoHide.onControlsFocusIn()"
                  (focusout)="autoHide.onControlsFocusOut()"
@@ -27,7 +27,6 @@ import {AutoHideCallControlsDirective, CONTROLS_IDLE_MS} from './auto-hide-call-
     `,
 })
 class HostComponent {
-    hasVideo = true;
 }
 
 describe('AutoHideCallControlsDirective', () => {
@@ -71,8 +70,20 @@ describe('AutoHideCallControlsDirective', () => {
         TestBed.tick();
     }
 
-    it('hides the bar after the idle window when the stage has video', () => {
-        fixture.componentInstance.hasVideo = true;
+    it('starts hidden on mount with no pointer activity', () => {
+        tick();
+        expect(isHidden()).toBe(true);
+
+        // No pointer activity ever arrives - the bar must not reveal itself on its own.
+        vi.advanceTimersByTime(CONTROLS_IDLE_MS * 5);
+        tick();
+        expect(isHidden()).toBe(true);
+    });
+
+    it('reveals on pointermove and hides again after the idle window', () => {
+        tick();
+
+        stage().dispatchEvent(new Event('pointermove', {bubbles: true}));
         tick();
         expect(isHidden()).toBe(false);
 
@@ -85,18 +96,17 @@ describe('AutoHideCallControlsDirective', () => {
         expect(isHidden()).toBe(true);
     });
 
-    it('never hides when the stage has no video to protect', () => {
-        fixture.componentInstance.hasVideo = false;
+    it('reveals on pointerenter alone, without any pointermove', () => {
         tick();
+        expect(isHidden()).toBe(true);
 
-        vi.advanceTimersByTime(CONTROLS_IDLE_MS * 5);
+        stage().dispatchEvent(new Event('pointerenter'));
         tick();
 
         expect(isHidden()).toBe(false);
     });
 
     it('stays up while the pointer sits over the bar itself', () => {
-        fixture.componentInstance.hasVideo = true;
         tick();
 
         // A pointermove over the stage first, as if the user had just reached for the bar.
@@ -113,7 +123,6 @@ describe('AutoHideCallControlsDirective', () => {
     });
 
     it('stays up while a control inside the bar has focus', () => {
-        fixture.componentInstance.hasVideo = true;
         tick();
 
         // A real focus, not a synthetic `focusin` dispatched at the wrapper - this must fail if the
@@ -133,10 +142,6 @@ describe('AutoHideCallControlsDirective', () => {
     });
 
     it('reveals when focus arrives by keyboard after the bar has faded out', () => {
-        fixture.componentInstance.hasVideo = true;
-        tick();
-
-        vi.advanceTimersByTime(CONTROLS_IDLE_MS);
         tick();
         expect(isHidden()).toBe(true);
 

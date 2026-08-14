@@ -83,14 +83,6 @@ export class VoiceChannelComponent {
     protected isJoined = computed(() =>
         this.voiceSvc.joinedChannelId() === this.channel().id,
     );
-    /**
-     * Gates the controls-bar auto-hide (see `AutoHideCallControlsDirective`). With neither a share
-     * nor a camera on the stage, the participant grid is the content, and hiding the controls over
-     * it would only remove function for no gain.
-     */
-    protected hasStageVideo = computed(() =>
-        this.callScreenShares().length > 0 || this.participants().some(p => p.isCameraOn),
-    );
     /** Null until joined: watching is a claim only a participant of the channel may make. */
     protected watchScope = computed((): WatchScope | null => this.isJoined()
         ? {kind: 'channel', guildId: this.channel().guildId, channelId: this.channel().id}
