@@ -637,4 +637,59 @@ describe('CallScreenLayoutComponent invite card (Task 18)', () => {
         expect(layout.displayedShares()).toEqual([]);
         expect(lastWatched(setWatching)).toEqual([]);
     });
+
+    // Review fix round 1, Critical: gating on tile count alone made a lone screen SHARE - the exact
+    // opposite of an empty channel - look like a candidate for the card too. Both specs below drive
+    // states that were already a one-tile stage before this fix and assert the card stays off.
+
+    it('does not show the card beside a lone share with no cameras - a 1:1 call, not an empty one', () => {
+        // One share, nobody's camera on: displayedTiles() is exactly one tile, same shape as the
+        // share-less lone-participant case above, but this one is a stream somebody is watching -
+        // the card must not halve it and sit beside it.
+        const {fixture, layout} = setup([share('a')], {participants: [participant('user-a')]});
+
+        expect(layout.displayedTiles().length).toBe(1);
+        expect(layout.showInviteCard()).toBe(false);
+        expect(fixture.nativeElement.querySelectorAll('app-call-invite-card').length).toBe(0);
+        const grid: HTMLElement = fixture.nativeElement.querySelector('.grid');
+        expect(grid.className).not.toContain('grid-cols-2');
+    });
+
+    it('does not show the card while a share is maximised', () => {
+        // Maximised means displayedTiles() is shares-only (see the class doc on displayedTiles) -
+        // one share maximised is a one-tile stage by construction, and the component's own doc on
+        // showInviteCard names this exact case as the reason tile count alone was not enough.
+        const {fixture, layout} = setup([share('a'), share('b')], {
+            participants: [participant('cam', {isCameraOn: true})],
+        });
+
+        layout.maximizedId.set('a');
+        fixture.detectChanges();
+
+        expect(layout.displayedTiles().length).toBe(1);
+        expect(layout.showInviteCard()).toBe(false);
+        expect(fixture.nativeElement.querySelectorAll('app-call-invite-card').length).toBe(0);
+    });
+});
+
+describe('CallScreenLayoutComponent grid overflow (Task 18 review fix round 1, Important)', () => {
+    beforeEach(() => {
+        TestBed.resetTestingModule();
+        HTMLMediaElement.prototype.play = vi.fn(() => Promise.resolve());
+        HTMLMediaElement.prototype.pause = vi.fn();
+    });
+
+    it('scrolls a busy share-less stage instead of clipping it silently', () => {
+        // Both grids this task made the stage always route through used to scroll on their own
+        // (the guild's wrapper, the DM's `.participants`) - see call-screen-layout.component.html.
+        // Losing that when the share-less case started routing through here would mean a channel
+        // with enough camera-off participants to need a second row has no way to reach it, sitting
+        // inside a `.panel { overflow: hidden }` ancestor with nothing to scroll it.
+        const many = Array.from({length: 6}, (_, i) => participant(`p-${i}`));
+        const {fixture} = setup([], {participants: many});
+
+        const grid: HTMLElement = fixture.nativeElement.querySelector('.grid');
+        expect(grid.className).toContain('overflow-y-auto');
+        expect(grid.className).toContain('thin-scrollbar');
+    });
 });

@@ -164,8 +164,9 @@ export class CallScreenLayoutComponent implements OnDestroy {
      * showing them twice. The `'camera'` kind is a misnomer once {@link cameraTiles} widens to
      * everybody on a share-less stage - it can hold a participant with no camera at all - but the
      * tile still carries everything a strip entry does, so the replacement argument holds regardless.
-     * With no share on stage, every participant lands here, which is what empties this row down to
-     * nothing while a lone caller sees a full seat on the grid instead of a 32px avatar underneath it.</p>
+     * With no share on stage, every participant lands on the stage above instead, which is what
+     * empties THIS row down to nothing while a lone caller sees a full seat on the grid instead of a
+     * 32px avatar underneath it.</p>
      *
      * <p>A share tile is <em>not</em>, and a sharer with their camera off therefore keeps their seat
      * here. It shows a screen, not a person: neither the audio-wait badge nor the participant context
@@ -233,16 +234,24 @@ export class CallScreenLayoutComponent implements OnDestroy {
      * Whether `app-call-invite-card` fills the stage beside a lone tile - see that component's own
      * class doc for what it is and is not (layout only, no invite mechanic wired to it yet).
      *
-     * <p>Gated on the stage holding exactly one tile: with two or more there is already something
-     * worth looking at and the card would be competing with it for room, and with none there is
-     * nobody on the stage to be beside. Deliberately reading {@link displayedTiles} rather than
-     * being folded into it - the card is not a share and not a participant, so it must never reach
-     * {@link displayedShares} or the watch-claim effect in the constructor, both of which are keyed
-     * off the tile list. The template compensates for the card's extra slot at the render layer
-     * (forcing two columns) rather than here, so {@link gridClass}'s own count and thresholds stay
-     * exactly what the existing specs pin them to.</p>
+     * <p>Gated on a SHARE-LESS stage holding exactly one tile, not on tile count alone. Tile count
+     * alone is wrong: a 1:1 DM call with one side sharing and no camera on is one tile, and so is a
+     * maximised share (see {@link displayedTiles} - maximised is shares-only, so one share maximised
+     * is a one-tile stage by construction). Both are "something worth looking at", the exact case
+     * the card exists to NOT compete with - a stream at half width with an invite card beside it, in
+     * a two-person call, is not the empty channel this task was written for. Requiring
+     * {@link displayedShares} to be empty is what rules both out while still catching the real
+     * target: a lone participant with nothing shared.</p>
+     *
+     * <p>Deliberately reading {@link displayedTiles} rather than being folded into it - the card is
+     * not a share and not a participant, so it must never reach {@link displayedShares} or the
+     * watch-claim effect in the constructor, both of which are keyed off the tile list. The template
+     * compensates for the card's extra slot at the render layer (forcing two columns) rather than
+     * here, so {@link gridClass}'s own count and thresholds stay exactly what the existing specs pin
+     * them to.</p>
      */
-    protected readonly showInviteCard = computed(() => this.displayedTiles().length === 1);
+    protected readonly showInviteCard = computed(() =>
+        this.displayedShares().length === 0 && this.displayedTiles().length === 1);
 
     /**
      * Whether to offer the persistent grid/focus control - see {@link toggleGridFocus}.

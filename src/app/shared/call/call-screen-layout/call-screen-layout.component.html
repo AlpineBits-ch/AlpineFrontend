@@ -24,8 +24,17 @@
          Forced to two columns while the invite card is showing, rather than trusting gridClass():
          gridClass() counts displayedTiles() alone, which is deliberately unaware of the card (see
          showInviteCard), so a lone tile still gets 'grid-cols-1' from that computed - correct for
-         gridClass() itself, wrong for what this div needs to render two tiles side by side. -->
-    <div [class]="'grid min-h-0 flex-1 gap-3 ' + (showInviteCard() ? 'grid-cols-2' : gridClass())">
+         gridClass() itself, wrong for what this div needs to render two tiles side by side.
+
+         overflow-y-auto thin-scrollbar: both grids this replaced scrolled (the guild's wrapper, the
+         DM's `.participants`), and a share-less stage now routes through here too - a busy
+         camera-off channel with no scrollbar and a `.panel { overflow: hidden }` ancestor would clip
+         a second row with no way to reach it. auto-rows-min stops those rows stretching to fill any
+         leftover flex height - aspect-video already gives every tile its real height, so a row has
+         no content reason to grow past it, and letting it happen anyway is what "letterboxed" tiles
+         are. -->
+    <div [class]="'grid min-h-0 flex-1 auto-rows-min gap-3 overflow-y-auto thin-scrollbar '
+                  + (showInviteCard() ? 'grid-cols-2' : gridClass())">
         @for (tile of displayedTiles(); track tile.id) {
             @if (tile.kind === 'share') {
                 @let share = tile.share;
