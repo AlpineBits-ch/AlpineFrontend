@@ -141,4 +141,40 @@ describe('NotificationSettingsComponent go-live toggles', () => {
         expect(component.isGoLiveEnabled('g1')).toBe(true);
         expect(component.isGoLiveEnabled('g2')).toBe(false);
     });
+
+    it('translates the section header rather than leaving it hardcoded', () => {
+        const fixture = render('tauri', false, [guildFixture('g1', 'Alpha')]);
+
+        expect(fixture.nativeElement.textContent).toContain('SETTINGS.STREAMING_SECTION');
+    });
+
+    it('defaults the friends toggle on, independent of the per-guild list', async () => {
+        const fixture = render('tauri', false, [guildFixture('g1', 'Alpha')]);
+        await fixture.whenStable();
+        fixture.detectChanges();
+
+        const friendsSwitch = fixture.nativeElement
+            .querySelector('[data-testid="go-live-friends-toggle"] input') as HTMLInputElement;
+        const g1Switch = fixture.nativeElement
+            .querySelector('[data-testid="go-live-toggle-g1"] input') as HTMLInputElement;
+
+        expect(friendsSwitch.checked).toBe(true);
+        expect(g1Switch.checked).toBe(false);
+    });
+
+    it('flips the friends toggle without touching any guild toggle', () => {
+        const fixture = render('tauri', false, [guildFixture('g1', 'Alpha')]);
+        const friendsSwitch = fixture.nativeElement
+            .querySelector('[data-testid="go-live-friends-toggle"] input') as HTMLInputElement;
+
+        friendsSwitch.click();
+        fixture.detectChanges();
+
+        const component = fixture.componentInstance as unknown as {
+            isGoLiveEnabled(id: string): boolean;
+            userSettings: { notificationSettings(): { goLiveFriendsEnabled: boolean } };
+        };
+        expect(component.userSettings.notificationSettings().goLiveFriendsEnabled).toBe(false);
+        expect(component.isGoLiveEnabled('g1')).toBe(false);
+    });
 });

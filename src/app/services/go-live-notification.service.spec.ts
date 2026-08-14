@@ -29,13 +29,14 @@ function guild(overrides: Partial<{ id: string; name: string; channels: { id: st
 function notificationSettings(overrides: Partial<NotificationSettings> = {}): NotificationSettings {
     return {
         enabled: true, dm: true, mentions: true, sounds: true,
-        cooldownEnabled: false, cooldownSeconds: 10, goLiveGuildIds: [],
+        cooldownEnabled: false, cooldownSeconds: 10, goLiveGuildIds: [], goLiveFriendsEnabled: true,
         ...overrides,
     };
 }
 
 function setup(options: {
     goLiveGuildIds?: string[];
+    goLiveFriendsEnabled?: boolean;
     friendIds?: string[];
     joinedChannelId?: string | null;
     ownProfileLoaded?: boolean;
@@ -57,7 +58,10 @@ function setup(options: {
             {provide: GuildService, useValue: {guilds: signal(options.guilds ?? [guild()])}},
             {
                 provide: UserSettingsService, useValue: {
-                    notificationSettings: signal(notificationSettings({goLiveGuildIds: options.goLiveGuildIds ?? []})),
+                    notificationSettings: signal(notificationSettings({
+                        goLiveGuildIds: options.goLiveGuildIds ?? [],
+                        goLiveFriendsEnabled: options.goLiveFriendsEnabled ?? true,
+                    })),
                 },
             },
             {
@@ -116,6 +120,29 @@ describe('GoLiveNotificationService', () => {
 
     it('notifies for a friend even in a guild that has not opted in', () => {
         const {streamerWentLive$, created} = setup({goLiveGuildIds: [], friendIds: [STREAMER_ID]});
+
+        streamerWentLive$.next(live());
+
+        expect(created.length).toBe(1);
+    });
+
+    it('suppresses a friend notification when the friends toggle is off', () => {
+        // The failure the reviewer caught: friendship used to override the guild toggle
+        // unconditionally, leaving no way to quiet one loud friend short of the master switch.
+        const {streamerWentLive$, created} = setup({
+            goLiveGuildIds: [], friendIds: [STREAMER_ID], goLiveFriendsEnabled: false,
+        });
+
+        streamerWentLive$.next(live());
+
+        expect(created).toEqual([]);
+    });
+
+    it('still notifies for a friend whose guild is separately opted in, even with the friends toggle off', () => {
+        // The two gates are independent, not one overriding the other.
+        const {streamerWentLive$, created} = setup({
+            goLiveGuildIds: [GUILD], friendIds: [STREAMER_ID], goLiveFriendsEnabled: false,
+        });
 
         streamerWentLive$.next(live());
 

@@ -20,6 +20,19 @@ export interface NotificationSettings {
      * guild by guild.</p>
      */
     goLiveGuildIds: string[];
+
+    /**
+     * Whether a friend going live notifies, independent of `goLiveGuildIds`.
+     *
+     * <p>Defaults on - a friend going live is the case a user most likely wants to hear about, and
+     * it should work the first time without touching a guild's toggle at all. But "muteable" is the
+     * whole point of this feature, so this has to be its own switch rather than folded into the
+     * guild list: a user with one loud friend must be able to quiet just them without also losing
+     * every guild they *did* opt in for. The two gates are independent - turning this off does not
+     * touch `goLiveGuildIds`, and a friend's guild being separately opted in still notifies even
+     * with this off.</p>
+     */
+    goLiveFriendsEnabled: boolean;
 }
 
 /**
@@ -64,7 +77,7 @@ interface SettingsPayload {
 const DEFAULTS: SettingsPayload = {
     notifications: {
         enabled: true, dm: true, mentions: true, sounds: true,
-        cooldownEnabled: true, cooldownSeconds: 10, goLiveGuildIds: [],
+        cooldownEnabled: true, cooldownSeconds: 10, goLiveGuildIds: [], goLiveFriendsEnabled: true,
     },
     autostart: false,
     activity: {hiddenGames: [], discordIntegration: false},
@@ -148,6 +161,11 @@ export class UserSettingsService {
         this.updateNotifications({goLiveGuildIds: enabled ? [...without, guildId] : without});
     }
 
+    /** Mutes or unmutes friend go-live notifications. See {@link NotificationSettings.goLiveFriendsEnabled}. */
+    setGoLiveFriendsEnabled(enabled: boolean): void {
+        this.updateNotifications({goLiveFriendsEnabled: enabled});
+    }
+
     private fetch(): void {
         this.lastFetch = Date.now();
         this.authService.getJsonSettings().pipe(
@@ -209,6 +227,7 @@ export class UserSettingsService {
                 goLiveGuildIds: Array.isArray(n?.goLiveGuildIds)
                     ? n.goLiveGuildIds.filter((id: unknown): id is string => typeof id === 'string')
                     : DEFAULTS.notifications.goLiveGuildIds,
+                goLiveFriendsEnabled: n?.goLiveFriendsEnabled ?? DEFAULTS.notifications.goLiveFriendsEnabled,
             },
             autostart: obj['autostart'] ?? DEFAULTS.autostart,
         };

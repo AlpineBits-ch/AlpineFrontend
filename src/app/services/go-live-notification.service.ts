@@ -18,7 +18,9 @@ export const STREAM_LIVE_ACTION_TYPE = 'stream-live';
  * <p>Deliberately quiet by default. An unconditional notification for every guild a member is in
  * would be noise nobody asked for the moment they join a busy server - so a guild only produces
  * one once the user opts it in from notification settings, unless the streamer is someone they
- * are already friends with, where the interesting case is the person rather than the place.</p>
+ * are already friends with, where the interesting case is the person rather than the place. That
+ * friend path defaults on but is independently mutable (`goLiveFriendsEnabled`) - see
+ * `isEnabledFor`.</p>
  *
  * <p>Injected once by the shell (`main-page.component.ts`), the same way `HouseholdAlertService`
  * is - a root service only starts listening once something constructs it, and this has to be
@@ -73,13 +75,16 @@ export class GoLiveNotificationService {
     /**
      * Whether this guild - or this particular streamer - is allowed to notify.
      *
-     * <p>Friendship overrides the guild's own toggle rather than being gated by it: the point of a
-     * friend override is that it works the first time someone you know goes live in a guild you
-     * have never touched notification settings for.</p>
+     * <p>Two independent gates, not one overriding the other. Friendship works the first time
+     * someone you know goes live in a guild you have never touched notification settings for - but
+     * it has to be mutable on its own, or a user with one loud friend could only quiet them by
+     * turning off every guild they *did* opt in for. Turning `goLiveFriendsEnabled` off does not
+     * touch `goLiveGuildIds`: a friend's guild that was separately opted in still notifies.</p>
      */
     private isEnabledFor(guildId: string, streamerUserId: string): boolean {
+        const settings = this.userSettings.notificationSettings();
         const isFriend = this.relationships.friends().some(f => f.other.userId === streamerUserId);
-        if (isFriend) return true;
-        return this.userSettings.notificationSettings().goLiveGuildIds.includes(guildId);
+        if (isFriend && settings.goLiveFriendsEnabled) return true;
+        return settings.goLiveGuildIds.includes(guildId);
     }
 }
