@@ -107,8 +107,18 @@
 
     <!-- Hidden rather than removed while a call is full-view: display:none costs nothing here and
          keeps scroll position, search state, etc. intact for when the call goes back to being a
-         strip. Collapsing this whole row (not just the message list) is what lets the call panel's
-         own flex-1 actually reach the bottom of the window instead of splitting the space with it. -->
+         strip. Collapsing this whole row - not just the message list, but the composer footer and
+         both MLS banners (app-mls-unreadable-banner, app-mls-join-request-review) below it, and the
+         pinned-messages panel beside it - is what lets the call panel's own flex-1 actually reach
+         the bottom of the window, instead of splitting the space with a row that is still claiming
+         its own flex-1.
+
+         This deliberately takes the two MLS banners out of reach too, even though they are a device
+         lockout prompt and a join-request review - the most consequential things in this row. That
+         is accepted: full view is opt-in (the user pressed maximize) and reversible (the panel's own
+         restore button lives in the status row above this one, outside what gets hidden), so
+         reaching a pending decrypt/admission prompt is always one restore-click away, never lost. -->
+
     <div [class.hidden]="isCallFullView()" class="flex-1 flex min-h-0">
     <div class="flex-1 min-w-0 flex flex-col min-h-0">
     <div class="relative flex-1 min-h-0 flex flex-col">

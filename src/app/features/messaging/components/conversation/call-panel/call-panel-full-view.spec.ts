@@ -170,11 +170,19 @@ describe('CallPanelComponent full view', () => {
         // the controls-bar buttons further down don't set it.
         const button: HTMLButtonElement = fixture.nativeElement.querySelector('button[aria-pressed]');
         expect(button.getAttribute('aria-pressed')).toBe('false');
+        // No translations are loaded (see render()), so `.instant()` echoes the key back - proof
+        // this is CALL.MAXIMIZE specifically, not just any truthy string, without depending on
+        // locale content. Requirement 5 was "the button and its two labels stay", not just "the
+        // button stays", so both the label and the aria-pressed state need covering.
+        expect(button.getAttribute('aria-label')).toBe('CALL.MAXIMIZE');
+        expect(button.getAttribute('title')).toBe('CALL.MAXIMIZE');
 
         internals(component).toggleMaximize();
         fixture.detectChanges();
 
         expect(button.getAttribute('aria-pressed')).toBe('true');
+        expect(button.getAttribute('aria-label')).toBe('CALL.RESTORE');
+        expect(button.getAttribute('title')).toBe('CALL.RESTORE');
     });
 
     it('never carries full view over into a fresh call - a new panel instance always starts collapsed', () => {
