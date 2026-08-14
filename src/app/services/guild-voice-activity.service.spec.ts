@@ -228,6 +228,11 @@ describe('GuildVoiceActivityService', () => {
         // Before the fix this cleared the whole channel's streamer list on every stop, so the
         // marker went dark even though user-2 was still sharing.
         expect(service.presence()[GUILD].hasStream).toBe(true);
+        // And precisely: user-2 is still counted live, user-1 is not - not just "some streamer or
+        // other" left standing.
+        expect(service.streamersIn(GUILD, CHANNEL)).toEqual(['user-2']);
+        expect(service.isStreaming('user-2')).toBe(true);
+        expect(service.isStreaming('user-1')).toBe(false);
     });
 
     it('is a no-op for a stop naming a share nobody saw start', () => {
@@ -246,6 +251,74 @@ describe('GuildVoiceActivityService', () => {
         ws.voiceScreenShareStoppedObservable.next({shareId: 'never-seen', channelId: CHANNEL});
 
         expect(service.presence()[GUILD].hasStream).toBe(true);
+    });
+
+    describe('streamersIn / isStreaming / streamingChannelId', () => {
+        it('reports nothing before any snapshot or event', () => {
+            const {service} = setup();
+
+            expect(service.streamersIn(GUILD, CHANNEL)).toEqual([]);
+            expect(service.isStreaming('user-1')).toBe(false);
+            expect(service.streamingChannelId(GUILD, 'user-1')).toBeUndefined();
+        });
+
+        it('locates the channel a member is live in', () => {
+            const {service, ws, connectionState} = setup();
+            connect(connectionState);
+            ws.userJoinedVoiceObservable.next({userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
+
+            ws.voiceScreenShareStartedObservable.next({userId: 'user-1', shareId: 's1', channelId: CHANNEL});
+
+            expect(service.streamersIn(GUILD, CHANNEL)).toEqual(['user-1']);
+            expect(service.isStreaming('user-1')).toBe(true);
+            expect(service.streamingChannelId(GUILD, 'user-1')).toBe(CHANNEL);
+        });
+    });
+
+    describe('streamerWentLive$', () => {
+        it('fires once for a new streamer', () => {
+            const {service, ws, connectionState} = setup();
+            connect(connectionState);
+            ws.userJoinedVoiceObservable.next({userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
+
+            const seen: {guildId: string; channelId: string; userId: string}[] = [];
+            service.streamerWentLive$.subscribe(e => seen.push(e));
+
+            ws.voiceScreenShareStartedObservable.next({userId: 'user-1', shareId: 's1', channelId: CHANNEL});
+
+            expect(seen).toEqual([{guildId: GUILD, channelId: CHANNEL, userId: 'user-1'}]);
+        });
+
+        it('does not fire for a stream already live in the loaded snapshot', () => {
+            const {service, connectionState} = setup({
+                snapshot: [activity({
+                    channels: [{
+                        channelId: CHANNEL, participantCount: 1, userIds: ['user-1'],
+                        hasStream: true, streamerIds: ['user-1'],
+                    }],
+                })],
+            });
+
+            const seen: unknown[] = [];
+            service.streamerWentLive$.subscribe(e => seen.push(e));
+            connect(connectionState);
+
+            expect(seen).toEqual([]);
+        });
+
+        it('does not fire twice for a start event redelivered on reconnect', () => {
+            const {service, ws, connectionState} = setup();
+            connect(connectionState);
+            ws.userJoinedVoiceObservable.next({userId: 'user-1', channelId: CHANNEL, guildId: GUILD});
+
+            const seen: unknown[] = [];
+            service.streamerWentLive$.subscribe(e => seen.push(e));
+
+            ws.voiceScreenShareStartedObservable.next({userId: 'user-1', shareId: 's1', channelId: CHANNEL});
+            ws.voiceScreenShareStartedObservable.next({userId: 'user-1', shareId: 's1', channelId: CHANNEL});
+
+            expect(seen.length).toBe(1);
+        });
     });
 
     it('re-reads the snapshot on reconnect rather than trusting counts from before the gap', () => {

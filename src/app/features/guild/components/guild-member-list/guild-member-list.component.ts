@@ -48,6 +48,11 @@ import {HomeStatusBoardComponent} from '../home-status-board/home-status-board.c
 import {ActivityLineComponent} from '../../../../components/activity-line/activity-line.component';
 import {UserActivityService} from '../../../../services/user-activity.service';
 import {Activity} from '../../../../models/activity.model';
+import {GuildVoiceActivityService} from '../../../../services/guild-voice-activity.service';
+import {CallFocusService} from '../../../../services/call-focus.service';
+import {scopeKey} from '../../../../services/share-watch.service';
+import {NavigationService} from '../../../main-page/navigation.service';
+import {CallLiveBadgeComponent} from '../../../../shared/call/call-live-badge/call-live-badge.component';
 
 export interface MemberRoleGroup {
     role: RoleDto;
@@ -56,7 +61,7 @@ export interface MemberRoleGroup {
 
 @Component({
     selector: 'app-guild-member-list',
-    imports: [TranslateModule, Menu, UserStatusDotComponent, UserNameStyleDirective, NgClass, NgTemplateOutlet, HomeStatusBoardComponent, ActivityLineComponent, Dialog, Button, PrimeTemplate],
+    imports: [TranslateModule, Menu, UserStatusDotComponent, UserNameStyleDirective, NgClass, NgTemplateOutlet, HomeStatusBoardComponent, ActivityLineComponent, Dialog, Button, PrimeTemplate, CallLiveBadgeComponent],
     templateUrl: './guild-member-list.component.html',
 })
 export class GuildMemberListComponent implements OnChanges {
@@ -92,6 +97,9 @@ export class GuildMemberListComponent implements OnChanges {
     private toastService = inject(ToastService);
     private brokenImages = inject(BrokenImageService);
     private userActivity = inject(UserActivityService);
+    private guildVoiceActivity = inject(GuildVoiceActivityService);
+    private callFocus = inject(CallFocusService);
+    private navService = inject(NavigationService);
     // Deliberately not `environment.apiUrl`: that constant is the venta.gg address baked in at
     // build time, so building an avatar URL from it sent every self-hosted and federated
     // deployment to our servers for an image its own instance was already serving. This signal is
@@ -219,6 +227,42 @@ export class GuildMemberListComponent implements OnChanges {
      */
     activityFor(member: GuildMemberDto): Activity | null {
         return this.userActivity.primaryFor(member.userId);
+    }
+
+    /**
+     * Whether this member is currently streaming in one of *this* guild's channels.
+     *
+     * <p>Deliberately not `GuildVoiceActivityService.isStreaming`, which answers for every guild
+     * the service tracks - a member of two guilds this account shares would then show as live here
+     * while actually streaming in the other one. `streamingChannelId`, scoped to this guild, is
+     * what keeps the badge honest.</p>
+     */
+    protected isStreaming(member: GuildMemberDto): boolean {
+        return this.guildVoiceActivity.streamingChannelId(this.guild().id, member.userId) !== undefined;
+    }
+
+    /**
+     * Opens the channel a streaming member is live in and arms a watch request for their stream -
+     * the same click-to-watch pattern the channel list's own LIVE badge uses. Does not join voice:
+     * opening the channel and pre-arming the request is enough, and joining stays the user's next
+     * action if they want it.
+     *
+     * <p>`stopPropagation` because the badge sits inside a row whose own click opens the profile
+     * dialog - the two actions must not both fire from one press.</p>
+     */
+    protected watchStream(member: GuildMemberDto, event: MouseEvent): void {
+        event.stopPropagation();
+
+        const guildId = this.guild().id;
+        const channelId = this.guildVoiceActivity.streamingChannelId(guildId, member.userId);
+        const channel = channelId ? this.guild().channels.find(c => c.id === channelId) : undefined;
+        if (!channel) return;
+
+        this.navService.openChannel(channel);
+        this.callFocus.request(
+            scopeKey({kind: 'channel', guildId, channelId: channel.id}),
+            {userId: member.userId},
+        );
     }
 
     // Role color is only used as a fallback -a member's own profile accent color (Nitro-style

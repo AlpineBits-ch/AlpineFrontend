@@ -10,6 +10,16 @@ export interface NotificationSettings {
     sounds: boolean;
     cooldownEnabled: boolean;
     cooldownSeconds: number;
+    /**
+     * Guilds the user has opted into "X is live" notifications for.
+     *
+     * <p>An allow-list, not a mute-list - deliberately, so the default for a guild nobody has
+     * touched is off. A guild's presence here says nothing about a friend streaming in it: that
+     * case is decided from the relationship store instead (see `GoLiveNotificationService`),
+     * because the whole point of a friend override is that it should not need this list touched
+     * guild by guild.</p>
+     */
+    goLiveGuildIds: string[];
 }
 
 /**
@@ -52,7 +62,10 @@ interface SettingsPayload {
 }
 
 const DEFAULTS: SettingsPayload = {
-    notifications: {enabled: true, dm: true, mentions: true, sounds: true, cooldownEnabled: true, cooldownSeconds: 10},
+    notifications: {
+        enabled: true, dm: true, mentions: true, sounds: true,
+        cooldownEnabled: true, cooldownSeconds: 10, goLiveGuildIds: [],
+    },
     autostart: false,
     activity: {hiddenGames: [], discordIntegration: false},
 };
@@ -128,6 +141,13 @@ export class UserSettingsService {
         this.updateActivity({hiddenGames: hidden ? [...without, name] : without});
     }
 
+    /** Opts a guild in or out of "X is live" notifications. See {@link NotificationSettings.goLiveGuildIds}. */
+    setGoLiveNotifyEnabled(guildId: string, enabled: boolean): void {
+        const current = this._settings().notifications.goLiveGuildIds;
+        const without = current.filter(id => id !== guildId);
+        this.updateNotifications({goLiveGuildIds: enabled ? [...without, guildId] : without});
+    }
+
     private fetch(): void {
         this.lastFetch = Date.now();
         this.authService.getJsonSettings().pipe(
@@ -184,6 +204,11 @@ export class UserSettingsService {
                 sounds: n?.sounds ?? DEFAULTS.notifications.sounds,
                 cooldownEnabled: n?.cooldownEnabled ?? DEFAULTS.notifications.cooldownEnabled,
                 cooldownSeconds: n?.cooldownSeconds ?? DEFAULTS.notifications.cooldownSeconds,
+                // Filtered rather than trusted, like `hiddenGames` above: this round-trips through
+                // the same opaque JSON column.
+                goLiveGuildIds: Array.isArray(n?.goLiveGuildIds)
+                    ? n.goLiveGuildIds.filter((id: unknown): id is string => typeof id === 'string')
+                    : DEFAULTS.notifications.goLiveGuildIds,
             },
             autostart: obj['autostart'] ?? DEFAULTS.autostart,
         };

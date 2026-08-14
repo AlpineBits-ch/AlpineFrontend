@@ -6,6 +6,7 @@ import {UserSettingsService} from '../../../../../services/user-settings.service
 import {SoundKey, SoundSettingsService} from '../../../../../services/sound-settings.service';
 import {NotificationService} from '../../../../../services/notification.service';
 import {PlatformCapabilities} from '../../../../../platform/capabilities';
+import {GuildService} from '../../../../../services/guild.service';
 
 @Component({
     selector: 'app-notification-settings',
@@ -40,6 +41,10 @@ export class NotificationSettingsComponent {
      * notifications arrive only while Venta is open.</p>
      */
     protected readonly capabilities = inject(PlatformCapabilities);
+
+    /** Source for the per-guild go-live toggles below - every guild this account is in, whether or
+     *  not its notifications are currently switched on. */
+    protected readonly guilds = inject(GuildService).guilds;
 
     protected readonly fileInput = viewChild<ElementRef<HTMLInputElement>>('fileInput');
     protected readonly uploadError = signal('');
@@ -98,6 +103,14 @@ export class NotificationSettingsComponent {
             this.soundSettings.update(key, {customUrl: reader.result as string, customName: file.name});
         };
         reader.readAsDataURL(file);
+    }
+
+    protected isGoLiveEnabled(guildId: string): boolean {
+        return this.userSettings.notificationSettings().goLiveGuildIds.includes(guildId);
+    }
+
+    protected setGoLiveEnabled(guildId: string, enabled: boolean): void {
+        this.userSettings.setGoLiveNotifyEnabled(guildId, enabled);
     }
 
     protected onCooldownSecondsChange(value: string): void {

@@ -84,6 +84,9 @@ import {SessionTeardownService} from '../../services/session-teardown.service';
 import {ApiConfigService} from '../../services/api-config.service';
 import {ProfileService} from '../../services/profile.service';
 import {ReportDialogComponent} from '../../components/report-dialog/report-dialog.component';
+import {GoLiveNotificationService, STREAM_LIVE_ACTION_TYPE} from '../../services/go-live-notification.service';
+import {CallFocusService} from '../../services/call-focus.service';
+import {scopeKey} from '../../services/share-watch.service';
 
 @Component({
     selector: 'app-main-page',
@@ -211,6 +214,14 @@ export class MainPageComponent implements OnDestroy {
      * board it was telling them about. The shell is what is always there.</p>
      */
     private householdAlerts = inject(HouseholdAlertService);
+    /**
+     * Injected for its constructor too - see the comment on `householdAlerts` just above. A go-live
+     * notification has to reach a member of the guild who is not looking at it, which means this
+     * has to be listening from launch rather than from whenever the member list or channel list
+     * happens to be opened.
+     */
+    private goLiveNotifications = inject(GoLiveNotificationService);
+    private callFocus = inject(CallFocusService);
     private conversationStore = inject(ConversationStore);
     private userTokenService = inject(UserTokenService);
     private userService = inject(UserService);
@@ -314,6 +325,7 @@ export class MainPageComponent implements OnDestroy {
                 return;
             }
             if (type === 'household') this.openHouseholdTarget(event.extra);
+            if (type === STREAM_LIVE_ACTION_TYPE) this.openStreamTarget(event.extra);
         }));
 
         // The push names a context but carries nothing else: the fetch is device-scoped, and the
@@ -375,6 +387,34 @@ export class MainPageComponent implements OnDestroy {
         const channel = guild.channels.find(c => c.id === extra['channelId']);
         if (channel) this.navService.openChannel(channel);
         else if (hasHouseholdModule(guild)) this.navService.openHouse(guild.id);
+    }
+
+    /**
+     * Where a clicked go-live notification lands: the channel, focused on that person's stream.
+     *
+     * <p>The focus request is armed here, at click time, rather than trusting one that might have
+     * been armed when the notification was first posted - `CallFocusService` requests expire after
+     * 30 seconds, and a notification can sit unread far longer than that. Arriving late is not a
+     * bug; re-arming on arrival is what makes it work anyway.</p>
+     *
+     * <p>Does not join voice, matching the channel list's own click-to-watch (Task 3): opening the
+     * channel and pre-arming the request is enough, and joining stays the user's own next action.
+     * If they are already in the channel the stage is already mounted and consumes the request on
+     * the next tick; if not, it consumes it the moment they do join.</p>
+     */
+    private openStreamTarget(extra: Record<string, string>): void {
+        const guild = this.guildService.guilds().find(g => g.id === extra['guildId']);
+        if (!guild) return;
+        this.navService.selectServer(guild);
+
+        const channel = guild.channels.find(c => c.id === extra['channelId']);
+        if (!channel) return;
+        this.navService.openChannel(channel);
+
+        this.callFocus.request(
+            scopeKey({kind: 'channel', guildId: guild.id, channelId: channel.id}),
+            {userId: extra['userId']},
+        );
     }
 
     @HostListener('document:keydown', ['$event'])

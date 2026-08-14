@@ -1,8 +1,16 @@
 import {computed, effect, inject, Injectable, signal, untracked} from '@angular/core';
+import {Subject} from 'rxjs';
 import {GuildVoiceActivityDto} from '../dtos/response/guild-voice-activity.dto';
 import {GuildVoiceService} from './guild-voice.service';
 import {GuildWebsocketService} from './guild-websocket.service';
 import {ConnectionState, RealtimeConnectionService} from './realtime-connection.service';
+
+/** Who just started streaming, and where - the source event for a "X is live" notification. */
+export interface StreamerWentLive {
+    guildId: string;
+    channelId: string;
+    userId: string;
+}
 
 /** What the rail needs to know about one guild: how many people are in voice, and is anyone live. */
 export interface GuildVoicePresence {
@@ -43,6 +51,17 @@ export class GuildVoiceActivityService {
      * DTO does not carry share ids at all - see `replaceAll`.</p>
      */
     private readonly shareOwners = new Map<string, {guildId: string; channelId: string; userId: string}>();
+
+    private readonly wentLive = new Subject<StreamerWentLive>();
+
+    /**
+     * Fires once per person who starts streaming - never for a stream already live when a
+     * snapshot is read (`replaceAll` does not touch this), and never twice for the same start
+     * event redelivered on reconnect (`addStreamer` only emits when the id was not already in the
+     * channel's list). That is exactly the "a stream just started" moment a go-live notification
+     * wants, and nothing else.
+     */
+    readonly streamerWentLive$ = this.wentLive.asObservable();
 
     readonly presence = computed<Record<string, GuildVoicePresence>>(() => {
         const members = this.members();
@@ -85,6 +104,32 @@ export class GuildVoiceActivityService {
 
         this.guildWs.voiceScreenShareStoppedObservable.subscribe(e =>
             this.removeStreamerByShare(e.channelId, e.shareId));
+    }
+
+    /** Anyone currently streaming in one channel. */
+    streamersIn(guildId: string, channelId: string): string[] {
+        return this.streamers()[guildId]?.[channelId] ?? [];
+    }
+
+    /** Whether this user is streaming anywhere this client has a roster for. */
+    isStreaming(userId: string): boolean {
+        return Object.values(this.streamers()).some(channels =>
+            Object.values(channels).some(ids => ids.includes(userId)));
+    }
+
+    /**
+     * Which channel of a guild this user is streaming in, or undefined.
+     *
+     * <p>`isStreaming` alone cannot say where - and "where" is exactly what a caller needs to turn
+     * a LIVE badge in the member list into a watch target.</p>
+     */
+    streamingChannelId(guildId: string, userId: string): string | undefined {
+        const channels = this.streamers()[guildId];
+        if (!channels) return undefined;
+        for (const [channelId, userIds] of Object.entries(channels)) {
+            if (userIds.includes(userId)) return channelId;
+        }
+        return undefined;
     }
 
     /** Re-reads the whole rail. Cheap - one request - and the only thing that can correct drift. */
@@ -155,19 +200,28 @@ export class GuildVoiceActivityService {
         }
     }
 
-    /** Records a share starting, and lights the channel's live marker for its owner. */
+    /**
+     * Records a share starting, and lights the channel's live marker for its owner.
+     *
+     * <p>`streamerWentLive$` fires only when this genuinely adds someone - not for a start event
+     * redelivered on reconnect for a person already marked live.</p>
+     */
     private addStreamer(channelId: string, userId: string, shareId: string): void {
         const guildId = this.guildOf(channelId);
         if (!guildId) return;
 
         this.shareOwners.set(shareId, {guildId, channelId, userId});
 
+        let added = false;
         this.streamers.update(state => {
             const channels = state[guildId] ?? {};
             const existing = channels[channelId] ?? [];
             if (existing.includes(userId)) return state;
+            added = true;
             return {...state, [guildId]: {...channels, [channelId]: [...existing, userId]}};
         });
+
+        if (added) this.wentLive.next({guildId, channelId, userId});
     }
 
     /**
