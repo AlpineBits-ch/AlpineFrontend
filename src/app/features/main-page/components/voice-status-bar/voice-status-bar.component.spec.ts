@@ -389,10 +389,22 @@ describe('VoiceStatusBarComponent live sharing state', () => {
         expect(fakes.guildToggleScreenShare).not.toHaveBeenCalled();
     });
 
-    it('hides the start-sharing control once sharing begins, on either surface', () => {
+    it('hides the start-sharing control once sharing begins, on guild voice', () => {
         const {fixture, fakes} = setup();
         fakes.isInVoice.set(true);
         fakes.localState.set({isMuted: false, isDeafened: false, isCameraOn: false, isScreenSharing: true});
+        fixture.detectChanges();
+
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.SHARE_SCREEN"]')).toBeNull();
+        expect(fixture.nativeElement.querySelector('[aria-label="CALL.STOP_SHARING"]')).not.toBeNull();
+    });
+
+    it('hides the start-sharing control once sharing begins, on a DM call', () => {
+        // Both surfaces resolve through the same isSharing() computed, but nothing here proved that
+        // in the DOM for the DM branch specifically - a future edit giving DM its own boolean could
+        // slip past a suite that only ever checked the guild case.
+        const {fixture, fakes} = setup();
+        fakes.session.set(dmSession({local: {isMuted: false, isDeafened: false, isCameraOn: false, isSharing: true}}));
         fixture.detectChanges();
 
         expect(fixture.nativeElement.querySelector('[aria-label="CALL.SHARE_SCREEN"]')).toBeNull();
