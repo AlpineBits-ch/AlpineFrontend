@@ -7,7 +7,8 @@
  * The guild path has waited for its session since the Rust engine landed; this is the port.
  */
 import {TestBed} from '@angular/core/testing';
-import {of, Subject} from 'rxjs';
+import {Observable, of, Subject, throwError} from 'rxjs';
+import {HttpErrorResponse} from '@angular/common/http';
 import {signal} from '@angular/core';
 import {CallWebRtcService} from './call-webrtc.service';
 import {CallSessionService} from './call-session.service';
@@ -20,6 +21,7 @@ import {VoiceEngineService, VoiceSession} from './voice-engine.service';
 import {ApiConfigService} from './api-config.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {ToastService} from './toast.service';
+import {TranslateService} from '@ngx-translate/core';
 import {OAuthService} from 'angular-oauth2-oidc';
 import {SUBSCRIBE_RETRY_DELAYS_MS} from './voice-rtc.service';
 
@@ -75,7 +77,7 @@ beforeEach(() => {
     (globalThis as unknown as {RTCPeerConnection: unknown}).RTCPeerConnection = StubPeerConnection;
 });
 
-function setup() {
+function setup(options: {cfCreateSession?: () => Observable<unknown>} = {}) {
     // Every observable the service subscribes to at connect. An incomplete set throws before any
     // test body runs.
     const ws: Record<string, Subject<unknown>> = {};
@@ -134,7 +136,8 @@ function setup() {
             {
                 provide: VoiceService,
                 useValue: {
-                    cfCreateSession: vi.fn(() => of({mediaSessionId: 'cf-web', backend: 'cloudflare'})),
+                    cfCreateSession: vi.fn(options.cfCreateSession
+                        ?? (() => of({mediaSessionId: 'cf-web', backend: 'cloudflare'}))),
                     getCall: vi.fn(() => of({status: 'Connected', participants: [{userId: 'me'}]})),
                     getCallSnapshot,
                 },
@@ -160,8 +163,11 @@ function setup() {
             },
             {provide: ApiConfigService, useValue: {baseUrl: () => 'https://api.test'}},
             {provide: DeviceIdentityService, useValue: {deviceId: vi.fn(async () => 'dev-1')}},
-            {provide: ToastService, useValue: {info: vi.fn(), httpError: vi.fn()}},
+            {provide: ToastService, useValue: {info: vi.fn(), error: vi.fn(), httpError: vi.fn()}},
             {provide: OAuthService, useValue: {getAccessToken: () => 'tok'}},
+            // Echoes the key rather than loading real translations, so an assertion names the key
+            // the service chose instead of a sentence that could be reworded.
+            {provide: TranslateService, useValue: {instant: (key: string) => key}},
         ],
     });
 
@@ -534,5 +540,43 @@ describe('stream volume', () => {
 
         service.toggleScreenAudioMute('them'); // unmute
         expect(engineVolume).toHaveBeenCalledWith('screen-audio-abc', 0.7);
+    });
+});
+
+/**
+ * The session request used to be awaited with no `try`, in a method driven from an effect as
+ * `void this.connect(...)`. A refusal therefore had no call site to land at: it surfaced as an
+ * unhandled rejection in the console, said nothing to the user, and left `callId` set - which is the
+ * re-entry guard, so every later attempt was blocked by the one that failed.
+ */
+describe('a call session the server will not open', () => {
+    it('says so rather than failing silently', async () => {
+        const {service} = setup({
+            cfCreateSession: () => throwError(() => new HttpErrorResponse({status: 503})),
+        });
+        await tick();
+
+        expect(TestBed.inject(ToastService).error).toHaveBeenCalledWith('CALL.CONNECT_FAILED');
+        // Torn down rather than left half-built: `rtcState` reads 'connected' the moment the Rust
+        // engine is up, and a call that never opened a session must not report itself as one.
+        expect(service.rtcState()).toBe('new');
+    });
+
+    /** An entitlement refusal is its own sentence, naming which side bound. */
+    it('names an entitlement refusal', async () => {
+        setup({
+            cfCreateSession: () => throwError(() => new HttpErrorResponse({
+                status: 403,
+                error: {
+                    code: 'guild_plan_limit', key: 'voice.max_participants',
+                    reason: 'guild_plan_limit', boundBy: 'guild', remedy: 'upgrade_guild',
+                    actorCanRemedy: false, subject: {kind: 'guild', id: 'guild-1'}, retryable: false,
+                },
+            })),
+        });
+        await tick();
+
+        expect(TestBed.inject(ToastService).error)
+            .toHaveBeenCalledWith('ENTITLEMENT.REASON.GUILD_PLAN_LIMIT');
     });
 });

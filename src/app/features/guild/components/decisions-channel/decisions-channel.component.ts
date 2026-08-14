@@ -57,6 +57,8 @@ import {
     quorumProgress,
     wholeDecisionBlocks,
 } from '../../decision-outcome';
+import {EntitlementStore} from '../../../../stores/entitlement.store';
+import {ModuleNotInPlanComponent} from '../module-not-in-plan/module-not-in-plan.component';
 
 /**
  * How many options a new decision starts with, and the floor for creating one. Both are the
@@ -89,7 +91,7 @@ interface BlockTarget {
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
         Button, DatePicker, Dialog, InputText, Textarea, PrimeTemplate, FormsModule, TranslateModule,
-        AppAvatarComponent, RelativeTimePipe,
+        AppAvatarComponent, RelativeTimePipe, ModuleNotInPlanComponent,
     ],
     templateUrl: './decisions-channel.component.html',
 })
@@ -100,6 +102,7 @@ export class DecisionsChannelComponent implements OnDestroy {
 
     protected navService = inject(NavigationService);
     private decisions = inject(DecisionService);
+    private entitlements = inject(EntitlementStore);
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private toast = inject(ToastService);
@@ -143,6 +146,18 @@ export class DecisionsChannelComponent implements OnDestroy {
         const guild = this.guild();
         return !guild || guildHasFeature(guild, GuildFeature.Decisions);
     });
+
+    /** The channel's own guild id, which is known before the guild list is. */
+    protected guildId = computed(() => this.channel().guildId);
+
+    /**
+     * Off because the guild's plan does not cover it, which is neither of the two states this
+     * screen already draws: the owner asked for the module and holds every permission.
+     *
+     * <p>False while nothing is held. A resolution that has not arrived is not evidence.</p>
+     */
+    protected moduleWithheld = computed(() =>
+        this.entitlements.moduleStanding(this.guildId(), GuildFeature.Decisions) === 'withheld');
 
     // ── Permissions ─────────────────────────────────────────────────────────
 
@@ -219,6 +234,11 @@ export class DecisionsChannelComponent implements OnDestroy {
         effect(() => {
             const channelId = this.channel().id;
             untracked(() => void this.decisions.loadFor(channelId));
+        });
+
+        // Only once the module reads as off. A house that votes pays nothing for the distinction.
+        effect(() => {
+            if (!this.moduleEnabled()) this.entitlements.ensureFeaturesLoaded(this.guildId());
         });
 
         effect(() => {

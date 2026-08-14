@@ -1,4 +1,5 @@
 import {GuildVerificationLevel} from './guild-safety.dto';
+import {GuildFeatureResolutionDto} from './entitlement.dto';
 
 export enum ChannelType {
     Text = 'Text',
@@ -162,6 +163,17 @@ export interface GuildDto {
      * see `parseGuildFeatures` in features/guild/guild-features.ts.
      */
     features?: string;
+    /**
+     * The same module state as three lists plus the result, which is the only way to tell a module
+     * the owner switched off from one the guild's plan does not cover.
+     *
+     * <p><b>Only on `GET /guilds/{id}`.</b> It is absent from the guild list and from every guild
+     * nested inside another payload - a member of two hundred guilds would pay two hundred plan
+     * lookups to draw a sidebar - so <b>absent means "not loaded", never "no modules"</b>. Since
+     * `GuildService.guilds` is fed by the list, the copy worth reading is the one
+     * `EntitlementStore` holds, refetched through `GET /guilds/{id}/features`.</p>
+     */
+    featureResolution?: GuildFeatureResolutionDto;
 }
 
 export enum RoleType {

@@ -236,3 +236,9 @@ export const GUILD_FEATURE_LABEL_KEY: Readonly<Record<string, string>> = {
     [GuildFeature.Meals]: 'GUILD_MODULE.MEALS',
     [GuildFeature.Maintenance]: 'GUILD_MODULE.MAINTENANCE',
 };
+
+/** A module's name for a reader. Unknown-to-this-build modules have no key and show their flag. */
+export function guildFeatureLabelKey(module: string): string {
+    const stem = GUILD_FEATURE_LABEL_KEY[module];
+    return stem ? `${stem}.LABEL` : module;
+}

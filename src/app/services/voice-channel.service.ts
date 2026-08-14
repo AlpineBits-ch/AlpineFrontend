@@ -1,5 +1,8 @@
 import {computed, effect, inject, Injectable, signal, untracked} from '@angular/core';
+import {TranslateService} from '@ngx-translate/core';
 import {firstValueFrom} from 'rxjs';
+import {describeEntitlementDenial, describeEntitlementLimit} from '../core/entitlement-message';
+import {degradationsOf} from '../dtos/response/entitlement.dto';
 import {ChannelDto, ChannelType} from '../dtos/response/guild.dto';
 import {ProfileService} from './profile.service';
 import {GuildVoiceService} from './guild-voice.service';
@@ -117,6 +120,7 @@ export class VoiceChannelService {
     private soundSettings = inject(SoundSettingsService);
     private voiceEngine = inject(VoiceEngineService);
     private toast = inject(ToastService);
+    private translate = inject(TranslateService);
     private channelParticipantsSignal = signal<Map<string, VoiceChannelParticipant[]>>(new Map());
     readonly channelParticipants = this.channelParticipantsSignal.asReadonly();
 
@@ -387,11 +391,7 @@ export class VoiceChannelService {
             // through the authorised path, which means the user asking for it.
             const guildId = this.joinedGuildId();
             if (guildId) await this.doLeave(guildId, e.channelId, true);
-            this.joinedChannelId.set(null);
-            this.joinedGuildId.set(null);
-            this.joinedChannelName.set(null);
-            this.joinedGuildName.set(null);
-            this.localState.update(s => ({...s, isCameraOn: false, isScreenSharing: false}));
+            this.clearJoinedState();
             this.toast.info('Voice channel is no longer available');
             return;
         }
@@ -439,8 +439,23 @@ export class VoiceChannelService {
 
     // ── Join / leave ───────────────────────────────────────────────────────────
 
-    async joinChannel(channel: ChannelDto, guildName: string): Promise<void> {
-        if (this.pendingJoinId === channel.id || this.joinedChannelId() === channel.id) return;
+    /**
+     * Join a voice channel, and say whether it worked.
+     *
+     * <p><b>The joined-state signals are set only once the server has admitted us.</b> They used to
+     * be written before the request went out, so a refusal - a permission change, a full room, an
+     * entitlement rejection - left the sidebar, the status bar and the mute controls all rendering
+     * as joined against no media, with no way out except clicking another channel. Everything that
+     * can fail before that point rolls the state back and says so, because a join that silently
+     * half-succeeds is worse than one that visibly does not.</p>
+     *
+     * <p>Returns false when the channel was not joined. Callers that do something to the room
+     * afterwards - focusing a stream, opening the stage - have to check it, or they act on a room
+     * that is not there.</p>
+     */
+    async joinChannel(channel: ChannelDto, guildName: string): Promise<boolean> {
+        if (this.pendingJoinId === channel.id) return false;
+        if (this.joinedChannelId() === channel.id) return true;
 
         const prevId = this.joinedChannelId();
         const prevGuild = this.joinedGuildId();
@@ -451,14 +466,6 @@ export class VoiceChannelService {
                 await this.doLeave(prevGuild, prevId, true);
             }
 
-            this.joinedChannelId.set(channel.id);
-            this.joinedGuildId.set(channel.guildId);
-            this.joinedChannelName.set(channel.name);
-            this.joinedGuildName.set(guildName);
-            // Mute and deafen survive the join - see loadStickyVoiceState. Only the two flags that
-            // hold a live publication are cleared.
-            this.localState.update(s => ({...s, isCameraOn: false, isScreenSharing: false}));
-
             try {
                 // Join answers with the room's authoritative state, so there is no second read and
                 // no second shape: the same snapshot the SignalR event carries, through the same
@@ -466,17 +473,24 @@ export class VoiceChannelService {
                 // the very next event classifiable.
                 const snapshot = await firstValueFrom(
                     this.guildVoiceSvc.join(channel.guildId, channel.id));
+
+                this.joinedChannelId.set(channel.id);
+                this.joinedGuildId.set(channel.guildId);
+                this.joinedChannelName.set(channel.name);
+                this.joinedGuildName.set(guildName);
+                // Mute and deafen survive the join - see loadStickyVoiceState. Only the two flags
+                // that hold a live publication are cleared.
+                this.localState.update(s => ({...s, isCameraOn: false, isScreenSharing: false}));
+
                 await this.applySnapshot(snapshot);
                 this.soundSettings.playVoiceJoin();
                 const connected = await this.rtc.connect(channel.guildId, channel.id);
                 if (!connected) {
                     console.error('VoiceChannelService: WebRTC connect() returned false -audio setup failed');
                     await this.doLeave(channel.guildId, channel.id, false);
-                    this.joinedChannelId.set(null);
-                    this.joinedGuildId.set(null);
-                    this.joinedChannelName.set(null);
-                    this.joinedGuildName.set(null);
-                    return;
+                    this.clearJoinedState();
+                    this.toast.error(this.translate.instant('VOICE.JOIN_FAILED'));
+                    return false;
                 }
                 // The engine starts with its talk key up, which in push-to-talk mode means the gate
                 // is shut. Nothing else calls syncMic until the user toggles something, so without
@@ -508,11 +522,55 @@ export class VoiceChannelService {
                 // never that we are wrong, which is the whole reason a missed event used to be
                 // permanent.
                 this.heartbeatTimer = setInterval(() => this.sendHeartbeat(channel.id), 30_000);
+
+                // Whatever the room gave less of than was asked for. This is a success carrying a
+                // note, not a failure: the 11th member of a full room is in the room, on an
+                // audio-only seat, and nothing above this line rolls back on account of it.
+                this.reportDegradations(snapshot);
+                return true;
             } catch (err) {
                 console.error('VoiceChannelService: join failed', err);
+                this.clearJoinedState();
+                // The previous channel was left silently, on the understanding that the server moves
+                // a participant when their next join lands. That join did not land, so it has to be
+                // told explicitly or the room the user just left still shows them in it.
+                if (prevId && prevGuild) {
+                    await firstValueFrom(this.guildVoiceSvc.leave(prevGuild, prevId)).catch(() => {
+                    });
+                }
+                this.toast.error(this.translate.instant(this.joinFailureKey(err)));
+                return false;
             }
         } finally {
             this.pendingJoinId = null;
+        }
+    }
+
+    /**
+     * What to tell the user about a join that did not happen.
+     *
+     * <p>An entitlement refusal is not a failure of the client's - the room was full, or the plan
+     * does not stretch that far - and it has its own sentence naming which side bound and who can
+     * change it. Everything else is the generic one. See
+     * `Echo/docs/specs/entitlements-frontend-guide.md` section 4.</p>
+     */
+    private joinFailureKey(err: unknown): string {
+        const denial = describeEntitlementDenial(err);
+        return denial?.messageKey ?? 'VOICE.JOIN_FAILED';
+    }
+
+    /**
+     * Say what the room gave less of, if it said so.
+     *
+     * <p>Rendered here because this is the call site that caused it: a degradation rides the
+     * response the caller already holds precisely so there is somewhere with the context to say
+     * "you are in, at a lower quality, because this server is on the free plan". An absent array is
+     * the normal case and means nothing was reduced - see
+     * `Echo/docs/specs/entitlements-frontend-guide.md` section 1.</p>
+     */
+    private reportDegradations(response: unknown): void {
+        for (const degradation of degradationsOf(response)) {
+            this.toast.info(this.translate.instant(describeEntitlementLimit(degradation).messageKey));
         }
     }
 
@@ -521,12 +579,21 @@ export class VoiceChannelService {
         const guildId = this.joinedGuildId();
         if (!channelId || !guildId) return;
         await this.doLeave(guildId, channelId, false);
+        this.clearJoinedState();
+    }
+
+    /**
+     * Out of every channel, as far as this client is concerned.
+     *
+     * <p>Mute and deafen are preferences rather than call state and are deliberately left alone -
+     * the bar's mic button still shows what the microphone is actually doing after the call ends.
+     * The two flags that hold a live publication are not preferences and cannot outlive it.</p>
+     */
+    private clearJoinedState(): void {
         this.joinedChannelId.set(null);
         this.joinedGuildId.set(null);
         this.joinedChannelName.set(null);
         this.joinedGuildName.set(null);
-        // Mute and deafen are preferences, not call state - they survive leaving too, so the bar's
-        // mic button still shows what the microphone is actually doing after the call ends.
         this.localState.update(s => ({...s, isCameraOn: false, isScreenSharing: false}));
     }
 
@@ -738,11 +805,7 @@ export class VoiceChannelService {
         if (!guildId) return;
 
         await this.doLeave(guildId, e.channelId, true);
-        this.joinedChannelId.set(null);
-        this.joinedGuildId.set(null);
-        this.joinedChannelName.set(null);
-        this.joinedGuildName.set(null);
-        this.localState.update(s => ({...s, isCameraOn: false, isScreenSharing: false}));
+        this.clearJoinedState();
         this.toast.info('You joined this channel from another device');
     }
 

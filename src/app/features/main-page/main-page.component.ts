@@ -413,7 +413,9 @@ export class MainPageComponent implements OnDestroy {
         if (!channel) return;
         this.navService.openChannel(channel);
         if (this.voiceChannelSvc.joinedChannelId() !== channel.id) {
-            await this.voiceChannelSvc.joinChannel(channel, guild.name);
+            // A refused join has already said so. The focus request would otherwise sit against a
+            // stage that never mounts, and lapse on its TTL with nothing shown.
+            if (!await this.voiceChannelSvc.joinChannel(channel, guild.name)) return;
         }
 
         this.callFocus.request(

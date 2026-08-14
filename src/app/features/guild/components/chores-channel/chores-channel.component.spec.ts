@@ -11,6 +11,7 @@ import {GuildService} from '../../../../services/guild.service';
 import {ProfileService} from '../../../../services/profile.service';
 import {NavigationService} from '../../../main-page/navigation.service';
 import {ChannelDto, ChannelType, GuildDto} from '../../../../dtos/response/guild.dto';
+import {EntitlementStore} from '../../../../stores/entitlement.store';
 import {Chore, ChoreBalanceEntry, ChoreOccurrence} from '../../../../dtos/response/chore.dto';
 
 function channelFixture(): ChannelDto {
@@ -75,6 +76,10 @@ function setup(opts: {
     balance?: ChoreBalanceEntry[];
     /** Overridable so a test can build a house that was never seeded with Flatmates. */
     roles?: { id: string; name: string }[];
+    /** `withheld` is the module the owner chose and the plan does not cover. */
+    standing?: 'off' | 'withheld' | 'unknown';
+    /** What the guild's own snapshot says about who can fix it. Absent means none is held. */
+    remedy?: { remedy: string; actorCanRemedy: boolean };
 } = {}) {
     const guild = {
         id: 'g1',
@@ -104,12 +109,22 @@ function setup(opts: {
         deleteChore: () => of(undefined),
     };
 
+    // Stubbed rather than real: the store reaches an HTTP service and the realtime hub, and what
+    // this component asks it is one question with four possible answers.
+    const entitlements = {
+        moduleStanding: () => opts.standing ?? 'unknown',
+        ensureFeaturesLoaded: () => undefined,
+        ensureLoaded: () => undefined,
+        snapshot: () => opts.remedy ?? null,
+    };
+
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
         imports: [ChoresChannelComponent],
         providers: [
             provideTranslateService({defaultLanguage: 'en'}),
             MessageService,
+            {provide: EntitlementStore, useValue: entitlements},
             {provide: ChoreService, useValue: choreService},
             {provide: NavigationService, useValue: {mobileNavOpen: signal(false)}},
             {provide: ProfileService, useValue: {ownProfile: () => ({userId: 'user_ben'}), getCachedByUserId: () => undefined}},
@@ -156,6 +171,61 @@ describe('ChoresChannelComponent module gate', () => {
         const fixture = setup({occurrences: [occurrenceFixture()]});
         expect(text(fixture)).toContain('Washing-up');
         expect(text(fixture)).not.toContain('CHORES.MODULE_OFF_TITLE');
+    });
+
+    /**
+     * The whole reason `withheldByPlan` is on the wire. Both states are the same absence from
+     * `effective` and they have opposite remedies - one is a toggle somebody here can flip, the
+     * other cannot be flipped at any permission level - so they must not share a sentence.
+     */
+    it('says the plan does not cover the rota rather than that the house turned it off', () => {
+        const fixture = setup({features: 'VoiceChannels', standing: 'withheld'});
+
+        expect(text(fixture)).toContain('CHORES.NOT_IN_PLAN_TITLE');
+        expect(text(fixture)).not.toContain('CHORES.MODULE_OFF_TITLE');
+    });
+
+    /** A resolution that has not arrived is not evidence, so nothing changes until it does. */
+    it('keeps the owner-turned-it-off sentence while no resolution is held', () => {
+        const fixture = setup({features: 'VoiceChannels', standing: 'unknown'});
+
+        expect(text(fixture)).toContain('CHORES.MODULE_OFF_TITLE');
+        expect(text(fixture)).not.toContain('CHORES.NOT_IN_PLAN_TITLE');
+    });
+
+    it('offers the upgrade to a reader the server said can buy it', () => {
+        const fixture = setup({
+            features: 'VoiceChannels',
+            standing: 'withheld',
+            remedy: {remedy: 'upgrade_guild', actorCanRemedy: true},
+        });
+
+        expect(text(fixture)).toContain('ENTITLEMENT.CTA.UPGRADE_SERVER');
+        expect(text(fixture)).not.toContain('ENTITLEMENT.CTA.ASK_OWNER');
+    });
+
+    /** A button that would 403 is worse than a sentence naming who can press one. */
+    it('names who can act instead, for a reader who cannot', () => {
+        const fixture = setup({
+            features: 'VoiceChannels',
+            standing: 'withheld',
+            remedy: {remedy: 'upgrade_guild', actorCanRemedy: false},
+        });
+
+        expect(text(fixture)).toContain('ENTITLEMENT.CTA.ASK_OWNER');
+        expect(text(fixture)).not.toContain('ENTITLEMENT.CTA.UPGRADE_SERVER');
+    });
+
+    /** Every limit on an instance that sells nothing arrives as `none`, and buys no button. */
+    it('offers nothing at all where there is nothing to buy', () => {
+        const fixture = setup({
+            features: 'VoiceChannels',
+            standing: 'withheld',
+            remedy: {remedy: 'none', actorCanRemedy: false},
+        });
+
+        expect(text(fixture)).toContain('CHORES.NOT_IN_PLAN_TITLE');
+        expect(text(fixture)).not.toContain('ENTITLEMENT.CTA.');
     });
 });
 

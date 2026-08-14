@@ -15,7 +15,7 @@
         <!-- ── Desktop sidebar (sm+ only) ──────────────────────────────────── -->
         <nav class="hidden sm:flex sm:w-52 shrink-0 bg-sidebar border-r border-white/[0.10] flex-col py-4 overflow-y-auto thin-scrollbar">
             <div class="flex flex-col flex-1">
-                @for (group of navGroups; track group.titleKey) {
+                @for (group of navGroups(); track group.titleKey) {
                     <div class="px-3 mb-4">
                         <p class="text-[0.625rem] font-semibold text-white/25 uppercase tracking-widest px-3 mb-1">
                             {{ group.titleKey | translate }}
@@ -52,7 +52,7 @@
 
                 <!-- Nav items -->
                 <div class="flex-1 overflow-y-auto px-4 py-4 thin-scrollbar">
-                    @for (group of navGroups; track group.titleKey) {
+                    @for (group of navGroups(); track group.titleKey) {
                         <p [class.mt-5]="!$first"
                            class="text-[0.625rem] font-semibold text-white/25 uppercase tracking-widest px-1 mb-2">
                             {{ group.titleKey | translate }}
@@ -92,7 +92,7 @@
                 <p-button (onClick)="mobileView.set('nav')" [text]="true" class="sm:hidden" icon="pi pi-arrow-left"
                           severity="secondary" size="small"/>
                 <h1 class="text-base font-semibold text-white/85 flex-1">
-                    @for (group of navGroups; track group.titleKey) {
+                    @for (group of navGroups(); track group.titleKey) {
                         @for (item of group.items; track item.id) {
                             @if (item.id === activePage()) {
                                 {{ item.labelKey | translate }}
@@ -148,6 +148,9 @@
                     }
                     @case ('ai') {
                         <app-ai-settings/>
+                    }
+                    @case ('billing') {
+                        <app-plan-panel [subject]="mySubject"/>
                     }
                 }
             </div>

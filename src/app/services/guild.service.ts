@@ -2,6 +2,7 @@ import {inject, Injectable, signal} from '@angular/core';
 import {HttpClient} from '@angular/common/http';
 import {CategoryDto, ChannelDto, ChannelPermission, GuildDto, GuildKind, RoleDto,} from '../dtos/response/guild.dto';
 import {GuildVerificationLevel} from '../dtos/response/guild-safety.dto';
+import {GuildFeatureResolutionDto} from '../dtos/response/entitlement.dto';
 import {environment} from '../../environments/environment';
 import {catchError, finalize, map, Observable, of, shareReplay, Subject, tap, throwError} from 'rxjs';
 import {GuildMemberDto, MemberPermissionsDto, RoleMemberDto, SelfGuildMemberDto} from '../dtos/response/member.dto';
@@ -221,6 +222,19 @@ export class GuildService {
 
     getGuild(id: string): Observable<GuildDto> {
         return this.http.get<GuildDto>(`${this.base}/guilds/${id}`);
+    }
+
+    /**
+     * One guild's module resolution on its own - what the owner chose, what the plan covers, what
+     * it withholds, and what is actually on.
+     *
+     * <p>Its own route rather than {@link getGuild} because this is what gets refetched when an
+     * `entitlements.Changed` push lands: re-pulling a guild's entire channel, category and role
+     * tree to learn that Forums went out of plan is a payload proportional to the guild's structure
+     * for four short lists.</p>
+     */
+    getGuildFeatures(id: string): Observable<GuildFeatureResolutionDto> {
+        return this.http.get<GuildFeatureResolutionDto>(`${this.base}/guilds/${id}/features`);
     }
 
     /**

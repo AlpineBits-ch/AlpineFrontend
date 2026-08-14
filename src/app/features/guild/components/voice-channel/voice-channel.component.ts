@@ -221,7 +221,7 @@ export class VoiceChannelComponent {
      * list), this is an explicit join affordance, so joining voice here is the right call.
      */
     protected async joinAndWatch(userId: string): Promise<void> {
-        await this.doJoinChannel();
+        if (!await this.doJoinChannel()) return;
         const channel = this.channel();
         this.callFocus.request(
             scopeKey({kind: 'channel', guildId: channel.guildId, channelId: channel.id}),
@@ -229,10 +229,10 @@ export class VoiceChannelComponent {
         );
     }
 
-    private async doJoinChannel(): Promise<void> {
+    private async doJoinChannel(): Promise<boolean> {
         const view = this.navService.workspace();
         const guildName = view.type === 'server' ? view.guild.name : '';
-        await this.voiceSvc.joinChannel(this.channel(), guildName);
+        return this.voiceSvc.joinChannel(this.channel(), guildName);
     }
 
     protected leaveChannel(): void {

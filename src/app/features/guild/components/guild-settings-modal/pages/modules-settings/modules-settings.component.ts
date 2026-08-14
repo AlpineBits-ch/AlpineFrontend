@@ -12,6 +12,7 @@ import {
     COMMUNITY_MODULES,
     GUILD_FEATURE_LABEL_KEY,
     GUILD_KIND_META,
+    guildFeatureLabelKey,
     guildFeatures,
     guildKindMeta,
     guildKindOf,
@@ -117,8 +118,7 @@ export class ModulesSettingsComponent {
 
     /** Unknown-to-this-build modules have no key; ngx-translate echoes the raw name back. */
     protected labelKey(module: string): string {
-        const stem = GUILD_FEATURE_LABEL_KEY[module];
-        return stem ? `${stem}.LABEL` : module;
+        return guildFeatureLabelKey(module);
     }
 
     protected descriptionKey(module: string): string {

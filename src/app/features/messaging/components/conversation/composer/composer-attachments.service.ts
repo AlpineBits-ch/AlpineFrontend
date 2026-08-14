@@ -1,5 +1,7 @@
 import {computed, inject, Injectable, OnDestroy, signal} from '@angular/core';
+import {uploadFailureKey} from '../../../../../core/entitlement-message';
 import {FileService} from '../../../../../services/file.service';
+import {EntitlementStore} from '../../../../../stores/entitlement.store';
 
 export interface AttachedFile {
     file: File;
@@ -9,24 +11,58 @@ export interface AttachedFile {
     uploadedId?: string;
     isUploading: boolean;
     uploadFailed: boolean;
+    /**
+     * Why it failed, as a translation key. Present only on a failure, and specific enough to be
+     * worth showing: one badge that could not tell "too large for this plan" from "the network
+     * died" was the whole of the feedback this path used to give.
+     */
+    errorKey?: string;
 }
 
 @Injectable()
 export class ComposerAttachmentsService implements OnDestroy {
     readonly files = signal<AttachedFile[]>([]);
     readonly isDraggingOver = signal(false);
+    /**
+     * The guild the composer is writing into, or null in a DM. It selects which upload ceiling
+     * applies: `storage.upload_max_bytes` inside a guild, `user.upload_max_bytes` outside one.
+     */
+    readonly guildId = signal<string | null>(null);
     /** True while at least one attachment has no id yet, so a send now would go without it. */
     readonly isUploading = computed(() => this.files().some(f => f.isUploading));
     /** True once an upload has given up, so a send now would go without that file for good. */
     readonly hasFailed = computed(() => this.files().some(f => f.uploadFailed));
+    /** The first failure's reason, for a caller that shows one sentence rather than one per file. */
+    readonly failureKey = computed(() => this.files().find(f => f.uploadFailed)?.errorKey ?? null);
     private fileService = inject(FileService);
+    private entitlements = inject(EntitlementStore);
     private dragCounter = 0;
     /** Resolvers parked by {@link settled}, released together the moment nothing is in flight. */
     private settleWaiters: (() => void)[] = [];
 
+    /**
+     * Queue a file, checking it against the server's ceiling before spending the transfer on it.
+     *
+     * <p>The check is a courtesy rather than the enforcement - the ceiling can move between the read
+     * and the upload, and the client is not the thing that decides - so the `403` and the `413` are
+     * still handled below. What it buys is that a 200 MB file is refused instantly and by name,
+     * instead of after a minute of upload and a generic badge.</p>
+     *
+     * <p>An oversized file in a batch is refused on its own. The others still go.</p>
+     */
     attach(file: File): void {
         const isImage = file.type.startsWith('image/');
         const previewUrl = URL.createObjectURL(file);
+
+        const ceiling = this.entitlements.uploadCeilingBytes(this.guildId());
+        if (ceiling !== null && file.size > ceiling) {
+            this.files.update(prev => [...prev, {
+                file, previewUrl, name: file.name, isImage,
+                isUploading: false, uploadFailed: true, errorKey: 'COMPOSER.UPLOAD_TOO_LARGE',
+            }]);
+            return;
+        }
+
         const entry: AttachedFile = {
             file,
             previewUrl,
@@ -44,9 +80,10 @@ export class ComposerAttachmentsService implements OnDestroy {
                 );
                 this.releaseIfSettled();
             },
-            error: () => {
+            error: (err: unknown) => {
+                const errorKey = uploadFailureKey(err);
                 this.files.update(prev =>
-                    prev.map(f => f === entry ? {...f, isUploading: false, uploadFailed: true} : f)
+                    prev.map(f => f === entry ? {...f, isUploading: false, uploadFailed: true, errorKey} : f)
                 );
                 this.releaseIfSettled();
             },

@@ -260,7 +260,9 @@ export class GuildMemberListComponent implements OnChanges {
 
         this.navService.openChannel(channel);
         if (this.voiceChannelSvc.joinedChannelId() !== channel.id) {
-            await this.voiceChannelSvc.joinChannel(channel, this.guild().name);
+            // A refused join has already said so, and focusing a stream in a room we are not in
+            // would leave the stage waiting on a participant that never arrives.
+            if (!await this.voiceChannelSvc.joinChannel(channel, this.guild().name)) return;
         }
         this.callFocus.request(
             scopeKey({kind: 'channel', guildId, channelId: channel.id}),

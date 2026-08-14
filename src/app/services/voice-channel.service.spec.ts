@@ -4,8 +4,10 @@
  * server-driven; the client's only job is to tear down cleanly when told.
  */
 import {ApplicationRef, signal} from '@angular/core';
+import {HttpErrorResponse} from '@angular/common/http';
 import {TestBed} from '@angular/core/testing';
-import {of, Subject} from 'rxjs';
+import {TranslateService} from '@ngx-translate/core';
+import {of, Subject, throwError} from 'rxjs';
 import {loadStickyVoiceState, VoiceChannelService} from './voice-channel.service';
 import {GuildWebsocketService} from './guild-websocket.service';
 import {ConnectionState} from './realtime-connection.service';
@@ -103,7 +105,7 @@ function setup(options: {inChannel?: boolean} = {}) {
         screenAudioMuted: () => new Map(),
         setScreenPreset: vi.fn(async () => null as {oldShareId: string; newShareId: string | null} | null),
     };
-    const toast = {info: vi.fn(), success: vi.fn(), httpError: vi.fn()};
+    const toast = {info: vi.fn(), success: vi.fn(), error: vi.fn(), httpError: vi.fn()};
     const engineSetMute = vi.fn(async () => undefined);
 
     TestBed.configureTestingModule({
@@ -126,6 +128,9 @@ function setup(options: {inChannel?: boolean} = {}) {
                 useValue: {speaking: () => false, remoteLevels: () => new Map(), setMute: engineSetMute},
             },
             {provide: ToastService, useValue: toast},
+            // Echoes the key rather than loading real translations, so an assertion names the key
+            // the service chose instead of a sentence that could be reworded.
+            {provide: TranslateService, useValue: {instant: (key: string) => key}},
         ],
     });
 
@@ -358,6 +363,155 @@ describe('sticky mute and deafen', () => {
 
         expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? '{}'))
             .toEqual({isMuted: true, isDeafened: true});
+    });
+});
+
+/**
+ * A join that did not happen.
+ *
+ * <p>The joined-state signals used to be written before the request went out, and the catch only
+ * logged. A refusal therefore left the sidebar, the status bar and the mute controls all rendering
+ * as joined against no media, with no way back except clicking another channel - and an entitlement
+ * rejection takes exactly this path, so every degradation would have been invisible underneath
+ * it.</p>
+ */
+describe('a join the server refuses', () => {
+    const CHANNEL = {
+        id: 'chan-2', guildId: 'guild-1', name: 'General', type: ChannelType.Voice,
+    } as ChannelDto;
+
+    /** A refusal shaped the way `Echo.Entitlements` sends one: 403, `code` equal to `reason`. */
+    function entitlementRefusal(): HttpErrorResponse {
+        return new HttpErrorResponse({
+            status: 403,
+            error: {
+                code: 'guild_plan_limit',
+                key: 'voice.max_participants',
+                reason: 'guild_plan_limit',
+                boundBy: 'guild',
+                remedy: 'upgrade_guild',
+                actorCanRemedy: false,
+                subject: {kind: 'guild', id: 'guild-1'},
+                retryable: false,
+            },
+        });
+    }
+
+    it('does not claim to have joined', async () => {
+        const {service, guildVoice} = setup({inChannel: false});
+        guildVoice.join.mockReturnValue(throwError(() => entitlementRefusal()));
+
+        const joined = await service.joinChannel(CHANNEL, 'Guild');
+
+        expect(joined).toBe(false);
+        expect(service.joinedChannelId()).toBeNull();
+        expect(service.joinedGuildId()).toBeNull();
+        expect(service.joinedChannelName()).toBeNull();
+        expect(service.isInVoice()).toBe(false);
+    });
+
+    /** The whole point: a refusal the user can read, rather than a line in the console. */
+    it('says which limit bound, in the entitlement vocabulary', async () => {
+        const {service, guildVoice, toast} = setup({inChannel: false});
+        guildVoice.join.mockReturnValue(throwError(() => entitlementRefusal()));
+
+        await service.joinChannel(CHANNEL, 'Guild');
+
+        expect(toast.error).toHaveBeenCalledWith('ENTITLEMENT.REASON.GUILD_PLAN_LIMIT');
+    });
+
+    it('falls back to the generic sentence for a failure that is not an entitlement one', async () => {
+        const {service, guildVoice, toast} = setup({inChannel: false});
+        guildVoice.join.mockReturnValue(throwError(() => new HttpErrorResponse({status: 500})));
+
+        await service.joinChannel(CHANNEL, 'Guild');
+
+        expect(toast.error).toHaveBeenCalledWith('VOICE.JOIN_FAILED');
+    });
+
+    /**
+     * Switching channels leaves the first one silently, on the understanding that the server moves
+     * a participant when their next join lands. It did not land, so the room the user left would
+     * otherwise still show them in it with no session behind the row.
+     */
+    it('tells the server about the channel it left on the way in', async () => {
+        const {service, guildVoice} = setup();
+        guildVoice.join.mockReturnValue(throwError(() => entitlementRefusal()));
+
+        await service.joinChannel(CHANNEL, 'Guild');
+
+        expect(guildVoice.leave).toHaveBeenCalledWith('guild-1', 'chan-1');
+    });
+
+    /** A transport that never came up is a room with no audio in it, and not a room to stay in. */
+    it('rolls back when the media transport does not come up', async () => {
+        const {service, rtc, toast} = setup({inChannel: false});
+        rtc.connect.mockResolvedValue(false);
+
+        const joined = await service.joinChannel(CHANNEL, 'Guild');
+
+        expect(joined).toBe(false);
+        expect(service.joinedChannelId()).toBeNull();
+        expect(toast.error).toHaveBeenCalledWith('VOICE.JOIN_FAILED');
+    });
+
+    it('reports a join that worked', async () => {
+        const {service, toast} = setup({inChannel: false});
+
+        const joined = await service.joinChannel(CHANNEL, 'Guild');
+
+        expect(joined).toBe(true);
+        expect(service.joinedChannelId()).toBe(CHANNEL.id);
+        expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    /**
+     * A degradation is a `200`. The room admitted us and gave less than was asked for, and treating
+     * that as a failure would be a denial with extra steps - which is exactly what "degrade, do not
+     * deny" exists to avoid.
+     */
+    it('stays in a room that admitted it on reduced terms, and says what was reduced', async () => {
+        const {service, guildVoice, toast} = setup({inChannel: false});
+        guildVoice.join.mockReturnValue(of({
+            ...emptySnapshot(CHANNEL.id),
+            degradations: [{
+                key: 'voice.video_ceiling',
+                requested: {kind: 'ladder', rung: '1080p60', rank: 4},
+                granted: {kind: 'ladder', rung: '720p30', rank: 2},
+                reason: 'guild_plan_limit',
+                boundBy: 'guild',
+                remedy: 'upgrade_guild',
+                actorCanRemedy: false,
+                subject: {kind: 'guild', id: 'guild-1'},
+            }],
+        }));
+
+        const joined = await service.joinChannel(CHANNEL, 'Guild');
+
+        expect(joined).toBe(true);
+        expect(service.joinedChannelId()).toBe(CHANNEL.id);
+        expect(toast.error).not.toHaveBeenCalled();
+        expect(toast.info).toHaveBeenCalledWith('ENTITLEMENT.REASON.GUILD_PLAN_LIMIT');
+    });
+
+    /** Absent and empty mean the same thing, and both are the normal case. */
+    it('says nothing when nothing was reduced', async () => {
+        const {service, toast} = setup({inChannel: false});
+
+        await service.joinChannel(CHANNEL, 'Guild');
+
+        expect(toast.info).not.toHaveBeenCalled();
+    });
+
+    /** Already being there is a success. Callers gate their follow-up action on this. */
+    it('reports true for the channel it is already in', async () => {
+        const {service, guildVoice} = setup();
+
+        const joined = await service.joinChannel(
+            {...CHANNEL, id: 'chan-1'} as ChannelDto, 'Guild');
+
+        expect(joined).toBe(true);
+        expect(guildVoice.join).not.toHaveBeenCalled();
     });
 });
 

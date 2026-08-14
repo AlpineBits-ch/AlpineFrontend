@@ -91,7 +91,9 @@ function setup(opts: { streamingUserId?: string | null } = {}) {
     const callFocus = {request: (_scopeKey: string, _target: unknown) => undefined};
     const voiceChannel = {
         joinedChannelId: signal<string | null>(null),
-        joinChannel: (_channel: unknown, _guildName: string) => Promise.resolve(),
+        // Answers whether the join actually happened. A stub that resolves undefined reads as a
+        // refusal, and everything the caller does after the join is gated on it.
+        joinChannel: (_channel: unknown, _guildName: string) => Promise.resolve(true),
     };
     const guildVoiceActivity = {
         isStreaming: (userId: string) => userId === liveUserId,
@@ -166,7 +168,7 @@ describe('GuildMemberListComponent - streaming badge', () => {
         };
         voiceChannel.joinChannel = (channel: any, guildName: string) => {
             joinedWith = {channelId: channel.id, guildName};
-            return Promise.resolve();
+            return Promise.resolve(true);
         };
 
         const button: HTMLButtonElement = fixture.nativeElement.querySelector('button:has(app-call-live-badge)')
@@ -187,7 +189,7 @@ describe('GuildMemberListComponent - streaming badge', () => {
         let joinCalled = false;
         voiceChannel.joinChannel = (_channel: any, _guildName: string) => {
             joinCalled = true;
-            return Promise.resolve();
+            return Promise.resolve(true);
         };
         let requested: unknown;
         callFocus.request = (key: string, target: unknown) => {
@@ -200,6 +202,30 @@ describe('GuildMemberListComponent - streaming badge', () => {
         await vi.waitFor(() => expect(requested).toBeDefined());
 
         expect(joinCalled).toBe(false);
+    });
+
+    /**
+     * A refused join has already told the user why. Focusing a stream in a room this client is not
+     * in would leave the stage waiting on a participant that never arrives.
+     */
+    it('arms no focus request when the join was refused', async () => {
+        const {fixture, callFocus, voiceChannel} = setup();
+        let requested: unknown;
+        let joinCalled = false;
+        callFocus.request = (key: string, target: unknown) => {
+            requested = {key, target};
+        };
+        voiceChannel.joinChannel = (_channel: any, _guildName: string) => {
+            joinCalled = true;
+            return Promise.resolve(false);
+        };
+
+        const button: HTMLButtonElement = fixture.nativeElement.querySelector('button:has(app-call-live-badge)')
+            ?? fixture.nativeElement.querySelector('app-call-live-badge').closest('button');
+        button.click();
+        await vi.waitFor(() => expect(joinCalled).toBe(true));
+
+        expect(requested).toBeUndefined();
     });
 
     it('does not also open the profile dialog when the badge is clicked', () => {

@@ -1,4 +1,4 @@
-import {Component, DestroyRef, computed, effect, ElementRef, inject, input, output, signal, viewChild} from '@angular/core';
+import {Component, DestroyRef, computed, effect, ElementRef, inject, input, output, signal, untracked, viewChild} from '@angular/core';
 import twemoji from 'twemoji';
 import {takeUntilDestroyed, toObservable, toSignal} from '@angular/core/rxjs-interop';
 import {catchError, debounceTime, map, of, switchMap} from 'rxjs';
@@ -46,6 +46,7 @@ import {GuildFeature, guildHasFeature} from '../../../../guild/guild-features';
 import {wikiShareLink} from '../../../wiki-link';
 import {ToastService} from '../../../../../services/toast.service';
 import {TranslateService} from '@ngx-translate/core';
+import {EntitlementStore, MY_ENTITLEMENTS} from '../../../../../stores/entitlement.store';
 
 const TWEMOJI_BASE = 'https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/';
 
@@ -138,6 +139,7 @@ export class ComposerComponent {
     private readonly messageStore = inject(MessageStore);
     private readonly destroyRef = inject(DestroyRef);
     private readonly socialGate = inject(SocialKeyGateService);
+    private readonly entitlements = inject(EntitlementStore);
     private readonly toast = inject(ToastService);
     private readonly translate = inject(TranslateService);
     /** Set on teardown, so a send parked on an upload does not resume into a dead view. */
@@ -152,6 +154,22 @@ export class ComposerComponent {
 
     constructor() {
         this.destroyRef.onDestroy(() => this.destroyed = true);
+
+        // Which upload ceiling applies is decided by where the file is going, so the attachment
+        // service is told the scope rather than reaching for a route. Both sets are read here: the
+        // user's own is the ceiling in a DM and one half of the pair inside a guild.
+        //
+        // Untracked, so the guild is the only thing this depends on. `ensureLoaded` reads the cache
+        // it also writes, and tracking that would re-run this on every set the store takes for any
+        // subject in the app.
+        effect(() => {
+            const gid = this.guildId();
+            untracked(() => {
+                this.attachments.guildId.set(gid);
+                this.entitlements.ensureLoaded(MY_ENTITLEMENTS);
+                if (gid) this.entitlements.ensureLoaded({kind: 'guild', id: gid});
+            });
+        });
 
         effect(() => {
             const gid = this.guildId();
@@ -748,7 +766,8 @@ export class ComposerComponent {
         // A failed upload settles too, and sending here would silently post without it. Say so
         // rather than swallow the Enter - the failed chip is on screen with its own ✕.
         if (this.attachments.hasFailed()) {
-            this.toast.error(this.translate.instant('COMPOSER.UPLOAD_FAILED'));
+            this.toast.error(this.translate.instant(
+                this.attachments.failureKey() ?? 'COMPOSER.UPLOAD_FAILED'));
             return;
         }
 

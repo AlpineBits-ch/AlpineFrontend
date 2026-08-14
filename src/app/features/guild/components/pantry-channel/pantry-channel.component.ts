@@ -49,6 +49,8 @@ import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {guildAbilities} from '../../guild-permissions';
 import {ModulePermissions} from '../../../../enums/module-permissions.enum';
 import {PantryScanComponent} from './pantry-scan.component';
+import {EntitlementStore} from '../../../../stores/entitlement.store';
+import {ModuleNotInPlanComponent} from '../module-not-in-plan/module-not-in-plan.component';
 
 /**
  * The look-ahead overrides offered by the house-wide expiring view, alongside the default of no
@@ -74,7 +76,7 @@ const EXPIRING_WINDOWS = [3, 7, 14, 30] as const;
     changeDetection: ChangeDetectionStrategy.OnPush,
     imports: [
         DatePipe, FormsModule, TranslateModule, Button, Dialog, InputText, Select, DatePicker,
-        ToggleSwitch, Tooltip, PrimeTemplate, PantryScanComponent,
+        ToggleSwitch, Tooltip, PrimeTemplate, PantryScanComponent, ModuleNotInPlanComponent,
     ],
     templateUrl: './pantry-channel.component.html',
 })
@@ -93,6 +95,7 @@ export class PantryChannelComponent implements OnDestroy {
 
     protected navService = inject(NavigationService);
     private pantry = inject(PantryService);
+    private entitlements = inject(EntitlementStore);
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private toast = inject(ToastService);
@@ -123,6 +126,19 @@ export class PantryChannelComponent implements OnDestroy {
         const guild = this.guild();
         return !!guild && !guildHasFeature(guild, GuildFeature.Pantry);
     });
+
+    /** The channel's own guild id, which is known before the guild list is. */
+    protected guildId = computed(() => this.channel().guildId);
+
+    /**
+     * Off because the plan does not cover it, which is a different sentence with a different
+     * remedy: no permission and no toggle in this house produces the module.
+     *
+     * <p>False while nothing is held, so a screen that has not read the resolution renders exactly
+     * what it rendered before this existed.</p>
+     */
+    protected moduleWithheld = computed(() =>
+        this.entitlements.moduleStanding(this.guildId(), GuildFeature.Pantry) === 'withheld');
 
     // ── Permissions ──────────────────────────────────────────────────────────
 
@@ -267,6 +283,12 @@ export class PantryChannelComponent implements OnDestroy {
         effect(() => {
             const channelId = this.channel().id;
             untracked(() => this.pantry.loadFor(channelId));
+        });
+
+        // Only once the module reads as off: that is the one moment "this house doesn't keep a
+        // pantry" and "this plan doesn't include Pantry" need telling apart.
+        effect(() => {
+            if (this.moduleOff()) this.entitlements.ensureFeaturesLoaded(this.guildId());
         });
 
         effect(() => {

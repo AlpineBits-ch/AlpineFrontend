@@ -1,4 +1,4 @@
-import {Component, effect, model, signal} from '@angular/core';
+import {Component, computed, effect, inject, model, signal, untracked} from '@angular/core';
 import {NgClass} from '@angular/common';
 import {Dialog} from "primeng/dialog";
 import {Button} from "primeng/button";
@@ -19,7 +19,9 @@ import {
 } from "./pages/platform-status-settings/platform-status-settings.component";
 import {AiSettingsComponent} from "./pages/ai-settings/ai-settings.component";
 import {LogoutDialogComponent} from "../logout-dialog/logout-dialog.component";
+import {PlanPanelComponent} from "../plan-panel/plan-panel.component";
 import {TranslateModule} from '@ngx-translate/core';
+import {EntitlementStore, MY_ENTITLEMENTS} from '../../../stores/entitlement.store';
 
 /**
  * One page in the settings nav.
@@ -58,6 +60,7 @@ export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
             {id: 'security', labelKey: 'SETTINGS.NAV.SECURITY', icon: 'pi pi-lock'},
             {id: 'devices', labelKey: 'SETTINGS.NAV.DEVICES', icon: 'pi pi-desktop'},
             {id: 'notifications', labelKey: 'SETTINGS.NAV.NOTIFICATIONS', icon: 'pi pi-bell'},
+            {id: 'billing', labelKey: 'SETTINGS.NAV.BILLING', icon: 'pi pi-credit-card'},
         ],
     },
     {
@@ -74,6 +77,30 @@ export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
         ],
     },
 ];
+
+/** The pages that exist only where something can be bought. */
+const BILLING_PAGE_IDS: readonly string[] = ['billing'];
+
+/**
+ * The nav for one instance.
+ *
+ * <p><b>Hidden, not disabled.</b> A self-hoster shown a Billing page has hit a paywall for a
+ * product nobody is charging them for, and a hosted instance whose billing is not configured yet
+ * reads the same way - so the entry is absent rather than greyed out, which is the same rule
+ * `capabilities.ts` applies to a control whose absence needs no explanation. The one signal to
+ * branch on is `upgradesAvailable`, not `licenseMode`: both states above answer it false.</p>
+ *
+ * <p>A free function for the same reason `buildGuildNavGroups` is one - the gated branch is the one
+ * whose keys nobody notices are missing, and this way a test can exercise it without standing up a
+ * component that wants an injector and half the settings pages.</p>
+ */
+export function visibleSettingsNavGroups(billingAvailable: boolean): SettingsNavGroup[] {
+    if (billingAvailable) return SETTINGS_NAV_GROUPS as SettingsNavGroup[];
+
+    return SETTINGS_NAV_GROUPS
+        .map(group => ({...group, items: group.items.filter(item => !BILLING_PAGE_IDS.includes(item.id))}))
+        .filter(group => group.items.length > 0);
+}
 
 @Component({
     selector: 'app-settings-modal',
@@ -96,6 +123,7 @@ export const SETTINGS_NAV_GROUPS: readonly SettingsNavGroup[] = [
         PlatformStatusSettingsComponent,
         AiSettingsComponent,
         LogoutDialogComponent,
+        PlanPanelComponent,
         TranslateModule,
     ],
     templateUrl: './settings-modal.component.html',
@@ -106,11 +134,31 @@ export class SettingsModalComponent {
     public activePage = signal('profile');
     public mobileView = signal<'nav' | 'content'>('nav');
     public showLogoutDialog = signal(false);
-    public readonly navGroups = SETTINGS_NAV_GROUPS;
+
+    /** The subject the billing page reads. A constant, so the input never churns. */
+    public readonly mySubject = MY_ENTITLEMENTS;
+
+    private entitlements = inject(EntitlementStore);
+
+    public readonly navGroups = computed(
+        () => visibleSettingsNavGroups(this.entitlements.upgradesAvailable()));
 
     constructor() {
         effect(() => {
             if (!this.isVisible()) this.mobileView.set('nav');
+        });
+
+        // Read before the nav is drawn, not when Billing is opened: `upgradesAvailable` is what
+        // decides whether the entry exists at all, and it is false until something has been read.
+        effect(() => {
+            if (this.isVisible()) untracked(() => this.entitlements.ensureLoaded(MY_ENTITLEMENTS));
+        });
+
+        // Switching instance can take Billing away underneath the reader - a self-hosted instance
+        // has no such page - and a `@switch` with no matching case renders nothing at all.
+        effect(() => {
+            const shown = this.navGroups().some(g => g.items.some(i => i.id === this.activePage()));
+            if (!shown) untracked(() => this.activePage.set('profile'));
         });
     }
 

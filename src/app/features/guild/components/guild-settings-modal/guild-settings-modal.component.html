@@ -161,6 +161,9 @@
                     @case ('guest-access') {
                         <app-guest-access-settings [guild]="guild()"/>
                     }
+                    @case ('plan') {
+                        <app-plan-panel [subject]="planSubject()"/>
+                    }
                 }
             </div>
         </div>

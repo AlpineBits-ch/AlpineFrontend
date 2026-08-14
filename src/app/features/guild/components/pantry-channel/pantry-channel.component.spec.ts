@@ -14,6 +14,7 @@ import {ChannelDto, ChannelType, GuildDto} from '../../../../dtos/response/guild
 import {SelfGuildMemberDto} from '../../../../dtos/response/member.dto';
 import {PantryConfig, PantryItem} from '../../../../dtos/response/pantry.dto';
 import {provideFakePlatform} from '../../../../platform/testing/provide-fake-platform';
+import {EntitlementStore} from '../../../../stores/entitlement.store';
 
 const BASE = 'https://api.test.example';
 const GUILD_URL = `${BASE}/api/v1/guild`;
@@ -25,6 +26,7 @@ const OWNER_ID = 'user_owner';
 type Internals = {
     canManage(): boolean;
     moduleOff(): boolean;
+    moduleWithheld(): boolean;
     restockLoopOn(): boolean;
     listChannelOptions(): { label: string; value: string }[];
     warningDays(): number;
@@ -92,6 +94,8 @@ function setup(opts: {
     ownUserId?: string;
     items?: PantryItem[];
     config?: PantryConfig | null;
+    /** `withheld` is the module the owner chose and the plan does not cover. */
+    standing?: 'off' | 'withheld' | 'unknown';
 } = {}) {
     const guildDto = opts.guild ?? guild();
 
@@ -105,6 +109,17 @@ function setup(opts: {
             MessageService,
             {provide: ApiConfigService, useValue: {baseUrl: () => BASE}},
             {provide: RealtimeConnectionService, useValue: {on: () => undefined, off: () => undefined}},
+            // Stubbed rather than real: the store would put a `/features` read on the wire that
+            // this file's `verify()` counts, and what the component asks it is one question.
+            {
+                provide: EntitlementStore,
+                useValue: {
+                    moduleStanding: () => opts.standing ?? 'unknown',
+                    ensureFeaturesLoaded: () => undefined,
+                    ensureLoaded: () => undefined,
+                    snapshot: () => null,
+                },
+            },
             {
                 provide: GuildService,
                 useValue: {
@@ -167,6 +182,23 @@ describe('PantryChannelComponent', () => {
         it('does not report it off for a guild that has it', () => {
             const {api} = setup();
             expect(api.moduleOff()).toBe(false);
+        });
+
+        /**
+         * "The owner turned Pantry off" and "the plan does not cover Pantry" are the same absence
+         * from what is effective and have opposite remedies, so they are two states here.
+         */
+        it('separates a plan withholding the module from the house turning it off', () => {
+            const {api} = setup({guild: guild({features: 'Lists'}), standing: 'withheld'});
+
+            expect(api.moduleWithheld()).toBe(true);
+        });
+
+        it('claims nothing about the plan while no resolution is held', () => {
+            const {api} = setup({guild: guild({features: 'Lists'})});
+
+            expect(api.moduleWithheld()).toBe(false);
+            expect(api.moduleOff()).toBe(true);
         });
     });
 

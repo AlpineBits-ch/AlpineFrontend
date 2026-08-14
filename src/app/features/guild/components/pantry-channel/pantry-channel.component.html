@@ -37,7 +37,10 @@
         </div>
     </header>
 
-    @if (moduleOff()) {
+    @if (moduleWithheld()) {
+        <!-- Chosen and not covered. The third state, and the only one with an upgrade behind it. -->
+        <app-module-not-in-plan feature="Pantry" [guildId]="guildId()"/>
+    } @else if (moduleOff()) {
         <!-- §13.2: the module is off for this house. Not a permission problem, and there is
              no owner escape hatch - so nothing interactive is offered. -->
         <div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-6 text-center">

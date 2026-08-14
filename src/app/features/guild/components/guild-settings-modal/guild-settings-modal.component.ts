@@ -33,6 +33,8 @@ import {ModulesSettingsComponent} from './pages/modules-settings/modules-setting
 import {QuietHoursSettingsComponent} from './pages/quiet-hours-settings/quiet-hours-settings.component';
 import {GuestAccessSettingsComponent} from './pages/guest-access-settings/guest-access-settings.component';
 import {GuildFeature, guildFeatures} from '../../guild-features';
+import {PlanPanelComponent} from '../../../settings/plan-panel/plan-panel.component';
+import {EntitlementStore, EntitlementSubjectRef, MY_ENTITLEMENTS} from '../../../../stores/entitlement.store';
 import {TranslateModule} from '@ngx-translate/core';
 import {PrimeTemplate} from 'primeng/api';
 import {GuildService} from '../../../../services/guild.service';
@@ -77,8 +79,18 @@ interface NavGroup {
  * nothing but the guild's feature set - so the feature-gated branches, which are the ones most
  * likely to reference a key nobody added, can be exercised without standing up a component that
  * wants `GuildService`, `ProfileService` and a `Dialog`. The `computed` is now one line.</p>
+ *
+ * @param billingAvailable whether this instance sells anything, from
+ *        `EntitlementStore.upgradesAvailable`. False hides the Plan page rather than disabling it,
+ *        the same rule the module pages above follow: it is false on a self-hosted instance and on
+ *        a hosted one whose billing is not configured, and a plan page on either is a screen about
+ *        a product nobody is charging for. It defaults to false so a caller that has read nothing
+ *        yet draws no billing surface.
  */
-export function buildGuildNavGroups(guild: Pick<GuildDto, 'features'> | null | undefined): NavGroup[] {
+export function buildGuildNavGroups(
+    guild: Pick<GuildDto, 'features'> | null | undefined,
+    billingAvailable = false,
+): NavGroup[] {
     const features = guildFeatures(guild);
     const groups: NavGroup[] = [
         {
@@ -127,6 +139,17 @@ export function buildGuildNavGroups(guild: Pick<GuildDto, 'features'> | null | u
                     : []),
             ],
         },
+        // Its own group rather than a row under Server: what a guild *is on* is a different
+        // question from what it *has*, and folding a plan into the module list is what makes
+        // "the owner turned Forums off" and "Forums is not in this plan" look like one thing.
+        {
+            titleKey: 'GUILD_SETTINGS.NAV.GROUP_PLAN',
+            items: [
+                ...(billingAvailable
+                    ? [{id: 'plan', labelKey: 'GUILD_SETTINGS.NAV.PLAN', icon: 'pi pi-credit-card'}]
+                    : []),
+            ],
+        },
     ];
     return groups.filter(group => group.items.length > 0);
 }
@@ -151,6 +174,7 @@ export function buildGuildNavGroups(guild: Pick<GuildDto, 'features'> | null | u
         ModulesSettingsComponent,
         QuietHoursSettingsComponent,
         GuestAccessSettingsComponent,
+        PlanPanelComponent,
         TranslateModule,
         PrimeTemplate,
     ],
@@ -183,6 +207,7 @@ export class GuildSettingsModalComponent {
 
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
+    private entitlements = inject(EntitlementStore);
     private ownMember = signal<SelfGuildMemberDto | null>(null);
     private memberLoaded = signal(false);
     /** Guild the cached member row belongs to, so reopening on another guild re-checks. */
@@ -206,7 +231,12 @@ export class GuildSettingsModalComponent {
     guildIconUrl = computed(() =>
         `${environment.apiUrl}/api/v1/guild/guilds/${this.guild().id}/icon`
     );
-    navGroups = computed<NavGroup[]>(() => buildGuildNavGroups(this.guild()));
+    navGroups = computed<NavGroup[]>(
+        () => buildGuildNavGroups(this.guild(), this.entitlements.upgradesAvailable()));
+
+    /** What the Plan page reads. Rebuilt only when the guild changes, so the input holds still. */
+    protected planSubject = computed<EntitlementSubjectRef>(
+        () => ({kind: 'guild', id: this.guild().id}));
 
     constructor() {
         // A dirty flag can only outlive the page that set it once we're closed. Esc used to
@@ -228,6 +258,21 @@ export class GuildSettingsModalComponent {
             // untracked: the load writes the very signals `access` is built from, and a
             // tracked read of them here would re-run this effect on every write.
             untracked(() => this.loadOwnMember(guildId));
+        });
+
+        // Whether the Plan tab exists at all is `upgradesAvailable`, which is false until the
+        // caller's own set has been read - so the read has to happen when the modal opens rather
+        // than when the tab is pressed.
+        effect(() => {
+            if (this.isVisible()) untracked(() => this.entitlements.ensureLoaded(MY_ENTITLEMENTS));
+        });
+
+        // A guild that reached this modal from a single-guild read already carries its module
+        // resolution, and the Plan page would otherwise ask the dedicated route for it again.
+        // Absent is the common case - the guild list does not carry it - and absent files nothing.
+        effect(() => {
+            const guild = this.guild();
+            untracked(() => this.entitlements.putFeatures(guild.id, guild.featureResolution));
         });
 
         // Switching a module off from the modules page can pull the page the user is

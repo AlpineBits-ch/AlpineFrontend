@@ -24,7 +24,10 @@
     </header>
 
     <!-- §13.2: the module being off is not a permission problem, and must not read as one. -->
-    @if (!moduleEnabled()) {
+    @if (moduleWithheld()) {
+        <!-- Chosen and not covered. The third state, and the only one with an upgrade behind it. -->
+        <app-module-not-in-plan feature="Decisions" [guildId]="guildId()"/>
+    } @else if (!moduleEnabled()) {
         <div class="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
             <div class="w-14 h-14 rounded-2xl bg-card border border-border flex items-center justify-center">
                 <i class="pi pi-flag text-[1.5rem] text-text-muted"></i>

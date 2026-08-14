@@ -108,7 +108,8 @@ function joinAndWatchButton(fixture: ComponentFixture<VoiceChannelComponent>): H
 
 describe('VoiceChannelComponent join-and-watch', () => {
     it('joins the channel and arms a focus request for the streamer', async () => {
-        const joinChannel = vi.fn().mockResolvedValue(undefined);
+        // `joinChannel` answers whether the join actually happened, so the stub has to say so.
+        const joinChannel = vi.fn().mockResolvedValue(true);
         const fixture = render(joinChannel);
         // Spied rather than read back through consume(): consume() is one-shot, and polling for the
         // call to land (see the whenStable() note in pay-sheet.component.spec.ts - it does not
@@ -124,7 +125,7 @@ describe('VoiceChannelComponent join-and-watch', () => {
     });
 
     it('does not arm a request when the plain join button is used instead', async () => {
-        const joinChannel = vi.fn().mockResolvedValue(undefined);
+        const joinChannel = vi.fn().mockResolvedValue(true);
         const fixture = render(joinChannel);
         const requestSpy = vi.spyOn(TestBed.inject(CallFocusService), 'request');
 
@@ -132,6 +133,18 @@ describe('VoiceChannelComponent join-and-watch', () => {
             .find(b => b.textContent?.includes('CALL.JOIN_VOICE'))!;
         plainButton.click();
         await vi.waitFor(() => expect(joinChannel).toHaveBeenCalledWith(CHANNEL, 'My Guild'));
+
+        expect(requestSpy).not.toHaveBeenCalled();
+    });
+
+    /** A refused join has already said so; a stage focused on a room nobody is in has not. */
+    it('arms nothing when the join was refused', async () => {
+        const joinChannel = vi.fn().mockResolvedValue(false);
+        const fixture = render(joinChannel);
+        const requestSpy = vi.spyOn(TestBed.inject(CallFocusService), 'request');
+
+        joinAndWatchButton(fixture).click();
+        await vi.waitFor(() => expect(joinChannel).toHaveBeenCalled());
 
         expect(requestSpy).not.toHaveBeenCalled();
     });

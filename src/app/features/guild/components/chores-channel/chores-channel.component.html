@@ -26,7 +26,10 @@
                   severity="secondary" size="small" [pTooltip]="'CHORES.BACK' | translate"/>
     </header>
 
-    @if (!moduleEnabled()) {
+    @if (moduleWithheld()) {
+        <!-- Chosen and not covered. The third state, and the only one with an upgrade behind it. -->
+        <app-module-not-in-plan feature="Chores" [guildId]="guildId()"/>
+    } @else if (!moduleEnabled()) {
         <!-- The module gate is read before anything is fetched. "This house doesn't do chores" and
              "you're not allowed to see the chores" are different sentences, and a 403 alone can't
              tell them apart - §13.2. -->

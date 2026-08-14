@@ -48,6 +48,8 @@ import {GuildFeature, guildHasFeature} from '../../guild-features';
 import {guildAbilities} from '../../guild-permissions';
 import {defaultRotationRoleId} from '../../household-roles';
 import {ModulePermissions} from '../../../../enums/module-permissions.enum';
+import {EntitlementStore} from '../../../../stores/entitlement.store';
+import {ModuleNotInPlanComponent} from '../module-not-in-plan/module-not-in-plan.component';
 
 /** Which of the two mutually exclusive assignment fields the editor is filling in. */
 type AssignmentMode = 'rotation' | 'fixed';
@@ -74,6 +76,7 @@ const MEMBER_PAGE = 200;
     imports: [
         DatePipe, FormsModule, TranslateModule,
         Button, Dialog, InputText, Textarea, InputNumber, DatePicker, Select, ToggleSwitch, Tooltip,
+        ModuleNotInPlanComponent,
     ],
     templateUrl: './chores-channel.component.html',
 })
@@ -83,6 +86,7 @@ export class ChoresChannelComponent {
 
     protected navService = inject(NavigationService);
     private choreService = inject(ChoreService);
+    private entitlements = inject(EntitlementStore);
     private guildService = inject(GuildService);
     private profileService = inject(ProfileService);
     private minuteClock = inject(MinuteClockService);
@@ -99,12 +103,26 @@ export class ChoresChannelComponent {
     private guild = computed(() =>
         this.guildService.guilds().find(g => g.id === this.channel().guildId) ?? null);
 
+    /** The channel's own guild id, which is known before the guild list is. */
+    protected guildId = computed(() => this.channel().guildId);
+
     /**
      * §13.2: a `403` from any household endpoint usually means the module is off rather than that
      * the caller lacks a bit, and the owner gets no exemption. Reading `features` first is what
      * lets the empty state say "this house doesn't do chores" instead of accusing the user.
      */
     protected moduleEnabled = computed(() => guildHasFeature(this.guild(), GuildFeature.Chores));
+
+    /**
+     * Whether the module is off because the guild's plan does not cover it, which is a different
+     * sentence with a different remedy - nobody in this house can toggle their way out of it.
+     *
+     * <p>False while no resolution is held, which is most of the time: the resolution is absent
+     * from the guild list, so a screen that has not asked for it renders exactly what it rendered
+     * before this existed. "Not loaded" is not evidence of anything.</p>
+     */
+    protected moduleWithheld = computed(() =>
+        this.entitlements.moduleStanding(this.guildId(), GuildFeature.Chores) === 'withheld');
 
     // ── Permissions ─────────────────────────────────────────────────────────
 
@@ -362,6 +380,13 @@ export class ChoresChannelComponent {
         // The nudge button appears and greys itself purely by the passage of time, so the board
         // needs a clock that ticks rather than one sampled at render.
         this.minuteClock.retain();
+
+        // Only once the module reads as off. That is the only moment the difference between "this
+        // house doesn't do chores" and "this plan doesn't include chores" is worth a request, and
+        // a house with the module on would pay for it on every open for nothing.
+        effect(() => {
+            if (!this.moduleEnabled()) this.entitlements.ensureFeaturesLoaded(this.guildId());
+        });
 
         // Membership is keyed on the guild alone. Kept out of the load effect below because that
         // one also depends on `guilds()` - folding them together would re-issue two member

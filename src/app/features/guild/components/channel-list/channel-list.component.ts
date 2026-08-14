@@ -460,7 +460,7 @@ export class ChannelListComponent {
     protected onVoiceChannelClick(channel: ChannelDto): void {
         this.navService.openChannel(channel);
         if (this.voiceChannelSvc.joinedChannelId() !== channel.id) {
-            this.voiceChannelSvc.joinChannel(channel, this.guild().name);
+            void this.voiceChannelSvc.joinChannel(channel, this.guild().name);
         }
         this.navService.mobileNavOpen.set(false);
     }
@@ -475,7 +475,9 @@ export class ChannelListComponent {
     protected async onWatchStream(event: {channel: ChannelDto; userId: string}): Promise<void> {
         this.navService.openChannel(event.channel);
         if (this.voiceChannelSvc.joinedChannelId() !== event.channel.id) {
-            await this.voiceChannelSvc.joinChannel(event.channel, this.guild().name);
+            // A refused join has already said so. Arming a focus request on top of it would point
+            // the stage at a room this client is not in.
+            if (!await this.voiceChannelSvc.joinChannel(event.channel, this.guild().name)) return;
         }
         this.callFocus.request(
             scopeKey({kind: 'channel', guildId: event.channel.guildId, channelId: event.channel.id}),

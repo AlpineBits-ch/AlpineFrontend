@@ -177,7 +177,7 @@ export class EventsPanelComponent {
         if (!channel) return;
         this.navService.openChannel(channel);
         if (this.voiceChannelSvc.joinedChannelId() !== channel.id) {
-            this.voiceChannelSvc.joinChannel(channel, ws.guild.name);
+            void this.voiceChannelSvc.joinChannel(channel, ws.guild.name);
         }
     }
 }

@@ -1,6 +1,8 @@
 import {computed, effect, inject, Injectable, signal, untracked} from '@angular/core';
+import {TranslateService} from '@ngx-translate/core';
 import {firstValueFrom, Subscription} from 'rxjs';
 import {OAuthService} from 'angular-oauth2-oidc';
+import {describeEntitlementDenial} from '../core/entitlement-message';
 import {ApiConfigService} from './api-config.service';
 import {DeviceIdentityService} from './device-identity.service';
 import {VoiceEngineService, VoiceSession} from './voice-engine.service';
@@ -111,6 +113,7 @@ export class CallWebRtcService {
     private apiConfig = inject(ApiConfigService);
     private deviceIdentity = inject(DeviceIdentityService);
     private toast = inject(ToastService);
+    private translate = inject(TranslateService);
     private oauth = inject(OAuthService);
     // ── WebRTC state ─────────────────────────────────────────────────────────
     private pc: RTCPeerConnection | null = null;
@@ -334,6 +337,17 @@ export class CallWebRtcService {
 
     // Serialise all SDP exchanges through a promise chain so concurrent publish
 
+    /**
+     * Open the media session for a call.
+     *
+     * <p>Driven from an effect as `void this.connect(...)`, so nothing is holding the promise and a
+     * rejection here has no call site to land at. It used to be unguarded: a refused session -
+     * offline SFU, a revoked call, an entitlement rejection - surfaced as an unhandled rejection in
+     * the console and left `callId` set, which blocks every later attempt because that field is the
+     * re-entry guard. The catch tears the half-built connection down so the next attempt can run,
+     * and says something, because a call that is silently not connected looks exactly like one that
+     * is.</p>
+     */
     private async connect(callId: string): Promise<void> {
         this.callId = callId; // Set immediately so re-entry is prevented
 
@@ -346,6 +360,17 @@ export class CallWebRtcService {
             if (this.pc) this.pcState.set(this.pc.connectionState);
         };
 
+        try {
+            await this.openSession(callId);
+        } catch (err) {
+            console.error('[WebRTC] call session setup failed', err);
+            this.disconnect();
+            const denial = describeEntitlementDenial(err);
+            this.toast.error(this.translate.instant(denial?.messageKey ?? 'CALL.CONNECT_FAILED'));
+        }
+    }
+
+    private async openSession(callId: string): Promise<void> {
         const {mediaSessionId} = await firstValueFrom(this.voiceService.cfCreateSession(callId, false));
         if (!this.callId) return;
         this.mediaSessionId = mediaSessionId;

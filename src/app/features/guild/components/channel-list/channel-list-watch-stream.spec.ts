@@ -26,6 +26,7 @@ import {GuildVoiceService} from '../../../../services/guild-voice.service';
 import {GuildUiActionsService} from '../../../../services/guild-ui-actions.service';
 import {GuildWebsocketService} from '../../../../services/guild-websocket.service';
 import {ScheduledEventStore} from '../../../../stores/scheduled-event.store';
+import {EntitlementStore} from '../../../../stores/entitlement.store';
 import {MinuteClockService} from '../../../../services/minute-clock.service';
 import {GuildOnboardingStateService} from '../../../../services/guild-onboarding-state.service';
 import {ChannelDto, ChannelType, GuildDto} from '../../../../dtos/response/guild.dto';
@@ -95,6 +96,20 @@ function render(joinChannel: ReturnType<typeof vi.fn>): ComponentFixture<Channel
             {provide: ScheduledEventStore, useValue: {eventsForGuild: () => [], loadFor: () => undefined}},
             {provide: MinuteClockService, useValue: {retain: () => undefined, now: () => 0}},
             {provide: GuildOnboardingStateService, useValue: {statusFor: () => undefined}},
+            // The guild settings modal this template holds reads the store to decide whether the
+            // instance sells anything, and the real one reaches an HTTP service and the auth
+            // config behind it. Nothing here exercises billing, so it answers "nothing to buy".
+            {
+                provide: EntitlementStore,
+                useValue: {
+                    upgradesAvailable: () => false,
+                    ensureLoaded: () => undefined,
+                    ensureFeaturesLoaded: () => undefined,
+                    putFeatures: () => undefined,
+                    moduleStanding: () => 'unknown',
+                    snapshot: () => null,
+                },
+            },
         ],
     });
 
@@ -107,7 +122,8 @@ function render(joinChannel: ReturnType<typeof vi.fn>): ComponentFixture<Channel
 
 describe('ChannelListComponent.onWatchStream', () => {
     it('joins the channel and arms a focus request for the streamer', async () => {
-        const joinChannel = vi.fn().mockResolvedValue(undefined);
+        // `joinChannel` answers whether the join actually happened, so the stub has to say so.
+        const joinChannel = vi.fn().mockResolvedValue(true);
         const fixture = render(joinChannel);
         const navService = TestBed.inject(NavigationService);
         const openChannelSpy = vi.spyOn(navService, 'openChannel');
@@ -123,7 +139,7 @@ describe('ChannelListComponent.onWatchStream', () => {
     });
 
     it('does not re-join when already in the streamed channel, but still arms the request', async () => {
-        const joinChannel = vi.fn().mockResolvedValue(undefined);
+        const joinChannel = vi.fn().mockResolvedValue(true);
         const fixture = render(joinChannel);
         const voiceChannelSvc = TestBed.inject(VoiceChannelService) as unknown as {joinedChannelId: ReturnType<typeof signal<string | null>>};
         voiceChannelSvc.joinedChannelId = signal(CHANNEL.id);
@@ -134,5 +150,21 @@ describe('ChannelListComponent.onWatchStream', () => {
 
         expect(joinChannel).not.toHaveBeenCalled();
         expect(requestSpy).toHaveBeenCalled();
+    });
+
+    /**
+     * A refused join - a permission change, a full room, an entitlement rejection - has already told
+     * the user so. Pointing the stage at a room this client is not in on top of that leaves a focus
+     * request waiting for a participant that never arrives.
+     */
+    it('arms nothing when the join was refused', async () => {
+        const joinChannel = vi.fn().mockResolvedValue(false);
+        const fixture = render(joinChannel);
+        const requestSpy = vi.spyOn(TestBed.inject(CallFocusService), 'request');
+
+        await (fixture.componentInstance as unknown as OnWatchStreamHost)
+            .onWatchStream({channel: CHANNEL, userId: 'streamer-1'});
+
+        expect(requestSpy).not.toHaveBeenCalled();
     });
 });

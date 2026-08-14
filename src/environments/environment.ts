@@ -8,6 +8,20 @@ export const environment = {
     rustPublisher: true,
     apiUrl: 'https://api.venta.gg',
     klipyApiKey: 'urPFHj6XtUHQIo9G5XD3nvudiXcyRIiad68WfDV0DV8WmJXSFfxFC4PGqcRTXuL5',
+    /**
+     * Stripe's publishable key, which is designed to be read by the browser and carries no
+     * authority on its own. The secret key is Stripe's half of the pair and must never be in this
+     * repository.
+     *
+     * <p><b>A development default and a fallback, not the production path.</b> This client is
+     * pointed at arbitrary Echo instances at runtime, and a key baked into the build belongs to one
+     * Stripe account - so a self-hoster running this build would be handing their customers'
+     * payments to somebody else's account. The instance has to say which key is its own, and the
+     * entitlement snapshot is where it belongs: it already carries `licenseMode` and
+     * `upgradesAvailable`, is read before any billing surface is drawn, and needs no new endpoint
+     * for a third field. Read the server's value when there is one and fall back to this.</p>
+     */
+    stripePublishableKey: 'pk_test_51TY1Am2c7cgnhryPhW1Ff1xuc9DQ5zmEUKtyhqCi3eKqGE0mEaPMAliiVnHFdtAU42c0D5pR0noi76ZQwDfYArGa007BZhMSoa',
     iceServers: [
         {
             urls: [
