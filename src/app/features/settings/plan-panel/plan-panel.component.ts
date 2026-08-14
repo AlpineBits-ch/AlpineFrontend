@@ -1,4 +1,4 @@
-import {Component, computed, effect, inject, input} from '@angular/core';
+import {Component, computed, effect, inject, input, viewChild} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {EntitlementStore, EntitlementSubjectRef} from '../../../stores/entitlement.store';
 import {entitlementRemedyCopy} from '../../../core/entitlement-message';
@@ -39,6 +39,9 @@ export class PlanPanelComponent {
     subject = input.required<EntitlementSubjectRef>();
 
     private entitlements = inject(EntitlementStore);
+
+    /** The card that owns the change dialog, for the refusal the plan picker cannot answer itself. */
+    private subscriptionCard = viewChild(SubscriptionCardComponent);
 
     protected snapshot = computed(() => this.entitlements.snapshot(this.subject()));
 
@@ -94,6 +97,17 @@ export class PlanPanelComponent {
      * cards to every admin who can open it would be the same mistake in the other direction.</p>
      */
     protected isOwnAccount = computed(() => this.subject().kind === 'user');
+
+    /**
+     * A buy that was refused because this subject already has a subscription.
+     *
+     * <p>The refusal's own sentence tells them to change the plan instead, and the dialog that does
+     * it belongs to the subscription card. This panel is the only place the two are both in scope,
+     * which is why the request comes all the way up here rather than being answered lower down.</p>
+     */
+    protected onChangePlanRequested(): void {
+        this.subscriptionCard()?.requestChangePlan();
+    }
 
     constructor() {
         effect(() => {

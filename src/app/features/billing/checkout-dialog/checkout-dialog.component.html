@@ -1,7 +1,11 @@
+<!-- Not closable while the card is being confirmed or the subscription activated. Both waits are
+     bounded and both end in a state this dialog renders, so refusing costs seconds - and it is the
+     one thing standing between "charged, saw nothing" and a second purchase or a support ticket. -->
 <p-dialog
-        (visibleChange)="visible.set($event)"
+        (visibleChange)="onVisibleChange($event)"
         [breakpoints]="{ '640px': '100vw' }"
-        [closable]="true"
+        [closable]="!busy()"
+        [closeOnEscape]="!busy()"
         [draggable]="false"
         [modal]="true"
         [resizable]="false"
@@ -68,7 +72,7 @@
 
             @case ('refused') {
                 <div class="flex flex-col gap-1.5">
-                    <p class="text-sm text-text-secondary m-0 leading-relaxed">
+                    <p class="text-sm text-text-secondary m-0 leading-relaxed" role="alert">
                         @if (errorText(); as text) {
                             {{ text }}
                         } @else if (errorKey(); as key) {
@@ -76,8 +80,22 @@
                         }
                     </p>
                 </div>
-                <p-button (onClick)="close()" [label]="'BILLING.CHECKOUT.CLOSE' | translate" severity="secondary"
-                          styleClass="justify-center"/>
+
+                <!-- The one refusal whose sentence names an action, so it is the one refusal that
+                     carries the action. "Change the plan instead" with nothing to press is worse
+                     than a generic apology. -->
+                @if (alreadySubscribed()) {
+                    <div class="flex flex-wrap items-center gap-2">
+                        <p-button (onClick)="close()" [label]="'BILLING.CHECKOUT.CLOSE' | translate"
+                                  [text]="true" severity="secondary" styleClass="flex-1 justify-center"/>
+                        <p-button (onClick)="requestChange()"
+                                  [label]="'BILLING.CHECKOUT.CHANGE_INSTEAD' | translate"
+                                  severity="primary" styleClass="flex-1 justify-center"/>
+                    </div>
+                } @else {
+                    <p-button (onClick)="close()" [label]="'BILLING.CHECKOUT.CLOSE' | translate"
+                              severity="secondary" styleClass="justify-center"/>
+                }
             }
 
             @default {
@@ -88,8 +106,13 @@
                             <p class="text-sm text-text-secondary m-0">
                                 {{ 'BILLING.CHECKOUT.ACTIVATING' | translate }}
                             </p>
-                            <p class="text-xs text-text-muted m-0">
+                            <p class="text-xs text-text-muted m-0 leading-relaxed">
                                 {{ 'BILLING.CHECKOUT.ACTIVATING_HINT' | translate }}
+                            </p>
+                            <!-- Why the close button is gone, next to where it was. A control that
+                                 disappears without a word reads as a screen that has hung. -->
+                            <p class="text-xs text-text-muted m-0 leading-relaxed">
+                                {{ 'BILLING.CHECKOUT.ACTIVATING_STAY' | translate }}
                             </p>
                         </div>
                     </div>
@@ -106,13 +129,16 @@
                                 [collectAddress]="true"/>
 
                         @if (errorText(); as text) {
-                            <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed">{{ text }}</p>
+                            <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed"
+                               role="alert">{{ text }}</p>
                         } @else if (errorKey(); as key) {
-                            <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed">{{ key | translate }}</p>
+                            <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed"
+                               role="alert">{{ key | translate }}</p>
                         }
 
-                        <div class="flex items-center gap-2">
-                            <p-button (onClick)="close()" [label]="'BILLING.CHECKOUT.CANCEL' | translate"
+                        <div class="flex flex-wrap items-center gap-2">
+                            <p-button (onClick)="close()" [disabled]="busy()"
+                                      [label]="'BILLING.CHECKOUT.CANCEL' | translate"
                                       [text]="true" severity="secondary" styleClass="flex-1 justify-center"/>
                             <p-button (onClick)="pay()" [disabled]="!canPay()"
                                       [label]="'BILLING.CHECKOUT.PAY' | translate"

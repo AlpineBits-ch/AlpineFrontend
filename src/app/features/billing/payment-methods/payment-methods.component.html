@@ -5,12 +5,27 @@
     </h2>
 
     @if (loading()) {
-        <p class="text-xs text-text-muted m-0">{{ 'BILLING.CARDS.LOADING' | translate }}</p>
+        <!-- Rows at the height the real ones land at, the same way the invoices below do it. -->
+        <ul aria-hidden="true"
+            class="flex flex-col divide-y divide-white/[0.06] bg-white/[0.03] border border-white/[0.10] rounded-xl m-0 p-0 list-none">
+            @for (row of skeletonRows; track row) {
+                <li class="flex items-center gap-3 px-4 py-3">
+                    <span class="flex flex-col gap-1.5 flex-1">
+                        <span class="block h-3.5 w-32 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                        <span class="block h-2.5 w-24 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                    </span>
+                    <span class="block h-3.5 w-16 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                </li>
+            }
+        </ul>
+        <span class="sr-only">{{ 'BILLING.CARDS.LOADING' | translate }}</span>
     } @else if (loadFailed()) {
         <!-- Not an empty list. "You have no cards" would invite somebody to add a second copy of
              the one that is already on file. -->
         <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
-            <p class="text-sm text-text-secondary m-0">{{ 'BILLING.CARDS.LOAD_FAILED' | translate }}</p>
+            <p class="text-sm text-text-secondary m-0 leading-relaxed" role="alert">
+                {{ 'BILLING.CARDS.LOAD_FAILED' | translate }}
+            </p>
             <button
                     (click)="load()"
                     class="self-start text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white transition-colors duration-[var(--duration-fast)]"
@@ -48,16 +63,19 @@
                         } @else {
                             <button
                                     (click)="makeDefault(card.method)"
-                                    [disabled]="busyId() !== null"
-                                    class="text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white disabled:opacity-40 transition-colors duration-[var(--duration-fast)]"
+                                    [disabled]="busy() !== null"
+                                    class="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--color-brand-dim)] hover:text-white disabled:opacity-40 transition-colors duration-[var(--duration-fast)]"
                                     type="button">
+                                @if (busy()?.id === card.method.id && busy()?.action === 'default') {
+                                    <i class="pi pi-spin pi-spinner text-[0.7rem]"></i>
+                                }
                                 {{ 'BILLING.CARD.MAKE_DEFAULT' | translate }}
                             </button>
                         }
 
                         <button
-                                (click)="detach(card.method)"
-                                [disabled]="busyId() !== null"
+                                (click)="confirmRemoval(card)"
+                                [disabled]="busy() !== null"
                                 class="text-xs font-semibold text-text-muted hover:text-[var(--color-offline)] disabled:opacity-40 transition-colors duration-[var(--duration-fast)]"
                                 type="button">
                             {{ 'BILLING.CARD.REMOVE' | translate }}
@@ -68,9 +86,10 @@
         }
 
         @if (errorText(); as text) {
-            <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed">{{ text }}</p>
+            <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed" role="alert">{{ text }}</p>
         } @else if (errorKey(); as key) {
-            <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed">{{ key | translate }}</p>
+            <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed"
+               role="alert">{{ key | translate }}</p>
         }
 
         <button
@@ -83,9 +102,86 @@
 
 </section>
 
+<!-- The consequence is the thing being confirmed, not the click. Removing the card a live
+     subscription is charged to is at least as consequential as cancelling the subscription, and the
+     server's refusal for the genuinely unsafe case only arrives after the press. -->
 <p-dialog
-        (visibleChange)="addVisible.set($event)"
+        (visibleChange)="onRemovalVisibleChange($event)"
         [breakpoints]="{ '640px': '100vw' }"
+        [closable]="!removing()"
+        [draggable]="false"
+        [modal]="true"
+        [resizable]="false"
+        [style]="{ width: '440px' }"
+        [visible]="pendingRemoval() !== null"
+        appendTo="body">
+
+    <ng-template pTemplate="header">
+        <span class="text-sm font-semibold text-text-primary">
+            {{ 'BILLING.CARDS.REMOVE_TITLE' | translate }}
+        </span>
+    </ng-template>
+
+    @if (pendingRemoval(); as card) {
+        <div class="flex flex-col gap-4 pb-1">
+            <div class="flex flex-col gap-1.5">
+                <!-- Which card, spelled the way the list spells it. "Remove this card?" over a
+                     dialog naming none of them is a coin toss on an account with three. -->
+                <p class="text-sm font-semibold text-text-primary m-0">
+                    @if (card.brandName; as brand) {
+                        {{ 'BILLING.CARD.LINE' | translate:{brand: brand, last4: card.method.last4} }}
+                    } @else {
+                        {{ 'BILLING.CARD.LINE_UNKNOWN' | translate:{last4: card.method.last4} }}
+                    }
+                </p>
+
+                @switch (removalConsequence()) {
+                    @case ('only') {
+                        <p class="text-sm text-text-secondary m-0 leading-relaxed">
+                            {{ 'BILLING.CARDS.REMOVE_BODY_ONLY' | translate }}
+                        </p>
+                    }
+                    @case ('default') {
+                        <p class="text-sm text-text-secondary m-0 leading-relaxed">
+                            {{ 'BILLING.CARDS.REMOVE_BODY_DEFAULT' | translate }}
+                        </p>
+                    }
+                    @default {
+                        <p class="text-sm text-text-secondary m-0 leading-relaxed">
+                            {{ 'BILLING.CARDS.REMOVE_BODY' | translate }}
+                        </p>
+                    }
+                }
+
+                <p class="text-xs text-text-muted m-0 leading-relaxed">
+                    {{ 'BILLING.CARDS.REMOVE_REVERSIBLE' | translate }}
+                </p>
+            </div>
+
+            <!-- Keeping the card is first, so it is what a dialog opened by keyboard lands on, and
+                 the destructive half is the quiet one. -->
+            <div class="flex flex-wrap items-center gap-2">
+                <p-button (onClick)="cancelRemoval()"
+                          [disabled]="removing()"
+                          [label]="'BILLING.CARDS.REMOVE_KEEP' | translate"
+                          severity="secondary" styleClass="flex-1 justify-center"/>
+                <p-button (onClick)="detach()"
+                          [disabled]="removing()"
+                          [label]="'BILLING.CARDS.REMOVE_CONFIRM' | translate"
+                          [loading]="removing()"
+                          [text]="true"
+                          severity="danger" styleClass="flex-1 justify-center"/>
+            </div>
+        </div>
+    }
+
+</p-dialog>
+
+<p-dialog
+        (visibleChange)="onAddVisibleChange($event)"
+        [breakpoints]="{ '640px': '100vw' }"
+        [closable]="addStep() !== 'confirming'"
+        [closeOnEscape]="addStep() !== 'confirming'"
         [draggable]="false"
         [modal]="true"
         [resizable]="false"
@@ -103,7 +199,7 @@
                 <p class="text-sm text-text-secondary m-0">{{ 'BILLING.CARDS.ADD_PREPARING' | translate }}</p>
             }
             @case ('refused') {
-                <p class="text-sm text-text-secondary m-0 leading-relaxed">
+                <p class="text-sm text-text-secondary m-0 leading-relaxed" role="alert">
                     @if (addErrorText(); as text) {
                         {{ text }}
                     } @else if (addErrorKey(); as key) {
@@ -121,13 +217,16 @@
                     <app-payment-element (mounted)="elementReady.set(true)" [clientSecret]="secret"/>
 
                     @if (addErrorText(); as text) {
-                        <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed">{{ text }}</p>
+                        <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed"
+                           role="alert">{{ text }}</p>
                     } @else if (addErrorKey(); as key) {
-                        <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed">{{ key | translate }}</p>
+                        <p class="text-xs text-[var(--color-offline)] m-0 leading-relaxed"
+                           role="alert">{{ key | translate }}</p>
                     }
 
-                    <div class="flex items-center gap-2">
-                        <p-button (onClick)="closeAdd()" [label]="'BILLING.CHECKOUT.CANCEL' | translate" [text]="true"
+                    <div class="flex flex-wrap items-center gap-2">
+                        <p-button (onClick)="closeAdd()" [disabled]="addStep() === 'confirming'"
+                                  [label]="'BILLING.CHECKOUT.CANCEL' | translate" [text]="true"
                                   severity="secondary" styleClass="flex-1 justify-center"/>
                         <p-button (onClick)="confirmAdd()"
                                   [disabled]="addStep() !== 'collecting' || !elementReady()"

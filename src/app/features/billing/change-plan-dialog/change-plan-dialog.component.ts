@@ -206,8 +206,25 @@ export class ChangePlanDialogComponent {
         });
     }
 
+    /**
+     * Closes, unless the change is being applied.
+     *
+     * <p>The same rule the checkout keeps, for the same reason: confirming a change is what moves the
+     * proration, and a dialog dismissed halfway through leaves somebody charged with nothing on
+     * screen saying so. The call is short and it ends in a state this dialog renders either way.</p>
+     */
     protected close(): void {
+        if (this.applying()) return;
         this.visible.set(false);
+    }
+
+    /** The header button, Escape and the backdrop all arrive here, and none of them outrank a charge. */
+    protected onVisibleChange(visible: boolean): void {
+        if (visible) {
+            this.visible.set(true);
+            return;
+        }
+        this.close();
     }
 
     private runPreview(plan: BillingPlanDto): void {

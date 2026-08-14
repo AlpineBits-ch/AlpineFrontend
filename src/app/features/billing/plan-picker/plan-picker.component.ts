@@ -1,4 +1,4 @@
-import {Component, computed, effect, inject, input, signal, untracked} from '@angular/core';
+import {Component, computed, effect, inject, input, output, signal, untracked} from '@angular/core';
 import {TranslateModule} from '@ngx-translate/core';
 import {BillingCatalogueDto, BillingPlanDto, sameSubjectKind} from '../../../dtos/response/billing.dto';
 import {BillingService} from '../../../services/billing.service';
@@ -49,9 +49,27 @@ interface ComparisonRow {
 export class PlanPickerComponent {
     subject = input.required<EntitlementSubjectRef>();
 
+    /**
+     * Forwarded from the checkout, which is refused when the subject is already subscribed.
+     *
+     * <p>Nothing here can perform a plan change - the subscription lives on the card above this
+     * component, not in the catalogue - so the request travels up to the host that has both.</p>
+     */
+    changePlanRequested = output<void>();
+
     private billing = inject(BillingService);
     private stripe = inject(StripeLoaderService);
     private entitlements = inject(EntitlementStore);
+
+    /**
+     * The placeholder shapes, held rather than written inline so the loops are not rebuilt per cycle.
+     *
+     * <p>Three columns and four rows because that is what a catalogue with a free tier and two paid
+     * ones lands at, and the point of a skeleton is that the real thing arrives into the space it was
+     * already occupying.</p>
+     */
+    protected readonly skeletonColumns = [1, 2, 3];
+    protected readonly skeletonRows = [1, 2, 3, 4];
 
     protected catalogue = signal<BillingCatalogueDto | null>(null);
     protected loading = signal(true);

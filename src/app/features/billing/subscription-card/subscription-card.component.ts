@@ -1,4 +1,4 @@
-import {Component, computed, effect, inject, input, signal, untracked} from '@angular/core';
+import {Component, computed, effect, ElementRef, inject, input, signal, untracked} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PrimeTemplate} from 'primeng/api';
@@ -51,6 +51,7 @@ export class SubscriptionCardComponent {
 
     private billing = inject(BillingService);
     private profile = inject(ProfileService);
+    private host = inject(ElementRef<HTMLElement>);
 
     protected subscription = signal<SubscriptionDto | null>(null);
     protected loading = signal(true);
@@ -132,6 +133,36 @@ export class SubscriptionCardComponent {
             const subject = this.subject();
             untracked(() => this.load(subject));
         });
+    }
+
+    /**
+     * Set when a change was asked for before this card had a subscription to change.
+     *
+     * <p>The only way in is a checkout refused with `already_subscribed`, which is the server saying
+     * a subscription exists that this card has not managed to read - a failed list, or one that
+     * landed before the purchase. So the request survives one re-read rather than being dropped.</p>
+     */
+    private openChangeOnLoad = false;
+
+    /**
+     * Opens the change dialog on somebody else's behalf.
+     *
+     * <p>Called by the plan page when a purchase was refused because this subject is already
+     * subscribed. The scroll happens either way: the card can be off-screen behind the plans, and an
+     * affordance whose entire effect is somewhere the reader cannot see is the same dead end in a
+     * different place.</p>
+     */
+    requestChangePlan(): void {
+        this.host.nativeElement.scrollIntoView?.({block: 'nearest'});
+
+        if (this.canAct()) {
+            this.openChange();
+            return;
+        }
+        if (this.subscription() === null) {
+            this.openChangeOnLoad = true;
+            this.reload();
+        }
     }
 
     protected reload(): void {
@@ -217,10 +248,16 @@ export class SubscriptionCardComponent {
             next: all => {
                 this.subscription.set(pickFor(all, subject.kind, subjectId));
                 this.loading.set(false);
+
+                if (this.openChangeOnLoad) {
+                    this.openChangeOnLoad = false;
+                    if (this.canAct()) this.openChange();
+                }
             },
             error: () => {
                 // A failed read is not "no subscription". Telling a paying customer they have none
                 // is the one wrong answer available here.
+                this.openChangeOnLoad = false;
                 this.loadFailed.set(true);
                 this.loading.set(false);
             },

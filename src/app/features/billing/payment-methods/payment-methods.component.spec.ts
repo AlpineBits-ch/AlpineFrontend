@@ -1,7 +1,7 @@
 import {ComponentFixture, TestBed} from '@angular/core/testing';
 import {HttpErrorResponse} from '@angular/common/http';
 import {provideTranslateService} from '@ngx-translate/core';
-import {Observable, of, throwError} from 'rxjs';
+import {Observable, Subject, of, throwError} from 'rxjs';
 import {describe, expect, it, vi} from 'vitest';
 import {PaymentMethodsComponent} from './payment-methods.component';
 import {BillingService} from '../../../services/billing.service';
@@ -15,14 +15,17 @@ function setup(opts: {
     cards?: PaymentMethodDto[];
     listError?: unknown;
     detachError?: unknown;
+    /** A detach that never answers, for the double-submit case. */
+    detachInFlight?: Subject<void>;
 } = {}) {
     const list = vi.fn<() => Observable<PaymentMethodDto[]>>(() => opts.listError
         ? throwError(() => opts.listError)
         : of(opts.cards ?? [card()]));
     const setDefault = vi.fn<(id: string) => Observable<void>>(() => of(undefined));
-    const remove = vi.fn<(id: string) => Observable<void>>(() => opts.detachError
-        ? throwError(() => opts.detachError)
-        : of(undefined));
+    const remove = vi.fn<(id: string) => Observable<void>>(() => {
+        if (opts.detachInFlight) return opts.detachInFlight.asObservable();
+        return opts.detachError ? throwError(() => opts.detachError) : of(undefined);
+    });
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
@@ -47,15 +50,44 @@ function setup(opts: {
     return {fixture, list, setDefault, remove};
 }
 
-function text(fixture: ComponentFixture<PaymentMethodsComponent>): string {
-    return fixture.nativeElement.textContent as string;
+/**
+ * Untranslated keys render as themselves, so assertions read against the key.
+ *
+ * <p>Read off `body` rather than off the fixture: the removal confirmation appends there, and the
+ * fixture host is inside it anyway.</p>
+ */
+function text(_fixture: ComponentFixture<PaymentMethodsComponent>): string {
+    return document.body.textContent ?? '';
 }
 
-function button(fixture: ComponentFixture<PaymentMethodsComponent>, label: string): HTMLElement {
-    const found = Array.from(fixture.nativeElement.querySelectorAll('button'))
-        .find(el => ((el as HTMLElement).textContent ?? '').includes(label));
+/**
+ * Just the confirmation's own text.
+ *
+ * <p>Scoped rather than read off `body`, because every card line the dialog can render is also on
+ * the list behind it - so an unscoped assertion would pass on the list and prove nothing about the
+ * dialog.</p>
+ */
+function dialogText(): string {
+    return document.body.querySelector('.p-dialog')?.textContent ?? '';
+}
+
+function buttons(label: string): HTMLButtonElement[] {
+    return Array.from(document.body.querySelectorAll('button'))
+        .filter(el => ((el as HTMLElement).textContent ?? '').includes(label)) as HTMLButtonElement[];
+}
+
+function button(_fixture: ComponentFixture<PaymentMethodsComponent>, label: string): HTMLElement {
+    const found = buttons(label)[0];
     if (!found) throw new Error(`no button containing ${label}`);
-    return found as HTMLElement;
+    return found;
+}
+
+/** Presses Remove on one row and then the confirmation, which is the whole of the detach path. */
+function removeCard(fixture: ComponentFixture<PaymentMethodsComponent>, row = 0): void {
+    buttons('BILLING.CARD.REMOVE')[row].click();
+    fixture.detectChanges();
+    button(fixture, 'BILLING.CARDS.REMOVE_CONFIRM').click();
+    fixture.detectChanges();
 }
 
 describe('the cards on file', () => {
@@ -125,8 +157,7 @@ describe('removing a card', () => {
     it('detaches the one that was asked for and re-reads the list', () => {
         const {fixture, remove, list} = setup({cards: [card()]});
 
-        button(fixture, 'BILLING.CARD.REMOVE').click();
-        fixture.detectChanges();
+        removeCard(fixture);
 
         expect(remove).toHaveBeenCalledWith('pm_1');
         expect(list).toHaveBeenCalledTimes(2);
@@ -143,8 +174,7 @@ describe('removing a card', () => {
             detachError: new HttpErrorResponse({status: 409, error: {code: 'last_payment_method'}}),
         });
 
-        button(fixture, 'BILLING.CARD.REMOVE').click();
-        fixture.detectChanges();
+        removeCard(fixture);
 
         expect(text(fixture)).toContain('BILLING.ERROR.LAST_PAYMENT_METHOD');
         expect(text(fixture)).not.toContain('409');
@@ -156,10 +186,116 @@ describe('removing a card', () => {
             detachError: new HttpErrorResponse({status: 409, error: {code: 'card_in_dispute'}}),
         });
 
-        button(fixture, 'BILLING.CARD.REMOVE').click();
-        fixture.detectChanges();
+        removeCard(fixture);
 
         expect(text(fixture)).toContain('BILLING.ERROR.GENERIC');
         expect(text(fixture)).not.toContain('card_in_dispute');
+    });
+});
+
+/**
+ * The confirmation, which is about the consequence rather than the click.
+ *
+ * <p>Removing the card a live subscription is charged to is at least as consequential as cancelling
+ * the subscription, and the server's refusal for the genuinely unsafe case only arrives after the
+ * press. What is confirmed here is therefore what stops working, not "are you sure".</p>
+ */
+describe('confirming a removal', () => {
+    it('asks first and detaches nothing until the confirmation is pressed', () => {
+        const {fixture, remove} = setup({cards: [card()]});
+
+        button(fixture, 'BILLING.CARD.REMOVE').click();
+        fixture.detectChanges();
+
+        expect(text(fixture)).toContain('BILLING.CARDS.REMOVE_TITLE');
+        expect(remove).not.toHaveBeenCalled();
+    });
+
+    /**
+     * "Remove this card?" over a dialog naming none of them is a coin toss on an account with three.
+     *
+     * <p>Asserted through the two card-line sentences rather than through the last four: an
+     * untranslated key renders as itself and drops its interpolation, so the digits never reach the
+     * DOM in this harness. The row pressed is the one with a brand this build cannot spell, and the
+     * dialog saying so is the dialog having taken that row's card.</p>
+     */
+    it('names the card it is about, not merely a card', () => {
+        const {fixture} = setup({
+            cards: [
+                card(),
+                card({id: 'pm_2', brand: 'cartes_bancaires', last4: '5454', isDefault: false}),
+            ],
+        });
+
+        buttons('BILLING.CARD.REMOVE')[1].click();
+        fixture.detectChanges();
+
+        expect(dialogText()).toContain('BILLING.CARD.LINE_UNKNOWN');
+    });
+
+    /** The one that cannot be shrugged off: with no card on file there is nothing left to charge. */
+    it('says so when the card being removed is the only one', () => {
+        const {fixture} = setup({cards: [card()]});
+
+        button(fixture, 'BILLING.CARD.REMOVE').click();
+        fixture.detectChanges();
+
+        expect(text(fixture)).toContain('BILLING.CARDS.REMOVE_BODY_ONLY');
+        expect(text(fixture)).not.toContain('BILLING.CARDS.REMOVE_BODY_DEFAULT');
+    });
+
+    it('says so when the card being removed is the one that pays', () => {
+        const {fixture} = setup({
+            cards: [card(), card({id: 'pm_2', last4: '5454', isDefault: false})],
+        });
+
+        buttons('BILLING.CARD.REMOVE')[0].click();
+        fixture.detectChanges();
+
+        expect(text(fixture)).toContain('BILLING.CARDS.REMOVE_BODY_DEFAULT');
+        expect(text(fixture)).not.toContain('BILLING.CARDS.REMOVE_BODY_ONLY');
+    });
+
+    /** Neither consequence applies, and inventing one would be a warning about nothing. */
+    it('says only that it comes off the account for a spare card', () => {
+        const {fixture} = setup({
+            cards: [card(), card({id: 'pm_2', last4: '5454', isDefault: false})],
+        });
+
+        buttons('BILLING.CARD.REMOVE')[1].click();
+        fixture.detectChanges();
+
+        expect(text(fixture)).toContain('BILLING.CARDS.REMOVE_BODY');
+        expect(text(fixture)).not.toContain('BILLING.CARDS.REMOVE_BODY_ONLY');
+        expect(text(fixture)).not.toContain('BILLING.CARDS.REMOVE_BODY_DEFAULT');
+    });
+
+    it('keeps the card when the confirmation is declined, and calls nothing', () => {
+        const {fixture, remove} = setup({cards: [card()]});
+
+        button(fixture, 'BILLING.CARD.REMOVE').click();
+        fixture.detectChanges();
+        button(fixture, 'BILLING.CARDS.REMOVE_KEEP').click();
+        fixture.detectChanges();
+
+        expect(remove).not.toHaveBeenCalled();
+        // The body, not the header: PrimeNG animates the dialog out, so the header survives one
+        // more cycle. What has to be gone is the thing that was being confirmed.
+        expect(text(fixture)).not.toContain('BILLING.CARDS.REMOVE_BODY');
+    });
+
+    /** A card detached twice is a second 404 and a list that reloads over itself. */
+    it('cannot be confirmed twice while the first detach is still in flight', () => {
+        const inFlight = new Subject<void>();
+        const {fixture, remove} = setup({cards: [card()], detachInFlight: inFlight});
+
+        button(fixture, 'BILLING.CARD.REMOVE').click();
+        fixture.detectChanges();
+        button(fixture, 'BILLING.CARDS.REMOVE_CONFIRM').click();
+        fixture.detectChanges();
+        button(fixture, 'BILLING.CARDS.REMOVE_CONFIRM').click();
+        fixture.detectChanges();
+
+        expect(remove).toHaveBeenCalledTimes(1);
     });
 });

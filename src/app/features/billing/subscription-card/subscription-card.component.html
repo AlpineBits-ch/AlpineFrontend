@@ -30,7 +30,7 @@
             <!-- A read that failed is not an account with no subscription. Telling a paying customer
                  they have none is the one wrong answer available here. -->
             <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
-                <p class="text-sm text-text-secondary m-0 leading-relaxed">
+                <p class="text-sm text-text-secondary m-0 leading-relaxed" role="alert">
                     {{ 'BILLING.SUBSCRIPTION.LOAD_FAILED' | translate }}
                 </p>
                 <button

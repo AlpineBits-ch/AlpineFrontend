@@ -1,6 +1,8 @@
 <p-dialog
-        (visibleChange)="visible.set($event)"
+        (visibleChange)="onVisibleChange($event)"
         [breakpoints]="{ '640px': '100vw' }"
+        [closable]="!applying()"
+        [closeOnEscape]="!applying()"
         [draggable]="false"
         [modal]="true"
         [resizable]="false"
@@ -173,7 +175,10 @@
                             <ul class="flex flex-col gap-1.5 m-0 p-0 list-none border-t border-white/[0.06] pt-3">
                                 @for (line of lines(); track $index) {
                                     <li class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                                        <span class="text-xs text-text-muted leading-relaxed min-w-0">
+                                        <!-- Stripe writes these, and they are long. At the width the
+                                             settings modal is genuinely used at they have to wrap
+                                             rather than push the amount off the edge. -->
+                                        <span class="text-xs text-text-muted leading-relaxed min-w-0 break-words">
                                             {{ line.description }}
                                         </span>
                                         <!-- Signed, so the minus carries the meaning without the
@@ -211,7 +216,8 @@
                 }
 
                 <div class="flex flex-wrap items-center gap-2">
-                    <p-button (onClick)="close()" [label]="'BILLING.CHECKOUT.CANCEL' | translate" [text]="true"
+                    <p-button (onClick)="close()" [disabled]="applying()"
+                              [label]="'BILLING.CHECKOUT.CANCEL' | translate" [text]="true"
                               severity="secondary" styleClass="flex-1 justify-center"/>
                     <p-button (onClick)="confirm()"
                               [disabled]="!canConfirm()"

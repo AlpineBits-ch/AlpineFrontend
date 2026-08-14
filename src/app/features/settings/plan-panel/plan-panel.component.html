@@ -51,8 +51,11 @@
     <app-subscription-card [subject]="subject()"/>
 
     <!-- What is for sale, and the buy path. It draws its own gates: no publishable key or a
-         catalogue that says nothing is enabled means a comparison with nothing to press. -->
-    <app-plan-picker [subject]="subject()"/>
+         catalogue that says nothing is enabled means a comparison with nothing to press.
+
+         A purchase the server refuses because this subject is already subscribed is answered by the
+         change dialog, which belongs to the card above. This is the only place both are in scope. -->
+    <app-plan-picker (changePlanRequested)="onChangePlanRequested()" [subject]="subject()"/>
 
     <!-- Cards are an account's, so this is absent on a guild's plan page rather than showing the
          payer's cards to every admin who can open it. -->

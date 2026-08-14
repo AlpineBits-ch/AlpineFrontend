@@ -5,10 +5,34 @@
     </h2>
 
     @if (loading()) {
-        <p class="text-xs text-text-muted m-0">{{ 'BILLING.PLANS.LOADING' | translate }}</p>
+        <!-- Shaped like the comparison it becomes, columns and rows both. The table lands under the
+             cards a moment later, and a screen about prices that jumps as it settles reads as a
+             screen that is still deciding what it charges. -->
+        <div aria-hidden="true" class="flex flex-wrap gap-3">
+            @for (column of skeletonColumns; track column) {
+                <div class="flex flex-col gap-3 flex-1 min-w-[13rem] bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
+                    <div class="flex flex-col gap-1.5">
+                        <span class="block h-4 w-24 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                        <span class="block h-2.5 w-full rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                    </div>
+                    <span class="block h-5 w-20 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                    <span class="block h-8 w-full rounded-lg bg-white/[0.08] motion-safe:animate-pulse"></span>
+                </div>
+            }
+        </div>
+        <div aria-hidden="true"
+             class="flex flex-col divide-y divide-white/[0.06] border border-white/[0.10] rounded-xl">
+            @for (row of skeletonRows; track row) {
+                <div class="flex items-center justify-between gap-3 px-4 py-2.5">
+                    <span class="block h-2.5 w-32 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                    <span class="block h-2.5 w-16 rounded bg-white/[0.08] motion-safe:animate-pulse"></span>
+                </div>
+            }
+        </div>
+        <span class="sr-only">{{ 'BILLING.PLANS.LOADING' | translate }}</span>
     } @else if (loadErrorKey() || loadErrorText()) {
         <div class="flex flex-col gap-2 bg-white/[0.03] border border-white/[0.10] rounded-xl px-4 py-3.5">
-            <p class="text-sm text-text-secondary m-0 leading-relaxed">
+            <p class="text-sm text-text-secondary m-0 leading-relaxed" role="alert">
                 @if (loadErrorText(); as text) {
                     {{ text }}
                 } @else if (loadErrorKey(); as key) {
@@ -129,6 +153,7 @@
 
 @if (chosen(); as plan) {
     <app-checkout-dialog
+            (changeRequested)="changePlanRequested.emit()"
             (visibleChange)="checkoutVisible.set($event)"
             [plan]="plan"
             [subject]="subject()"

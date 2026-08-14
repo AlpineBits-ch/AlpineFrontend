@@ -5,7 +5,7 @@ import {PrimeTemplate} from 'primeng/api';
 import {TranslateModule} from '@ngx-translate/core';
 import {firstValueFrom} from 'rxjs';
 import {BillingPlanDto, SubscriptionDto} from '../../../dtos/response/billing.dto';
-import {BillingService} from '../../../services/billing.service';
+import {BILLING_ERROR_CODES, BillingService, describeBillingError} from '../../../services/billing.service';
 import {EntitlementStore, EntitlementSubjectRef} from '../../../stores/entitlement.store';
 import {ProfileService} from '../../../services/profile.service';
 import {billingErrorCopy, BILLING_GENERIC_ERROR_KEY} from '../../../core/billing-copy';
@@ -42,6 +42,14 @@ type CheckoutStep = 'starting' | 'collecting' | 'confirming' | 'activating' | 'd
  * longer than usual and will appear shortly - because it almost certainly is being activated right
  * now, and telling somebody their payment failed when it did not is the worst outcome available
  * here.</p>
+ *
+ * <p><b>The dialog will not close while a card is being confirmed or a subscription activated.</b>
+ * Every one of those waits is bounded - `awaitActivation` spends a fixed budget and then answers
+ * `slow`, which is a state with a Close button on it - so refusing costs at most that budget, and it
+ * buys the guarantee that nobody is charged and then left looking at a screen that says nothing. The
+ * alternative was to let it close and surface the outcome somewhere else later, which needs a place
+ * to put it and is a worse trade than a wait measured in seconds: somebody who has just paid and sees
+ * no confirmation buys again or writes in.</p>
  */
 @Component({
     selector: 'app-checkout-dialog',
@@ -55,6 +63,15 @@ export class CheckoutDialogComponent {
 
     /** Emitted once the subscription is live, for a host that wants to re-read the catalogue. */
     activated = output<SubscriptionDto>();
+
+    /**
+     * Asked for when the purchase was refused because this subject is already subscribed.
+     *
+     * <p>The sentence for that refusal names changing the plan, and a sentence naming an action the
+     * screen does not offer is worse than a generic apology - so the host wires this to the dialog
+     * that actually performs it.</p>
+     */
+    changeRequested = output<void>();
 
     private billing = inject(BillingService);
     private entitlements = inject(EntitlementStore);
@@ -70,6 +87,8 @@ export class CheckoutDialogComponent {
     protected errorText = signal<string | null>(null);
     protected clientSecret = signal<string | null>(null);
     protected elementReady = signal(false);
+    /** Whether the refusal on screen is the one the change dialog is the answer to. */
+    protected alreadySubscribed = signal(false);
 
     /** The subscription being paid for. Not a signal: nothing renders it, and the poll reads it. */
     private subscriptionId: string | null = null;
@@ -92,6 +111,12 @@ export class CheckoutDialogComponent {
 
     /** True once there is something to confirm and nothing already in flight. */
     protected canPay = computed(() => this.step() === 'collecting' && this.elementReady());
+
+    /**
+     * Whether money is currently moving, which is the whole of the reason this dialog can refuse to
+     * close: both of these steps end in a state that says what happened, and neither can be left.
+     */
+    protected busy = computed(() => this.step() === 'confirming' || this.step() === 'activating');
 
     constructor() {
         // Opening is what starts the purchase. Closing resets, so reopening on another plan is a
@@ -132,9 +157,31 @@ export class CheckoutDialogComponent {
         await this.activate();
     }
 
-    /** Closes without cancelling anything. A subscription mid-activation goes on activating. */
+    /**
+     * Closes, unless a card is being confirmed or a subscription activated.
+     *
+     * <p>Both of those end on their own and both end in a state this dialog renders, so the refusal
+     * is a wait rather than a trap. Closing during one is the single way somebody can be charged on
+     * this screen and be shown nothing about it.</p>
+     */
     protected close(): void {
+        if (this.busy()) return;
         this.visible.set(false);
+    }
+
+    /** The header button, Escape, and the backdrop all arrive here. None of them outrank the wait. */
+    protected onVisibleChange(visible: boolean): void {
+        if (visible) {
+            this.visible.set(true);
+            return;
+        }
+        this.close();
+    }
+
+    /** Hands the refusal over to the flow that can act on it, and gets out of its way. */
+    protected requestChange(): void {
+        this.changeRequested.emit();
+        this.close();
     }
 
     private async start(plan: BillingPlanDto): Promise<void> {
@@ -164,6 +211,8 @@ export class CheckoutDialogComponent {
             this.clientSecret.set(response.clientSecret);
             this.step.set('collecting');
         } catch (err) {
+            this.alreadySubscribed.set(
+                describeBillingError(err)?.code === BILLING_ERROR_CODES.alreadySubscribed);
             const copy = billingErrorCopy(err);
             this.refuse(copy.key, copy.text);
         }
@@ -228,6 +277,7 @@ export class CheckoutDialogComponent {
         this.elementReady.set(false);
         this.errorKey.set(null);
         this.errorText.set(null);
+        this.alreadySubscribed.set(false);
         this.step.set('starting');
     }
 }

@@ -1,4 +1,4 @@
-import {Component, effect, inject, signal, untracked, viewChild} from '@angular/core';
+import {Component, computed, effect, inject, signal, untracked, viewChild} from '@angular/core';
 import {Dialog} from 'primeng/dialog';
 import {Button} from 'primeng/button';
 import {PrimeTemplate} from 'primeng/api';
@@ -37,6 +37,20 @@ interface CardRow {
 
 type AddStep = 'starting' | 'collecting' | 'confirming' | 'refused';
 
+/** Which call is in flight against which row, so the control that was pressed is the one that shows it. */
+interface Busy {
+    id: string;
+    action: 'default' | 'detach';
+}
+
+/**
+ * What removing the card in the confirmation actually costs.
+ *
+ * <p>`only` outranks `default` because the last card is always the default one, and "another card
+ * takes over" is a sentence with nothing behind it when there is no other card.</p>
+ */
+type RemovalConsequence = 'only' | 'default' | 'plain';
+
 /**
  * The cards on this account: what is on file, which one pays, and how to add another.
  *
@@ -48,6 +62,12 @@ type AddStep = 'starting' | 'collecting' | 'confirming' | 'refused';
  * rendered as a sentence explaining what to do instead. Stripe would otherwise accept the detach and
  * fail the next invoice, which turns a refusable action into a support ticket a month later - so the
  * one thing this screen must not do is show it as "409".</p>
+ *
+ * <p>A removal is confirmed first, and the confirmation is about the consequence rather than the
+ * click: taking away the only card, or the one a live subscription is charged to, is not a thing to
+ * discover from the next failed invoice. The server refuses the genuinely unsafe case, but it refuses
+ * it after the press, and a dialog that names which card is going and what stops working is what
+ * stops the press happening at all.</p>
  */
 @Component({
     selector: 'app-payment-methods',
@@ -59,16 +79,36 @@ export class PaymentMethodsComponent {
 
     private paymentElement = viewChild(PaymentElementComponent);
 
+    /** Two placeholder rows, held rather than written inline so the loop is not rebuilt per cycle. */
+    protected readonly skeletonRows = [1, 2];
+
     protected cards = signal<CardRow[]>([]);
     protected loading = signal(true);
     protected loadFailed = signal(false);
-    /** The id currently being changed, so one row can be busy without freezing the list. */
-    protected busyId = signal<string | null>(null);
+    /** The row currently being changed, so the spinner sits on the control that was pressed. */
+    protected busy = signal<Busy | null>(null);
 
     /** Our sentence for the last refusal on this screen, or null. */
     protected errorKey = signal<string | null>(null);
     /** A sentence from the server, already customer-worded. */
     protected errorText = signal<string | null>(null);
+
+    /** The card the confirmation is about, and null when nothing is being confirmed. */
+    protected pendingRemoval = signal<CardRow | null>(null);
+
+    protected removalConsequence = computed<RemovalConsequence>(() => {
+        const pending = this.pendingRemoval();
+        if (!pending) return 'plain';
+        if (this.cards().length <= 1) return 'only';
+        return pending.method.isDefault ? 'default' : 'plain';
+    });
+
+    /** True only for the detach behind the open confirmation, so the other rows do not spin. */
+    protected removing = computed(() => {
+        const pending = this.pendingRemoval();
+        const busy = this.busy();
+        return pending !== null && busy?.action === 'detach' && busy.id === pending.method.id;
+    });
 
     protected addVisible = signal(false);
     protected addStep = signal<AddStep>('starting');
@@ -109,34 +149,56 @@ export class PaymentMethodsComponent {
     }
 
     protected makeDefault(method: PaymentMethodDto): void {
-        if (method.isDefault || this.busyId() !== null) return;
+        if (method.isDefault || this.busy() !== null) return;
         this.clearError();
-        this.busyId.set(method.id);
+        this.busy.set({id: method.id, action: 'default'});
         this.billing.setDefaultPaymentMethod(method.id).subscribe({
             next: () => {
-                this.busyId.set(null);
+                this.busy.set(null);
                 this.load();
             },
             error: err => {
-                this.busyId.set(null);
+                this.busy.set(null);
                 this.showError(err);
             },
         });
     }
 
-    protected detach(method: PaymentMethodDto): void {
-        if (this.busyId() !== null) return;
+    /** Asks before anything is detached. Nothing is called until the confirmation is pressed. */
+    protected confirmRemoval(card: CardRow): void {
+        if (this.busy() !== null) return;
         this.clearError();
-        this.busyId.set(method.id);
-        this.billing.deletePaymentMethod(method.id).subscribe({
+        this.pendingRemoval.set(card);
+    }
+
+    protected cancelRemoval(): void {
+        if (this.removing()) return;
+        this.pendingRemoval.set(null);
+    }
+
+    /** The dialog closing by its own header button, by Escape, or because the detach finished. */
+    protected onRemovalVisibleChange(visible: boolean): void {
+        if (!visible) this.cancelRemoval();
+    }
+
+    protected detach(): void {
+        const pending = this.pendingRemoval();
+        if (!pending || this.busy() !== null) return;
+
+        this.clearError();
+        this.busy.set({id: pending.method.id, action: 'detach'});
+        this.billing.deletePaymentMethod(pending.method.id).subscribe({
             next: () => {
-                this.busyId.set(null);
+                this.busy.set(null);
+                this.pendingRemoval.set(null);
                 this.load();
             },
             // `last_payment_method` lands here as its own sentence, which is the one refusal on
-            // this screen a person can actually act on.
+            // this screen a person can actually act on - and it belongs on the list behind the
+            // dialog, where the card they were told to add another of is.
             error: err => {
-                this.busyId.set(null);
+                this.busy.set(null);
+                this.pendingRemoval.set(null);
                 this.showError(err);
             },
         });
@@ -164,8 +226,18 @@ export class PaymentMethodsComponent {
         this.load();
     }
 
+    /** Not while Stripe is deciding: the same rule the checkout keeps about an answer in flight. */
     protected closeAdd(): void {
+        if (this.addStep() === 'confirming') return;
         this.addVisible.set(false);
+    }
+
+    protected onAddVisibleChange(visible: boolean): void {
+        if (visible) {
+            this.addVisible.set(true);
+            return;
+        }
+        this.closeAdd();
     }
 
     private async startAdd(): Promise<void> {
